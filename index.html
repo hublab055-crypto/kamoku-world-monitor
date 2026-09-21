@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Kamoku World Monitor</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#08111f;--panel:#0f1b2d;--panel2:#13233a;--line:#263a55;
+      --text:#e8eef7;--muted:#91a2ba;--accent:#58a6ff;--good:#54d18b;
+      --warn:#f5c76b;--bad:#ff7b72;--shadow:0 12px 40px rgba(0,0,0,.22);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+    body{min-height:100vh}
+    header{position:sticky;top:0;z-index:20;background:rgba(8,17,31,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+    .top{max-width:1500px;margin:auto;padding:14px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{font-size:20px;margin:0;letter-spacing:.02em}
+    .stamp{font-size:12px;color:var(--muted);text-align:right}
+    nav{max-width:1500px;margin:auto;padding:0 18px 10px;display:flex;gap:8px;overflow:auto}
+    nav button,.chip,select,input{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px}
+    nav button{padding:8px 13px;white-space:nowrap;cursor:pointer}
+    nav button.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    main{max-width:1500px;margin:auto;padding:18px}
+    .view{display:none}.view.active{display:block}
+    .grid{display:grid;gap:14px}.grid.cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .grid.two{grid-template-columns:1.4fr .6fr}
+    .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:var(--shadow);min-width:0}
+    .card h2,.card h3{margin:0 0 8px}
+    .eyebrow{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .big{font-size:27px;font-weight:750;line-height:1.2}
+    .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px}
+    label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+    select,input{padding:9px 10px;min-width:180px}
+    .chart{width:100%;min-height:420px}.chart.small{min-height:320px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+    th:first-child,td:first-child{text-align:left}
+    th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel)}
+    .tablewrap{max-height:520px;overflow:auto;border-radius:10px}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .metric{border:1px solid var(--line);border-radius:12px;padding:11px;background:rgba(255,255,255,.02)}
+    .metric .name{font-size:12px;color:var(--muted);min-height:32px}
+    .metric .value{font-size:20px;font-weight:700;margin:5px 0}
+    .metric .meta{font-size:11px;color:var(--muted)}
+    .delta{font-size:11px;margin-top:4px}
+    .pill{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--muted)}
+    .note{font-size:12px;line-height:1.6;color:var(--muted)}
+    .error{padding:18px;border:1px solid var(--bad);border-radius:12px;color:#ffd2cf;background:#2b1519}
+    .loading{padding:40px;text-align:center;color:var(--muted)}
+    .section-title{display:flex;justify-content:space-between;gap:10px;align-items:end;margin:8px 0 12px}
+    .section-title h2{margin:0}
+    .statline{display:flex;gap:8px;flex-wrap:wrap}
+    @media(max-width:1000px){
+      .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .grid.two{grid-template-columns:1fr}
+      .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:620px){
+      main{padding:12px}.top{padding:12px}.grid.cards{grid-template-columns:1fr 1fr}
+      .metric-grid{grid-template-columns:1fr}.chart{min-height:360px}
+      .big{font-size:22px}select,input{min-width:145px;max-width:100%}
+    }
+  .auth-overlay{position:fixed;inset:0;z-index:100;background:rgba(3,8,16,.94);display:none;align-items:center;justify-content:center;padding:18px}
+    .auth-box{width:min(460px,100%);background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+    .auth-box h2{margin:0 0 6px}.auth-box p{color:var(--muted);font-size:13px;line-height:1.55}
+    .auth-box form{display:grid;gap:10px}.auth-box input{width:100%;min-width:0}
+    .auth-box button,.logout{border:1px solid var(--line);background:var(--accent);color:#06111f;border-radius:10px;padding:10px 13px;font-weight:700;cursor:pointer}
+    .auth-box details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+    .auth-error{color:#ffb4ad;font-size:12px;min-height:18px}
+    .logout{background:transparent;color:var(--text);padding:7px 10px;font-size:12px}
+  </style>
+</head>
+<body>
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-box">
+    <h2>Kamoku World Monitor</h2>
+    <p>このダッシュボードのデータはログイン後にだけ読み込まれます。</p>
+    <form id="loginForm">
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="メールアドレス" required>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="パスワード" minlength="12" required>
+      <button type="submit">ログイン</button>
+      <div id="loginError" class="auth-error"></div>
+    </form>
+    <details>
+      <summary>初回オーナー登録</summary>
+      <p>最初の1回だけ、ワンタイム登録コードを使ってオーナーアカウントを作成します。</p>
+      <form id="bootstrapForm">
+        <input id="bootstrapEmail" type="email" autocomplete="username" placeholder="メールアドレス" required>
+        <input id="bootstrapPassword" type="password" autocomplete="new-password" placeholder="新しいパスワード（12文字以上）" minlength="12" required>
+        <input id="bootstrapCode" type="text" autocomplete="one-time-code" placeholder="ワンタイム登録コード" required>
+        <button type="submit">オーナー登録</button>
+        <div id="bootstrapError" class="auth-error"></div>
+      </form>
+    </details>
+  </div>
+</div>
+<header>
+  <div class="top">
+    <div><h1>Kamoku World Monitor</h1><div class="sub">KCU × Country × Region</div></div>
+    <div style="display:flex;gap:10px;align-items:center"><div class="stamp" id="stamp">データ読み込み中…</div><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
+  </div>
+  <nav id="nav">
+    <button data-view="kcu" class="active">KCU</button>
+    <button data-view="world">世界地図</button>
+    <button data-view="country">国別</button>
+    <button data-view="regions">地域別</button>
+    <button data-view="about">データ説明</button>
+  </nav>
+</header>
+<main>
+  <div id="fatal" style="display:none"></div>
+
+  <section id="kcu" class="view active">
+    <div class="grid cards" id="kcuCards"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <label>KCU variant<select id="kcuVariant"></select></label>
+      <label>表示通貨<select id="kcuCurrency"><option value="usd">USD</option><option value="jpy">JPY</option><option value="eur">EUR</option></select></label>
+    </div>
+    <div class="grid two">
+      <div class="card"><h2>KCU推移</h2><div id="kcuChart" class="chart"></div></div>
+      <div class="card"><h2>構成ウェイト</h2><div class="tablewrap"><table><thead><tr><th>国・地域</th><th>比率</th></tr></thead><tbody id="weightBody"></tbody></table></div><div id="weightNote" class="note"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>資産のKCU換算（最新）</h2><div class="tablewrap"><table><thead><tr><th>資産</th><th>月</th><th>現地価格</th><th>USD</th><th>KCU</th><th>KCUリターン</th></tr></thead><tbody id="assetBody"></tbody></table></div></div>
+  </section>
+
+  <section id="world" class="view">
+    <div class="toolbar">
+      <label>分野<select id="worldDomain"></select></label>
+      <label>指標<select id="worldMetric"></select></label>
+      <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
+    </div>
+    <div class="card"><div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div><div id="worldMap" class="chart"></div><div class="note">色は各国の最新観測値を表します。観測年は国ごとに異なる場合があります。</div></div>
+  </section>
+
+  <section id="country" class="view">
+    <div class="toolbar">
+      <label>国<input id="countrySearch" list="countryList" placeholder="日本 / Japan / JPN"><datalist id="countryList"></datalist></label>
+      <label>分野<select id="countryDomain"></select></label>
+      <label>履歴指標<select id="countryMetric"></select></label>
+    </div>
+    <div class="grid cards" id="countryHeader"></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2 id="countryChartTitle">指標推移</h2><div id="countryChart" class="chart"></div></div>
+      <div class="card"><h2>比較</h2><div id="compareBox"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>分野別指標</h2><div id="countryMetrics" class="metric-grid"></div></div>
+  </section>
+
+  <section id="regions" class="view">
+    <div class="toolbar">
+      <label>分野<select id="regionDomain"></select></label>
+      <label>指標<select id="regionMetric"></select></label>
+    </div>
+    <div class="card"><h2 id="regionTitle">地域中央値</h2><div class="tablewrap"><table><thead><tr><th>地域</th><th>中央値</th><th>国数</th></tr></thead><tbody id="regionBody"></tbody></table></div><div class="note">ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。</div></div>
+  </section>
+
+  <section id="about" class="view">
+    <div class="card">
+      <h2>この画面の読み方</h2>
+      <p class="note">KamokuのPrimary（一次観測）とDerived（再現可能な計算）を混同しないため、国・地域には恣意的な総合点を付けていません。国別画面では、一次データの値、観測年、世界中央値、所属地域中央値、時系列を表示します。</p>
+      <p class="note" id="aboutNote"></p>
+      <p class="note">地域中央値は「その地域の典型的な国」の比較用であり、地域経済の総量を意味しません。GDP総額の地域合計などが必要な場合は別のDerived指標として追加します。</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const API_BASE = "https://htwcscrllohavtbejhjr.supabase.co/functions/v1/world-dashboard";
+const DATA_URL = API_BASE + "?api=data";
+const SUPABASE_URL = "https://htwcscrllohavtbejhjr.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko";
+const SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+let AUTH_SESSION = null;
+let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
+
+const fmt=(v,unit="")=>{
+  if(v===null||v===undefined||Number.isNaN(Number(v))) return "—";
+  const n=Number(v), a=Math.abs(n);
+  if(unit==="percent") return n.toLocaleString("ja-JP",{maximumFractionDigits:2})+"%";
+  if(unit==="years") return n.toLocaleString("ja-JP",{maximumFractionDigits:1})+" 年";
+  if(a>=1e12) return (n/1e12).toLocaleString("ja-JP",{maximumFractionDigits:2})+"兆";
+  if(a>=1e9) return (n/1e9).toLocaleString("ja-JP",{maximumFractionDigits:2})+"B";
+  if(a>=1e6) return (n/1e6).toLocaleString("ja-JP",{maximumFractionDigits:2})+"M";
+  return n.toLocaleString("ja-JP",{maximumFractionDigits:3});
+};
+const pct=v=>v==null?"—":(Number(v)*100).toLocaleString("ja-JP",{maximumFractionDigits:2})+"%";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const metricName=m=>regByMetric[m]?.display_name||m;
+const metricUnit=m=>regByMetric[m]?.unit||"";
+
+function layout(extra={}){
+  return Object.assign({
+    paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#dbe7f5",family:'-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif'},
+    margin:{l:55,r:20,t:15,b:45},hovermode:"closest"
+  },extra);
+}
+const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
+
+function setNav(){
+  document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); document.getElementById(b.dataset.view).classList.add("active");
+    setTimeout(()=>window.dispatchEvent(new Event("resize")),20);
+  });
+}
+
+function domains(){
+  return [...new Set(registry.map(r=>r.domain))].sort();
+}
+function metricsForDomain(domain){
+  return registry.filter(r=>r.domain===domain);
+}
+function fillDomain(select){
+  select.innerHTML=domains().map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+}
+function fillMetric(select,domain){
+  select.innerHTML=metricsForDomain(domain).map(r=>`<option value="${esc(r.metric)}">${esc(r.display_name)}</option>`).join("");
+}
+
+function renderKcu(){
+  const variants=Object.keys(D.kcu.variants);
+  kcuVariant.innerHTML=variants.map(v=>`<option>${esc(v)}</option>`).join("");
+  const update=()=>{
+    const variant=kcuVariant.value, ccy=kcuCurrency.value, rows=D.kcu.variants[variant]||[], last=rows.at(-1)||{};
+    const cards=[
+      ["KCU / USD",fmt(last.usd),"最新月 "+(last.m||"—")],
+      ["KCU / JPY",fmt(last.jpy),"coverage "+pct(last.coverage)],
+      ["KCU / EUR",fmt(last.eur),last.quality||"—"],
+      ["構成要素",fmt(last.components),"weight year "+(last.weight_year||"—")]
+    ];
+    kcuCards.innerHTML=cards.map(x=>`<div class="card"><div class="eyebrow">${x[0]}</div><div class="big">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
+    Plotly.react("kcuChart",[{
+      x:rows.map(r=>r.m),y:rows.map(r=>r[ccy]),type:"scatter",mode:"lines",
+      line:{width:2.5},name:variant+" / "+ccy.toUpperCase(),
+      hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"
+    }],layout({xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:ccy.toUpperCase()}}),config);
+    const weights=D.kcu.weights[variant]||[];
+    weightBody.innerHTML=weights.map(w=>`<tr><td>${esc(w.code)}</td><td>${pct(w.weight)}</td></tr>`).join("");
+    const w=weights[0]; weightNote.textContent=w? `weight year ${w.year} / basis ${w.basis_start}–${w.basis_end} / ${w.source}`:"";
+    assetBody.innerHTML=(D.kcu.assets_latest||[]).filter(a=>a.variant===variant).map(a=>`<tr><td>${esc(a.asset)}</td><td>${esc(a.month)}</td><td>${fmt(a.local)} ${esc(a.ccy)}</td><td>${fmt(a.usd)}</td><td>${fmt(a.kcu)}</td><td>${fmt(a.kcu_ret,"percent")}</td></tr>`).join("");
+  };
+  kcuVariant.onchange=update;kcuCurrency.onchange=update;update();
+}
+
+function renderWorld(){
+  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);
+  const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);drawWorld();};
+  worldDomain.onchange=updateMetric; worldMetric.onchange=drawWorld; drawWorld();
+}
+function drawWorld(){
+  const metric=worldMetric.value, reg=regByMetric[metric]||{};
+  const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
+  worldTitle.textContent=reg.display_name||metric;
+  worldStats.innerHTML=`<span class="pill">${rows.length}か国</span><span class="pill">世界中央値 ${fmt(D.global?.[metric]?.median,reg.unit)}</span>`;
+  Plotly.react("worldMap",[{
+    type:"choropleth",locationmode:"ISO-3",locations:rows.map(x=>x.c.iso3),
+    z:rows.map(x=>x.v.value),text:rows.map(x=>x.c.name),
+    customdata:rows.map(x=>[x.v.year,x.c.region]),
+    hovertemplate:"%{text}<br>%{z:.6g}<br>年 %{customdata[0]}<br>%{customdata[1]}<extra></extra>",
+    colorbar:{title:reg.unit||""},colorscale:"Viridis"
+  }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
+  const el=document.getElementById("worldMap");
+  el.on?.("plotly_click",ev=>{const iso=ev.points?.[0]?.location;if(iso){selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}});
+}
+
+function setupCountry(){
+  const opts=D.countries.map(c=>`<option value="${esc(c.name)} (${c.iso3})"></option>`).join("");
+  countryList.innerHTML=opts;
+  fillDomain(countryDomain);fillMetric(countryMetric,countryDomain.value);
+  countryDomain.onchange=()=>{fillMetric(countryMetric,countryDomain.value);renderCountry();};
+  countryMetric.onchange=renderCountry;
+  countrySearch.onchange=()=>{
+    const q=countrySearch.value.trim().toLowerCase();
+    const found=D.countries.find(c=>q===c.iso3.toLowerCase()||q===c.name.toLowerCase()||q.includes("("+c.iso3.toLowerCase()+")")) ||
+      D.countries.find(c=>c.name.toLowerCase().includes(q));
+    if(found){selectedIso=found.iso3;renderCountry();}
+  };
+  syncCountryInput(); renderCountry();
+}
+function syncCountryInput(){const c=countryByIso[selectedIso];if(c) countrySearch.value=`${c.name} (${c.iso3})`;}
+
+function compareLine(label,value,ref,unit){
+  if(value==null||ref==null) return `<div class="metric"><div class="name">${label}</div><div class="value">—</div></div>`;
+  const diff=value-ref, rel=ref!==0?diff/Math.abs(ref)*100:null;
+  return `<div class="metric"><div class="name">${label}</div><div class="value">${fmt(ref,unit)}</div><div class="meta">差 ${fmt(diff,unit)}${rel==null?"":` / ${rel.toLocaleString("ja-JP",{maximumFractionDigits:1})}%`}</div></div>`;
+}
+
+function renderCountry(){
+  const c=countryByIso[selectedIso]||D.countries[0]; if(!c)return;
+  selectedIso=c.iso3; syncCountryInput();
+  const chosen=countryMetric.value || metricsForDomain(countryDomain.value)[0]?.metric;
+  const hv=D.history?.[c.iso3]?.[chosen]||[];
+  const latest=c.latest?.[chosen], reg=D.regions.find(r=>r.code===c.region_code), unit=metricUnit(chosen);
+  countryHeader.innerHTML=[
+    ["国",c.name,c.iso3],
+    ["地域",c.region||"—",c.region_code||"—"],
+    ["所得区分",c.income||"—",c.capital||""],
+    ["収録指標",Object.keys(c.latest||{}).length+" 指標","2000年以降の履歴"]
+  ].map(x=>`<div class="card"><div class="eyebrow">${esc(x[0])}</div><div class="big">${esc(x[1])}</div><div class="sub">${esc(x[2])}</div></div>`).join("");
+  countryChartTitle.textContent=metricName(chosen);
+  Plotly.react("countryChart",[{
+    x:hv.map(x=>x[0]),y:hv.map(x=>x[1]),type:"scatter",mode:"lines+markers",
+    line:{width:2.5},hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"
+  }],layout({xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:unit}}),config);
+  compareBox.innerHTML=latest? `
+    <div class="metric" style="margin-bottom:10px"><div class="name">選択国の最新値</div><div class="value">${fmt(latest.value,unit)}</div><div class="meta">${latest.year} / ${esc(latest.source||"")}</div></div>
+    ${compareLine("世界中央値",latest.value,D.global?.[chosen]?.median,unit)}
+    <div style="height:10px"></div>
+    ${compareLine("地域中央値",latest.value,reg?.latest?.[chosen]?.median,unit)}
+  `:"<div class='note'>この指標のデータがありません。</div>";
+
+  const ms=metricsForDomain(countryDomain.value);
+  countryMetrics.innerHTML=ms.map(r=>{
+    const x=c.latest?.[r.metric], g=D.global?.[r.metric]?.median, rr=reg?.latest?.[r.metric]?.median;
+    return `<div class="metric"><div class="name">${esc(r.display_name)}</div><div class="value">${x?fmt(x.value,r.unit):"—"}</div><div class="meta">${x?`${x.year} · ${esc(x.unit||r.unit||"")}`:"データなし"}</div><div class="delta">世界中央値 ${fmt(g,r.unit)} / 地域中央値 ${fmt(rr,r.unit)}</div></div>`;
+  }).join("");
+}
+
+function renderRegions(){
+  fillDomain(regionDomain);fillMetric(regionMetric,regionDomain.value);
+  const updateMetric=()=>{fillMetric(regionMetric,regionDomain.value);drawRegions();};
+  regionDomain.onchange=updateMetric;regionMetric.onchange=drawRegions;drawRegions();
+}
+function drawRegions(){
+  const metric=regionMetric.value, r=regByMetric[metric]||{};
+  regionTitle.textContent=(r.display_name||metric)+" — 地域中央値";
+  const rows=D.regions.map(x=>({name:x.name,...(x.latest?.[metric]||{})})).filter(x=>x.median!=null).sort((a,b)=>b.median-a.median);
+  regionBody.innerHTML=rows.map(x=>`<tr><td>${esc(x.name)}</td><td>${fmt(x.median,r.unit)}</td><td>${x.n}</td></tr>`).join("");
+}
+
+async function requireSession(){
+  const {data:{session}} = await SB.auth.getSession();
+  AUTH_SESSION = session;
+  if(!session){
+    authOverlay.style.display="flex";
+    logoutBtn.style.display="none";
+    return null;
+  }
+  authOverlay.style.display="none";
+  logoutBtn.style.display="inline-block";
+  return session;
+}
+
+loginForm.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  loginError.textContent="ログイン中…";
+  const email=loginEmail.value.trim();
+  const password=loginPassword.value;
+  const {error}=await SB.auth.signInWithPassword({email,password});
+  if(error){ loginError.textContent="ログインできません: "+error.message; return; }
+  location.reload();
+});
+
+bootstrapForm.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  bootstrapError.textContent="登録中…";
+  const body={
+    email:bootstrapEmail.value.trim(),
+    password:bootstrapPassword.value,
+    code:bootstrapCode.value.trim()
+  };
+  try{
+    const res=await fetch(API_BASE+"?api=bootstrap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const out=await res.json();
+    if(!res.ok) throw new Error(out.error||"登録に失敗しました");
+    bootstrapError.textContent="登録しました。ログインします…";
+    const {error}=await SB.auth.signInWithPassword({email:body.email,password:body.password});
+    if(error) throw error;
+    location.reload();
+  }catch(err){bootstrapError.textContent=err.message||String(err);}
+});
+
+logoutBtn.addEventListener("click",async()=>{await SB.auth.signOut();location.reload();});
+
+async function boot(){
+  setNav();
+  const session=await requireSession();
+  if(!session){stamp.textContent="ログインが必要です";return;}
+  try{
+    const res=await fetch(DATA_URL,{cache:"no-store",headers:{Authorization:"Bearer "+session.access_token}});
+    if(!res.ok) throw new Error("snapshot HTTP "+res.status);
+    D=await res.json();registry=D.registry.filter(r=>r.enabled!==false);
+    regByMetric=Object.fromEntries(registry.map(r=>[r.metric,r]));
+    countryByIso=Object.fromEntries(D.countries.map(c=>[c.iso3,c]));
+    if(!countryByIso[selectedIso]) selectedIso=D.countries[0]?.iso3;
+    stamp.textContent="生成: "+new Date(D.generated_at).toLocaleString("ja-JP")+" / "+D.countries.length+"か国 / "+registry.length+"指標";
+    renderKcu();renderWorld();setupCountry();renderRegions();
+    aboutNote.textContent=D.notes?.country_comparison||"";
+  }catch(e){
+    fatal.style.display="block";
+    fatal.className="error";
+    fatal.innerHTML="<b>ダッシュボードデータを読み込めませんでした。</b><br>"+esc(e.message)+"<br><br>GitHub Actions の Export World Dashboard を実行して dashboard/data/world_dashboard.json を生成してください。";
+    stamp.textContent="データ未生成";
+  }
+}
+boot();
+</script>
+</body>
+</html>
