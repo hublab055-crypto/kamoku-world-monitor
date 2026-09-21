@@ -55,6 +55,17 @@
     .section-title{display:flex;justify-content:space-between;gap:10px;align-items:end;margin:8px 0 12px}
     .section-title h2{margin:0}
     .statline{display:flex;gap:8px;flex-wrap:wrap}
+    .ai-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+    .ai-tabs button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;padding:8px 12px;cursor:pointer}
+    .ai-tabs button.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    .ai-subview{display:none}.ai-subview.active{display:block}
+    .signal-buy{color:var(--good)}.signal-sell{color:var(--bad)}.signal-hold{color:var(--warn)}
+    .codebox{white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;background:#071322;border:1px solid var(--line);border-radius:10px;padding:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+    textarea{width:100%;min-height:180px;border:1px solid var(--line);background:#081522;color:var(--text);border-radius:10px;padding:10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+    .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .action-row button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;cursor:pointer}
+    .action-row button.primary-action{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    .warnbox{padding:10px;border:1px solid #6e5926;border-radius:10px;background:#221b0b;color:#f1d27d;font-size:12px;line-height:1.6}
     @media(max-width:1000px){
       .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
       .grid.two{grid-template-columns:1fr}
@@ -101,7 +112,7 @@
 </div>
 <header>
   <div class="top">
-    <div><h1>Kamoku World Monitor</h1><div class="sub">KCU × Country × Region</div></div>
+    <div><h1>Kamoku World Monitor</h1><div class="sub">KCU × Country × Region × Market AI</div></div>
     <div style="display:flex;gap:10px;align-items:center"><div class="stamp" id="stamp">データ読み込み中…</div><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
   </div>
   <nav id="nav">
@@ -109,6 +120,7 @@
     <button data-view="world">世界地図</button>
     <button data-view="country">国別</button>
     <button data-view="regions">地域別</button>
+    <button data-view="markets">市場AI</button>
     <button data-view="about">データ説明</button>
   </nav>
 </header>
@@ -159,6 +171,100 @@
     <div class="card"><h2 id="regionTitle">地域中央値</h2><div class="tablewrap"><table><thead><tr><th>地域</th><th>中央値</th><th>国数</th></tr></thead><tbody id="regionBody"></tbody></table></div><div class="note">ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。</div></div>
   </section>
 
+  <section id="markets" class="view">
+    <div class="toolbar">
+      <label>銘柄
+        <input id="marketSymbolSearch" list="marketSymbolList" placeholder="7203 / トヨタ">
+        <datalist id="marketSymbolList"></datalist>
+      </label>
+      <label>判定日<select id="marketDate"><option>—</option></select></label>
+      <button id="marketLoadBtn" class="logout" style="padding:9px 12px">読み込む</button>
+    </div>
+
+    <div class="grid cards" id="marketAiCards">
+      <div class="card"><div class="eyebrow">Explain AI</div><div class="big">—</div><div class="sub">説明可能モデル</div></div>
+      <div class="card"><div class="eyebrow">Opaque AI</div><div class="big">—</div><div class="sub">非説明・非線形モデル</div></div>
+      <div class="card"><div class="eyebrow">Ensemble</div><div class="big">—</div><div class="sub">検証成績で統合</div></div>
+      <div class="card"><div class="eyebrow">Pattern</div><div class="big">—</div><div class="sub">回顧パターン図鑑</div></div>
+    </div>
+
+    <div class="ai-tabs" id="marketAiTabs">
+      <button class="active" data-ai-view="marketOverview">市場判定</button>
+      <button data-ai-view="patternAtlas">パターン図鑑</button>
+      <button data-ai-view="aiTraining">AI学習</button>
+    </div>
+
+    <div id="marketOverview" class="ai-subview active">
+      <div class="grid two">
+        <div class="card">
+          <div class="section-title"><h2>Explain / Opaque / Ensemble</h2><div id="marketModelBadge" class="pill">モデル確認中</div></div>
+          <div id="marketAiChart" class="chart small"></div>
+          <div class="note">各営業日の終値までに利用可能な情報から、次営業日寄付き→5営業日後終値を評価します。</div>
+        </div>
+        <div class="card">
+          <h2>現在判定</h2>
+          <div id="marketCurrentBox" class="metric-grid"></div>
+          <h3 style="margin-top:14px">Explain AIの主な寄与</h3>
+          <div id="marketReasons" class="codebox">—</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>モデル監査</h2>
+        <div id="marketAudit" class="note">—</div>
+      </div>
+    </div>
+
+    <div id="patternAtlas" class="ai-subview">
+      <div class="warnbox">
+        パターン図鑑の勝率・5日後リターンは未来結果を含む回顧統計です。過去リプレイの売買判断には使用しません。
+      </div>
+      <div class="grid cards" id="patternCurrentCards" style="margin-top:14px"></div>
+      <div class="card" style="margin-top:14px">
+        <div class="section-title"><h2>Market Pattern Atlas</h2><div id="atlasBadge" class="pill">図鑑確認中</div></div>
+        <div id="patternCurrentSummary" class="note">—</div>
+        <div class="tablewrap" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Pattern</th><th>名称</th><th>発生</th><th>銘柄</th><th>5日勝率</th><th>平均5日</th><th>MAE</th></tr></thead>
+            <tbody id="patternAtlasBody"><tr><td colspan="7">図鑑準備中</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiTraining" class="ai-subview">
+      <div class="grid two">
+        <div class="card">
+          <div class="section-title"><h2>Player Strategy AI</h2><div id="trainingBadge" class="pill">プロフィール確認中</div></div>
+          <p class="note">プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。</p>
+          <div class="action-row">
+            <button id="trainingToggle">背景学習をON</button>
+            <button id="trainingSave" class="primary-action">設定保存</button>
+            <button id="trainingRun">1回学習</button>
+            <button id="trainingRefresh">履歴更新</button>
+          </div>
+          <div id="trainingMessage" class="note" style="margin-top:9px">—</div>
+          <h3 style="margin-top:14px">戦略 JSON</h3>
+          <textarea id="trainingStrategy"></textarea>
+          <h3 style="margin-top:14px">探索範囲 JSON</h3>
+          <textarea id="trainingSearch"></textarea>
+          <h3 style="margin-top:14px">採点基準 JSON</h3>
+          <textarea id="trainingObjective"></textarea>
+        </div>
+        <div class="card">
+          <div class="section-title"><h2>現在の最良個体</h2><button id="copyElite" class="logout">コピー</button></div>
+          <div id="trainingElite" class="codebox">まだ学習結果がありません。</div>
+          <h3 style="margin-top:14px">実行履歴</h3>
+          <div class="tablewrap">
+            <table>
+              <thead><tr><th>Run</th><th>状態</th><th>Score</th><th>勝率</th><th>PF</th><th>DD</th><th>取引</th></tr></thead>
+              <tbody id="trainingRuns"><tr><td colspan="7">履歴なし</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section id="about" class="view">
     <div class="card">
       <h2>この画面の読み方</h2>
@@ -179,6 +285,8 @@ const SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, 
 });
 let AUTH_SESSION = null;
 let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
+let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
+let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 
 const fmt=(v,unit="")=>{
   if(v===null||v===undefined||Number.isNaN(Number(v))) return "—";
@@ -337,6 +445,313 @@ function drawRegions(){
   regionBody.innerHTML=rows.map(x=>`<tr><td>${esc(x.name)}</td><td>${fmt(x.median,r.unit)}</td><td>${x.n}</td></tr>`).join("");
 }
 
+
+const MARKET_FEATURE_LABELS={
+  ret1_pct:"前日比",ret5_pct:"5日騰落",ret20_pct:"20日モメンタム",
+  wma5_25_pct:"WMA5−25",wma25_75_pct:"WMA25−75",close_wma75_pct:"終値−WMA75",
+  rsi14:"RSI14",macd_hist_pct:"MACD",volume_ratio20:"出来高比",atr14_pct:"ATR14",
+  vix:"VIX",usdjpy:"USD/JPY",nikkei_ret1_pct:"日経前日比",djia_ret1_pct:"DJIA前日比",
+  market_breadth_pct:"市場Breadth",market_median_return_1d_pct:"市場中央値",
+  market_pct_above_wma25:"WMA25上銘柄率",market_pct_above_wma75:"WMA75上銘柄率",
+  per:"PER",pbr:"PBR",dividend_yield_pct:"配当利回り",equity_ratio:"自己資本比率",
+  roe:"ROE",operating_margin_pct:"営業利益率",has_financial:"財務データ有無"
+};
+
+const DEFAULT_TRAIN_STRATEGY={
+  version:"rules-v2",buy_logic:"AND",
+  buy_rules:[
+    {id:"b_wma",enabled:true,indicator:"wma5_vs_wma25_pct",op:">",value:0,aiMin:-2,aiMax:5,aiStep:.25},
+    {id:"b_long",enabled:true,indicator:"close_vs_wma75_pct",op:">",value:0,aiMin:-5,aiMax:12,aiStep:.5},
+    {id:"b_rsi",enabled:true,indicator:"rsi14",op:"<",value:70,aiMin:45,aiMax:80,aiStep:1}
+  ],
+  sell_logic:"OR",
+  sell_rules:[{id:"s_wma",enabled:true,indicator:"wma5_vs_wma25_pct",op:"<",value:0,aiMin:-5,aiMax:3,aiStep:.25}],
+  risk:{take_profit_pct:10,stop_loss_pct:5,trailing_stop_pct:0,cost_bps:5}
+};
+const DEFAULT_TRAIN_SEARCH={
+  rules:{
+    b_wma:{min:-2,max:5,step:.25},b_long:{min:-5,max:12,step:.5},
+    b_rsi:{min:45,max:80,step:1},s_wma:{min:-5,max:3,step:.25}
+  },
+  risk:{
+    take_profit_pct:{min:3,max:25,step:.5},stop_loss_pct:{min:2,max:15,step:.5},
+    trailing_stop_pct:{min:0,max:15,step:.5},cost_bps:{min:3,max:15,step:1}
+  },
+  candidate_count:80,generations:4,validation_ratio:.30
+};
+const DEFAULT_TRAIN_OBJECTIVE={return:.40,win_rate:.20,profit_factor:.20,max_drawdown:.20,min_trades:8};
+
+function signalClass(p){
+  if(p>=.60)return "signal-buy";
+  if(p<=.40)return "signal-sell";
+  return "signal-hold";
+}
+function signalName(p){
+  if(p>=.60)return "BUY";
+  if(p<=.40)return "SELL";
+  return "HOLD";
+}
+async function gunzipJson(url){
+  const r=await fetch(url,{cache:"no-store"});
+  if(!r.ok)throw new Error("gzip HTTP "+r.status);
+  const ab=await r.arrayBuffer();
+  if(!("DecompressionStream" in window))throw new Error("このブラウザはgzip展開APIに未対応です");
+  const stream=new Blob([ab]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(stream).text());
+}
+async function marketEdge(slug,body){
+  if(!AUTH_SESSION?.access_token)throw new Error("ログインが必要です");
+  const r=await fetch(SUPABASE_URL+"/functions/v1/"+slug,{
+    method:"POST",
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:"Bearer "+AUTH_SESSION.access_token,
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify(body||{})
+  });
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||slug+" HTTP "+r.status);
+  return out;
+}
+async function loadMarketCatalog(){
+  MARKET_CATALOG=[];
+  let offset=0;
+  while(true){
+    const u=new URL(SUPABASE_URL+"/rest/v1/replay_security_catalog");
+    u.searchParams.set("select","code,name,market,sector17,sector33");
+    u.searchParams.set("order","code.asc");
+    u.searchParams.set("limit","1000");
+    u.searchParams.set("offset",String(offset));
+    const r=await fetch(u,{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:"Bearer "+AUTH_SESSION.access_token}});
+    if(!r.ok)throw new Error("replay catalog HTTP "+r.status);
+    const rows=await r.json(); MARKET_CATALOG.push(...rows);
+    if(rows.length<1000)break;
+    offset+=1000;
+  }
+  marketSymbolList.innerHTML=MARKET_CATALOG.map(function(x){
+    return '<option value="'+esc(x.code+" "+(x.name||""))+'"></option>';
+  }).join("");
+  const d=MARKET_CATALOG.find(function(x){return x.code===MARKET_CODE})||MARKET_CATALOG[0];
+  if(d){MARKET_CODE=d.code;marketSymbolSearch.value=d.code+" "+(d.name||"");}
+}
+function resolveMarketCode(){
+  const q=marketSymbolSearch.value.trim();
+  const code=(q.match(/^[0-9A-Z]{4,5}/i)||[])[0]?.toUpperCase();
+  let x=MARKET_CATALOG.find(function(a){return a.code===code});
+  if(!x){
+    const low=q.toLowerCase();
+    x=MARKET_CATALOG.find(function(a){return (a.name||"").toLowerCase().includes(low)});
+  }
+  if(x){MARKET_CODE=x.code;marketSymbolSearch.value=x.code+" "+(x.name||"");}
+  return x;
+}
+function currentMarketRow(){
+  const day=marketDate.value;
+  let found=null;
+  for(const r of MARKET_ROWS){if(r[0]<=day)found=r;else break;}
+  return found;
+}
+function currentMembership(){
+  const day=marketDate.value;
+  let found=null;
+  for(const r of MARKET_MEMBERSHIP){if(r[0]<=day)found=r;else break;}
+  return found;
+}
+function patternById(id){return MARKET_PATTERNS.find(function(x){return +x.pattern_id===+id})||null;}
+
+async function loadMarketAI(){
+  const x=resolveMarketCode();
+  if(!x)throw new Error("銘柄を選択してください");
+  marketModelBadge.textContent="読込中";
+  const meta=await marketEdge("market-ai-data",{code:MARKET_CODE});
+  MARKET_MODEL=meta.model;
+  const p=await gunzipJson(meta.prediction.signed_url);
+  MARKET_ROWS=p.rows||[];
+  marketDate.innerHTML=MARKET_ROWS.slice().reverse().map(function(r){return '<option value="'+esc(r[0])+'">'+esc(r[0])+'</option>';}).join("");
+  marketDate.value=MARKET_ROWS.at(-1)?.[0]||"";
+  renderMarketAI();
+}
+async function loadPatternAtlas(){
+  const data=await marketEdge("pattern-atlas-data",{code:MARKET_CODE});
+  MARKET_ATLAS=data.atlas; MARKET_PATTERNS=data.patterns||[]; MARKET_MEMBERSHIP=[];
+  if(data.membership?.signed_url){
+    const p=await gunzipJson(data.membership.signed_url); MARKET_MEMBERSHIP=p.rows||[];
+  }
+  renderPatternAtlas();
+}
+async function loadMarketModule(){
+  marketCurrentBox.innerHTML='<div class="loading">市場AIを読み込み中…</div>';
+  try{
+    await Promise.all([loadMarketAI(),loadPatternAtlas()]);
+  }catch(e){
+    marketCurrentBox.innerHTML='<div class="error">'+esc(e.message||String(e))+'</div>';
+    marketModelBadge.textContent="未準備";
+  }
+}
+
+function renderMarketAI(){
+  if(!MARKET_MODEL||!MARKET_ROWS.length)return;
+  const row=currentMarketRow()||MARKET_ROWS.at(-1); if(!row)return;
+  const pe=+row[1],po=+row[2],pa=+row[3],re=+row[4],ro=+row[5],ra=+row[6];
+  const currentPattern=patternById(currentMembership()?.[1]);
+  marketAiCards.innerHTML=[
+    ["Explain AI",signalName(pe)+" "+(pe*100).toFixed(1)+"%","期待5日 "+re.toFixed(2)+"%",signalClass(pe)],
+    ["Opaque AI",signalName(po)+" "+(po*100).toFixed(1)+"%","期待5日 "+ro.toFixed(2)+"%",signalClass(po)],
+    ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%","期待5日 "+ra.toFixed(2)+"%",signalClass(pa)],
+    ["Pattern",currentPattern?.pattern_key||"—",currentPattern?.display_name||"図鑑未準備",""]
+  ].map(function(x){return '<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big '+x[3]+'">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>';}).join("");
+
+  marketCurrentBox.innerHTML=[
+    ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%"],
+    ["期待5日",ra.toFixed(2)+"%"],
+    ["Regime",row[7]||"—"],
+    ["Breadth",(+(row[8]||0)).toFixed(1)+"%"],
+    ["VIX",(+(row[9]||0)).toFixed(1)],
+    ["対象銘柄",(MARKET_MODEL.universe_count||0).toLocaleString()]
+  ].map(function(x){return '<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div></div>';}).join("");
+
+  const fns=MARKET_MODEL.feature_names||[];
+  marketReasons.textContent=(row[10]||[]).map(function(z){
+    const name=fns[+z[0]]||String(z[0]); const v=+z[1];
+    return (v>=0?"＋ ":"− ")+(MARKET_FEATURE_LABELS[name]||name)+"  寄与 "+(v>=0?"+":"")+v.toFixed(3);
+  }).join("\n")||"説明寄与なし";
+
+  const tail=MARKET_ROWS.slice(-250);
+  Plotly.react("marketAiChart",[
+    {x:tail.map(function(r){return r[0]}),y:tail.map(function(r){return +r[1]*100}),type:"scatter",mode:"lines",name:"Explain"},
+    {x:tail.map(function(r){return r[0]}),y:tail.map(function(r){return +r[2]*100}),type:"scatter",mode:"lines",name:"Opaque"},
+    {x:tail.map(function(r){return r[0]}),y:tail.map(function(r){return +r[3]*100}),type:"scatter",mode:"lines",name:"Ensemble"}
+  ],layout({yaxis:{title:"上昇確率 %",gridcolor:"#263a55"},xaxis:{gridcolor:"#263a55"},legend:{orientation:"h"}}),config);
+
+  const em=MARKET_MODEL.explain_metrics||{},om=MARKET_MODEL.opaque_metrics||{},am=MARKET_MODEL.ensemble_metrics||{};
+  marketModelBadge.textContent="Model "+String(MARKET_MODEL.model_id||"").slice(0,8);
+  marketAudit.innerHTML=
+    "学習 "+esc(MARKET_MODEL.train_start||"—")+"〜"+esc(MARKET_MODEL.train_end||"—")+
+    " / 時間外検証 "+esc(MARKET_MODEL.validation_start||"—")+"〜"+esc(MARKET_MODEL.validation_end||"—")+"<br>"+
+    "Explain AUC "+fmt(em.auc)+" / Opaque AUC "+fmt(om.auc)+" / Ensemble AUC "+fmt(am.auc)+
+    " / cache coverage "+fmt((+MARKET_MODEL.cache_coverage_ratio||0)*100,"percent");
+}
+
+function renderPatternAtlas(){
+  if(!MARKET_ATLAS){
+    atlasBadge.textContent="未準備";return;
+  }
+  atlasBadge.textContent="Atlas "+String(MARKET_ATLAS.atlas_id||"").slice(0,8)+" / "+MARKET_PATTERNS.length+" patterns";
+  const mem=currentMembership(),p=patternById(mem?.[1]);
+  patternCurrentCards.innerHTML=[
+    ["Pattern",p?.pattern_key||"—",p?.display_name||"—"],
+    ["5日勝率",p?.win_rate_5d_pct==null?"—":(+p.win_rate_5d_pct).toFixed(1)+"%","回顧統計"],
+    ["平均5日",p?.avg_return_5d_pct==null?"—":(+p.avg_return_5d_pct).toFixed(2)+"%","回顧統計"],
+    ["発生回数",p?(+p.occurrence_count||0).toLocaleString():"—","全銘柄・全期間"]
+  ].map(function(x){return '<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>';}).join("");
+  patternCurrentSummary.textContent=p?.summary_text||"この日付のパターン割当はありません。";
+  patternAtlasBody.innerHTML=MARKET_PATTERNS.map(function(x){
+    return "<tr><td>"+esc(x.pattern_key)+"</td><td>"+esc(x.display_name)+"</td><td>"+fmt(x.occurrence_count)+"</td><td>"+fmt(x.security_count)+"</td><td>"+
+      (x.win_rate_5d_pct==null?"—":(+x.win_rate_5d_pct).toFixed(1)+"%")+"</td><td>"+
+      (x.avg_return_5d_pct==null?"—":(+x.avg_return_5d_pct).toFixed(2)+"%")+"</td><td>"+
+      (x.avg_mae_5d_pct==null?"—":(+x.avg_mae_5d_pct).toFixed(2)+"%")+"</td></tr>";
+  }).join("");
+}
+
+function randomOwnerToken(){
+  const a=new Uint8Array(32);crypto.getRandomValues(a);
+  return Array.from(a).map(function(x){return x.toString(16).padStart(2,"0")}).join("");
+}
+async function trainingCall(action,extra){
+  let token=localStorage.getItem("kamokuAiOwnerToken");
+  if(!token){token=randomOwnerToken();localStorage.setItem("kamokuAiOwnerToken",token);}
+  const pid=localStorage.getItem("kamokuAiProfileId");
+  const body=Object.assign({action:action,owner_token:token},pid?{profile_id:pid}:{},extra||{});
+  return marketEdge("stock-replay-ai",body);
+}
+async function ensureTrainingProfile(){
+  try{
+    if(!localStorage.getItem("kamokuAiProfileId")){
+      const x=await trainingCall("init",{display_name:"World Monitor Strategy"});
+      localStorage.setItem("kamokuAiProfileId",x.profile.profile_id);
+      trainingStrategy.value=JSON.stringify(DEFAULT_TRAIN_STRATEGY,null,2);
+      trainingSearch.value=JSON.stringify(DEFAULT_TRAIN_SEARCH,null,2);
+      trainingObjective.value=JSON.stringify(DEFAULT_TRAIN_OBJECTIVE,null,2);
+      await saveTrainingSettings();
+    }
+    await refreshTraining();
+  }catch(e){trainingMessage.textContent=e.message||String(e);}
+}
+async function saveTrainingSettings(){
+  const strategy=JSON.parse(trainingStrategy.value);
+  const search=JSON.parse(trainingSearch.value);
+  const objective=JSON.parse(trainingObjective.value);
+  const x=await trainingCall("save",{
+    display_name:"World Monitor Strategy",
+    strategy_json:strategy,search_space_json:search,objective_json:objective,
+    universe_json:{mode:"random",count:20},train_interval_hours:6
+  });
+  TRAIN_PROFILE=Object.assign({},TRAIN_PROFILE||{},x.profile||{});
+  trainingMessage.textContent="設定を保存しました。";
+  renderTraining();
+}
+async function refreshTraining(){
+  const x=await trainingCall("get");
+  TRAIN_PROFILE=x.profile;TRAIN_ELITE=x.elite;TRAIN_RUNS=x.runs||[];
+  if(TRAIN_PROFILE?.strategy_json&&(!trainingStrategy.value||trainingStrategy.value==="{}"))trainingStrategy.value=JSON.stringify(TRAIN_PROFILE.strategy_json,null,2);
+  if(TRAIN_PROFILE?.search_space_json&&(!trainingSearch.value||trainingSearch.value==="{}"))trainingSearch.value=JSON.stringify(TRAIN_PROFILE.search_space_json,null,2);
+  if(TRAIN_PROFILE?.objective_json&&(!trainingObjective.value||trainingObjective.value==="{}"))trainingObjective.value=JSON.stringify(TRAIN_PROFILE.objective_json,null,2);
+  renderTraining();
+}
+function renderTraining(){
+  if(!TRAIN_PROFILE)return;
+  trainingBadge.textContent="背景学習 "+(TRAIN_PROFILE.training_enabled?"ON":"OFF");
+  trainingToggle.textContent=TRAIN_PROFILE.training_enabled?"背景学習をOFF":"背景学習をON";
+  trainingElite.textContent=TRAIN_ELITE?JSON.stringify({
+    score:TRAIN_ELITE.score,variables:TRAIN_ELITE.best_params,
+    validation:TRAIN_ELITE.validation_metrics,source:TRAIN_ELITE.source_snapshot
+  },null,2):"まだ学習結果がありません。";
+  trainingRuns.innerHTML=TRAIN_RUNS.length?TRAIN_RUNS.map(function(r){
+    const m=r.validation_metrics||{};
+    return "<tr><td>#"+r.run_id+"</td><td>"+esc(r.status)+"</td><td>"+fmt(r.best_score)+"</td><td>"+
+      (m.win_rate_pct==null?"—":(+m.win_rate_pct).toFixed(1)+"%")+"</td><td>"+fmt(m.profit_factor)+"</td><td>"+
+      (m.max_drawdown_pct==null?"—":(+m.max_drawdown_pct).toFixed(1)+"%")+"</td><td>"+fmt(m.trade_count)+"</td></tr>";
+  }).join(""):'<tr><td colspan="7">履歴なし</td></tr>';
+}
+
+async function setupMarketAI(){
+  document.querySelectorAll("#marketAiTabs button").forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll("#marketAiTabs button").forEach(function(x){x.classList.remove("active")});
+      document.querySelectorAll("#markets .ai-subview").forEach(function(x){x.classList.remove("active")});
+      b.classList.add("active");document.getElementById(b.dataset.aiView).classList.add("active");
+      setTimeout(function(){window.dispatchEvent(new Event("resize"))},20);
+    };
+  });
+  marketLoadBtn.onclick=loadMarketModule;
+  marketSymbolSearch.onchange=loadMarketModule;
+  marketDate.onchange=function(){renderMarketAI();renderPatternAtlas();};
+  trainingToggle.onclick=async function(){
+    try{
+      const x=await trainingCall("toggle",{enabled:!TRAIN_PROFILE?.training_enabled});
+      TRAIN_PROFILE=Object.assign({},TRAIN_PROFILE||{},x.profile||{});renderTraining();
+    }catch(e){trainingMessage.textContent=e.message||String(e);}
+  };
+  trainingSave.onclick=async function(){try{await saveTrainingSettings()}catch(e){trainingMessage.textContent=e.message||String(e)}};
+  trainingRun.onclick=async function(){
+    try{await saveTrainingSettings();await trainingCall("request_train");trainingMessage.textContent="学習キューへ追加しました。";}
+    catch(e){trainingMessage.textContent=e.message||String(e)}
+  };
+  trainingRefresh.onclick=async function(){try{await refreshTraining();trainingMessage.textContent="履歴を更新しました。")}catch(e){trainingMessage.textContent=e.message||String(e)}};
+  copyElite.onclick=function(){if(TRAIN_ELITE)navigator.clipboard?.writeText(trainingElite.textContent)};
+  trainingStrategy.value=JSON.stringify(DEFAULT_TRAIN_STRATEGY,null,2);
+  trainingSearch.value=JSON.stringify(DEFAULT_TRAIN_SEARCH,null,2);
+  trainingObjective.value=JSON.stringify(DEFAULT_TRAIN_OBJECTIVE,null,2);
+
+  try{
+    await loadMarketCatalog();
+    await Promise.all([loadMarketModule(),ensureTrainingProfile()]);
+  }catch(e){
+    marketCurrentBox.innerHTML='<div class="error">'+esc(e.message||String(e))+'</div>';
+  }
+}
+
 async function requireSession(){
   const {data:{session}} = await SB.auth.getSession();
   AUTH_SESSION = session;
@@ -394,6 +809,7 @@ async function boot(){
     if(!countryByIso[selectedIso]) selectedIso=D.countries[0]?.iso3;
     stamp.textContent="生成: "+new Date(D.generated_at).toLocaleString("ja-JP")+" / "+D.countries.length+"か国 / "+registry.length+"指標";
     renderKcu();renderWorld();setupCountry();renderRegions();
+    await setupMarketAI();
     aboutNote.textContent=D.notes?.country_comparison||"";
   }catch(e){
     fatal.style.display="block";
