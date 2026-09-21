@@ -738,7 +738,7 @@ async function setupMarketAI(){
     try{await saveTrainingSettings();await trainingCall("request_train");trainingMessage.textContent="学習キューへ追加しました。";}
     catch(e){trainingMessage.textContent=e.message||String(e)}
   };
-  trainingRefresh.onclick=async function(){try{await refreshTraining();trainingMessage.textContent="履歴を更新しました。")}catch(e){trainingMessage.textContent=e.message||String(e)}};
+  trainingRefresh.onclick=async function(){try{await refreshTraining();trainingMessage.textContent="履歴を更新しました。"}catch(e){trainingMessage.textContent=e.message||String(e)}};
   copyElite.onclick=function(){if(TRAIN_ELITE)navigator.clipboard?.writeText(trainingElite.textContent)};
   trainingStrategy.value=JSON.stringify(DEFAULT_TRAIN_STRATEGY,null,2);
   trainingSearch.value=JSON.stringify(DEFAULT_TRAIN_SEARCH,null,2);
