@@ -6,6 +6,15 @@
   <title>Kamoku World Monitor</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="./globe.mjs"></script>
   <style>
     :root{
       color-scheme:dark;
@@ -66,6 +75,12 @@
     .action-row button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;cursor:pointer}
     .action-row button.primary-action{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
     .warnbox{padding:10px;border:1px solid #6e5926;border-radius:10px;background:#221b0b;color:#f1d27d;font-size:12px;line-height:1.6}
+    .globe{width:100%;height:min(66vh,650px);min-height:430px;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
+    .sim-controls{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+    .sim-controls button,.mode-btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;cursor:pointer}
+    .mode-btn.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    .trade-log{max-height:250px;overflow:auto}
+    .positive{color:var(--good)}.negative{color:var(--bad)}
     @media(max-width:1000px){
       .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
       .grid.two{grid-template-columns:1fr}
@@ -121,6 +136,7 @@
     <button data-view="country">国別</button>
     <button data-view="regions">地域別</button>
     <button data-view="markets">市場AI</button>
+    <button data-view="trade">取引シミュレーション</button>
     <button data-view="about">データ説明</button>
   </nav>
 </header>
@@ -144,9 +160,15 @@
     <div class="toolbar">
       <label>分野<select id="worldDomain"></select></label>
       <label>指標<select id="worldMetric"></select></label>
+      <label>表示<select id="worldDisplay"><option value="3d">3D地球儀</option><option value="2d">2D地図</option></select></label>
       <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
     </div>
-    <div class="card"><div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div><div id="worldMap" class="chart"></div><div class="note">色は各国の最新観測値を表します。観測年は国ごとに異なる場合があります。</div></div>
+    <div class="card">
+      <div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div>
+      <div id="worldGlobe" class="globe"></div>
+      <div id="worldMap" class="chart" style="display:none"></div>
+      <div class="note">3D地球儀は各国マスターの緯度・経度に指標マーカーを配置します。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。</div>
+    </div>
   </section>
 
   <section id="country" class="view">
@@ -265,6 +287,50 @@
     </div>
   </section>
 
+  <section id="trade" class="view">
+    <div class="toolbar">
+      <label>銘柄<input id="tradeSymbolSearch" list="tradeSymbolList" placeholder="7203 / トヨタ"><datalist id="tradeSymbolList"></datalist></label>
+      <label>リプレイ期間<select id="tradeWindow"><option value="250">250営業日</option><option value="500" selected>500営業日</option><option value="1000">1000営業日</option></select></label>
+      <label>初期資金<input id="tradeInitialCash" type="number" value="1000000" min="10000" step="10000"></label>
+      <label>売買単位<input id="tradeQty" type="number" value="100" min="1" step="100"></label>
+      <button id="tradeLoadBtn" class="logout" style="padding:9px 12px">リプレイ開始</button>
+    </div>
+    <div class="grid cards" id="tradeCards"></div>
+    <div class="card" style="margin-top:14px">
+      <div class="section-title"><h2>個別銘柄リプレイ</h2><div class="statline"><span class="pill" id="tradeSymbolMeta">—</span><span class="pill" id="tradePendingBadge">注文なし</span></div></div>
+      <div id="tradeChart" class="chart"></div>
+      <div class="sim-controls">
+        <button id="tradeStep1">+1日</button><button id="tradeStep5">+5日</button><button id="tradePlay">▶ 再生</button><button id="tradePause">⏸ 停止</button><button id="tradeReset">↺ リセット</button>
+      </div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <h2>売買モード</h2>
+        <div class="sim-controls" style="margin:9px 0 13px">
+          <button class="mode-btn active" data-trade-mode="manual">手動</button>
+          <button class="mode-btn" data-trade-mode="semi">半自動</button>
+          <button class="mode-btn" data-trade-mode="full">自動</button>
+        </div>
+        <div class="toolbar">
+          <label>AI<select id="tradeAiSource"><option value="ensemble">Ensemble</option><option value="explain">Explain AI</option><option value="opaque">Opaque AI</option></select></label>
+          <label>BUY ≥ %<input id="tradeBuyThreshold" type="number" value="60" min="50" max="95"></label>
+          <label>SELL ≤ %<input id="tradeSellThreshold" type="number" value="40" min="5" max="50"></label>
+          <label>利確 %<input id="tradeTakeProfit" type="number" value="10" min="0" step=".5"></label>
+          <label>損切 %<input id="tradeStopLoss" type="number" value="5" min="0" step=".5"></label>
+          <label>コスト bps<input id="tradeCostBps" type="number" value="5" min="0" step="1"></label>
+        </div>
+        <div id="tradeDecision" class="metric" style="margin-bottom:12px"><div class="name">AI判定</div><div class="value">—</div><div class="meta">—</div></div>
+        <div class="sim-controls"><button id="tradeManualBuy">買い注文</button><button id="tradeManualSell">売り注文</button><button id="tradeAcceptAi">AI提案を採用</button></div>
+        <label style="margin-top:12px;display:flex;align-items:center;gap:8px"><input id="tradeTax" type="checkbox" checked style="min-width:auto"> 利益への税率20.315%を反映</label>
+        <p class="note">D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。</p>
+      </div>
+      <div class="card">
+        <h2>取引履歴</h2>
+        <div class="tablewrap trade-log"><table><thead><tr><th>日付</th><th>売買</th><th>株数</th><th>価格</th><th>税/費用</th><th>現金</th></tr></thead><tbody id="tradeFills"><tr><td colspan="6">取引なし</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
   <section id="about" class="view">
     <div class="card">
       <h2>この画面の読み方</h2>
@@ -287,6 +353,7 @@ let AUTH_SESSION = null;
 let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
 let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
+let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
 
 const fmt=(v,unit="")=>{
   if(v===null||v===undefined||Number.isNaN(Number(v))) return "—";
