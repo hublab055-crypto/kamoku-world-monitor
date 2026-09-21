@@ -1,0 +1,37 @@
+name: Check World Monitor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/check-world-monitor.yml'
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Extract inline JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path("index.html").read_text(encoding="utf-8")
+          blocks=re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>",html,re.S|re.I)
+          inline=[x for x in blocks if x.strip()]
+          if not inline:
+              raise SystemExit("No inline JavaScript found")
+          for i,js in enumerate(inline):
+              Path(f"/tmp/world-monitor-{i}.js").write_text(js,encoding="utf-8")
+          print(f"extracted {len(inline)} inline script block(s)")
+          PY
+      - name: Check JavaScript syntax
+        run: |
+          for f in /tmp/world-monitor-*.js; do
+            node --check "$f"
+          done
