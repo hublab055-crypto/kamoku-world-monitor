@@ -806,6 +806,143 @@ function renderTraining(){
   }).join(""):'<tr><td colspan="7">履歴なし</td></tr>';
 }
 
+
+function tradeResolveSymbol(){
+  const q=tradeSymbolSearch.value.trim(),code=(q.match(/^[0-9A-Z]{4,5}/i)||[])[0]?.toUpperCase();
+  let x=MARKET_CATALOG.find(a=>a.code===code);
+  if(!x){const low=q.toLowerCase();x=MARKET_CATALOG.find(a=>(a.name||"").toLowerCase().includes(low));}
+  if(x){TRADE.code=x.code;tradeSymbolSearch.value=x.code+" "+(x.name||"");}
+  return x;
+}
+function tradeBar(i=TRADE.idx){
+  const r=TRADE.bars[i];
+  return r?{date:r[0],open:+r[1],high:+r[2],low:+r[3],close:+r[4],volume:+(r[5]||0)}:null;
+}
+function tradeTotal(){const b=tradeBar();return TRADE.cash+TRADE.pos*(b?.close||0);}
+function tradeAiRow(day){let found=null;for(const r of TRADE.aiRows){if(r[0]<=day)found=r;else break;}return found;}
+function tradeAiValues(row){
+  if(!row)return null;
+  const src=tradeAiSource.value;
+  if(src==="explain")return {p:+row[1],r:+row[4],name:"Explain"};
+  if(src==="opaque")return {p:+row[2],r:+row[5],name:"Opaque"};
+  return {p:+row[3],r:+row[6],name:"Ensemble"};
+}
+function tradeDecisionNow(){
+  const b=tradeBar();if(!b)return {action:"hold",reason:"データなし",p:null,r:null};
+  if(TRADE.pos>0&&TRADE.avg>0){
+    const ret=(b.close/TRADE.avg-1)*100,tp=+tradeTakeProfit.value||0,sl=+tradeStopLoss.value||0;
+    if(tp>0&&ret>=tp)return {action:"sell",reason:"利確条件 "+ret.toFixed(2)+"% ≥ "+tp+"%",p:null,r:null};
+    if(sl>0&&ret<=-sl)return {action:"sell",reason:"損切条件 "+ret.toFixed(2)+"% ≤ -"+sl+"%",p:null,r:null};
+  }
+  const v=tradeAiValues(tradeAiRow(b.date));
+  if(!v)return {action:"hold",reason:"Market AI予測なし",p:null,r:null};
+  const buy=(+tradeBuyThreshold.value||60)/100,sell=(+tradeSellThreshold.value||40)/100;
+  if(TRADE.pos<=0&&v.p>=buy)return {action:"buy",reason:v.name+" 上昇確率 "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  if(TRADE.pos>0&&v.p<=sell)return {action:"sell",reason:v.name+" 上昇確率 "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  return {action:"hold",reason:v.name+" 上昇確率 "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+}
+function queueTrade(side,source){
+  if(!TRADE.bars.length||TRADE.idx>=TRADE.bars.length-1||TRADE.pending)return;
+  const qty=Math.max(1,+tradeQty.value||100);
+  if(side==="sell"&&TRADE.pos<=0)return;
+  TRADE.pending={side:side,qty:side==="sell"?Math.min(qty,TRADE.pos):qty,source:source||"manual",decisionDate:tradeBar().date};
+  renderTrade();
+}
+function executeTradePending(){
+  if(!TRADE.pending)return;
+  const b=tradeBar(),o=TRADE.pending,px=b.open,feeRate=(+tradeCostBps.value||0)/10000;
+  const fee=px*o.qty*feeRate;let tax=0;
+  if(o.side==="buy"){
+    const cost=px*o.qty+fee;
+    if(cost<=TRADE.cash){
+      TRADE.avg=(TRADE.avg*TRADE.pos+px*o.qty)/(TRADE.pos+o.qty);
+      TRADE.pos+=o.qty;TRADE.cash-=cost;
+      TRADE.fills.push({date:b.date,side:"BUY",qty:o.qty,price:px,cost:fee,cash:TRADE.cash,source:o.source});
+    }
+  }else{
+    const qty=Math.min(o.qty,TRADE.pos),gain=(px-TRADE.avg)*qty;
+    if(tradeTax.checked&&gain>0)tax=gain*.20315;
+    TRADE.cash+=px*qty-fee-tax;TRADE.realized+=gain-fee-tax;TRADE.pos-=qty;if(TRADE.pos===0)TRADE.avg=0;
+    TRADE.fills.push({date:b.date,side:"SELL",qty:qty,price:px,cost:fee+tax,cash:TRADE.cash,source:o.source});
+  }
+  TRADE.pending=null;
+}
+function autoTradeAfterClose(){
+  const d=tradeDecisionNow();TRADE.proposal=d;
+  if(TRADE.mode==="full"&&(d.action==="buy"||d.action==="sell"))queueTrade(d.action,"auto");
+}
+function advanceTrade(days){
+  if(!TRADE.bars.length)return;
+  for(let n=0;n<days;n++){
+    if(TRADE.idx>=TRADE.bars.length-1){stopTradePlay();break;}
+    TRADE.idx++;executeTradePending();autoTradeAfterClose();
+  }
+  renderTrade();
+}
+function stopTradePlay(){if(TRADE.timer){clearInterval(TRADE.timer);TRADE.timer=null;}}
+async function loadTradeReplay(){
+  stopTradePlay();
+  const sym=tradeResolveSymbol();if(!sym)throw new Error("銘柄を選択してください");
+  tradeSymbolMeta.textContent="読み込み中…";
+  const results=await Promise.all([
+    marketEdge("stock-replay-data",{code:TRADE.code}),
+    marketEdge("market-ai-data",{code:TRADE.code}).catch(()=>null)
+  ]);
+  const meta=results[0],ai=results[1];
+  const payload=await gunzipJson(meta.signed_url);
+  TRADE.bars=payload.bars||[];TRADE.aiRows=[];
+  if(ai?.prediction?.signed_url){const ap=await gunzipJson(ai.prediction.signed_url);TRADE.aiRows=ap.rows||[];}
+  if(TRADE.bars.length<100)throw new Error("この銘柄のリプレイデータが不足しています");
+  const win=Math.max(100,+tradeWindow.value||500);
+  TRADE.startIdx=Math.max(80,TRADE.bars.length-win);TRADE.idx=TRADE.startIdx;
+  TRADE.initialCash=Math.max(10000,+tradeInitialCash.value||1000000);
+  TRADE.cash=TRADE.initialCash;TRADE.pos=0;TRADE.avg=0;TRADE.pending=null;TRADE.proposal=null;TRADE.fills=[];TRADE.realized=0;
+  tradeSymbolMeta.textContent=TRADE.code+" "+(sym.name||"")+" / "+meta.first_date+"〜"+meta.last_date;
+  autoTradeAfterClose();renderTrade();
+}
+function renderTrade(){
+  if(!TRADE.bars.length){tradeCards.innerHTML="";return;}
+  const b=tradeBar(),total=tradeTotal(),ret=(total/TRADE.initialCash-1)*100,unreal=TRADE.pos?((b.close-TRADE.avg)*TRADE.pos):0;
+  const cardData=[
+    ["日付",b.date,"終値 "+b.close.toLocaleString("ja-JP")],
+    ["総資産",Math.round(total).toLocaleString("ja-JP")+" 円",(ret>=0?"+":"")+ret.toFixed(2)+"%"],
+    ["現金",Math.round(TRADE.cash).toLocaleString("ja-JP")+" 円","実現 "+Math.round(TRADE.realized).toLocaleString("ja-JP")+" 円"],
+    ["保有",TRADE.pos.toLocaleString()+" 株",TRADE.pos?"平均 "+TRADE.avg.toFixed(2)+" / 含み "+Math.round(unreal).toLocaleString("ja-JP")+"円":"ポジションなし"]
+  ];
+  tradeCards.innerHTML=cardData.map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
+  tradePendingBadge.textContent=TRADE.pending?(TRADE.pending.side.toUpperCase()+" "+TRADE.pending.qty+"株 → 次寄り"):"注文なし";
+  const d=tradeDecisionNow();TRADE.proposal=d;
+  const cls=d.action==="buy"?"positive":d.action==="sell"?"negative":"";
+  tradeDecision.innerHTML='<div class="name">AI判定 / '+esc(TRADE.mode)+'</div><div class="value '+cls+'">'+d.action.toUpperCase()+'</div><div class="meta">'+esc(d.reason)+(d.r==null?"":" / 期待5日 "+(+d.r).toFixed(2)+"%")+'</div>';
+  tradeAcceptAi.style.display=TRADE.mode==="semi"?"inline-block":"none";
+  tradeFills.innerHTML=TRADE.fills.length?TRADE.fills.slice().reverse().map(f=>'<tr><td>'+esc(f.date)+'</td><td>'+esc(f.side+" "+f.source)+'</td><td>'+f.qty+'</td><td>'+f.price.toFixed(2)+'</td><td>'+Math.round(f.cost).toLocaleString("ja-JP")+'</td><td>'+Math.round(f.cash).toLocaleString("ja-JP")+'</td></tr>').join(""):'<tr><td colspan="6">取引なし</td></tr>';
+  const lo=Math.max(0,TRADE.idx-119),slice=TRADE.bars.slice(lo,TRADE.idx+1);
+  const traces=[{type:"candlestick",x:slice.map(r=>r[0]),open:slice.map(r=>+r[1]),high:slice.map(r=>+r[2]),low:slice.map(r=>+r[3]),close:slice.map(r=>+r[4]),name:TRADE.code}];
+  const visible=new Set(slice.map(r=>r[0])),fills=TRADE.fills.filter(f=>visible.has(f.date));
+  if(fills.length)traces.push({type:"scatter",mode:"markers",x:fills.map(f=>f.date),y:fills.map(f=>f.price),text:fills.map(f=>f.side),marker:{size:10,symbol:fills.map(f=>f.side==="BUY"?"triangle-up":"triangle-down")},name:"約定"});
+  Plotly.react("tradeChart",traces,layout({xaxis:{rangeslider:{visible:false},gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"}}),config);
+}
+async function setupTrade(){
+  if(!MARKET_CATALOG.length)await loadMarketCatalog();
+  tradeSymbolList.innerHTML=MARKET_CATALOG.map(x=>'<option value="'+esc(x.code+" "+(x.name||""))+'"></option>').join("");
+  const d=MARKET_CATALOG.find(x=>x.code===TRADE.code)||MARKET_CATALOG[0];
+  if(d)tradeSymbolSearch.value=d.code+" "+(d.name||"");
+  document.querySelectorAll(".mode-btn").forEach(b=>b.onclick=()=>{
+    TRADE.mode=b.dataset.tradeMode;
+    document.querySelectorAll(".mode-btn").forEach(x=>x.classList.toggle("active",x.dataset.tradeMode===TRADE.mode));
+    autoTradeAfterClose();renderTrade();
+  });
+  tradeLoadBtn.onclick=()=>loadTradeReplay().catch(e=>{tradeSymbolMeta.textContent=e.message||String(e)});
+  tradeSymbolSearch.onchange=()=>loadTradeReplay().catch(e=>{tradeSymbolMeta.textContent=e.message||String(e)});
+  tradeStep1.onclick=()=>advanceTrade(1);tradeStep5.onclick=()=>advanceTrade(5);
+  tradePlay.onclick=()=>{if(!TRADE.timer)TRADE.timer=setInterval(()=>advanceTrade(1),250)};
+  tradePause.onclick=stopTradePlay;tradeReset.onclick=()=>loadTradeReplay().catch(()=>{});
+  tradeManualBuy.onclick=()=>queueTrade("buy","manual");tradeManualSell.onclick=()=>queueTrade("sell","manual");
+  tradeAcceptAi.onclick=()=>{const d=tradeDecisionNow();if(d.action==="buy"||d.action==="sell")queueTrade(d.action,"semi")};
+  [tradeAiSource,tradeBuyThreshold,tradeSellThreshold,tradeTakeProfit,tradeStopLoss,tradeCostBps].forEach(el=>el.oninput=()=>renderTrade());
+  await loadTradeReplay();
+}
+
 async function setupMarketAI(){
   document.querySelectorAll("#marketAiTabs button").forEach(function(b){
     b.onclick=function(){
@@ -901,6 +1038,7 @@ async function boot(){
     stamp.textContent="生成: "+new Date(D.generated_at).toLocaleString("ja-JP")+" / "+D.countries.length+"か国 / "+registry.length+"指標";
     renderKcu();renderWorld();setupCountry();renderRegions();
     await setupMarketAI();
+    await setupTrade();
     aboutNote.textContent=D.notes?.country_comparison||"";
   }catch(e){
     fatal.style.display="block";
