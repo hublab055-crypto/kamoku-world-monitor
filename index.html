@@ -429,13 +429,26 @@ function renderKcu(){
 function renderWorld(){
   fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);
   const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);drawWorld();};
-  worldDomain.onchange=updateMetric; worldMetric.onchange=drawWorld; drawWorld();
+  worldDomain.onchange=updateMetric; worldMetric.onchange=drawWorld; worldDisplay.onchange=drawWorld;
+  window.addEventListener("kamoku-globe-ready",()=>drawWorld(),{once:true});
+  drawWorld();
 }
 function drawWorld(){
   const metric=worldMetric.value, reg=regByMetric[metric]||{};
   const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
-  worldTitle.textContent=reg.display_name||metric;
-  worldStats.innerHTML=`<span class="pill">${rows.length}か国</span><span class="pill">世界中央値 ${fmt(D.global?.[metric]?.median,reg.unit)}</span>`;
+  const use3d=worldDisplay.value==="3d";
+  worldTitle.textContent=(reg.display_name||metric)+(use3d?" — 3D":" — 2D");
+  worldStats.innerHTML='<span class="pill">'+rows.length+'か国</span><span class="pill">世界中央値 '+fmt(D.global?.[metric]?.median,reg.unit)+'</span>';
+  worldGlobe.style.display=use3d?"block":"none"; worldMap.style.display=use3d?"none":"block";
+  if(use3d){
+    if(window.KamokuGlobe){
+      window.KamokuGlobe.update({
+        element:worldGlobe,countries:D.countries,metric:metric,unit:reg.unit||"",
+        onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
+      });
+    }
+    return;
+  }
   Plotly.react("worldMap",[{
     type:"choropleth",locationmode:"ISO-3",locations:rows.map(x=>x.c.iso3),
     z:rows.map(x=>x.v.value),text:rows.map(x=>x.c.name),
@@ -444,6 +457,7 @@ function drawWorld(){
     colorbar:{title:reg.unit||""},colorscale:"Viridis"
   }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
   const el=document.getElementById("worldMap");
+  el.removeAllListeners?.("plotly_click");
   el.on?.("plotly_click",ev=>{const iso=ev.points?.[0]?.location;if(iso){selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}});
 }
 
@@ -743,6 +757,16 @@ async function ensureTrainingProfile(){
       await saveTrainingSettings();
     }
     await refreshTraining();
+    if(!localStorage.getItem("kamokuBgAiOptInV1")){
+      if(!TRAIN_PROFILE?.training_enabled){
+        const y=await trainingCall("toggle",{enabled:true});
+        TRAIN_PROFILE=Object.assign({},TRAIN_PROFILE||{},y.profile||{});
+      }
+      await trainingCall("request_train");
+      localStorage.setItem("kamokuBgAiOptInV1","1");
+      trainingMessage.textContent="背景AI学習をONにし、学習キューへ追加しました。";
+      renderTraining();
+    }
   }catch(e){trainingMessage.textContent=e.message||String(e);}
 }
 async function saveTrainingSettings(){
