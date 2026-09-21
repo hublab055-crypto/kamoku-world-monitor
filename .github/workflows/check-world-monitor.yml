@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'globe.mjs'
       - '.github/workflows/check-world-monitor.yml'
   workflow_dispatch:
 
@@ -22,8 +23,13 @@ jobs:
           from pathlib import Path
           import re
           html=Path("index.html").read_text(encoding="utf-8")
-          blocks=re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>",html,re.S|re.I)
-          inline=[x for x in blocks if x.strip()]
+          blocks=re.findall(r"<script([^>]*)>(.*?)</script>",html,re.S|re.I)
+          inline=[
+              body for attrs,body in blocks
+              if body.strip()
+              and "importmap" not in attrs.lower()
+              and "src=" not in attrs.lower()
+          ]
           if not inline:
               raise SystemExit("No inline JavaScript found")
           for i,js in enumerate(inline):
@@ -34,4 +40,5 @@ jobs:
         run: |
           for f in /tmp/world-monitor-*.js; do
             node --check "$f"
-          done\n          node --check globe.mjs
+          done
+          node --check globe.mjs
