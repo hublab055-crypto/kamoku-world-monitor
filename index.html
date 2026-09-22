@@ -451,7 +451,13 @@ const STATIC_TEXT={
   "個別銘柄リプレイ":"Security Replay","売買モード":"Trading mode","手動":"Manual","半自動":"Semi-auto","自動":"Auto",
   "利確 %":"Take profit %","損切 %":"Stop loss %","コスト bps":"Cost bps","買い注文":"Buy order","売り注文":"Sell order","AI提案を採用":"Accept AI proposal",
   "利益への税率20.315%を反映":"Apply 20.315% tax to realized gains","取引履歴":"Trade History","売買":"Side","株数":"Shares","価格":"Price","税/費用":"Tax / Cost","現金":"Cash",
-  "この画面の読み方":"How to Read This Dashboard","生成":"Generated"
+  "この画面の読み方":"How to Read This Dashboard","生成":"Generated",
+  "3D地球儀は各国マスターの緯度・経度に指標マーカーを配置します。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。":"3D terrain uses country coordinates for indicator markers. Drag to rotate, pinch or scroll to zoom, and tap a country to open its country view.",
+  "各営業日の終値までに利用可能な情報から、次営業日寄付き→5営業日後終値を評価します。":"Evaluates the move from the next session open to the close five trading days later using only information available by each day’s close.",
+  "パターン図鑑の勝率・5日後リターンは未来結果を含む回顧統計です。過去リプレイの売買判断には使用しません。":"Pattern Atlas win rates and 5-day returns are retrospective statistics containing future outcomes. They are not used for historical replay trading decisions.",
+  "プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。":"Repeatedly backtests player-defined rule thresholds and selects parameters on the validation period. Background training can be turned off at any time.",
+  "D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。":"Signals are decided at day D close and market orders fill at the next trading day open. Full-auto uses the same timing rule.",
+  "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated."
 };
 function t(key){return TEXT[key]?.[LANG]??key;}
 function locale(){return LANG==="en"?"en-US":"ja-JP";}
@@ -585,10 +591,10 @@ function renderKcu(){
   const update=()=>{
     const variant=kcuVariant.value, ccy=kcuCurrency.value, rows=D.kcu.variants[variant]||[], last=rows.at(-1)||{};
     const cards=[
-      ["KCU / USD",fmt(last.usd),"最新月 "+(last.m||"—")],
+      ["KCU / USD",fmt(last.usd),(LANG==="en"?"Latest month ":"最新月 ")+(last.m||"—")],
       ["KCU / JPY",fmt(last.jpy),"coverage "+pct(last.coverage)],
       ["KCU / EUR",fmt(last.eur),last.quality||"—"],
-      ["構成要素",fmt(last.components),"weight year "+(last.weight_year||"—")]
+      [LANG==="en"?"Components":"構成要素",fmt(last.components),"weight year "+(last.weight_year||"—")]
     ];
     kcuCards.innerHTML=cards.map(x=>`<div class="card"><div class="eyebrow">${x[0]}</div><div class="big">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
     Plotly.react("kcuChart",[{
@@ -1199,17 +1205,17 @@ async function requireSession(){
 
 loginForm.addEventListener("submit", async (e)=>{
   e.preventDefault();
-  loginError.textContent="ログイン中…";
+  loginError.textContent=LANG==="en"?"Signing in…":"ログイン中…";
   const email=loginEmail.value.trim();
   const password=loginPassword.value;
   const {error}=await SB.auth.signInWithPassword({email,password});
-  if(error){ loginError.textContent="ログインできません: "+error.message; return; }
+  if(error){loginError.textContent=(LANG==="en"?"Sign-in failed: ":"ログインできません: ")+error.message;return;}
   location.reload();
 });
 
 bootstrapForm.addEventListener("submit", async (e)=>{
   e.preventDefault();
-  bootstrapError.textContent="登録中…";
+  bootstrapError.textContent=LANG==="en"?"Registering…":"登録中…";
   const body={
     email:bootstrapEmail.value.trim(),
     password:bootstrapPassword.value,
@@ -1218,8 +1224,8 @@ bootstrapForm.addEventListener("submit", async (e)=>{
   try{
     const res=await fetch(API_BASE+"?api=bootstrap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const out=await res.json();
-    if(!res.ok) throw new Error(out.error||"登録に失敗しました");
-    bootstrapError.textContent="登録しました。ログインします…";
+    if(!res.ok)throw new Error(out.error||(LANG==="en"?"Registration failed":"登録に失敗しました"));
+    bootstrapError.textContent=LANG==="en"?"Registered. Signing in…":"登録しました。ログインします…";
     const {error}=await SB.auth.signInWithPassword({email:body.email,password:body.password});
     if(error) throw error;
     location.reload();
@@ -1227,11 +1233,13 @@ bootstrapForm.addEventListener("submit", async (e)=>{
 });
 
 logoutBtn.addEventListener("click",async()=>{await SB.auth.signOut();location.reload();});
+langJa.addEventListener("click",()=>setLanguage("ja"));
+langEn.addEventListener("click",()=>setLanguage("en"));
 
 async function boot(){
-  setNav();
+  setNav();applyLanguage();
   const session=await requireSession();
-  if(!session){stamp.textContent="ログインが必要です";return;}
+  if(!session){stamp.textContent=t("loadingRequired");return;}
   try{
     const res=await fetch(DATA_URL,{cache:"no-store",headers:{Authorization:"Bearer "+session.access_token}});
     if(!res.ok) throw new Error("snapshot HTTP "+res.status);
@@ -1239,16 +1247,17 @@ async function boot(){
     regByMetric=Object.fromEntries(registry.map(r=>[r.metric,r]));
     countryByIso=Object.fromEntries(D.countries.map(c=>[c.iso3,c]));
     if(!countryByIso[selectedIso]) selectedIso=D.countries[0]?.iso3;
-    stamp.textContent="生成: "+new Date(D.generated_at).toLocaleString("ja-JP")+" / "+D.countries.length+"か国 / "+registry.length+"指標";
+    updateStamp();
     renderKcu();renderWorld();setupCountry();renderRegions();
     await setupMarketAI();
     await setupTrade();
     aboutNote.textContent=D.notes?.country_comparison||"";
+    applyLanguage();
   }catch(e){
     fatal.style.display="block";
     fatal.className="error";
     fatal.innerHTML="<b>ダッシュボードデータを読み込めませんでした。</b><br>"+esc(e.message)+"<br><br>GitHub Actions の Export World Dashboard を実行して dashboard/data/world_dashboard.json を生成してください。";
-    stamp.textContent="データ未生成";
+    stamp.textContent=t("dataUnavailable");
   }
 }
 boot();
