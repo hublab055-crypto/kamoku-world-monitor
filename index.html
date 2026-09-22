@@ -359,20 +359,193 @@ let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
 let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
+let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
+
+const METRIC_JA={
+  INTERNATIONAL_TOURISM_ARRIVALS:"国際観光客到着数",
+  INTERNATIONAL_TOURISM_RECEIPTS_USD:"国際観光収入（現行US$）",
+  GDP_CURRENT_USD:"GDP（現行US$）",
+  GDP_PER_CAPITA_CURRENT_USD:"1人当たりGDP（現行US$）",
+  GDP_GROWTH_PCT:"GDP成長率（年率）",
+  GDP_PPP_CURRENT_INTL_USD:"GDP（購買力平価・現行国際$）",
+  CENTRAL_GOV_DEBT_PCT_GDP:"中央政府債務（GDP比）",
+  GOV_EXPENSE_PCT_GDP:"政府支出（GDP比）",
+  EDUCATION_EXPENDITURE_PCT_GDP:"政府教育支出（GDP比）",
+  HEALTH_EXPENDITURE_PCT_GDP:"医療支出（GDP比）",
+  LIFE_EXPECTANCY_YEARS:"平均寿命",
+  UNEMPLOYMENT_PCT:"失業率",
+  PATENT_APPLICATIONS_RESIDENTS:"居住者による特許出願",
+  RND_EXPENDITURE_PCT_GDP:"研究開発費（GDP比）",
+  POP_TOTAL:"総人口",
+  CPI_PRICE_INDEX:"消費者物価指数",
+  ENERGY_IMPORTS_PCT:"エネルギー純輸入比率",
+  AGRICULTURAL_LAND_PCT:"農地面積比率",
+  FOREST_AREA_PCT:"森林面積比率",
+  FRESHWATER_WITHDRAWAL_PCT:"淡水取水量（国内資源比）",
+  CURRENT_ACCOUNT_PCT_GDP:"経常収支（GDP比）",
+  EXPORTS_CURRENT_USD:"財・サービス輸出（現行US$）",
+  IMPORTS_CURRENT_USD:"財・サービス輸入（現行US$）",
+  TRADE_PCT_GDP:"貿易額（GDP比）"
+};
+const DOMAIN_JA={
+  culture_tourism:"文化・観光",economy:"経済",fiscal:"財政",human:"人的資本",
+  knowledge:"知識・知財",population:"人口",prices:"物価",resources:"資源",trade:"貿易"
+};
+const REGION_JA={
+  "East Asia & Pacific":"東アジア・太平洋","Europe & Central Asia":"欧州・中央アジア",
+  "Latin America & Caribbean":"中南米・カリブ","Middle East & North Africa":"中東・北アフリカ",
+  "North America":"北米","South Asia":"南アジア","Sub-Saharan Africa":"サブサハラ・アフリカ"
+};
+const INCOME_JA={
+  "High income":"高所得国","Upper middle income":"上位中所得国",
+  "Lower middle income":"下位中所得国","Low income":"低所得国"
+};
+const TEXT={
+  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},
+  regionalMedian:{ja:"地域中央値",en:"Regional median"},difference:{ja:"差",en:"Diff"},
+  indicators:{ja:"指標",en:"indicators"},historySince:{ja:"2000年以降の履歴",en:"History since 2000"},
+  noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
+  country:{ja:"国",en:"Country"},region:{ja:"地域",en:"Region"},income:{ja:"所得区分",en:"Income group"},
+  recordedMetrics:{ja:"収録指標",en:"Available metrics"},latestValue:{ja:"選択国の最新値",en:"Latest country value"},
+  terrain3d:{ja:"3D地形",en:"3D Terrain"},map2d:{ja:"2D地図",en:"2D Map"},
+  latestEach:{ja:"各国の最新値",en:"Latest value per country"},
+  expected5d:{ja:"期待5日",en:"Expected 5d"},universe:{ja:"対象銘柄",en:"Universe"},
+  contribution:{ja:"寄与",en:"Contribution"},noContribution:{ja:"説明寄与なし",en:"No explanation contribution"},
+  training:{ja:"学習",en:"Train"},validation:{ja:"時間外検証",en:"Out-of-time validation"},
+  patternNotReady:{ja:"図鑑未準備",en:"Atlas not ready"},notReady:{ja:"未準備",en:"Not ready"},
+  marketLoading:{ja:"市場AIを読み込み中…",en:"Loading Market AI…"},
+  fiveDayWin:{ja:"5日勝率",en:"5d win rate"},avg5d:{ja:"平均5日",en:"Average 5d"},
+  occurrences:{ja:"発生回数",en:"Occurrences"},retrospective:{ja:"回顧統計",en:"Retrospective"},
+  allSymbolsAllPeriod:{ja:"全銘柄・全期間",en:"All securities / full period"},
+  date:{ja:"日付",en:"Date"},close:{ja:"終値",en:"Close"},totalAssets:{ja:"総資産",en:"Total assets"},
+  cash:{ja:"現金",en:"Cash"},position:{ja:"保有",en:"Position"},realized:{ja:"実現",en:"Realized"},
+  average:{ja:"平均",en:"Avg"},unrealized:{ja:"含み",en:"Unrealized"},shares:{ja:"株",en:"shares"},
+  noPosition:{ja:"ポジションなし",en:"No position"},noOrder:{ja:"注文なし",en:"No order"},
+  nextOpen:{ja:"次寄り",en:"next open"},aiDecision:{ja:"AI判定",en:"AI decision"},
+  noReplay:{ja:"この銘柄のリプレイデータが不足しています",en:"Insufficient replay data for this security"},
+  chooseSecurity:{ja:"銘柄を選択してください",en:"Select a security"},
+  marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
+  takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
+  riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"}
+};
+const STATIC_TEXT={
+  "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
+  "このダッシュボードのデータはログイン後にだけ読み込まれます。":"Dashboard data is loaded only after sign-in.",
+  "メールアドレス":"Email","パスワード":"Password","初回オーナー登録":"First-time owner setup",
+  "最初の1回だけ、ワンタイム登録コードを使ってオーナーアカウントを作成します。":"Create the owner account once using a one-time registration code.",
+  "新しいパスワード（12文字以上）":"New password (12+ characters)","ワンタイム登録コード":"One-time registration code","オーナー登録":"Register owner",
+  "世界地図":"World Map","国別":"Country","地域別":"Regions","市場AI":"Market AI","取引シミュレーション":"Trade Simulator","データ説明":"Data Guide",
+  "表示通貨":"Display currency","KCU推移":"KCU Trend","構成ウェイト":"Component Weights","国・地域":"Country / Region","比率":"Share",
+  "資産のKCU換算（最新）":"Assets in KCU (Latest)","資産":"Asset","月":"Month","現地価格":"Local price","KCUリターン":"KCU return",
+  "分野":"Domain","指標":"Indicator","表示":"Display","年の扱い":"Year handling","3D地形":"3D Terrain","2D地図":"2D Map",
+  "国":"Country","履歴指標":"Historical indicator","指標推移":"Indicator Trend","比較":"Comparison","分野別指標":"Indicators by Domain",
+  "地域中央値":"Regional Median","中央値":"Median","国数":"Countries",
+  "銘柄":"Security","判定日":"Decision date","読み込む":"Load","市場判定":"Market View","パターン図鑑":"Pattern Atlas","AI学習":"AI Training",
+  "説明可能モデル":"Explainable model","非説明・非線形モデル":"Opaque nonlinear model","検証成績で統合":"Validation-weighted ensemble","回顧パターン図鑑":"Retrospective pattern atlas",
+  "現在判定":"Current Signal","Explain AIの主な寄与":"Main Explain AI Contributions","モデル監査":"Model Audit",
+  "図鑑確認中":"Checking atlas","モデル確認中":"Checking model","プロフィール確認中":"Checking profile",
+  "設定保存":"Save settings","1回学習":"Train once","履歴更新":"Refresh history","戦略 JSON":"Strategy JSON","探索範囲 JSON":"Search Space JSON","採点基準 JSON":"Objective JSON",
+  "現在の最良個体":"Current Best Candidate","コピー":"Copy","実行履歴":"Run History","状態":"Status","勝率":"Win rate","取引":"Trades","履歴なし":"No history",
+  "リプレイ期間":"Replay window","初期資金":"Initial cash","売買単位":"Order size","リプレイ開始":"Start replay",
+  "個別銘柄リプレイ":"Security Replay","売買モード":"Trading mode","手動":"Manual","半自動":"Semi-auto","自動":"Auto",
+  "利確 %":"Take profit %","損切 %":"Stop loss %","コスト bps":"Cost bps","買い注文":"Buy order","売り注文":"Sell order","AI提案を採用":"Accept AI proposal",
+  "利益への税率20.315%を反映":"Apply 20.315% tax to realized gains","取引履歴":"Trade History","売買":"Side","株数":"Shares","価格":"Price","税/費用":"Tax / Cost","現金":"Cash",
+  "この画面の読み方":"How to Read This Dashboard","生成":"Generated"
+};
+function t(key){return TEXT[key]?.[LANG]??key;}
+function locale(){return LANG==="en"?"en-US":"ja-JP";}
+function domainName(d){return LANG==="ja"?(DOMAIN_JA[d]||d):d.replaceAll("_"," ").replace(/\b\w/g,x=>x.toUpperCase());}
+function regionName(v){return LANG==="ja"?(REGION_JA[v]||v):v||"—";}
+function incomeName(v){return LANG==="ja"?(INCOME_JA[v]||v):v||"—";}
+function countryName(c){
+  try{
+    if(c?.iso2)return new Intl.DisplayNames([LANG==="en"?"en":"ja"],{type:"region"}).of(c.iso2)||c.name;
+  }catch{}
+  return c?.name||"—";
+}
+function translateStaticText(root=document.body){
+  if(!root)return;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  while(walker.nextNode()){
+    const node=walker.currentNode,raw=node.nodeValue||"",trim=raw.trim();
+    if(!trim)continue;
+    if(!node.__kamokuI18nKey&&STATIC_TEXT[trim])node.__kamokuI18nKey=trim;
+    const key=node.__kamokuI18nKey;
+    if(!key)continue;
+    const lead=raw.match(/^\s*/)?.[0]||"",trail=raw.match(/\s*$/)?.[0]||"";
+    node.nodeValue=lead+(LANG==="en"?STATIC_TEXT[key]:key)+trail;
+  }
+}
+function updatePlaceholders(){
+  loginEmail.placeholder=LANG==="en"?"Email":"メールアドレス";
+  loginPassword.placeholder=LANG==="en"?"Password":"パスワード";
+  bootstrapEmail.placeholder=LANG==="en"?"Email":"メールアドレス";
+  bootstrapPassword.placeholder=LANG==="en"?"New password (12+ characters)":"新しいパスワード（12文字以上）";
+  bootstrapCode.placeholder=LANG==="en"?"One-time registration code":"ワンタイム登録コード";
+  countrySearch.placeholder=LANG==="en"?"Japan / JPN":"日本 / Japan / JPN";
+  marketSymbolSearch.placeholder=LANG==="en"?"7203 / Toyota":"7203 / トヨタ";
+  tradeSymbolSearch.placeholder=LANG==="en"?"7203 / Toyota":"7203 / トヨタ";
+}
+function updateStamp(){
+  if(!D)return;
+  stamp.textContent=t("generated")+": "+new Date(D.generated_at).toLocaleString(locale())+" / "+D.countries.length+" "+t("countries")+" / "+registry.length+" "+t("indicators");
+}
+function localizeSelectors(){
+  if(!D)return;
+  const sets=[
+    [worldDomain,worldMetric],[countryDomain,countryMetric],[regionDomain,regionMetric]
+  ];
+  for(const [ds,ms] of sets){
+    const d=ds.value,m=ms.value;
+    fillDomain(ds);if(d)ds.value=d;
+    fillMetric(ms,ds.value);if(m)ms.value=m;
+  }
+  worldDisplay.options[0].textContent=t("terrain3d");
+  worldDisplay.options[1].textContent=t("map2d");
+  worldMode.options[0].textContent=t("latestEach");
+  countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
+}
+function applyLanguage(){
+  document.documentElement.lang=LANG;
+  langJa.classList.toggle("active",LANG==="ja");langEn.classList.toggle("active",LANG==="en");
+  langJa.setAttribute("aria-pressed",LANG==="ja");langEn.setAttribute("aria-pressed",LANG==="en");
+  updatePlaceholders();translateStaticText();
+  if(D){
+    localizeSelectors();updateStamp();
+    drawWorld();renderCountry();drawRegions();
+    if(MARKET_MODEL)renderMarketAI();
+    if(MARKET_ATLAS)renderPatternAtlas();
+    if(TRAIN_PROFILE)renderTraining();
+    if(TRADE.bars.length)renderTrade();
+    translateStaticText();
+  }
+}
+function setLanguage(lang){
+  LANG=lang==="en"?"en":"ja";
+  localStorage.setItem("kamokuLanguage",LANG);
+  applyLanguage();
+}
 
 const fmt=(v,unit="")=>{
-  if(v===null||v===undefined||Number.isNaN(Number(v))) return "—";
-  const n=Number(v), a=Math.abs(n);
-  if(unit==="percent") return n.toLocaleString("ja-JP",{maximumFractionDigits:2})+"%";
-  if(unit==="years") return n.toLocaleString("ja-JP",{maximumFractionDigits:1})+" 年";
-  if(a>=1e12) return (n/1e12).toLocaleString("ja-JP",{maximumFractionDigits:2})+"兆";
-  if(a>=1e9) return (n/1e9).toLocaleString("ja-JP",{maximumFractionDigits:2})+"B";
-  if(a>=1e6) return (n/1e6).toLocaleString("ja-JP",{maximumFractionDigits:2})+"M";
-  return n.toLocaleString("ja-JP",{maximumFractionDigits:3});
+  if(v===null||v===undefined||Number.isNaN(Number(v)))return "—";
+  const n=Number(v),a=Math.abs(n),loc=locale();
+  if(unit==="percent")return n.toLocaleString(loc,{maximumFractionDigits:2})+"%";
+  if(unit==="years")return n.toLocaleString(loc,{maximumFractionDigits:1})+(LANG==="en"?" years":" 年");
+  if(LANG==="ja"){
+    if(a>=1e12)return (n/1e12).toLocaleString(loc,{maximumFractionDigits:2})+"兆";
+    if(a>=1e9)return (n/1e9).toLocaleString(loc,{maximumFractionDigits:2})+"B";
+    if(a>=1e6)return (n/1e6).toLocaleString(loc,{maximumFractionDigits:2})+"M";
+  }else{
+    if(a>=1e12)return (n/1e12).toLocaleString(loc,{maximumFractionDigits:2})+"T";
+    if(a>=1e9)return (n/1e9).toLocaleString(loc,{maximumFractionDigits:2})+"B";
+    if(a>=1e6)return (n/1e6).toLocaleString(loc,{maximumFractionDigits:2})+"M";
+  }
+  return n.toLocaleString(loc,{maximumFractionDigits:3});
 };
-const pct=v=>v==null?"—":(Number(v)*100).toLocaleString("ja-JP",{maximumFractionDigits:2})+"%";
+const pct=v=>v==null?"—":(Number(v)*100).toLocaleString(locale(),{maximumFractionDigits:2})+"%";
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const metricName=m=>regByMetric[m]?.display_name||m;
+const metricName=m=>LANG==="ja"?(METRIC_JA[m]||regByMetric[m]?.display_name||m):(regByMetric[m]?.display_name||m);
 const metricUnit=m=>regByMetric[m]?.unit||"";
 
 function layout(extra={}){
@@ -400,10 +573,10 @@ function metricsForDomain(domain){
   return registry.filter(r=>r.domain===domain);
 }
 function fillDomain(select){
-  select.innerHTML=domains().map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("");
+  select.innerHTML=domains().map(d=>`<option value="${esc(d)}">${esc(domainName(d))}</option>`).join("");
 }
 function fillMetric(select,domain){
-  select.innerHTML=metricsForDomain(domain).map(r=>`<option value="${esc(r.metric)}">${esc(r.display_name)}</option>`).join("");
+  select.innerHTML=metricsForDomain(domain).map(r=>`<option value="${esc(r.metric)}">${esc(metricName(r.metric))}</option>`).join("");
 }
 
 function renderKcu(){
