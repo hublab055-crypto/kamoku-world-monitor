@@ -879,68 +879,66 @@ async function loadMarketModule(){
 
 function renderMarketAI(){
   if(!MARKET_MODEL||!MARKET_ROWS.length)return;
-  const row=currentMarketRow()||MARKET_ROWS.at(-1); if(!row)return;
+  const row=currentMarketRow()||MARKET_ROWS.at(-1);if(!row)return;
   const pe=+row[1],po=+row[2],pa=+row[3],re=+row[4],ro=+row[5],ra=+row[6];
   const currentPattern=patternById(currentMembership()?.[1]);
   marketAiCards.innerHTML=[
-    ["Explain AI",signalName(pe)+" "+(pe*100).toFixed(1)+"%","期待5日 "+re.toFixed(2)+"%",signalClass(pe)],
-    ["Opaque AI",signalName(po)+" "+(po*100).toFixed(1)+"%","期待5日 "+ro.toFixed(2)+"%",signalClass(po)],
-    ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%","期待5日 "+ra.toFixed(2)+"%",signalClass(pa)],
-    ["Pattern",currentPattern?.pattern_key||"—",currentPattern?.display_name||"図鑑未準備",""]
-  ].map(function(x){return '<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big '+x[3]+'">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>';}).join("");
+    ["Explain AI",signalName(pe)+" "+(pe*100).toFixed(1)+"%",t("expected5d")+" "+re.toFixed(2)+"%",signalClass(pe)],
+    ["Opaque AI",signalName(po)+" "+(po*100).toFixed(1)+"%",t("expected5d")+" "+ro.toFixed(2)+"%",signalClass(po)],
+    ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%",t("expected5d")+" "+ra.toFixed(2)+"%",signalClass(pa)],
+    ["Pattern",currentPattern?.pattern_key||"—",currentPattern?patternName(currentPattern):t("patternNotReady"),""]
+  ].map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big '+x[3]+'">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
 
   marketCurrentBox.innerHTML=[
     ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%"],
-    ["期待5日",ra.toFixed(2)+"%"],
+    [t("expected5d"),ra.toFixed(2)+"%"],
     ["Regime",row[7]||"—"],
     ["Breadth",(+(row[8]||0)).toFixed(1)+"%"],
     ["VIX",(+(row[9]||0)).toFixed(1)],
-    ["対象銘柄",(MARKET_MODEL.universe_count||0).toLocaleString()]
-  ].map(function(x){return '<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div></div>';}).join("");
+    [t("universe"),(MARKET_MODEL.universe_count||0).toLocaleString(locale())]
+  ].map(x=>'<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div></div>').join("");
 
   const fns=MARKET_MODEL.feature_names||[];
-  marketReasons.textContent=(row[10]||[]).map(function(z){
-    const name=fns[+z[0]]||String(z[0]); const v=+z[1];
-    return (v>=0?"＋ ":"− ")+(MARKET_FEATURE_LABELS[name]||name)+"  寄与 "+(v>=0?"+":"")+v.toFixed(3);
-  }).join("\n")||"説明寄与なし";
+  marketReasons.textContent=(row[10]||[]).map(z=>{
+    const name=fns[+z[0]]||String(z[0]),v=+z[1];
+    return (v>=0?"＋ ":"− ")+marketFeatureLabel(name)+"  "+t("contribution")+" "+(v>=0?"+":"")+v.toFixed(3);
+  }).join("\n")||t("noContribution");
 
   const tail=MARKET_ROWS.slice(-250);
   Plotly.react("marketAiChart",[
-    {x:tail.map(function(r){return r[0]}),y:tail.map(function(r){return +r[1]*100}),type:"scatter",mode:"lines",name:"Explain"},
-    {x:tail.map(function(r){return r[0]}),y:tail.map(function(r){return +r[2]*100}),type:"scatter",mode:"lines",name:"Opaque"},
-    {x:tail.map(function(r){return r[0]}),y:tail.map(function(r){return +r[3]*100}),type:"scatter",mode:"lines",name:"Ensemble"}
-  ],layout({yaxis:{title:"上昇確率 %",gridcolor:"#263a55"},xaxis:{gridcolor:"#263a55"},legend:{orientation:"h"}}),config);
+    {x:tail.map(r=>r[0]),y:tail.map(r=>+r[1]*100),type:"scatter",mode:"lines",name:"Explain"},
+    {x:tail.map(r=>r[0]),y:tail.map(r=>+r[2]*100),type:"scatter",mode:"lines",name:"Opaque"},
+    {x:tail.map(r=>r[0]),y:tail.map(r=>+r[3]*100),type:"scatter",mode:"lines",name:"Ensemble"}
+  ],layout({yaxis:{title:(LANG==="en"?"Up probability %":"上昇確率 %"),gridcolor:"#263a55"},xaxis:{gridcolor:"#263a55"},legend:{orientation:"h"}}),config);
 
   const em=MARKET_MODEL.explain_metrics||{},om=MARKET_MODEL.opaque_metrics||{},am=MARKET_MODEL.ensemble_metrics||{};
   marketModelBadge.textContent="Model "+String(MARKET_MODEL.model_id||"").slice(0,8);
   marketAudit.innerHTML=
-    "学習 "+esc(MARKET_MODEL.train_start||"—")+"〜"+esc(MARKET_MODEL.train_end||"—")+
-    " / 時間外検証 "+esc(MARKET_MODEL.validation_start||"—")+"〜"+esc(MARKET_MODEL.validation_end||"—")+"<br>"+
+    t("training")+" "+esc(MARKET_MODEL.train_start||"—")+"〜"+esc(MARKET_MODEL.train_end||"—")+
+    " / "+t("validation")+" "+esc(MARKET_MODEL.validation_start||"—")+"〜"+esc(MARKET_MODEL.validation_end||"—")+"<br>"+
     "Explain AUC "+fmt(em.auc)+" / Opaque AUC "+fmt(om.auc)+" / Ensemble AUC "+fmt(am.auc)+
     " / cache coverage "+fmt((+MARKET_MODEL.cache_coverage_ratio||0)*100,"percent");
 }
-
 function renderPatternAtlas(){
   if(!MARKET_ATLAS){
-    atlasBadge.textContent="未準備";return;
+    atlasBadge.textContent=t("notReady");return;
   }
   atlasBadge.textContent="Atlas "+String(MARKET_ATLAS.atlas_id||"").slice(0,8)+" / "+MARKET_PATTERNS.length+" patterns";
   const mem=currentMembership(),p=patternById(mem?.[1]);
   patternCurrentCards.innerHTML=[
-    ["Pattern",p?.pattern_key||"—",p?.display_name||"—"],
-    ["5日勝率",p?.win_rate_5d_pct==null?"—":(+p.win_rate_5d_pct).toFixed(1)+"%","回顧統計"],
-    ["平均5日",p?.avg_return_5d_pct==null?"—":(+p.avg_return_5d_pct).toFixed(2)+"%","回顧統計"],
-    ["発生回数",p?(+p.occurrence_count||0).toLocaleString():"—","全銘柄・全期間"]
-  ].map(function(x){return '<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>';}).join("");
-  patternCurrentSummary.textContent=p?.summary_text||"この日付のパターン割当はありません。";
-  patternAtlasBody.innerHTML=MARKET_PATTERNS.map(function(x){
-    return "<tr><td>"+esc(x.pattern_key)+"</td><td>"+esc(x.display_name)+"</td><td>"+fmt(x.occurrence_count)+"</td><td>"+fmt(x.security_count)+"</td><td>"+
-      (x.win_rate_5d_pct==null?"—":(+x.win_rate_5d_pct).toFixed(1)+"%")+"</td><td>"+
-      (x.avg_return_5d_pct==null?"—":(+x.avg_return_5d_pct).toFixed(2)+"%")+"</td><td>"+
-      (x.avg_mae_5d_pct==null?"—":(+x.avg_mae_5d_pct).toFixed(2)+"%")+"</td></tr>";
-  }).join("");
+    ["Pattern",p?.pattern_key||"—",p?patternName(p):"—"],
+    [t("fiveDayWin"),p?.win_rate_5d_pct==null?"—":(+p.win_rate_5d_pct).toFixed(1)+"%",t("retrospective")],
+    [t("avg5d"),p?.avg_return_5d_pct==null?"—":(+p.avg_return_5d_pct).toFixed(2)+"%",t("retrospective")],
+    [t("occurrences"),p?(+p.occurrence_count||0).toLocaleString(locale()):"—",t("allSymbolsAllPeriod")]
+  ].map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
+  patternCurrentSummary.textContent=patternSummaryText(p);
+  patternAtlasBody.innerHTML=MARKET_PATTERNS.map(x=>
+    "<tr><td>"+esc(x.pattern_key)+"</td><td>"+esc(patternName(x))+"</td><td>"+fmt(x.occurrence_count)+"</td><td>"+fmt(x.security_count)+"</td><td>"+
+    (x.win_rate_5d_pct==null?"—":(+x.win_rate_5d_pct).toFixed(1)+"%")+"</td><td>"+
+    (x.avg_return_5d_pct==null?"—":(+x.avg_return_5d_pct).toFixed(2)+"%")+"</td><td>"+
+    (x.avg_mae_5d_pct==null?"—":(+x.avg_mae_5d_pct).toFixed(2)+"%")+"</td></tr>"
+  ).join("");
 }
-
 function randomOwnerToken(){
   const a=new Uint8Array(32);crypto.getRandomValues(a);
   return Array.from(a).map(function(x){return x.toString(16).padStart(2,"0")}).join("");
@@ -998,20 +996,19 @@ async function refreshTraining(){
 }
 function renderTraining(){
   if(!TRAIN_PROFILE)return;
-  trainingBadge.textContent="背景学習 "+(TRAIN_PROFILE.training_enabled?"ON":"OFF");
-  trainingToggle.textContent=TRAIN_PROFILE.training_enabled?"背景学習をOFF":"背景学習をON";
+  trainingBadge.textContent=(LANG==="en"?"Background training ":"背景学習 ")+(TRAIN_PROFILE.training_enabled?"ON":"OFF");
+  trainingToggle.textContent=TRAIN_PROFILE.training_enabled?(LANG==="en"?"Turn background training OFF":"背景学習をOFF"):(LANG==="en"?"Turn background training ON":"背景学習をON");
   trainingElite.textContent=TRAIN_ELITE?JSON.stringify({
     score:TRAIN_ELITE.score,variables:TRAIN_ELITE.best_params,
     validation:TRAIN_ELITE.validation_metrics,source:TRAIN_ELITE.source_snapshot
-  },null,2):"まだ学習結果がありません。";
-  trainingRuns.innerHTML=TRAIN_RUNS.length?TRAIN_RUNS.map(function(r){
+  },null,2):(LANG==="en"?"No training result yet.":"まだ学習結果がありません。");
+  trainingRuns.innerHTML=TRAIN_RUNS.length?TRAIN_RUNS.map(r=>{
     const m=r.validation_metrics||{};
     return "<tr><td>#"+r.run_id+"</td><td>"+esc(r.status)+"</td><td>"+fmt(r.best_score)+"</td><td>"+
       (m.win_rate_pct==null?"—":(+m.win_rate_pct).toFixed(1)+"%")+"</td><td>"+fmt(m.profit_factor)+"</td><td>"+
       (m.max_drawdown_pct==null?"—":(+m.max_drawdown_pct).toFixed(1)+"%")+"</td><td>"+fmt(m.trade_count)+"</td></tr>";
-  }).join(""):'<tr><td colspan="7">履歴なし</td></tr>';
+  }).join(""):'<tr><td colspan="7">'+(LANG==="en"?"No history":"履歴なし")+'</td></tr>';
 }
-
 
 function tradeResolveSymbol(){
   const q=tradeSymbolSearch.value.trim(),code=(q.match(/^[0-9A-Z]{4,5}/i)||[])[0]?.toUpperCase();
@@ -1034,18 +1031,18 @@ function tradeAiValues(row){
   return {p:+row[3],r:+row[6],name:"Ensemble"};
 }
 function tradeDecisionNow(){
-  const b=tradeBar();if(!b)return {action:"hold",reason:"データなし",p:null,r:null};
+  const b=tradeBar();if(!b)return {action:"hold",reason:LANG==="en"?"No data":"データなし",p:null,r:null};
   if(TRADE.pos>0&&TRADE.avg>0){
     const ret=(b.close/TRADE.avg-1)*100,tp=+tradeTakeProfit.value||0,sl=+tradeStopLoss.value||0;
-    if(tp>0&&ret>=tp)return {action:"sell",reason:"利確条件 "+ret.toFixed(2)+"% ≥ "+tp+"%",p:null,r:null};
-    if(sl>0&&ret<=-sl)return {action:"sell",reason:"損切条件 "+ret.toFixed(2)+"% ≤ -"+sl+"%",p:null,r:null};
+    if(tp>0&&ret>=tp)return {action:"sell",reason:t("takeProfit")+" "+ret.toFixed(2)+"% ≥ "+tp+"%",p:null,r:null};
+    if(sl>0&&ret<=-sl)return {action:"sell",reason:t("stopLoss")+" "+ret.toFixed(2)+"% ≤ -"+sl+"%",p:null,r:null};
   }
   const v=tradeAiValues(tradeAiRow(b.date));
-  if(!v)return {action:"hold",reason:"Market AI予測なし",p:null,r:null};
+  if(!v)return {action:"hold",reason:t("marketNoPrediction"),p:null,r:null};
   const buy=(+tradeBuyThreshold.value||60)/100,sell=(+tradeSellThreshold.value||40)/100;
-  if(TRADE.pos<=0&&v.p>=buy)return {action:"buy",reason:v.name+" 上昇確率 "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
-  if(TRADE.pos>0&&v.p<=sell)return {action:"sell",reason:v.name+" 上昇確率 "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
-  return {action:"hold",reason:v.name+" 上昇確率 "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  if(TRADE.pos<=0&&v.p>=buy)return {action:"buy",reason:v.name+" "+t("riseProbability")+" "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  if(TRADE.pos>0&&v.p<=sell)return {action:"sell",reason:v.name+" "+t("riseProbability")+" "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  return {action:"hold",reason:v.name+" "+t("riseProbability")+" "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
 }
 function queueTrade(side,source){
   if(!TRADE.bars.length||TRADE.idx>=TRADE.bars.length-1||TRADE.pending)return;
@@ -1088,8 +1085,8 @@ function advanceTrade(days){
 function stopTradePlay(){if(TRADE.timer){clearInterval(TRADE.timer);TRADE.timer=null;}}
 async function loadTradeReplay(){
   stopTradePlay();
-  const sym=tradeResolveSymbol();if(!sym)throw new Error("銘柄を選択してください");
-  tradeSymbolMeta.textContent="読み込み中…";
+  const sym=tradeResolveSymbol();if(!sym)throw new Error(t("chooseSecurity"));
+  tradeSymbolMeta.textContent=LANG==="en"?"Loading…":"読み込み中…";
   const results=await Promise.all([
     marketEdge("stock-replay-data",{code:TRADE.code}),
     marketEdge("market-ai-data",{code:TRADE.code}).catch(()=>null)
@@ -1098,7 +1095,7 @@ async function loadTradeReplay(){
   const payload=await gunzipJson(meta.signed_url);
   TRADE.bars=payload.bars||[];TRADE.aiRows=[];
   if(ai?.prediction?.signed_url){const ap=await gunzipJson(ai.prediction.signed_url);TRADE.aiRows=ap.rows||[];}
-  if(TRADE.bars.length<100)throw new Error("この銘柄のリプレイデータが不足しています");
+  if(TRADE.bars.length<100)throw new Error(t("noReplay"));
   const win=Math.max(100,+tradeWindow.value||500);
   TRADE.startIdx=Math.max(80,TRADE.bars.length-win);TRADE.idx=TRADE.startIdx;
   TRADE.initialCash=Math.max(10000,+tradeInitialCash.value||1000000);
@@ -1108,24 +1105,25 @@ async function loadTradeReplay(){
 }
 function renderTrade(){
   if(!TRADE.bars.length){tradeCards.innerHTML="";return;}
-  const b=tradeBar(),total=tradeTotal(),ret=(total/TRADE.initialCash-1)*100,unreal=TRADE.pos?((b.close-TRADE.avg)*TRADE.pos):0;
+  const b=tradeBar(),total=tradeTotal(),ret=(total/TRADE.initialCash-1)*100,unreal=TRADE.pos?((b.close-TRADE.avg)*TRADE.pos):0,loc=locale();
+  const money=v=>Math.round(v).toLocaleString(loc)+(LANG==="en"?" JPY":" 円");
   const cardData=[
-    ["日付",b.date,"終値 "+b.close.toLocaleString("ja-JP")],
-    ["総資産",Math.round(total).toLocaleString("ja-JP")+" 円",(ret>=0?"+":"")+ret.toFixed(2)+"%"],
-    ["現金",Math.round(TRADE.cash).toLocaleString("ja-JP")+" 円","実現 "+Math.round(TRADE.realized).toLocaleString("ja-JP")+" 円"],
-    ["保有",TRADE.pos.toLocaleString()+" 株",TRADE.pos?"平均 "+TRADE.avg.toFixed(2)+" / 含み "+Math.round(unreal).toLocaleString("ja-JP")+"円":"ポジションなし"]
+    [t("date"),b.date,t("close")+" "+b.close.toLocaleString(loc)],
+    [t("totalAssets"),money(total),(ret>=0?"+":"")+ret.toFixed(2)+"%"],
+    [t("cash"),money(TRADE.cash),t("realized")+" "+money(TRADE.realized)],
+    [t("position"),TRADE.pos.toLocaleString(loc)+" "+t("shares"),TRADE.pos?t("average")+" "+TRADE.avg.toFixed(2)+" / "+t("unrealized")+" "+money(unreal):t("noPosition")]
   ];
   tradeCards.innerHTML=cardData.map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
-  tradePendingBadge.textContent=TRADE.pending?(TRADE.pending.side.toUpperCase()+" "+TRADE.pending.qty+"株 → 次寄り"):"注文なし";
+  tradePendingBadge.textContent=TRADE.pending?(TRADE.pending.side.toUpperCase()+" "+TRADE.pending.qty+" "+t("shares")+" → "+t("nextOpen")):t("noOrder");
   const d=tradeDecisionNow();TRADE.proposal=d;
   const cls=d.action==="buy"?"positive":d.action==="sell"?"negative":"";
-  tradeDecision.innerHTML='<div class="name">AI判定 / '+esc(TRADE.mode)+'</div><div class="value '+cls+'">'+d.action.toUpperCase()+'</div><div class="meta">'+esc(d.reason)+(d.r==null?"":" / 期待5日 "+(+d.r).toFixed(2)+"%")+'</div>';
+  tradeDecision.innerHTML='<div class="name">'+t("aiDecision")+' / '+esc(TRADE.mode)+'</div><div class="value '+cls+'">'+d.action.toUpperCase()+'</div><div class="meta">'+esc(d.reason)+(d.r==null?"":" / "+t("expected5d")+" "+(+d.r).toFixed(2)+"%")+'</div>';
   tradeAcceptAi.style.display=TRADE.mode==="semi"?"inline-block":"none";
-  tradeFills.innerHTML=TRADE.fills.length?TRADE.fills.slice().reverse().map(f=>'<tr><td>'+esc(f.date)+'</td><td>'+esc(f.side+" "+f.source)+'</td><td>'+f.qty+'</td><td>'+f.price.toFixed(2)+'</td><td>'+Math.round(f.cost).toLocaleString("ja-JP")+'</td><td>'+Math.round(f.cash).toLocaleString("ja-JP")+'</td></tr>').join(""):'<tr><td colspan="6">取引なし</td></tr>';
+  tradeFills.innerHTML=TRADE.fills.length?TRADE.fills.slice().reverse().map(f=>'<tr><td>'+esc(f.date)+'</td><td>'+esc(f.side+" "+f.source)+'</td><td>'+f.qty+'</td><td>'+f.price.toFixed(2)+'</td><td>'+Math.round(f.cost).toLocaleString(loc)+'</td><td>'+Math.round(f.cash).toLocaleString(loc)+'</td></tr>').join(""):'<tr><td colspan="6">'+(LANG==="en"?"No trades":"取引なし")+'</td></tr>';
   const lo=Math.max(0,TRADE.idx-119),slice=TRADE.bars.slice(lo,TRADE.idx+1);
   const traces=[{type:"candlestick",x:slice.map(r=>r[0]),open:slice.map(r=>+r[1]),high:slice.map(r=>+r[2]),low:slice.map(r=>+r[3]),close:slice.map(r=>+r[4]),name:TRADE.code}];
   const visible=new Set(slice.map(r=>r[0])),fills=TRADE.fills.filter(f=>visible.has(f.date));
-  if(fills.length)traces.push({type:"scatter",mode:"markers",x:fills.map(f=>f.date),y:fills.map(f=>f.price),text:fills.map(f=>f.side),marker:{size:10,symbol:fills.map(f=>f.side==="BUY"?"triangle-up":"triangle-down")},name:"約定"});
+  if(fills.length)traces.push({type:"scatter",mode:"markers",x:fills.map(f=>f.date),y:fills.map(f=>f.price),text:fills.map(f=>f.side),marker:{size:10,symbol:fills.map(f=>f.side==="BUY"?"triangle-up":"triangle-down")},name:LANG==="en"?"Fills":"約定"});
   Plotly.react("tradeChart",traces,layout({xaxis:{rangeslider:{visible:false},gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"}}),config);
 }
 async function setupTrade(){
