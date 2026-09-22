@@ -9,6 +9,7 @@ const EARTH_RADIUS=2;
 const REAL_MAX_RELIEF_SCENE=0.00285;
 const EARTH_RADIUS_METERS=6371000;
 const DEM_TERRARIUM_BASE="https://elevation-tiles-prod.s3.amazonaws.com/terrarium";
+const COUNTRY_GEOJSON_URL="https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson";
 const DEG=Math.PI/180;
 
 let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
@@ -16,6 +17,7 @@ let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid
 let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true;
 let cameraRollDeg=0,simulationHour=12;
 let demGroup=null,demRefreshTimer=null,demBuildToken=0,demLastKey="";
+let countryOverlay=null,countryGeoJsonPromise=null,countryOverlayToken=0;
 const demCache=new Map();
 let stateListener=null,stateEmitRaf=0;
 
@@ -482,6 +484,7 @@ export function initGlobe(element){
   scene.add(earth);
   loadEarthTextures(material);
   applyTerrainSettings();
+  ensureCountryOverlay();
 
   atmosphere=new THREE.Mesh(
     new THREE.SphereGeometry(2.115,64,48),
@@ -539,7 +542,121 @@ function markerColor(t){
   c.setHSL(.62*(1-t),.78,.56);
   return c;
 }
-export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,onCountrySelect}){
+function loadCountryGeoJson(){
+  if(!countryGeoJsonPromise){
+    countryGeoJsonPromise=fetch(COUNTRY_GEOJSON_URL,{mode:"cors",cache:"force-cache"})
+      .then(r=>{if(!r.ok)throw new Error("country GeoJSON HTTP "+r.status);return r.json();})
+      .catch(e=>{countryGeoJsonPromise=null;throw e;});
+  }
+  return countryGeoJsonPromise;
+}
+function countryIso3(feature){
+  const p=feature?.properties||{};
+  const candidates=[p.ISO_A3,p.ADM0_A3,p.SOV_A3,p.BRK_A3,p.GU_A3,p.iso_a3];
+  return candidates.find(x=>x&&x!=="-99")||null;
+}
+function ensureCountryOverlay(){
+  if(countryOverlay)return;
+  const material=new THREE.MeshBasicMaterial({
+    transparent:true,opacity:1,depthWrite:false,depthTest:true,
+    side:THREE.FrontSide,toneMapped:false
+  });
+  countryOverlay=new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS+.012,128,96),material);
+  countryOverlay.renderOrder=2;
+  scene.add(countryOverlay);
+}
+function rgbaFromColor(col,a=.62){
+  return "rgba("+Math.round(col.r*255)+","+Math.round(col.g*255)+","+Math.round(col.b*255)+","+a+")";
+}
+function projectRing(ring,w,h){
+  const pts=[];
+  let prev=null;
+  for(const coord of ring||[]){
+    let lon=+coord[0],lat=+coord[1];
+    if(!Number.isFinite(lon)||!Number.isFinite(lat))continue;
+    let x=(lon+180)/360*w;
+    const y=(90-lat)/180*h;
+    if(prev!=null){
+      while(x-prev>w/2)x-=w;
+      while(x-prev<-w/2)x+=w;
+    }
+    pts.push([x,y]);prev=x;
+  }
+  return pts;
+}
+function traceRing(ctx,pts,shift){
+  if(!pts.length)return;
+  ctx.moveTo(pts[0][0]+shift,pts[0][1]);
+  for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0]+shift,pts[i][1]);
+  ctx.closePath();
+}
+function drawCountryGeometry(ctx,geometry,fillStyle,w,h){
+  if(!geometry)return;
+  const polys=geometry.type==="Polygon"?[geometry.coordinates]:
+    geometry.type==="MultiPolygon"?geometry.coordinates:[];
+  for(const poly of polys){
+    const rings=(poly||[]).map(r=>projectRing(r,w,h)).filter(r=>r.length>=3);
+    if(!rings.length)continue;
+    for(const shift of [-w,0,w]){
+      ctx.beginPath();
+      for(const ring of rings)traceRing(ctx,ring,shift);
+      ctx.fillStyle=fillStyle;
+      ctx.fill("evenodd");
+      ctx.strokeStyle="rgba(151,198,232,.78)";
+      ctx.lineWidth=1.05;
+      for(const ring of rings){
+        ctx.beginPath();traceRing(ctx,ring,shift);ctx.stroke();
+      }
+    }
+  }
+}
+async function updateCountryOverlay(countries,metric,enabled){
+  ensureCountryOverlay();
+  countryOverlay.visible=!!enabled;
+  if(!enabled)return;
+  const token=++countryOverlayToken;
+  const geo=await loadCountryGeoJson();
+  if(token!==countryOverlayToken)return;
+
+  const width=1536,height=768;
+  const canvas=("OffscreenCanvas" in window)?new OffscreenCanvas(width,height):document.createElement("canvas");
+  canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,width,height);
+
+  const valueByIso=new Map();
+  const vals=[];
+  for(const c of countries||[]){
+    const v=c.latest?.[metric]?.value;
+    if(v==null||!Number.isFinite(+v))continue;
+    valueByIso.set(c.iso3,+v);vals.push(+v);
+  }
+  vals.sort((a,b)=>a-b);
+  const lo=vals[Math.floor(Math.max(0,vals.length-1)*.05)]??0;
+  const hi=vals[Math.floor(Math.max(0,vals.length-1)*.95)]??1;
+  const span=(hi-lo)||1;
+
+  for(const feature of geo.features||[]){
+    const iso=countryIso3(feature);
+    const value=iso?valueByIso.get(iso):null;
+    const has=Number.isFinite(value);
+    const t=has?clamp((value-lo)/span,0,1):0;
+    const col=has?markerColor(t):new THREE.Color(0x496077);
+    drawCountryGeometry(ctx,feature.geometry,rgbaFromColor(col,has?.64:.14),width,height);
+  }
+
+  if(token!==countryOverlayToken)return;
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  texture.needsUpdate=true;
+  const old=countryOverlay.material.map;
+  countryOverlay.material.map=texture;
+  countryOverlay.material.needsUpdate=true;
+  old?.dispose?.();
+}
+
+export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,markers=false,onCountrySelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
   currentLanguage=language==="en"?"en":"ja";
@@ -561,27 +678,31 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
   const span=(hi-lo)||1;
   const loc=currentLanguage==="en"?"en-US":"ja-JP";
 
-  for(const {c,v} of rows){
-    const n=+v.value,t=Math.max(0,Math.min(1,(n-lo)/span));
-    const col=markerColor(t);
-    const marker=new THREE.Mesh(
-      new THREE.SphereGeometry(.031+.027*Math.sqrt(t),12,9),
-      new THREE.MeshPhongMaterial({
-        color:col,emissive:col.clone().multiplyScalar(.18),shininess:18
-      })
-    );
-    marker.position.copy(latLonToVector3(+c.lat,+c.lon));
-    marker.userData={
-      iso3:c.iso3,
-      name:c.displayName||c.name,
-      metric:metricLabel||metric,
-      value:n,
-      valueText:Number(n).toLocaleString(loc,{maximumFractionDigits:3})+
-        (unit==="percent"?"%":unit?(" "+unit):""),
-      year:v.year||"—"
-    };
-    markerGroup.add(marker);
+  markerGroup.visible=!!markers;
+  if(markers){
+    for(const {c,v} of rows){
+      const n=+v.value,t=Math.max(0,Math.min(1,(n-lo)/span));
+      const col=markerColor(t);
+      const marker=new THREE.Mesh(
+        new THREE.SphereGeometry(.031+.027*Math.sqrt(t),12,9),
+        new THREE.MeshPhongMaterial({
+          color:col,emissive:col.clone().multiplyScalar(.18),shininess:18
+        })
+      );
+      marker.position.copy(latLonToVector3(+c.lat,+c.lon));
+      marker.userData={
+        iso3:c.iso3,
+        name:c.displayName||c.name,
+        metric:metricLabel||metric,
+        value:n,
+        valueText:Number(n).toLocaleString(loc,{maximumFractionDigits:3})+
+          (unit==="percent"?"%":unit?(" "+unit):""),
+        year:v.year||"—"
+      };
+      markerGroup.add(marker);
+    }
   }
+  updateCountryOverlay(countries,metric,!!countryFill).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
   scheduleStateEmit();
   scheduleDemRefresh(0);
 }
