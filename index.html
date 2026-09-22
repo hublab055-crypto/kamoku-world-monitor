@@ -85,6 +85,11 @@
     .lang-switch button{border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);padding:7px 9px;font-size:11px;cursor:pointer}
     .lang-switch button:last-child{border-right:0}
     .lang-switch button.active{background:var(--accent);color:#06111f;font-weight:750}
+    .terrain-control{min-width:190px}
+    .terrain-control input[type="range"]{min-width:190px;width:190px;padding:0}
+    .terrain-toggle{display:flex;align-items:center;gap:7px;min-height:39px;padding:0 2px}
+    .terrain-toggle input{min-width:auto;width:auto}
+    .terrain-center{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:9px 11px;cursor:pointer}
     @media(max-width:620px){.top{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}.lang-switch button{padding:6px 8px}}
     @media(max-width:1000px){
       .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -167,12 +172,15 @@
       <label>指標<select id="worldMetric"></select></label>
       <label>表示<select id="worldDisplay"><option value="3d">3D地形</option><option value="2d">2D地図</option></select></label>
       <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
+      <label class="terrain-control" id="terrainScaleWrap">地形強調 <span id="worldTerrainScaleValue">30×</span><input id="worldTerrainScale" type="range" min="1" max="100" step="1" value="30"></label>
+      <label class="terrain-toggle" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked> <span id="worldSeabedText">海底地形</span></label>
+      <button id="worldCenterBtn" class="terrain-center" type="button">中央に戻す</button>
     </div>
     <div class="card">
       <div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div>
       <div id="worldGlobe" class="globe"></div>
       <div id="worldMap" class="chart" style="display:none"></div>
-      <div class="note">3D地球儀は各国マスターの緯度・経度に指標マーカーを配置します。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。</div>
+      <div class="note">3D地球儀は地形高度画像による高低差を球面へ反映し、地形強調倍率と海底地形を切り替えられます。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。</div>
     </div>
   </section>
 
@@ -427,7 +435,7 @@ const TEXT={
   marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
   takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
   riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
-  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"}
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
 };
 const STATIC_TEXT={
   "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
@@ -452,12 +460,13 @@ const STATIC_TEXT={
   "利確 %":"Take profit %","損切 %":"Stop loss %","コスト bps":"Cost bps","買い注文":"Buy order","売り注文":"Sell order","AI提案を採用":"Accept AI proposal",
   "利益への税率20.315%を反映":"Apply 20.315% tax to realized gains","取引履歴":"Trade History","売買":"Side","株数":"Shares","価格":"Price","税/費用":"Tax / Cost","現金":"Cash",
   "この画面の読み方":"How to Read This Dashboard","生成":"Generated",
-  "3D地球儀は各国マスターの緯度・経度に指標マーカーを配置します。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。":"3D terrain uses country coordinates for indicator markers. Drag to rotate, pinch or scroll to zoom, and tap a country to open its country view.",
+  "3D地球儀は地形高度画像による高低差を球面へ反映し、地形強調倍率と海底地形を切り替えられます。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。":"3D terrain displaces the globe surface using a terrain-height image. You can adjust terrain exaggeration and toggle seabed relief. Drag to rotate, pinch or scroll to zoom, and tap a country to open its country view.",
   "各営業日の終値までに利用可能な情報から、次営業日寄付き→5営業日後終値を評価します。":"Evaluates the move from the next session open to the close five trading days later using only information available by each day’s close.",
   "パターン図鑑の勝率・5日後リターンは未来結果を含む回顧統計です。過去リプレイの売買判断には使用しません。":"Pattern Atlas win rates and 5-day returns are retrospective statistics containing future outcomes. They are not used for historical replay trading decisions.",
   "プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。":"Repeatedly backtests player-defined rule thresholds and selects parameters on the validation period. Background training can be turned off at any time.",
   "D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。":"Signals are decided at day D close and market orders fill at the next trading day open. Full-auto uses the same timing rule.",
-  "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated."
+  "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated.",
+  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","中央に戻す":"Recenter globe"
 };
 function t(key){return TEXT[key]?.[LANG]??key;}
 function locale(){return LANG==="en"?"en-US":"ja-JP";}
@@ -510,6 +519,9 @@ function localizeSelectors(){
   worldDisplay.options[0].textContent=t("terrain3d");
   worldDisplay.options[1].textContent=t("map2d");
   worldMode.options[0].textContent=t("latestEach");
+  if(document.getElementById("terrainScaleWrap"))terrainScaleWrap.childNodes[0].nodeValue=t("terrainExaggeration")+" ";
+  if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
+  if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
   countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
 }
 function applyLanguage(){
@@ -612,8 +624,33 @@ function renderKcu(){
 
 function renderWorld(){
   fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);
+  const savedTerrain=Math.max(1,Math.min(100,+(localStorage.getItem("kamokuTerrainScale")||30)));
+  worldTerrainScale.value=String(savedTerrain);
+  worldTerrainScaleValue.textContent=savedTerrain+"×";
+  worldSeabed.checked=localStorage.getItem("kamokuSeabedTerrain")!=="0";
+  const syncTerrainVisibility=()=>{
+    const show=worldDisplay.value==="3d";
+    terrainScaleWrap.style.display=show?"grid":"none";
+    terrainSeabedWrap.style.display=show?"flex":"none";
+    worldCenterBtn.style.display=show?"inline-block":"none";
+  };
   const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);drawWorld();};
-  worldDomain.onchange=updateMetric; worldMetric.onchange=drawWorld; worldDisplay.onchange=drawWorld;
+  worldDomain.onchange=updateMetric;
+  worldMetric.onchange=drawWorld;
+  worldDisplay.onchange=()=>{syncTerrainVisibility();drawWorld();};
+  worldTerrainScale.oninput=()=>{
+    const v=Math.max(1,Math.min(100,+worldTerrainScale.value||30));
+    worldTerrainScaleValue.textContent=v+"×";
+    localStorage.setItem("kamokuTerrainScale",String(v));
+    window.KamokuGlobe?.setTerrain?.({exaggeration:v,seabed:worldSeabed.checked,fit:false});
+  };
+  worldTerrainScale.onchange=drawWorld;
+  worldSeabed.onchange=()=>{
+    localStorage.setItem("kamokuSeabedTerrain",worldSeabed.checked?"1":"0");
+    drawWorld();
+  };
+  worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
+  syncTerrainVisibility();
   window.addEventListener("kamoku-globe-ready",()=>drawWorld(),{once:true});
   drawWorld();
 }
@@ -630,6 +667,7 @@ function drawWorld(){
         element:worldGlobe,
         countries:D.countries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
         metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
+        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,
         onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
       });
     }
