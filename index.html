@@ -90,6 +90,28 @@
     .terrain-toggle{display:flex;align-items:center;gap:7px;min-height:39px;padding:0 2px}
     .terrain-toggle input{min-width:auto;width:auto}
     .terrain-center{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:9px 11px;cursor:pointer}
+    .globe-control-panel{margin-top:12px;border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(5,14,26,.72)}
+    .globe-control-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+    .globe-control-title{font-weight:750}
+    .globe-gesture-help{font-size:11px;color:var(--muted);line-height:1.55}
+    .globe-dial-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:9px}
+    .globe-dial{border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.025);text-align:center;min-width:0}
+    .globe-dial-label{font-size:10px;color:var(--muted);min-height:26px;display:flex;align-items:center;justify-content:center}
+    .dial-wheel{width:62px;height:62px;margin:5px auto;position:relative;border-radius:50%;touch-action:none;cursor:ns-resize;background:radial-gradient(circle at 50% 50%,#152945 0 36%,#0c1828 37% 55%,#1f3855 56% 60%,#08111f 61%);box-shadow:inset 0 0 0 1px #35506f,0 5px 14px rgba(0,0,0,.28)}
+    .dial-wheel:before{content:"";position:absolute;inset:4px;border-radius:50%;background:repeating-conic-gradient(from -2deg,#6f8cab 0 1deg,transparent 1deg 10deg);opacity:.5;mask:radial-gradient(circle,transparent 0 58%,#000 60%)}
+    .dial-pointer{position:absolute;left:50%;top:5px;width:3px;height:22px;border-radius:3px;background:var(--accent);transform-origin:50% 26px;box-shadow:0 0 8px rgba(88,166,255,.75)}
+    .dial-value{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .dial-entry{width:100%;min-width:0!important;margin-top:5px;padding:6px 5px!important;text-align:center;font-size:11px;cursor:pointer;background:#091727!important}
+    .keypad-overlay{position:fixed;inset:0;z-index:220;background:rgba(2,7,14,.78);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(8px)}
+    .keypad-box{width:min(360px,100%);background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 20px 70px rgba(0,0,0,.5)}
+    .keypad-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .keypad-title{font-weight:750}.keypad-close{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:9px;padding:6px 10px}
+    .keypad-display{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:#071322;color:var(--text);font-size:24px;text-align:right;font-variant-numeric:tabular-nums;overflow:hidden}
+    .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+    .keypad-key{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:11px;padding:14px 8px;font-size:18px;font-weight:700;cursor:pointer}
+    .keypad-key.execute{background:var(--accent);color:#06111f}.keypad-key.utility{font-size:13px;color:var(--muted)}
+    .keypad-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    @media(max-width:620px){.globe-dial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dial-wheel{width:68px;height:68px}.globe{min-height:440px}}
     @media(max-width:620px){.top{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}.lang-switch button{padding:6px 8px}}
     @media(max-width:1000px){
       .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -133,6 +155,23 @@
         <div id="bootstrapError" class="auth-error"></div>
       </form>
     </details>
+  </div>
+</div>
+<div id="numericKeypad" class="keypad-overlay" aria-hidden="true">
+  <div class="keypad-box" role="dialog" aria-modal="true">
+    <div class="keypad-head"><div id="keypadTitle" class="keypad-title">数値入力</div><button id="keypadClose" class="keypad-close" type="button">×</button></div>
+    <div id="keypadDisplay" class="keypad-display">0</div>
+    <div class="keypad-grid">
+      <button class="keypad-key" data-kp="7">7</button><button class="keypad-key" data-kp="8">8</button><button class="keypad-key" data-kp="9">9</button>
+      <button class="keypad-key" data-kp="4">4</button><button class="keypad-key" data-kp="5">5</button><button class="keypad-key" data-kp="6">6</button>
+      <button class="keypad-key" data-kp="1">1</button><button class="keypad-key" data-kp="2">2</button><button class="keypad-key" data-kp="3">3</button>
+      <button class="keypad-key utility" data-kp="sign">±</button><button class="keypad-key" data-kp="0">0</button><button class="keypad-key" data-kp=".">.</button>
+    </div>
+    <div class="keypad-foot">
+      <button id="keypadClear" class="keypad-key utility" type="button">クリア</button>
+      <button id="keypadBackspace" class="keypad-key utility" type="button">⌫ バックスペース</button>
+    </div>
+    <button id="keypadExecute" class="keypad-key execute" style="width:100%;margin-top:8px" type="button">実行</button>
   </div>
 </div>
 <header>
@@ -179,6 +218,13 @@
     <div class="card">
       <div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div>
       <div id="worldGlobe" class="globe"></div>
+      <div id="globeControlPanel" class="globe-control-panel">
+        <div class="globe-control-head">
+          <div><div id="globeControlTitle" class="globe-control-title">カメラ / 地球操作</div><div id="globeGestureHelp" class="globe-gesture-help">1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム</div></div>
+          <button id="globeResetView" class="terrain-center" type="button">表示をリセット</button>
+        </div>
+        <div id="globeDialGrid" class="globe-dial-grid"></div>
+      </div>
       <div id="worldMap" class="chart" style="display:none"></div>
       <div class="note">3D地球儀は地形高度画像による高低差を球面へ反映し、地形強調倍率と海底地形を切り替えられます。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。</div>
     </div>
