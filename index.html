@@ -226,6 +226,18 @@
       .master-dial-center{inset:29px}
       .splash-radar{width:min(51vw,220px)}
     }
+
+    .news-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin-bottom:12px}
+    .news-list{display:grid;gap:9px}
+    .news-item{display:block;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:rgba(255,255,255,.025);text-decoration:none;color:var(--text)}
+    .news-item:hover{border-color:#4d6f96;background:rgba(255,255,255,.04)}
+    .news-title{font-size:14px;font-weight:750;line-height:1.45;margin-bottom:6px}
+    .news-meta{display:flex;gap:7px;flex-wrap:wrap;color:var(--muted);font-size:11px}
+    .news-meta span{border:1px solid rgba(89,119,151,.45);border-radius:999px;padding:2px 6px}
+    .news-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+    .news-tags span{font-size:10px;color:#bad8fb;background:#0a1b2f;border:1px solid #294562;border-radius:999px;padding:2px 6px}
+    .news-network-note{font-size:11px;color:var(--muted);line-height:1.55;margin-top:8px}
+    @media(max-width:620px){.news-title{font-size:13px}.news-item{padding:10px}.news-toolbar select{min-width:130px}}
   </style>
 </head>
 <body>
@@ -308,6 +320,7 @@
     <button data-view="world">世界地図</button>
     <button data-view="country">国別</button>
     <button data-view="regions">地域別</button>
+    <button data-view="news">ニュース</button>
     <button data-view="markets">市場AI</button>
     <button data-view="trade">取引シミュレーション</button>
     <button data-view="about">データ説明</button>
@@ -380,6 +393,61 @@
       <label>指標<select id="regionMetric"></select></label>
     </div>
     <div class="card"><h2 id="regionTitle">地域中央値</h2><div class="tablewrap"><table><thead><tr><th>地域</th><th>中央値</th><th>国数</th></tr></thead><tbody id="regionBody"></tbody></table></div><div class="note">ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。</div></div>
+  </section>
+
+
+  <section id="news" class="view">
+    <div class="news-toolbar">
+      <label>期間
+        <select id="newsWindow">
+          <option value="6">6時間</option>
+          <option value="24">24時間</option>
+          <option value="72" selected>72時間</option>
+          <option value="168">7日</option>
+          <option value="720">30日</option>
+        </select>
+      </label>
+      <label>カテゴリ
+        <select id="newsCategory">
+          <option value="">すべて</option>
+          <option value="general">総合</option>
+          <option value="domestic">国内</option>
+          <option value="world">海外</option>
+          <option value="business">経済</option>
+          <option value="technology">テクノロジー</option>
+        </select>
+      </label>
+      <button id="newsRefreshBtn" class="logout" type="button" style="padding:9px 12px">更新</button>
+      <span id="newsStatus" class="pill">未読込</span>
+    </div>
+
+    <div class="ai-tabs" id="newsTabs">
+      <button class="active" data-news-view="newsLatest">最新ニュース</button>
+      <button data-news-view="newsHistory">履歴</button>
+      <button data-news-view="newsNetwork">Word Network</button>
+    </div>
+
+    <div id="newsLatest" class="ai-subview active">
+      <div class="card">
+        <div class="section-title"><h2>最新ニュース</h2><div id="newsLatestCount" class="pill">—</div></div>
+        <div id="newsLatestList" class="news-list"><div class="loading">ニュースを読み込みます。</div></div>
+      </div>
+    </div>
+
+    <div id="newsHistory" class="ai-subview">
+      <div class="card">
+        <div class="section-title"><h2>ニュース履歴</h2><div id="newsHistoryMeta" class="pill">—</div></div>
+        <div id="newsHistoryChart" class="chart small"></div>
+      </div>
+    </div>
+
+    <div id="newsNetwork" class="ai-subview">
+      <div class="card">
+        <div class="section-title"><h2>Word Network</h2><div id="newsNetworkMeta" class="pill">—</div></div>
+        <div id="newsNetworkChart" class="chart"></div>
+        <div class="news-network-note">ノードの大きさはWMA、線の太さは共起スコアです。v2で概念統合・栄養伝播・減衰履歴を追加します。</div>
+      </div>
+    </div>
   </section>
 
   <section id="markets" class="view">
@@ -543,6 +611,7 @@ let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
 let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
+let NEWS_LOADED=false, NEWS_LOADING=false;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
 const METRIC_JA={
@@ -619,7 +688,8 @@ const STATIC_TEXT={
   "メールアドレス":"Email","パスワード":"Password","初回オーナー登録":"First-time owner setup",
   "最初の1回だけ、ワンタイム登録コードを使ってオーナーアカウントを作成します。":"Create the owner account once using a one-time registration code.",
   "新しいパスワード（12文字以上）":"New password (12+ characters)","ワンタイム登録コード":"One-time registration code","オーナー登録":"Register owner",
-  "世界地図":"World Map","国別":"Country","地域別":"Regions","市場AI":"Market AI","取引シミュレーション":"Trade Simulator","データ説明":"Data Guide",
+  "世界地図":"World Map","国別":"Country","地域別":"Regions","ニュース":"News","市場AI":"Market AI","取引シミュレーション":"Trade Simulator","データ説明":"Data Guide",
+  "期間":"Window","カテゴリ":"Category","すべて":"All","総合":"General","国内":"Domestic","海外":"World","経済":"Business","テクノロジー":"Technology","更新":"Refresh","未読込":"Not loaded","最新ニュース":"Latest News","履歴":"History","ニュース履歴":"News History",
   "表示通貨":"Display currency","KCU推移":"KCU Trend","構成ウェイト":"Component Weights","国・地域":"Country / Region","比率":"Share",
   "資産のKCU換算（最新）":"Assets in KCU (Latest)","資産":"Asset","月":"Month","現地価格":"Local price","KCUリターン":"KCU return",
   "分野":"Domain","指標":"Indicator","表示":"Display","年の扱い":"Year handling","3D地形":"3D Terrain","2D地図":"2D Map",
@@ -966,6 +1036,7 @@ function setNav(){
     document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("active"));
     document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
     b.classList.add("active"); document.getElementById(b.dataset.view).classList.add("active");
+    if(b.dataset.view==="news"&&!NEWS_LOADED&&!NEWS_LOADING)loadNews().catch(renderNewsError);
     setTimeout(()=>window.dispatchEvent(new Event("resize")),20);
   });
 }
@@ -1158,6 +1229,134 @@ function drawRegions(){
   regionBody.innerHTML=rows.map(x=>`<tr><td>${esc(regionName(x.name))}</td><td>${fmt(x.median,r.unit)}</td><td>${x.n}</td></tr>`).join("");
 }
 
+
+
+async function newsApi(params){
+  if(!AUTH_SESSION?.access_token)throw new Error(t("loadingRequired"));
+  const u=new URL(API_BASE);
+  Object.entries(params||{}).forEach(([k,v])=>{
+    if(v!==null&&v!==undefined&&v!=="")u.searchParams.set(k,String(v));
+  });
+  const r=await fetch(u,{cache:"no-store",headers:{Authorization:"Bearer "+AUTH_SESSION.access_token}});
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||("news HTTP "+r.status));
+  return out;
+}
+
+function setupNews(){
+  document.querySelectorAll("#newsTabs button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#newsTabs button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll("#news .ai-subview").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById(b.dataset.newsView).classList.add("active");
+    setTimeout(()=>window.dispatchEvent(new Event("resize")),20);
+  });
+  newsRefreshBtn.onclick=()=>loadNews(true).catch(renderNewsError);
+  newsWindow.onchange=()=>loadNews(true).catch(renderNewsError);
+  newsCategory.onchange=()=>loadNews(true).catch(renderNewsError);
+}
+
+function renderNewsError(e){
+  NEWS_LOADING=false;
+  newsStatus.textContent=LANG==="en"?"Load failed":"読込エラー";
+  const msg=esc(e?.message||String(e));
+  newsLatestList.innerHTML='<div class="error">'+msg+'</div>';
+  newsHistoryChart.innerHTML='<div class="error">'+msg+'</div>';
+  newsNetworkChart.innerHTML='<div class="error">'+msg+'</div>';
+}
+
+function safeNewsHref(value){
+  try{
+    const u=new URL(String(value||""));
+    return (u.protocol==="http:"||u.protocol==="https:")?u.href:"#";
+  }catch{return "#";}
+}
+
+function renderNewsLatest(items){
+  newsLatestCount.textContent=(items?.length||0)+" "+(LANG==="en"?"items":"件");
+  if(!items?.length){
+    newsLatestList.innerHTML='<div class="note">'+(LANG==="en"?"No news in this window.":"この条件のニュースはありません。")+'</div>';
+    return;
+  }
+  newsLatestList.innerHTML=items.map(n=>{
+    const when=new Date(n.published_at||n.fetched_at);
+    const ts=Number.isFinite(when.getTime())?when.toLocaleString(locale()):"—";
+    const tags=(n.tags||[]).slice(0,6).map(x=>'<span>'+esc(x)+'</span>').join("");
+    return '<a class="news-item" href="'+esc(safeNewsHref(n.url))+'" target="_blank" rel="noopener noreferrer">'+
+      '<div class="news-title">'+esc(n.title||"—")+'</div>'+
+      '<div class="news-meta"><span>'+esc(n.source||"—")+'</span><span>'+esc(n.category||"—")+'</span><span>'+esc(ts)+'</span>'+
+      (n.related_event_count?'<span>events '+esc(n.related_event_count)+'</span>':"")+'</div>'+
+      (tags?'<div class="news-tags">'+tags+'</div>':"")+
+    '</a>';
+  }).join("");
+}
+
+function renderNewsHistory(data){
+  const s=data?.series||[];
+  newsHistoryMeta.textContent=(data?.hours||newsWindow.value)+"h / "+(data?.bucket||"hour");
+  if(!s.length){
+    newsHistoryChart.innerHTML='<div class="note">'+(LANG==="en"?"No history in this window.":"この期間の履歴はありません。")+'</div>';
+    return;
+  }
+  Plotly.react("newsHistoryChart",[
+    {x:s.map(x=>x.bucket_time),y:s.map(x=>x.news_count),type:"scatter",mode:"lines+markers",name:LANG==="en"?"News":"ニュース",line:{width:2.5}},
+    {x:s.map(x=>x.bucket_time),y:s.map(x=>x.event_count||0),type:"bar",name:LANG==="en"?"Events":"イベント",opacity:.32}
+  ],layout({barmode:"overlay",xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",rangemode:"tozero"}}),config);
+}
+
+function renderNewsNetwork(data){
+  const nodes=data?.nodes||[],edges=data?.edges||[];
+  newsNetworkMeta.textContent=(nodes.length+" nodes / "+edges.length+" links");
+  if(!nodes.length){
+    newsNetworkChart.innerHTML='<div class="note">'+(LANG==="en"?"No network data.":"ネットワークデータがありません。")+'</div>';
+    return;
+  }
+  const pos=new Map();
+  nodes.forEach((n,i)=>{
+    const a=(Math.PI*2*i/nodes.length)-Math.PI/2;
+    const r=.72+(.18*((i%5)/4));
+    pos.set(n.id,{x:Math.cos(a)*r,y:Math.sin(a)*r});
+  });
+  const edgeX=[],edgeY=[];
+  edges.forEach(e=>{
+    const a=pos.get(e.source),b=pos.get(e.target);if(!a||!b)return;
+    edgeX.push(a.x,b.x,null);edgeY.push(a.y,b.y,null);
+  });
+  const maxW=Math.max(...nodes.map(n=>+n.wma||0),1);
+  const sizes=nodes.map(n=>14+30*Math.sqrt(Math.max(0,+n.wma||0)/maxW));
+  const traceEdges={type:"scatter",mode:"lines",x:edgeX,y:edgeY,hoverinfo:"skip",line:{width:1.2,color:"rgba(120,160,205,.28)"},name:"links"};
+  const traceNodes={type:"scatter",mode:"markers+text",x:nodes.map(n=>pos.get(n.id).x),y:nodes.map(n=>pos.get(n.id).y),
+    text:nodes.map(n=>n.label),textposition:"top center",hovertemplate:nodes.map(n=>esc(n.label)+"<br>WMA "+(+n.wma||0).toFixed(3)+"<br>Δ "+(((+n.change_rate||0)*100).toFixed(1))+"%<extra></extra>"),
+    marker:{size:sizes,opacity:.9,line:{width:1}},name:"terms"};
+  Plotly.react("newsNetworkChart",[traceEdges,traceNodes],layout({
+    showlegend:false,hovermode:"closest",margin:{l:12,r:12,t:12,b:12},
+    xaxis:{visible:false,range:[-1.15,1.15]},yaxis:{visible:false,range:[-1.15,1.15],scaleanchor:"x",scaleratio:1}
+  }),config);
+}
+
+async function loadNews(force=false){
+  if(NEWS_LOADING)return;
+  NEWS_LOADING=true;
+  newsStatus.textContent=LANG==="en"?"Loading…":"読込中…";
+  try{
+    const hours=+newsWindow.value||72;
+    const category=newsCategory.value||"";
+    const from=new Date(Date.now()-hours*3600_000).toISOString();
+    const networkCategory=category||"__all__";
+    const [latest,history,network]=await Promise.all([
+      newsApi({api:"news-latest",limit:50,category,from}),
+      newsApi({api:"news-history",hours,bucket:hours>=168?"day":"hour",category}),
+      newsApi({api:"news-network",category:networkCategory,minWma:.5,minScore:.5,limitNodes:60,limitEdges:120})
+    ]);
+    renderNewsLatest(latest.items||[]);
+    renderNewsHistory(history);
+    renderNewsNetwork(network);
+    NEWS_LOADED=true;
+    newsStatus.textContent=(LANG==="en"?"Updated ":"更新 ")+new Date().toLocaleTimeString(locale(),{hour:"2-digit",minute:"2-digit"});
+  }finally{
+    NEWS_LOADING=false;
+  }
+}
 
 const MARKET_FEATURE_LABELS={
   ret1_pct:"前日比",ret5_pct:"5日騰落",ret20_pct:"20日モメンタム",
@@ -1697,7 +1896,7 @@ async function boot(){
     countryByIso=Object.fromEntries(D.countries.map(c=>[c.iso3,c]));
     if(!countryByIso[selectedIso]) selectedIso=D.countries[0]?.iso3;
     updateStamp();
-    renderKcu();renderWorld();setupCountry();renderRegions();
+    renderKcu();renderWorld();setupCountry();renderRegions();setupNews();
     await setupMarketAI();
     await setupTrade();
     aboutNote.textContent=D.notes?.country_comparison||"";
