@@ -5,12 +5,21 @@ const EARTH_COLOR_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/eart
 const EARTH_HEIGHT_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png";
 const EARTH_WATER_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-water.png";
 
-let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
-let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null;
-let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true;
 const EARTH_RADIUS=2;
 const REAL_MAX_RELIEF_SCENE=0.00285;
+const DEG=Math.PI/180;
 
+let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
+let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null,sun=null,rim=null;
+let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true;
+let cameraRollDeg=0,simulationHour=12;
+let stateListener=null,stateEmitRaf=0;
+
+function clamp(v,min,max){return Math.min(max,Math.max(min,v));}
+function wrap(v,min,max){
+  const span=max-min;
+  return ((v-min)%span+span)%span+min;
+}
 function terrainMaxOutward(){
   return Math.min(.32,REAL_MAX_RELIEF_SCENE*Math.max(1,terrainExaggeration));
 }
@@ -18,13 +27,20 @@ function markerRadius(){
   return EARTH_RADIUS+.045+terrainMaxOutward();
 }
 function latLonToVector3(lat,lon,r=markerRadius()){
-  const phi=(90-lat)*Math.PI/180;
-  const theta=(lon+180)*Math.PI/180;
+  const phi=(90-lat)*DEG;
+  const theta=(lon+180)*DEG;
   return new THREE.Vector3(
     -r*Math.sin(phi)*Math.cos(theta),
     r*Math.cos(phi),
     r*Math.sin(phi)*Math.sin(theta)
   );
+}
+function vectorToLatLon(v){
+  const n=v.clone().normalize();
+  return {
+    lat:THREE.MathUtils.radToDeg(Math.asin(clamp(n.y,-1,1))),
+    lon:wrap(THREE.MathUtils.radToDeg(Math.atan2(-n.z,n.x)),-180,180)
+  };
 }
 function setPointer(event){
   const rect=renderer.domElement.getBoundingClientRect();
@@ -88,17 +104,13 @@ function loadEarthTextures(material){
 }
 function applyTerrainSettings(){
   if(!earth?.material)return;
-  const ex=Math.max(1,Math.min(100,+terrainExaggeration||1));
+  const ex=clamp(+terrainExaggeration||1,1,100);
   const relief=REAL_MAX_RELIEF_SCENE*ex;
   earth.material.bumpScale=Math.max(.008,relief*.7);
   if(seabedEnabled){
-    // The topology texture is interpreted around its midpoint so ocean relief
-    // can fall below the reference sphere while land rises above it.
     earth.material.displacementScale=relief*2;
     earth.material.displacementBias=-relief;
   }else{
-    // With seabed disabled, dark ocean pixels stay close to the reference sphere
-    // while brighter land relief is displaced outward.
     earth.material.displacementScale=relief;
     earth.material.displacementBias=0;
   }
@@ -106,6 +118,12 @@ function applyTerrainSettings(){
   const outer=EARTH_RADIUS+Math.min(.34,relief)+.10;
   if(atmosphere)atmosphere.scale.setScalar(outer/2.115);
   if(latitudeGrid)latitudeGrid.scale.setScalar((EARTH_RADIUS+.04+Math.min(.18,relief*.25))/2.105);
+}
+function updateSun(){
+  if(!sun)return;
+  const angle=((simulationHour-12)/24)*Math.PI*2;
+  sun.position.set(6*Math.cos(angle),1.4,6*Math.sin(angle));
+  if(rim)rim.position.set(-sun.position.x*.65,-.8,-sun.position.z*.65);
 }
 function fitGlobeToViewport({preserveDirection=true}={}){
   if(!host||!camera||!controls)return;
@@ -118,26 +136,135 @@ function fitGlobeToViewport({preserveDirection=true}={}){
   const limiting=Math.max(.08,Math.min(halfY,halfX));
   const radius=EARTH_RADIUS+terrainMaxOutward()+.13;
   const distance=radius/Math.sin(limiting)*1.06;
-
   const dir=preserveDirection
     ?camera.position.clone().sub(controls.target).normalize()
     :new THREE.Vector3(0,0,1);
+
   controls.target.set(0,0,0);
   camera.position.copy(dir.multiplyScalar(distance));
-  camera.lookAt(0,0,0);
+  camera.lookAt(controls.target);
   controls.update();
+  scheduleStateEmit();
+}
+function getOffset(){
+  if(!camera||!controls)return new THREE.Vector3(0,0,6);
+  return camera.position.clone().sub(controls.target);
+}
+function getViewAngles(){
+  const o=getOffset(),d=Math.max(.0001,o.length());
+  return {
+    rx:THREE.MathUtils.radToDeg(Math.asin(clamp(o.y/d,-1,1))),
+    ry:wrap(THREE.MathUtils.radToDeg(Math.atan2(o.x,o.z)),-180,180)
+  };
+}
+export function getViewState(){
+  if(!camera||!controls)return {
+    x:0,y:0,z:0,rx:0,ry:0,rz:cameraRollDeg,zoom:6,lat:0,lon:-90,time:simulationHour
+  };
+  const offset=getOffset(),ll=vectorToLatLon(offset),ang=getViewAngles();
+  return {
+    x:+controls.target.x.toFixed(4),
+    y:+controls.target.y.toFixed(4),
+    z:+controls.target.z.toFixed(4),
+    rx:+ang.rx.toFixed(3),
+    ry:+ang.ry.toFixed(3),
+    rz:+cameraRollDeg.toFixed(3),
+    zoom:+offset.length().toFixed(4),
+    lat:+ll.lat.toFixed(3),
+    lon:+ll.lon.toFixed(3),
+    time:+simulationHour.toFixed(3)
+  };
+}
+function scheduleStateEmit(){
+  if(!stateListener||stateEmitRaf)return;
+  stateEmitRaf=requestAnimationFrame(()=>{
+    stateEmitRaf=0;
+    try{stateListener(getViewState());}catch{}
+  });
+}
+function setOrbitAngles(rx,ry,zoom=null){
+  if(!camera||!controls)return;
+  const d=zoom==null?getOffset().length():clamp(+zoom||6,controls.minDistance,controls.maxDistance);
+  const elev=clamp(+rx||0,-89.5,89.5)*DEG;
+  const az=(+ry||0)*DEG;
+  const ce=Math.cos(elev);
+  const offset=new THREE.Vector3(
+    d*ce*Math.sin(az),
+    d*Math.sin(elev),
+    d*ce*Math.cos(az)
+  );
+  camera.position.copy(controls.target).add(offset);
+  camera.lookAt(controls.target);
+}
+function setLatLon(lat,lon,zoom=null){
+  if(!camera||!controls)return;
+  const d=zoom==null?getOffset().length():clamp(+zoom||6,controls.minDistance,controls.maxDistance);
+  const dir=latLonToVector3(clamp(+lat||0,-90,90),wrap(+lon||0,-180,180),1).normalize();
+  camera.position.copy(controls.target).addScaledVector(dir,d);
+  camera.lookAt(controls.target);
+}
+export function setViewState(patch={},options={}){
+  if(!camera||!controls)return;
+  const before=getViewState();
+  const target=controls.target.clone();
+  if(Number.isFinite(+patch.x))target.x=clamp(+patch.x,-6,6);
+  if(Number.isFinite(+patch.y))target.y=clamp(+patch.y,-6,6);
+  if(Number.isFinite(+patch.z))target.z=clamp(+patch.z,-6,6);
+  controls.target.copy(target);
+
+  const requestedZoom=Number.isFinite(+patch.zoom)?clamp(+patch.zoom,controls.minDistance,controls.maxDistance):before.zoom;
+  const hasLat=Number.isFinite(+patch.lat),hasLon=Number.isFinite(+patch.lon);
+  const hasRx=Number.isFinite(+patch.rx),hasRy=Number.isFinite(+patch.ry);
+
+  if(hasLat||hasLon){
+    setLatLon(hasLat?+patch.lat:before.lat,hasLon?+patch.lon:before.lon,requestedZoom);
+  }else if(hasRx||hasRy||Number.isFinite(+patch.zoom)){
+    setOrbitAngles(hasRx?+patch.rx:before.rx,hasRy?+patch.ry:before.ry,requestedZoom);
+  }else{
+    const dir=getOffset().normalize();
+    camera.position.copy(controls.target).addScaledVector(dir,requestedZoom);
+    camera.lookAt(controls.target);
+  }
+
+  if(Number.isFinite(+patch.rz))cameraRollDeg=wrap(+patch.rz,-180,180);
+  if(Number.isFinite(+patch.time)){
+    simulationHour=wrap(+patch.time,0,24);
+    updateSun();
+  }
+
+  controls.update();
+  if(options.emit!==false)scheduleStateEmit();
+}
+export function nudgeView(key,delta){
+  const s=getViewState();
+  const ranges={
+    x:[-6,6],y:[-6,6],z:[-6,6],rx:[-89.5,89.5],ry:[-180,180],
+    rz:[-180,180],zoom:[3.15,14],lat:[-90,90],lon:[-180,180],time:[0,24]
+  };
+  let v=(+s[key]||0)+(+delta||0);
+  if(key==="ry"||key==="rz"||key==="lon")v=wrap(v,-180,180);
+  else if(key==="time")v=wrap(v,0,24);
+  else if(ranges[key])v=clamp(v,ranges[key][0],ranges[key][1]);
+  setViewState({[key]:v});
+}
+export function subscribeViewState(fn){
+  stateListener=typeof fn==="function"?fn:null;
+  scheduleStateEmit();
+  return ()=>{if(stateListener===fn)stateListener=null;};
 }
 export function setTerrain({exaggeration=terrainExaggeration,seabed=seabedEnabled,fit=true}={}){
-  terrainExaggeration=Math.max(1,Math.min(100,+exaggeration||1));
+  terrainExaggeration=clamp(+exaggeration||1,1,100);
   seabedEnabled=!!seabed;
   applyTerrainSettings();
   if(fit)fitGlobeToViewport({preserveDirection:true});
 }
 export function centerGlobe(){
   if(!camera||!controls)return;
+  cameraRollDeg=0;
   controls.target.set(0,0,0);
   camera.position.set(0,0,6);
   fitGlobeToViewport({preserveDirection:false});
+  scheduleStateEmit();
 }
 
 export function initGlobe(element){
@@ -151,26 +278,32 @@ export function initGlobe(element){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000,0);
+  renderer.domElement.style.touchAction="none";
   host.appendChild(renderer.domElement);
 
   controls=new OrbitControls(camera,renderer.domElement);
   controls.enableDamping=true;controls.dampingFactor=.06;
-  controls.enablePan=false;controls.minDistance=3.15;controls.maxDistance=14;
+  controls.enablePan=true;controls.screenSpacePanning=true;
+  controls.minDistance=3.15;controls.maxDistance=14;
   controls.target.set(0,0,0);
-  camera.lookAt(0,0,0);
-  controls.autoRotate=true;controls.autoRotateSpeed=.28;
-  controls.rotateSpeed=.72;controls.zoomSpeed=.85;
+  controls.autoRotate=false;
+  controls.rotateSpeed=.72;controls.zoomSpeed=.85;controls.panSpeed=.75;
+  controls.mouseButtons.LEFT=THREE.MOUSE.ROTATE;
+  controls.mouseButtons.MIDDLE=THREE.MOUSE.DOLLY;
+  controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;
+  controls.touches.ONE=THREE.TOUCH.ROTATE;
+  controls.touches.TWO=THREE.TOUCH.DOLLY_PAN;
+  controls.addEventListener("change",scheduleStateEmit);
 
   scene.add(new THREE.HemisphereLight(0xbfdcff,0x07111d,1.45));
-  const sun=new THREE.DirectionalLight(0xffffff,2.1);sun.position.set(5,3,5);scene.add(sun);
-  const rim=new THREE.DirectionalLight(0x4f8cff,.7);rim.position.set(-5,-1,-4);scene.add(rim);
+  sun=new THREE.DirectionalLight(0xffffff,2.1);scene.add(sun);
+  rim=new THREE.DirectionalLight(0x4f8cff,.7);scene.add(rim);
+  updateSun();
 
   const material=new THREE.MeshPhongMaterial({
-    color:0x17476d,
-    emissive:0x020b15,
-    shininess:8
+    color:0x17476d,emissive:0x020b15,shininess:8
   });
-  earth=new THREE.Mesh(new THREE.SphereGeometry(2,128,96),material);
+  earth=new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS,128,96),material);
   scene.add(earth);
   loadEarthTextures(material);
   applyTerrainSettings();
@@ -203,7 +336,6 @@ export function initGlobe(element){
 
   renderer.domElement.addEventListener("pointermove",e=>showTooltip(e,hit(e)));
   renderer.domElement.addEventListener("pointerleave",()=>showTooltip(null,null));
-  renderer.domElement.addEventListener("pointerdown",()=>{controls.autoRotate=false;});
   renderer.domElement.addEventListener("click",e=>{
     const o=hit(e);if(o&&onSelect)onSelect(o.userData.iso3);
   });
@@ -221,6 +353,10 @@ export function initGlobe(element){
     animationId=requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),.05);
     controls.update(dt);
+    if(cameraRollDeg){
+      const rollQ=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,-1),cameraRollDeg*DEG);
+      camera.quaternion.multiply(rollQ);
+    }
     renderer.render(scene,camera);
   }
   animate();
@@ -234,20 +370,22 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
   initGlobe(element);
   onSelect=onCountrySelect||null;
   currentLanguage=language==="en"?"en":"ja";
-  terrainExaggeration=Math.max(1,Math.min(100,+terrainScale||30));
+  terrainExaggeration=clamp(+terrainScale||30,1,100);
   seabedEnabled=!!seabed;
   applyTerrainSettings();
+
   while(markerGroup.children.length){
     const o=markerGroup.children.pop();
     o.geometry?.dispose();o.material?.dispose();
   }
+
   const rows=(countries||[]).map(c=>({c,v:c.latest?.[metric]}))
     .filter(x=>x.v&&x.v.value!=null&&Number.isFinite(+x.c.lat)&&Number.isFinite(+x.c.lon));
   const vals=rows.map(x=>+x.v.value).sort((a,b)=>a-b);
   const lo=vals[Math.floor((vals.length-1)*.05)]??0;
   const hi=vals[Math.floor((vals.length-1)*.95)]??1;
   const span=(hi-lo)||1;
-  const locale=currentLanguage==="en"?"en-US":"ja-JP";
+  const loc=currentLanguage==="en"?"en-US":"ja-JP";
 
   for(const {c,v} of rows){
     const n=+v.value,t=Math.max(0,Math.min(1,(n-lo)/span));
@@ -264,12 +402,16 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
       name:c.displayName||c.name,
       metric:metricLabel||metric,
       value:n,
-      valueText:Number(n).toLocaleString(locale,{maximumFractionDigits:3})+
+      valueText:Number(n).toLocaleString(loc,{maximumFractionDigits:3})+
         (unit==="percent"?"%":unit?(" "+unit):""),
       year:v.year||"—"
     };
     markerGroup.add(marker);
   }
+  scheduleStateEmit();
 }
-window.KamokuGlobe={init:initGlobe,update:updateGlobe,setTerrain,center:centerGlobe};
+window.KamokuGlobe={
+  init:initGlobe,update:updateGlobe,setTerrain,center:centerGlobe,
+  getState:getViewState,setState:setViewState,nudge:nudgeView,subscribe:subscribeViewState
+};
 window.dispatchEvent(new Event("kamoku-globe-ready"));
