@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
 const EARTH_COLOR_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg";
 const EARTH_HEIGHT_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png";
@@ -230,7 +230,14 @@ export function setViewState(patch={},options={}){
     camera.lookAt(controls.target);
   }
 
-  if(Number.isFinite(+patch.rz))cameraRollDeg=wrap(+patch.rz,-180,180);
+  if(Number.isFinite(+patch.rz)){
+    cameraRollDeg=wrap(+patch.rz,-180,180);
+    const viewDir=controls.target.clone().sub(camera.position).normalize();
+    const q=new THREE.Quaternion().setFromAxisAngle(viewDir,cameraRollDeg*DEG);
+    const up=new THREE.Vector3(0,1,0).applyQuaternion(q);
+    camera.up.copy(up);
+    camera.lookAt(controls.target);
+  }
   if(Number.isFinite(+patch.time)){
     simulationHour=wrap(+patch.time,0,24);
     updateSun();
@@ -446,18 +453,18 @@ export function initGlobe(element){
   renderer.domElement.style.touchAction="none";
   host.appendChild(renderer.domElement);
 
-  controls=new OrbitControls(camera,renderer.domElement);
-  controls.enableDamping=true;controls.dampingFactor=.06;
-  controls.enablePan=true;controls.screenSpacePanning=true;
-  controls.minDistance=3.15;controls.maxDistance=14;
+  controls=new TrackballControls(camera,renderer.domElement);
   controls.target.set(0,0,0);
-  controls.autoRotate=false;
-  controls.rotateSpeed=.72;controls.zoomSpeed=.85;controls.panSpeed=.75;
-  controls.mouseButtons.LEFT=THREE.MOUSE.ROTATE;
-  controls.mouseButtons.MIDDLE=THREE.MOUSE.DOLLY;
-  controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;
-  controls.touches.ONE=THREE.TOUCH.ROTATE;
-  controls.touches.TWO=THREE.TOUCH.DOLLY_PAN;
+  controls.rotateSpeed=2.2;
+  controls.zoomSpeed=1.15;
+  controls.panSpeed=.75;
+  controls.noRotate=false;
+  controls.noZoom=false;
+  controls.noPan=false;
+  controls.staticMoving=false;
+  controls.dynamicDampingFactor=.16;
+  controls.minDistance=3.15;
+  controls.maxDistance=14;
   controls.addEventListener("change",()=>{
     scheduleStateEmit();
     scheduleDemRefresh();
@@ -512,6 +519,7 @@ export function initGlobe(element){
   const resize=()=>{
     const w=Math.max(280,host.clientWidth),h=Math.max(360,host.clientHeight||480);
     renderer.setSize(w,h,false);
+    controls.handleResize?.();
     fitGlobeToViewport({preserveDirection:true});
   };
   resizeObserver?.disconnect();
@@ -520,12 +528,8 @@ export function initGlobe(element){
   const clock=new THREE.Clock();
   function animate(){
     animationId=requestAnimationFrame(animate);
-    const dt=Math.min(clock.getDelta(),.05);
-    controls.update(dt);
-    if(cameraRollDeg){
-      const rollQ=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,-1),cameraRollDeg*DEG);
-      camera.quaternion.multiply(rollQ);
-    }
+    clock.getDelta();
+    controls.update();
     renderer.render(scene,camera);
   }
   animate();
