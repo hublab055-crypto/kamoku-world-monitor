@@ -6,10 +6,18 @@ const EARTH_HEIGHT_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/ear
 const EARTH_WATER_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-water.png";
 
 let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
-let resizeObserver=null,animationId=null,earth=null;
-let currentLanguage="ja";
+let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null;
+let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true;
+const EARTH_RADIUS=2;
+const REAL_MAX_RELIEF_SCENE=0.00285;
 
-function latLonToVector3(lat,lon,r=2.085){
+function terrainMaxOutward(){
+  return Math.min(.32,REAL_MAX_RELIEF_SCENE*Math.max(1,terrainExaggeration));
+}
+function markerRadius(){
+  return EARTH_RADIUS+.045+terrainMaxOutward();
+}
+function latLonToVector3(lat,lon,r=markerRadius()){
   const phi=(90-lat)*Math.PI/180;
   const theta=(lon+180)*Math.PI/180;
   return new THREE.Vector3(
@@ -68,11 +76,8 @@ function loadEarthTextures(material){
   loader.load(EARTH_HEIGHT_URL,texture=>{
     texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
     material.bumpMap=texture;
-    material.bumpScale=.075;
     material.displacementMap=texture;
-    material.displacementScale=.055;
-    material.displacementBias=-.012;
-    material.needsUpdate=true;
+    applyTerrainSettings();
   },undefined,()=>{});
   loader.load(EARTH_WATER_URL,texture=>{
     material.specularMap=texture;
@@ -81,6 +86,60 @@ function loadEarthTextures(material){
     material.needsUpdate=true;
   },undefined,()=>{});
 }
+function applyTerrainSettings(){
+  if(!earth?.material)return;
+  const ex=Math.max(1,Math.min(100,+terrainExaggeration||1));
+  const relief=REAL_MAX_RELIEF_SCENE*ex;
+  earth.material.bumpScale=Math.max(.008,relief*.7);
+  if(seabedEnabled){
+    // The topology texture is interpreted around its midpoint so ocean relief
+    // can fall below the reference sphere while land rises above it.
+    earth.material.displacementScale=relief*2;
+    earth.material.displacementBias=-relief;
+  }else{
+    // With seabed disabled, dark ocean pixels stay close to the reference sphere
+    // while brighter land relief is displaced outward.
+    earth.material.displacementScale=relief;
+    earth.material.displacementBias=0;
+  }
+  earth.material.needsUpdate=true;
+  const outer=EARTH_RADIUS+Math.min(.34,relief)+.10;
+  if(atmosphere)atmosphere.scale.setScalar(outer/2.115);
+  if(latitudeGrid)latitudeGrid.scale.setScalar((EARTH_RADIUS+.04+Math.min(.18,relief*.25))/2.105);
+}
+function fitGlobeToViewport({preserveDirection=true}={}){
+  if(!host||!camera||!controls)return;
+  const w=Math.max(280,host.clientWidth),h=Math.max(360,host.clientHeight||480);
+  const aspect=w/h;
+  camera.aspect=aspect;camera.updateProjectionMatrix();
+
+  const halfY=THREE.MathUtils.degToRad(camera.fov*.5);
+  const halfX=Math.atan(Math.tan(halfY)*aspect);
+  const limiting=Math.max(.08,Math.min(halfY,halfX));
+  const radius=EARTH_RADIUS+terrainMaxOutward()+.13;
+  const distance=radius/Math.sin(limiting)*1.06;
+
+  const dir=preserveDirection
+    ?camera.position.clone().sub(controls.target).normalize()
+    :new THREE.Vector3(0,0,1);
+  controls.target.set(0,0,0);
+  camera.position.copy(dir.multiplyScalar(distance));
+  camera.lookAt(0,0,0);
+  controls.update();
+}
+export function setTerrain({exaggeration=terrainExaggeration,seabed=seabedEnabled,fit=true}={}){
+  terrainExaggeration=Math.max(1,Math.min(100,+exaggeration||1));
+  seabedEnabled=!!seabed;
+  applyTerrainSettings();
+  if(fit)fitGlobeToViewport({preserveDirection:true});
+}
+export function centerGlobe(){
+  if(!camera||!controls)return;
+  controls.target.set(0,0,0);
+  camera.position.set(0,0,6);
+  fitGlobeToViewport({preserveDirection:false});
+}
+
 export function initGlobe(element){
   if(host===element&&renderer)return;
   host=element;host.innerHTML="";host.style.position="relative";
@@ -96,7 +155,9 @@ export function initGlobe(element){
 
   controls=new OrbitControls(camera,renderer.domElement);
   controls.enableDamping=true;controls.dampingFactor=.06;
-  controls.enablePan=false;controls.minDistance=3.15;controls.maxDistance=10;
+  controls.enablePan=false;controls.minDistance=3.15;controls.maxDistance=14;
+  controls.target.set(0,0,0);
+  camera.lookAt(0,0,0);
   controls.autoRotate=true;controls.autoRotateSpeed=.28;
   controls.rotateSpeed=.72;controls.zoomSpeed=.85;
 
@@ -112,8 +173,9 @@ export function initGlobe(element){
   earth=new THREE.Mesh(new THREE.SphereGeometry(2,128,96),material);
   scene.add(earth);
   loadEarthTextures(material);
+  applyTerrainSettings();
 
-  const atmosphere=new THREE.Mesh(
+  atmosphere=new THREE.Mesh(
     new THREE.SphereGeometry(2.115,64,48),
     new THREE.MeshBasicMaterial({
       color:0x68b6ff,transparent:true,opacity:.045,
@@ -122,7 +184,7 @@ export function initGlobe(element){
   );
   scene.add(atmosphere);
 
-  const latitudeGrid=new THREE.Mesh(
+  latitudeGrid=new THREE.Mesh(
     new THREE.SphereGeometry(2.105,36,24),
     new THREE.MeshBasicMaterial({
       color:0x8bb9dd,wireframe:true,transparent:true,
@@ -148,7 +210,8 @@ export function initGlobe(element){
 
   const resize=()=>{
     const w=Math.max(280,host.clientWidth),h=Math.max(360,host.clientHeight||480);
-    renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+    renderer.setSize(w,h,false);
+    fitGlobeToViewport({preserveDirection:true});
   };
   resizeObserver?.disconnect();
   resizeObserver=new ResizeObserver(resize);resizeObserver.observe(host);resize();
@@ -167,10 +230,13 @@ function markerColor(t){
   c.setHSL(.62*(1-t),.78,.56);
   return c;
 }
-export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",onCountrySelect}){
+export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,onCountrySelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
   currentLanguage=language==="en"?"en":"ja";
+  terrainExaggeration=Math.max(1,Math.min(100,+terrainScale||30));
+  seabedEnabled=!!seabed;
+  applyTerrainSettings();
   while(markerGroup.children.length){
     const o=markerGroup.children.pop();
     o.geometry?.dispose();o.material?.dispose();
@@ -205,5 +271,5 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
     markerGroup.add(marker);
   }
 }
-window.KamokuGlobe={init:initGlobe,update:updateGlobe};
+window.KamokuGlobe={init:initGlobe,update:updateGlobe,setTerrain,center:centerGlobe};
 window.dispatchEvent(new Event("kamoku-globe-ready"));
