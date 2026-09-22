@@ -26,10 +26,15 @@
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
     body{min-height:100vh}
     header{position:sticky;top:0;z-index:20;background:rgba(8,17,31,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
-    .top{max-width:1500px;margin:auto;padding:14px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between}
-    h1{font-size:20px;margin:0;letter-spacing:.02em}
-    .stamp{font-size:12px;color:var(--muted);text-align:right}
-    nav{max-width:1500px;margin:auto;padding:0 18px 10px;display:flex;gap:8px;overflow:auto}
+    .top{max-width:1500px;margin:auto;padding:7px 12px 6px;display:flex;gap:10px;align-items:center;justify-content:space-between;min-height:48px}
+    .stamp{font-size:12px;color:var(--muted);line-height:1.55}
+    .kamoku-wordmark{display:flex;align-items:center;gap:7px;min-width:0}
+    .kamoku-type{font-size:25px;font-weight:850;letter-spacing:-.055em;line-height:1;background:linear-gradient(90deg,#77c9ff,#28d0c7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .kamoku-mark{width:25px;height:25px;border:2px solid #23bcc6;border-radius:50%;position:relative;flex:0 0 auto;box-shadow:inset 0 0 12px rgba(35,188,198,.18)}
+    .kamoku-mark:before{content:"";position:absolute;left:50%;top:50%;width:5px;height:5px;background:#67e3df;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px #67e3df}
+    .kamoku-mark:after{content:"";position:absolute;left:50%;top:50%;width:10px;height:2px;background:#49ced3;transform-origin:left center;transform:rotate(-35deg)}
+    .icon-btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;width:38px;height:34px;padding:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
+    nav{max-width:1500px;margin:auto;padding:0 10px 7px;display:flex;gap:7px;overflow:auto}
     nav button,.chip,select,input{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px}
     nav button{padding:8px 13px;white-space:nowrap;cursor:pointer}
     nav button.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
@@ -156,9 +161,64 @@
     .auth-box details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
     .auth-error{color:#ffb4ad;font-size:12px;min-height:18px}
     .logout{background:transparent;color:var(--text);padding:7px 10px;font-size:12px}
+    .splash-screen{position:fixed;inset:0;z-index:500;display:grid;place-items:center;background:#f8fbfd;opacity:1;transition:opacity .38s ease;overflow:hidden}
+    .splash-screen.hiding{opacity:0;pointer-events:none}
+    .splash-lockup{text-align:center;color:#062f58;transform:translateY(-2vh);animation:splashIn .75s ease both}
+    .splash-radar{width:min(52vw,250px);aspect-ratio:1;margin:0 auto 12px;border-radius:50%;position:relative;background:radial-gradient(circle at 50% 50%,#34d5cf 0 3%,transparent 4% 14%,#2bc9d0 15% 16%,transparent 17% 28%,#1fb6c5 29% 30%,transparent 31%),radial-gradient(circle at 35% 32%,#0d789f,#04345f 64%,#021b39);border:10px solid #0c5d86;box-shadow:0 0 0 13px #f8fbfd,0 0 0 24px #0a426f}
+    .splash-radar:before{content:"";position:absolute;inset:0;border-radius:50%;background:repeating-linear-gradient(90deg,transparent 0 24%,rgba(87,228,229,.38) 24.5% 25%,transparent 25.5% 49%),repeating-linear-gradient(0deg,transparent 0 24%,rgba(87,228,229,.34) 24.5% 25%,transparent 25.5% 49%);opacity:.75}
+    .splash-radar:after{content:"";position:absolute;left:50%;top:50%;width:43%;height:43%;transform-origin:0 0;transform:rotate(-48deg);background:conic-gradient(from -15deg,rgba(77,236,227,.74),rgba(77,236,227,.03) 48deg,transparent 49deg);border-radius:0 100% 0 0}
+    .splash-brand{font-size:min(18vw,88px);font-weight:900;letter-spacing:-.075em;line-height:.95;background:linear-gradient(90deg,#0c5c87,#062e5d);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .splash-sub{font-size:min(7vw,34px);letter-spacing:.29em;font-weight:300;margin-top:10px}
+    .splash-tag{font-size:min(2.8vw,13px);letter-spacing:.32em;margin-top:18px;color:#164f76}
+    @keyframes splashIn{from{opacity:0;transform:translateY(2vh) scale(.96)}to{opacity:1;transform:translateY(-2vh) scale(1)}}
+    .settings-overlay{position:fixed;inset:0;z-index:240;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(2,7,14,.76);backdrop-filter:blur(8px)}
+    .settings-box{width:min(430px,100%);background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 20px 70px rgba(0,0,0,.52)}
+    .settings-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .settings-title{font-size:18px;font-weight:800}.settings-close{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:9px;width:34px;height:34px}
+    .settings-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
+    .settings-row .label{font-size:12px;color:var(--muted)}.settings-row .value{text-align:right;font-size:13px}
+    .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+    .globe-stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
+    .globe-stage .globe{border-radius:0}
+    .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:0;border-radius:13px;padding:7px;background:linear-gradient(180deg,rgba(5,14,26,.22),rgba(5,14,26,.82));backdrop-filter:blur(8px);pointer-events:none}
+    .globe-param-layout{display:grid;grid-template-columns:minmax(0,1fr) 126px;gap:7px;align-items:end}
+    .globe-param-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;align-content:end;pointer-events:auto}
+    .globe-param-btn{border:1px solid rgba(96,129,164,.65);background:rgba(7,20,35,.80);color:var(--text);border-radius:8px;padding:3px 2px;min-height:31px;cursor:pointer;text-align:center;display:grid;place-items:center}
+    .globe-param-btn b{font-size:10px;letter-spacing:.01em}.globe-param-btn small{display:none}
+    .globe-param-btn.active{background:rgba(88,166,255,.94);border-color:#79b8ff;color:#06111f;box-shadow:0 0 0 1px rgba(88,166,255,.22)}
+    .globe-master-dial{border:0;border-radius:12px;background:rgba(6,17,30,.74);padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;pointer-events:auto}
+    .globe-master-label{font-size:9px;color:#b8c7d9;min-height:13px;text-align:center}
+    .master-dial-wheel{width:112px;height:112px;margin:2px auto;position:relative;border-radius:50%;touch-action:none;cursor:grab;background:radial-gradient(circle at 50% 50%,#172b47 0 31%,#0b1829 32% 51%,#24415f 52% 55%,#08111f 56%);box-shadow:inset 0 0 0 1px #456485,0 5px 16px rgba(0,0,0,.34)}
+    .master-dial-wheel:active{cursor:grabbing}
+    .master-dial-wheel:before{content:"";position:absolute;inset:5px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#91abc3 0 1deg,transparent 1deg 7.5deg);opacity:.58;mask:radial-gradient(circle,transparent 0 58%,#000 60%)}
+    .master-dial-wheel:after{content:"";position:absolute;inset:22px;border-radius:50%;border:1px solid rgba(130,171,209,.24);pointer-events:none}
+    .master-dial-pointer{position:absolute;left:50%;top:7px;width:3px;height:35px;border-radius:4px;background:var(--accent);transform-origin:50% 49px;box-shadow:0 0 9px rgba(88,166,255,.78);z-index:2}
+    .master-dial-center{position:absolute;inset:32px;border-radius:50%;display:grid;place-items:center;background:#0a1728;border:1px solid #34506e;z-index:3;padding:0}
+    .master-dial-center-value{border:0;background:transparent;color:var(--text);font-size:14px;font-weight:850;font-variant-numeric:tabular-nums;text-align:center;padding:0;width:100%;height:100%;border-radius:50%;cursor:pointer}
+    .globe-reset-mini{position:absolute;right:3px;top:-31px;width:29px;height:27px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.76);color:var(--text);pointer-events:auto}
+    .globe-control-head,.globe-dial-hint,.globe-master-entry{display:none!important}
+    @media(max-width:620px){
+      .top{padding:6px 9px 5px}.kamoku-type{font-size:23px}.kamoku-mark{width:23px;height:23px}
+      nav{padding:0 7px 6px;gap:6px}nav button{padding:7px 11px;font-size:12px}
+      .lang-switch button{padding:5px 7px;font-size:10px}
+      .globe-param-layout{grid-template-columns:minmax(0,1fr) 112px;gap:5px}
+      .globe-param-buttons{gap:3px}.globe-param-btn{min-height:28px}.globe-param-btn b{font-size:9px}
+      .master-dial-wheel{width:102px;height:102px}
+      .master-dial-pointer{height:31px;transform-origin:50% 44px}
+      .master-dial-center{inset:29px}
+      .splash-radar{width:min(51vw,220px)}
+    }
   </style>
 </head>
 <body>
+<div id="splashScreen" class="splash-screen" aria-hidden="false">
+  <div class="splash-lockup">
+    <div class="splash-radar"></div>
+    <div class="splash-brand">kamoku</div>
+    <div class="splash-sub">— world monitor —</div>
+    <div class="splash-tag">A CLEARER WORLD A BRIGHTER TOMORROW</div>
+  </div>
+</div>
 <div id="authOverlay" class="auth-overlay">
   <div class="auth-box">
     <h2>Kamoku World Monitor</h2>
@@ -182,6 +242,15 @@
     </details>
   </div>
 </div>
+<div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
+  <div class="settings-box">
+    <div class="settings-head"><div class="settings-title">設定</div><button id="settingsClose" class="settings-close" type="button">×</button></div>
+    <div class="settings-row"><div class="label">バージョン</div><div id="appVersionText" class="value">—</div></div>
+    <div class="settings-row"><div class="label">データ</div><div id="stamp" class="value stamp">データ読み込み中…</div></div>
+    <div class="settings-row"><div class="label">表示</div><div class="value">3D / 2D・DEM・地形強調</div></div>
+    <div class="settings-actions"><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
+  </div>
+</div>
 <div id="numericKeypad" class="keypad-overlay" aria-hidden="true">
   <div class="keypad-box" role="dialog" aria-modal="true">
     <div class="keypad-head"><div id="keypadTitle" class="keypad-title">数値入力</div><button id="keypadClose" class="keypad-close" type="button">×</button></div>
@@ -201,8 +270,8 @@
 </div>
 <header>
   <div class="top">
-    <div><h1>Kamoku World Monitor</h1><div class="sub">KCU × Country × Region × Market AI</div></div>
-    <div class="top-actions" style="display:flex;gap:10px;align-items:center"><div class="stamp" id="stamp">データ読み込み中…</div><div class="lang-switch" aria-label="Language"><button id="langJa" class="active" type="button">日本語</button><button id="langEn" type="button">English</button></div><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
+    <div class="kamoku-wordmark" aria-label="kamoku"><span class="kamoku-mark" aria-hidden="true"></span><span class="kamoku-type">kamoku</span></div>
+    <div class="top-actions" style="display:flex;gap:7px;align-items:center"><div class="lang-switch" aria-label="Language"><button id="langJa" class="active" type="button">日本語</button><button id="langEn" type="button">English</button></div><button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings">⚙️</button></div>
   </div>
   <nav id="nav">
     <button data-view="kcu" class="active">KCU</button>
@@ -243,22 +312,19 @@
     </div>
     <div class="card">
       <div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div>
-      <div id="worldGlobe" class="globe"></div>
-      <div id="globeControlPanel" class="globe-control-panel">
-        <div class="globe-control-head">
-          <div><div id="globeControlTitle" class="globe-control-title">カメラ / 地球操作</div><div id="globeGestureHelp" class="globe-gesture-help">1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム</div></div>
-          <button id="globeResetView" class="terrain-center" type="button">表示をリセット</button>
-        </div>
-        <div class="globe-param-layout">
-          <div id="globeParamButtons" class="globe-param-buttons"></div>
-          <div class="globe-master-dial">
-            <div id="globeActiveParamLabel" class="globe-master-label">焦点 X</div>
-            <div id="globeMasterWheel" class="master-dial-wheel" tabindex="0">
-              <div id="globeMasterPointer" class="master-dial-pointer"></div>
-              <div class="master-dial-center"><div id="globeMasterValue" class="master-dial-center-value">0.00</div></div>
+      <div id="worldGlobeStage" class="globe-stage">
+        <div id="worldGlobe" class="globe"></div>
+        <div id="globeControlPanel" class="globe-control-panel">
+          <button id="globeResetView" class="globe-reset-mini" type="button" title="Reset">↺</button>
+          <div class="globe-param-layout">
+            <div id="globeParamButtons" class="globe-param-buttons"></div>
+            <div class="globe-master-dial">
+              <div id="globeActiveParamLabel" class="globe-master-label">焦点 X</div>
+              <div id="globeMasterWheel" class="master-dial-wheel" tabindex="0">
+                <div id="globeMasterPointer" class="master-dial-pointer"></div>
+                <div class="master-dial-center"><button id="globeMasterValue" class="master-dial-center-value" type="button">0.00</button></div>
+              </div>
             </div>
-            <input id="globeMasterInput" class="globe-master-entry" type="text" readonly inputmode="none" value="0.00">
-            <div id="globeDialHint" class="globe-dial-hint">ボタンで項目選択 → ホイールを回す</div>
           </div>
         </div>
       </div>
