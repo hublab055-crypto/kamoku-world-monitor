@@ -81,6 +81,11 @@
     .mode-btn.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
     .trade-log{max-height:250px;overflow:auto}
     .positive{color:var(--good)}.negative{color:var(--bad)}
+    .lang-switch{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+    .lang-switch button{border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);padding:7px 9px;font-size:11px;cursor:pointer}
+    .lang-switch button:last-child{border-right:0}
+    .lang-switch button.active{background:var(--accent);color:#06111f;font-weight:750}
+    @media(max-width:620px){.top{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}.lang-switch button{padding:6px 8px}}
     @media(max-width:1000px){
       .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
       .grid.two{grid-template-columns:1fr}
@@ -128,7 +133,7 @@
 <header>
   <div class="top">
     <div><h1>Kamoku World Monitor</h1><div class="sub">KCU × Country × Region × Market AI</div></div>
-    <div style="display:flex;gap:10px;align-items:center"><div class="stamp" id="stamp">データ読み込み中…</div><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
+    <div class="top-actions" style="display:flex;gap:10px;align-items:center"><div class="stamp" id="stamp">データ読み込み中…</div><div class="lang-switch" aria-label="Language"><button id="langJa" class="active" type="button">日本語</button><button id="langEn" type="button">English</button></div><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
   </div>
   <nav id="nav">
     <button data-view="kcu" class="active">KCU</button>
@@ -160,7 +165,7 @@
     <div class="toolbar">
       <label>分野<select id="worldDomain"></select></label>
       <label>指標<select id="worldMetric"></select></label>
-      <label>表示<select id="worldDisplay"><option value="3d">3D地球儀</option><option value="2d">2D地図</option></select></label>
+      <label>表示<select id="worldDisplay"><option value="3d">3D地形</option><option value="2d">2D地図</option></select></label>
       <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
     </div>
     <div class="card">
