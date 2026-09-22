@@ -568,6 +568,7 @@ function localizeSelectors(){
   if(document.getElementById("terrainScaleWrap"))terrainScaleWrap.childNodes[0].nodeValue=t("terrainExaggeration")+" ";
   if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
   if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
+  updateGlobeControlLanguage();
   countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
 }
 function applyLanguage(){
@@ -620,6 +621,175 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
+
+const GLOBE_DIAL_DEFS=[
+  {key:"x",ja:"焦点 X",en:"Focus X",min:-6,max:6,step:.05,decimals:2},
+  {key:"y",ja:"焦点 Y",en:"Focus Y",min:-6,max:6,step:.05,decimals:2},
+  {key:"z",ja:"焦点 Z",en:"Focus Z",min:-6,max:6,step:.05,decimals:2},
+  {key:"rx",ja:"回転 RX",en:"Rotation RX",min:-89.5,max:89.5,step:1,decimals:1,suffix:"°"},
+  {key:"ry",ja:"回転 RY",en:"Rotation RY",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"rz",ja:"回転 RZ",en:"Rotation RZ",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"zoom",ja:"ズーム",en:"Zoom",min:3.15,max:14,step:.1,decimals:2},
+  {key:"lat",ja:"緯度",en:"Latitude",min:-90,max:90,step:.5,decimals:2,suffix:"°"},
+  {key:"lon",ja:"経度",en:"Longitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
+  {key:"time",ja:"時間 UTC",en:"UTC Time",min:0,max:24,step:.25,decimals:2,suffix:"h",wrap:true}
+];
+const GLOBE_DIAL_MAP=Object.fromEntries(GLOBE_DIAL_DEFS.map(x=>[x.key,x]));
+let globeDialEls=new Map(),globeControlsReady=false,globeUnsubscribe=null;
+let keypadField=null,keypadBuffer="";
+
+function clampDialValue(def,v){
+  if(def.wrap){
+    const span=def.max-def.min;
+    return ((v-def.min)%span+span)%span+def.min;
+  }
+  return Math.min(def.max,Math.max(def.min,v));
+}
+function formatDial(def,v){
+  const n=Number.isFinite(+v)?+v:0;
+  return n.toFixed(def.decimals)+(def.suffix||"");
+}
+function setGlobeDialValue(key,value){
+  const def=GLOBE_DIAL_MAP[key];if(!def)return;
+  const v=clampDialValue(def,+value||0);
+  window.KamokuGlobe?.setState?.({[key]:v});
+}
+function nudgeGlobeDial(key,steps=1){
+  const def=GLOBE_DIAL_MAP[key];if(!def)return;
+  window.KamokuGlobe?.nudge?.(key,def.step*steps);
+}
+function syncGlobeDialDeck(state){
+  if(!state)return;
+  for(const def of GLOBE_DIAL_DEFS){
+    const el=globeDialEls.get(def.key);if(!el)continue;
+    const raw=Number.isFinite(+state[def.key])?+state[def.key]:0;
+    const v=clampDialValue(def,raw);
+    const t=(v-def.min)/(def.max-def.min);
+    const angle=-135+270*Math.max(0,Math.min(1,t));
+    el.pointer.style.transform="translateX(-50%) rotate("+angle+"deg)";
+    el.value.textContent=formatDial(def,v);
+    el.input.value=Number(v).toFixed(def.decimals);
+  }
+}
+function updateGlobeControlLanguage(){
+  if(!document.getElementById("globeControlTitle"))return;
+  globeControlTitle.textContent=LANG==="en"?"Camera / Globe Controls":"カメラ / 地球操作";
+  globeGestureHelp.textContent=LANG==="en"
+    ?"1 finger: rotate / 2-finger pinch: zoom / 2-finger swipe: pan / PC: left-drag rotate, right-drag pan, mouse wheel zoom. Wheel over any dial to adjust it."
+    :"1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム。各ダイアル上のホイールで数値調整。";
+  globeResetView.textContent=LANG==="en"?"Reset view":"表示をリセット";
+  keypadTitle.textContent=LANG==="en"?"Numeric input":"数値入力";
+  keypadClear.textContent=LANG==="en"?"Clear":"クリア";
+  keypadBackspace.textContent=LANG==="en"?"⌫ Backspace":"⌫ バックスペース";
+  keypadExecute.textContent=LANG==="en"?"Execute":"実行";
+  for(const def of GLOBE_DIAL_DEFS){
+    const el=globeDialEls.get(def.key);
+    if(el)el.label.textContent=LANG==="en"?def.en:def.ja;
+  }
+}
+function openNumericKeypad(key){
+  const def=GLOBE_DIAL_MAP[key],el=globeDialEls.get(key);if(!def||!el)return;
+  keypadField=key;
+  keypadBuffer=el.input.value||"0";
+  keypadDisplay.textContent=keypadBuffer;
+  keypadTitle.textContent=(LANG==="en"?def.en:def.ja)+" · "+(LANG==="en"?"Numeric input":"数値入力");
+  numericKeypad.style.display="flex";
+  numericKeypad.setAttribute("aria-hidden","false");
+}
+function closeNumericKeypad(){
+  numericKeypad.style.display="none";
+  numericKeypad.setAttribute("aria-hidden","true");
+  keypadField=null;keypadBuffer="";
+}
+function keypadAppend(ch){
+  if(ch==="sign"){
+    keypadBuffer=keypadBuffer.startsWith("-")?keypadBuffer.slice(1):("-"+(keypadBuffer||"0"));
+  }else if(ch==="."){
+    if(!keypadBuffer.includes("."))keypadBuffer=(keypadBuffer||"0")+".";
+  }else{
+    if(keypadBuffer==="0")keypadBuffer=ch;
+    else if(keypadBuffer==="-0")keypadBuffer="-"+ch;
+    else keypadBuffer+=ch;
+  }
+  keypadDisplay.textContent=keypadBuffer||"0";
+}
+function executeNumericKeypad(){
+  if(!keypadField)return;
+  const n=Number.parseFloat(keypadBuffer);
+  if(Number.isFinite(n))setGlobeDialValue(keypadField,n);
+  closeNumericKeypad();
+}
+function setupNumericKeypad(){
+  if(numericKeypad.dataset.ready==="1")return;
+  numericKeypad.dataset.ready="1";
+  numericKeypad.querySelectorAll("[data-kp]").forEach(b=>b.addEventListener("click",()=>keypadAppend(b.dataset.kp)));
+  keypadClear.addEventListener("click",()=>{keypadBuffer="";keypadDisplay.textContent="0";});
+  keypadBackspace.addEventListener("click",()=>{keypadBuffer=keypadBuffer.slice(0,-1);keypadDisplay.textContent=keypadBuffer||"0";});
+  keypadExecute.addEventListener("click",executeNumericKeypad);
+  keypadClose.addEventListener("click",closeNumericKeypad);
+  numericKeypad.addEventListener("click",e=>{if(e.target===numericKeypad)closeNumericKeypad();});
+  window.addEventListener("keydown",e=>{
+    if(numericKeypad.style.display!=="flex")return;
+    if(/^[0-9]$/.test(e.key))keypadAppend(e.key);
+    else if(e.key===".")keypadAppend(".");
+    else if(e.key==="-")keypadAppend("sign");
+    else if(e.key==="Backspace"){keypadBuffer=keypadBuffer.slice(0,-1);keypadDisplay.textContent=keypadBuffer||"0";}
+    else if(e.key==="Enter")executeNumericKeypad();
+    else if(e.key==="Escape")closeNumericKeypad();
+  });
+}
+function setupGlobeControlDeck(){
+  if(!document.getElementById("globeDialGrid")||!window.KamokuGlobe)return;
+  setupNumericKeypad();
+  if(!globeControlsReady){
+    globeControlsReady=true;
+    globeDialGrid.innerHTML="";
+    for(const def of GLOBE_DIAL_DEFS){
+      const root=document.createElement("div");root.className="globe-dial";root.dataset.key=def.key;
+      const label=document.createElement("div");label.className="globe-dial-label";root.appendChild(label);
+      const wheel=document.createElement("div");wheel.className="dial-wheel";wheel.tabIndex=0;
+      const pointer=document.createElement("div");pointer.className="dial-pointer";wheel.appendChild(pointer);root.appendChild(wheel);
+      const value=document.createElement("div");value.className="dial-value";root.appendChild(value);
+      const input=document.createElement("input");input.className="dial-entry";input.type="text";input.readOnly=true;input.inputMode="none";input.setAttribute("aria-label",def.ja);root.appendChild(input);
+      globeDialGrid.appendChild(root);
+      globeDialEls.set(def.key,{root,label,wheel,pointer,value,input});
+
+      let active=false,lastY=0,accum=0;
+      wheel.addEventListener("pointerdown",e=>{active=true;lastY=e.clientY;accum=0;wheel.setPointerCapture?.(e.pointerId);e.preventDefault();});
+      wheel.addEventListener("pointermove",e=>{
+        if(!active)return;
+        accum+=lastY-e.clientY;lastY=e.clientY;
+        const px=7;
+        if(Math.abs(accum)>=px){
+          const steps=Math.trunc(accum/px);
+          accum-=steps*px;
+          nudgeGlobeDial(def.key,steps);
+        }
+        e.preventDefault();
+      });
+      const end=e=>{active=false;try{wheel.releasePointerCapture?.(e.pointerId)}catch{}};
+      wheel.addEventListener("pointerup",end);wheel.addEventListener("pointercancel",end);
+      wheel.addEventListener("wheel",e=>{
+        e.preventDefault();
+        const dir=e.deltaY<0?1:-1,mult=e.shiftKey?10:1;
+        nudgeGlobeDial(def.key,dir*mult);
+      },{passive:false});
+      wheel.addEventListener("keydown",e=>{
+        if(e.key==="ArrowUp"||e.key==="ArrowRight"){nudgeGlobeDial(def.key,1);e.preventDefault();}
+        if(e.key==="ArrowDown"||e.key==="ArrowLeft"){nudgeGlobeDial(def.key,-1);e.preventDefault();}
+        if(e.key==="Enter"){openNumericKeypad(def.key);e.preventDefault();}
+      });
+      input.addEventListener("click",()=>openNumericKeypad(def.key));
+      input.addEventListener("focus",()=>input.blur());
+    }
+    globeResetView.addEventListener("click",()=>window.KamokuGlobe?.center?.());
+  }
+  if(globeUnsubscribe)globeUnsubscribe();
+  globeUnsubscribe=window.KamokuGlobe.subscribe?.(syncGlobeDialDeck)||null;
+  syncGlobeDialDeck(window.KamokuGlobe.getState?.());
+  updateGlobeControlLanguage();
+}
+
 
 function setNav(){
   document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
@@ -679,6 +849,7 @@ function renderWorld(){
     terrainScaleWrap.style.display=show?"grid":"none";
     terrainSeabedWrap.style.display=show?"flex":"none";
     worldCenterBtn.style.display=show?"inline-block":"none";
+    globeControlPanel.style.display=show?"block":"none";
   };
   const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);drawWorld();};
   worldDomain.onchange=updateMetric;
@@ -697,7 +868,8 @@ function renderWorld(){
   };
   worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
   syncTerrainVisibility();
-  window.addEventListener("kamoku-globe-ready",()=>drawWorld(),{once:true});
+  window.addEventListener("kamoku-globe-ready",()=>{setupGlobeControlDeck();drawWorld();},{once:true});
+  setupGlobeControlDeck();
   drawWorld();
 }
 function drawWorld(){
@@ -716,6 +888,7 @@ function drawWorld(){
         terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,
         onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
       });
+      setupGlobeControlDeck();
     }
     return;
   }
