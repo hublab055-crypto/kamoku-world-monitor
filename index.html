@@ -608,7 +608,7 @@ const STATIC_TEXT={
   "個別銘柄リプレイ":"Security Replay","売買モード":"Trading mode","手動":"Manual","半自動":"Semi-auto","自動":"Auto",
   "利確 %":"Take profit %","損切 %":"Stop loss %","コスト bps":"Cost bps","買い注文":"Buy order","売り注文":"Sell order","AI提案を採用":"Accept AI proposal",
   "利益への税率20.315%を反映":"Apply 20.315% tax to realized gains","取引履歴":"Trade History","売買":"Side","株数":"Shares","価格":"Price","税/費用":"Tax / Cost","現金":"Cash",
-  "この画面の読み方":"How to Read This Dashboard","生成":"Generated",
+  "この画面の読み方":"How to Read This Dashboard","生成":"Generated","設定":"Settings","バージョン":"Version","データ":"Data","表示":"Display",
   "3D地球儀は地形高度画像による高低差を球面へ反映し、地形強調倍率と海底地形を切り替えられます。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。":"3D terrain displaces the globe surface using a terrain-height image. You can adjust terrain exaggeration and toggle seabed relief. Drag to rotate, pinch or scroll to zoom, and tap a country to open its country view.",
   "各営業日の終値までに利用可能な情報から、次営業日寄付き→5営業日後終値を評価します。":"Evaluates the move from the next session open to the close five trading days later using only information available by each day’s close.",
   "パターン図鑑の勝率・5日後リターンは未来結果を含む回顧統計です。過去リプレイの売買判断には使用しません。":"Pattern Atlas win rates and 5-day returns are retrospective statistics containing future outcomes. They are not used for historical replay trading decisions.",
@@ -725,6 +725,18 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
+const APP_VERSION="2026.09.23.4";
+const SPLASH_MIN_MS=1800;
+const SPLASH_STARTED=performance.now();
+function hideSplash(){
+  const el=document.getElementById("splashScreen");if(!el)return;
+  const wait=Math.max(0,SPLASH_MIN_MS-(performance.now()-SPLASH_STARTED));
+  setTimeout(()=>{
+    el.classList.add("hiding");
+    setTimeout(()=>{el.style.display="none";el.setAttribute("aria-hidden","true");},420);
+  },wait);
+}
+
 
 const GLOBE_DIAL_DEFS=[
   {key:"x",short:"X",ja:"焦点 X",en:"Focus X",min:-6,max:6,step:.05,decimals:2},
@@ -783,31 +795,22 @@ function renderActiveGlobeDial(state){
   const angle=-135+270*Math.max(0,Math.min(1,t));
   globeMasterPointer.style.transform="translateX(-50%) rotate("+angle+"deg)";
   globeMasterValue.textContent=formatDial(def,v);
-  globeMasterInput.value=Number(v).toFixed(def.decimals);
   globeActiveParamLabel.textContent=LANG==="en"?def.en:def.ja;
-  globeMasterInput.setAttribute("aria-label",LANG==="en"?def.en:def.ja);
+  globeMasterValue.setAttribute("aria-label",(LANG==="en"?def.en:def.ja)+" "+formatDial(def,v));
 }
 function syncGlobeDialDeck(state){
   lastGlobeState=state;
   renderActiveGlobeDial(state);
 }
 function updateGlobeControlLanguage(){
-  if(!document.getElementById("globeControlTitle"))return;
-  globeControlTitle.textContent=LANG==="en"?"Camera / Globe Controls":"カメラ / 地球操作";
-  globeGestureHelp.textContent=LANG==="en"
-    ?"1 finger: rotate / 2-finger pinch: zoom / 2-finger swipe: pan / PC: left-drag rotate, right-drag pan, mouse wheel zoom. Select a parameter button, then use the single control wheel."
-    :"1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム。ボタンで項目を選び、1つのホイールで調整。";
-  globeResetView.textContent=LANG==="en"?"Reset view":"表示をリセット";
-  globeDialHint.textContent=LANG==="en"?"Select a parameter → turn the wheel":"ボタンで項目選択 → ホイールを回す";
+  if(!document.getElementById("globeParamButtons"))return;
   keypadClear.textContent=LANG==="en"?"Clear":"クリア";
   keypadBackspace.textContent=LANG==="en"?"⌫ Backspace":"⌫ バックスペース";
   keypadExecute.textContent=LANG==="en"?"Execute":"実行";
+  globeResetView.title=LANG==="en"?"Reset view":"表示をリセット";
   document.querySelectorAll(".globe-param-btn").forEach(b=>{
     const def=GLOBE_DIAL_MAP[b.dataset.key];
-    if(def){
-      const small=b.querySelector("small");
-      if(small)small.textContent=LANG==="en"?def.en:def.ja;
-    }
+    if(def)b.title=LANG==="en"?def.en:def.ja;
   });
   renderActiveGlobeDial(lastGlobeState||window.KamokuGlobe?.getState?.());
 }
@@ -879,19 +882,29 @@ function setupGlobeControlDeck(){
       globeParamButtons.appendChild(b);
     }
 
-    let active=false,lastY=0,accum=0;
+    let active=false,lastAngle=0,angleAccum=0;
+    const pointerAngle=e=>{
+      const r=globeMasterWheel.getBoundingClientRect();
+      return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));
+    };
     globeMasterWheel.addEventListener("pointerdown",e=>{
-      active=true;lastY=e.clientY;accum=0;
+      if(e.target===globeMasterValue)return;
+      active=true;lastAngle=pointerAngle(e);angleAccum=0;
       globeMasterWheel.setPointerCapture?.(e.pointerId);
       e.preventDefault();
     });
     globeMasterWheel.addEventListener("pointermove",e=>{
       if(!active)return;
-      accum+=lastY-e.clientY;lastY=e.clientY;
-      const px=6;
-      if(Math.abs(accum)>=px){
-        const steps=Math.trunc(accum/px);
-        accum-=steps*px;
+      const a=pointerAngle(e);
+      let delta=a-lastAngle;
+      if(delta>Math.PI)delta-=Math.PI*2;
+      if(delta<-Math.PI)delta+=Math.PI*2;
+      lastAngle=a;
+      angleAccum+=delta*180/Math.PI;
+      const degreesPerStep=5.5;
+      if(Math.abs(angleAccum)>=degreesPerStep){
+        const steps=Math.trunc(angleAccum/degreesPerStep);
+        angleAccum-=steps*degreesPerStep;
         nudgeGlobeDial(activeGlobeParam,steps);
       }
       e.preventDefault();
@@ -910,8 +923,7 @@ function setupGlobeControlDeck(){
       if(e.key==="ArrowDown"||e.key==="ArrowLeft"){nudgeGlobeDial(activeGlobeParam,-1);e.preventDefault();}
       if(e.key==="Enter"){openNumericKeypad(activeGlobeParam);e.preventDefault();}
     });
-    globeMasterInput.addEventListener("click",()=>openNumericKeypad(activeGlobeParam));
-    globeMasterInput.addEventListener("focus",()=>globeMasterInput.blur());
+    globeMasterValue.addEventListener("click",e=>{e.stopPropagation();openNumericKeypad(activeGlobeParam);});
     globeResetView.addEventListener("click",()=>window.KamokuGlobe?.center?.());
   }
 
@@ -1631,11 +1643,16 @@ bootstrapForm.addEventListener("submit", async (e)=>{
 logoutBtn.addEventListener("click",async()=>{await SB.auth.signOut();location.reload();});
 langJa.addEventListener("click",()=>setLanguage("ja"));
 langEn.addEventListener("click",()=>setLanguage("en"));
+appVersionText.textContent=APP_VERSION;
+settingsBtn.addEventListener("click",()=>{settingsOverlay.style.display="flex";settingsOverlay.setAttribute("aria-hidden","false");});
+settingsClose.addEventListener("click",()=>{settingsOverlay.style.display="none";settingsOverlay.setAttribute("aria-hidden","true");});
+settingsOverlay.addEventListener("click",e=>{if(e.target===settingsOverlay){settingsOverlay.style.display="none";settingsOverlay.setAttribute("aria-hidden","true");}});
+
 
 async function boot(){
   setNav();applyLanguage();
   const session=await requireSession();
-  if(!session){stamp.textContent=t("loadingRequired");return;}
+  if(!session){stamp.textContent=t("loadingRequired");hideSplash();return;}
   try{
     const res=await fetch(DATA_URL,{cache:"no-store",headers:{Authorization:"Bearer "+session.access_token}});
     if(!res.ok) throw new Error("snapshot HTTP "+res.status);
@@ -1649,11 +1666,13 @@ async function boot(){
     await setupTrade();
     aboutNote.textContent=D.notes?.country_comparison||"";
     applyLanguage();
+    hideSplash();
   }catch(e){
     fatal.style.display="block";
     fatal.className="error";
     fatal.innerHTML="<b>ダッシュボードデータを読み込めませんでした。</b><br>"+esc(e.message)+"<br><br>GitHub Actions の Export World Dashboard を実行して dashboard/data/world_dashboard.json を生成してください。";
     stamp.textContent=t("dataUnavailable");
+    hideSplash();
   }
 }
 boot();
