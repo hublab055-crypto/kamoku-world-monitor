@@ -180,7 +180,7 @@
     .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     .globe-stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
     .globe-stage .globe{border-radius:0}
-    .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:0;border-radius:13px;padding:7px;background:linear-gradient(180deg,rgba(5,14,26,.22),rgba(5,14,26,.82));backdrop-filter:blur(8px);pointer-events:none}
+    .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:1px solid rgba(72,105,140,.52);border-radius:13px;padding:7px;background:rgba(5,14,26,.92);backdrop-filter:none;pointer-events:none}
     .globe-param-layout{display:grid;grid-template-columns:minmax(0,1fr) 126px;gap:7px;align-items:end}
     .globe-param-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;align-content:end;pointer-events:auto}
     .globe-param-btn{border:1px solid rgba(96,129,164,.65);background:rgba(7,20,35,.80);color:var(--text);border-radius:8px;padding:3px 2px;min-height:31px;cursor:pointer;text-align:center;display:grid;place-items:center}
@@ -190,13 +190,31 @@
     .globe-master-label{font-size:9px;color:#b8c7d9;min-height:13px;text-align:center}
     .master-dial-wheel{width:112px;height:112px;margin:2px auto;position:relative;border-radius:50%;touch-action:none;cursor:grab;background:radial-gradient(circle at 50% 50%,#172b47 0 31%,#0b1829 32% 51%,#24415f 52% 55%,#08111f 56%);box-shadow:inset 0 0 0 1px #456485,0 5px 16px rgba(0,0,0,.34)}
     .master-dial-wheel:active{cursor:grabbing}
-    .master-dial-wheel:before{content:"";position:absolute;inset:5px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#91abc3 0 1deg,transparent 1deg 7.5deg);opacity:.58;mask:radial-gradient(circle,transparent 0 58%,#000 60%)}
+    .master-dial-wheel:before{content:"";position:absolute;inset:5px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#91abc3 0 1deg,transparent 1deg 7.5deg);opacity:.72;mask:radial-gradient(circle,transparent 0 58%,#000 60%);transform:rotate(var(--dial-spin,0deg));transform-origin:50% 50%}
     .master-dial-wheel:after{content:"";position:absolute;inset:22px;border-radius:50%;border:1px solid rgba(130,171,209,.24);pointer-events:none}
-    .master-dial-pointer{position:absolute;left:50%;top:7px;width:3px;height:35px;border-radius:4px;background:var(--accent);transform-origin:50% 49px;box-shadow:0 0 9px rgba(88,166,255,.78);z-index:2}
+    .master-dial-pointer{position:absolute;left:50%;top:7px;width:3px;height:24px;border-radius:4px;background:var(--accent);transform:translateX(-50%);box-shadow:0 0 9px rgba(88,166,255,.78);z-index:2}
     .master-dial-center{position:absolute;inset:32px;border-radius:50%;display:grid;place-items:center;background:#0a1728;border:1px solid #34506e;z-index:3;padding:0}
     .master-dial-center-value{border:0;background:transparent;color:var(--text);font-size:14px;font-weight:850;font-variant-numeric:tabular-nums;text-align:center;padding:0;width:100%;height:100%;border-radius:50%;cursor:pointer}
     .globe-reset-mini{position:absolute;right:3px;top:-31px;width:29px;height:27px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.76);color:var(--text);pointer-events:auto}
     .globe-control-head,.globe-dial-hint,.globe-master-entry{display:none!important}
+    .world-card-head{align-items:center;margin-top:0}
+    .world-title-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+    .world-compact-select{min-width:0!important;width:auto;max-width:46vw;padding:6px 28px 6px 8px;font-size:13px;font-weight:700;background:#0b192b;border-radius:9px}
+    .world-mode-title{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
+    .settings-section{border-top:1px solid var(--line);padding-top:12px;margin-top:6px}
+    .settings-section-title{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:9px;letter-spacing:.04em}
+    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .settings-grid label{min-width:0}.settings-grid select,.settings-grid input{min-width:0;width:100%}
+    .settings-check{display:flex!important;align-items:center;gap:8px;min-height:38px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;background:#0a1728}
+    .settings-check input{min-width:auto!important;width:auto!important}
+    .settings-slider{grid-column:1/-1}
+    .settings-slider input[type="range"]{padding:0}
+    @media(max-width:620px){
+      .world-card-head{gap:6px}.world-title-controls{gap:4px}
+      .world-compact-select{font-size:12px;max-width:42vw;padding:5px 25px 5px 7px}
+      .world-mode-title{font-size:11px}
+      .settings-grid{grid-template-columns:1fr 1fr}
+    }
     @media(max-width:620px){
       .top{padding:6px 9px 5px}.kamoku-type{font-size:23px}.kamoku-mark{width:23px;height:23px}
       nav{padding:0 7px 6px;gap:6px}nav button{padding:7px 11px;font-size:12px}
@@ -247,7 +265,19 @@
     <div class="settings-head"><div class="settings-title">設定</div><button id="settingsClose" class="settings-close" type="button">×</button></div>
     <div class="settings-row"><div class="label">バージョン</div><div id="appVersionText" class="value">—</div></div>
     <div class="settings-row"><div class="label">データ</div><div id="stamp" class="value stamp">データ読み込み中…</div></div>
-    <div class="settings-row"><div class="label">表示</div><div class="value">3D / 2D・DEM・地形強調</div></div>
+    <div class="settings-section">
+      <div class="settings-section-title">世界地図</div>
+      <div class="settings-grid">
+        <label>表示<select id="worldDisplay"><option value="3d">3D地形</option><option value="2d">2D地図</option></select></label>
+        <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
+        <label class="settings-slider" id="terrainScaleWrap">地形強調 <span id="worldTerrainScaleValue">30×</span><input id="worldTerrainScale" type="range" min="1" max="100" step="1" value="30"></label>
+        <label class="settings-check" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked><span id="worldSeabedText">海底地形</span></label>
+        <label class="settings-check" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked><span id="worldDemText">高精細DEM</span></label>
+        <label class="settings-check"><input id="worldCountryFill" type="checkbox" checked><span id="worldCountryFillText">国別カラー</span></label>
+        <label class="settings-check"><input id="worldCountryMarkers" type="checkbox"><span id="worldCountryMarkersText">指標マーカー</span></label>
+      </div>
+      <div class="settings-actions"><button id="worldCenterBtn" class="logout" type="button">中央に戻す</button></div>
+    </div>
     <div class="settings-actions"><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
   </div>
 </div>
@@ -300,18 +330,15 @@
   </section>
 
   <section id="world" class="view">
-    <div class="toolbar">
-      <label>分野<select id="worldDomain"></select></label>
-      <label>指標<select id="worldMetric"></select></label>
-      <label>表示<select id="worldDisplay"><option value="3d">3D地形</option><option value="2d">2D地図</option></select></label>
-      <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
-      <label class="terrain-control" id="terrainScaleWrap">地形強調 <span id="worldTerrainScaleValue">30×</span><input id="worldTerrainScale" type="range" min="1" max="100" step="1" value="30"></label>
-      <label class="terrain-toggle" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked> <span id="worldSeabedText">海底地形</span></label>
-      <label class="terrain-toggle" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked> <span id="worldDemText">高精細DEM</span></label>
-      <button id="worldCenterBtn" class="terrain-center" type="button">中央に戻す</button>
-    </div>
     <div class="card">
-      <div class="section-title"><h2 id="worldTitle">世界地図</h2><div class="statline" id="worldStats"></div></div>
+      <div class="section-title world-card-head">
+        <div class="world-title-controls">
+          <select id="worldDomain" class="world-compact-select" aria-label="分野"></select>
+          <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
+          <span id="worldTitle" class="world-mode-title">— 3D地形</span>
+        </div>
+        <div class="statline" id="worldStats"></div>
+      </div>
       <div id="worldGlobeStage" class="globe-stage">
         <div id="worldGlobe" class="globe"></div>
         <div id="globeControlPanel" class="globe-control-panel">
@@ -584,7 +611,7 @@ const TEXT={
   marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
   takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
   riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
-  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
 };
 const STATIC_TEXT={
   "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
@@ -615,7 +642,7 @@ const STATIC_TEXT={
   "プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。":"Repeatedly backtests player-defined rule thresholds and selects parameters on the validation period. Background training can be turned off at any time.",
   "D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。":"Signals are decided at day D close and market orders fill at the next trading day open. Full-auto uses the same timing rule.",
   "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated.",
-  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","高精細DEM":"High-resolution DEM","中央に戻す":"Recenter globe"
+  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","高精細DEM":"High-resolution DEM","国別カラー":"Country color fill","指標マーカー":"Indicator markers","中央に戻す":"Recenter globe"
 };
 function t(key){return TEXT[key]?.[LANG]??key;}
 function locale(){return LANG==="en"?"en-US":"ja-JP";}
@@ -671,6 +698,8 @@ function localizeSelectors(){
   if(document.getElementById("terrainScaleWrap"))terrainScaleWrap.childNodes[0].nodeValue=t("terrainExaggeration")+" ";
   if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
   if(document.getElementById("worldDemText"))worldDemText.textContent=t("highResDem");
+  if(document.getElementById("worldCountryFillText"))worldCountryFillText.textContent=t("countryFill");
+  if(document.getElementById("worldCountryMarkersText"))worldCountryMarkersText.textContent=t("countryMarkers");
   if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
   updateGlobeControlLanguage();
   countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
@@ -791,9 +820,6 @@ function renderActiveGlobeDial(state){
   const def=activeGlobeDef();
   const raw=Number.isFinite(+state[def.key])?+state[def.key]:0;
   const v=clampDialValue(def,raw);
-  const t=(v-def.min)/(def.max-def.min);
-  const angle=-135+270*Math.max(0,Math.min(1,t));
-  globeMasterPointer.style.transform="translateX(-50%) rotate("+angle+"deg)";
   globeMasterValue.textContent=formatDial(def,v);
   globeActiveParamLabel.textContent=LANG==="en"?def.en:def.ja;
   globeMasterValue.setAttribute("aria-label",(LANG==="en"?def.en:def.ja)+" "+formatDial(def,v));
@@ -882,14 +908,14 @@ function setupGlobeControlDeck(){
       globeParamButtons.appendChild(b);
     }
 
-    let active=false,lastAngle=0,angleAccum=0;
+    let active=false,lastAngle=0,dialSpin=0;
     const pointerAngle=e=>{
       const r=globeMasterWheel.getBoundingClientRect();
       return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));
     };
     globeMasterWheel.addEventListener("pointerdown",e=>{
       if(e.target===globeMasterValue)return;
-      active=true;lastAngle=pointerAngle(e);angleAccum=0;
+      active=true;lastAngle=pointerAngle(e);
       globeMasterWheel.setPointerCapture?.(e.pointerId);
       e.preventDefault();
     });
@@ -900,13 +926,13 @@ function setupGlobeControlDeck(){
       if(delta>Math.PI)delta-=Math.PI*2;
       if(delta<-Math.PI)delta+=Math.PI*2;
       lastAngle=a;
-      angleAccum+=delta*180/Math.PI;
-      const degreesPerStep=5.5;
-      if(Math.abs(angleAccum)>=degreesPerStep){
-        const steps=Math.trunc(angleAccum/degreesPerStep);
-        angleAccum-=steps*degreesPerStep;
-        nudgeGlobeDial(activeGlobeParam,steps);
-      }
+      const deltaDeg=delta*180/Math.PI;
+      dialSpin+=deltaDeg;
+      globeMasterWheel.style.setProperty("--dial-spin",dialSpin+"deg");
+      const def=activeGlobeDef();
+      const state=lastGlobeState||window.KamokuGlobe?.getState?.()||{};
+      const current=Number.isFinite(+state[def.key])?+state[def.key]:0;
+      setGlobeDialValue(def.key,current+(deltaDeg/7)*def.step);
       e.preventDefault();
     });
     const end=e=>{active=false;try{globeMasterWheel.releasePointerCapture?.(e.pointerId)}catch{}};
@@ -989,6 +1015,8 @@ function renderWorld(){
   worldTerrainScaleValue.textContent=savedTerrain+"×";
   worldSeabed.checked=localStorage.getItem("kamokuSeabedTerrain")!=="0";
   worldDemLod.checked=localStorage.getItem("kamokuDemLod")!=="0";
+  worldCountryFill.checked=localStorage.getItem("kamokuCountryFill")!=="0";
+  worldCountryMarkers.checked=localStorage.getItem("kamokuCountryMarkers")==="1";
   const syncTerrainVisibility=()=>{
     const show=worldDisplay.value==="3d";
     terrainScaleWrap.style.display=show?"grid":"none";
@@ -1017,6 +1045,14 @@ function renderWorld(){
     window.KamokuGlobe?.setDem?.(worldDemLod.checked);
     drawWorld();
   };
+  worldCountryFill.onchange=()=>{
+    localStorage.setItem("kamokuCountryFill",worldCountryFill.checked?"1":"0");
+    drawWorld();
+  };
+  worldCountryMarkers.onchange=()=>{
+    localStorage.setItem("kamokuCountryMarkers",worldCountryMarkers.checked?"1":"0");
+    drawWorld();
+  };
   worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
   syncTerrainVisibility();
   window.addEventListener("kamoku-globe-ready",()=>{setupGlobeControlDeck();drawWorld();},{once:true});
@@ -1027,7 +1063,7 @@ function drawWorld(){
   const metric=worldMetric.value,reg=regByMetric[metric]||{};
   const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
   const use3d=worldDisplay.value==="3d";
-  worldTitle.textContent=metricName(metric)+(use3d?" — "+t("terrain3d"):" — "+t("map2d"));
+  worldTitle.textContent="— "+(use3d?t("terrain3d"):t("map2d"));
   worldStats.innerHTML='<span class="pill">'+rows.length+' '+t("countries")+'</span><span class="pill">'+t("worldMedian")+' '+fmt(D.global?.[metric]?.median,reg.unit)+'</span>';
   worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
@@ -1036,7 +1072,7 @@ function drawWorld(){
         element:worldGlobe,
         countries:D.countries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
         metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
-        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
+        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,countryFill:worldCountryFill.checked,markers:worldCountryMarkers.checked,
         onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
       });
       setupGlobeControlDeck();
