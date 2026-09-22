@@ -111,6 +111,31 @@
     .keypad-key{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:11px;padding:14px 8px;font-size:18px;font-weight:700;cursor:pointer}
     .keypad-key.execute{background:var(--accent);color:#06111f}.keypad-key.utility{font-size:13px;color:var(--muted)}
     .keypad-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .globe-param-layout{display:grid;grid-template-columns:minmax(112px,.72fr) minmax(180px,1.28fr);gap:12px;align-items:stretch}
+    .globe-param-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;align-content:start}
+    .globe-param-btn{border:1px solid var(--line);background:#0a1728;color:var(--text);border-radius:11px;padding:9px 6px;min-height:48px;cursor:pointer;text-align:center;display:grid;gap:2px;align-content:center}
+    .globe-param-btn b{font-size:14px;letter-spacing:.04em}.globe-param-btn small{font-size:9px;color:var(--muted);line-height:1.15}
+    .globe-param-btn.active{background:var(--accent);border-color:var(--accent);color:#06111f;box-shadow:0 0 0 2px rgba(88,166,255,.16)}
+    .globe-param-btn.active small{color:#17324e}
+    .globe-master-dial{border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025);padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0}
+    .globe-master-label{font-size:12px;color:var(--muted);min-height:19px;text-align:center}
+    .master-dial-wheel{width:154px;height:154px;margin:8px auto;position:relative;border-radius:50%;touch-action:none;cursor:ns-resize;background:radial-gradient(circle at 50% 50%,#172b47 0 31%,#0b1829 32% 51%,#24415f 52% 55%,#08111f 56%);box-shadow:inset 0 0 0 1px #456485,0 8px 24px rgba(0,0,0,.34)}
+    .master-dial-wheel:before{content:"";position:absolute;inset:6px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#91abc3 0 1deg,transparent 1deg 7.5deg);opacity:.55;mask:radial-gradient(circle,transparent 0 58%,#000 60%)}
+    .master-dial-wheel:after{content:"";position:absolute;inset:29px;border-radius:50%;border:1px solid rgba(130,171,209,.24);pointer-events:none}
+    .master-dial-pointer{position:absolute;left:50%;top:9px;width:4px;height:49px;border-radius:4px;background:var(--accent);transform-origin:50% 68px;box-shadow:0 0 10px rgba(88,166,255,.78);z-index:2}
+    .master-dial-center{position:absolute;inset:45px;border-radius:50%;display:grid;place-items:center;background:#0a1728;border:1px solid #34506e;z-index:1}
+    .master-dial-center-value{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;padding:4px}
+    .globe-master-entry{width:min(190px,100%);min-width:0!important;margin-top:3px;text-align:center;font-size:15px!important;font-variant-numeric:tabular-nums;cursor:pointer;background:#091727!important}
+    .globe-dial-hint{font-size:10px;color:var(--muted);margin-top:7px;text-align:center;line-height:1.35}
+    @media(max-width:620px){
+      .globe-param-layout{grid-template-columns:112px minmax(0,1fr);gap:9px}
+      .globe-param-buttons{grid-template-columns:1fr}
+      .globe-param-btn{min-height:42px;padding:6px 4px}
+      .globe-param-btn small{display:none}
+      .master-dial-wheel{width:min(43vw,168px);height:min(43vw,168px)}
+      .master-dial-pointer{height:calc(min(43vw,168px)*.32);transform-origin:50% calc(min(43vw,168px)*.44)}
+      .master-dial-center{inset:29%}
+    }
     @media(max-width:620px){.globe-dial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dial-wheel{width:68px;height:68px}.globe{min-height:440px}}
     @media(max-width:620px){.top{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}.lang-switch button{padding:6px 8px}}
     @media(max-width:1000px){
@@ -224,7 +249,18 @@
           <div><div id="globeControlTitle" class="globe-control-title">カメラ / 地球操作</div><div id="globeGestureHelp" class="globe-gesture-help">1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム</div></div>
           <button id="globeResetView" class="terrain-center" type="button">表示をリセット</button>
         </div>
-        <div id="globeDialGrid" class="globe-dial-grid"></div>
+        <div class="globe-param-layout">
+          <div id="globeParamButtons" class="globe-param-buttons"></div>
+          <div class="globe-master-dial">
+            <div id="globeActiveParamLabel" class="globe-master-label">焦点 X</div>
+            <div id="globeMasterWheel" class="master-dial-wheel" tabindex="0">
+              <div id="globeMasterPointer" class="master-dial-pointer"></div>
+              <div class="master-dial-center"><div id="globeMasterValue" class="master-dial-center-value">0.00</div></div>
+            </div>
+            <input id="globeMasterInput" class="globe-master-entry" type="text" readonly inputmode="none" value="0.00">
+            <div id="globeDialHint" class="globe-dial-hint">ボタンで項目選択 → ホイールを回す</div>
+          </div>
+        </div>
       </div>
       <div id="worldMap" class="chart" style="display:none"></div>
       <div class="note">3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。</div>
@@ -625,20 +661,21 @@ function layout(extra={}){
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
 
 const GLOBE_DIAL_DEFS=[
-  {key:"x",ja:"焦点 X",en:"Focus X",min:-6,max:6,step:.05,decimals:2},
-  {key:"y",ja:"焦点 Y",en:"Focus Y",min:-6,max:6,step:.05,decimals:2},
-  {key:"z",ja:"焦点 Z",en:"Focus Z",min:-6,max:6,step:.05,decimals:2},
-  {key:"rx",ja:"回転 RX",en:"Rotation RX",min:-89.5,max:89.5,step:1,decimals:1,suffix:"°"},
-  {key:"ry",ja:"回転 RY",en:"Rotation RY",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
-  {key:"rz",ja:"回転 RZ",en:"Rotation RZ",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
-  {key:"zoom",ja:"ズーム",en:"Zoom",min:3.15,max:14,step:.1,decimals:2},
-  {key:"lat",ja:"緯度",en:"Latitude",min:-90,max:90,step:.5,decimals:2,suffix:"°"},
-  {key:"lon",ja:"経度",en:"Longitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
-  {key:"time",ja:"時間 UTC",en:"UTC Time",min:0,max:24,step:.25,decimals:2,suffix:"h",wrap:true}
+  {key:"x",short:"X",ja:"焦点 X",en:"Focus X",min:-6,max:6,step:.05,decimals:2},
+  {key:"y",short:"Y",ja:"焦点 Y",en:"Focus Y",min:-6,max:6,step:.05,decimals:2},
+  {key:"z",short:"Z",ja:"焦点 Z",en:"Focus Z",min:-6,max:6,step:.05,decimals:2},
+  {key:"rx",short:"RX",ja:"回転 RX",en:"Rotation RX",min:-89.5,max:89.5,step:1,decimals:1,suffix:"°"},
+  {key:"ry",short:"RY",ja:"回転 RY",en:"Rotation RY",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"rz",short:"RZ",ja:"回転 RZ",en:"Rotation RZ",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"zoom",short:"ZOOM",ja:"ズーム",en:"Zoom",min:3.15,max:14,step:.1,decimals:2},
+  {key:"lat",short:"LAT",ja:"緯度",en:"Latitude",min:-90,max:90,step:.5,decimals:2,suffix:"°"},
+  {key:"lon",short:"LON",ja:"経度",en:"Longitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
+  {key:"time",short:"TIME",ja:"時間 UTC",en:"UTC Time",min:0,max:24,step:.25,decimals:2,suffix:"h",wrap:true}
 ];
 const GLOBE_DIAL_MAP=Object.fromEntries(GLOBE_DIAL_DEFS.map(x=>[x.key,x]));
-let globeDialEls=new Map(),globeControlsReady=false,globeUnsubscribe=null;
-let keypadField=null,keypadBuffer="";
+let globeControlsReady=false,globeUnsubscribe=null;
+let activeGlobeParam=localStorage.getItem("kamokuGlobeParam")||"x";
+let lastGlobeState=null,keypadField=null,keypadBuffer="";
 
 function clampDialValue(def,v){
   if(def.wrap){
@@ -651,6 +688,9 @@ function formatDial(def,v){
   const n=Number.isFinite(+v)?+v:0;
   return n.toFixed(def.decimals)+(def.suffix||"");
 }
+function activeGlobeDef(){
+  return GLOBE_DIAL_MAP[activeGlobeParam]||GLOBE_DIAL_DEFS[0];
+}
 function setGlobeDialValue(key,value){
   const def=GLOBE_DIAL_MAP[key];if(!def)return;
   const v=clampDialValue(def,+value||0);
@@ -660,39 +700,57 @@ function nudgeGlobeDial(key,steps=1){
   const def=GLOBE_DIAL_MAP[key];if(!def)return;
   window.KamokuGlobe?.nudge?.(key,def.step*steps);
 }
+function selectGlobeParam(key){
+  if(!GLOBE_DIAL_MAP[key])return;
+  activeGlobeParam=key;
+  localStorage.setItem("kamokuGlobeParam",key);
+  document.querySelectorAll(".globe-param-btn").forEach(b=>b.classList.toggle("active",b.dataset.key===key));
+  renderActiveGlobeDial(lastGlobeState||window.KamokuGlobe?.getState?.());
+}
+function renderActiveGlobeDial(state){
+  if(!state||!document.getElementById("globeMasterWheel"))return;
+  lastGlobeState=state;
+  const def=activeGlobeDef();
+  const raw=Number.isFinite(+state[def.key])?+state[def.key]:0;
+  const v=clampDialValue(def,raw);
+  const t=(v-def.min)/(def.max-def.min);
+  const angle=-135+270*Math.max(0,Math.min(1,t));
+  globeMasterPointer.style.transform="translateX(-50%) rotate("+angle+"deg)";
+  globeMasterValue.textContent=formatDial(def,v);
+  globeMasterInput.value=Number(v).toFixed(def.decimals);
+  globeActiveParamLabel.textContent=LANG==="en"?def.en:def.ja;
+  globeMasterInput.setAttribute("aria-label",LANG==="en"?def.en:def.ja);
+}
 function syncGlobeDialDeck(state){
-  if(!state)return;
-  for(const def of GLOBE_DIAL_DEFS){
-    const el=globeDialEls.get(def.key);if(!el)continue;
-    const raw=Number.isFinite(+state[def.key])?+state[def.key]:0;
-    const v=clampDialValue(def,raw);
-    const t=(v-def.min)/(def.max-def.min);
-    const angle=-135+270*Math.max(0,Math.min(1,t));
-    el.pointer.style.transform="translateX(-50%) rotate("+angle+"deg)";
-    el.value.textContent=formatDial(def,v);
-    el.input.value=Number(v).toFixed(def.decimals);
-  }
+  lastGlobeState=state;
+  renderActiveGlobeDial(state);
 }
 function updateGlobeControlLanguage(){
   if(!document.getElementById("globeControlTitle"))return;
   globeControlTitle.textContent=LANG==="en"?"Camera / Globe Controls":"カメラ / 地球操作";
   globeGestureHelp.textContent=LANG==="en"
-    ?"1 finger: rotate / 2-finger pinch: zoom / 2-finger swipe: pan / PC: left-drag rotate, right-drag pan, mouse wheel zoom. Wheel over any dial to adjust it."
-    :"1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム。各ダイアル上のホイールで数値調整。";
+    ?"1 finger: rotate / 2-finger pinch: zoom / 2-finger swipe: pan / PC: left-drag rotate, right-drag pan, mouse wheel zoom. Select a parameter button, then use the single control wheel."
+    :"1本指: 全方位回転 / 2本指ピンチ: ズーム / 2本指スワイプ: パン / PC: 左ドラッグ回転・右ドラッグパン・ホイールズーム。ボタンで項目を選び、1つのホイールで調整。";
   globeResetView.textContent=LANG==="en"?"Reset view":"表示をリセット";
-  keypadTitle.textContent=LANG==="en"?"Numeric input":"数値入力";
+  globeDialHint.textContent=LANG==="en"?"Select a parameter → turn the wheel":"ボタンで項目選択 → ホイールを回す";
   keypadClear.textContent=LANG==="en"?"Clear":"クリア";
   keypadBackspace.textContent=LANG==="en"?"⌫ Backspace":"⌫ バックスペース";
   keypadExecute.textContent=LANG==="en"?"Execute":"実行";
-  for(const def of GLOBE_DIAL_DEFS){
-    const el=globeDialEls.get(def.key);
-    if(el)el.label.textContent=LANG==="en"?def.en:def.ja;
-  }
+  document.querySelectorAll(".globe-param-btn").forEach(b=>{
+    const def=GLOBE_DIAL_MAP[b.dataset.key];
+    if(def){
+      const small=b.querySelector("small");
+      if(small)small.textContent=LANG==="en"?def.en:def.ja;
+    }
+  });
+  renderActiveGlobeDial(lastGlobeState||window.KamokuGlobe?.getState?.());
 }
-function openNumericKeypad(key){
-  const def=GLOBE_DIAL_MAP[key],el=globeDialEls.get(key);if(!def||!el)return;
+function openNumericKeypad(key=activeGlobeParam){
+  const def=GLOBE_DIAL_MAP[key];if(!def)return;
   keypadField=key;
-  keypadBuffer=el.input.value||"0";
+  const state=lastGlobeState||window.KamokuGlobe?.getState?.()||{};
+  const v=Number.isFinite(+state[key])?+state[key]:0;
+  keypadBuffer=Number(v).toFixed(def.decimals);
   keypadDisplay.textContent=keypadBuffer;
   keypadTitle.textContent=(LANG==="en"?def.en:def.ja)+" · "+(LANG==="en"?"Numeric input":"数値入力");
   numericKeypad.style.display="flex";
@@ -741,57 +799,63 @@ function setupNumericKeypad(){
   });
 }
 function setupGlobeControlDeck(){
-  if(!document.getElementById("globeDialGrid")||!window.KamokuGlobe)return;
+  if(!document.getElementById("globeParamButtons")||!window.KamokuGlobe)return;
   setupNumericKeypad();
+
   if(!globeControlsReady){
     globeControlsReady=true;
-    globeDialGrid.innerHTML="";
+    globeParamButtons.innerHTML="";
     for(const def of GLOBE_DIAL_DEFS){
-      const root=document.createElement("div");root.className="globe-dial";root.dataset.key=def.key;
-      const label=document.createElement("div");label.className="globe-dial-label";root.appendChild(label);
-      const wheel=document.createElement("div");wheel.className="dial-wheel";wheel.tabIndex=0;
-      const pointer=document.createElement("div");pointer.className="dial-pointer";wheel.appendChild(pointer);root.appendChild(wheel);
-      const value=document.createElement("div");value.className="dial-value";root.appendChild(value);
-      const input=document.createElement("input");input.className="dial-entry";input.type="text";input.readOnly=true;input.inputMode="none";input.setAttribute("aria-label",def.ja);root.appendChild(input);
-      globeDialGrid.appendChild(root);
-      globeDialEls.set(def.key,{root,label,wheel,pointer,value,input});
-
-      let active=false,lastY=0,accum=0;
-      wheel.addEventListener("pointerdown",e=>{active=true;lastY=e.clientY;accum=0;wheel.setPointerCapture?.(e.pointerId);e.preventDefault();});
-      wheel.addEventListener("pointermove",e=>{
-        if(!active)return;
-        accum+=lastY-e.clientY;lastY=e.clientY;
-        const px=7;
-        if(Math.abs(accum)>=px){
-          const steps=Math.trunc(accum/px);
-          accum-=steps*px;
-          nudgeGlobeDial(def.key,steps);
-        }
-        e.preventDefault();
-      });
-      const end=e=>{active=false;try{wheel.releasePointerCapture?.(e.pointerId)}catch{}};
-      wheel.addEventListener("pointerup",end);wheel.addEventListener("pointercancel",end);
-      wheel.addEventListener("wheel",e=>{
-        e.preventDefault();
-        const dir=e.deltaY<0?1:-1,mult=e.shiftKey?10:1;
-        nudgeGlobeDial(def.key,dir*mult);
-      },{passive:false});
-      wheel.addEventListener("keydown",e=>{
-        if(e.key==="ArrowUp"||e.key==="ArrowRight"){nudgeGlobeDial(def.key,1);e.preventDefault();}
-        if(e.key==="ArrowDown"||e.key==="ArrowLeft"){nudgeGlobeDial(def.key,-1);e.preventDefault();}
-        if(e.key==="Enter"){openNumericKeypad(def.key);e.preventDefault();}
-      });
-      input.addEventListener("click",()=>openNumericKeypad(def.key));
-      input.addEventListener("focus",()=>input.blur());
+      const b=document.createElement("button");
+      b.type="button";b.className="globe-param-btn";b.dataset.key=def.key;
+      b.innerHTML="<b>"+def.short+"</b><small>"+(LANG==="en"?def.en:def.ja)+"</small>";
+      b.addEventListener("click",()=>selectGlobeParam(def.key));
+      globeParamButtons.appendChild(b);
     }
+
+    let active=false,lastY=0,accum=0;
+    globeMasterWheel.addEventListener("pointerdown",e=>{
+      active=true;lastY=e.clientY;accum=0;
+      globeMasterWheel.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    });
+    globeMasterWheel.addEventListener("pointermove",e=>{
+      if(!active)return;
+      accum+=lastY-e.clientY;lastY=e.clientY;
+      const px=6;
+      if(Math.abs(accum)>=px){
+        const steps=Math.trunc(accum/px);
+        accum-=steps*px;
+        nudgeGlobeDial(activeGlobeParam,steps);
+      }
+      e.preventDefault();
+    });
+    const end=e=>{active=false;try{globeMasterWheel.releasePointerCapture?.(e.pointerId)}catch{}};
+    globeMasterWheel.addEventListener("pointerup",end);
+    globeMasterWheel.addEventListener("pointercancel",end);
+    globeMasterWheel.addEventListener("wheel",e=>{
+      e.preventDefault();
+      const dir=e.deltaY<0?1:-1;
+      const mult=e.shiftKey?10:1;
+      nudgeGlobeDial(activeGlobeParam,dir*mult);
+    },{passive:false});
+    globeMasterWheel.addEventListener("keydown",e=>{
+      if(e.key==="ArrowUp"||e.key==="ArrowRight"){nudgeGlobeDial(activeGlobeParam,1);e.preventDefault();}
+      if(e.key==="ArrowDown"||e.key==="ArrowLeft"){nudgeGlobeDial(activeGlobeParam,-1);e.preventDefault();}
+      if(e.key==="Enter"){openNumericKeypad(activeGlobeParam);e.preventDefault();}
+    });
+    globeMasterInput.addEventListener("click",()=>openNumericKeypad(activeGlobeParam));
+    globeMasterInput.addEventListener("focus",()=>globeMasterInput.blur());
     globeResetView.addEventListener("click",()=>window.KamokuGlobe?.center?.());
   }
+
+  if(!GLOBE_DIAL_MAP[activeGlobeParam])activeGlobeParam="x";
+  selectGlobeParam(activeGlobeParam);
   if(globeUnsubscribe)globeUnsubscribe();
   globeUnsubscribe=window.KamokuGlobe.subscribe?.(syncGlobeDialDeck)||null;
   syncGlobeDialDeck(window.KamokuGlobe.getState?.());
   updateGlobeControlLanguage();
 }
-
 
 function setNav(){
   document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
