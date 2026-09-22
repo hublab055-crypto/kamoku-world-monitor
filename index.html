@@ -612,16 +612,18 @@ function renderWorld(){
   drawWorld();
 }
 function drawWorld(){
-  const metric=worldMetric.value, reg=regByMetric[metric]||{};
+  const metric=worldMetric.value,reg=regByMetric[metric]||{};
   const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
   const use3d=worldDisplay.value==="3d";
-  worldTitle.textContent=(reg.display_name||metric)+(use3d?" — 3D":" — 2D");
-  worldStats.innerHTML='<span class="pill">'+rows.length+'か国</span><span class="pill">世界中央値 '+fmt(D.global?.[metric]?.median,reg.unit)+'</span>';
-  worldGlobe.style.display=use3d?"block":"none"; worldMap.style.display=use3d?"none":"block";
+  worldTitle.textContent=metricName(metric)+(use3d?" — "+t("terrain3d"):" — "+t("map2d"));
+  worldStats.innerHTML='<span class="pill">'+rows.length+' '+t("countries")+'</span><span class="pill">'+t("worldMedian")+' '+fmt(D.global?.[metric]?.median,reg.unit)+'</span>';
+  worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
     if(window.KamokuGlobe){
       window.KamokuGlobe.update({
-        element:worldGlobe,countries:D.countries,metric:metric,unit:reg.unit||"",
+        element:worldGlobe,
+        countries:D.countries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
+        metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
         onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
       });
     }
@@ -629,9 +631,9 @@ function drawWorld(){
   }
   Plotly.react("worldMap",[{
     type:"choropleth",locationmode:"ISO-3",locations:rows.map(x=>x.c.iso3),
-    z:rows.map(x=>x.v.value),text:rows.map(x=>x.c.name),
-    customdata:rows.map(x=>[x.v.year,x.c.region]),
-    hovertemplate:"%{text}<br>%{z:.6g}<br>年 %{customdata[0]}<br>%{customdata[1]}<extra></extra>",
+    z:rows.map(x=>x.v.value),text:rows.map(x=>countryName(x.c)),
+    customdata:rows.map(x=>[x.v.year,regionName(x.c.region)]),
+    hovertemplate:"%{text}<br>%{z:.6g}<br>"+(LANG==="en"?"Year ":"年 ")+"%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
     colorbar:{title:reg.unit||""},colorscale:"Viridis"
   }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
   const el=document.getElementById("worldMap");
@@ -640,55 +642,57 @@ function drawWorld(){
 }
 
 function setupCountry(){
-  const opts=D.countries.map(c=>`<option value="${esc(c.name)} (${c.iso3})"></option>`).join("");
-  countryList.innerHTML=opts;
+  countryList.innerHTML=D.countries.map(c=>`<option value="${esc(countryName(c))} (${c.iso3})"></option>`).join("");
   fillDomain(countryDomain);fillMetric(countryMetric,countryDomain.value);
   countryDomain.onchange=()=>{fillMetric(countryMetric,countryDomain.value);renderCountry();};
   countryMetric.onchange=renderCountry;
   countrySearch.onchange=()=>{
     const q=countrySearch.value.trim().toLowerCase();
-    const found=D.countries.find(c=>q===c.iso3.toLowerCase()||q===c.name.toLowerCase()||q.includes("("+c.iso3.toLowerCase()+")")) ||
-      D.countries.find(c=>c.name.toLowerCase().includes(q));
+    const found=D.countries.find(c=>{
+      const localized=countryName(c).toLowerCase();
+      return q===c.iso3.toLowerCase()||q===(c.iso2||"").toLowerCase()||
+        q===c.name.toLowerCase()||q===localized||
+        q.includes("("+c.iso3.toLowerCase()+")");
+    })||D.countries.find(c=>c.name.toLowerCase().includes(q)||countryName(c).toLowerCase().includes(q));
     if(found){selectedIso=found.iso3;renderCountry();}
   };
-  syncCountryInput(); renderCountry();
+  syncCountryInput();renderCountry();
 }
-function syncCountryInput(){const c=countryByIso[selectedIso];if(c) countrySearch.value=`${c.name} (${c.iso3})`;}
+function syncCountryInput(){const c=countryByIso[selectedIso];if(c)countrySearch.value=`${countryName(c)} (${c.iso3})`;}
 
 function compareLine(label,value,ref,unit){
-  if(value==null||ref==null) return `<div class="metric"><div class="name">${label}</div><div class="value">—</div></div>`;
-  const diff=value-ref, rel=ref!==0?diff/Math.abs(ref)*100:null;
-  return `<div class="metric"><div class="name">${label}</div><div class="value">${fmt(ref,unit)}</div><div class="meta">差 ${fmt(diff,unit)}${rel==null?"":` / ${rel.toLocaleString("ja-JP",{maximumFractionDigits:1})}%`}</div></div>`;
+  if(value==null||ref==null)return `<div class="metric"><div class="name">${label}</div><div class="value">—</div></div>`;
+  const diff=value-ref,rel=ref!==0?diff/Math.abs(ref)*100:null;
+  return `<div class="metric"><div class="name">${label}</div><div class="value">${fmt(ref,unit)}</div><div class="meta">${t("difference")} ${fmt(diff,unit)}${rel==null?"":` / ${rel.toLocaleString(locale(),{maximumFractionDigits:1})}%`}</div></div>`;
 }
 
 function renderCountry(){
-  const c=countryByIso[selectedIso]||D.countries[0]; if(!c)return;
-  selectedIso=c.iso3; syncCountryInput();
-  const chosen=countryMetric.value || metricsForDomain(countryDomain.value)[0]?.metric;
+  const c=countryByIso[selectedIso]||D.countries[0];if(!c)return;
+  selectedIso=c.iso3;syncCountryInput();
+  const chosen=countryMetric.value||metricsForDomain(countryDomain.value)[0]?.metric;
   const hv=D.history?.[c.iso3]?.[chosen]||[];
-  const latest=c.latest?.[chosen], reg=D.regions.find(r=>r.code===c.region_code), unit=metricUnit(chosen);
+  const latest=c.latest?.[chosen],reg=D.regions.find(r=>r.code===c.region_code),unit=metricUnit(chosen);
   countryHeader.innerHTML=[
-    ["国",c.name,c.iso3],
-    ["地域",c.region||"—",c.region_code||"—"],
-    ["所得区分",c.income||"—",c.capital||""],
-    ["収録指標",Object.keys(c.latest||{}).length+" 指標","2000年以降の履歴"]
+    [t("country"),countryName(c),c.iso3],
+    [t("region"),regionName(c.region),c.region_code||"—"],
+    [t("income"),incomeName(c.income),c.capital||""],
+    [t("recordedMetrics"),Object.keys(c.latest||{}).length+" "+t("indicators"),t("historySince")]
   ].map(x=>`<div class="card"><div class="eyebrow">${esc(x[0])}</div><div class="big">${esc(x[1])}</div><div class="sub">${esc(x[2])}</div></div>`).join("");
   countryChartTitle.textContent=metricName(chosen);
   Plotly.react("countryChart",[{
     x:hv.map(x=>x[0]),y:hv.map(x=>x[1]),type:"scatter",mode:"lines+markers",
     line:{width:2.5},hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"
   }],layout({xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:unit}}),config);
-  compareBox.innerHTML=latest? `
-    <div class="metric" style="margin-bottom:10px"><div class="name">選択国の最新値</div><div class="value">${fmt(latest.value,unit)}</div><div class="meta">${latest.year} / ${esc(latest.source||"")}</div></div>
-    ${compareLine("世界中央値",latest.value,D.global?.[chosen]?.median,unit)}
+  compareBox.innerHTML=latest?`
+    <div class="metric" style="margin-bottom:10px"><div class="name">${t("latestValue")}</div><div class="value">${fmt(latest.value,unit)}</div><div class="meta">${latest.year} / ${esc(latest.source||"")}</div></div>
+    ${compareLine(t("worldMedian"),latest.value,D.global?.[chosen]?.median,unit)}
     <div style="height:10px"></div>
-    ${compareLine("地域中央値",latest.value,reg?.latest?.[chosen]?.median,unit)}
-  `:"<div class='note'>この指標のデータがありません。</div>";
-
+    ${compareLine(t("regionalMedian"),latest.value,reg?.latest?.[chosen]?.median,unit)}
+  `:"<div class='note'>"+t("noMetricData")+"</div>";
   const ms=metricsForDomain(countryDomain.value);
   countryMetrics.innerHTML=ms.map(r=>{
-    const x=c.latest?.[r.metric], g=D.global?.[r.metric]?.median, rr=reg?.latest?.[r.metric]?.median;
-    return `<div class="metric"><div class="name">${esc(r.display_name)}</div><div class="value">${x?fmt(x.value,r.unit):"—"}</div><div class="meta">${x?`${x.year} · ${esc(x.unit||r.unit||"")}`:"データなし"}</div><div class="delta">世界中央値 ${fmt(g,r.unit)} / 地域中央値 ${fmt(rr,r.unit)}</div></div>`;
+    const x=c.latest?.[r.metric],g=D.global?.[r.metric]?.median,rr=reg?.latest?.[r.metric]?.median;
+    return `<div class="metric"><div class="name">${esc(metricName(r.metric))}</div><div class="value">${x?fmt(x.value,r.unit):"—"}</div><div class="meta">${x?`${x.year} · ${esc(x.unit||r.unit||"")}`:t("noData")}</div><div class="delta">${t("worldMedian")} ${fmt(g,r.unit)} / ${t("regionalMedian")} ${fmt(rr,r.unit)}</div></div>`;
   }).join("");
 }
 
@@ -698,10 +702,10 @@ function renderRegions(){
   regionDomain.onchange=updateMetric;regionMetric.onchange=drawRegions;drawRegions();
 }
 function drawRegions(){
-  const metric=regionMetric.value, r=regByMetric[metric]||{};
-  regionTitle.textContent=(r.display_name||metric)+" — 地域中央値";
+  const metric=regionMetric.value,r=regByMetric[metric]||{};
+  regionTitle.textContent=metricName(metric)+" — "+t("regionalMedian");
   const rows=D.regions.map(x=>({name:x.name,...(x.latest?.[metric]||{})})).filter(x=>x.median!=null).sort((a,b)=>b.median-a.median);
-  regionBody.innerHTML=rows.map(x=>`<tr><td>${esc(x.name)}</td><td>${fmt(x.median,r.unit)}</td><td>${x.n}</td></tr>`).join("");
+  regionBody.innerHTML=rows.map(x=>`<tr><td>${esc(regionName(x.name))}</td><td>${fmt(x.median,r.unit)}</td><td>${x.n}</td></tr>`).join("");
 }
 
 
@@ -715,6 +719,30 @@ const MARKET_FEATURE_LABELS={
   per:"PER",pbr:"PBR",dividend_yield_pct:"配当利回り",equity_ratio:"自己資本比率",
   roe:"ROE",operating_margin_pct:"営業利益率",has_financial:"財務データ有無"
 };
+const MARKET_FEATURE_LABELS_EN={
+  ret1_pct:"1-day return",ret5_pct:"5-day return",ret20_pct:"20-day momentum",
+  wma5_25_pct:"WMA5−25",wma25_75_pct:"WMA25−75",close_wma75_pct:"Close−WMA75",
+  rsi14:"RSI14",macd_hist_pct:"MACD",volume_ratio20:"Volume ratio 20",atr14_pct:"ATR14",
+  vix:"VIX",usdjpy:"USD/JPY",nikkei_ret1_pct:"Nikkei 1-day",djia_ret1_pct:"DJIA 1-day",
+  market_breadth_pct:"Market breadth",market_median_return_1d_pct:"Market median return",
+  market_pct_above_wma25:"% above WMA25",market_pct_above_wma75:"% above WMA75",
+  per:"PER",pbr:"PBR",dividend_yield_pct:"Dividend yield",equity_ratio:"Equity ratio",
+  roe:"ROE",operating_margin_pct:"Operating margin",has_financial:"Financial data present"
+};
+function marketFeatureLabel(name){return (LANG==="en"?MARKET_FEATURE_LABELS_EN:MARKET_FEATURE_LABELS)[name]||name;}
+function patternName(p){
+  if(!p)return "—";
+  if(LANG==="ja")return p.display_name||p.pattern_key||"—";
+  const tops=(p.top_features||[]).slice(0,3).map(x=>marketFeatureLabel(x.feature));
+  return tops.length?tops.join(" + ")+" pattern":(p.pattern_key||"Pattern");
+}
+function patternSummaryText(p){
+  if(!p)return LANG==="en"?"No pattern assignment for this date.":"この日付のパターン割当はありません。";
+  if(LANG==="ja")return p.summary_text||"";
+  const wr=p.win_rate_5d_pct==null?"—":(+p.win_rate_5d_pct).toFixed(1)+"%";
+  const ar=p.avg_return_5d_pct==null?"—":(+p.avg_return_5d_pct).toFixed(2)+"%";
+  return "Retrospective 5-day statistics: win rate "+wr+", average return "+ar+".";
+}
 
 const DEFAULT_TRAIN_STRATEGY={
   version:"rules-v2",buy_logic:"AND",
