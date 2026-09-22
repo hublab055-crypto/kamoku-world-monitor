@@ -259,7 +259,6 @@ export function subscribeViewState(fn){
 export function setTerrain({exaggeration=terrainExaggeration,seabed=seabedEnabled,fit=true}={}){
   terrainExaggeration=clamp(+exaggeration||1,1,100);
   seabedEnabled=!!seabed;
-  demEnabled=!!dem;
   applyTerrainSettings();
   demLastKey="";
   scheduleDemRefresh(0);
@@ -542,6 +541,7 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
   currentLanguage=language==="en"?"en":"ja";
   terrainExaggeration=clamp(+terrainScale||30,1,100);
   seabedEnabled=!!seabed;
+  demEnabled=!!dem;
   applyTerrainSettings();
 
   while(markerGroup.children.length){
