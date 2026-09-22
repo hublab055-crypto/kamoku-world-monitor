@@ -7,12 +7,16 @@ const EARTH_WATER_URL="https://cdn.jsdelivr.net/npm/three-globe/example/img/eart
 
 const EARTH_RADIUS=2;
 const REAL_MAX_RELIEF_SCENE=0.00285;
+const EARTH_RADIUS_METERS=6371000;
+const DEM_TERRARIUM_BASE="https://elevation-tiles-prod.s3.amazonaws.com/terrarium";
 const DEG=Math.PI/180;
 
 let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
 let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null,sun=null,rim=null;
-let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true;
+let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true;
 let cameraRollDeg=0,simulationHour=12;
+let demGroup=null,demRefreshTimer=null,demBuildToken=0,demLastKey="";
+const demCache=new Map();
 let stateListener=null,stateEmitRaf=0;
 
 function clamp(v,min,max){return Math.min(max,Math.max(min,v));}
@@ -255,7 +259,10 @@ export function subscribeViewState(fn){
 export function setTerrain({exaggeration=terrainExaggeration,seabed=seabedEnabled,fit=true}={}){
   terrainExaggeration=clamp(+exaggeration||1,1,100);
   seabedEnabled=!!seabed;
+  demEnabled=!!dem;
   applyTerrainSettings();
+  demLastKey="";
+  scheduleDemRefresh(0);
   if(fit)fitGlobeToViewport({preserveDirection:true});
 }
 export function centerGlobe(){
@@ -265,6 +272,165 @@ export function centerGlobe(){
   camera.position.set(0,0,6);
   fitGlobeToViewport({preserveDirection:false});
   scheduleStateEmit();
+}
+
+
+function demTileX(lon,z){
+  const n=2**z;
+  return Math.floor(((lon+180)/360)*n);
+}
+function demTileY(lat,z){
+  const n=2**z;
+  const clamped=clamp(lat,-85.05112878,85.05112878)*DEG;
+  return Math.floor((1-Math.asinh(Math.tan(clamped))/Math.PI)/2*n);
+}
+function tileLon(x,z){return x/(2**z)*360-180;}
+function tileLat(y,z){
+  const n=Math.PI-2*Math.PI*y/(2**z);
+  return THREE.MathUtils.radToDeg(Math.atan(Math.sinh(n)));
+}
+function terrainColor(height){
+  const col=new THREE.Color();
+  if(height<0){
+    const t=clamp((-height)/8000,0,1);
+    col.setRGB(.04+.02*(1-t),.18+.22*(1-t),.34+.36*(1-t));
+  }else if(height<800){
+    const t=height/800;
+    col.setRGB(.12+.18*t,.42-.05*t,.22-.04*t);
+  }else if(height<2800){
+    const t=(height-800)/2000;
+    col.setRGB(.30+.25*t,.36-.13*t,.20-.05*t);
+  }else{
+    const t=clamp((height-2800)/5000,0,1);
+    col.setRGB(.55+.40*t,.50+.45*t,.45+.50*t);
+  }
+  return col;
+}
+async function fetchDemTile(z,x,y){
+  const n=2**z,xx=((x%n)+n)%n;
+  if(y<0||y>=n)return null;
+  const key=z+"/"+xx+"/"+y;
+  if(demCache.has(key))return demCache.get(key);
+  const promise=(async()=>{
+    const res=await fetch(DEM_TERRARIUM_BASE+"/"+z+"/"+xx+"/"+y+".png",{mode:"cors",cache:"force-cache"});
+    if(!res.ok)throw new Error("DEM HTTP "+res.status);
+    const bmp=await createImageBitmap(await res.blob());
+    const canvas=("OffscreenCanvas" in window)?new OffscreenCanvas(bmp.width,bmp.height):document.createElement("canvas");
+    canvas.width=bmp.width;canvas.height=bmp.height;
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(bmp,0,0);
+    const img=ctx.getImageData(0,0,bmp.width,bmp.height);
+    bmp.close?.();
+    return {width:img.width,height:img.height,data:img.data};
+  })();
+  demCache.set(key,promise);
+  if(demCache.size>36){
+    const first=demCache.keys().next().value;
+    if(first!==key)demCache.delete(first);
+  }
+  try{return await promise}catch(e){demCache.delete(key);throw e}
+}
+function demElevation(tile,u,v){
+  const x=clamp(Math.round(u*(tile.width-1)),0,tile.width-1);
+  const y=clamp(Math.round(v*(tile.height-1)),0,tile.height-1);
+  const i=(y*tile.width+x)*4,d=tile.data;
+  return d[i]*256+d[i+1]+d[i+2]/256-32768;
+}
+function disposeGroup(group){
+  if(!group)return;
+  while(group.children.length){
+    const o=group.children.pop();
+    o.geometry?.dispose();o.material?.dispose();
+  }
+}
+async function buildDemMesh(z,x,y,token){
+  const tile=await fetchDemTile(z,x,y);
+  if(!tile||token!==demBuildToken)return null;
+  const seg=32,verts=(seg+1)*(seg+1);
+  const positions=new Float32Array(verts*3),colors=new Float32Array(verts*3);
+  let p=0;
+  for(let gy=0;gy<=seg;gy++){
+    const v=gy/seg;
+    const lat=tileLat(y+v,z);
+    for(let gx=0;gx<=seg;gx++){
+      const u=gx/seg,lon=tileLon(x+u,z);
+      let h=demElevation(tile,u,v);
+      if(!seabedEnabled&&h<0)h=0;
+      const dh=(h/EARTH_RADIUS_METERS)*EARTH_RADIUS*terrainExaggeration;
+      const r=EARTH_RADIUS+dh+.003;
+      const pos=latLonToVector3(lat,lon,r);
+      positions[p*3]=pos.x;positions[p*3+1]=pos.y;positions[p*3+2]=pos.z;
+      const col=terrainColor(h);
+      colors[p*3]=col.r;colors[p*3+1]=col.g;colors[p*3+2]=col.b;
+      p++;
+    }
+  }
+  const indices=[];
+  for(let gy=0;gy<seg;gy++){
+    for(let gx=0;gx<seg;gx++){
+      const a=gy*(seg+1)+gx,b=a+1,c=a+(seg+1),d=c+1;
+      indices.push(a,c,b,b,c,d);
+    }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.BufferAttribute(positions,3));
+  g.setAttribute("color",new THREE.BufferAttribute(colors,3));
+  g.setIndex(indices);g.computeVertexNormals();
+  const m=new THREE.MeshPhongMaterial({
+    vertexColors:true,transparent:true,opacity:.78,shininess:4,
+    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1
+  });
+  const mesh=new THREE.Mesh(g,m);
+  mesh.userData={z,x,y,source:"Mapzen/Tilezen Terrarium"};
+  return mesh;
+}
+function screenCenterLatLon(){
+  if(!camera)return null;
+  const dir=new THREE.Vector3();camera.getWorldDirection(dir).normalize();
+  const o=camera.position.clone();
+  const b=2*o.dot(dir),cc=o.lengthSq()-EARTH_RADIUS*EARTH_RADIUS;
+  const disc=b*b-4*cc;
+  if(disc<0)return null;
+  const root=Math.sqrt(disc),t1=(-b-root)/2,t2=(-b+root)/2;
+  const t=t1>0?t1:(t2>0?t2:null);
+  if(t==null)return null;
+  return vectorToLatLon(o.addScaledVector(dir,t));
+}
+async function refreshDemLod(){
+  if(!scene||!camera)return;
+  if(!demEnabled){
+    if(demGroup){disposeGroup(demGroup);demGroup.visible=false;}
+    demLastKey="";return;
+  }
+  const distance=getOffset().length();
+  if(distance>6.2){
+    if(demGroup){disposeGroup(demGroup);demGroup.visible=false;}
+    demLastKey="";return;
+  }
+  const focus=screenCenterLatLon();if(!focus)return;
+  const z=distance<3.7?7:distance<4.35?6:distance<5.1?5:4;
+  const cx=demTileX(focus.lon,z),cy=demTileY(focus.lat,z);
+  const radius=z>=5?1:0;
+  const key=[z,cx,cy,radius,terrainExaggeration,seabedEnabled].join(":");
+  if(key===demLastKey&&demGroup?.visible)return;
+  demLastKey=key;
+  const token=++demBuildToken;
+  if(!demGroup){demGroup=new THREE.Group();demGroup.renderOrder=3;scene.add(demGroup);}
+  demGroup.visible=true;disposeGroup(demGroup);
+  const tasks=[];
+  for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++)tasks.push(buildDemMesh(z,cx+dx,cy+dy,token));
+  const meshes=await Promise.allSettled(tasks);
+  if(token!==demBuildToken)return;
+  for(const r of meshes)if(r.status==="fulfilled"&&r.value)demGroup.add(r.value);
+}
+function scheduleDemRefresh(delay=420){
+  if(demRefreshTimer)clearTimeout(demRefreshTimer);
+  demRefreshTimer=setTimeout(()=>{demRefreshTimer=null;refreshDemLod().catch(()=>{});},delay);
+}
+export function setDemEnabled(enabled){
+  demEnabled=!!enabled;
+  demLastKey="";
+  scheduleDemRefresh(0);
 }
 
 export function initGlobe(element){
@@ -293,7 +459,10 @@ export function initGlobe(element){
   controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;
   controls.touches.ONE=THREE.TOUCH.ROTATE;
   controls.touches.TWO=THREE.TOUCH.DOLLY_PAN;
-  controls.addEventListener("change",scheduleStateEmit);
+  controls.addEventListener("change",()=>{
+    scheduleStateEmit();
+    scheduleDemRefresh();
+  });
 
   scene.add(new THREE.HemisphereLight(0xbfdcff,0x07111d,1.45));
   sun=new THREE.DirectionalLight(0xffffff,2.1);scene.add(sun);
@@ -327,6 +496,7 @@ export function initGlobe(element){
   scene.add(latitudeGrid);
 
   markerGroup=new THREE.Group();scene.add(markerGroup);
+  demGroup=new THREE.Group();demGroup.renderOrder=3;scene.add(demGroup);
   raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();
   addStars();
 
@@ -366,7 +536,7 @@ function markerColor(t){
   c.setHSL(.62*(1-t),.78,.56);
   return c;
 }
-export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,onCountrySelect}){
+export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,onCountrySelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
   currentLanguage=language==="en"?"en":"ja";
@@ -409,9 +579,10 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
     markerGroup.add(marker);
   }
   scheduleStateEmit();
+  scheduleDemRefresh(0);
 }
 window.KamokuGlobe={
-  init:initGlobe,update:updateGlobe,setTerrain,center:centerGlobe,
+  init:initGlobe,update:updateGlobe,setTerrain,setDem:setDemEnabled,center:centerGlobe,
   getState:getViewState,setState:setViewState,nudge:nudgeView,subscribe:subscribeViewState
 };
 window.dispatchEvent(new Event("kamoku-globe-ready"));
