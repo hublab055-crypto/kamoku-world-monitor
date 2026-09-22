@@ -213,6 +213,7 @@
       <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
       <label class="terrain-control" id="terrainScaleWrap">地形強調 <span id="worldTerrainScaleValue">30×</span><input id="worldTerrainScale" type="range" min="1" max="100" step="1" value="30"></label>
       <label class="terrain-toggle" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked> <span id="worldSeabedText">海底地形</span></label>
+      <label class="terrain-toggle" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked> <span id="worldDemText">高精細DEM</span></label>
       <button id="worldCenterBtn" class="terrain-center" type="button">中央に戻す</button>
     </div>
     <div class="card">
@@ -226,7 +227,7 @@
         <div id="globeDialGrid" class="globe-dial-grid"></div>
       </div>
       <div id="worldMap" class="chart" style="display:none"></div>
-      <div class="note">3D地球儀は地形高度画像による高低差を球面へ反映し、地形強調倍率と海底地形を切り替えられます。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。</div>
+      <div class="note">3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。</div>
     </div>
   </section>
 
@@ -481,7 +482,7 @@ const TEXT={
   marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
   takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
   riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
-  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
 };
 const STATIC_TEXT={
   "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
@@ -512,7 +513,7 @@ const STATIC_TEXT={
   "プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。":"Repeatedly backtests player-defined rule thresholds and selects parameters on the validation period. Background training can be turned off at any time.",
   "D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。":"Signals are decided at day D close and market orders fill at the next trading day open. Full-auto uses the same timing rule.",
   "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated.",
-  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","中央に戻す":"Recenter globe"
+  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","高精細DEM":"High-resolution DEM","中央に戻す":"Recenter globe"
 };
 function t(key){return TEXT[key]?.[LANG]??key;}
 function locale(){return LANG==="en"?"en-US":"ja-JP";}
@@ -567,6 +568,7 @@ function localizeSelectors(){
   worldMode.options[0].textContent=t("latestEach");
   if(document.getElementById("terrainScaleWrap"))terrainScaleWrap.childNodes[0].nodeValue=t("terrainExaggeration")+" ";
   if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
+  if(document.getElementById("worldDemText"))worldDemText.textContent=t("highResDem");
   if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
   updateGlobeControlLanguage();
   countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
@@ -844,10 +846,12 @@ function renderWorld(){
   worldTerrainScale.value=String(savedTerrain);
   worldTerrainScaleValue.textContent=savedTerrain+"×";
   worldSeabed.checked=localStorage.getItem("kamokuSeabedTerrain")!=="0";
+  worldDemLod.checked=localStorage.getItem("kamokuDemLod")!=="0";
   const syncTerrainVisibility=()=>{
     const show=worldDisplay.value==="3d";
     terrainScaleWrap.style.display=show?"grid":"none";
     terrainSeabedWrap.style.display=show?"flex":"none";
+    terrainDemWrap.style.display=show?"flex":"none";
     worldCenterBtn.style.display=show?"inline-block":"none";
     globeControlPanel.style.display=show?"block":"none";
   };
@@ -864,6 +868,11 @@ function renderWorld(){
   worldTerrainScale.onchange=drawWorld;
   worldSeabed.onchange=()=>{
     localStorage.setItem("kamokuSeabedTerrain",worldSeabed.checked?"1":"0");
+    drawWorld();
+  };
+  worldDemLod.onchange=()=>{
+    localStorage.setItem("kamokuDemLod",worldDemLod.checked?"1":"0");
+    window.KamokuGlobe?.setDem?.(worldDemLod.checked);
     drawWorld();
   };
   worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
@@ -885,7 +894,7 @@ function drawWorld(){
         element:worldGlobe,
         countries:D.countries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
         metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
-        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,
+        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
         onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
       });
       setupGlobeControlDeck();
