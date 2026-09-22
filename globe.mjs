@@ -619,7 +619,7 @@ async function updateCountryOverlay(countries,metric,enabled){
   if(token!==countryOverlayToken)return;
 
   const width=1536,height=768;
-  const canvas=("OffscreenCanvas" in window)?new OffscreenCanvas(width,height):document.createElement("canvas");
+  const canvas=document.createElement("canvas");
   canvas.width=width;canvas.height=height;
   const ctx=canvas.getContext("2d");
   ctx.clearRect(0,0,width,height);
@@ -642,7 +642,7 @@ async function updateCountryOverlay(countries,metric,enabled){
     const has=Number.isFinite(value);
     const t=has?clamp((value-lo)/span,0,1):0;
     const col=has?markerColor(t):new THREE.Color(0x496077);
-    drawCountryGeometry(ctx,feature.geometry,rgbaFromColor(col,has?.64:.14),width,height);
+    drawCountryGeometry(ctx,feature.geometry,rgbaFromColor(col,has ? .64 : .14),width,height);
   }
 
   if(token!==countryOverlayToken)return;
