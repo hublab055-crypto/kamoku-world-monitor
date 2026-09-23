@@ -1500,7 +1500,7 @@ function renderNewsNetwork(data){
     return Number.isFinite(s)&&Number.isFinite(e)&&Date.now()>=s&&Date.now()<e;
   });
   if(moving){
-    requestAnimationFrame(()=>{if(LAST_SEMANTIC_NETWORK===data)renderNewsNetwork(data);});
+    setTimeout(()=>{if(LAST_SEMANTIC_NETWORK===data)renderNewsNetwork(data);},180);
   }
 }
 
