@@ -470,6 +470,16 @@
         <div id="newsAgentStatus" class="statline" style="margin-top:8px"></div>
         <div class="news-network-note">ノードの大きさは記憶量＋活動エネルギーです。新しいニュースがエネルギーを供給し、エージェントが探索・統合・リンク・剪定で消費します。分野ごとの容量とエントロピー監視で無制限な増殖を抑えます。</div>
       </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card">
+          <div class="section-title"><h2>外部知識・論文</h2><div id="newsExternalMeta" class="pill">—</div></div>
+          <div id="newsExternalSources" class="news-list"><div class="note">Scoutの探索結果を表示します。</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title"><h2>探索候補</h2><div id="newsCandidateMeta" class="pill">—</div></div>
+          <div id="newsCandidateList" class="news-list"><div class="note">候補語を待っています。</div></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1330,6 +1340,8 @@ function renderNewsError(e){
   newsLatestList.innerHTML='<div class="error">'+msg+'</div>';
   newsHistoryChart.innerHTML='<div class="error">'+msg+'</div>';
   newsNetworkChart.innerHTML='<div class="error">'+msg+'</div>';
+  if(window.newsExternalSources)newsExternalSources.innerHTML='<div class="error">'+msg+'</div>';
+  if(window.newsCandidateList)newsCandidateList.innerHTML='<div class="error">'+msg+'</div>';
 }
 
 function safeNewsHref(value){
@@ -1439,6 +1451,49 @@ function renderAgentStatus(agents,nodes){
     return '<span class="pill">'+icon+' '+esc(a.agent_name)+' · '+esc(node)+' · E '+e+'</span>';
   }).join("");
 }
+function renderExternalKnowledge(data){
+  const nodes=data?.nodes||[],sources=data?.external_sources||[],candidates=data?.candidates||[];
+  const nodeById=new Map(nodes.map(n=>[n.id,n]));
+  const rankedSources=sources.slice().sort((a,b)=>
+    (Number(b.cited_by_count||0)-Number(a.cited_by_count||0))||
+    String(b.discovered_at||"").localeCompare(String(a.discovered_at||""))
+  ).slice(0,12);
+  newsExternalMeta.textContent=sources.length+" "+(LANG==="en"?"sources":"件");
+  if(!rankedSources.length){
+    newsExternalSources.innerHTML='<div class="note">'+(LANG==="en"?"Scout has not collected external sources yet.":"Scoutはまだ外部資料を収集していません。")+'</div>';
+  }else{
+    newsExternalSources.innerHTML=rankedSources.map(s=>{
+      const node=nodeById.get(s.concept_id);
+      const cited=s.cited_by_count==null?"":(" · "+(LANG==="en"?"cited ":"引用 ")+Number(s.cited_by_count).toLocaleString(locale()));
+      const year=s.publication_year?(" · "+s.publication_year):"";
+      const kind=s.work_type||s.source_type||"source";
+      const body='<div class="news-title">'+esc(s.title||"—")+'</div>'+
+        '<div class="news-meta"><span>'+esc(kind)+'</span><span>'+esc(node?.label||"—")+'</span>'+
+        (year?'<span>'+esc(String(s.publication_year))+'</span>':"")+
+        (cited?'<span>'+esc((LANG==="en"?"cited ":"引用 ")+Number(s.cited_by_count).toLocaleString(locale()))+'</span>':"")+
+        '</div>';
+      const href=safeNewsHref(s.url);
+      return href==="#"?'<div class="news-item">'+body+'</div>':
+        '<a class="news-item" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+body+'</a>';
+    }).join("");
+  }
+
+  const recent=candidates.slice(0,14);
+  newsCandidateMeta.textContent=candidates.length+" "+(LANG==="en"?"candidates":"候補");
+  if(!recent.length){
+    newsCandidateList.innerHTML='<div class="note">'+(LANG==="en"?"No discovery candidates yet.":"探索候補はまだありません。")+'</div>';
+  }else{
+    newsCandidateList.innerHTML=recent.map(x=>{
+      const node=nodeById.get(x.source_concept_id);
+      const conf=(Number(x.confidence||0)*100).toFixed(0)+"%";
+      const status=String(x.status||"candidate");
+      return '<div class="news-item"><div class="news-title">'+esc(x.display_name||"—")+'</div>'+
+        '<div class="news-meta"><span>'+esc(x.discovery_source||"external")+'</span><span>'+esc(status)+'</span>'+
+        '<span>'+esc(conf)+'</span><span>← '+esc(node?.label||"—")+'</span></div></div>';
+    }).join("");
+  }
+}
+
 function renderNewsNetwork(data){
   LAST_SEMANTIC_NETWORK=data;
   const nodes=data?.nodes||[],edges=data?.edges||[],agents=data?.agents||[];
@@ -1446,6 +1501,7 @@ function renderNewsNetwork(data){
   const maxEntropy=entropy.length?Math.max(...entropy):0;
   newsNetworkMeta.textContent=nodes.length+" nodes / "+edges.length+" links / "+agents.length+" agents · H "+maxEntropy.toFixed(2);
   renderAgentStatus(agents,nodes);
+  renderExternalKnowledge(data);
   if(!nodes.length){
     newsNetworkChart.innerHTML='<div class="note">'+(LANG==="en"?"No semantic network data.":"セマンティックネットワークデータがありません。")+'</div>';
     return;
