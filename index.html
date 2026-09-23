@@ -700,6 +700,7 @@ let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MA
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
 let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null,WORLD_PREVIEW_SITE_ID=null,INDICATOR_WORLD_MAX_YEAR=null;
+const RESOURCE_SITE_CACHE={},RESOURCE_SITE_DETAIL_CACHE={},RESOURCE_SITE_LOADING={};
 let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
@@ -966,6 +967,43 @@ function militaryPairForCountry(c,metric){
   return {pct:pick("MILITARY_EXPENDITURE_PCT_GDP"),usd:pick("MILITARY_EXPENDITURE_CURRENT_USD")};
 }
 
+async function resourceDataApi(api,params={}){
+  if(!AUTH_SESSION?.access_token)throw new Error(t("loadingRequired"));
+  const u=new URL(API_BASE);
+  u.searchParams.set("api",api);
+  for(const [k,v] of Object.entries(params))if(v!==null&&v!==undefined&&v!=="")u.searchParams.set(k,String(v));
+  const r=await fetch(u,{cache:"no-store",headers:{Authorization:"Bearer "+AUTH_SESSION.access_token}});
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||("resource HTTP "+r.status));
+  return out;
+}
+async function loadResourceSites(key,force=false){
+  if(!key)return [];
+  if(!force&&RESOURCE_SITE_CACHE[key])return RESOURCE_SITE_CACHE[key];
+  if(RESOURCE_SITE_LOADING[key])return RESOURCE_SITE_LOADING[key];
+  RESOURCE_SITE_LOADING[key]=resourceDataApi("resource-sites",{resource:key,limit:10000})
+    .then(out=>{
+      RESOURCE_SITE_CACHE[key]=out.sites||[];
+      delete RESOURCE_SITE_LOADING[key];
+      if(worldLayer.value==="resource"&&worldResource.value===key)drawWorld();
+      return RESOURCE_SITE_CACHE[key];
+    })
+    .catch(e=>{
+      delete RESOURCE_SITE_LOADING[key];
+      console.warn("resource site load",e);
+      RESOURCE_SITE_CACHE[key]=[];
+      return [];
+    });
+  return RESOURCE_SITE_LOADING[key];
+}
+async function loadResourceSiteDetail(id){
+  if(!id)return null;
+  if(RESOURCE_SITE_DETAIL_CACHE[id])return RESOURCE_SITE_DETAIL_CACHE[id];
+  const out=await resourceDataApi("resource-site",{id});
+  RESOURCE_SITE_DETAIL_CACHE[id]=out.site||null;
+  return RESOURCE_SITE_DETAIL_CACHE[id];
+}
+
 function resourceName(key){
   const meta=(D?.resources?.catalog||[]).find(x=>x.key===key);
   if(LANG==="ja")return RESOURCE_JA[key]||meta?.name||String(key||"").replaceAll("_"," ");
@@ -1065,26 +1103,33 @@ function syncWorldLayerControls(){
 function selectedResourceSites(){
   if(worldLayer.value!=="resource")return [];
   const key=worldResource.value;
-  return (D?.resources?.sites||[]).filter(s=>s.resource===key&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lon))
+  return (RESOURCE_SITE_CACHE[key]||[]).filter(s=>Number.isFinite(+s.lat)&&Number.isFinite(+s.lon))
     .map(s=>Object.assign({},s,{resourceLabel:resourceName(key)}));
 }
-function resourceSeriesForDetail(subjectType,id,key,kind){
-  if(subjectType==="site"){
-    const s=(D?.resources?.sites||[]).find(x=>x.id===id);
-    return s?.values?.[kind]||[];
-  }
+function resourceSeriesForDetail(subjectType,id,key,kind,site=null){
+  if(subjectType==="site")return site?.values?.[kind]||[];
   return D?.resources?.country?.[key]?.[id]?.[kind]||[];
 }
-function renderResourceDetail(subjectType,id){
+async function renderResourceDetail(subjectType,id){
   const key=worldResource.value;
-  const prod=resourceSeriesForDetail(subjectType,id,key,"production_annual");
-  const res=resourceSeriesForDetail(subjectType,id,key,"reserves");
+  let site=null;
+  if(subjectType==="site"){
+    resourceDetailCard.style.display="block";
+    resourceDetailTitle.textContent=LANG==="en"?"Loading site…":"地点データ読込中…";
+    resourceDetailMeta.textContent="";
+    try{site=await loadResourceSiteDetail(id);}catch(e){
+      resourceDetailTitle.textContent=LANG==="en"?"Site load failed":"地点データ読込エラー";
+      resourceDetailMeta.textContent=e?.message||String(e);return;
+    }
+    if(!site)return;
+  }
+  const prod=resourceSeriesForDetail(subjectType,id,key,"production_annual",site);
+  const res=resourceSeriesForDetail(subjectType,id,key,"reserves",site);
   let label=id,meta="";
   if(subjectType==="site"){
-    const s=(D?.resources?.sites||[]).find(x=>x.id===id);
-    if(!s)return;
+    const s=site;
     label=s.name||id;
-    meta=[s.status,s.operator||s.owner,s.source].filter(Boolean).join(" · ");
+    meta=[s.status,s.operator||s.owner,s.source,s.release].filter(Boolean).join(" · ");
   }else{
     const cc=countryByIso[id];if(!cc)return;
     label=countryName(cc);
@@ -1118,7 +1163,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.24.1";
+const APP_VERSION="2026.09.24.2";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1468,7 +1513,7 @@ function showWorldCountryPreview(iso){
   worldCountryPreview.style.display="block";
 }
 function showResourceSitePreview(siteId){
-  const s=(D?.resources?.sites||[]).find(x=>x.id===siteId);if(!s)return;
+  const s=Object.values(RESOURCE_SITE_CACHE).flat().find(x=>x.id===siteId);if(!s)return;
   WORLD_PREVIEW_SITE_ID=siteId;WORLD_PREVIEW_ISO=s.iso3||null;
   worldCountryPreviewName.textContent=s.name||siteId;
   const prod=latestResourceAtOrBefore(s.values?.production_annual,null);
@@ -1527,10 +1572,12 @@ function renderWorld(){
     localStorage.setItem("kamokuWorldLayer",worldLayer.value);
     syncWorldLayerControls();syncWorldTimelineVisibility();hideWorldCountryPreview();
     resourceDetailCard.style.display="none";drawWorld();
+    if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
   };
   worldResource.onchange=()=>{
     localStorage.setItem("kamokuWorldResource",worldResource.value);
     syncWorldLayerControls();hideWorldCountryPreview();resourceDetailCard.style.display="none";drawWorld();
+    loadResourceSites(worldResource.value);
   };
   const savedResource=localStorage.getItem("kamokuWorldResource");
   if(savedResource&&[...worldResource.options].some(o=>o.value===savedResource))worldResource.value=savedResource;
@@ -1614,6 +1661,7 @@ function renderWorld(){
   window.addEventListener("kamoku-globe-ready",()=>{setupGlobeControlDeck();drawWorld();},{once:true});
   setupGlobeControlDeck();
   drawWorld();
+  if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
 }
 function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
   if(!document.getElementById("worldRankPanel"))return;
