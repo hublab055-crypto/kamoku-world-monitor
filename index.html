@@ -180,18 +180,19 @@
     .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     .globe-stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
     .globe-stage .globe{border-radius:0}
-    .world-rank-panel{position:absolute;left:7px;top:7px;bottom:132px;width:min(34%,210px);z-index:5;border:1px solid rgba(79,112,148,.58);border-radius:11px;background:rgba(5,14,26,.92);overflow:hidden;display:flex;flex-direction:column}
-    .world-rank-head{padding:7px 8px 5px;font-size:10px;color:#b9c9db;font-weight:750;border-bottom:1px solid rgba(79,112,148,.38)}
-    .world-rank-list{overflow:auto;padding:4px;display:grid;gap:3px;-webkit-overflow-scrolling:touch}
-    .world-rank-item{position:relative;overflow:hidden;border:0;border-radius:7px;background:rgba(13,30,50,.84);color:var(--text);padding:5px 6px;text-align:left;cursor:pointer;min-width:0}
+    .world-rank-panel{position:absolute;left:7px;top:7px;bottom:132px;width:min(35%,220px);z-index:5;border:1px solid rgba(79,112,148,.58);border-radius:11px;background:rgba(5,14,26,.94);overflow:hidden;display:flex;flex-direction:column;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+    .world-rank-head{flex:0 0 auto;padding:7px 8px 6px;font-size:10px;line-height:1.35;color:#b9c9db;font-weight:750;border-bottom:1px solid rgba(79,112,148,.38);white-space:normal}
+    .world-rank-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px;display:block;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    .world-rank-item{display:block;position:relative;overflow:hidden;border:0;border-radius:7px;background:rgba(13,30,50,.84);color:var(--text);padding:5px 6px;text-align:left;cursor:pointer;width:100%;height:42px;min-height:42px;max-height:42px;margin:0 0 4px;box-sizing:border-box;font:inherit;-webkit-appearance:none;appearance:none}
     .world-rank-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(55,199,205,.34),rgba(88,166,255,.20));pointer-events:none}
-    .world-rank-content{position:relative;z-index:1;display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px;align-items:center}
-    .world-rank-no{font-size:9px;color:#8da5bd;text-align:center}
-    .world-rank-name{font-size:10px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .world-rank-value{font-size:9px;color:#d8e7f7;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .world-rank-content{position:relative;z-index:1;display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px;align-items:center;height:100%}
+    .world-rank-no{font-size:9px;line-height:1;color:#8da5bd;text-align:center}
+    .world-rank-name{font-size:10px;line-height:1.15;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .world-rank-value{font-size:9px;line-height:1.15;color:#d8e7f7;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
     @media(max-width:620px){
-      .world-rank-panel{width:36%;max-width:145px;bottom:125px}
-      .world-rank-item{padding:4px}.world-rank-name{font-size:9px}.world-rank-value{font-size:8px}
+      .world-rank-panel{width:39%;max-width:155px;bottom:125px}
+      .world-rank-item{height:40px;min-height:40px;max-height:40px;padding:4px 5px;margin-bottom:3px}
+      .world-rank-name{font-size:9.5px}.world-rank-value{font-size:8.5px}
       .world-rank-content{grid-template-columns:15px minmax(0,1fr)}
     }
     .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:1px solid rgba(72,105,140,.52);border-radius:13px;padding:7px;background:rgba(5,14,26,.92);backdrop-filter:none;pointer-events:none}
@@ -305,6 +306,7 @@
         <label class="settings-slider" id="countryReliefScaleWrap">指標高さ強調 <span id="worldCountryReliefScaleValue">55×</span><input id="worldCountryReliefScale" type="range" min="0" max="100" step="1" value="55"></label>
       </div>
       <div class="settings-actions"><button id="worldCenterBtn" class="logout" type="button">中央に戻す</button></div>
+      <div id="worldGlobeInfo" class="note" style="margin-top:12px"></div>
     </div>
     <div class="settings-actions"><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
   </div>
@@ -389,7 +391,7 @@
         </div>
       </div>
       <div id="worldMap" class="chart" style="display:none"></div>
-      <div class="note">3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。</div>
+
     </div>
   </section>
 
@@ -701,7 +703,7 @@ const TEXT={
   marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
   takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
   riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
-  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},countryRelief:{ja:"指標高低差",en:"Indicator relief"},countryReliefScale:{ja:"指標高さ強調",en:"Indicator height"},ranking:{ja:"ランキング",en:"Ranking"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},countryRelief:{ja:"指標高低差",en:"Indicator relief"},countryReliefScale:{ja:"指標高さ強調",en:"Indicator height"},ranking:{ja:"ランキング",en:"Ranking"},worldGlobeInfo:{ja:"3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。",en:"The 3D globe combines global terrain with real-elevation DEM tiles loaded by LOD while zooming. Terrain exaggeration, seabed relief and high-resolution DEM can be toggled. One-finger rotate, two-finger pinch zoom and two-finger pan are supported. DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)."},recenter:{ja:"中央に戻す",en:"Recenter globe"}
 };
 const STATIC_TEXT={
   "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
@@ -794,6 +796,7 @@ function localizeSelectors(){
   if(document.getElementById("worldCountryReliefText"))worldCountryReliefText.textContent=t("countryRelief");
   if(document.getElementById("countryReliefScaleWrap"))countryReliefScaleWrap.childNodes[0].nodeValue=t("countryReliefScale")+" ";
   if(document.getElementById("worldRankHead"))worldRankHead.textContent=t("ranking");
+  if(document.getElementById("worldGlobeInfo"))worldGlobeInfo.textContent=t("worldGlobeInfo");
   if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
   updateGlobeControlLanguage();
   countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
@@ -848,7 +851,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.23.6";
+const APP_VERSION="2026.09.23.7";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
