@@ -322,6 +322,7 @@
         <label class="settings-check" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked><span id="worldSeabedText">海底地形</span></label>
         <label class="settings-check" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked><span id="worldDemText">高精細DEM</span></label>
         <label class="settings-check"><input id="worldCountryFill" type="checkbox" checked><span id="worldCountryFillText">国別カラー</span></label>
+        <label>国の配色<select id="worldCountryColorMode"><option value="map">隣接国を分離</option><option value="metric">指標ヒート</option></select></label>
         <label class="settings-check"><input id="worldCountryMarkers" type="checkbox"><span id="worldCountryMarkersText">指標マーカー</span></label>
         <label class="settings-check"><input id="worldCountryRelief" type="checkbox" checked><span id="worldCountryReliefText">指標高低差</span></label>
         <label class="settings-slider" id="countryReliefScaleWrap">指標高さ強調 <span id="worldCountryReliefScaleValue">55×</span><input id="worldCountryReliefScale" type="range" min="0" max="100" step="1" value="55"></label>
@@ -687,6 +688,7 @@ const METRIC_JA={
   INTERNATIONAL_TOURISM_ARRIVALS:"国際観光客到着数",
   GOV_REVENUE_EX_GRANTS_PCT_GDP:"国家歳入（補助金除く・GDP比）",
   MILITARY_EXPENDITURE_PCT_GDP:"軍事費（GDP比）",
+  MILITARY_EXPENDITURE_CURRENT_USD:"軍事費（現行US$）",
   INTENTIONAL_HOMICIDES_PER_100K:"故意の殺人（人口10万人あたり）",
   POLITICAL_STABILITY_ESTIMATE:"政治的安定・暴力/テロ不在指数",
   INTERNATIONAL_TOURISM_RECEIPTS_USD:"国際観光収入（現行US$）",
@@ -753,7 +755,7 @@ const TEXT={
   marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
   takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
   riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
-  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},countryRelief:{ja:"指標高低差",en:"Indicator relief"},countryReliefScale:{ja:"指標高さ強調",en:"Indicator height"},ranking:{ja:"ランキング",en:"Ranking"},worldGlobeInfo:{ja:"3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。",en:"The 3D globe combines global terrain with real-elevation DEM tiles loaded by LOD while zooming. Terrain exaggeration, seabed relief and high-resolution DEM can be toggled. One-finger rotate, two-finger pinch zoom and two-finger pan are supported. DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)."},recenter:{ja:"中央に戻す",en:"Recenter globe"}
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryColorMap:{ja:"隣接国を分離",en:"Separate neighbors"},countryColorMetric:{ja:"指標ヒート",en:"Metric heatmap"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},countryRelief:{ja:"指標高低差",en:"Indicator relief"},countryReliefScale:{ja:"指標高さ強調",en:"Indicator height"},ranking:{ja:"ランキング",en:"Ranking"},worldGlobeInfo:{ja:"3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。",en:"The 3D globe combines global terrain with real-elevation DEM tiles loaded by LOD while zooming. Terrain exaggeration, seabed relief and high-resolution DEM can be toggled. One-finger rotate, two-finger pinch zoom and two-finger pan are supported. DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)."},recenter:{ja:"中央に戻す",en:"Recenter globe"}
 };
 const STATIC_TEXT={
   "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
@@ -845,6 +847,10 @@ function localizeSelectors(){
   if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
   if(document.getElementById("worldDemText"))worldDemText.textContent=t("highResDem");
   if(document.getElementById("worldCountryFillText"))worldCountryFillText.textContent=t("countryFill");
+  if(document.getElementById("worldCountryColorMode")){
+    worldCountryColorMode.options[0].textContent=t("countryColorMap");
+    worldCountryColorMode.options[1].textContent=t("countryColorMetric");
+  }
   if(document.getElementById("worldCountryMarkersText"))worldCountryMarkersText.textContent=t("countryMarkers");
   if(document.getElementById("worldCountryReliefText"))worldCountryReliefText.textContent=t("countryRelief");
   if(document.getElementById("countryReliefScaleWrap"))countryReliefScaleWrap.childNodes[0].nodeValue=t("countryReliefScale")+" ";
@@ -906,7 +912,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.23.11";
+const APP_VERSION="2026.09.23.12";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1253,7 +1259,8 @@ function renderWorld(){
   worldSeabed.checked=localStorage.getItem("kamokuSeabedTerrain")!=="0";
   worldDemLod.checked=localStorage.getItem("kamokuDemLod")!=="0";
   worldCountryFill.checked=localStorage.getItem("kamokuCountryFill")!=="0";
-  worldCountryMarkers.checked=localStorage.getItem("kamokuCountryMarkers")==="1";
+  worldCountryColorMode.value=localStorage.getItem("kamokuCountryColorMode")||"map";
+    worldCountryMarkers.checked=localStorage.getItem("kamokuCountryMarkers")==="1";
   worldCountryRelief.checked=localStorage.getItem("kamokuCountryRelief")!=="0";
   const savedRelief=Math.max(0,Math.min(100,+(localStorage.getItem("kamokuCountryReliefScale")||55)));
   worldCountryReliefScale.value=String(savedRelief);
@@ -1314,6 +1321,10 @@ function renderWorld(){
   };
   worldCountryFill.onchange=()=>{
     localStorage.setItem("kamokuCountryFill",worldCountryFill.checked?"1":"0");
+    drawWorld();
+  };
+  worldCountryColorMode.onchange=()=>{
+    localStorage.setItem("kamokuCountryColorMode",worldCountryColorMode.value);
     drawWorld();
   };
   worldCountryMarkers.onchange=()=>{
@@ -1380,7 +1391,7 @@ function drawWorld(){
         countries:displayCountries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
         metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
         terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
-        countryFill:data3d&&worldCountryFill.checked,markers:data3d&&worldCountryMarkers.checked,
+        countryFill:data3d&&worldCountryFill.checked,countryColorMode:worldCountryColorMode.value,markers:data3d&&worldCountryMarkers.checked,
         countryRelief:data3d&&worldCountryRelief.checked,countryReliefScale:+worldCountryReliefScale.value||55,
         onCountrySelect:(iso)=>showWorldCountryPreview(iso)
       });
