@@ -17,7 +17,7 @@ let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid
 let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true;
 let cameraRollDeg=0,simulationHour=12;
 let demGroup=null,demRefreshTimer=null,demBuildToken=0,demLastKey="";
-let countryOverlay=null,countryGeoJsonPromise=null,countryOverlayToken=0;
+let countryOverlay=null,countryReliefGroup=null,countryGeoJsonPromise=null,countryOverlayToken=0,countryReliefToken=0;
 const demCache=new Map();
 let stateListener=null,stateEmitRaf=0;
 
@@ -57,7 +57,11 @@ function hit(event){
   if(!renderer||!camera||!markerGroup)return null;
   setPointer(event);
   raycaster.setFromCamera(pointer,camera);
-  return raycaster.intersectObjects(markerGroup.children,false)[0]?.object||null;
+  const targets=[
+    ...(markerGroup?.visible?markerGroup.children:[]),
+    ...(countryReliefGroup?.visible?countryReliefGroup.children:[])
+  ];
+  return raycaster.intersectObjects(targets,false)[0]?.object||null;
 }
 function showTooltip(event,obj){
   if(!tooltip)return;
@@ -280,6 +284,33 @@ export function centerGlobe(){
   camera.position.set(0,0,6);
   fitGlobeToViewport({preserveDirection:false});
   scheduleStateEmit();
+}
+
+export function flyToLatLon(lat,lon,{zoom=4.1,duration=850}={}){
+  if(!camera||!controls)return;
+  const safeLat=clamp(+lat||0,-90,90),safeLon=wrap(+lon||0,-180,180);
+  const endDir=latLonToVector3(safeLat,safeLon,1).normalize();
+  const endTarget=new THREE.Vector3(0,0,0);
+  const endPos=endDir.multiplyScalar(clamp(+zoom||4.1,controls.minDistance,controls.maxDistance));
+  const startPos=camera.position.clone(),startTarget=controls.target.clone(),startUp=camera.up.clone();
+  const start=performance.now(),dur=Math.max(120,+duration||850);
+  controls.enabled=false;
+  const ease=t=>1-Math.pow(1-t,3);
+  function step(now){
+    const t=clamp((now-start)/dur,0,1),e=ease(t);
+    camera.position.lerpVectors(startPos,endPos,e);
+    controls.target.lerpVectors(startTarget,endTarget,e);
+    camera.up.lerpVectors(startUp,new THREE.Vector3(0,1,0),e).normalize();
+    camera.lookAt(controls.target);
+    scheduleStateEmit();
+    if(t<1)requestAnimationFrame(step);
+    else{
+      controls.enabled=true;
+      controls.update();
+      scheduleDemRefresh(0);
+    }
+  }
+  requestAnimationFrame(step);
 }
 
 
@@ -505,6 +536,7 @@ export function initGlobe(element){
   scene.add(latitudeGrid);
 
   markerGroup=new THREE.Group();scene.add(markerGroup);
+  countryReliefGroup=new THREE.Group();countryReliefGroup.renderOrder=4;scene.add(countryReliefGroup);
   demGroup=new THREE.Group();demGroup.renderOrder=3;scene.add(demGroup);
   raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();
   addStars();
@@ -656,7 +688,111 @@ async function updateCountryOverlay(countries,metric,enabled){
   old?.dispose?.();
 }
 
-export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,markers=false,onCountrySelect}){
+
+function unwrapGeoRing(ring,anchor=null){
+  const pts=[];let prev=anchor;
+  for(const coord of ring||[]){
+    let lon=+coord[0],lat=+coord[1];
+    if(!Number.isFinite(lon)||!Number.isFinite(lat))continue;
+    if(prev!=null){
+      while(lon-prev>180)lon-=360;
+      while(lon-prev<-180)lon+=360;
+    }
+    pts.push(new THREE.Vector2(lon,lat));prev=lon;
+  }
+  if(pts.length>1&&pts[0].distanceToSquared(pts[pts.length-1])<1e-12)pts.pop();
+  return pts;
+}
+function pushVertex(arr,colArr,v,col){
+  arr.push(v.x,v.y,v.z);colArr.push(col.r,col.g,col.b);
+}
+function buildRaisedCountryMesh(feature,valueT,height,iso){
+  const geometry=feature?.geometry;if(!geometry)return null;
+  const polygons=geometry.type==="Polygon"?[geometry.coordinates]:
+    geometry.type==="MultiPolygon"?geometry.coordinates:[];
+  if(!polygons.length)return null;
+
+  const positions=[],colors=[];
+  const topColor=markerColor(valueT);
+  const sideColor=topColor.clone().multiplyScalar(.52);
+  const baseR=EARTH_RADIUS+terrainMaxOutward()+.014;
+  const topR=baseR+height;
+
+  for(const poly of polygons){
+    if(!poly?.length)continue;
+    const outer=unwrapGeoRing(poly[0]);
+    if(outer.length<3)continue;
+    const anchor=outer[0].x;
+    const holes=(poly.slice(1)||[]).map(r=>unwrapGeoRing(r,anchor)).filter(r=>r.length>=3);
+    let tris=[];
+    try{tris=THREE.ShapeUtils.triangulateShape(outer,holes)}catch{tris=[]}
+    for(const tri of tris){
+      for(const p of tri){
+        const v=latLonToVector3(p.y,p.x,topR);
+        pushVertex(positions,colors,v,topColor);
+      }
+    }
+    for(let i=0;i<outer.length;i++){
+      const a=outer[i],b=outer[(i+1)%outer.length];
+      const a0=latLonToVector3(a.y,a.x,baseR),b0=latLonToVector3(b.y,b.x,baseR);
+      const a1=latLonToVector3(a.y,a.x,topR),b1=latLonToVector3(b.y,b.x,topR);
+      pushVertex(positions,colors,a0,sideColor);pushVertex(positions,colors,b0,sideColor);pushVertex(positions,colors,b1,sideColor);
+      pushVertex(positions,colors,a0,sideColor);pushVertex(positions,colors,b1,sideColor);pushVertex(positions,colors,a1,sideColor);
+    }
+  }
+  if(!positions.length)return null;
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+  g.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
+  g.computeVertexNormals();
+  const m=new THREE.MeshPhongMaterial({
+    vertexColors:true,transparent:true,opacity:.88,shininess:10,
+    side:THREE.DoubleSide,depthWrite:true
+  });
+  const mesh=new THREE.Mesh(g,m);
+  mesh.userData={iso3:iso,kind:"country-relief"};
+  return mesh;
+}
+function clearCountryRelief(){
+  if(!countryReliefGroup)return;
+  while(countryReliefGroup.children.length){
+    const o=countryReliefGroup.children.pop();
+    o.geometry?.dispose();o.material?.dispose();
+  }
+}
+async function updateCountryRelief(countries,metric,enabled,heightScale=55){
+  if(!countryReliefGroup)return;
+  countryReliefGroup.visible=!!enabled;
+  if(!enabled){clearCountryRelief();return;}
+  const token=++countryReliefToken;
+  const geo=await loadCountryGeoJson();
+  if(token!==countryReliefToken)return;
+  clearCountryRelief();
+
+  const valueByIso=new Map(),vals=[];
+  for(const c of countries||[]){
+    const v=c.latest?.[metric]?.value;
+    if(v==null||!Number.isFinite(+v))continue;
+    valueByIso.set(c.iso3,+v);vals.push(+v);
+  }
+  vals.sort((a,b)=>a-b);
+  const lo=vals[Math.floor(Math.max(0,vals.length-1)*.05)]??0;
+  const hi=vals[Math.floor(Math.max(0,vals.length-1)*.95)]??1;
+  const span=(hi-lo)||1;
+  const maxHeight=.0035*clamp(+heightScale||55,0,100);
+
+  for(const feature of geo.features||[]){
+    if(token!==countryReliefToken)return;
+    const iso=countryIso3(feature),value=iso?valueByIso.get(iso):null;
+    if(!Number.isFinite(value))continue;
+    const t=clamp((value-lo)/span,0,1);
+    const height=.004+maxHeight*t;
+    const mesh=buildRaisedCountryMesh(feature,t,height,iso);
+    if(mesh)countryReliefGroup.add(mesh);
+  }
+}
+
+export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,markers=false,countryRelief=true,countryReliefScale=55,onCountrySelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
   currentLanguage=language==="en"?"en":"ja";
@@ -703,11 +839,12 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
     }
   }
   updateCountryOverlay(countries,metric,!!countryFill).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
+  updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
   scheduleStateEmit();
   scheduleDemRefresh(0);
 }
 window.KamokuGlobe={
-  init:initGlobe,update:updateGlobe,setTerrain,setDem:setDemEnabled,center:centerGlobe,
+  init:initGlobe,update:updateGlobe,setTerrain,setDem:setDemEnabled,center:centerGlobe,flyTo:flyToLatLon,
   getState:getViewState,setState:setViewState,nudge:nudgeView,subscribe:subscribeViewState
 };
 window.dispatchEvent(new Event("kamoku-globe-ready"));
