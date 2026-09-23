@@ -15,7 +15,7 @@ const DEG=Math.PI/180;
 let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,capitalGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
 let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null,sun=null,rim=null;
 let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true,initialViewApplied=false;
-let cameraRollDeg=0,simulationHour=12;
+let cameraRollDeg=0,simulationHour=12,dialRx=0,dialLat=0,axisMode=false,axisPointerId=null,axisLastX=0,userControlActive=false;
 let demGroup=null,demRefreshTimer=null,demBuildToken=0,demLastKey="";
 let countryOverlay=null,countryReliefGroup=null,countryGeoJsonPromise=null,countryOverlayToken=0,countryReliefToken=0;
 const demCache=new Map();
@@ -170,6 +170,14 @@ function getViewAngles(){
     ry:wrap(THREE.MathUtils.radToDeg(Math.atan2(o.x,o.z)),-180,180)
   };
 }
+function physicalLat(){
+  return vectorToLatLon(getOffset()).lat;
+}
+function rebaseContinuousAngles(){
+  const a=getViewAngles();
+  dialRx=a.rx;
+  dialLat=physicalLat();
+}
 export function getViewState(){
   if(!camera||!controls)return {
     x:0,y:0,z:0,rx:0,ry:0,rz:cameraRollDeg,zoom:6,lat:0,lon:-90,time:simulationHour
@@ -179,11 +187,11 @@ export function getViewState(){
     x:+controls.target.x.toFixed(4),
     y:+controls.target.y.toFixed(4),
     z:+controls.target.z.toFixed(4),
-    rx:+ang.rx.toFixed(3),
+    rx:+dialRx.toFixed(3),
     ry:+ang.ry.toFixed(3),
     rz:+cameraRollDeg.toFixed(3),
     zoom:+offset.length().toFixed(4),
-    lat:+ll.lat.toFixed(3),
+    lat:+dialLat.toFixed(3),
     lon:+ll.lon.toFixed(3),
     time:+simulationHour.toFixed(3)
   };
@@ -198,7 +206,7 @@ function scheduleStateEmit(){
 function setOrbitAngles(rx,ry,zoom=null){
   if(!camera||!controls)return;
   const d=zoom==null?getOffset().length():clamp(+zoom||6,controls.minDistance,controls.maxDistance);
-  const elev=clamp(+rx||0,-89.5,89.5)*DEG;
+  const elev=wrap(+rx||0,-180,180)*DEG;
   const az=(+ry||0)*DEG;
   const ce=Math.cos(elev);
   const offset=new THREE.Vector3(
@@ -212,7 +220,7 @@ function setOrbitAngles(rx,ry,zoom=null){
 function setLatLon(lat,lon,zoom=null){
   if(!camera||!controls)return;
   const d=zoom==null?getOffset().length():clamp(+zoom||6,controls.minDistance,controls.maxDistance);
-  const dir=latLonToVector3(clamp(+lat||0,-90,90),wrap(+lon||0,-180,180),1).normalize();
+  const dir=latLonToVector3(wrap(+lat||0,-180,180),wrap(+lon||0,-180,180),1).normalize();
   camera.position.copy(controls.target).addScaledVector(dir,d);
   camera.lookAt(controls.target);
 }
@@ -230,9 +238,11 @@ export function setViewState(patch={},options={}){
   const hasRx=Number.isFinite(+patch.rx),hasRy=Number.isFinite(+patch.ry);
 
   if(hasLat||hasLon){
-    setLatLon(hasLat?+patch.lat:before.lat,hasLon?+patch.lon:before.lon,requestedZoom);
+    if(hasLat)dialLat=wrap(+patch.lat,-180,180);
+    setLatLon(hasLat?dialLat:before.lat,hasLon?+patch.lon:before.lon,requestedZoom);
   }else if(hasRx||hasRy||Number.isFinite(+patch.zoom)){
-    setOrbitAngles(hasRx?+patch.rx:before.rx,hasRy?+patch.ry:before.ry,requestedZoom);
+    if(hasRx)dialRx=wrap(+patch.rx,-180,180);
+    setOrbitAngles(hasRx?dialRx:before.rx,hasRy?+patch.ry:before.ry,requestedZoom);
   }else{
     const dir=getOffset().normalize();
     camera.position.copy(controls.target).addScaledVector(dir,requestedZoom);
@@ -258,11 +268,11 @@ export function setViewState(patch={},options={}){
 export function nudgeView(key,delta){
   const s=getViewState();
   const ranges={
-    x:[-6,6],y:[-6,6],z:[-6,6],rx:[-89.5,89.5],ry:[-180,180],
-    rz:[-180,180],zoom:[3.15,14],lat:[-90,90],lon:[-180,180],time:[0,24]
+    x:[-6,6],y:[-6,6],z:[-6,6],rx:[-180,180],ry:[-180,180],
+    rz:[-180,180],zoom:[3.15,14],lat:[-180,180],lon:[-180,180],time:[0,24]
   };
   let v=(+s[key]||0)+(+delta||0);
-  if(key==="ry"||key==="rz"||key==="lon")v=wrap(v,-180,180);
+  if(key==="rx"||key==="ry"||key==="rz"||key==="lat"||key==="lon")v=wrap(v,-180,180);
   else if(key==="time")v=wrap(v,0,24);
   else if(ranges[key])v=clamp(v,ranges[key][0],ranges[key][1]);
   setViewState({[key]:v});
@@ -282,7 +292,7 @@ export function setTerrain({exaggeration=terrainExaggeration,seabed=seabedEnable
 }
 export function centerGlobe(){
   if(!camera||!controls)return;
-  cameraRollDeg=0;
+  cameraRollDeg=0;dialRx=0;dialLat=0;
   controls.target.set(0,0,0);
   camera.position.set(0,0,6);
   fitGlobeToViewport({preserveDirection:false});
@@ -314,6 +324,43 @@ export function flyToLatLon(lat,lon,{zoom=4.1,duration=850}={}){
     }
   }
   requestAnimationFrame(step);
+}
+
+function angularDistanceDeg(lat1,lon1,lat2,lon2){
+  const a=lat1*DEG,b=lat2*DEG,dl=(lon2-lon1)*DEG;
+  const cos=Math.sin(a)*Math.sin(b)+Math.cos(a)*Math.cos(b)*Math.cos(dl);
+  return THREE.MathUtils.radToDeg(Math.acos(clamp(cos,-1,1)));
+}
+function countryMainRing(feature,capitalLat,capitalLon){
+  const geom=feature?.geometry;
+  const polys=geom?.type==="Polygon"?[geom.coordinates]:
+    geom?.type==="MultiPolygon"?geom.coordinates:[];
+  let best=null,bestDist=Infinity;
+  for(const poly of polys){
+    const ring=poly?.[0];if(!ring?.length)continue;
+    let sx=0,sy=0,n=0;
+    for(const p of ring){if(Number.isFinite(+p[0])&&Number.isFinite(+p[1])){sx+=+p[0];sy+=+p[1];n++;}}
+    if(!n)continue;
+    const d=angularDistanceDeg(capitalLat,capitalLon,sy/n,sx/n);
+    if(d<bestDist){bestDist=d;best=ring;}
+  }
+  return best||[];
+}
+export async function flyToCountry(iso3,lat,lon,{duration=900}={}){
+  const safeLat=clamp(+lat||0,-90,90),safeLon=wrap(+lon||0,-180,180);
+  let zoom=4.15;
+  try{
+    const geo=await loadCountryGeoJson();
+    const feature=(geo.features||[]).find(f=>countryIso3(f)===iso3);
+    const ring=countryMainRing(feature,safeLat,safeLon);
+    if(ring.length){
+      const distances=ring.map(p=>angularDistanceDeg(safeLat,safeLon,+p[1],+p[0])).filter(Number.isFinite).sort((a,b)=>a-b);
+      const extent=distances[Math.floor((distances.length-1)*.96)]||0;
+      zoom=clamp(3.45+extent*.055,3.45,7.4);
+    }
+  }catch{}
+  dialLat=safeLat;
+  flyToLatLon(safeLat,safeLon,{zoom,duration});
 }
 
 
@@ -475,6 +522,12 @@ export function setDemEnabled(enabled){
   scheduleDemRefresh(0);
 }
 
+export function setAxisMode(enabled){
+  axisMode=!!enabled;
+  if(controls)controls.noRotate=axisMode;
+  return axisMode;
+}
+
 export function initGlobe(element){
   if(host===element&&renderer)return;
   host=element;host.innerHTML="";host.style.position="relative";
@@ -488,6 +541,31 @@ export function initGlobe(element){
   renderer.setClearColor(0x000000,0);
   renderer.domElement.style.touchAction="none";
   host.appendChild(renderer.domElement);
+  renderer.domElement.addEventListener("pointerdown",e=>{
+    if(!axisMode||axisPointerId!==null)return;
+    axisPointerId=e.pointerId;axisLastX=e.clientX;
+    renderer.domElement.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  },{passive:false});
+  renderer.domElement.addEventListener("pointermove",e=>{
+    if(!axisMode||e.pointerId!==axisPointerId)return;
+    const dx=e.clientX-axisLastX;axisLastX=e.clientX;
+    const q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-dx*.007);
+    const offset=getOffset().applyQuaternion(q);
+    camera.position.copy(controls.target).add(offset);
+    camera.up.applyQuaternion(q).normalize();
+    camera.lookAt(controls.target);
+    dialRx=getViewAngles().rx;dialLat=physicalLat();
+    controls.update();scheduleStateEmit();scheduleDemRefresh();
+    e.preventDefault();
+  },{passive:false});
+  const endAxis=e=>{
+    if(e.pointerId!==axisPointerId)return;
+    try{renderer.domElement.releasePointerCapture?.(e.pointerId)}catch{}
+    axisPointerId=null;
+  };
+  renderer.domElement.addEventListener("pointerup",endAxis);
+  renderer.domElement.addEventListener("pointercancel",endAxis);
 
   controls=new TrackballControls(camera,renderer.domElement);
   controls.target.set(0,0,0);
@@ -501,9 +579,18 @@ export function initGlobe(element){
   controls.dynamicDampingFactor=.16;
   controls.minDistance=3.15;
   controls.maxDistance=14;
+  controls.addEventListener("start",()=>{
+    userControlActive=true;
+    rebaseContinuousAngles();
+  });
   controls.addEventListener("change",()=>{
+    if(userControlActive&&!axisMode)rebaseContinuousAngles();
     scheduleStateEmit();
     scheduleDemRefresh();
+  });
+  controls.addEventListener("end",()=>{
+    userControlActive=false;
+    if(!axisMode)rebaseContinuousAngles();
   });
 
   scene.add(new THREE.HemisphereLight(0xbfdcff,0x07111d,1.45));
@@ -907,7 +994,7 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
   scheduleDemRefresh(0);
 }
 window.KamokuGlobe={
-  init:initGlobe,update:updateGlobe,setTerrain,setDem:setDemEnabled,center:centerGlobe,flyTo:flyToLatLon,
+  init:initGlobe,update:updateGlobe,setTerrain,setDem:setDemEnabled,center:centerGlobe,flyTo:flyToLatLon,flyToCountry,setAxisMode,
   getState:getViewState,setState:setViewState,nudge:nudgeView,subscribe:subscribeViewState
 };
 window.dispatchEvent(new Event("kamoku-globe-ready"));
