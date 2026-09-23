@@ -812,19 +812,33 @@ function clearGroup(group){
     o.geometry?.dispose();o.material?.dispose();
   }
 }
-function updateCapitalMarkers(countries){
+function updateCapitalMarkers(countries,metric,countryReliefEnabled,reliefScale){
   if(!capitalGroup)return;
   clearGroup(capitalGroup);
   capitalGroup.visible=true;
-  const r=markerRadius()+.012;
+
+  const values=(countries||[])
+    .map(c=>+c.latest?.[metric]?.value)
+    .filter(Number.isFinite)
+    .sort((a,b)=>a-b);
+  const lo=values[Math.floor(Math.max(0,values.length-1)*.05)]??0;
+  const hi=values[Math.floor(Math.max(0,values.length-1)*.95)]??1;
+  const span=(hi-lo)||1;
+  const maxHeight=.0035*clamp(+reliefScale||55,0,100);
+  const baseR=EARTH_RADIUS+terrainMaxOutward()+.014;
+
   for(const c of countries||[]){
     const lat=+c.lat,lon=+c.lon;
     if(!Number.isFinite(lat)||!Number.isFinite(lon)||!c.capital)continue;
+    const value=+c.latest?.[metric]?.value;
+    const t=Number.isFinite(value)?clamp((value-lo)/span,0,1):0;
+    const countryHeight=countryReliefEnabled&&Number.isFinite(value)?(.004+maxHeight*t):0;
+    const r=baseR+countryHeight+.028;
     const marker=new THREE.Mesh(
-      new THREE.SphereGeometry(.018,10,8),
+      new THREE.SphereGeometry(.020,12,9),
       new THREE.MeshPhongMaterial({
-        color:0xf5fbff,emissive:0x66cfff,emissiveIntensity:.65,
-        shininess:30,depthTest:true,depthWrite:false
+        color:0xffffff,emissive:0x43c8ff,emissiveIntensity:.85,
+        shininess:36,depthTest:true,depthWrite:false
       })
     );
     marker.position.copy(latLonToVector3(lat,lon,r));
@@ -882,7 +896,7 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
       markerGroup.add(marker);
     }
   }
-  updateCapitalMarkers(countries);
+  updateCapitalMarkers(countries,metric,!!countryRelief,countryReliefScale);
   updateCountryOverlay(countries,metric,!!countryFill).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
   updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
   if(!initialViewApplied){
