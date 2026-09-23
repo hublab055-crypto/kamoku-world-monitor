@@ -1002,12 +1002,13 @@ function latestSiteMetric(values,kind){
   if(!list.length)return null;
   return list.reduce((a,b)=>(+b.year>+a.year?b:a));
 }
-function updateResourceSiteMarkers(sites){
+function updateResourceSiteMarkers(sites,countryReliefEnabled=false,reliefScale=55){
   if(!resourceSiteGroup)return;
   clearGroup(resourceSiteGroup);
   resourceSiteGroup.visible=Array.isArray(sites)&&sites.length>0;
   if(!resourceSiteGroup.visible)return;
-  const r=EARTH_RADIUS+terrainMaxOutward()+.045;
+  const reliefClearance=countryReliefEnabled?(.004+.0035*clamp(+reliefScale||55,0,100)):0;
+  const r=EARTH_RADIUS+terrainMaxOutward()+reliefClearance+.032;
   for(const s of sites){
     const lat=+s.lat,lon=+s.lon;
     if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
@@ -1077,7 +1078,7 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
     }
   }
   updateCapitalMarkers(countries,metric,!!countryRelief,countryReliefScale);
-  updateResourceSiteMarkers(resourceSites);
+  updateResourceSiteMarkers(resourceSites,!!countryRelief,countryReliefScale);
   updateCountryOverlay(countries,metric,!!countryFill,countryColorMode).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
   updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale,countryColorMode).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
   if(!initialViewApplied){
