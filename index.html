@@ -180,28 +180,29 @@
     .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     .globe-stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
     .globe-stage .globe{border-radius:0}
-    .world-rank-panel{position:absolute;left:7px;top:7px;bottom:132px;width:min(35%,220px);z-index:5;border:1px solid rgba(79,112,148,.58);border-radius:11px;background:rgba(5,14,26,.94);overflow:hidden;display:flex;flex-direction:column;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+    .world-rank-panel{position:absolute;left:7px;top:7px;bottom:116px;width:min(28%,176px);z-index:5;border:1px solid rgba(79,112,148,.58);border-radius:11px;background:rgba(5,14,26,.94);overflow:hidden;display:flex;flex-direction:column;-webkit-text-size-adjust:100%;text-size-adjust:100%}
     .world-rank-head{flex:0 0 auto;padding:7px 8px 6px;font-size:10px;line-height:1.35;color:#b9c9db;font-weight:750;border-bottom:1px solid rgba(79,112,148,.38);white-space:normal}
     .world-rank-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px;display:block;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
     .world-rank-item{display:block;position:relative;overflow:hidden;border:0;border-radius:7px;background:rgba(13,30,50,.84);color:var(--text);padding:5px 6px;text-align:left;cursor:pointer;width:100%;height:42px;min-height:42px;max-height:42px;margin:0 0 4px;box-sizing:border-box;font:inherit;-webkit-appearance:none;appearance:none}
     .world-rank-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(55,199,205,.34),rgba(88,166,255,.20));pointer-events:none}
+    .world-rank-median{position:absolute;top:3px;bottom:3px;width:1px;background:rgba(255,255,255,.42);z-index:1;pointer-events:none}
     .world-rank-content{position:relative;z-index:1;display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px;align-items:center;height:100%}
     .world-rank-no{font-size:9px;line-height:1;color:#8da5bd;text-align:center}
     .world-rank-name{font-size:10px;line-height:1.15;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .world-rank-value{font-size:9px;line-height:1.15;color:#d8e7f7;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
     @media(max-width:620px){
-      .world-rank-panel{width:39%;max-width:155px;bottom:125px}
+      .world-rank-panel{width:31%;max-width:124px;bottom:112px}
       .world-rank-item{height:40px;min-height:40px;max-height:40px;padding:4px 5px;margin-bottom:3px}
       .world-rank-name{font-size:9.5px}.world-rank-value{font-size:8.5px}
       .world-rank-content{grid-template-columns:15px minmax(0,1fr)}
     }
-    .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:1px solid rgba(72,105,140,.52);border-radius:13px;padding:7px;background:rgba(5,14,26,.92);backdrop-filter:none;pointer-events:none}
+    .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:0;border-radius:13px;padding:6px;background:transparent;backdrop-filter:none;pointer-events:none;transition:transform .18s ease,opacity .18s ease}
     .globe-param-layout{display:grid;grid-template-columns:minmax(0,1fr) 126px;gap:7px;align-items:end}
     .globe-param-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;align-content:end;pointer-events:auto}
     .globe-param-btn{border:1px solid rgba(96,129,164,.65);background:rgba(7,20,35,.80);color:var(--text);border-radius:8px;padding:3px 2px;min-height:31px;cursor:pointer;text-align:center;display:grid;place-items:center}
     .globe-param-btn b{font-size:10px;letter-spacing:.01em}.globe-param-btn small{display:none}
     .globe-param-btn.active{background:rgba(88,166,255,.94);border-color:#79b8ff;color:#06111f;box-shadow:0 0 0 1px rgba(88,166,255,.22)}
-    .globe-master-dial{border:0;border-radius:12px;background:rgba(6,17,30,.74);padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;pointer-events:auto}
+    .globe-master-dial{border:0;border-radius:12px;background:transparent;padding:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;pointer-events:auto}
     .globe-master-label{font-size:9px;color:#b8c7d9;min-height:13px;text-align:center}
     .master-dial-wheel{width:112px;height:112px;margin:2px auto;position:relative;border-radius:50%;touch-action:none;cursor:grab;background:radial-gradient(circle at 50% 50%,#172b47 0 31%,#0b1829 32% 51%,#24415f 52% 55%,#08111f 56%);box-shadow:inset 0 0 0 1px #456485,0 5px 16px rgba(0,0,0,.34)}
     .master-dial-wheel:active{cursor:grabbing}
@@ -210,7 +211,15 @@
     .master-dial-pointer{position:absolute;left:50%;top:7px;width:3px;height:24px;border-radius:4px;background:var(--accent);transform:translateX(-50%);box-shadow:0 0 9px rgba(88,166,255,.78);z-index:2}
     .master-dial-center{position:absolute;inset:32px;border-radius:50%;display:grid;place-items:center;background:#0a1728;border:1px solid #34506e;z-index:3;padding:0}
     .master-dial-center-value{border:0;background:transparent;color:var(--text);font-size:14px;font-weight:850;font-variant-numeric:tabular-nums;text-align:center;padding:0;width:100%;height:100%;border-radius:50%;cursor:pointer}
-    .globe-reset-mini{position:absolute;right:3px;top:-31px;width:29px;height:27px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.76);color:var(--text);pointer-events:auto}
+    .globe-reset-mini{position:absolute;right:3px;top:-29px;width:28px;height:26px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.88);color:var(--text);pointer-events:auto}
+    .globe-axis-mini{position:absolute;right:66px;top:-29px;height:26px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.88);color:var(--text);pointer-events:auto;font-size:9px;font-weight:800;padding:0 7px}
+    .globe-axis-mini.active{background:var(--accent);color:#06111f}
+    .globe-fold-mini{position:absolute;right:34px;top:-29px;width:28px;height:26px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.88);color:var(--text);pointer-events:auto}
+    .globe-control-panel.collapsed{left:auto;width:116px;right:7px;padding:0}
+    .globe-control-panel.collapsed .globe-param-layout{display:none}
+    .globe-control-panel.collapsed .globe-axis-mini{right:66px}
+    .globe-control-panel.collapsed .globe-fold-mini{right:34px}
+    .globe-control-panel.collapsed .globe-reset-mini{right:3px}
     .globe-control-head,.globe-dial-hint,.globe-master-entry{display:none!important}
     .world-card-head{align-items:center;margin-top:0}
     .world-title-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
@@ -294,6 +303,7 @@
     <div class="settings-row"><div class="label">データ</div><div id="stamp" class="value stamp">データ読み込み中…</div></div>
     <div class="settings-section">
       <div class="settings-section-title">世界地図</div>
+      <div class="settings-row" style="border-top:0;padding-top:0"><div class="label">選択指標</div><div id="worldStats" class="value">—</div></div>
       <div class="settings-grid">
         <label>表示<select id="worldDisplay"><option value="3d">3D地形</option><option value="2d">2D地図</option></select></label>
         <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
@@ -366,9 +376,8 @@
         <div class="world-title-controls">
           <select id="worldDomain" class="world-compact-select" aria-label="分野"></select>
           <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
-          <span id="worldTitle" class="world-mode-title">— 3D地形</span>
+          <span id="worldTitle" style="display:none"></span>
         </div>
-        <div class="statline" id="worldStats"></div>
       </div>
       <div id="worldGlobeStage" class="globe-stage">
         <div id="worldRankPanel" class="world-rank-panel">
@@ -377,6 +386,8 @@
         </div>
         <div id="worldGlobe" class="globe"></div>
         <div id="globeControlPanel" class="globe-control-panel">
+          <button id="globeAxisModeBtn" class="globe-axis-mini" type="button" title="Axis rotation">AXIS</button>
+          <button id="globeHudToggle" class="globe-fold-mini" type="button" title="Collapse">⌄</button>
           <button id="globeResetView" class="globe-reset-mini" type="button" title="Reset">↺</button>
           <div class="globe-param-layout">
             <div id="globeParamButtons" class="globe-param-buttons"></div>
@@ -861,7 +872,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.23.8";
+const APP_VERSION="2026.09.23.9";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -878,11 +889,11 @@ const GLOBE_DIAL_DEFS=[
   {key:"x",short:"X",ja:"焦点 X",en:"Focus X",min:-6,max:6,step:.05,decimals:2},
   {key:"y",short:"Y",ja:"焦点 Y",en:"Focus Y",min:-6,max:6,step:.05,decimals:2},
   {key:"z",short:"Z",ja:"焦点 Z",en:"Focus Z",min:-6,max:6,step:.05,decimals:2},
-  {key:"rx",short:"RX",ja:"回転 RX",en:"Rotation RX",min:-89.5,max:89.5,step:1,decimals:1,suffix:"°"},
+  {key:"rx",short:"RX",ja:"回転 RX",en:"Rotation RX",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
   {key:"ry",short:"RY",ja:"回転 RY",en:"Rotation RY",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
   {key:"rz",short:"RZ",ja:"回転 RZ",en:"Rotation RZ",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
   {key:"zoom",short:"ZOOM",ja:"ズーム",en:"Zoom",min:3.15,max:14,step:.1,decimals:2},
-  {key:"lat",short:"LAT",ja:"緯度",en:"Latitude",min:-90,max:90,step:.5,decimals:2,suffix:"°"},
+  {key:"lat",short:"LAT",ja:"緯度",en:"Latitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
   {key:"lon",short:"LON",ja:"経度",en:"Longitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
   {key:"time",short:"TIME",ja:"時間 UTC",en:"UTC Time",min:0,max:24,step:.25,decimals:2,suffix:"h",wrap:true}
 ];
@@ -941,6 +952,7 @@ function updateGlobeControlLanguage(){
   keypadBackspace.textContent=LANG==="en"?"⌫ Backspace":"⌫ バックスペース";
   keypadExecute.textContent=LANG==="en"?"Execute":"実行";
   globeResetView.title=LANG==="en"?"Reset view":"表示をリセット";
+  globeAxisModeBtn.title=LANG==="en"?"Toggle free / Earth-axis rotation":"自由回転 / 地軸回転を切替";
   document.querySelectorAll(".globe-param-btn").forEach(b=>{
     const def=GLOBE_DIAL_MAP[b.dataset.key];
     if(def)b.title=LANG==="en"?def.en:def.ja;
@@ -1022,6 +1034,7 @@ function setupGlobeControlDeck(){
     };
     globeMasterWheel.addEventListener("pointerdown",e=>{
       if(e.target===globeMasterValue)return;
+      e.stopPropagation();
       active=true;lastAngle=pointerAngle(e);
       globeMasterWheel.setPointerCapture?.(e.pointerId);
       e.preventDefault();
@@ -1045,6 +1058,7 @@ function setupGlobeControlDeck(){
     const end=e=>{active=false;try{globeMasterWheel.releasePointerCapture?.(e.pointerId)}catch{}};
     globeMasterWheel.addEventListener("pointerup",end);
     globeMasterWheel.addEventListener("pointercancel",end);
+    globeMasterWheel.addEventListener("touchmove",e=>{e.preventDefault();e.stopPropagation();},{passive:false});
     globeMasterWheel.addEventListener("wheel",e=>{
       e.preventDefault();
       const dir=e.deltaY<0?1:-1;
@@ -1058,6 +1072,29 @@ function setupGlobeControlDeck(){
     });
     globeMasterValue.addEventListener("click",e=>{e.stopPropagation();openNumericKeypad(activeGlobeParam);});
     globeResetView.addEventListener("click",()=>window.KamokuGlobe?.center?.());
+    let axis=localStorage.getItem("kamokuAxisMode")==="1";
+    const applyAxis=()=>{
+      globeAxisModeBtn.classList.toggle("active",axis);
+      globeAxisModeBtn.textContent=axis?"AXIS":"FREE";
+      window.KamokuGlobe?.setAxisMode?.(axis);
+    };
+    globeAxisModeBtn.addEventListener("click",()=>{
+      axis=!axis;localStorage.setItem("kamokuAxisMode",axis?"1":"0");applyAxis();
+    });
+    let collapsed=localStorage.getItem("kamokuGlobeHudCollapsed");
+    if(collapsed==null)collapsed=window.matchMedia("(max-width:620px)").matches?"1":"0";
+    const applyFold=()=>{
+      const isCollapsed=collapsed==="1";
+      globeControlPanel.classList.toggle("collapsed",isCollapsed);
+      globeHudToggle.textContent=isCollapsed?"⌃":"⌄";
+      globeHudToggle.title=isCollapsed?(LANG==="en"?"Expand controls":"操作を展開"):(LANG==="en"?"Collapse controls":"操作を折りたたむ");
+    };
+    globeHudToggle.addEventListener("click",()=>{
+      collapsed=collapsed==="1"?"0":"1";
+      localStorage.setItem("kamokuGlobeHudCollapsed",collapsed);
+      applyFold();
+    });
+    applyAxis();applyFold();
   }
 
   if(!GLOBE_DIAL_MAP[activeGlobeParam])activeGlobeParam="x";
@@ -1193,16 +1230,19 @@ function renderWorldRanking(rows,unit,use3d){
   if(!sorted.length){worldRankList.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
   const vals=sorted.map(x=>+x.v.value);
   const min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  const asc=[...vals].sort((a,b)=>a-b),median=asc[Math.floor((asc.length-1)/2)]??min;
+  const medianPos=Math.max(0,Math.min(80,((median-min)/span)*80));
   worldRankList.innerHTML=sorted.map((x,i)=>{
-    const w=Math.max(3,((+x.v.value-min)/span)*100);
+    const w=Math.max(2.5,((+x.v.value-min)/span)*80);
     return '<button class="world-rank-item" data-iso="'+esc(x.c.iso3)+'" data-lat="'+(+x.c.lat)+'" data-lon="'+(+x.c.lon)+'" title="'+esc((x.c.capital||""))+'">'+
       '<span class="world-rank-bar" style="width:'+w.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-median" style="left:'+medianPos.toFixed(1)+'%"></span>'+
       '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(countryName(x.c))+'</div><div class="world-rank-value">'+esc(fmt(x.v.value,unit))+'</div></span></span>'+
     '</button>';
   }).join("");
   worldRankList.querySelectorAll(".world-rank-item").forEach(btn=>btn.onclick=()=>{
-    const lat=+btn.dataset.lat,lon=+btn.dataset.lon;
-    window.KamokuGlobe?.flyTo?.(lat,lon,{zoom:4.05,duration:900});
+    const lat=+btn.dataset.lat,lon=+btn.dataset.lon,iso=btn.dataset.iso;
+    window.KamokuGlobe?.flyToCountry?.(iso,lat,lon,{duration:900});
   });
 }
 
@@ -1210,8 +1250,8 @@ function drawWorld(){
   const metric=worldMetric.value,reg=regByMetric[metric]||{};
   const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
   const use3d=worldDisplay.value==="3d";
-  worldTitle.textContent="— "+(use3d?t("terrain3d"):t("map2d"));
-  worldStats.innerHTML='<span class="pill">'+rows.length+' '+t("countries")+'</span><span class="pill">'+t("worldMedian")+' '+fmt(D.global?.[metric]?.median,reg.unit)+'</span>';
+  worldTitle.textContent="";
+  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+fmt(D.global?.[metric]?.median,reg.unit);
   renderWorldRanking(rows,reg.unit,use3d);
   worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
