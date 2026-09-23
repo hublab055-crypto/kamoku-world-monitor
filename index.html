@@ -222,6 +222,17 @@
     .globe-control-panel.collapsed .globe-reset-mini{right:3px}
     .globe-control-head,.globe-dial-hint,.globe-master-entry{display:none!important}
     .world-card-head{align-items:center;margin-top:0}
+    .world-timeline{display:flex;align-items:center;gap:7px;margin:7px 0 9px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#091727}
+    .world-timeline.hidden{display:none}
+    .world-timeline button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;height:30px;min-width:36px;padding:0 8px;cursor:pointer}
+    .world-timeline input[type="range"]{flex:1;min-width:80px;padding:0}
+    .world-year-label{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+    .world-country-preview{position:absolute;right:10px;top:10px;z-index:9;display:none;max-width:min(58%,260px);border:1px solid #4a6c91;border-radius:12px;background:rgba(6,17,31,.95);color:var(--text);padding:10px 12px;text-align:left;box-shadow:0 12px 28px rgba(0,0,0,.38);cursor:pointer}
+    .world-country-preview .name{font-size:14px;font-weight:850;line-height:1.2}
+    .world-country-preview .value{font-size:18px;font-weight:850;margin-top:4px;font-variant-numeric:tabular-nums}
+    .world-country-preview .meta{font-size:10px;color:var(--muted);margin-top:4px}
+    .world-country-preview .hint{font-size:9px;color:#8fb9e6;margin-top:6px}
+    @media(max-width:620px){.world-timeline{margin:5px 0 7px;padding:5px 6px}.world-country-preview{right:7px;top:7px;max-width:56%;padding:8px 10px}}
     .world-title-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
     .world-compact-select{min-width:0!important;width:auto;max-width:46vw;padding:6px 28px 6px 8px;font-size:13px;font-weight:700;background:#0b192b;border-radius:9px}
     .world-mode-title{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
@@ -305,8 +316,8 @@
       <div class="settings-section-title">世界地図</div>
       <div class="settings-row" style="border-top:0;padding-top:0"><div class="label">選択指標</div><div id="worldStats" class="value">—</div></div>
       <div class="settings-grid">
-        <label>表示<select id="worldDisplay"><option value="3d">3D地形</option><option value="2d">2D地図</option></select></label>
-        <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option></select></label>
+        <label>表示<select id="worldDisplay"><option value="3d">データ3D</option><option value="terrain">地形のみ</option><option value="2d">2D地図</option></select></label>
+        <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option><option value="timeline">選択年時点</option></select></label>
         <label class="settings-slider" id="terrainScaleWrap">地形強調 <span id="worldTerrainScaleValue">30×</span><input id="worldTerrainScale" type="range" min="1" max="100" step="1" value="30"></label>
         <label class="settings-check" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked><span id="worldSeabedText">海底地形</span></label>
         <label class="settings-check" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked><span id="worldDemText">高精細DEM</span></label>
@@ -379,11 +390,24 @@
           <span id="worldTitle" style="display:none"></span>
         </div>
       </div>
+      <div id="worldTimeline" class="world-timeline hidden">
+        <button id="worldYearBack" type="button">−1</button>
+        <button id="worldYearPlay" type="button">▶</button>
+        <input id="worldYearSlider" type="range" min="2000" max="2026" step="1" value="2026">
+        <span id="worldYearLabel" class="world-year-label">2026</span>
+        <button id="worldYearForward" type="button">+1</button>
+      </div>
       <div id="worldGlobeStage" class="globe-stage">
         <div id="worldRankPanel" class="world-rank-panel">
           <div id="worldRankHead" class="world-rank-head">ランキング</div>
           <div id="worldRankList" class="world-rank-list"></div>
         </div>
+        <button id="worldCountryPreview" class="world-country-preview" type="button">
+          <div id="worldCountryPreviewName" class="name">—</div>
+          <div id="worldCountryPreviewValue" class="value">—</div>
+          <div id="worldCountryPreviewMeta" class="meta">—</div>
+          <div id="worldCountryPreviewHint" class="hint">タップで詳細</div>
+        </button>
         <div id="worldGlobe" class="globe"></div>
         <div id="globeControlPanel" class="globe-control-panel">
           <button id="globeAxisModeBtn" class="globe-axis-mini" type="button" title="Axis rotation">AXIS</button>
@@ -655,11 +679,16 @@ let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
 let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
+let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null;
 let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
 const METRIC_JA={
   INTERNATIONAL_TOURISM_ARRIVALS:"国際観光客到着数",
+  GOV_REVENUE_EX_GRANTS_PCT_GDP:"国家歳入（補助金除く・GDP比）",
+  MILITARY_EXPENDITURE_PCT_GDP:"軍事費（GDP比）",
+  INTENTIONAL_HOMICIDES_PER_100K:"故意の殺人（人口10万人あたり）",
+  POLITICAL_STABILITY_ESTIMATE:"政治的安定・暴力/テロ不在指数",
   INTERNATIONAL_TOURISM_RECEIPTS_USD:"国際観光収入（現行US$）",
   GDP_CURRENT_USD:"GDP（現行US$）",
   GDP_PER_CAPITA_CURRENT_USD:"1人当たりGDP（現行US$）",
@@ -686,7 +715,7 @@ const METRIC_JA={
 };
 const DOMAIN_JA={
   culture_tourism:"文化・観光",economy:"経済",fiscal:"財政",human:"人的資本",
-  knowledge:"知識・知財",population:"人口",prices:"物価",resources:"資源",trade:"貿易"
+  knowledge:"知識・知財",population:"人口",prices:"物価",resources:"資源",trade:"貿易",security:"安全保障・治安"
 };
 const REGION_JA={
   "East Asia & Pacific":"東アジア・太平洋","Europe & Central Asia":"欧州・中央アジア",
@@ -704,8 +733,8 @@ const TEXT={
   noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
   country:{ja:"国",en:"Country"},region:{ja:"地域",en:"Region"},income:{ja:"所得区分",en:"Income group"},
   recordedMetrics:{ja:"収録指標",en:"Available metrics"},latestValue:{ja:"選択国の最新値",en:"Latest country value"},
-  terrain3d:{ja:"3D地形",en:"3D Terrain"},map2d:{ja:"2D地図",en:"2D Map"},
-  latestEach:{ja:"各国の最新値",en:"Latest value per country"},
+  terrain3d:{ja:"データ3D",en:"Data 3D"},terrainOnly:{ja:"地形のみ",en:"Terrain only"},map2d:{ja:"2D地図",en:"2D Map"},
+  latestEach:{ja:"各国の最新値",en:"Latest value per country"},timelinePoint:{ja:"選択年時点",en:"Selected-year snapshot"},tapForDetail:{ja:"タップで詳細",en:"Tap for details"},
   expected5d:{ja:"期待5日",en:"Expected 5d"},universe:{ja:"対象銘柄",en:"Universe"},
   contribution:{ja:"寄与",en:"Contribution"},noContribution:{ja:"説明寄与なし",en:"No explanation contribution"},
   training:{ja:"学習",en:"Train"},validation:{ja:"時間外検証",en:"Out-of-time validation"},
@@ -807,8 +836,11 @@ function localizeSelectors(){
     fillMetric(ms,ds.value);if(m)ms.value=m;
   }
   worldDisplay.options[0].textContent=t("terrain3d");
-  worldDisplay.options[1].textContent=t("map2d");
+  worldDisplay.options[1].textContent=t("terrainOnly");
+  worldDisplay.options[2].textContent=t("map2d");
   worldMode.options[0].textContent=t("latestEach");
+  worldMode.options[1].textContent=t("timelinePoint");
+  if(document.getElementById("worldCountryPreviewHint"))worldCountryPreviewHint.textContent=t("tapForDetail");
   if(document.getElementById("terrainScaleWrap"))terrainScaleWrap.childNodes[0].nodeValue=t("terrainExaggeration")+" ";
   if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
   if(document.getElementById("worldDemText"))worldDemText.textContent=t("highResDem");
@@ -848,6 +880,8 @@ const fmt=(v,unit="")=>{
   const n=Number(v),a=Math.abs(n),loc=locale();
   if(unit==="percent")return n.toLocaleString(loc,{maximumFractionDigits:2})+"%";
   if(unit==="years")return n.toLocaleString(loc,{maximumFractionDigits:1})+(LANG==="en"?" years":" 年");
+  if(unit==="per_100k")return n.toLocaleString(loc,{maximumFractionDigits:2})+(LANG==="en"?" /100k":" /10万人");
+  if(unit==="estimate")return n.toLocaleString(loc,{minimumFractionDigits:2,maximumFractionDigits:2});
   if(LANG==="ja"){
     if(a>=1e12)return (n/1e12).toLocaleString(loc,{maximumFractionDigits:2})+"兆";
     if(a>=1e9)return (n/1e9).toLocaleString(loc,{maximumFractionDigits:2})+"B";
@@ -872,7 +906,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.23.9";
+const APP_VERSION="2026.09.23.10";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1153,6 +1187,64 @@ function renderKcu(){
   kcuVariant.onchange=update;kcuCurrency.onchange=update;update();
 }
 
+function worldValueAtYear(country,metric,year){
+  const hist=D?.history?.[country.iso3]?.[metric]||[];
+  let found=null;
+  for(const pair of hist){
+    const y=+pair[0],v=pair[1];
+    if(y>year)break;
+    if(v!=null&&Number.isFinite(+v))found={year:y,value:+v,unit:metricUnit(metric),source:"historical"};
+  }
+  return found;
+}
+function worldSnapshotCountries(metric){
+  if(worldMode.value!=="timeline")return D.countries;
+  const y=+worldYearSlider.value||new Date().getFullYear();
+  return D.countries.map(c=>{
+    const item=worldValueAtYear(c,metric,y);
+    return Object.assign({},c,{latest:Object.assign({},c.latest||{},{[metric]:item})});
+  });
+}
+function worldMedianForRows(rows){
+  const a=rows.map(x=>+x.v?.value).filter(Number.isFinite).sort((x,y)=>x-y);
+  if(!a.length)return null;
+  const m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function stopWorldTimeline(){
+  if(WORLD_YEAR_PLAY_TIMER){clearInterval(WORLD_YEAR_PLAY_TIMER);WORLD_YEAR_PLAY_TIMER=null;}
+  if(document.getElementById("worldYearPlay"))worldYearPlay.textContent="▶";
+}
+function syncWorldTimelineVisibility(){
+  const show=worldMode.value==="timeline"&&worldDisplay.value!=="terrain";
+  worldTimeline.classList.toggle("hidden",!show);
+  worldYearLabel.textContent=worldYearSlider.value;
+  if(!show)stopWorldTimeline();
+}
+function showWorldCountryPreview(iso){
+  const c=countryByIso[iso];if(!c)return;
+  const metric=worldMetric.value;
+  const countries=worldSnapshotCountries(metric);
+  const shown=countries.find(x=>x.iso3===iso)||c;
+  const item=shown.latest?.[metric];
+  WORLD_PREVIEW_ISO=iso;
+  worldCountryPreviewName.textContent=countryName(c);
+  worldCountryPreviewValue.textContent=item?fmt(item.value,metricUnit(metric)):"—";
+  worldCountryPreviewMeta.textContent=metricName(metric)+(item?.year?(" · "+item.year):"");
+  worldCountryPreview.style.display="block";
+}
+function hideWorldCountryPreview(){
+  WORLD_PREVIEW_ISO=null;
+  if(document.getElementById("worldCountryPreview"))worldCountryPreview.style.display="none";
+}
+function openWorldCountryDetail(){
+  if(!WORLD_PREVIEW_ISO)return;
+  selectedIso=WORLD_PREVIEW_ISO;syncCountryInput();
+  const d=regByMetric[worldMetric.value]?.domain;
+  if(d){countryDomain.value=d;fillMetric(countryMetric,d);countryMetric.value=worldMetric.value;}
+  renderCountry();
+  document.querySelector('[data-view="country"]').click();
+}
 function renderWorld(){
   fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);
   const savedTerrain=Math.max(1,Math.min(100,+(localStorage.getItem("kamokuTerrainScale")||30)));
@@ -1167,18 +1259,36 @@ function renderWorld(){
   worldCountryReliefScale.value=String(savedRelief);
   worldCountryReliefScaleValue.textContent=savedRelief+"×";
   const syncTerrainVisibility=()=>{
-    const show=worldDisplay.value==="3d";
+    const show=worldDisplay.value!=="2d";
     terrainScaleWrap.style.display=show?"grid":"none";
     terrainSeabedWrap.style.display=show?"flex":"none";
     terrainDemWrap.style.display=show?"flex":"none";
-    countryReliefScaleWrap.style.display=show&&worldCountryRelief.checked?"grid":"none";
+    countryReliefScaleWrap.style.display=worldDisplay.value==="3d"&&worldCountryRelief.checked?"grid":"none";
     worldCenterBtn.style.display=show?"inline-block":"none";
     globeControlPanel.style.display=show?"block":"none";
   };
   const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);drawWorld();};
   worldDomain.onchange=updateMetric;
   worldMetric.onchange=drawWorld;
-  worldDisplay.onchange=()=>{syncTerrainVisibility();drawWorld();};
+  worldDisplay.onchange=()=>{syncTerrainVisibility();syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
+  worldMode.onchange=()=>{syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
+  const maxYear=Math.max(new Date().getFullYear(),...(Object.values(D.history||{}).flatMap(m=>Object.values(m||{}).flatMap(a=>(a||[]).map(p=>+p[0]).filter(Number.isFinite)))));
+  worldYearSlider.max=String(maxYear);
+  worldYearSlider.value=localStorage.getItem("kamokuWorldYear")||String(maxYear);
+  worldYearLabel.textContent=worldYearSlider.value;
+  worldYearSlider.oninput=()=>{worldYearLabel.textContent=worldYearSlider.value;localStorage.setItem("kamokuWorldYear",worldYearSlider.value);hideWorldCountryPreview();drawWorld();};
+  worldYearBack.onclick=()=>{worldYearSlider.value=String(Math.max(+worldYearSlider.min,+worldYearSlider.value-1));worldYearSlider.oninput();};
+  worldYearForward.onclick=()=>{worldYearSlider.value=String(Math.min(+worldYearSlider.max,+worldYearSlider.value+1));worldYearSlider.oninput();};
+  worldYearPlay.onclick=()=>{
+    if(WORLD_YEAR_PLAY_TIMER){stopWorldTimeline();return;}
+    worldYearPlay.textContent="⏸";
+    WORLD_YEAR_PLAY_TIMER=setInterval(()=>{
+      let y=+worldYearSlider.value+1;
+      if(y>+worldYearSlider.max)y=+worldYearSlider.min;
+      worldYearSlider.value=String(y);worldYearSlider.oninput();
+    },700);
+  };
+  worldCountryPreview.onclick=openWorldCountryDetail;
   worldTerrainScale.oninput=()=>{
     const v=Math.max(1,Math.min(100,+worldTerrainScale.value||30));
     worldTerrainScaleValue.textContent=v+"×";
@@ -1215,7 +1325,7 @@ function renderWorld(){
   };
   worldCountryReliefScale.onchange=drawWorld;
   worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
-  syncTerrainVisibility();
+  syncTerrainVisibility();syncWorldTimelineVisibility();
   window.addEventListener("kamoku-globe-ready",()=>{setupGlobeControlDeck();drawWorld();},{once:true});
   setupGlobeControlDeck();
   drawWorld();
@@ -1248,20 +1358,24 @@ function renderWorldRanking(rows,unit,use3d){
 
 function drawWorld(){
   const metric=worldMetric.value,reg=regByMetric[metric]||{};
-  const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
-  const use3d=worldDisplay.value==="3d";
+  const displayCountries=worldSnapshotCountries(metric);
+  const rows=displayCountries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null&&Number.isFinite(+x.v.value));
+  const displayMode=worldDisplay.value,use3d=displayMode!=="2d",data3d=displayMode==="3d";
   worldTitle.textContent="";
-  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+fmt(D.global?.[metric]?.median,reg.unit);
-  renderWorldRanking(rows,reg.unit,use3d);
+  const med=worldMedianForRows(rows);
+  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+fmt(med,reg.unit)+(worldMode.value==="timeline"?" / "+worldYearSlider.value:"");
+  renderWorldRanking(rows,reg.unit,data3d);
   worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
     if(window.KamokuGlobe){
       window.KamokuGlobe.update({
         element:worldGlobe,
-        countries:D.countries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
+        countries:displayCountries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
         metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
-        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,countryFill:worldCountryFill.checked,markers:worldCountryMarkers.checked,countryRelief:worldCountryRelief.checked,countryReliefScale:+worldCountryReliefScale.value||55,
-        onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
+        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
+        countryFill:data3d&&worldCountryFill.checked,markers:data3d&&worldCountryMarkers.checked,
+        countryRelief:data3d&&worldCountryRelief.checked,countryReliefScale:+worldCountryReliefScale.value||55,
+        onCountrySelect:(iso)=>showWorldCountryPreview(iso)
       });
       setupGlobeControlDeck();
     }
