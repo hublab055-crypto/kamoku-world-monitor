@@ -12,7 +12,7 @@ const DEM_TERRARIUM_BASE="https://elevation-tiles-prod.s3.amazonaws.com/terrariu
 const COUNTRY_GEOJSON_URL="https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson";
 const DEG=Math.PI/180;
 
-let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,capitalGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
+let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,capitalGroup=null,resourceSiteGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null,onSiteSelect=null;
 let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null,sun=null,rim=null;
 let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true,initialViewApplied=false;
 let cameraRollDeg=0,simulationHour=12,dialRx=0,dialLat=0,axisMode=false,axisPointerId=null,axisLastX=0,userControlActive=false;
@@ -58,6 +58,7 @@ function hit(event){
   setPointer(event);
   raycaster.setFromCamera(pointer,camera);
   const targets=[
+    ...(resourceSiteGroup?.visible?resourceSiteGroup.children:[]),
     ...(capitalGroup?.visible?capitalGroup.children:[]),
     ...(markerGroup?.visible?markerGroup.children:[]),
     ...(countryReliefGroup?.visible?countryReliefGroup.children:[])
@@ -76,7 +77,11 @@ function showTooltip(event,obj){
   tooltip.style.top=y+"px";
   tooltip.innerHTML=d.kind==="capital"
     ?"<b>"+d.name+"</b><br>"+(currentLanguage==="en"?"Capital":"首都")+": "+d.capital
-    :"<b>"+d.name+"</b><br>"+d.metric+": "+d.valueText+"<br><span style='opacity:.7'>"+yearWord+" "+d.year+"</span>";
+    :d.kind==="resource-site"
+      ?"<b>"+d.name+"</b><br>"+(d.resourceLabel||d.resource||"")+
+        (d.productionText?"<br>"+(currentLanguage==="en"?"Production: ":"生産量: ")+d.productionText:"")+
+        (d.reservesText?"<br>"+(currentLanguage==="en"?"Reserves: ":"埋蔵量: ")+d.reservesText:"")
+      :"<b>"+d.name+"</b><br>"+d.metric+": "+d.valueText+"<br><span style='opacity:.7'>"+yearWord+" "+d.year+"</span>";
 }
 function addStars(){
   const n=900,positions=new Float32Array(n*3);
@@ -627,6 +632,7 @@ export function initGlobe(element){
 
   markerGroup=new THREE.Group();scene.add(markerGroup);
   capitalGroup=new THREE.Group();capitalGroup.renderOrder=6;scene.add(capitalGroup);
+  resourceSiteGroup=new THREE.Group();resourceSiteGroup.renderOrder=7;scene.add(resourceSiteGroup);
   countryReliefGroup=new THREE.Group();countryReliefGroup.renderOrder=4;scene.add(countryReliefGroup);
   demGroup=new THREE.Group();demGroup.renderOrder=3;scene.add(demGroup);
   raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();
@@ -641,6 +647,10 @@ export function initGlobe(element){
   renderer.domElement.addEventListener("click",e=>{
     const o=hit(e);
     if(!o)return;
+    if(o.userData?.kind==="resource-site"){
+      if(onSiteSelect&&o.userData?.siteId)onSiteSelect(o.userData.siteId);
+      return;
+    }
     if(o.userData?.kind==="capital"){
       if(onSelect&&o.userData?.iso3)onSelect(o.userData.iso3);
       return;
@@ -980,9 +990,49 @@ function updateCapitalMarkers(countries,metric,countryReliefEnabled,reliefScale)
   }
 }
 
-export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,countryColorMode="map",markers=false,countryRelief=true,countryReliefScale=55,onCountrySelect}){
+function formatSiteValue(item){
+  if(!item||item.value==null)return null;
+  const n=Number(item.value);
+  if(!Number.isFinite(n))return null;
+  const loc=currentLanguage==="en"?"en-US":"ja-JP";
+  return n.toLocaleString(loc,{maximumFractionDigits:3})+(item.unit?(" "+item.unit):"");
+}
+function latestSiteMetric(values,kind){
+  const list=(values?.[kind]||[]).filter(x=>Number.isFinite(+x.value));
+  if(!list.length)return null;
+  return list.reduce((a,b)=>(+b.year>+a.year?b:a));
+}
+function updateResourceSiteMarkers(sites){
+  if(!resourceSiteGroup)return;
+  clearGroup(resourceSiteGroup);
+  resourceSiteGroup.visible=Array.isArray(sites)&&sites.length>0;
+  if(!resourceSiteGroup.visible)return;
+  const r=EARTH_RADIUS+terrainMaxOutward()+.045;
+  for(const s of sites){
+    const lat=+s.lat,lon=+s.lon;
+    if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+    const prod=latestSiteMetric(s.values,"production_annual");
+    const reserves=latestSiteMetric(s.values,"reserves");
+    const material=new THREE.MeshPhongMaterial({
+      color:0xffd166,emissive:0xff8c42,emissiveIntensity:.5,
+      shininess:28,depthTest:true,depthWrite:false
+    });
+    const marker=new THREE.Mesh(new THREE.SphereGeometry(.026,12,9),material);
+    marker.position.copy(latLonToVector3(lat,lon,r));
+    marker.userData={
+      kind:"resource-site",siteId:s.id,iso3:s.iso3,name:s.name||s.id,
+      resource:s.resource,resourceLabel:s.resourceLabel||s.resource,
+      productionText:formatSiteValue(prod),reservesText:formatSiteValue(reserves),
+      lat,lon
+    };
+    resourceSiteGroup.add(marker);
+  }
+}
+
+export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,countryColorMode="map",markers=false,countryRelief=true,countryReliefScale=55,resourceSites=[],onCountrySelect,onResourceSiteSelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
+  onSiteSelect=onResourceSiteSelect||null;
   currentLanguage=language==="en"?"en":"ja";
   terrainExaggeration=clamp(+terrainScale||30,1,100);
   seabedEnabled=!!seabed;
@@ -1027,6 +1077,7 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
     }
   }
   updateCapitalMarkers(countries,metric,!!countryRelief,countryReliefScale);
+  updateResourceSiteMarkers(resourceSites);
   updateCountryOverlay(countries,metric,!!countryFill,countryColorMode).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
   updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale,countryColorMode).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
   if(!initialViewApplied){
