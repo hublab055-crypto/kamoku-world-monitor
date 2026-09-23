@@ -17,7 +17,7 @@ let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid
 let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true,initialViewApplied=false;
 let cameraRollDeg=0,simulationHour=12,dialRx=0,dialLat=0,axisMode=false,axisPointerId=null,axisLastX=0,userControlActive=false;
 let demGroup=null,demRefreshTimer=null,demBuildToken=0,demLastKey="";
-let countryOverlay=null,countryReliefGroup=null,countryGeoJsonPromise=null,countryOverlayToken=0,countryReliefToken=0;
+let countryOverlay=null,countryReliefGroup=null,countryGeoJsonPromise=null,countryOverlayToken=0,countryReliefToken=0,countryColoringCache=null;
 const demCache=new Map();
 let stateListener=null,stateEmitRaf=0;
 
@@ -684,6 +684,62 @@ function countryIso3(feature){
   const candidates=[p.ISO_A3,p.ADM0_A3,p.SOV_A3,p.BRK_A3,p.GU_A3,p.iso_a3];
   return candidates.find(x=>x&&x!=="-99")||null;
 }
+const COUNTRY_PALETTE=[0x4c78a8,0xf58518,0x54a24b,0xe45756,0x72b7b2,0xb279a2,0xffbf79];
+function forEachOuterRing(feature,fn){
+  const g=feature?.geometry;if(!g)return;
+  const polys=g.type==="Polygon"?[g.coordinates]:g.type==="MultiPolygon"?g.coordinates:[];
+  for(const poly of polys){const ring=poly?.[0];if(ring?.length)fn(ring);}
+}
+function buildCountryColoring(geo){
+  if(countryColoringCache)return countryColoringCache;
+  const adjacency=new Map(),vertexOwners=new Map();
+  const ensure=iso=>{if(!adjacency.has(iso))adjacency.set(iso,new Set());};
+  for(const feature of geo.features||[]){
+    const iso=countryIso3(feature);if(!iso)continue;ensure(iso);
+    forEachOuterRing(feature,ring=>{
+      for(const p of ring){
+        const lon=+p?.[0],lat=+p?.[1];if(!Number.isFinite(lon)||!Number.isFinite(lat))continue;
+        const key=(Math.round(lon*50)/50).toFixed(2)+","+(Math.round(lat*50)/50).toFixed(2);
+        let owners=vertexOwners.get(key);if(!owners){owners=new Set();vertexOwners.set(key,owners);}
+        owners.add(iso);
+      }
+    });
+  }
+  for(const owners of vertexOwners.values()){
+    if(owners.size<2)continue;
+    const a=[...owners];
+    for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++){
+      adjacency.get(a[i])?.add(a[j]);adjacency.get(a[j])?.add(a[i]);
+    }
+  }
+  const order=[...adjacency.keys()].sort((a,b)=>(adjacency.get(b)?.size||0)-(adjacency.get(a)?.size||0));
+  const colors=new Map();
+  for(const iso of order){
+    const used=new Set([...(adjacency.get(iso)||[])].map(n=>colors.get(n)).filter(v=>v!=null));
+    let idx=0;while(idx<COUNTRY_PALETTE.length&&used.has(idx))idx++;
+    if(idx>=COUNTRY_PALETTE.length){
+      idx=[...Array(COUNTRY_PALETTE.length).keys()].sort((a,b)=>{
+        const ca=[...(adjacency.get(iso)||[])].filter(n=>colors.get(n)===a).length;
+        const cb=[...(adjacency.get(iso)||[])].filter(n=>colors.get(n)===b).length;
+        return ca-cb;
+      })[0]||0;
+    }
+    colors.set(iso,idx);
+  }
+  countryColoringCache=colors;return colors;
+}
+function countryIdentityColor(iso,geo){
+  const idx=buildCountryColoring(geo).get(iso);
+  return new THREE.Color(COUNTRY_PALETTE[idx==null?0:idx%COUNTRY_PALETTE.length]);
+}
+function exactValueT(value,values){
+  if(!Number.isFinite(value)||!values?.length)return 0;
+  let min=Infinity,max=-Infinity;
+  for(const v of values){if(Number.isFinite(v)){if(v<min)min=v;if(v>max)max=v;}}
+  if(!Number.isFinite(min)||!Number.isFinite(max)||max===min)return 1;
+  if(min>=0)return clamp(value/Math.max(max,Number.EPSILON),0,1);
+  return clamp((value-min)/(max-min),0,1);
+}
 function ensureCountryOverlay(){
   if(countryOverlay)return;
   const material=new THREE.MeshBasicMaterial({
@@ -739,7 +795,7 @@ function drawCountryGeometry(ctx,geometry,fillStyle,w,h){
     }
   }
 }
-async function updateCountryOverlay(countries,metric,enabled){
+async function updateCountryOverlay(countries,metric,enabled,colorMode="map"){
   ensureCountryOverlay();
   countryOverlay.visible=!!enabled;
   if(!enabled)return;
@@ -760,17 +816,12 @@ async function updateCountryOverlay(countries,metric,enabled){
     if(v==null||!Number.isFinite(+v))continue;
     valueByIso.set(c.iso3,+v);vals.push(+v);
   }
-  vals.sort((a,b)=>a-b);
-  const lo=vals[Math.floor(Math.max(0,vals.length-1)*.05)]??0;
-  const hi=vals[Math.floor(Math.max(0,vals.length-1)*.95)]??1;
-  const span=(hi-lo)||1;
-
   for(const feature of geo.features||[]){
     const iso=countryIso3(feature);
     const value=iso?valueByIso.get(iso):null;
     const has=Number.isFinite(value);
-    const t=has?clamp((value-lo)/span,0,1):0;
-    const col=has?markerColor(t):new THREE.Color(0x496077);
+    const t=has?exactValueT(value,vals):0;
+    const col=has?(colorMode==="metric"?markerColor(t):countryIdentityColor(iso,geo)):new THREE.Color(0x496077);
     drawCountryGeometry(ctx,feature.geometry,rgbaFromColor(col,has ? .64 : .14),width,height);
   }
 
@@ -803,14 +854,13 @@ function unwrapGeoRing(ring,anchor=null){
 function pushVertex(arr,colArr,v,col){
   arr.push(v.x,v.y,v.z);colArr.push(col.r,col.g,col.b);
 }
-function buildRaisedCountryMesh(feature,valueT,height,iso){
+function buildRaisedCountryMesh(feature,topColor,height,iso){
   const geometry=feature?.geometry;if(!geometry)return null;
   const polygons=geometry.type==="Polygon"?[geometry.coordinates]:
     geometry.type==="MultiPolygon"?geometry.coordinates:[];
   if(!polygons.length)return null;
 
   const positions=[],colors=[];
-  const topColor=markerColor(valueT);
   const sideColor=topColor.clone().multiplyScalar(.52);
   const baseR=EARTH_RADIUS+terrainMaxOutward()+.014;
   const topR=baseR+height;
@@ -860,7 +910,7 @@ function clearCountryRelief(){
     o.geometry?.dispose();o.material?.dispose();
   }
 }
-async function updateCountryRelief(countries,metric,enabled,heightScale=55){
+async function updateCountryRelief(countries,metric,enabled,heightScale=55,colorMode="map"){
   if(!countryReliefGroup)return;
   countryReliefGroup.visible=!!enabled;
   if(!enabled){clearCountryRelief();return;}
@@ -875,19 +925,16 @@ async function updateCountryRelief(countries,metric,enabled,heightScale=55){
     if(v==null||!Number.isFinite(+v))continue;
     valueByIso.set(c.iso3,+v);vals.push(+v);
   }
-  vals.sort((a,b)=>a-b);
-  const lo=vals[Math.floor(Math.max(0,vals.length-1)*.05)]??0;
-  const hi=vals[Math.floor(Math.max(0,vals.length-1)*.95)]??1;
-  const span=(hi-lo)||1;
   const maxHeight=.0035*clamp(+heightScale||55,0,100);
 
   for(const feature of geo.features||[]){
     if(token!==countryReliefToken)return;
     const iso=countryIso3(feature),value=iso?valueByIso.get(iso):null;
     if(!Number.isFinite(value))continue;
-    const t=clamp((value-lo)/span,0,1);
+    const t=exactValueT(value,vals);
     const height=.004+maxHeight*t;
-    const mesh=buildRaisedCountryMesh(feature,t,height,iso);
+    const topColor=colorMode==="metric"?markerColor(t):countryIdentityColor(iso,geo);
+    const mesh=buildRaisedCountryMesh(feature,topColor,height,iso);
     if(mesh)countryReliefGroup.add(mesh);
   }
 }
@@ -906,11 +953,7 @@ function updateCapitalMarkers(countries,metric,countryReliefEnabled,reliefScale)
 
   const values=(countries||[])
     .map(c=>+c.latest?.[metric]?.value)
-    .filter(Number.isFinite)
-    .sort((a,b)=>a-b);
-  const lo=values[Math.floor(Math.max(0,values.length-1)*.05)]??0;
-  const hi=values[Math.floor(Math.max(0,values.length-1)*.95)]??1;
-  const span=(hi-lo)||1;
+    .filter(Number.isFinite);
   const maxHeight=.0035*clamp(+reliefScale||55,0,100);
   const baseR=EARTH_RADIUS+terrainMaxOutward()+.014;
 
@@ -918,7 +961,7 @@ function updateCapitalMarkers(countries,metric,countryReliefEnabled,reliefScale)
     const lat=+c.lat,lon=+c.lon;
     if(!Number.isFinite(lat)||!Number.isFinite(lon)||!c.capital)continue;
     const value=+c.latest?.[metric]?.value;
-    const t=Number.isFinite(value)?clamp((value-lo)/span,0,1):0;
+    const t=Number.isFinite(value)?exactValueT(value,values):0;
     const countryHeight=countryReliefEnabled&&Number.isFinite(value)?(.004+maxHeight*t):0;
     const r=baseR+countryHeight+.028;
     const marker=new THREE.Mesh(
@@ -937,7 +980,7 @@ function updateCapitalMarkers(countries,metric,countryReliefEnabled,reliefScale)
   }
 }
 
-export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,markers=false,countryRelief=true,countryReliefScale=55,onCountrySelect}){
+export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,countryColorMode="map",markers=false,countryRelief=true,countryReliefScale=55,onCountrySelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
   currentLanguage=language==="en"?"en":"ja";
@@ -984,8 +1027,8 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
     }
   }
   updateCapitalMarkers(countries,metric,!!countryRelief,countryReliefScale);
-  updateCountryOverlay(countries,metric,!!countryFill).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
-  updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
+  updateCountryOverlay(countries,metric,!!countryFill,countryColorMode).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
+  updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale,countryColorMode).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
   if(!initialViewApplied){
     initialViewApplied=true;
     requestAnimationFrame(()=>centerGlobe());
