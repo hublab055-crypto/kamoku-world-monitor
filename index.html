@@ -465,7 +465,8 @@
       <div class="card">
         <div class="section-title"><h2>Word Network</h2><div id="newsNetworkMeta" class="pill">—</div></div>
         <div id="newsNetworkChart" class="chart"></div>
-        <div class="news-network-note">ノードの大きさはWMA、線の太さは共起スコアです。v2で概念統合・栄養伝播・減衰履歴を追加します。</div>
+        <div id="newsAgentStatus" class="statline" style="margin-top:8px"></div>
+        <div class="news-network-note">ノードの大きさは記憶量＋活動エネルギーです。新しいニュースがエネルギーを供給し、エージェントが探索・統合・リンク・剪定で消費します。分野ごとの容量とエントロピー監視で無制限な増殖を抑えます。</div>
       </div>
     </div>
   </section>
@@ -631,7 +632,7 @@ let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
 let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
-let NEWS_LOADED=false, NEWS_LOADING=false;
+let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
 const METRIC_JA={
@@ -1367,34 +1368,160 @@ function renderNewsHistory(data){
   ],layout({barmode:"overlay",xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",rangemode:"tozero"}}),config);
 }
 
+const SEMANTIC_DOMAIN_LABELS={
+  technology:{ja:"技術",en:"Technology"},science:{ja:"科学",en:"Science"},
+  economy:{ja:"経済",en:"Economy"},business:{ja:"企業・産業",en:"Business"},
+  politics:{ja:"政治・政策",en:"Politics"},defense:{ja:"防衛・安全保障",en:"Defense"},
+  health:{ja:"医療・健康",en:"Health"},culture:{ja:"文化",en:"Culture"},
+  society:{ja:"社会",en:"Society"},environment:{ja:"環境",en:"Environment"},
+  resources:{ja:"資源",en:"Resources"},geography:{ja:"地理・地域",en:"Geography"}
+};
+const AGENT_ICON={scout:"🔭",curator:"🧬",weaver:"🕸️",gardener:"🌿",historian:"📚",bridge:"🌉"};
+
+function semanticDomainLabel(key){
+  return SEMANTIC_DOMAIN_LABELS[key]?.[LANG]||key||"other";
+}
+function semanticTopDomain(node){
+  return node?.domains?.[0]?.domain_key||"other";
+}
+function semanticLayout(nodes){
+  const byDomain=new Map();
+  nodes.forEach(n=>{
+    const d=semanticTopDomain(n);
+    if(!byDomain.has(d))byDomain.set(d,[]);
+    byDomain.get(d).push(n);
+  });
+  const domainKeys=[...byDomain.keys()].sort((a,b)=>{
+    const ea=byDomain.get(a).reduce((s,n)=>s+(+n.activity_energy||0),0);
+    const eb=byDomain.get(b).reduce((s,n)=>s+(+n.activity_energy||0),0);
+    return eb-ea||a.localeCompare(b);
+  });
+  const pos=new Map(),centers=new Map();
+  domainKeys.forEach((domain,di)=>{
+    const a=(Math.PI*2*di/Math.max(1,domainKeys.length))-Math.PI/2;
+    const cr=domainKeys.length<=4?.60:.70;
+    const cx=Math.cos(a)*cr,cy=Math.sin(a)*cr;
+    centers.set(domain,{x:cx,y:cy});
+    const group=byDomain.get(domain).slice().sort((a,b)=>(+b.activity_energy||0)-(+a.activity_energy||0)||String(a.label).localeCompare(String(b.label)));
+    group.forEach((n,i)=>{
+      if(i===0){pos.set(n.id,{x:cx,y:cy});return;}
+      const ring=Math.floor((Math.sqrt(i)-1)/2)+1;
+      const angle=i*2.399963229728653;
+      const rr=Math.min(.24,.055+.035*ring);
+      pos.set(n.id,{x:cx+Math.cos(angle)*rr,y:cy+Math.sin(angle)*rr});
+    });
+  });
+  return {pos,centers};
+}
+function semanticAgentPosition(agent,pos,now=Date.now()){
+  const current=pos.get(agent.current_concept_id);
+  const previous=pos.get(agent.previous_concept_id);
+  if(!current)return null;
+  if(!previous)return current;
+  const started=Date.parse(agent.move_started_at||"");
+  const eta=Date.parse(agent.move_eta_at||"");
+  if(!Number.isFinite(started)||!Number.isFinite(eta)||eta<=started||now>=eta)return current;
+  const t=Math.max(0,Math.min(1,(now-started)/(eta-started)));
+  const smooth=t*t*(3-2*t);
+  return {x:previous.x+(current.x-previous.x)*smooth,y:previous.y+(current.y-previous.y)*smooth};
+}
+function renderAgentStatus(agents,nodes){
+  const nodeById=new Map(nodes.map(n=>[n.id,n]));
+  if(!agents?.length){newsAgentStatus.innerHTML="";return;}
+  newsAgentStatus.innerHTML=agents.map(a=>{
+    const n=nodeById.get(a.current_concept_id);
+    const icon=AGENT_ICON[a.agent_type]||"🤖";
+    const node=n?.label||"—";
+    const e=Number(a.energy||0).toFixed(1);
+    return '<span class="pill">'+icon+' '+esc(a.agent_name)+' · '+esc(node)+' · E '+e+'</span>';
+  }).join("");
+}
 function renderNewsNetwork(data){
-  const nodes=data?.nodes||[],edges=data?.edges||[];
-  newsNetworkMeta.textContent=(nodes.length+" nodes / "+edges.length+" links");
+  LAST_SEMANTIC_NETWORK=data;
+  const nodes=data?.nodes||[],edges=data?.edges||[],agents=data?.agents||[];
+  const entropy=(data?.entropy||[]).map(x=>+x.normalized_entropy||0);
+  const maxEntropy=entropy.length?Math.max(...entropy):0;
+  newsNetworkMeta.textContent=nodes.length+" nodes / "+edges.length+" links / "+agents.length+" agents · H "+maxEntropy.toFixed(2);
+  renderAgentStatus(agents,nodes);
   if(!nodes.length){
-    newsNetworkChart.innerHTML='<div class="note">'+(LANG==="en"?"No network data.":"ネットワークデータがありません。")+'</div>';
+    newsNetworkChart.innerHTML='<div class="note">'+(LANG==="en"?"No semantic network data.":"セマンティックネットワークデータがありません。")+'</div>';
     return;
   }
-  const pos=new Map();
-  nodes.forEach((n,i)=>{
-    const a=(Math.PI*2*i/nodes.length)-Math.PI/2;
-    const r=.72+(.18*((i%5)/4));
-    pos.set(n.id,{x:Math.cos(a)*r,y:Math.sin(a)*r});
-  });
+
+  const {pos,centers}=semanticLayout(nodes);
   const edgeX=[],edgeY=[];
   edges.forEach(e=>{
     const a=pos.get(e.source),b=pos.get(e.target);if(!a||!b)return;
     edgeX.push(a.x,b.x,null);edgeY.push(a.y,b.y,null);
   });
-  const maxW=Math.max(...nodes.map(n=>+n.wma||0),1);
-  const sizes=nodes.map(n=>14+30*Math.sqrt(Math.max(0,+n.wma||0)/maxW));
-  const traceEdges={type:"scatter",mode:"lines",x:edgeX,y:edgeY,hoverinfo:"skip",line:{width:1.2,color:"rgba(120,160,205,.28)"},name:"links"};
-  const traceNodes={type:"scatter",mode:"markers+text",x:nodes.map(n=>pos.get(n.id).x),y:nodes.map(n=>pos.get(n.id).y),
-    text:nodes.map(n=>n.label),textposition:"top center",hovertemplate:nodes.map(n=>esc(n.label)+"<br>WMA "+(+n.wma||0).toFixed(3)+"<br>Δ "+(((+n.change_rate||0)*100).toFixed(1))+"%<extra></extra>"),
-    marker:{size:sizes,opacity:.9,line:{width:1}},name:"terms"};
-  Plotly.react("newsNetworkChart",[traceEdges,traceNodes],layout({
-    showlegend:false,hovermode:"closest",margin:{l:12,r:12,t:12,b:12},
-    xaxis:{visible:false,range:[-1.15,1.15]},yaxis:{visible:false,range:[-1.15,1.15],scaleanchor:"x",scaleratio:1}
+
+  const sizes=nodes.map(n=>Math.max(10,Math.min(54,+n.display_size||12)));
+  const hover=nodes.map(n=>{
+    const domain=semanticDomainLabel(semanticTopDomain(n));
+    return esc(n.label)+"<br>"+(LANG==="en"?"Activity energy ":"活動E ")+Number(n.activity_energy||0).toFixed(1)+
+      "<br>"+(LANG==="en"?"Memory ":"記憶 ")+Number(n.memory_mass||0).toFixed(1)+
+      "<br>"+(LANG==="en"?"Evidence ":"証拠 ")+Number(n.evidence_count||0)+
+      "<br>"+esc(domain)+"<extra></extra>";
+  });
+  const edgeTrace={type:"scatter",mode:"lines",x:edgeX,y:edgeY,hoverinfo:"skip",
+    line:{width:1.15,color:"rgba(120,160,205,.25)"},name:"links"};
+  const nodeTrace={type:"scatter",mode:"markers+text",
+    x:nodes.map(n=>pos.get(n.id)?.x??0),y:nodes.map(n=>pos.get(n.id)?.y??0),
+    text:nodes.map(n=>n.label),textposition:"top center",hovertemplate:hover,
+    marker:{size:sizes,opacity:.88,line:{width:1}},name:"concepts"};
+
+  const domainTrace={type:"scatter",mode:"text",
+    x:[...centers.values()].map(x=>x.x),
+    y:[...centers.values()].map(x=>x.y-.12),
+    text:[...centers.keys()].map(semanticDomainLabel),
+    textfont:{size:11},hoverinfo:"skip",name:"domains"};
+
+  const now=Date.now(),agentPositions=agents.map(a=>semanticAgentPosition(a,pos,now));
+  const visibleAgents=agents.map((a,i)=>({a,p:agentPositions[i]})).filter(x=>x.p);
+  const agentTrace={type:"scatter",mode:"text",
+    x:visibleAgents.map(x=>x.p.x),y:visibleAgents.map(x=>x.p.y),
+    text:visibleAgents.map(x=>AGENT_ICON[x.a.agent_type]||"🤖"),
+    textfont:{size:23},
+    hovertemplate:visibleAgents.map(x=>
+      esc(x.a.agent_name)+"<br>"+esc(x.a.agent_type)+
+      "<br>"+(LANG==="en"?"Energy ":"E ")+Number(x.a.energy||0).toFixed(1)+
+      "<br>"+esc(x.a.status||"")+"<extra></extra>"
+    ),
+    name:"agents"};
+
+  Plotly.react("newsNetworkChart",[edgeTrace,nodeTrace,domainTrace,agentTrace],layout({
+    showlegend:false,hovermode:"closest",margin:{l:8,r:8,t:8,b:8},
+    xaxis:{visible:false,range:[-1.15,1.15]},
+    yaxis:{visible:false,range:[-1.15,1.15],scaleanchor:"x",scaleratio:1}
   }),config);
+
+  const moving=agents.some(a=>{
+    const s=Date.parse(a.move_started_at||""),e=Date.parse(a.move_eta_at||"");
+    return Number.isFinite(s)&&Number.isFinite(e)&&Date.now()>=s&&Date.now()<e;
+  });
+  if(moving){
+    requestAnimationFrame(()=>{if(LAST_SEMANTIC_NETWORK===data)renderNewsNetwork(data);});
+  }
+}
+
+async function refreshSemanticNetwork(){
+  if(!AUTH_SESSION?.access_token)return;
+  try{
+    const semantic=await newsApi({api:"semantic-network",limit:120});
+    renderNewsNetwork(semantic);
+  }catch(e){
+    console.warn("semantic network refresh failed",e);
+  }
+}
+function startSemanticNetworkPolling(){
+  if(NEWS_NETWORK_TIMER)return;
+  NEWS_NETWORK_TIMER=setInterval(()=>{
+    const newsView=document.getElementById("news");
+    const networkView=document.getElementById("newsNetwork");
+    if(newsView?.classList.contains("active")&&networkView?.classList.contains("active")){
+      refreshSemanticNetwork();
+    }
+  },20000);
 }
 
 async function loadNews(force=false){
@@ -1405,15 +1532,15 @@ async function loadNews(force=false){
     const hours=+newsWindow.value||72;
     const category=newsCategory.value||"";
     const from=new Date(Date.now()-hours*3600_000).toISOString();
-    const networkCategory=category||"__all__";
-    const [latest,history,network]=await Promise.all([
+    const [latest,history,semantic]=await Promise.all([
       newsApi({api:"news-latest",limit:50,category,from}),
       newsApi({api:"news-history",hours,bucket:hours>=168?"day":"hour",category}),
-      newsApi({api:"news-network",category:networkCategory,minWma:.5,minScore:.5,limitNodes:60,limitEdges:120})
+      newsApi({api:"semantic-network",limit:120})
     ]);
     renderNewsLatest(latest.items||[]);
     renderNewsHistory(history);
-    renderNewsNetwork(network);
+    renderNewsNetwork(semantic);
+    startSemanticNetworkPolling();
     NEWS_LOADED=true;
     newsStatus.textContent=(LANG==="en"?"Updated ":"更新 ")+new Date().toLocaleTimeString(locale(),{hour:"2-digit",minute:"2-digit"});
   }finally{
