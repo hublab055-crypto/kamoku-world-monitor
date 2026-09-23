@@ -642,7 +642,7 @@ export function initGlobe(element){
     const o=hit(e);
     if(!o)return;
     if(o.userData?.kind==="capital"){
-      flyToLatLon(o.userData.lat,o.userData.lon,{zoom:4.05,duration:700});
+      if(onSelect&&o.userData?.iso3)onSelect(o.userData.iso3);
       return;
     }
     if(onSelect&&o.userData?.iso3)onSelect(o.userData.iso3);
