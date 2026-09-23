@@ -387,8 +387,18 @@
     <div class="card">
       <div class="section-title world-card-head">
         <div class="world-title-controls">
+          <select id="worldLayer" class="world-compact-select" aria-label="表示レイヤー">
+            <option value="indicator">指標</option>
+            <option value="resource">資源</option>
+          </select>
           <select id="worldDomain" class="world-compact-select" aria-label="分野"></select>
           <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
+          <select id="worldResource" class="world-compact-select" aria-label="資源" style="display:none"></select>
+          <select id="worldResourceMetric" class="world-compact-select" aria-label="資源指標" style="display:none">
+            <option value="production_annual">年間採掘量</option>
+            <option value="reserves">埋蔵量</option>
+            <option value="rp_years">R/P（埋蔵量÷年間採掘量）</option>
+          </select>
           <span id="worldTitle" style="display:none"></span>
         </div>
       </div>
@@ -428,6 +438,14 @@
         </div>
       </div>
       <div id="worldMap" class="chart" style="display:none"></div>
+      <div id="resourceDetailCard" class="card" style="display:none;margin-top:12px">
+        <div class="section-title"><h2 id="resourceDetailTitle">資源詳細</h2><span id="resourceDetailBadge" class="pill">—</span></div>
+        <div id="resourceDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div class="grid two">
+          <div><h3 id="resourceProductionTitle" style="margin:0 0 6px;font-size:13px">年間採掘量</h3><div id="resourceProductionChart" class="chart small"></div></div>
+          <div><h3 id="resourceReservesTitle" style="margin:0 0 6px;font-size:13px">埋蔵量</h3><div id="resourceReservesChart" class="chart small"></div></div>
+        </div>
+      </div>
 
     </div>
   </section>
@@ -681,7 +699,7 @@ let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
 let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
 let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
-let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null;
+let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null,WORLD_PREVIEW_SITE_ID=null,INDICATOR_WORLD_MAX_YEAR=null;
 let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
@@ -716,6 +734,13 @@ const METRIC_JA={
   IMPORTS_CURRENT_USD:"財・サービス輸入（現行US$）",
   TRADE_PCT_GDP:"貿易額（GDP比）"
 };
+const RESOURCE_JA={
+  gold:"金",silver:"銀",copper:"銅",lithium:"リチウム",cobalt:"コバルト",
+  nickel:"ニッケル",rare_earths:"レアアース",iron_ore:"鉄鉱石",zinc:"亜鉛",
+  lead:"鉛",tin:"スズ",manganese:"マンガン",chromium:"クロム",
+  bauxite:"ボーキサイト",alumina:"アルミナ",phosphate_rock:"リン鉱石",
+  graphite_natural:"天然黒鉛",potash:"カリ",uranium:"ウラン"
+};
 const DOMAIN_JA={
   culture_tourism:"文化・観光",economy:"経済",fiscal:"財政",human:"人的資本",
   knowledge:"知識・知財",population:"人口",prices:"物価",resources:"資源",trade:"貿易",security:"安全保障・治安"
@@ -730,7 +755,7 @@ const INCOME_JA={
   "Lower middle income":"下位中所得国","Low income":"低所得国"
 };
 const TEXT={
-  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},
+  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},resourceProduction:{ja:"年間採掘量",en:"Annual production"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間採掘量）",en:"R/P (reserves / annual production)"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
   regionalMedian:{ja:"地域中央値",en:"Regional median"},difference:{ja:"差",en:"Diff"},
   indicators:{ja:"指標",en:"indicators"},historySince:{ja:"2000年以降の履歴",en:"History since 2000"},
   noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
@@ -830,6 +855,8 @@ function updateStamp(){
 }
 function localizeSelectors(){
   if(!D)return;
+  fillResourceSelectors();
+  syncWorldLayerControls();
   const sets=[
     [worldDomain,worldMetric],[countryDomain,countryMetric],[regionDomain,regionMetric]
   ];
@@ -939,6 +966,150 @@ function militaryPairForCountry(c,metric){
   return {pct:pick("MILITARY_EXPENDITURE_PCT_GDP"),usd:pick("MILITARY_EXPENDITURE_CURRENT_USD")};
 }
 
+function resourceName(key){
+  const meta=(D?.resources?.catalog||[]).find(x=>x.key===key);
+  if(LANG==="ja")return RESOURCE_JA[key]||meta?.name||String(key||"").replaceAll("_"," ");
+  return meta?.name||String(key||"").replaceAll("_"," ").replace(/\b\w/g,m=>m.toUpperCase());
+}
+function resourceMetricLabel(kind){
+  return kind==="production_annual"?t("resourceProduction"):kind==="reserves"?t("resourceReserves"):t("resourceRp");
+}
+function resourceFormat(value,unit){
+  if(value==null||!Number.isFinite(+value))return "—";
+  if(unit==="years")return fmt(value,"years");
+  return fmt(value)+(unit?(" "+unit):"");
+}
+function latestResourceAtOrBefore(series,targetYear=null){
+  const rows=(series||[]).filter(x=>Number.isFinite(+x.value)&&Number.isFinite(+x.year));
+  if(!rows.length)return null;
+  let candidates=targetYear==null?rows:rows.filter(x=>+x.year<=+targetYear);
+  if(!candidates.length)return null;
+  return candidates.reduce((a,b)=>(+b.year>+a.year?b:a));
+}
+function resourceUnitBase(value,unit){
+  if(!Number.isFinite(+value))return null;
+  const u=String(unit||"").toLowerCase().trim().replace(/,/g,"");
+  const rules=[
+    [/^million metric tons?/,1e6,"metric_ton"],[/^thousand metric tons?/,1e3,"metric_ton"],[/^metric tons?/,1,"metric_ton"],
+    [/^million kilograms?/,1e6,"kg"],[/^thousand kilograms?/,1e3,"kg"],[/^kilograms?/,1,"kg"],
+    [/^million carats?/,1e6,"carat"],[/^thousand carats?/,1e3,"carat"],[/^carats?/,1,"carat"],
+    [/^million cubic meters?/,1e6,"m3"],[/^thousand cubic meters?/,1e3,"m3"],[/^cubic meters?/,1,"m3"]
+  ];
+  for(const [re,f,family] of rules)if(re.test(u))return {value:+value*f,family};
+  return {value:+value,family:"exact:"+u};
+}
+function resourceCountryPair(iso3,key,targetYear=null){
+  const node=D?.resources?.country?.[key]?.[iso3]||{};
+  const production=latestResourceAtOrBefore(node.production_annual,targetYear);
+  const reserves=latestResourceAtOrBefore(node.reserves,targetYear);
+  let rp=null;
+  if(production&&reserves&&+production.value>0){
+    const p=resourceUnitBase(production.value,production.unit),r=resourceUnitBase(reserves.value,reserves.unit);
+    if(p&&r&&p.family===r.family&&p.value>0){
+      rp={year:Math.min(+production.year,+reserves.year),value:r.value/p.value,unit:"years",quality:"derived",source:"USGS MCS · derived R/P"};
+    }
+  }
+  return {production,reserves,rp};
+}
+function resourceItemForCountry(iso3,key,kind,targetYear=null){
+  const pair=resourceCountryPair(iso3,key,targetYear);
+  return kind==="production_annual"?pair.production:kind==="reserves"?pair.reserves:pair.rp;
+}
+function worldResourceSnapshot(key,kind){
+  const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+  return D.countries.map(c=>{
+    const item=resourceItemForCountry(c.iso3,key,kind,target);
+    return Object.assign({},c,{latest:Object.assign({},c.latest||{},{__RESOURCE__:item})});
+  });
+}
+function resourceYears(key){
+  const years=new Set();
+  const countries=D?.resources?.country?.[key]||{};
+  for(const node of Object.values(countries)){
+    for(const kind of ["production_annual","reserves"]){
+      for(const x of node?.[kind]||[])if(Number.isFinite(+x.year))years.add(+x.year);
+    }
+  }
+  return [...years].sort((a,b)=>a-b);
+}
+function fillResourceSelectors(){
+  const catalog=D?.resources?.catalog||[];
+  const prior=worldResource.value;
+  worldResource.innerHTML=catalog.map(x=>'<option value="'+esc(x.key)+'">'+esc(resourceName(x.key))+'</option>').join("");
+  if(catalog.some(x=>x.key===prior))worldResource.value=prior;
+  else if(catalog.some(x=>x.key==="copper"))worldResource.value="copper";
+  worldResourceMetric.options[0].textContent=t("resourceProduction");
+  worldResourceMetric.options[1].textContent=t("resourceReserves");
+  worldResourceMetric.options[2].textContent=t("resourceRp");
+}
+function syncWorldLayerControls(){
+  const resource=worldLayer.value==="resource";
+  worldDomain.style.display=resource?"none":"";
+  worldMetric.style.display=resource?"none":"";
+  worldResource.style.display=resource?"":"none";
+  worldResourceMetric.style.display=resource?"":"none";
+  worldLayer.options[0].textContent=t("worldLayerIndicator");
+  worldLayer.options[1].textContent=t("worldLayerResource");
+  if(resource){
+    const years=resourceYears(worldResource.value);
+    if(years.length){
+      worldYearSlider.min=String(years[0]);worldYearSlider.max=String(years[years.length-1]);
+      if(+worldYearSlider.value<years[0]||+worldYearSlider.value>years[years.length-1])worldYearSlider.value=String(years[years.length-1]);
+    }
+  }else{
+    worldYearSlider.min="2000";
+    worldYearSlider.max=String(INDICATOR_WORLD_MAX_YEAR||new Date().getFullYear());
+  }
+  worldYearLabel.textContent=worldYearSlider.value;
+}
+function selectedResourceSites(){
+  if(worldLayer.value!=="resource")return [];
+  const key=worldResource.value;
+  return (D?.resources?.sites||[]).filter(s=>s.resource===key&&Number.isFinite(+s.lat)&&Number.isFinite(+s.lon))
+    .map(s=>Object.assign({},s,{resourceLabel:resourceName(key)}));
+}
+function resourceSeriesForDetail(subjectType,id,key,kind){
+  if(subjectType==="site"){
+    const s=(D?.resources?.sites||[]).find(x=>x.id===id);
+    return s?.values?.[kind]||[];
+  }
+  return D?.resources?.country?.[key]?.[id]?.[kind]||[];
+}
+function renderResourceDetail(subjectType,id){
+  const key=worldResource.value;
+  const prod=resourceSeriesForDetail(subjectType,id,key,"production_annual");
+  const res=resourceSeriesForDetail(subjectType,id,key,"reserves");
+  let label=id,meta="";
+  if(subjectType==="site"){
+    const s=(D?.resources?.sites||[]).find(x=>x.id===id);
+    if(!s)return;
+    label=s.name||id;
+    meta=[s.status,s.operator||s.owner,s.source].filter(Boolean).join(" · ");
+  }else{
+    const cc=countryByIso[id];if(!cc)return;
+    label=countryName(cc);
+    const pair=resourceCountryPair(id,key,null);
+    const rp=pair.rp?resourceFormat(pair.rp.value,"years"):"—";
+    meta=resourceName(key)+" · R/P "+rp;
+  }
+  resourceDetailTitle.textContent=label+" · "+resourceName(key);
+  resourceDetailBadge.textContent=subjectType==="site"?(LANG==="en"?"Extraction site":"採掘地点"):(LANG==="en"?"Country":"国");
+  resourceDetailMeta.textContent=meta;
+  resourceProductionTitle.textContent=t("resourceProduction");
+  resourceReservesTitle.textContent=t("resourceReserves");
+  const renderSeries=(id,rows,title)=>{
+    if(!rows?.length){document.getElementById(id).innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+    const sorted=[...rows].sort((a,b)=>+a.year-+b.year),unit=sorted.at(-1)?.unit||"";
+    Plotly.react(id,[{x:sorted.map(x=>x.year),y:sorted.map(x=>x.value),type:"bar",name:title,hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"}],
+      layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:unit}}),config);
+  };
+  renderSeries("resourceProductionChart",prod,t("resourceProduction"));
+  renderSeries("resourceReservesChart",res,t("resourceReserves"));
+  resourceDetailCard.style.display="block";
+  setTimeout(()=>resourceDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
+}
+
+
 function layout(extra={}){
   return Object.assign({
     paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
@@ -947,7 +1118,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.23.13";
+const APP_VERSION="2026.09.24.1";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1264,30 +1435,58 @@ function syncWorldTimelineVisibility(){
 }
 function showWorldCountryPreview(iso){
   const c=countryByIso[iso];if(!c)return;
-  const metric=worldMetric.value;
-  const countries=worldSnapshotCountries(metric);
-  const shown=countries.find(x=>x.iso3===iso)||c;
-  const item=shown.latest?.[metric];
-  WORLD_PREVIEW_ISO=iso;
+  WORLD_PREVIEW_ISO=iso;WORLD_PREVIEW_SITE_ID=null;
   worldCountryPreviewName.textContent=countryName(c);
-  const unit=metricUnit(metric);
-  worldCountryPreviewValue.textContent=item?fmtWorldValue(item.value,unit,item.year):"—";
-  const pair=militaryPairForCountry(c,metric);
-  if(pair){
+  if(worldLayer.value==="resource"){
+    const key=worldResource.value,kind=worldResourceMetric.value;
+    const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+    const item=resourceItemForCountry(iso,key,kind,target);
+    const pair=resourceCountryPair(iso,key,target);
+    worldCountryPreviewValue.textContent=item?resourceFormat(item.value,item.unit):"—";
     const parts=[];
-    if(pair.pct)parts.push((LANG==="en"?"GDP share ":"GDP比 ")+fmt(pair.pct.value,"percent")+" ("+pair.pct.year+")");
-    if(pair.usd)parts.push((LANG==="en"?"Amount ":"実額 ")+fmtWorldValue(pair.usd.value,"USD",pair.usd.year)+" ("+pair.usd.year+")");
-    worldCountryPreviewMeta.textContent=parts.join(" · ");
+    if(pair.production)parts.push((LANG==="en"?"Production ":"生産 ")+resourceFormat(pair.production.value,pair.production.unit)+" ("+pair.production.year+")");
+    if(pair.reserves)parts.push((LANG==="en"?"Reserves ":"埋蔵 ")+resourceFormat(pair.reserves.value,pair.reserves.unit)+" ("+pair.reserves.year+")");
+    if(pair.rp)parts.push("R/P "+resourceFormat(pair.rp.value,"years"));
+    worldCountryPreviewMeta.textContent=resourceName(key)+" · "+parts.join(" · ");
   }else{
-    worldCountryPreviewMeta.textContent=metricName(metric)+(item?.year?(" · "+item.year):"");
+    const metric=worldMetric.value;
+    const countries=worldSnapshotCountries(metric);
+    const shown=countries.find(x=>x.iso3===iso)||c;
+    const item=shown.latest?.[metric];
+    const unit=metricUnit(metric);
+    worldCountryPreviewValue.textContent=item?fmtWorldValue(item.value,unit,item.year):"—";
+    const pair=militaryPairForCountry(c,metric);
+    if(pair){
+      const parts=[];
+      if(pair.pct)parts.push((LANG==="en"?"GDP share ":"GDP比 ")+fmt(pair.pct.value,"percent")+" ("+pair.pct.year+")");
+      if(pair.usd)parts.push((LANG==="en"?"Amount ":"実額 ")+fmtWorldValue(pair.usd.value,"USD",pair.usd.year)+" ("+pair.usd.year+")");
+      worldCountryPreviewMeta.textContent=parts.join(" · ");
+    }else{
+      worldCountryPreviewMeta.textContent=metricName(metric)+(item?.year?(" · "+item.year):"");
+    }
   }
   worldCountryPreview.style.display="block";
 }
+function showResourceSitePreview(siteId){
+  const s=(D?.resources?.sites||[]).find(x=>x.id===siteId);if(!s)return;
+  WORLD_PREVIEW_SITE_ID=siteId;WORLD_PREVIEW_ISO=s.iso3||null;
+  worldCountryPreviewName.textContent=s.name||siteId;
+  const prod=latestResourceAtOrBefore(s.values?.production_annual,null);
+  const res=latestResourceAtOrBefore(s.values?.reserves,null);
+  worldCountryPreviewValue.textContent=prod?resourceFormat(prod.value,prod.unit):(res?resourceFormat(res.value,res.unit):"—");
+  worldCountryPreviewMeta.textContent=[resourceName(s.resource),s.status,s.operator||s.owner].filter(Boolean).join(" · ");
+  worldCountryPreview.style.display="block";
+}
 function hideWorldCountryPreview(){
-  WORLD_PREVIEW_ISO=null;
+  WORLD_PREVIEW_ISO=null;WORLD_PREVIEW_SITE_ID=null;
   if(document.getElementById("worldCountryPreview"))worldCountryPreview.style.display="none";
 }
 function openWorldCountryDetail(){
+  if(worldLayer.value==="resource"){
+    if(WORLD_PREVIEW_SITE_ID)return renderResourceDetail("site",WORLD_PREVIEW_SITE_ID);
+    if(WORLD_PREVIEW_ISO)return renderResourceDetail("country",WORLD_PREVIEW_ISO);
+    return;
+  }
   if(!WORLD_PREVIEW_ISO)return;
   selectedIso=WORLD_PREVIEW_ISO;syncCountryInput();
   const d=regByMetric[worldMetric.value]?.domain;
@@ -1296,7 +1495,9 @@ function openWorldCountryDetail(){
   document.querySelector('[data-view="country"]').click();
 }
 function renderWorld(){
-  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);
+  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);fillResourceSelectors();
+  worldLayer.value=localStorage.getItem("kamokuWorldLayer")||"indicator";
+  worldResourceMetric.value=localStorage.getItem("kamokuResourceMetric")||"production_annual";
   const savedTerrain=Math.max(1,Math.min(100,+(localStorage.getItem("kamokuTerrainScale")||30)));
   worldTerrainScale.value=String(savedTerrain);
   worldTerrainScaleValue.textContent=savedTerrain+"×";
@@ -1319,9 +1520,24 @@ function renderWorld(){
     worldCenterBtn.style.display=show?"inline-block":"none";
     globeControlPanel.style.display=show?"block":"none";
   };
-  const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);drawWorld();};
+  const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);hideWorldCountryPreview();drawWorld();};
   worldDomain.onchange=updateMetric;
-  worldMetric.onchange=drawWorld;
+  worldMetric.onchange=()=>{hideWorldCountryPreview();drawWorld();};
+  worldLayer.onchange=()=>{
+    localStorage.setItem("kamokuWorldLayer",worldLayer.value);
+    syncWorldLayerControls();syncWorldTimelineVisibility();hideWorldCountryPreview();
+    resourceDetailCard.style.display="none";drawWorld();
+  };
+  worldResource.onchange=()=>{
+    localStorage.setItem("kamokuWorldResource",worldResource.value);
+    syncWorldLayerControls();hideWorldCountryPreview();resourceDetailCard.style.display="none";drawWorld();
+  };
+  const savedResource=localStorage.getItem("kamokuWorldResource");
+  if(savedResource&&[...worldResource.options].some(o=>o.value===savedResource))worldResource.value=savedResource;
+  worldResourceMetric.onchange=()=>{
+    localStorage.setItem("kamokuResourceMetric",worldResourceMetric.value);
+    hideWorldCountryPreview();drawWorld();
+  };
   worldDisplay.onchange=()=>{syncTerrainVisibility();syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
   worldMode.onchange=()=>{syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
   let maxYear=new Date().getFullYear();
@@ -1332,8 +1548,10 @@ function renderWorld(){
       }
     }
   }
+  INDICATOR_WORLD_MAX_YEAR=maxYear;
   worldYearSlider.max=String(maxYear);
   worldYearSlider.value=localStorage.getItem("kamokuWorldYear")||String(maxYear);
+  syncWorldLayerControls();
   worldYearLabel.textContent=worldYearSlider.value;
   worldYearSlider.oninput=()=>{worldYearLabel.textContent=worldYearSlider.value;localStorage.setItem("kamokuWorldYear",worldYearSlider.value);hideWorldCountryPreview();drawWorld();};
   worldYearBack.onclick=()=>{worldYearSlider.value=String(Math.max(+worldYearSlider.min,+worldYearSlider.value-1));worldYearSlider.oninput();};
@@ -1397,13 +1615,13 @@ function renderWorld(){
   setupGlobeControlDeck();
   drawWorld();
 }
-function renderWorldRanking(rows,unit,use3d){
+function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
   if(!document.getElementById("worldRankPanel"))return;
   worldRankPanel.style.display=use3d?"flex":"none";
   const sorted=rows
     .filter(x=>Number.isFinite(+x.v?.value)&&Number.isFinite(+x.c?.lat)&&Number.isFinite(+x.c?.lon))
     .sort((a,b)=>(+b.v.value)-(+a.v.value));
-  worldRankHead.textContent=(LANG==="en"?"Ranking":"ランキング")+" · "+metricName(worldMetric.value);
+  worldRankHead.textContent=(LANG==="en"?"Ranking":"ランキング")+" · "+(label||metricName(worldMetric.value));
   if(!sorted.length){worldRankList.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
   const vals=sorted.map(x=>+x.v.value);
   const min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
@@ -1414,7 +1632,7 @@ function renderWorldRanking(rows,unit,use3d){
     return '<button class="world-rank-item" data-iso="'+esc(x.c.iso3)+'" data-lat="'+(+x.c.lat)+'" data-lon="'+(+x.c.lon)+'" title="'+esc((x.c.capital||""))+'">'+
       '<span class="world-rank-bar" style="width:'+w.toFixed(1)+'%"></span>'+
       '<span class="world-rank-median" style="left:'+medianPos.toFixed(1)+'%"></span>'+
-      '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(countryName(x.c))+'</div><div class="world-rank-value">'+esc(fmtWorldValue(x.v.value,unit,x.v.year))+'</div></span></span>'+
+      '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(countryName(x.c))+'</div><div class="world-rank-value">'+esc(formatter?formatter(x.v):fmtWorldValue(x.v.value,unit,x.v.year))+'</div></span></span>'+
     '</button>';
   }).join("");
   worldRankList.querySelectorAll(".world-rank-item").forEach(btn=>btn.onclick=()=>{
@@ -1424,25 +1642,32 @@ function renderWorldRanking(rows,unit,use3d){
 }
 
 function drawWorld(){
-  const metric=worldMetric.value,reg=regByMetric[metric]||{};
-  const displayCountries=worldSnapshotCountries(metric);
+  const isResource=worldLayer.value==="resource";
+  const resourceKey=worldResource.value,resourceKind=worldResourceMetric.value;
+  const metric=isResource?"__RESOURCE__":worldMetric.value;
+  const reg=isResource?{}:(regByMetric[metric]||{});
+  const displayCountries=isResource?worldResourceSnapshot(resourceKey,resourceKind):worldSnapshotCountries(metric);
   const rows=displayCountries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null&&Number.isFinite(+x.v.value));
   const displayMode=worldDisplay.value,use3d=displayMode!=="2d",data3d=displayMode==="3d";
+  const label=isResource?(resourceName(resourceKey)+" · "+resourceMetricLabel(resourceKind)):metricName(metric);
+  const unit=isResource?(rows.find(x=>x.v?.unit)?.v?.unit||""):(reg.unit||"");
   worldTitle.textContent="";
   const med=worldMedianForRows(rows);
-  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+fmt(med,reg.unit)+(worldMode.value==="timeline"?" / "+worldYearSlider.value:"");
-  renderWorldRanking(rows,reg.unit,data3d);
+  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+(isResource?resourceFormat(med,unit):fmt(med,unit))+(worldMode.value==="timeline"?" / "+worldYearSlider.value:"");
+  renderWorldRanking(rows,unit,data3d,label,isResource?(v=>resourceFormat(v.value,v.unit||unit)):null);
   worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
     if(window.KamokuGlobe){
       window.KamokuGlobe.update({
         element:worldGlobe,
         countries:displayCountries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
-        metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
+        metric:metric,metricLabel:label,unit:unit,language:LANG,
         terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
         countryFill:data3d&&worldCountryFill.checked,countryColorMode:worldCountryColorMode.value,markers:data3d&&worldCountryMarkers.checked,
         countryRelief:data3d&&worldCountryRelief.checked,countryReliefScale:+worldCountryReliefScale.value||55,
-        onCountrySelect:(iso)=>showWorldCountryPreview(iso)
+        resourceSites:isResource?selectedResourceSites():[],
+        onCountrySelect:(iso)=>showWorldCountryPreview(iso),
+        onResourceSiteSelect:(siteId)=>showResourceSitePreview(siteId)
       });
       setupGlobeControlDeck();
     }
@@ -1453,11 +1678,11 @@ function drawWorld(){
     z:rows.map(x=>x.v.value),text:rows.map(x=>countryName(x.c)),
     customdata:rows.map(x=>[x.v.year,regionName(x.c.region)]),
     hovertemplate:"%{text}<br>%{z:.6g}<br>"+(LANG==="en"?"Year ":"年 ")+"%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
-    colorbar:{title:reg.unit||""},colorscale:"Viridis"
+    colorbar:{title:unit},colorscale:"Viridis"
   }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
   const el=document.getElementById("worldMap");
   el.removeAllListeners?.("plotly_click");
-  el.on?.("plotly_click",ev=>{const iso=ev.points?.[0]?.location;if(iso){selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}});
+  el.on?.("plotly_click",ev=>{const iso=ev.points?.[0]?.location;if(iso)showWorldCountryPreview(iso);});
 }
 
 function setupCountry(){
