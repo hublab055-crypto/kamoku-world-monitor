@@ -12,9 +12,9 @@ const DEM_TERRARIUM_BASE="https://elevation-tiles-prod.s3.amazonaws.com/terrariu
 const COUNTRY_GEOJSON_URL="https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson";
 const DEG=Math.PI/180;
 
-let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
+let host=null,scene=null,camera=null,renderer=null,controls=null,markerGroup=null,capitalGroup=null,raycaster=null,pointer=null,tooltip=null,onSelect=null;
 let resizeObserver=null,animationId=null,earth=null,atmosphere=null,latitudeGrid=null,sun=null,rim=null;
-let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true;
+let currentLanguage="ja",terrainExaggeration=30,seabedEnabled=true,demEnabled=true,initialViewApplied=false;
 let cameraRollDeg=0,simulationHour=12;
 let demGroup=null,demRefreshTimer=null,demBuildToken=0,demLastKey="";
 let countryOverlay=null,countryReliefGroup=null,countryGeoJsonPromise=null,countryOverlayToken=0,countryReliefToken=0;
@@ -58,6 +58,7 @@ function hit(event){
   setPointer(event);
   raycaster.setFromCamera(pointer,camera);
   const targets=[
+    ...(capitalGroup?.visible?capitalGroup.children:[]),
     ...(markerGroup?.visible?markerGroup.children:[]),
     ...(countryReliefGroup?.visible?countryReliefGroup.children:[])
   ];
@@ -73,7 +74,9 @@ function showTooltip(event,obj){
   const y=Math.min((event.offsetY||0)+14,Math.max(10,host.clientHeight-92));
   tooltip.style.left=x+"px";
   tooltip.style.top=y+"px";
-  tooltip.innerHTML="<b>"+d.name+"</b><br>"+d.metric+": "+d.valueText+"<br><span style='opacity:.7'>"+yearWord+" "+d.year+"</span>";
+  tooltip.innerHTML=d.kind==="capital"
+    ?"<b>"+d.name+"</b><br>"+(currentLanguage==="en"?"Capital":"首都")+": "+d.capital
+    :"<b>"+d.name+"</b><br>"+d.metric+": "+d.valueText+"<br><span style='opacity:.7'>"+yearWord+" "+d.year+"</span>";
 }
 function addStars(){
   const n=900,positions=new Float32Array(n*3);
@@ -536,6 +539,7 @@ export function initGlobe(element){
   scene.add(latitudeGrid);
 
   markerGroup=new THREE.Group();scene.add(markerGroup);
+  capitalGroup=new THREE.Group();capitalGroup.renderOrder=6;scene.add(capitalGroup);
   countryReliefGroup=new THREE.Group();countryReliefGroup.renderOrder=4;scene.add(countryReliefGroup);
   demGroup=new THREE.Group();demGroup.renderOrder=3;scene.add(demGroup);
   raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();
@@ -548,7 +552,13 @@ export function initGlobe(element){
   renderer.domElement.addEventListener("pointermove",e=>showTooltip(e,hit(e)));
   renderer.domElement.addEventListener("pointerleave",()=>showTooltip(null,null));
   renderer.domElement.addEventListener("click",e=>{
-    const o=hit(e);if(o&&onSelect)onSelect(o.userData.iso3);
+    const o=hit(e);
+    if(!o)return;
+    if(o.userData?.kind==="capital"){
+      flyToLatLon(o.userData.lat,o.userData.lon,{zoom:4.05,duration:700});
+      return;
+    }
+    if(onSelect&&o.userData?.iso3)onSelect(o.userData.iso3);
   });
 
   const resize=()=>{
@@ -726,8 +736,11 @@ function buildRaisedCountryMesh(feature,valueT,height,iso){
     const holes=(poly.slice(1)||[]).map(r=>unwrapGeoRing(r,anchor)).filter(r=>r.length>=3);
     let tris=[];
     try{tris=THREE.ShapeUtils.triangulateShape(outer,holes)}catch{tris=[]}
+    const allPoints=[...outer,...holes.flat()];
     for(const tri of tris){
-      for(const p of tri){
+      for(const idx of tri){
+        const p=allPoints[idx];
+        if(!p)continue;
         const v=latLonToVector3(p.y,p.x,topR);
         pushVertex(positions,colors,v,topColor);
       }
@@ -792,6 +805,37 @@ async function updateCountryRelief(countries,metric,enabled,heightScale=55){
   }
 }
 
+function clearGroup(group){
+  if(!group)return;
+  while(group.children.length){
+    const o=group.children.pop();
+    o.geometry?.dispose();o.material?.dispose();
+  }
+}
+function updateCapitalMarkers(countries){
+  if(!capitalGroup)return;
+  clearGroup(capitalGroup);
+  capitalGroup.visible=true;
+  const r=markerRadius()+.012;
+  for(const c of countries||[]){
+    const lat=+c.lat,lon=+c.lon;
+    if(!Number.isFinite(lat)||!Number.isFinite(lon)||!c.capital)continue;
+    const marker=new THREE.Mesh(
+      new THREE.SphereGeometry(.018,10,8),
+      new THREE.MeshPhongMaterial({
+        color:0xf5fbff,emissive:0x66cfff,emissiveIntensity:.65,
+        shininess:30,depthTest:true,depthWrite:false
+      })
+    );
+    marker.position.copy(latLonToVector3(lat,lon,r));
+    marker.userData={
+      kind:"capital",iso3:c.iso3,name:c.displayName||c.name,
+      capital:c.capital,lat,lon
+    };
+    capitalGroup.add(marker);
+  }
+}
+
 export function updateGlobe({element,countries,metric,metricLabel,unit,language="ja",terrainScale=terrainExaggeration,seabed=seabedEnabled,dem=demEnabled,countryFill=true,markers=false,countryRelief=true,countryReliefScale=55,onCountrySelect}){
   initGlobe(element);
   onSelect=onCountrySelect||null;
@@ -838,8 +882,13 @@ export function updateGlobe({element,countries,metric,metricLabel,unit,language=
       markerGroup.add(marker);
     }
   }
+  updateCapitalMarkers(countries);
   updateCountryOverlay(countries,metric,!!countryFill).catch(()=>{if(countryOverlay)countryOverlay.visible=false;});
   updateCountryRelief(countries,metric,!!countryRelief,countryReliefScale).catch(()=>{if(countryReliefGroup)countryReliefGroup.visible=false;});
+  if(!initialViewApplied){
+    initialViewApplied=true;
+    requestAnimationFrame(()=>centerGlobe());
+  }
   scheduleStateEmit();
   scheduleDemRefresh(0);
 }
