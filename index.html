@@ -180,6 +180,20 @@
     .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
     .globe-stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
     .globe-stage .globe{border-radius:0}
+    .world-rank-panel{position:absolute;left:7px;top:7px;bottom:132px;width:min(34%,210px);z-index:5;border:1px solid rgba(79,112,148,.58);border-radius:11px;background:rgba(5,14,26,.92);overflow:hidden;display:flex;flex-direction:column}
+    .world-rank-head{padding:7px 8px 5px;font-size:10px;color:#b9c9db;font-weight:750;border-bottom:1px solid rgba(79,112,148,.38)}
+    .world-rank-list{overflow:auto;padding:4px;display:grid;gap:3px;-webkit-overflow-scrolling:touch}
+    .world-rank-item{position:relative;overflow:hidden;border:0;border-radius:7px;background:rgba(13,30,50,.84);color:var(--text);padding:5px 6px;text-align:left;cursor:pointer;min-width:0}
+    .world-rank-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(55,199,205,.34),rgba(88,166,255,.20));pointer-events:none}
+    .world-rank-content{position:relative;z-index:1;display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px;align-items:center}
+    .world-rank-no{font-size:9px;color:#8da5bd;text-align:center}
+    .world-rank-name{font-size:10px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .world-rank-value{font-size:9px;color:#d8e7f7;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    @media(max-width:620px){
+      .world-rank-panel{width:36%;max-width:145px;bottom:125px}
+      .world-rank-item{padding:4px}.world-rank-name{font-size:9px}.world-rank-value{font-size:8px}
+      .world-rank-content{grid-template-columns:15px minmax(0,1fr)}
+    }
     .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:1px solid rgba(72,105,140,.52);border-radius:13px;padding:7px;background:rgba(5,14,26,.92);backdrop-filter:none;pointer-events:none}
     .globe-param-layout{display:grid;grid-template-columns:minmax(0,1fr) 126px;gap:7px;align-items:end}
     .globe-param-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;align-content:end;pointer-events:auto}
@@ -287,6 +301,8 @@
         <label class="settings-check" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked><span id="worldDemText">高精細DEM</span></label>
         <label class="settings-check"><input id="worldCountryFill" type="checkbox" checked><span id="worldCountryFillText">国別カラー</span></label>
         <label class="settings-check"><input id="worldCountryMarkers" type="checkbox"><span id="worldCountryMarkersText">指標マーカー</span></label>
+        <label class="settings-check"><input id="worldCountryRelief" type="checkbox" checked><span id="worldCountryReliefText">指標高低差</span></label>
+        <label class="settings-slider" id="countryReliefScaleWrap">指標高さ強調 <span id="worldCountryReliefScaleValue">55×</span><input id="worldCountryReliefScale" type="range" min="0" max="100" step="1" value="55"></label>
       </div>
       <div class="settings-actions"><button id="worldCenterBtn" class="logout" type="button">中央に戻す</button></div>
     </div>
@@ -353,6 +369,10 @@
         <div class="statline" id="worldStats"></div>
       </div>
       <div id="worldGlobeStage" class="globe-stage">
+        <div id="worldRankPanel" class="world-rank-panel">
+          <div id="worldRankHead" class="world-rank-head">ランキング</div>
+          <div id="worldRankList" class="world-rank-list"></div>
+        </div>
         <div id="worldGlobe" class="globe"></div>
         <div id="globeControlPanel" class="globe-control-panel">
           <button id="globeResetView" class="globe-reset-mini" type="button" title="Reset">↺</button>
@@ -680,7 +700,7 @@ const TEXT={
   marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
   takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
   riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
-  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},countryRelief:{ja:"指標高低差",en:"Indicator relief"},countryReliefScale:{ja:"指標高さ強調",en:"Indicator height"},ranking:{ja:"ランキング",en:"Ranking"},recenter:{ja:"中央に戻す",en:"Recenter globe"}
 };
 const STATIC_TEXT={
   "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
@@ -712,7 +732,7 @@ const STATIC_TEXT={
   "プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。":"Repeatedly backtests player-defined rule thresholds and selects parameters on the validation period. Background training can be turned off at any time.",
   "D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。":"Signals are decided at day D close and market orders fill at the next trading day open. Full-auto uses the same timing rule.",
   "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated.",
-  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","高精細DEM":"High-resolution DEM","国別カラー":"Country color fill","指標マーカー":"Indicator markers","中央に戻す":"Recenter globe"
+  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","高精細DEM":"High-resolution DEM","国別カラー":"Country color fill","指標マーカー":"Indicator markers","指標高低差":"Indicator relief","指標高さ強調":"Indicator height","ランキング":"Ranking","中央に戻す":"Recenter globe"
 };
 function t(key){return TEXT[key]?.[LANG]??key;}
 function locale(){return LANG==="en"?"en-US":"ja-JP";}
@@ -770,6 +790,9 @@ function localizeSelectors(){
   if(document.getElementById("worldDemText"))worldDemText.textContent=t("highResDem");
   if(document.getElementById("worldCountryFillText"))worldCountryFillText.textContent=t("countryFill");
   if(document.getElementById("worldCountryMarkersText"))worldCountryMarkersText.textContent=t("countryMarkers");
+  if(document.getElementById("worldCountryReliefText"))worldCountryReliefText.textContent=t("countryRelief");
+  if(document.getElementById("countryReliefScaleWrap"))countryReliefScaleWrap.childNodes[0].nodeValue=t("countryReliefScale")+" ";
+  if(document.getElementById("worldRankHead"))worldRankHead.textContent=t("ranking");
   if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
   updateGlobeControlLanguage();
   countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
@@ -824,7 +847,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.23.5";
+const APP_VERSION="2026.09.23.6";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1088,11 +1111,16 @@ function renderWorld(){
   worldDemLod.checked=localStorage.getItem("kamokuDemLod")!=="0";
   worldCountryFill.checked=localStorage.getItem("kamokuCountryFill")!=="0";
   worldCountryMarkers.checked=localStorage.getItem("kamokuCountryMarkers")==="1";
+  worldCountryRelief.checked=localStorage.getItem("kamokuCountryRelief")!=="0";
+  const savedRelief=Math.max(0,Math.min(100,+(localStorage.getItem("kamokuCountryReliefScale")||55)));
+  worldCountryReliefScale.value=String(savedRelief);
+  worldCountryReliefScaleValue.textContent=savedRelief+"×";
   const syncTerrainVisibility=()=>{
     const show=worldDisplay.value==="3d";
     terrainScaleWrap.style.display=show?"grid":"none";
     terrainSeabedWrap.style.display=show?"flex":"none";
     terrainDemWrap.style.display=show?"flex":"none";
+    countryReliefScaleWrap.style.display=show&&worldCountryRelief.checked?"grid":"none";
     worldCenterBtn.style.display=show?"inline-block":"none";
     globeControlPanel.style.display=show?"block":"none";
   };
@@ -1124,18 +1152,53 @@ function renderWorld(){
     localStorage.setItem("kamokuCountryMarkers",worldCountryMarkers.checked?"1":"0");
     drawWorld();
   };
+  worldCountryRelief.onchange=()=>{
+    localStorage.setItem("kamokuCountryRelief",worldCountryRelief.checked?"1":"0");
+    countryReliefScaleWrap.style.display=worldDisplay.value==="3d"&&worldCountryRelief.checked?"grid":"none";
+    drawWorld();
+  };
+  worldCountryReliefScale.oninput=()=>{
+    const v=Math.max(0,Math.min(100,+worldCountryReliefScale.value||55));
+    worldCountryReliefScaleValue.textContent=v+"×";
+    localStorage.setItem("kamokuCountryReliefScale",String(v));
+  };
+  worldCountryReliefScale.onchange=drawWorld;
   worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
   syncTerrainVisibility();
   window.addEventListener("kamoku-globe-ready",()=>{setupGlobeControlDeck();drawWorld();},{once:true});
   setupGlobeControlDeck();
   drawWorld();
 }
+function renderWorldRanking(rows,unit,use3d){
+  if(!document.getElementById("worldRankPanel"))return;
+  worldRankPanel.style.display=use3d?"flex":"none";
+  const sorted=rows
+    .filter(x=>Number.isFinite(+x.v?.value)&&Number.isFinite(+x.c?.lat)&&Number.isFinite(+x.c?.lon))
+    .sort((a,b)=>(+b.v.value)-(+a.v.value));
+  worldRankHead.textContent=(LANG==="en"?"Ranking":"ランキング")+" · "+metricName(worldMetric.value);
+  if(!sorted.length){worldRankList.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+  const vals=sorted.map(x=>+x.v.value);
+  const min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  worldRankList.innerHTML=sorted.map((x,i)=>{
+    const w=Math.max(3,((+x.v.value-min)/span)*100);
+    return '<button class="world-rank-item" data-iso="'+esc(x.c.iso3)+'" data-lat="'+(+x.c.lat)+'" data-lon="'+(+x.c.lon)+'" title="'+esc((x.c.capital||""))+'">'+
+      '<span class="world-rank-bar" style="width:'+w.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(countryName(x.c))+'</div><div class="world-rank-value">'+esc(fmt(x.v.value,unit))+'</div></span></span>'+
+    '</button>';
+  }).join("");
+  worldRankList.querySelectorAll(".world-rank-item").forEach(btn=>btn.onclick=()=>{
+    const lat=+btn.dataset.lat,lon=+btn.dataset.lon;
+    window.KamokuGlobe?.flyTo?.(lat,lon,{zoom:4.05,duration:900});
+  });
+}
+
 function drawWorld(){
   const metric=worldMetric.value,reg=regByMetric[metric]||{};
   const rows=D.countries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null);
   const use3d=worldDisplay.value==="3d";
   worldTitle.textContent="— "+(use3d?t("terrain3d"):t("map2d"));
   worldStats.innerHTML='<span class="pill">'+rows.length+' '+t("countries")+'</span><span class="pill">'+t("worldMedian")+' '+fmt(D.global?.[metric]?.median,reg.unit)+'</span>';
+  renderWorldRanking(rows,reg.unit,use3d);
   worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
     if(window.KamokuGlobe){
@@ -1143,7 +1206,7 @@ function drawWorld(){
         element:worldGlobe,
         countries:D.countries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
         metric:metric,metricLabel:metricName(metric),unit:reg.unit||"",language:LANG,
-        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,countryFill:worldCountryFill.checked,markers:worldCountryMarkers.checked,
+        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,countryFill:worldCountryFill.checked,markers:worldCountryMarkers.checked,countryRelief:worldCountryRelief.checked,countryReliefScale:+worldCountryReliefScale.value||55,
         onCountrySelect:(iso)=>{selectedIso=iso;syncCountryInput();renderCountry();document.querySelector('[data-view="country"]').click();}
       });
       setupGlobeControlDeck();
