@@ -1023,6 +1023,7 @@ function resourceMetricLabel(kind){
 function resourceFormat(value,unit){
   if(value==null||!Number.isFinite(+value))return "—";
   if(unit==="years")return fmt(value,"years");
+  if(unit==="percent")return fmt(value,"percent");
   return fmt(value)+(unit?(" "+unit):"");
 }
 function latestResourceAtOrBefore(series,targetYear=null){
@@ -1222,7 +1223,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.24.4";
+const APP_VERSION="2026.09.24.5";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
