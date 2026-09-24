@@ -390,6 +390,7 @@
           <select id="worldLayer" class="world-compact-select" aria-label="表示レイヤー">
             <option value="indicator">指標</option>
             <option value="resource">資源</option>
+            <option value="product">生産・貿易</option>
           </select>
           <select id="worldDomain" class="world-compact-select" aria-label="分野"></select>
           <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
@@ -401,6 +402,20 @@
             <option value="self_sufficiency_pct">自給率</option>
             <option value="reserves">埋蔵量</option>
             <option value="rp_years">R/P（埋蔵量÷年間生産量）</option>
+          </select>
+          <select id="worldProductSector" class="world-compact-select" aria-label="産業分野" style="display:none"></select>
+          <select id="worldProduct" class="world-compact-select" aria-label="品目" style="display:none"></select>
+          <select id="worldProductMetric" class="world-compact-select" aria-label="生産・貿易指標" style="display:none">
+            <option value="production_quantity">生産量</option>
+            <option value="production_value_usd">生産額</option>
+            <option value="export_quantity">輸出量</option>
+            <option value="export_value_usd">輸出額</option>
+            <option value="import_quantity">輸入量</option>
+            <option value="import_value_usd">輸入額</option>
+            <option value="trade_balance_value_usd">貿易収支額</option>
+            <option value="apparent_consumption_value_usd">見かけ消費額</option>
+            <option value="housing_starts">住宅着工数</option>
+            <option value="shipbuilding_gross_tonnage">船舶建造GT</option>
           </select>
           <span id="worldTitle" style="display:none"></span>
         </div>
@@ -452,6 +467,15 @@
         <div style="margin-top:12px">
           <div class="section-title"><h3 id="resourcePriceTitle" style="margin:0;font-size:13px">世界価格</h3><select id="resourcePriceBenchmark" class="world-compact-select" style="max-width:260px"></select></div>
           <div id="resourcePriceChart" class="chart small"></div>
+        </div>
+      </div>
+      <div id="productDetailCard" class="card" style="display:none;margin-top:12px">
+        <div class="section-title"><h2 id="productDetailTitle">生産・貿易詳細</h2><span id="productDetailBadge" class="pill">—</span></div>
+        <div id="productDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div id="productDetailCards" class="metric-grid" style="margin-bottom:12px"></div>
+        <div class="grid two">
+          <div><h3 style="margin:0 0 6px;font-size:13px">生産</h3><div id="productProductionChart" class="chart small"></div></div>
+          <div><h3 style="margin:0 0 6px;font-size:13px">輸出・輸入</h3><div id="productTradeChart" class="chart small"></div></div>
         </div>
       </div>
 
@@ -709,6 +733,8 @@ let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
 let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
 let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null,WORLD_PREVIEW_SITE_ID=null,INDICATOR_WORLD_MAX_YEAR=null;
 const RESOURCE_SITE_CACHE={},RESOURCE_SITE_DETAIL_CACHE={},RESOURCE_SITE_LOADING={};
+let PRODUCT_CATALOG=[],PRODUCT_CURRENT_ROWS=[],PRODUCT_LOADING=false;
+const PRODUCT_SERIES_CACHE={},PRODUCT_DETAIL_CACHE={};
 let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
@@ -764,7 +790,7 @@ const INCOME_JA={
   "Lower middle income":"下位中所得国","Low income":"低所得国"
 };
 const TEXT={
-  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},resourceProduction:{ja:"年間生産量",en:"Annual production"},resourceConsumption:{ja:"年間消費量",en:"Annual consumption"},resourceBalance:{ja:"生産−消費",en:"Production − consumption"},resourceSelfSufficiency:{ja:"自給率",en:"Self-sufficiency"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間生産量）",en:"R/P (reserves / annual production)"},resourcePrice:{ja:"世界価格",en:"Global price"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
+  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},worldLayerProduct:{ja:"生産・貿易",en:"Production & trade"},resourceProduction:{ja:"年間生産量",en:"Annual production"},resourceConsumption:{ja:"年間消費量",en:"Annual consumption"},resourceBalance:{ja:"生産−消費",en:"Production − consumption"},resourceSelfSufficiency:{ja:"自給率",en:"Self-sufficiency"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間生産量）",en:"R/P (reserves / annual production)"},resourcePrice:{ja:"世界価格",en:"Global price"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
   regionalMedian:{ja:"地域中央値",en:"Regional median"},difference:{ja:"差",en:"Diff"},
   indicators:{ja:"指標",en:"indicators"},historySince:{ja:"2000年以降の履歴",en:"History since 2000"},
   noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
@@ -1012,6 +1038,127 @@ async function loadResourceSiteDetail(id){
   return RESOURCE_SITE_DETAIL_CACHE[id];
 }
 
+const PRODUCT_METRIC_LABELS={
+  production_quantity:{ja:"生産量",en:"Production quantity"},
+  production_value_usd:{ja:"生産額",en:"Production value"},
+  export_quantity:{ja:"輸出量",en:"Export quantity"},
+  export_value_usd:{ja:"輸出額",en:"Export value"},
+  import_quantity:{ja:"輸入量",en:"Import quantity"},
+  import_value_usd:{ja:"輸入額",en:"Import value"},
+  trade_balance_value_usd:{ja:"貿易収支額",en:"Trade balance"},
+  apparent_consumption_value_usd:{ja:"見かけ消費額",en:"Apparent consumption"},
+  housing_starts:{ja:"住宅着工数",en:"Housing starts"},
+  shipbuilding_gross_tonnage:{ja:"船舶建造GT",en:"Shipbuilding gross tonnage"}
+};
+const PRODUCT_SECTOR_LABELS={
+  agriculture:{ja:"農産物",en:"Agriculture"},
+  transport:{ja:"輸送機械",en:"Transport manufacturing"},
+  construction:{ja:"建設",en:"Construction"},
+  electronics:{ja:"半導体・電子",en:"Semiconductors & electronics"}
+};
+function productMetricLabel(k){const x=PRODUCT_METRIC_LABELS[k];return x?x[LANG]||x.ja:k;}
+function productSectorLabel(k){const x=PRODUCT_SECTOR_LABELS[k];return x?x[LANG]||x.ja:k;}
+function productName(key){
+  const x=PRODUCT_CATALOG.find(v=>v.product_key===key);
+  return LANG==="ja"?(x?.display_name_ja||x?.display_name||key):(x?.display_name||key);
+}
+async function loadProductCatalog(force=false){
+  if(PRODUCT_CATALOG.length&&!force)return PRODUCT_CATALOG;
+  const out=await resourceDataApi("product-catalog");
+  PRODUCT_CATALOG=out.items||[];
+  fillProductSelectors();
+  return PRODUCT_CATALOG;
+}
+function fillProductSelectors(){
+  if(!document.getElementById("worldProductSector"))return;
+  const sectors=[...new Set(PRODUCT_CATALOG.map(x=>x.sector_key))];
+  const oldSector=worldProductSector.value||localStorage.getItem("kamokuProductSector")||"agriculture";
+  worldProductSector.innerHTML=sectors.map(s=>'<option value="'+esc(s)+'">'+esc(productSectorLabel(s))+'</option>').join("");
+  if(sectors.includes(oldSector))worldProductSector.value=oldSector;
+  const rows=PRODUCT_CATALOG.filter(x=>x.sector_key===worldProductSector.value);
+  const oldProduct=worldProduct.value||localStorage.getItem("kamokuProductKey")||"wheat";
+  worldProduct.innerHTML=rows.map(x=>'<option value="'+esc(x.product_key)+'">'+esc(LANG==="ja"?(x.display_name_ja||x.display_name):x.display_name)+'</option>').join("");
+  if(rows.some(x=>x.product_key===oldProduct))worldProduct.value=oldProduct;
+  [...worldProductMetric.options].forEach(o=>o.textContent=productMetricLabel(o.value));
+}
+async function loadProductSeries(force=false){
+  const sector=worldProductSector.value,key=worldProduct.value,metric=worldProductMetric.value;
+  if(!sector||!key||!metric)return [];
+  const cacheKey=[sector,key,metric].join("|");
+  if(!force&&PRODUCT_SERIES_CACHE[cacheKey]){
+    PRODUCT_CURRENT_ROWS=PRODUCT_SERIES_CACHE[cacheKey];return PRODUCT_CURRENT_ROWS;
+  }
+  PRODUCT_LOADING=true;
+  try{
+    const out=await resourceDataApi("product-data",{sector,product:key,metric,fromYear:START_YEAR_UI,toYear:new Date().getFullYear(),limit:20000});
+    PRODUCT_CURRENT_ROWS=(out.items||[]).map(x=>({iso3:x.iso3,year:+x.period_year,value:+x.value,unit:x.unit,source:x.source_name,quality:x.quality}));
+    PRODUCT_SERIES_CACHE[cacheKey]=PRODUCT_CURRENT_ROWS;
+    return PRODUCT_CURRENT_ROWS;
+  }finally{PRODUCT_LOADING=false;}
+}
+const START_YEAR_UI=2000;
+function productSnapshotCountries(){
+  const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+  const byIso=new Map();
+  for(const r of PRODUCT_CURRENT_ROWS){
+    if(!Number.isFinite(r.value)||!Number.isFinite(r.year))continue;
+    if(target!=null&&r.year>target)continue;
+    const prev=byIso.get(r.iso3);
+    if(!prev||r.year>prev.year)byIso.set(r.iso3,r);
+  }
+  return D.countries.map(c=>{
+    const r=byIso.get(c.iso3);
+    const item=r?{year:r.year,value:r.value,unit:r.unit,source:r.source,quality:r.quality}:null;
+    return Object.assign({},c,{latest:Object.assign({},c.latest||{},{__PRODUCT__:item})});
+  });
+}
+function productYears(){
+  return [...new Set(PRODUCT_CURRENT_ROWS.map(x=>x.year).filter(Number.isFinite))].sort((a,b)=>a-b);
+}
+function productFormat(v,unit,year){
+  if(v==null||!Number.isFinite(+v))return "—";
+  if(unit==="USD")return fmtWorldValue(v,"USD",year);
+  return fmt(v)+(unit?(" "+unit):"");
+}
+async function loadProductDetail(iso){
+  const sector=worldProductSector.value,key=worldProduct.value,cacheKey=[iso,sector,key].join("|");
+  if(PRODUCT_DETAIL_CACHE[cacheKey])return PRODUCT_DETAIL_CACHE[cacheKey];
+  const out=await resourceDataApi("product-data",{sector,product:key,iso3:iso,fromYear:START_YEAR_UI,toYear:new Date().getFullYear(),limit:20000});
+  PRODUCT_DETAIL_CACHE[cacheKey]=out.items||[];
+  return PRODUCT_DETAIL_CACHE[cacheKey];
+}
+async function renderProductDetail(iso){
+  const cc=countryByIso[iso];if(!cc)return;
+  productDetailCard.style.display="block";
+  productDetailTitle.textContent=countryName(cc)+" · "+productName(worldProduct.value);
+  productDetailBadge.textContent=productSectorLabel(worldProductSector.value);
+  productDetailMeta.textContent=LANG==="en"?"Production and trade histories; source years may differ.":"生産・貿易の時系列です。系列ごとに最新年が異なる場合があります。";
+  let rows=[];
+  try{rows=await loadProductDetail(iso)}catch(e){productDetailMeta.textContent=e.message||String(e);return;}
+  const byMetric={};
+  for(const r of rows)(byMetric[r.metric_type]||(byMetric[r.metric_type]=[])).push(r);
+  const latest=m=>(byMetric[m]||[]).reduce((a,b)=>!a||+b.period_year>+a.period_year?b:a,null);
+  const cards=["production_quantity","production_value_usd","export_value_usd","import_value_usd","trade_balance_value_usd","housing_starts"].map(m=>{
+    const x=latest(m);return [productMetricLabel(m),x?productFormat(+x.value,x.unit,+x.period_year):"—",x?String(x.period_year):""];
+  });
+  productDetailCards.innerHTML=cards.map(x=>'<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div><div class="meta">'+esc(x[2])+'</div></div>').join("");
+  const traces=[];
+  for(const m of ["production_quantity","production_value_usd","housing_starts"]){
+    const a=(byMetric[m]||[]).sort((x,y)=>+x.period_year-+y.period_year);
+    if(a.length)traces.push({x:a.map(x=>+x.period_year),y:a.map(x=>+x.value),type:"scatter",mode:"lines+markers",name:productMetricLabel(m),yaxis:m==="production_value_usd"?"y2":"y"});
+  }
+  if(traces.length)Plotly.react("productProductionChart",traces,layout({margin:{l:50,r:48,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"},yaxis2:{overlaying:"y",side:"right",showgrid:false},legend:{orientation:"h"}}),config);
+  else productProductionChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  const tradeTraces=[];
+  for(const m of ["export_value_usd","import_value_usd","trade_balance_value_usd"]){
+    const a=(byMetric[m]||[]).sort((x,y)=>+x.period_year-+y.period_year);
+    if(a.length)tradeTraces.push({x:a.map(x=>+x.period_year),y:a.map(x=>+x.value),type:"scatter",mode:"lines+markers",name:productMetricLabel(m)});
+  }
+  if(tradeTraces.length)Plotly.react("productTradeChart",tradeTraces,layout({margin:{l:55,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:"USD"},legend:{orientation:"h"}}),config);
+  else productTradeChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  setTimeout(()=>productDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
+}
+
 function resourceName(key){
   const meta=(D?.resources?.catalog||[]).find(x=>x.key===key);
   if(LANG==="ja")return RESOURCE_JA[key]||meta?.name||String(key||"").replaceAll("_"," ");
@@ -1223,7 +1370,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.24.5";
+const APP_VERSION="2026.09.25.1";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
