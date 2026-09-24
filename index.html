@@ -395,9 +395,12 @@
           <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
           <select id="worldResource" class="world-compact-select" aria-label="資源" style="display:none"></select>
           <select id="worldResourceMetric" class="world-compact-select" aria-label="資源指標" style="display:none">
-            <option value="production_annual">年間採掘量</option>
+            <option value="production_annual">年間生産量</option>
+            <option value="consumption_annual">年間消費量</option>
+            <option value="balance_annual">生産−消費</option>
+            <option value="self_sufficiency_pct">自給率</option>
             <option value="reserves">埋蔵量</option>
-            <option value="rp_years">R/P（埋蔵量÷年間採掘量）</option>
+            <option value="rp_years">R/P（埋蔵量÷年間生産量）</option>
           </select>
           <span id="worldTitle" style="display:none"></span>
         </div>
@@ -441,9 +444,14 @@
       <div id="resourceDetailCard" class="card" style="display:none;margin-top:12px">
         <div class="section-title"><h2 id="resourceDetailTitle">資源詳細</h2><span id="resourceDetailBadge" class="pill">—</span></div>
         <div id="resourceDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div id="resourceDerivedBox" class="metric-grid" style="margin-bottom:12px"></div>
         <div class="grid two">
-          <div><h3 id="resourceProductionTitle" style="margin:0 0 6px;font-size:13px">年間採掘量</h3><div id="resourceProductionChart" class="chart small"></div></div>
+          <div><h3 id="resourceProductionTitle" style="margin:0 0 6px;font-size:13px">生産・消費</h3><div id="resourceProductionChart" class="chart small"></div></div>
           <div><h3 id="resourceReservesTitle" style="margin:0 0 6px;font-size:13px">埋蔵量</h3><div id="resourceReservesChart" class="chart small"></div></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="section-title"><h3 id="resourcePriceTitle" style="margin:0;font-size:13px">世界価格</h3><select id="resourcePriceBenchmark" class="world-compact-select" style="max-width:260px"></select></div>
+          <div id="resourcePriceChart" class="chart small"></div>
         </div>
       </div>
 
@@ -756,7 +764,7 @@ const INCOME_JA={
   "Lower middle income":"下位中所得国","Low income":"低所得国"
 };
 const TEXT={
-  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},resourceProduction:{ja:"年間採掘量",en:"Annual production"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間採掘量）",en:"R/P (reserves / annual production)"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
+  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},resourceProduction:{ja:"年間生産量",en:"Annual production"},resourceConsumption:{ja:"年間消費量",en:"Annual consumption"},resourceBalance:{ja:"生産−消費",en:"Production − consumption"},resourceSelfSufficiency:{ja:"自給率",en:"Self-sufficiency"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間生産量）",en:"R/P (reserves / annual production)"},resourcePrice:{ja:"世界価格",en:"Global price"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
   regionalMedian:{ja:"地域中央値",en:"Regional median"},difference:{ja:"差",en:"Diff"},
   indicators:{ja:"指標",en:"indicators"},historySince:{ja:"2000年以降の履歴",en:"History since 2000"},
   noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
@@ -1039,19 +1047,36 @@ function resourceUnitBase(value,unit){
 function resourceCountryPair(iso3,key,targetYear=null){
   const node=D?.resources?.country?.[key]?.[iso3]||{};
   const production=latestResourceAtOrBefore(node.production_annual,targetYear);
+  const consumption=latestResourceAtOrBefore(node.consumption_annual,targetYear);
   const reserves=latestResourceAtOrBefore(node.reserves,targetYear);
-  let rp=null;
-  if(production&&reserves&&+production.value>0){
-    const p=resourceUnitBase(production.value,production.unit),r=resourceUnitBase(reserves.value,reserves.unit);
-    if(p&&r&&p.family===r.family&&p.value>0){
-      rp={year:Math.min(+production.year,+reserves.year),value:r.value/p.value,unit:"years",quality:"derived",source:"USGS MCS · derived R/P"};
+  const physical=latestResourceAtOrBefore(node.production_physical_annual,targetYear);
+  const balance=latestResourceAtOrBefore(node.balance_annual,targetYear);
+  const selfSufficiency=latestResourceAtOrBefore(node.self_sufficiency_pct,targetYear);
+  let rp=latestResourceAtOrBefore(node.rp_years,targetYear);
+  if(!rp&&reserves){
+    let years=null,py=physical||production;
+    if(key==="oil"&&physical&&/billion barrels/i.test(reserves.unit||"")&&/thousand barrels\/day/i.test(physical.unit||"")&&+physical.value>0){
+      years=(+reserves.value*1e6)/(+physical.value*365);
+    }else if(key==="gas"&&physical&&/trillion cubic feet/i.test(reserves.unit||"")&&/billion cubic feet/i.test(physical.unit||"")&&+physical.value>0){
+      years=(+reserves.value*1000)/(+physical.value);
+    }else if(key==="coal"&&physical&&/million short tons/i.test(reserves.unit||"")&&/thousand short tons/i.test(physical.unit||"")&&+physical.value>0){
+      years=(+reserves.value*1000)/(+physical.value);
+    }else if(production&&+production.value>0){
+      const p=resourceUnitBase(production.value,production.unit),r=resourceUnitBase(reserves.value,reserves.unit);
+      if(p&&r&&p.family===r.family&&p.value>0)years=r.value/p.value;
     }
+    if(Number.isFinite(years))rp={year:Math.min(+reserves.year,+(py?.year||reserves.year)),value:years,unit:"years",quality:"derived",source:"Kamoku derived R/P"};
   }
-  return {production,reserves,rp};
+  return {production,consumption,reserves,physical,balance,selfSufficiency,rp};
 }
 function resourceItemForCountry(iso3,key,kind,targetYear=null){
   const pair=resourceCountryPair(iso3,key,targetYear);
-  return kind==="production_annual"?pair.production:kind==="reserves"?pair.reserves:pair.rp;
+  if(kind==="production_annual")return pair.production;
+  if(kind==="consumption_annual")return pair.consumption;
+  if(kind==="balance_annual")return pair.balance;
+  if(kind==="self_sufficiency_pct")return pair.selfSufficiency;
+  if(kind==="reserves")return pair.reserves;
+  return pair.rp;
 }
 function worldResourceSnapshot(key,kind){
   const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
@@ -1064,7 +1089,7 @@ function resourceYears(key){
   const years=new Set();
   const countries=D?.resources?.country?.[key]||{};
   for(const node of Object.values(countries)){
-    for(const kind of ["production_annual","reserves"]){
+    for(const kind of ["production_annual","consumption_annual","balance_annual","self_sufficiency_pct","reserves","production_physical_annual"]){
       for(const x of node?.[kind]||[])if(Number.isFinite(+x.year))years.add(+x.year);
     }
   }
@@ -1077,8 +1102,11 @@ function fillResourceSelectors(){
   if(catalog.some(x=>x.key===prior))worldResource.value=prior;
   else if(catalog.some(x=>x.key==="copper"))worldResource.value="copper";
   worldResourceMetric.options[0].textContent=t("resourceProduction");
-  worldResourceMetric.options[1].textContent=t("resourceReserves");
-  worldResourceMetric.options[2].textContent=t("resourceRp");
+  worldResourceMetric.options[1].textContent=t("resourceConsumption");
+  worldResourceMetric.options[2].textContent=t("resourceBalance");
+  worldResourceMetric.options[3].textContent=t("resourceSelfSufficiency");
+  worldResourceMetric.options[4].textContent=t("resourceReserves");
+  worldResourceMetric.options[5].textContent=t("resourceRp");
 }
 function syncWorldLayerControls(){
   const resource=worldLayer.value==="resource";
@@ -1124,36 +1152,67 @@ async function renderResourceDetail(subjectType,id){
     if(!site)return;
   }
   const prod=resourceSeriesForDetail(subjectType,id,key,"production_annual",site);
+  const cons=resourceSeriesForDetail(subjectType,id,key,"consumption_annual",site);
   const res=resourceSeriesForDetail(subjectType,id,key,"reserves",site);
-  let label=id,meta="";
+  let label=id,meta="",pair=null;
   if(subjectType==="site"){
-    const s=site;
-    label=s.name||id;
+    const s=site;label=s.name||id;
     meta=[s.status,s.operator||s.owner,s.source,s.release].filter(Boolean).join(" · ");
   }else{
     const cc=countryByIso[id];if(!cc)return;
-    label=countryName(cc);
-    const pair=resourceCountryPair(id,key,null);
-    const rp=pair.rp?resourceFormat(pair.rp.value,"years"):"—";
-    meta=resourceName(key)+" · R/P "+rp;
+    label=countryName(cc);pair=resourceCountryPair(id,key,null);
+    meta=resourceName(key);
   }
   resourceDetailTitle.textContent=label+" · "+resourceName(key);
   resourceDetailBadge.textContent=subjectType==="site"?(LANG==="en"?"Extraction site":"採掘地点"):(LANG==="en"?"Country":"国");
   resourceDetailMeta.textContent=meta;
-  resourceProductionTitle.textContent=t("resourceProduction");
-  resourceReservesTitle.textContent=t("resourceReserves");
-  const renderSeries=(id,rows,title)=>{
-    if(!rows?.length){document.getElementById(id).innerHTML='<div class="note">'+t("noData")+'</div>';return;}
-    const sorted=[...rows].sort((a,b)=>+a.year-+b.year),unit=sorted.at(-1)?.unit||"";
-    Plotly.react(id,[{x:sorted.map(x=>x.year),y:sorted.map(x=>x.value),type:"bar",name:title,hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"}],
+  resourceProductionTitle.textContent=t("resourceProduction")+" / "+t("resourceConsumption");
+  resourceReservesTitle.textContent=key==="uranium"?(LANG==="en"?"Identified recoverable resources":"確認済み回収可能資源"):t("resourceReserves");
+  resourcePriceTitle.textContent=t("resourcePrice");
+
+  if(pair){
+    const cards=[
+      [t("resourceProduction"),pair.production?resourceFormat(pair.production.value,pair.production.unit):"—"],
+      [t("resourceConsumption"),pair.consumption?resourceFormat(pair.consumption.value,pair.consumption.unit):"—"],
+      [t("resourceBalance"),pair.balance?resourceFormat(pair.balance.value,pair.balance.unit):"—"],
+      [t("resourceSelfSufficiency"),pair.selfSufficiency?resourceFormat(pair.selfSufficiency.value,"percent"):"—"],
+      ["R/P",pair.rp?resourceFormat(pair.rp.value,"years"):"—"]
+    ];
+    resourceDerivedBox.innerHTML=cards.map(x=>'<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div></div>').join("");
+  }else resourceDerivedBox.innerHTML="";
+
+  const flowTraces=[];
+  if(prod?.length){
+    const p=[...prod].sort((a,b)=>+a.year-+b.year);
+    flowTraces.push({x:p.map(x=>x.year),y:p.map(x=>x.value),type:"scatter",mode:"lines+markers",name:t("resourceProduction")});
+  }
+  if(cons?.length){
+    const q=[...cons].sort((a,b)=>+a.year-+b.year);
+    flowTraces.push({x:q.map(x=>x.year),y:q.map(x=>x.value),type:"scatter",mode:"lines+markers",name:t("resourceConsumption")});
+  }
+  if(flowTraces.length)Plotly.react("resourceProductionChart",flowTraces,layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"},legend:{orientation:"h"}}),config);
+  else resourceProductionChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+
+  if(res?.length){
+    const rr=[...res].sort((a,b)=>+a.year-+b.year),unit=rr.at(-1)?.unit||"";
+    Plotly.react("resourceReservesChart",[{x:rr.map(x=>x.year),y:rr.map(x=>x.value),type:"bar",name:resourceReservesTitle.textContent}],
       layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:unit}}),config);
+  }else resourceReservesChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+
+  const benchmarks=D?.resources?.prices?.[key]||[];
+  const previous=resourcePriceBenchmark.value;
+  resourcePriceBenchmark.innerHTML=benchmarks.map(b=>'<option value="'+esc(b.key)+'">'+esc(b.name||b.key)+'</option>').join("");
+  if(benchmarks.some(b=>b.key===previous))resourcePriceBenchmark.value=previous;
+  const drawPrice=()=>{
+    const b=benchmarks.find(x=>x.key===resourcePriceBenchmark.value)||benchmarks[0];
+    if(!b?.series?.length){resourcePriceChart.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+    Plotly.react("resourcePriceChart",[{x:b.series.map(x=>x[0]),y:b.series.map(x=>x[1]),type:"scatter",mode:"lines",name:b.name||b.key}],
+      layout({margin:{l:52,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:(b.currency||"USD")+" "+(b.unit||"")}}),config);
   };
-  renderSeries("resourceProductionChart",prod,t("resourceProduction"));
-  renderSeries("resourceReservesChart",res,t("resourceReserves"));
+  resourcePriceBenchmark.onchange=drawPrice;drawPrice();
   resourceDetailCard.style.display="block";
   setTimeout(()=>resourceDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
 }
-
 
 function layout(extra={}){
   return Object.assign({
@@ -1163,7 +1222,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.24.3";
+const APP_VERSION="2026.09.24.4";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1490,7 +1549,9 @@ function showWorldCountryPreview(iso){
     worldCountryPreviewValue.textContent=item?resourceFormat(item.value,item.unit):"—";
     const parts=[];
     if(pair.production)parts.push((LANG==="en"?"Production ":"生産 ")+resourceFormat(pair.production.value,pair.production.unit)+" ("+pair.production.year+")");
-    if(pair.reserves)parts.push((LANG==="en"?"Reserves ":"埋蔵 ")+resourceFormat(pair.reserves.value,pair.reserves.unit)+" ("+pair.reserves.year+")");
+    if(pair.consumption)parts.push((LANG==="en"?"Consumption ":"消費 ")+resourceFormat(pair.consumption.value,pair.consumption.unit)+" ("+pair.consumption.year+")");
+    if(pair.selfSufficiency)parts.push((LANG==="en"?"Self-sufficiency ":"自給率 ")+resourceFormat(pair.selfSufficiency.value,"percent"));
+    if(pair.reserves)parts.push((LANG==="en"?(key==="uranium"?"Recoverable resources ":"Reserves "):(key==="uranium"?"回収可能資源 ":"埋蔵 "))+resourceFormat(pair.reserves.value,pair.reserves.unit)+" ("+pair.reserves.year+")");
     if(pair.rp)parts.push("R/P "+resourceFormat(pair.rp.value,"years"));
     worldCountryPreviewMeta.textContent=resourceName(key)+" · "+parts.join(" · ");
   }else{
