@@ -1257,19 +1257,28 @@ function fillResourceSelectors(){
   worldResourceMetric.options[5].textContent=t("resourceRp");
 }
 function syncWorldLayerControls(){
-  const resource=worldLayer.value==="resource";
-  worldDomain.style.display=resource?"none":"";
-  worldMetric.style.display=resource?"none":"";
+  const resource=worldLayer.value==="resource",product=worldLayer.value==="product";
+  worldDomain.style.display=(resource||product)?"none":"";
+  worldMetric.style.display=(resource||product)?"none":"";
   worldResource.style.display=resource?"":"none";
   worldResourceMetric.style.display=resource?"":"none";
+  worldProductSector.style.display=product?"":"none";
+  worldProduct.style.display=product?"":"none";
+  worldProductMetric.style.display=product?"":"none";
   worldLayer.options[0].textContent=t("worldLayerIndicator");
   worldLayer.options[1].textContent=t("worldLayerResource");
+  worldLayer.options[2].textContent=t("worldLayerProduct");
   if(resource){
     const years=resourceYears(worldResource.value);
     if(years.length){
       worldYearSlider.min=String(years[0]);worldYearSlider.max=String(years[years.length-1]);
       if(+worldYearSlider.value<years[0]||+worldYearSlider.value>years[years.length-1])worldYearSlider.value=String(years[years.length-1]);
     }
+  }else if(product){
+    const years=productYears();
+    worldYearSlider.min=String(years[0]||START_YEAR_UI);
+    worldYearSlider.max=String(years.at(-1)||new Date().getFullYear());
+    if(years.length&&(+worldYearSlider.value<years[0]||+worldYearSlider.value>years.at(-1)))worldYearSlider.value=String(years.at(-1));
   }else{
     worldYearSlider.min="2000";
     worldYearSlider.max=String(INDICATOR_WORLD_MAX_YEAR||new Date().getFullYear());
@@ -1370,7 +1379,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.25.1";
+const APP_VERSION="2026.09.25.2";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1702,6 +1711,13 @@ function showWorldCountryPreview(iso){
     if(pair.reserves)parts.push((LANG==="en"?(key==="uranium"?"Recoverable resources ":"Reserves "):(key==="uranium"?"回収可能資源 ":"埋蔵 "))+resourceFormat(pair.reserves.value,pair.reserves.unit)+" ("+pair.reserves.year+")");
     if(pair.rp)parts.push("R/P "+resourceFormat(pair.rp.value,"years"));
     worldCountryPreviewMeta.textContent=resourceName(key)+" · "+parts.join(" · ");
+  }else if(worldLayer.value==="product"){
+    const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+    const rows=PRODUCT_CURRENT_ROWS.filter(x=>x.iso3===iso&&(target==null||x.year<=target)).sort((a,b)=>a.year-b.year);
+    const item=rows.at(-1)||null;
+    const metric=worldProductMetric.value;
+    worldCountryPreviewValue.textContent=item?productFormat(item.value,item.unit,item.year):"—";
+    worldCountryPreviewMeta.textContent=productName(worldProduct.value)+" · "+productMetricLabel(metric)+(item?(" · "+item.year):"");
   }else{
     const metric=worldMetric.value;
     const countries=worldSnapshotCountries(metric);
@@ -1741,6 +1757,10 @@ function openWorldCountryDetail(){
     if(WORLD_PREVIEW_ISO)return renderResourceDetail("country",WORLD_PREVIEW_ISO);
     return;
   }
+  if(worldLayer.value==="product"){
+    if(WORLD_PREVIEW_ISO)return renderProductDetail(WORLD_PREVIEW_ISO);
+    return;
+  }
   if(!WORLD_PREVIEW_ISO)return;
   selectedIso=WORLD_PREVIEW_ISO;syncCountryInput();
   const d=regByMetric[worldMetric.value]?.domain;
@@ -1749,9 +1769,10 @@ function openWorldCountryDetail(){
   document.querySelector('[data-view="country"]').click();
 }
 function renderWorld(){
-  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);fillResourceSelectors();
+  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);fillResourceSelectors();fillProductSelectors();
   worldLayer.value=localStorage.getItem("kamokuWorldLayer")||"indicator";
   worldResourceMetric.value=localStorage.getItem("kamokuResourceMetric")||"production_annual";
+  worldProductMetric.value=localStorage.getItem("kamokuProductMetric")||"production_quantity";
   const savedTerrain=Math.max(1,Math.min(100,+(localStorage.getItem("kamokuTerrainScale")||30)));
   worldTerrainScale.value=String(savedTerrain);
   worldTerrainScaleValue.textContent=savedTerrain+"×";
@@ -1777,10 +1798,13 @@ function renderWorld(){
   const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);hideWorldCountryPreview();drawWorld();};
   worldDomain.onchange=updateMetric;
   worldMetric.onchange=()=>{hideWorldCountryPreview();drawWorld();};
-  worldLayer.onchange=()=>{
+  worldLayer.onchange=async()=>{
     localStorage.setItem("kamokuWorldLayer",worldLayer.value);
-    syncWorldLayerControls();syncWorldTimelineVisibility();hideWorldCountryPreview();
-    resourceDetailCard.style.display="none";drawWorld();
+    hideWorldCountryPreview();resourceDetailCard.style.display="none";productDetailCard.style.display="none";
+    if(worldLayer.value==="product"){
+      try{await loadProductCatalog();fillProductSelectors();await loadProductSeries();}catch(e){console.warn("product layer",e)}
+    }
+    syncWorldLayerControls();syncWorldTimelineVisibility();drawWorld();
     if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
   };
   worldResource.onchange=()=>{
@@ -1793,6 +1817,22 @@ function renderWorld(){
   worldResourceMetric.onchange=()=>{
     localStorage.setItem("kamokuResourceMetric",worldResourceMetric.value);
     hideWorldCountryPreview();drawWorld();
+  };
+  worldProductSector.onchange=async()=>{
+    localStorage.setItem("kamokuProductSector",worldProductSector.value);
+    fillProductSelectors();localStorage.setItem("kamokuProductKey",worldProduct.value);
+    hideWorldCountryPreview();productDetailCard.style.display="none";
+    await loadProductSeries(true);syncWorldLayerControls();drawWorld();
+  };
+  worldProduct.onchange=async()=>{
+    localStorage.setItem("kamokuProductKey",worldProduct.value);
+    hideWorldCountryPreview();productDetailCard.style.display="none";
+    await loadProductSeries(true);syncWorldLayerControls();drawWorld();
+  };
+  worldProductMetric.onchange=async()=>{
+    localStorage.setItem("kamokuProductMetric",worldProductMetric.value);
+    hideWorldCountryPreview();productDetailCard.style.display="none";
+    await loadProductSeries();syncWorldLayerControls();drawWorld();
   };
   worldDisplay.onchange=()=>{syncTerrainVisibility();syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
   worldMode.onchange=()=>{syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
@@ -1871,6 +1911,7 @@ function renderWorld(){
   setupGlobeControlDeck();
   drawWorld();
   if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
+  loadProductCatalog().then(async()=>{fillProductSelectors();if(worldLayer.value==="product"){await loadProductSeries();syncWorldLayerControls();drawWorld();}}).catch(e=>console.warn("product catalog",e));
 }
 function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
   if(!document.getElementById("worldRankPanel"))return;
@@ -1899,19 +1940,20 @@ function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
 }
 
 function drawWorld(){
-  const isResource=worldLayer.value==="resource";
+  const isResource=worldLayer.value==="resource",isProduct=worldLayer.value==="product";
   const resourceKey=worldResource.value,resourceKind=worldResourceMetric.value;
-  const metric=isResource?"__RESOURCE__":worldMetric.value;
-  const reg=isResource?{}:(regByMetric[metric]||{});
-  const displayCountries=isResource?worldResourceSnapshot(resourceKey,resourceKind):worldSnapshotCountries(metric);
+  const metric=isResource?"__RESOURCE__":isProduct?"__PRODUCT__":worldMetric.value;
+  const reg=(isResource||isProduct)?{}:(regByMetric[metric]||{});
+  const displayCountries=isResource?worldResourceSnapshot(resourceKey,resourceKind):isProduct?productSnapshotCountries():worldSnapshotCountries(metric);
   const rows=displayCountries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null&&Number.isFinite(+x.v.value));
   const displayMode=worldDisplay.value,use3d=displayMode!=="2d",data3d=displayMode==="3d";
-  const label=isResource?(resourceName(resourceKey)+" · "+resourceMetricLabel(resourceKind)):metricName(metric);
-  const unit=isResource?(rows.find(x=>x.v?.unit)?.v?.unit||""):(reg.unit||"");
+  const label=isResource?(resourceName(resourceKey)+" · "+resourceMetricLabel(resourceKind)):isProduct?(productName(worldProduct.value)+" · "+productMetricLabel(worldProductMetric.value)):metricName(metric);
+  const unit=(isResource||isProduct)?(rows.find(x=>x.v?.unit)?.v?.unit||""):(reg.unit||"");
   worldTitle.textContent="";
   const med=worldMedianForRows(rows);
-  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+(isResource?resourceFormat(med,unit):fmt(med,unit))+(worldMode.value==="timeline"?" / "+worldYearSlider.value:"");
-  renderWorldRanking(rows,unit,data3d,label,isResource?(v=>resourceFormat(v.value,v.unit||unit)):null);
+  const medText=isResource?resourceFormat(med,unit):isProduct?productFormat(med,unit,worldMode.value==="timeline"?+worldYearSlider.value:null):fmt(med,unit);
+  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+medText+(worldMode.value==="timeline"?" / "+worldYearSlider.value:"");
+  renderWorldRanking(rows,unit,data3d,label,isResource?(v=>resourceFormat(v.value,v.unit||unit)):isProduct?(v=>productFormat(v.value,v.unit||unit,v.year)):null);
   worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
   if(use3d){
     if(window.KamokuGlobe){
