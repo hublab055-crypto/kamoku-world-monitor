@@ -391,6 +391,7 @@
             <option value="indicator">指標</option>
             <option value="resource">資源</option>
             <option value="product">生産・貿易</option>
+            <option value="company">企業</option>
           </select>
           <select id="worldDomain" class="world-compact-select" aria-label="分野"></select>
           <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
@@ -416,6 +417,23 @@
             <option value="apparent_consumption_value_usd">見かけ消費額</option>
             <option value="housing_starts">住宅着工数</option>
             <option value="shipbuilding_gross_tonnage">船舶建造GT</option>
+          </select>
+          <select id="worldCompanySector" class="world-compact-select" aria-label="企業業種" style="display:none">
+            <option value="">全業種</option>
+          </select>
+          <select id="worldCompanyMetric" class="world-compact-select" aria-label="企業指標" style="display:none">
+            <option value="revenue">売上高</option>
+            <option value="operating_income">営業利益</option>
+            <option value="net_income">純利益</option>
+            <option value="total_assets">総資産</option>
+            <option value="equity">自己資本</option>
+            <option value="free_cash_flow">FCF</option>
+            <option value="roe">ROE</option>
+            <option value="equity_ratio">自己資本比率</option>
+            <option value="per">PER</option>
+            <option value="pbr">PBR</option>
+            <option value="dividend_yield">配当利回り</option>
+            <option value="close_price">株価</option>
           </select>
           <span id="worldTitle" style="display:none"></span>
         </div>
@@ -476,6 +494,15 @@
         <div class="grid two">
           <div><h3 style="margin:0 0 6px;font-size:13px">生産</h3><div id="productProductionChart" class="chart small"></div></div>
           <div><h3 style="margin:0 0 6px;font-size:13px">輸出・輸入</h3><div id="productTradeChart" class="chart small"></div></div>
+        </div>
+      </div>
+      <div id="companyDetailCard" class="card" style="display:none;margin-top:12px">
+        <div class="section-title"><h2 id="companyDetailTitle">企業詳細</h2><span id="companyDetailBadge" class="pill">—</span></div>
+        <div id="companyDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div id="companyDetailCards" class="metric-grid" style="margin-bottom:12px"></div>
+        <div class="grid two">
+          <div><h3 style="margin:0 0 6px;font-size:13px">通期財務</h3><div id="companyFinancialChart" class="chart small"></div></div>
+          <div><h3 style="margin:0 0 6px;font-size:13px">株価</h3><div id="companyPriceChart" class="chart small"></div></div>
         </div>
       </div>
 
@@ -735,6 +762,8 @@ let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null,WORLD_PREVIEW_SITE_ID=null
 const RESOURCE_SITE_CACHE={},RESOURCE_SITE_DETAIL_CACHE={},RESOURCE_SITE_LOADING={};
 let PRODUCT_CATALOG=[],PRODUCT_CURRENT_ROWS=[],PRODUCT_LOADING=false;
 const PRODUCT_SERIES_CACHE={},PRODUCT_DETAIL_CACHE={};
+let COMPANY_RANK_ITEMS=[],COMPANY_SECTORS=[],WORLD_PREVIEW_COMPANY_ID=null;
+const COMPANY_RANK_CACHE={},COMPANY_DETAIL_CACHE={};
 let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
 let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
 
@@ -790,7 +819,7 @@ const INCOME_JA={
   "Lower middle income":"下位中所得国","Low income":"低所得国"
 };
 const TEXT={
-  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},worldLayerProduct:{ja:"生産・貿易",en:"Production & trade"},resourceProduction:{ja:"年間生産量",en:"Annual production"},resourceConsumption:{ja:"年間消費量",en:"Annual consumption"},resourceBalance:{ja:"生産−消費",en:"Production − consumption"},resourceSelfSufficiency:{ja:"自給率",en:"Self-sufficiency"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間生産量）",en:"R/P (reserves / annual production)"},resourcePrice:{ja:"世界価格",en:"Global price"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
+  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},worldLayerProduct:{ja:"生産・貿易",en:"Production & trade"},worldLayerCompany:{ja:"企業",en:"Companies"},resourceProduction:{ja:"年間生産量",en:"Annual production"},resourceConsumption:{ja:"年間消費量",en:"Annual consumption"},resourceBalance:{ja:"生産−消費",en:"Production − consumption"},resourceSelfSufficiency:{ja:"自給率",en:"Self-sufficiency"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間生産量）",en:"R/P (reserves / annual production)"},resourcePrice:{ja:"世界価格",en:"Global price"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
   regionalMedian:{ja:"地域中央値",en:"Regional median"},difference:{ja:"差",en:"Diff"},
   indicators:{ja:"指標",en:"indicators"},historySince:{ja:"2000年以降の履歴",en:"History since 2000"},
   noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
@@ -1159,6 +1188,135 @@ async function renderProductDetail(iso){
   setTimeout(()=>productDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
 }
 
+const COMPANY_METRIC_LABELS={
+  revenue:{ja:"売上高",en:"Revenue"},operating_income:{ja:"営業利益",en:"Operating income"},
+  ordinary_income:{ja:"経常利益",en:"Ordinary income"},net_income:{ja:"純利益",en:"Net income"},
+  total_assets:{ja:"総資産",en:"Total assets"},equity:{ja:"自己資本",en:"Equity"},
+  cfo:{ja:"営業CF",en:"Operating cash flow"},free_cash_flow:{ja:"FCF",en:"Free cash flow"},
+  roe:{ja:"ROE",en:"ROE"},equity_ratio:{ja:"自己資本比率",en:"Equity ratio"},
+  eps:{ja:"EPS",en:"EPS"},bps:{ja:"BPS",en:"BPS"},close_price:{ja:"株価",en:"Share price"},
+  per:{ja:"PER",en:"P/E"},pbr:{ja:"PBR",en:"P/B"},dividend_yield:{ja:"配当利回り",en:"Dividend yield"}
+};
+const COMPANY_MONEY_METRICS=new Set(["revenue","operating_income","ordinary_income","net_income","total_assets","equity","cfo","free_cash_flow"]);
+function companyMetricLabel(k){const x=COMPANY_METRIC_LABELS[k];return x?x[LANG]||x.ja:k;}
+function companyName(x){return LANG==="ja"?(x.display_name_ja||x.legal_name||x.company_id):(x.display_name_en||x.legal_name||x.display_name_ja||x.company_id);}
+function companyValueFormat(metric,value){
+  if(value==null||!Number.isFinite(+value))return "—";
+  if(COMPANY_MONEY_METRICS.has(metric))return fmt(value)+(LANG==="ja"?"円":" JPY");
+  if(metric==="roe"||metric==="equity_ratio"||metric==="dividend_yield")return fmt(value,"percent");
+  if(metric==="per"||metric==="pbr")return fmt(value)+(LANG==="ja"?"倍":"x");
+  if(metric==="eps"||metric==="bps"||metric==="close_price")return fmt(value)+(LANG==="ja"?"円":" JPY");
+  return fmt(value);
+}
+function fillCompanySelectors(){
+  if(!document.getElementById("worldCompanyMetric"))return;
+  [...worldCompanyMetric.options].forEach(o=>o.textContent=companyMetricLabel(o.value));
+  const old=worldCompanySector.value||localStorage.getItem("kamokuCompanySector")||"";
+  worldCompanySector.innerHTML='<option value="">'+(LANG==="en"?"All sectors":"全業種")+'</option>'+
+    COMPANY_SECTORS.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join("");
+  if(COMPANY_SECTORS.includes(old))worldCompanySector.value=old;
+}
+async function loadCompanyRank(force=false){
+  const metric=worldCompanyMetric.value||"revenue",sector=worldCompanySector.value||"";
+  const key=[metric,sector].join("|");
+  if(!force&&COMPANY_RANK_CACHE[key]){
+    const hit=COMPANY_RANK_CACHE[key];COMPANY_RANK_ITEMS=hit.items;COMPANY_SECTORS=hit.sectors;fillCompanySelectors();return hit;
+  }
+  const out=await resourceDataApi("company-rank",{iso3:"JPN",metric,sector17:sector,limit:100});
+  COMPANY_RANK_ITEMS=out.items||[];
+  if((out.sectors||[]).length)COMPANY_SECTORS=out.sectors;
+  COMPANY_RANK_CACHE[key]={items:COMPANY_RANK_ITEMS,sectors:COMPANY_SECTORS};
+  fillCompanySelectors();return out;
+}
+async function loadCompanyDetail(id){
+  if(COMPANY_DETAIL_CACHE[id])return COMPANY_DETAIL_CACHE[id];
+  const out=await resourceDataApi("company-detail",{id});
+  COMPANY_DETAIL_CACHE[id]=out;return out;
+}
+function renderCompanyRanking(){
+  worldRankPanel.style.display="flex";
+  const metric=worldCompanyMetric.value;
+  worldRankHead.textContent=(LANG==="en"?"Companies · ":"企業 · ")+companyMetricLabel(metric);
+  const rows=COMPANY_RANK_ITEMS.filter(x=>Number.isFinite(+x[metric]));
+  if(!rows.length){worldRankList.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+  const vals=rows.map(x=>+x[metric]),min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  const asc=[...vals].sort((a,b)=>a-b),median=asc[Math.floor((asc.length-1)/2)]??min;
+  const medianPos=Math.max(0,Math.min(80,((median-min)/span)*80));
+  worldRankList.innerHTML=rows.map((x,i)=>{
+    const w=Math.max(2.5,((+x[metric]-min)/span)*80);
+    return '<button class="world-rank-item" data-company="'+esc(x.company_id)+'">'+
+      '<span class="world-rank-bar" style="width:'+w.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-median" style="left:'+medianPos.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(companyName(x))+'</div><div class="world-rank-value">'+esc(companyValueFormat(metric,x[metric]))+'</div></span></span>'+
+    '</button>';
+  }).join("");
+  worldRankList.querySelectorAll(".world-rank-item").forEach(btn=>btn.onclick=()=>{
+    const item=COMPANY_RANK_ITEMS.find(x=>x.company_id===btn.dataset.company);if(!item)return;
+    showCompanyPreview(item);
+    const country=countryByIso[item.iso3||"JPN"];
+    if(country)window.KamokuGlobe?.flyToCountry?.(country.iso3,+country.lat,+country.lon,{duration:700});
+  });
+}
+function showCompanyPreview(item){
+  WORLD_PREVIEW_COMPANY_ID=item.company_id;WORLD_PREVIEW_ISO=item.iso3||"JPN";WORLD_PREVIEW_SITE_ID=null;
+  const metric=worldCompanyMetric.value;
+  worldCountryPreviewName.textContent=companyName(item);
+  worldCountryPreviewValue.textContent=companyValueFormat(metric,item[metric]);
+  worldCountryPreviewMeta.textContent=[item.security_code,item.sector17,item.financial_date?("FY "+item.financial_date):null].filter(Boolean).join(" · ");
+  worldCountryPreview.style.display="block";
+}
+async function renderCompanyDetail(id){
+  companyDetailCard.style.display="block";
+  companyDetailTitle.textContent=LANG==="en"?"Loading company…":"企業データ読込中…";
+  companyDetailMeta.textContent="";
+  let out;
+  try{out=await loadCompanyDetail(id)}catch(e){companyDetailMeta.textContent=e?.message||String(e);return;}
+  const co=out.company||{},latest=out.latest||{},f=out.financials||[],prices=out.prices||[];
+  companyDetailTitle.textContent=companyName(co);
+  companyDetailBadge.textContent=co.security_code||co.ticker||co.iso3||"—";
+  companyDetailMeta.textContent=[co.exchange,co.sector17,co.sector33,co.hq_city].filter(Boolean).join(" · ");
+  const cards=[
+    ["revenue",latest.revenue],["operating_income",latest.operating_income],["net_income",latest.net_income],
+    ["total_assets",latest.total_assets],["roe",latest.roe],["equity_ratio",latest.equity_ratio],
+    ["per",latest.per],["pbr",latest.pbr],["dividend_yield",latest.dividend_yield],["close_price",latest.close_price]
+  ];
+  companyDetailCards.innerHTML=cards.map(([m,v])=>'<div class="metric"><div class="name">'+esc(companyMetricLabel(m))+'</div><div class="value">'+esc(companyValueFormat(m,v))+'</div></div>').join("");
+  const fy=f.filter(x=>x.period_type==="FY").sort((a,b)=>String(a.disclosure_date).localeCompare(String(b.disclosure_date)));
+  if(fy.length){
+    Plotly.react("companyFinancialChart",[
+      {x:fy.map(x=>x.disclosure_date),y:fy.map(x=>x.revenue),type:"scatter",mode:"lines+markers",name:companyMetricLabel("revenue")},
+      {x:fy.map(x=>x.disclosure_date),y:fy.map(x=>x.operating_income),type:"scatter",mode:"lines+markers",name:companyMetricLabel("operating_income")},
+      {x:fy.map(x=>x.disclosure_date),y:fy.map(x=>x.net_income),type:"scatter",mode:"lines+markers",name:companyMetricLabel("net_income")}
+    ],layout({margin:{l:55,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:"JPY"},legend:{orientation:"h"}}),config);
+  }else companyFinancialChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  if(prices.length){
+    Plotly.react("companyPriceChart",[{x:prices.map(x=>x.price_date),y:prices.map(x=>x.adjusted_close??x.close),type:"scatter",mode:"lines",name:LANG==="en"?"Adjusted close":"調整後終値"}],
+      layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:"JPY"}}),config);
+  }else companyPriceChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  setTimeout(()=>companyDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
+}
+function drawCompanyWorld(){
+  const use3d=worldDisplay.value!=="2d";
+  worldStats.textContent=(LANG==="en"?"Japan listed companies · ":"日本上場企業 · ")+COMPANY_RANK_ITEMS.length;
+  renderCompanyRanking();
+  worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
+  if(use3d){
+    window.KamokuGlobe?.update({
+      element:worldGlobe,countries:D.countries.map(x=>Object.assign({},x,{displayName:countryName(x)})),
+      metric:"__COMPANY__",metricLabel:companyMetricLabel(worldCompanyMetric.value),unit:"",language:LANG,
+      terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
+      countryFill:false,markers:false,countryRelief:false,resourceSites:[],
+      onCountrySelect:(iso)=>{if(iso==="JPN"&&COMPANY_RANK_ITEMS[0])showCompanyPreview(COMPANY_RANK_ITEMS[0]);}
+    });
+    setupGlobeControlDeck();return;
+  }
+  Plotly.react("worldMap",[{
+    type:"scattergeo",mode:"markers+text",locations:["JPN"],locationmode:"ISO-3",
+    text:[LANG==="en"?"Japan companies":"日本企業"],marker:{size:18},
+    hovertemplate:(LANG==="en"?"Japan listed-company layer":"日本上場企業レイヤー")+"<extra></extra>"
+  }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
+}
+
 function resourceName(key){
   const meta=(D?.resources?.catalog||[]).find(x=>x.key===key);
   if(LANG==="ja")return RESOURCE_JA[key]||meta?.name||String(key||"").replaceAll("_"," ");
@@ -1257,17 +1415,20 @@ function fillResourceSelectors(){
   worldResourceMetric.options[5].textContent=t("resourceRp");
 }
 function syncWorldLayerControls(){
-  const resource=worldLayer.value==="resource",product=worldLayer.value==="product";
-  worldDomain.style.display=(resource||product)?"none":"";
-  worldMetric.style.display=(resource||product)?"none":"";
+  const resource=worldLayer.value==="resource",product=worldLayer.value==="product",company=worldLayer.value==="company";
+  worldDomain.style.display=(resource||product||company)?"none":"";
+  worldMetric.style.display=(resource||product||company)?"none":"";
   worldResource.style.display=resource?"":"none";
   worldResourceMetric.style.display=resource?"":"none";
   worldProductSector.style.display=product?"":"none";
   worldProduct.style.display=product?"":"none";
   worldProductMetric.style.display=product?"":"none";
+  worldCompanySector.style.display=company?"":"none";
+  worldCompanyMetric.style.display=company?"":"none";
   worldLayer.options[0].textContent=t("worldLayerIndicator");
   worldLayer.options[1].textContent=t("worldLayerResource");
   worldLayer.options[2].textContent=t("worldLayerProduct");
+  worldLayer.options[3].textContent=t("worldLayerCompany");
   if(resource){
     const years=resourceYears(worldResource.value);
     if(years.length){
@@ -1379,7 +1540,7 @@ function layout(extra={}){
   },extra);
 }
 const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
-const APP_VERSION="2026.09.25.2";
+const APP_VERSION="2026.09.25.3";
 const SPLASH_MIN_MS=1800;
 const SPLASH_STARTED=performance.now();
 function hideSplash(){
@@ -1689,7 +1850,7 @@ function stopWorldTimeline(){
   if(document.getElementById("worldYearPlay"))worldYearPlay.textContent="▶";
 }
 function syncWorldTimelineVisibility(){
-  const show=worldMode.value==="timeline"&&worldDisplay.value!=="terrain";
+  const show=worldLayer.value!=="company"&&worldMode.value==="timeline"&&worldDisplay.value!=="terrain";
   worldTimeline.classList.toggle("hidden",!show);
   worldYearLabel.textContent=worldYearSlider.value;
   if(!show)stopWorldTimeline();
@@ -1748,10 +1909,14 @@ function showResourceSitePreview(siteId){
   worldCountryPreview.style.display="block";
 }
 function hideWorldCountryPreview(){
-  WORLD_PREVIEW_ISO=null;WORLD_PREVIEW_SITE_ID=null;
+  WORLD_PREVIEW_ISO=null;WORLD_PREVIEW_SITE_ID=null;WORLD_PREVIEW_COMPANY_ID=null;
   if(document.getElementById("worldCountryPreview"))worldCountryPreview.style.display="none";
 }
 function openWorldCountryDetail(){
+  if(worldLayer.value==="company"){
+    if(WORLD_PREVIEW_COMPANY_ID)return renderCompanyDetail(WORLD_PREVIEW_COMPANY_ID);
+    return;
+  }
   if(worldLayer.value==="resource"){
     if(WORLD_PREVIEW_SITE_ID)return renderResourceDetail("site",WORLD_PREVIEW_SITE_ID);
     if(WORLD_PREVIEW_ISO)return renderResourceDetail("country",WORLD_PREVIEW_ISO);
@@ -1769,10 +1934,11 @@ function openWorldCountryDetail(){
   document.querySelector('[data-view="country"]').click();
 }
 function renderWorld(){
-  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);fillResourceSelectors();fillProductSelectors();
+  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);fillResourceSelectors();fillProductSelectors();fillCompanySelectors();
   worldLayer.value=localStorage.getItem("kamokuWorldLayer")||"indicator";
   worldResourceMetric.value=localStorage.getItem("kamokuResourceMetric")||"production_annual";
   worldProductMetric.value=localStorage.getItem("kamokuProductMetric")||"production_quantity";
+  worldCompanyMetric.value=localStorage.getItem("kamokuCompanyMetric")||"revenue";
   const savedTerrain=Math.max(1,Math.min(100,+(localStorage.getItem("kamokuTerrainScale")||30)));
   worldTerrainScale.value=String(savedTerrain);
   worldTerrainScaleValue.textContent=savedTerrain+"×";
@@ -1800,9 +1966,12 @@ function renderWorld(){
   worldMetric.onchange=()=>{hideWorldCountryPreview();drawWorld();};
   worldLayer.onchange=async()=>{
     localStorage.setItem("kamokuWorldLayer",worldLayer.value);
-    hideWorldCountryPreview();resourceDetailCard.style.display="none";productDetailCard.style.display="none";
+    hideWorldCountryPreview();resourceDetailCard.style.display="none";productDetailCard.style.display="none";companyDetailCard.style.display="none";
     if(worldLayer.value==="product"){
       try{await loadProductCatalog();fillProductSelectors();await loadProductSeries();}catch(e){console.warn("product layer",e)}
+    }
+    if(worldLayer.value==="company"){
+      try{await loadCompanyRank();}catch(e){console.warn("company layer",e)}
     }
     syncWorldLayerControls();syncWorldTimelineVisibility();drawWorld();
     if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
@@ -1833,6 +2002,16 @@ function renderWorld(){
     localStorage.setItem("kamokuProductMetric",worldProductMetric.value);
     hideWorldCountryPreview();productDetailCard.style.display="none";
     await loadProductSeries();syncWorldLayerControls();drawWorld();
+  };
+  worldCompanyMetric.onchange=async()=>{
+    localStorage.setItem("kamokuCompanyMetric",worldCompanyMetric.value);
+    hideWorldCountryPreview();companyDetailCard.style.display="none";
+    await loadCompanyRank(true);drawWorld();
+  };
+  worldCompanySector.onchange=async()=>{
+    localStorage.setItem("kamokuCompanySector",worldCompanySector.value);
+    hideWorldCountryPreview();companyDetailCard.style.display="none";
+    await loadCompanyRank(true);drawWorld();
   };
   worldDisplay.onchange=()=>{syncTerrainVisibility();syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
   worldMode.onchange=()=>{syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
@@ -1912,6 +2091,7 @@ function renderWorld(){
   drawWorld();
   if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
   loadProductCatalog().then(async()=>{fillProductSelectors();if(worldLayer.value==="product"){await loadProductSeries();syncWorldLayerControls();drawWorld();}}).catch(e=>console.warn("product catalog",e));
+  loadCompanyRank().then(()=>{if(worldLayer.value==="company"){syncWorldLayerControls();drawWorld();}}).catch(e=>console.warn("company rank",e));
 }
 function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
   if(!document.getElementById("worldRankPanel"))return;
@@ -1940,6 +2120,7 @@ function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
 }
 
 function drawWorld(){
+  if(worldLayer.value==="company"){drawCompanyWorld();return;}
   const isResource=worldLayer.value==="resource",isProduct=worldLayer.value==="product";
   const resourceKey=worldResource.value,resourceKind=worldResourceMetric.value;
   const metric=isResource?"__RESOURCE__":isProduct?"__PRODUCT__":worldMetric.value;
