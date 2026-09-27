@@ -144,11 +144,16 @@ const tents=[
 
 const state={
  day:2,hour:7.9,resting:false,
- player:{x:46,y:48,dir:'front',hp:100,st:100,hunger:86,cap:24,inv:{wood:2,stone:1,food:2}},
+ player:{id:'you',x:46,y:48,dir:'front',name:'YOU',portrait:'you',hp:100,st:100,hunger:86,cap:24,inv:{wood:2,stone:1,food:2}},
  npcs:[
-  {id:'mio',x:53,y:46,dir:'front',name:'Mio',sprite:'mio',hp:100,st:83,hunger:80,friend:35,tx:53,ty:46,timer:1},
-  {id:'riku',x:41,y:51,dir:'front',name:'Riku',sprite:'riku',hp:100,st:77,hunger:82,friend:22,tx:41,ty:51,timer:2},
-  {id:'guard',x:37,y:46,dir:'front',name:'Guard',sprite:'guard',hp:100,st:94,hunger:79,friend:0,tx:37,ty:46,timer:3}
+  {id:'mio',x:53,y:46,dir:'front',name:'Mio',portrait:'mio',sprite:'mio',hp:100,st:83,hunger:80,friend:35,tx:53,ty:46,timer:1,
+   dialog:{intro:'おはよう！ 木を集めて、みんなのテントを整えよう。',hello:'うん、おはよう！ 今日もよろしくね。',work:'北の森なら木が多いよ。石も集めれば家を建てられるね。',life:'私は夕方になったらテントに戻って、ご飯を食べて休みたいな。'}},
+  {id:'riku',x:41,y:51,dir:'front',name:'Riku',portrait:'riku',sprite:'riku',hp:100,st:77,hunger:82,friend:22,tx:41,ty:51,timer:2,
+   dialog:{intro:'石なら西側で見つかりやすいよ。道具作りにも使える。',hello:'やあ。今日も一緒に拠点を大きくしていこう。',work:'木8と石4があれば、小さな家を建てる目安になる。',life:'ちゃんと食べて寝ないと、作業の効率が落ちるからね。'}},
+  {id:'guard',x:37,y:46,dir:'front',name:'Guard',portrait:'guard',sprite:'guard',hp:100,st:94,hunger:79,friend:0,tx:37,ty:46,timer:3,
+   dialog:{intro:'この先は見回り中だ。危険がないか確認している。',hello:'異常なし。困ったことがあれば声をかけてくれ。',work:'夜は見張りが必要だ。柵や明かりもあると安心だな。',life:'住民の安全が第一だ。無断で他人のテントに入るのは禁止だ。'}},
+  {id:'merchant',x:56,y:51,dir:'front',name:'Shop',portrait:'merchant',sprite:'riku',hp:100,st:70,hunger:76,friend:12,tx:56,ty:51,timer:2.2,
+   dialog:{intro:'いらっしゃい。食料や資材が必要ならまた来てくれ。',hello:'商売繁盛だといいね。拠点がにぎわうと私も嬉しいよ。',work:'余った素材は店に持ってくれば買い取れるようにしたいね。',life:'市場ができると、みんなの暮らしがもっと楽になるはずさ。'}}
  ],
  tiles:[],
  objects:[],
@@ -160,6 +165,14 @@ let last=performance.now(), tap=null;
 let joy={x:0,y:0,active:false,pid:null};
 let speakTimer=null, blinkTimer=null, faceState={talk:false,blink:false};
 
+const portraitStyles={
+ you:{skin:'#efc8a6',hair:'#5d3b25',shirt:'#6c8056',bg:'#2e3d2f',accent:'#d0e1ae'},
+ mio:{skin:'#f2cfad',hair:'#d8ac45',shirt:'#8e6b47',bg:'#4a3b2f',accent:'#f1dfad'},
+ riku:{skin:'#e3bea0',hair:'#33506f',shirt:'#4d6380',bg:'#2e3948',accent:'#a9c1df'},
+ guard:{skin:'#d8b392',hair:'#493c33',shirt:'#59616b',bg:'#363b42',accent:'#d1d7dc'},
+ merchant:{skin:'#e6c09c',hair:'#7a5338',shirt:'#8d563c',bg:'#4d3529',accent:'#e2b79b'}
+};
+
 function msg(t){ $('#message').textContent=t; }
 
 function drawAsset(name,dx,dy,dw,dh,alpha=1){
@@ -169,11 +182,35 @@ function drawAsset(name,dx,dy,dw,dh,alpha=1){
  ctx.restore();
 }
 
-function drawFace(name){
- const a=FACES[name]; if(!a || !faceImg.complete) return;
- pctx.clearRect(0,0,128,128);
- pctx.drawImage(faceImg,a[0],a[1],a[2],a[3],4,2,120,124);
+function getDialogSpeaker(){
+ return state.dialog?.speaker || state.npcs.find(n=>n.id==='mio');
 }
+
+function drawPortrait(person){
+ const style=portraitStyles[person?.portrait || person?.id || 'mio'] || portraitStyles.mio;
+ pctx.clearRect(0,0,128,128);
+ pctx.fillStyle=style.bg; pctx.fillRect(0,0,128,128);
+ pctx.fillStyle='rgba(255,255,255,.10)'; pctx.beginPath(); pctx.arc(64,34,30,0,Math.PI*2); pctx.fill();
+ pctx.fillStyle=style.shirt; pctx.beginPath(); pctx.moveTo(18,126); pctx.quadraticCurveTo(64,86,110,126); pctx.closePath(); pctx.fill();
+ pctx.fillStyle=style.skin; pctx.beginPath(); pctx.arc(64,56,28,0,Math.PI*2); pctx.fill();
+ pctx.fillStyle=style.hair; pctx.beginPath(); pctx.arc(64,50,30,Math.PI,0); pctx.lineTo(94,58); pctx.quadraticCurveTo(87,28,64,28); pctx.quadraticCurveTo(41,28,34,58); pctx.closePath(); pctx.fill();
+ pctx.fillStyle=style.accent; pctx.fillRect(24,102,80,8);
+ pctx.strokeStyle='#2a2019'; pctx.lineWidth=3; pctx.lineCap='round';
+ if(faceState.blink){
+   pctx.beginPath(); pctx.moveTo(49,58); pctx.lineTo(57,58); pctx.moveTo(71,58); pctx.lineTo(79,58); pctx.stroke();
+ }else{
+   pctx.fillStyle='#2a2019'; pctx.beginPath(); pctx.arc(53,58,3.2,0,Math.PI*2); pctx.arc(75,58,3.2,0,Math.PI*2); pctx.fill();
+ }
+ pctx.strokeStyle='#b88475'; pctx.beginPath(); pctx.moveTo(64,61); pctx.lineTo(63,68); pctx.stroke();
+ if(faceState.talk){
+   pctx.fillStyle='#8e3e4c'; pctx.beginPath(); pctx.ellipse(64,80,7,5,0,0,Math.PI*2); pctx.fill();
+ }else{
+   pctx.strokeStyle='#7b4a45'; pctx.lineWidth=2.4; pctx.beginPath(); pctx.moveTo(58,80); pctx.quadraticCurveTo(64,83,70,80); pctx.stroke();
+ }
+ pctx.fillStyle='rgba(255,255,255,.12)'; pctx.fillRect(0,0,128,128);
+}
+
+function refreshFace(){ drawPortrait(getDialogSpeaker()); }
 
 function makeMap(){
  state.tiles=Array.from({length:MAP},()=>Array.from({length:MAP},()=>({ground:'grass'})));
@@ -282,36 +319,39 @@ function drawTile(px,py,g){
 
 function drawBuilding(b){
  const s=worldToScreen(b.x,b.y);
- if(b.type==='house'){drawAsset('house',s.x-TILE*.25,s.y-TILE*1.05,TILE*3.5,TILE*3.5,1);return;}
+ if(b.type==='house'){
+   drawAsset('house',s.x-TILE*.55,s.y-TILE*1.55,TILE*4.4,TILE*4.4,1);
+   return;
+ }
  const inside=inBuilding(b);
- const alpha=inside&&canEnter(b)?.26:1;
+ const alpha=inside&&canEnter(b)?.24:1;
  if(b.furniture && inside){
    for(const f of b.furniture){
      const fs=worldToScreen(f.x,f.y);
-     drawAsset(f.type,fs.x,fs.y,TILE*.8,TILE*.8,1);
+     drawAsset(f.type,fs.x-TILE*.05,fs.y-TILE*.10,TILE*.95,TILE*.95,1);
    }
  }
  const name=b.type==='shop'?'shop':b.type==='locked'?'locked':'tent';
- drawAsset(name,s.x-TILE*.45,s.y-TILE*1.20,TILE*2.9,TILE*3.05,alpha);
+ drawAsset(name,s.x-TILE*.78,s.y-TILE*1.72,TILE*3.7,TILE*3.95,alpha);
  if(b.type==='locked'){
-   ctx.fillStyle='#000b';ctx.fillRect(s.x+6,s.y+TILE*.8,TILE*1.8,22);
-   ctx.fillStyle='#fff';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('🔒 立入禁止',s.x+TILE,s.y+TILE*.8+15);
+   ctx.fillStyle='#000b';ctx.fillRect(s.x+2,s.y+TILE*1.05,TILE*2.15,24);
+   ctx.fillStyle='#fff';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('🔒 立入禁止',s.x+TILE*1.05,s.y+TILE*1.05+16);
  }
  if(b.type==='shop'){
-   ctx.fillStyle='#000a';ctx.fillRect(s.x+12,s.y-4,TILE*1.65,22);
-   ctx.fillStyle='#fff';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('🏪 営業中',s.x+TILE,s.y+12);
+   ctx.fillStyle='#000a';ctx.fillRect(s.x+18,s.y+4,TILE*1.7,22);
+   ctx.fillStyle='#fff';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('🏪 営業中',s.x+TILE*1.05,s.y+19);
  }
 }
 
 function drawObject(o){
  const s=worldToScreen(o.x,o.y);
- if(o.type==='tree'||o.type==='tree2') drawAsset(o.type,s.x-TILE*.55,s.y-TILE*1.55,TILE*1.65,TILE*2.25,1);
- else if(o.type==='rock') drawAsset('rock',s.x-TILE*.28,s.y-TILE*.25,TILE*.65,TILE*.65,1);
- else if(o.type==='grass') drawAsset('grass',s.x-TILE*.25,s.y-TILE*.30,TILE*.60,TILE*.65,1);
- else if(o.type==='berry') drawAsset('berry',s.x-TILE*.35,s.y-TILE*.45,TILE*.80,TILE*.80,1);
- else if(o.type==='bush') drawAsset('bush',s.x-TILE*.35,s.y-TILE*.45,TILE*.80,TILE*.80,1);
- else if(o.type==='logs') drawAsset('logs',s.x-TILE*.4,s.y-TILE*.25,TILE*.9,TILE*.6,1);
- else if(o.type==='campfire') drawAsset('campfire',s.x-TILE*.38,s.y-TILE*.75,TILE*.85,TILE*1.05,1);
+ if(o.type==='tree'||o.type==='tree2') drawAsset(o.type,s.x-TILE*.78,s.y-TILE*2.08,TILE*2.2,TILE*3.0,1);
+ else if(o.type==='rock') drawAsset('rock',s.x-TILE*.42,s.y-TILE*.52,TILE*1.05,TILE*1.05,1);
+ else if(o.type==='grass') drawAsset('grass',s.x-TILE*.36,s.y-TILE*.52,TILE*.92,TILE*1.00,1);
+ else if(o.type==='berry') drawAsset('berry',s.x-TILE*.46,s.y-TILE*.62,TILE*1.02,TILE*1.02,1);
+ else if(o.type==='bush') drawAsset('bush',s.x-TILE*.52,s.y-TILE*.66,TILE*1.12,TILE*1.10,1);
+ else if(o.type==='logs') drawAsset('logs',s.x-TILE*.50,s.y-TILE*.36,TILE*1.15,TILE*.78,1);
+ else if(o.type==='campfire') drawAsset('campfire',s.x-TILE*.52,s.y-TILE*.98,TILE*1.10,TILE*1.34,1);
 }
 
 function bar(x,y,w,v,color){
@@ -385,16 +425,10 @@ function nearestNPC(){
  }
  return best;
 }
-function faceKey(){
- if(faceState.blink&&faceState.talk) return 'blink_talk';
- if(faceState.blink) return 'blink';
- if(faceState.talk) return 'talk';
- return 'idle';
-}
-function refreshFace(){drawFace(faceKey());}
 function stopFaceTimers(){
  if(speakTimer) clearInterval(speakTimer); if(blinkTimer) clearInterval(blinkTimer);
  speakTimer=null;blinkTimer=null;faceState.talk=false;faceState.blink=false;
+ refreshFace();
 }
 function startBlink(){
  if(blinkTimer) clearInterval(blinkTimer);
@@ -413,11 +447,12 @@ function typeLine(text){
 function talk(){
  const n=nearestNPC();
  if(!n){msg('💬 近くにNPCがいない。');return;}
- if(n.name!=='Mio'){msg('💬 '+n.name+': 「今は見回り中だよ。」');return;}
+ state.dialog={speaker:n};
  $('#dialogPanel').classList.remove('hidden');
- $('#speaker').textContent='Mio';
- typeLine('おはよう！ 木を集めて、みんなのテントを整えよう。');
- msg('💬 Mioと会話中。');
+ $('#speaker').textContent=n.name;
+ refreshFace();
+ typeLine(n.dialog?.intro || 'こんにちは。');
+ msg('💬 '+n.name+'と会話中。');
 }
 
 function openInventory(){
@@ -483,12 +518,12 @@ root.querySelectorAll('.cmd[data-slot]').forEach(b=>b.addEventListener('click',(
 $('#settings').addEventListener('click',()=>{$('#settingsPanel').classList.remove('hidden');renderSettings();});
 $('#closeSettings').addEventListener('click',()=>$('#settingsPanel').classList.add('hidden'));
 $('#closePanel').addEventListener('click',()=>$('#panel').classList.add('hidden'));
-$('#closeDialog').addEventListener('click',()=>{$('#dialogPanel').classList.add('hidden');stopFaceTimers();});
+$('#closeDialog').addEventListener('click',()=>{$('#dialogPanel').classList.add('hidden');state.dialog=null;stopFaceTimers();});
 root.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{
  const k=b.dataset.reply;
- if(k==='hello')typeLine('うん、おはよう！ 今日もよろしくね。');
- if(k==='work')typeLine('北の森なら木が多いよ。石も集めれば家を建てられるね。');
- if(k==='life')typeLine('私は夕方になったらテントに戻って、ご飯を食べて休みたいな。');
+ const sp=getDialogSpeaker();
+ const line=(sp.dialog&&sp.dialog[k])||'また話そう。';
+ typeLine(line);
 }));
 
 root.addEventListener('keydown',e=>{
