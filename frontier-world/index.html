@@ -177,13 +177,6 @@ let last=performance.now(), tap=null;
 let joy={x:0,y:0,active:false,pid:null};
 let speakTimer=null, blinkTimer=null, faceState={talk:false,blink:false};
 
-const portraitOffsets={
- mio:{normal:[0,0],talk:[-1,0],blink:[1,0]},
- riku:{normal:[0,0],talk:[0,0],blink:[0,0]},
- guard:{normal:[0,0],talk:[0,0],blink:[0,0]},
- shop:{normal:[0,0],talk:[0,0],blink:[0,0]}
-};
-
 function msg(t){ $('#message').textContent=t; }
 
 function drawAsset(name,dx,dy,dw,dh,alpha=1){
@@ -198,20 +191,28 @@ function getDialogSpeaker(){
  return state.dialog?.speaker || state.npcs.find(n=>n.id==='mio');
 }
 
+// Portrait animation is composited from small facial regions so the head, hair,
+// shoulders and camera framing never move between blink/talk frames.
+function patchFaceRegion(src, sx,sy,sw,sh){
+ if(!src || !src.complete || !src.naturalWidth) return;
+ const kx=128/src.naturalWidth, ky=128/src.naturalHeight;
+ pctx.drawImage(src,sx,sy,sw,sh,sx*kx,sy*ky,sw*kx,sh*ky);
+}
+
 function drawPortrait(person){
  const who=(person?.id==='merchant'?'shop':(person?.portrait||person?.id||'mio'));
  const key=['mio','riku','guard','shop'].includes(who)?who:'mio';
- // Blink has priority so blinking remains visible even while mouth-flapping.
- const mode=faceState.blink?'blink':(faceState.talk?'talk':'normal');
- const img=document.getElementById(`portrait_${key}_${mode}`) || document.getElementById('portrait_mio_normal');
- const off=(portraitOffsets[key]&&portraitOffsets[key][mode])||[0,0];
+ const base=document.getElementById(`portrait_${key}_normal`) || document.getElementById('portrait_mio_normal');
+ const talk=document.getElementById(`portrait_${key}_talk`);
+ const blink=document.getElementById(`portrait_${key}_blink`);
  pctx.clearRect(0,0,128,128);
  pctx.fillStyle='#1d2023'; pctx.fillRect(0,0,128,128);
  pctx.imageSmoothingEnabled=true; pctx.imageSmoothingQuality='high';
- if(img && img.complete && img.naturalWidth){
-   // Every state uses the exact same destination rectangle. Only tiny source-registration offsets differ.
-   pctx.drawImage(img,off[0],off[1],img.naturalWidth,img.naturalHeight,0,0,128,128);
- }
+ if(!base || !base.complete || !base.naturalWidth) return;
+ pctx.drawImage(base,0,0,base.naturalWidth,base.naturalHeight,0,0,128,128);
+ const W=base.naturalWidth,H=base.naturalHeight;
+ if(faceState.talk && talk) patchFaceRegion(talk,W*.34,H*.51,W*.34,H*.23);
+ if(faceState.blink && blink) patchFaceRegion(blink,W*.18,H*.25,W*.64,H*.29);
 }
 
 function refreshFace(){ drawPortrait(getDialogSpeaker()); }
