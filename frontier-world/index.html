@@ -1278,7 +1278,7 @@ function fw10DrawInterior(){
  ctx.font='13px system-ui';ctx.fillStyle='#d6d9dc';ctx.fillText('入口から出る / 家具の近くで⚡行動',24,62);
 
  // furniture
- drawAsset('bedroll',ox+scale*.65,oy+scale*.75,scale*1.1,scale*1.45,1);
+ fw12DrawInteriorFurniture(b,ox,oy,scale,rw,rh);
  drawAsset('chest',ox+scale*(rw-1.65),oy+scale*.85,scale*.95,scale*.95,1);
  drawAsset('table',ox+scale*(rw/2-.65),oy+scale*(rh/2-.35),scale*1.3,scale*.9,1);
  drawAsset('chair',ox+scale*(rw/2+.6),oy+scale*(rh/2-.05),scale*.7,scale*.85,1);
@@ -1923,6 +1923,364 @@ $('#panelBody').addEventListener('click',function(e){
 $('#settingsPanel').addEventListener('click',function(e){
  const b=e.target.closest('[data-fw11-settings]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
  if(b.dataset.fw11Settings==='think'){$('#settingsPanel').classList.add('hidden');fw11OpenThinkMenu();}
+},true);
+
+
+/* FRONTIER_V12_RELATION_BABY_COHABITATION */
+state.family.pregnancies=state.family.pregnancies||[];
+state.family.gestationDays=17; // 現在の圧縮暦（20日≈1年）で約10か月
+state.furnishing=state.furnishing||null;
+
+function fw12SpouseTitle(n){
+ if(!n||n.relationship!=='family')return fw8RelLabel(n);
+ if(n.id==='mio')return '妻';
+ if(n.id==='riku')return '夫';
+ return '配偶者';
+}
+fw8RelLabel=function(n){
+ if(n.relationship==='family')return fw12SpouseTitle(n);
+ return n.relationship==='lover'?'恋人':n.relationship==='friend'?'友達':n.companion?'仲間':'知人';
+};
+
+function fw12RelPool(n,key){
+ const rel=n.relationship||'acquaintance',preg=state.family.pregnancies.find(function(p){return p.parent===n.id;});
+ const pools={
+  acquaintance:{
+   intro:['何か用かな？','今日は野営地も落ち着いているね。'],
+   hello:['こんにちは。少しずつ顔を覚えてきたよ。','今日も無事に過ごせるといいね。'],
+   work:['まずは自分の仕事を片づけるよ。','困っているなら、できる範囲で手伝う。'],
+   life:['まだ知らないことも多いけど、この場所には慣れてきたよ。']
+  },
+  companion:{
+   intro:['戻ったんだね。次は何をすればいい？','仲間として、今日も役に立てるようにするよ。'],
+   hello:['一緒に行動するのにも慣れてきたね。','指示があれば言って。できるだけ応えるよ。'],
+   work:['採集でも制作でも、必要な仕事を任せて。','持ち帰った物は、忠誠に応じて共通倉庫へ入れておくよ。'],
+   life:['仲間として過ごす時間が増えてきたね。']
+  },
+  friend:{
+   intro:['おかえり。顔を見るとほっとするよ。','今日は少し話していかない？'],
+   hello:['友達なんだから、困った時は遠慮しないで。','一緒にいると、仕事の合間も楽しいね。','家にも気軽に入ってきていいよ。'],
+   work:['無茶な仕事じゃなければ付き合うよ。','終わったら一緒に休もう。'],
+   life:['同じ家でご飯を食べるくらい、もう気を使わなくていいよね。','こんな暮らしが長く続くといいな。']
+  },
+  lover:{
+   intro:['来てくれたんだ。少しだけ一緒にいたかった。','今日はあなたと話せる時間を待ってた。'],
+   hello:['近くにいるだけで、なんだか安心する。','忙しくても、たまには二人でゆっくりしよう。','同じ家に入れるって、ちょっと特別な感じがするね。'],
+   work:['仕事が終わったら、一緒に帰ろう。','あなたが無理していると心配になるよ。'],
+   life:['いつか本当に同じ家で暮らせたらいいね。','この先のことも、二人で決めていきたい。']
+  },
+  family:{
+   intro:['おかえり。今日も家族みんな無事だよ。','帰ってきたね。家のことは任せて。'],
+   hello:['おかえり。顔を見られて安心した。','家族なんだから、疲れた時はちゃんと頼って。','今日も一緒にご飯を食べよう。'],
+   work:['家のことと子どもの様子を見ながら動くね。','赤ちゃんがいる間は、お世話を優先するつもり。'],
+   life:['同じ家で目を覚ますのって、やっぱりいいね。','子どもが大きくなった時、この村をどう思うかな。','ベッドも人数に合わせて増やしていきたいね。']
+  }
+ };
+ let relKey=rel==='family'?'family':rel;
+ let arr=(pools[relKey]&&pools[relKey][key])||[];
+ arr=arr.slice();
+ if(rel==='family'&&preg){
+  const prog=clamp((state.day-preg.startDay)/(preg.dueDay-preg.startDay),0,1),month=Math.min(10,Math.max(1,Math.ceil(prog*10)));
+  if(key==='intro'||key==='life')arr.push('赤ちゃんが生まれるまで、今はだいたい '+month+' / 10か月くらいだね。無理しすぎないようにしよう。');
+ }
+ const babies=(state.family.children||[]).filter(function(c){return fw10ChildStage(c)==='baby';});
+ if(rel==='family'&&babies.length&&(key==='intro'||key==='life'))arr.push('赤ちゃんのお世話で一日があっという間。でも寝顔を見ると疲れも少し飛ぶね。');
+ return arr;
+}
+function fw12RelLine(n,key){
+ const a=fw12RelPool(n,key),base=n.dialog&&n.dialog[key];
+ const all=a.concat(Array.isArray(base)?base:(base?[base]:[]));
+ return all.length?all[Math.floor(Math.random()*all.length)]:'また話そう。';
+}
+
+function fw12SharedHome(n){
+ if(n&&n.relationship==='family'){
+  const p=state.buildings.find(function(b){return b.id==='player';});
+  if(p)return p;
+ }
+ if(n&&n.homeId){
+  const h=state.buildings.find(function(b){return b.id===n.homeId;});if(h)return h;
+ }
+ return n?state.buildings.find(function(b){return b.id===n.id;}):null;
+}
+const fw12PrevHomeSpot=fw9HomeSpot;
+fw9HomeSpot=function(n){
+ if(n&&n.relationship==='family'){
+  const b=fw12SharedHome(n);if(b){const e=fw10Entrance(b);return {x:e.x,y:e.y-.3,b:b};}
+ }
+ return fw12PrevHomeSpot(n);
+};
+const fw12PrevCanEnter=fw10CanEnterBuilding;
+fw10CanEnterBuilding=function(b){
+ if(!b)return false;
+ if(b.id==='player')return true;
+ if(b.ownerId){
+  const n=state.npcs.find(function(x){return x.id===b.ownerId;});
+  if(n&&['friend','lover','family'].includes(n.relationship))return true;
+ }
+ const n=state.npcs.find(function(x){return x.id===b.id;});
+ if(n&&['friend','lover','family'].includes(n.relationship))return true;
+ return fw12PrevCanEnter(b);
+};
+
+function fw12EnsureBeds(b){
+ if(!b)return [];
+ if(!Array.isArray(b.beds))b.beds=[{x:.9,y:.8}];
+ if(!Array.isArray(b.cribs))b.cribs=[];
+ return b.beds;
+}
+function fw12BedSlots(rw,rh){
+ return [
+  {x:.75,y:.72},{x:2.0,y:.72},{x:rw-2.0,y:.72},{x:rw-1.05,y:.72},
+  {x:.75,y:rh-2.25},{x:2.0,y:rh-2.25},{x:rw-2.0,y:rh-2.25},{x:rw-1.05,y:rh-2.25}
+ ];
+}
+function fw12DrawCrib(ox,oy,scale,x,y,baby){
+ const px=ox+x*scale,py=oy+y*scale;
+ ctx.save();ctx.fillStyle='#c99b65';ctx.fillRect(px,py,scale*1.25,scale*.64);
+ ctx.strokeStyle='#765236';ctx.lineWidth=3;for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(px+i*scale*.3,py);ctx.lineTo(px+i*scale*.3,py+scale*.64);ctx.stroke();}
+ if(baby){
+  ctx.fillStyle='#f3c8ad';ctx.beginPath();ctx.arc(px+scale*.62,py+scale*.31,scale*.12,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#e8d7f0';ctx.fillRect(px+scale*.42,py+scale*.38,scale*.4,scale*.16);
+ }
+ ctx.restore();
+}
+function fw12DrawInteriorFurniture(b,ox,oy,scale,rw,rh){
+ fw12EnsureBeds(b);
+ b.beds.forEach(function(p){drawAsset('bedroll',ox+p.x*scale,oy+p.y*scale,scale*1.05,scale*1.38,1);});
+ b.cribs.forEach(function(p){
+  const baby=(state.family.children||[]).find(function(c){return c.sleepingInCrib&&c.cribBuildingId===b.id;});
+  fw12DrawCrib(ox,oy,scale,p.x,p.y,baby);
+ });
+ const spouse=state.npcs.find(function(n){return n.relationship==='family'&&n.alive!==false&&fw12SharedHome(n)&&fw12SharedHome(n).id===b.id;});
+ if(spouse&&(isNight()||['homeWait','homeRest'].includes(spouse.command))){
+  const a=ATLAS[(spouse.sprite||'mio')+'_front'];if(a){const px=ox+scale*(rw-1.6),py=oy+scale*(rh-1.6),sz=scale*.62;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],px,py,sz,sz);}
+ }
+}
+function fw12OpenBedArrange(){
+ if(!state.interior){msg('🏠 家の中で配置して。');return;}
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return;
+ const it=state.interior,slots=fw12BedSlots(it.roomW,it.roomH);fw12EnsureBeds(b);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🛏️ 寝具の配置';
+ const used=function(s){return b.beds.some(function(p){return Math.hypot(p.x-s.x,p.y-s.y)<.2;})||b.cribs.some(function(p){return Math.hypot(p.x-s.x,p.y-s.y)<.2;});};
+ $('#panelBody').innerHTML='<div class="legend">ベッド '+b.beds.length+' / ベビーベッド '+b.cribs.length+'　家族人数 '+(1+state.npcs.filter(function(n){return n.relationship==='family'&&n.alive!==false;}).length+(state.family.children||[]).length)+'</div><div class="grid3">'+
+ slots.map(function(s,i){return '<div class="tileCard">位置 '+(i+1)+'<br><button class="smallBtn" data-fw12="bed" data-slot="'+i+'" '+(used(s)?'disabled':'')+'>🛏️ ベッド<br>木2+繊維1</button><br><button class="smallBtn" data-fw12="crib" data-slot="'+i+'" '+(used(s)?'disabled':'')+'>👶 ベビーベッド<br>木2+繊維2</button></div>';}).join('')+
+ '</div><p class="note">寝具は部屋の決められた位置に自由に追加できます。人数分そろえると生活感が増します。</p>';
+}
+function fw12PayFurniture(fiber){
+ if((state.chest.wood||0)+(state.player.inv.wood||0)<2||(state.chest.fiber||0)+(state.player.inv.fiber||0)<fiber)return false;
+ let w=2,a=Math.min(w,state.player.inv.wood||0);state.player.inv.wood-=a;w-=a;if(w)state.chest.wood-=w;
+ let f=fiber;a=Math.min(f,state.player.inv.fiber||0);state.player.inv.fiber-=a;f-=a;if(f)state.chest.fiber-=f;
+ return true;
+}
+function fw12PlaceFurniture(kind,slot){
+ const b=state.buildings.find(function(x){return state.interior&&x.id===state.interior.buildingId;});if(!b)return;
+ fw12EnsureBeds(b);const s=fw12BedSlots(state.interior.roomW,state.interior.roomH)[slot];if(!s)return;
+ if(!fw12PayFurniture(kind==='crib'?2:1)){msg('🪵 木2と必要な繊維が足りない。');return;}
+ (kind==='crib'?b.cribs:b.beds).push({x:s.x,y:s.y});msg(kind==='crib'?'👶 ベビーベッドを配置した。':'🛏️ ベッドを配置した。');fw12OpenBedArrange();
+}
+const fw12PrevBuild=build;
+build=function(){
+ if(state.interior){fw12OpenBedArrange();return;}
+ fw12PrevBuild();
+};
+
+function fw12EnsureBaby(c,i){
+ fw10EnsureChild(c,i);
+ if(c.heldBy==null)c.heldBy=null;
+ if(c.sleepingInCrib==null)c.sleepingInCrib=false;
+ if(c.cribBuildingId==null)c.cribBuildingId=null;
+}
+(state.family.children||[]).forEach(fw12EnsureBaby);
+
+fw10ChildPos=function(c,i){
+ fw12EnsureBaby(c,i);
+ if(c.heldBy==='player')return {x:state.player.x,y:state.player.y};
+ if(c.heldBy){
+  const n=state.npcs.find(function(x){return x.id===c.heldBy;});if(n)return {x:n.x,y:n.y};
+ }
+ if(c.sleepingInCrib){
+  const b=state.buildings.find(function(x){return x.id===c.cribBuildingId;})||state.buildings.find(function(x){return x.id==='player';});
+  if(b){const e=fw10Entrance(b);return {x:e.x,y:e.y-.8};}
+ }
+ const h=state.buildings.find(function(b){return b.id==='player';})||{x:44,y:43};
+ return {x:h.x+.55+(i%4)*.72,y:h.y+2.35+Math.floor(i/4)*.75};
+};
+
+fw8DrawChildren=function(){
+ if(isNight())return;
+ (state.family.children||[]).forEach(function(c,i){
+  fw12EnsureBaby(c,i);if(c.controlled||c.sleepingInCrib)return;
+  const st=fw10ChildStage(c),p=fw10ChildPos(c,i),key=(c.parent==='riku'?'riku_front':'mio_front'),a=ATLAS[key];if(!a)return;
+  const s=worldToScreen(p.x,p.y),sz=st==='baby'?TILE*.35:st==='youth'?TILE*.58:TILE*.72;
+  let ox=(TILE-sz)/2,oy=TILE-sz;
+  if(c.heldBy){ox+=TILE*.28;oy-=TILE*.34;}
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],s.x+ox,s.y+oy,sz,sz);
+  if(!c.heldBy){ctx.fillStyle='#fff';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(c.name+' '+(st==='baby'?'赤ちゃん':st==='youth'?(c.gender==='boy'?'少年':'少女'):'成人'),s.x+TILE/2,s.y+TILE+9);}
+  ctx.restore();
+ });
+};
+
+function fw12ToggleCarry(c){
+ const i=(state.family.children||[]).indexOf(c);fw12EnsureBaby(c,i);
+ if(c.heldBy==='player'){
+  c.heldBy=null;c.sleepingInCrib=false;const p=fw10ChildPos(c,i);msg('🤱 '+c.name+'をそっと下ろした。');
+ }else{
+  c.heldBy='player';c.sleepingInCrib=false;c.cribBuildingId=null;c.needs.affection=100;c.bond=clamp(c.bond+3,0,100);state.player.st=clamp(state.player.st-5,0,100);msg('🤱 '+c.name+'を抱っこした。移動できます。');
+ }
+ renderDialogReplies();
+}
+function fw12PutInCrib(c){
+ if(c.heldBy!=='player'){typeLine('まず抱っこしてからベビーベッドへ連れていこう。');return;}
+ const b=state.interior?state.buildings.find(function(x){return x.id===state.interior.buildingId;}):null;
+ if(!b){typeLine('家の中のベビーベッドで寝かせよう。');return;}
+ fw12EnsureBeds(b);if(!b.cribs.length){typeLine('この家にはまだベビーベッドがないよ。🔨で配置しよう。');return;}
+ c.heldBy=null;c.sleepingInCrib=true;c.cribBuildingId=b.id;c.needs.sleep=100;state.player.st=clamp(state.player.st-8,0,100);typeLine('ベビーベッドに寝かせた。すやすや眠っている。');msg('👶 '+c.name+'をベビーベッドへ寝かせた。');renderDialogReplies();
+}
+const fw12PrevCareChild=fw10CareChild;
+fw10CareChild=function(k){
+ const c=getDialogSpeaker();
+ if(c&&c.isChild&&k==='hug'){if(state.player.st<5){typeLine('抱っこするには少し疲れすぎているみたい。');return;}fw12ToggleCarry(c);return;}
+ fw12PrevCareChild(k);
+};
+
+function fw12PregnancyFor(n){return state.family.pregnancies.find(function(p){return p.parent===n.id;})||null;}
+function fw12Heart(n){
+ if(n.relationship!=='family')return;
+ if(fw12PregnancyFor(n)){typeLine('今は赤ちゃんを迎える準備をしながら、ゆっくり過ごそう。');return;}
+ if(state.day-(n.heartDay||-99)<3){typeLine('焦らず、二人の時間を大切にしよう。');return;}
+ n.heartDay=state.day;
+ const chance=.10+Math.random()*.15;
+ const success=Math.random()<chance;
+ if(success){
+  const gender=Math.random()<.5?'boy':'girl',due=state.day+(state.family.gestationDays||17);
+  state.family.pregnancies.push({parent:n.id,startDay:state.day,dueDay:due,gender:gender});
+  typeLine('二人で大切な時間を過ごした。これから少しずつ、家族の未来が動き始めるかもしれない。');
+  msg('❤️ 家族の未来に新しい予定ができた。');
+ }else{
+  typeLine('二人でゆっくり過ごした。今夜はそれだけで十分幸せだね。');
+  msg('❤️ 二人の時間を過ごした。');
+ }
+ renderDialogReplies();
+}
+function fw12PregnancyTick(){
+ const born=[];
+ state.family.pregnancies.forEach(function(p){
+  if(state.day>=p.dueDay){
+   const no=(state.family.children||[]).length+1,name=(p.gender==='boy'?'Boy ':'Girl ')+no;
+   const c={name:name,parent:p.parent,ageDays:0,gender:p.gender,bond:25,needs:{milk:95,diaper:95,bath:95,sleep:90,affection:90},married:false,controlled:false,isChild:true,heldBy:null,sleepingInCrib:true,cribBuildingId:'player'};
+   state.family.children.push(c);fw12EnsureBaby(c,state.family.children.length-1);
+   const b=state.buildings.find(function(x){return x.id==='player';});if(b){fw12EnsureBeds(b);if(!b.cribs.length)b.cribs.push({x:2.0,y:.72});}
+   fw10StartCeremony('birth',name+'の誕生',(p.gender==='boy'?'男の子':'女の子')+'が家族に加わった。約10か月待った新しい家族だ。');
+   born.push(p);
+  }
+ });
+ if(born.length)state.family.pregnancies=state.family.pregnancies.filter(function(p){return !born.includes(p);});
+}
+
+function fw12CareChoice(c){
+ const n=c.needs,arr=[['milk',n.milk],['diaper',n.diaper],['bath',n.bath],['sleep',n.sleep],['hug',n.affection]];
+ arr.sort(function(a,b){return a[1]-b[1];});return arr[0];
+}
+function fw12SpouseCare(n,dt){
+ if(n.relationship!=='family'||n.id==='guard'||n.id==='merchant')return false;
+ const babies=(state.family.children||[]).filter(function(c){return fw10ChildStage(c)==='baby'&&!c.controlled;});
+ if(!babies.length)return false;
+ if(['homeCraft','buildHouse'].includes(n.command))return false;
+ const c=babies[0],i=(state.family.children||[]).indexOf(c);fw12EnsureBaby(c,i);
+ const low=fw12CareChoice(c),urgent=low[1]<72,night=isNight();
+ n.careClock=(n.careClock||0)-dt;
+ if(night){
+  const home=fw12SharedHome(n),e=home?fw10Entrance(home):fw9HomeSpot(n);setNpcTarget(n,e.x,e.y-.3,'👶 赤ちゃんを寝かしつけ');fw7MoveNpc(n,dt,.86);
+  if(Math.hypot(n.x-e.x,n.y-(e.y-.3))<.55){
+   c.heldBy=null;c.sleepingInCrib=true;c.cribBuildingId=home?home.id:'player';c.needs.sleep=clamp(c.needs.sleep+dt*5,0,100);n.st=clamp(n.st+dt*.7,0,100);n.status='🌙 赤ちゃんと就寝';
+  }
+  return true;
+ }
+ if(urgent||n.careClock<=0){
+  if(n.careClock<=0)n.careClock=6+Math.random()*7;
+  c.sleepingInCrib=false;c.cribBuildingId=null;
+  const p=fw10ChildPos(c,i);setNpcTarget(n,p.x,p.y,'👶 お世話：'+low[0]);fw7MoveNpc(n,dt,.9);
+  if(Math.hypot(n.x-p.x,n.y-p.y)<.6){
+   c.heldBy=n.id;n.st=clamp(n.st-dt*.7,0,100);n.status='🤱 赤ちゃんを抱っこ';
+   if(low[0]==='milk'){c.needs.milk=clamp(c.needs.milk+dt*18,0,100);}
+   else if(low[0]==='diaper'){c.needs.diaper=clamp(c.needs.diaper+dt*24,0,100);}
+   else if(low[0]==='bath'){c.needs.bath=clamp(c.needs.bath+dt*16,0,100);}
+   else if(low[0]==='sleep'){c.needs.sleep=clamp(c.needs.sleep+dt*13,0,100);}
+   else c.needs.affection=clamp(c.needs.affection+dt*20,0,100);
+   c.bond=clamp(c.bond+dt*.12,0,100);
+   if(fw12CareChoice(c)[1]>88&&Math.random()<dt*.35){c.heldBy=null;c.sleepingInCrib=true;c.cribBuildingId=(fw12SharedHome(n)||{id:'player'}).id;n.status='👶 お世話完了';}
+  }
+  return true;
+ }
+ return false;
+}
+const fw12PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ fw10EnsureNpc(n);
+ if(fw12SpouseCare(n,dt))return;
+ return fw12PrevUpdateNPC(n,dt);
+};
+
+const fw12PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ const n=getDialogSpeaker();if(!n)return;
+ if(n.isChild){
+  fw12PrevRenderDialog();
+  if(fw10ChildStage(n)==='baby'){
+   const btn=$('#dialogReplies').querySelector('[data-reply="hug"]');if(btn)btn.textContent=n.heldBy==='player'?'👐 抱っこから下ろす':'🤱 抱っこ';
+   $('#dialogReplies').insertAdjacentHTML('beforeend','<button data-reply="crib" type="button">🛏️ ベビーベッドに寝かせる</button>');
+  }
+  return;
+ }
+ fw12PrevRenderDialog();
+ const rel=n.relationship||'acquaintance',p=fw12PregnancyFor(n);
+ const relText=fw8RelLabel(n);
+ const sp=$('#speaker');if(sp)sp.insertAdjacentHTML('beforeend','<span class="friendTag"> / '+relText+(p?' / 🤰 '+Math.min(10,Math.max(1,Math.ceil(clamp((state.day-p.startDay)/(p.dueDay-p.startDay),0,1)*10)))+'/10か月':'')+'</span>');
+ const heart=$('#dialogReplies').querySelector('[data-reply="familyFuture"]');if(heart)heart.textContent='❤️ 二人の時間';
+};
+const fw12PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();if(!n)return;
+ if(n.isChild&&k==='crib'){fw12PutInCrib(n);return;}
+ if(!n.isChild&&k==='familyFuture'){fw12Heart(n);return;}
+ if(!n.isChild&&['hello','work','life'].includes(k)){
+  if(k==='hello'){n.friend=clamp(n.friend+1,0,100);if(n.companion)n.loyalty=clamp((n.loyalty||0)+.2,0,100);}
+  renderDialogReplies();typeLine(fw12RelLine(n,k));return;
+ }
+ fw12PrevHandleDialog(k);
+};
+
+const fw12PrevTalk=talk;
+talk=function(){
+ if(state.interior){
+  const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});
+  const spouse=state.npcs.find(function(n){return n.relationship==='family'&&n.alive!==false&&fw12SharedHome(n)&&b&&fw12SharedHome(n).id===b.id;});
+  if(spouse){state.dialog={speaker:spouse};$('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();typeLine(fw12RelLine(spouse,'intro'));msg('💬 '+spouse.name+'と家で会話中。');return;}
+ }
+ const c=fw10NearestChild(),n=nearestNPC(),nd=n?Math.hypot(n.x-state.player.x,n.y-state.player.y):999;
+ if(c&&c.d<nd){fw12PrevTalk();return;}
+ if(n){state.dialog={speaker:n};$('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();typeLine(fw12RelLine(n,'intro'));msg('💬 '+n.name+'と会話中。');return;}
+ fw12PrevTalk();
+};
+
+const fw12PrevAdvanceRel=fw8AdvanceRelationship;
+fw8AdvanceRelationship=function(n,type){
+ fw12PrevAdvanceRel(n,type);
+ if(type==='family'&&n.relationship==='family'){n.homeId='player';n.command='homeWait';n.status='🏠 同居';}
+};
+
+const fw12PrevUpdate=update;
+update=function(dt){
+ fw12PrevUpdate(dt);
+ (state.family.children||[]).forEach(function(c,i){fw12EnsureBaby(c,i);});
+ if(state.day!==state.family.pregnancyTickDay){state.family.pregnancyTickDay=state.day;fw12PregnancyTick();}
+};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw12]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw12==='bed')fw12PlaceFurniture('bed',Number(b.dataset.slot));
+ else if(b.dataset.fw12==='crib')fw12PlaceFurniture('crib',Number(b.dataset.slot));
 },true);
 
 const joyBase=$('#joy'),knob=$('#knob');
