@@ -1762,6 +1762,169 @@ $('#settingsPanel').addEventListener('click',function(e){
  else if(a==='log')fw10OpenCeremonyLog();
 },true);
 
+
+/* FRONTIER_V11_THINK_PRIORITY_COMMANDS */
+Object.assign(commands,{
+ think:{icon:'🤔',label:'優先行動'},
+ gatherWood:{icon:'🌲🪓',label:'木材を優先採集'},
+ gatherWater:{icon:'💧',label:'水を優先採集'},
+ gatherStone:{icon:'🪨⛏️',label:'石を優先採集'},
+ farmAuto:{icon:'🌾',label:'畑を優先'},
+ gatherFood:{icon:'🍎',label:'食べ物を優先採集'}
+});
+
+state.player.autoSchedule=state.player.autoSchedule||{enabled:false,target:null,patrol:0,lastFarm:0,suspendUntil:0};
+if(!('priority' in state.player.autoSchedule))state.player.autoSchedule.priority='schedule';
+
+const FW11_PRIORITY={
+ schedule:{icon:'🕒',label:'時間割に任せる',desc:'時間帯に合わせて採集・畑・巡回・帰宅を自動選択'},
+ gather:{icon:'🧺',label:'なんでも採集',desc:'水→食料→木→石→繊維の順に近い資源を探す'},
+ wood:{icon:'🌲🪓',label:'木材を優先',desc:'木だけを探して採集する'},
+ water:{icon:'💧',label:'水を優先',desc:'水場を探して水を集める'},
+ stone:{icon:'🪨⛏️',label:'石を優先',desc:'石を探して採掘する'},
+ food:{icon:'🍎',label:'食べ物を優先',desc:'食べられる資源を優先して集める'},
+ farm:{icon:'🌾',label:'畑を優先',desc:'畑の手入れ・成長促進・収穫を繰り返す'},
+ transport:{icon:'📦',label:'運搬を優先',desc:'持っている資源を家のチェストへ運ぶ'},
+ patrol:{icon:'🛡️',label:'巡回・防衛を優先',desc:'野営地の周囲を定期巡回する'},
+ rest:{icon:'💤',label:'休息を優先',desc:'家へ戻ってスタミナを回復する'},
+ off:{icon:'✋',label:'自動行動OFF',desc:'手動操作に戻す'}
+};
+function fw11PriorityLabel(k){return FW11_PRIORITY[k]||FW11_PRIORITY.schedule;}
+function fw11SetPriority(k,closePanel){
+ const a=state.player.autoSchedule;
+ if(k==='off'){a.enabled=false;a.priority='schedule';a.target=null;state.player.status='手動';msg('✋ 自動行動をOFFにした。');}
+ else{
+  a.enabled=true;a.priority=k;a.target=null;a.suspendUntil=0;
+  const p=fw11PriorityLabel(k);state.player.status=p.icon+' '+p.label;msg(p.icon+' 優先行動：'+p.label);
+ }
+ if(closePanel)$('#panel').classList.add('hidden');
+ renderButtons();
+}
+function fw11OpenThinkMenu(){
+ const a=state.player.autoSchedule||{},current=a.enabled?(a.priority||'schedule'):'off';
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 優先行動';
+ $('#panelBody').innerHTML=
+  '<div class="legend">現在：'+fw11PriorityLabel(current).icon+' '+fw11PriorityLabel(current).label+'</div>'+
+  '<div class="grid3">'+Object.keys(FW11_PRIORITY).map(function(k){
+   const p=FW11_PRIORITY[k],sel=k===current?' style="outline:2px solid #e8c96a"':'';
+   return '<button class="smallBtn" data-fw11="priority" data-priority="'+k+'"'+sel+'><b>'+p.icon+' '+p.label+'</b><br><span style="font-size:11px;opacity:.78">'+p.desc+'</span></button>';
+  }).join('')+'</div>'+
+  '<p class="note">🤔を5ボタンのどこかへ割り当てると、いつでもこのメニューを開けます。🌲🪓 / 💧 / 🪨⛏️ / 🌾 / 🍎 は直接ボタンへ割り当てることもできます。</p>';
+}
+function fw11NearestGather(kind){
+ let best=null,bd=999;
+ for(const o of state.objects){
+  if(o.gather!==kind)continue;
+  const d=Math.hypot(o.x-state.player.x,o.y-state.player.y);
+  if(d<bd){bd=d;best=o;}
+ }
+ return best;
+}
+function fw11AutoGather(kind,dt){
+ const a=state.player.autoSchedule;
+ if(!a.target||!state.objects.includes(a.target)||a.target.gather!==kind)a.target=fw11NearestGather(kind);
+ state.player.status=fw11PriorityLabel(kind).icon+' '+fw11PriorityLabel(kind).label;
+ if(a.target){
+  if(fw10AutoMove(a.target.x,a.target.y,dt)){fw10HarvestObject(a.target);a.target=null;}
+ }else state.player.status='🔎 '+fw11PriorityLabel(kind).label+'：探索中';
+}
+function fw11AutoGatherAny(dt){
+ const a=state.player.autoSchedule;
+ if(!a.target||!state.objects.includes(a.target))a.target=fw10PickAutoResource();
+ state.player.status='🧺 なんでも採集';
+ if(a.target){
+  if(fw10AutoMove(a.target.x,a.target.y,dt)){fw10HarvestObject(a.target);a.target=null;}
+ }else state.player.status='🔎 資源探索中';
+}
+function fw11AutoFarm(dt){
+ const a=state.player.autoSchedule,p=fw10FarmPos(a.farmIndex||0);
+ state.player.status='🌾 畑を優先';
+ if(fw10AutoMove(p.x,p.y,dt)){
+  a.lastFarm=(a.lastFarm||0)+dt;
+  if(a.lastFarm>1.0){
+   a.lastFarm=0;const pl=state.farm.plots[a.farmIndex||0];
+   if(pl.growth>=1){state.player.inv.food=(state.player.inv.food||0)+2;pl.growth=.05;pl.planted=true;msg('🌾 収穫：食料 +2');}
+   else pl.growth=clamp(pl.growth+.14,0,1);
+   a.farmIndex=((a.farmIndex||0)+1)%state.farm.plots.length;
+  }
+ }
+}
+function fw11AutoTransport(dt){
+ const raw=['wood','stone','food','water','fiber'],has=raw.some(function(k){return (state.player.inv[k]||0)>0;});
+ state.player.status='📦 運搬を優先';
+ if(!has){state.player.status='📦 運ぶ資源なし';return;}
+ const b=state.buildings.find(function(x){return x.id==='player';}),e=b?fw10Entrance(b):{x:45,y:45};
+ if(fw10AutoMove(e.x,e.y,dt)){
+  let total=0;raw.forEach(function(k){const n=state.player.inv[k]||0;if(n>0){state.chest[k]=(state.chest[k]||0)+n;state.player.inv[k]=0;total+=n;}});
+  if(total)msg('📦 家のチェストへ資源を運搬：'+total+'個');
+ }
+}
+function fw11AutoPatrol(dt){
+ const a=state.player.autoSchedule,pts=[[43,41],[55,41],[60,51],[48,57],[36,50]],q=pts[a.patrol%pts.length];
+ state.player.status='🛡️ 巡回・防衛';
+ if(fw10AutoMove(q[0],q[1],dt)){
+  a.patrol=(a.patrol+1)%pts.length;
+  if(Math.random()<.35)state.player.weaponAnim={kind:'sword',until:performance.now()+430};
+ }
+}
+function fw11AutoRest(dt){
+ const b=state.buildings.find(function(x){return x.id==='player';}),e=b?fw10Entrance(b):{x:45,y:45};
+ state.player.status='💤 休息を優先';
+ if(fw10AutoMove(e.x,e.y,dt))state.player.st=clamp(state.player.st+dt*2.2,0,100);
+}
+
+const fw11PrevAutoPlayer=fw10AutoPlayer;
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;
+ if(!a||!a.enabled||state.gameOver||state.interior||state.dialog||state.training||state.crafting)return;
+ if(performance.now()<a.suspendUntil)return;
+ const p=a.priority||'schedule';
+ if(p==='schedule'){fw11PrevAutoPlayer(dt);return;}
+ if(p==='gather'){fw11AutoGatherAny(dt);return;}
+ if(['wood','water','stone','food'].includes(p)){fw11AutoGather(p,dt);return;}
+ if(p==='farm'){fw11AutoFarm(dt);return;}
+ if(p==='transport'){fw11AutoTransport(dt);return;}
+ if(p==='patrol'){fw11AutoPatrol(dt);return;}
+ if(p==='rest'){fw11AutoRest(dt);return;}
+};
+
+const fw11PrevRunCommand=runCommand;
+runCommand=function(k){
+ if(k==='think'){fw11OpenThinkMenu();return;}
+ if(k==='gatherWood'){fw11SetPriority('wood',false);return;}
+ if(k==='gatherWater'){fw11SetPriority('water',false);return;}
+ if(k==='gatherStone'){fw11SetPriority('stone',false);return;}
+ if(k==='farmAuto'){fw11SetPriority('farm',false);return;}
+ if(k==='gatherFood'){fw11SetPriority('food',false);return;}
+ fw11PrevRunCommand(k);
+};
+
+const fw11PrevRenderSettings=renderSettings;
+renderSettings=function(){
+ fw11PrevRenderSettings();
+ const a=state.player.autoSchedule||{},key=a.enabled?(a.priority||'schedule'):'off',p=fw11PriorityLabel(key);
+ $('#slotEditor').insertAdjacentHTML('beforeend',
+  '<div class="tileCard" style="margin-top:10px"><b>🤔 優先行動</b><br>現在：'+p.icon+' '+p.label+
+  '<br><button class="smallBtn" data-fw11-settings="think">優先行動メニューを開く</button>'+
+  '<div class="note">ボタン候補に 🌲🪓 木材 / 💧 水 / 🪨⛏️ 石 / 🌾 畑 / 🍎 食料 を追加しました。</div></div>');
+};
+
+const fw11PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw11PrevLoad();
+ state.player.autoSchedule=state.player.autoSchedule||{enabled:false,target:null,patrol:0,lastFarm:0,suspendUntil:0};
+ if(!('priority' in state.player.autoSchedule))state.player.autoSchedule.priority='schedule';
+};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw11]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw11==='priority')fw11SetPriority(b.dataset.priority,true);
+},true);
+$('#settingsPanel').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw11-settings]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw11Settings==='think'){$('#settingsPanel').classList.add('hidden');fw11OpenThinkMenu();}
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
