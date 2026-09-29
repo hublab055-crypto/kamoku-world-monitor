@@ -443,6 +443,173 @@ function renderSettings(){
  root.querySelectorAll('[data-edit]').forEach(sel=>sel.addEventListener('change',()=>{slots[Number(sel.dataset.edit)]=sel.value;renderButtons();}));
 }
 
+
+/* FRONTIER_V7_TRAINING_COMPANIONS */
+state.training=null;
+
+function fw7MoveNpc(n,dt,sp){
+ const dx=n.tx-n.x,dy=n.ty-n.y,d=Math.hypot(dx,dy);
+ if(d>.10){
+  setDirFromVector(n,dx,dy);
+  const nx=n.x+dx/d*sp*dt,ny=n.y+dy/d*sp*dt;
+  if(!blocked(nx,ny)){n.x=nx;n.y=ny;}
+ }
+}
+function fw7DrawDummy(wx,wy){
+ const s=worldToScreen(wx,wy),cx=s.x+TILE/2,cy=s.y+TILE/2;
+ ctx.save();ctx.lineCap='round';ctx.strokeStyle='#7b4a2b';ctx.lineWidth=5;
+ ctx.beginPath();ctx.moveTo(cx,cy+17);ctx.lineTo(cx,cy-12);ctx.stroke();
+ ctx.strokeStyle='#c99863';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(cx-14,cy-2);ctx.lineTo(cx+14,cy-2);ctx.stroke();
+ ctx.fillStyle='#b97a42';ctx.beginPath();ctx.arc(cx,cy-19,8,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+function fw7DrawTarget(wx,wy){
+ const s=worldToScreen(wx,wy),cx=s.x+TILE/2,cy=s.y+TILE/2;
+ ctx.save();ctx.strokeStyle='#5d3b22';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(cx,cy+18);ctx.lineTo(cx,cy-16);ctx.stroke();
+ [[16,'#f4f0df'],[11,'#d34e45'],[6,'#f0c74c'],[2,'#333']].forEach(function(q){ctx.fillStyle=q[1];ctx.beginPath();ctx.arc(cx,cy-18,q[0],0,Math.PI*2);ctx.fill();});
+ ctx.restore();
+}
+function fw7DrawWeapon(p){
+ const s=worldToScreen(p.x,p.y),cx=s.x+TILE/2,cy=s.y+TILE*.43;
+ const active=(p.role==='guard'&&!isNight())||(p.weaponAnim&&p.weaponAnim.until>performance.now());
+ const kind=p.trainingKind||(p.weaponAnim&&p.weaponAnim.kind);
+ if(!active||!kind)return;
+ ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+ if(kind==='sword'){
+  const ph=(performance.now()/190)%6.283,ang=-1.2+Math.sin(ph)*1.05;
+  const x1=cx+Math.cos(ang)*10,y1=cy+Math.sin(ang)*10,x2=cx+Math.cos(ang)*32,y2=cy+Math.sin(ang)*32;
+  ctx.strokeStyle='#d8e0e6';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.strokeStyle='#8a5b30';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(cx-2,cy+3);ctx.lineTo(x1,y1);ctx.stroke();
+  if(p.weaponAnim){ctx.strokeStyle='rgba(215,235,255,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,29,-1.9,.7);ctx.stroke();}
+ }else{
+  const side=p.dir==='left'?-1:1,bx=cx+side*13;
+  ctx.strokeStyle='#b17c43';ctx.lineWidth=4;ctx.beginPath();ctx.arc(bx,cy,17,-1.15,1.15,side<0);ctx.stroke();
+  ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx+side*7,cy-15);ctx.lineTo(bx-side*5,cy);ctx.lineTo(bx+side*7,cy+15);ctx.stroke();
+  ctx.strokeStyle='#c9c1a9';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+side*29,cy);ctx.stroke();
+ }
+ ctx.restore();
+}
+const fw7BaseDrawPerson=drawPerson;
+drawPerson=function(p,sprite){fw7BaseDrawPerson(p,sprite);fw7DrawWeapon(p);};
+
+const fw7BaseDraw=draw;
+draw=function(){
+ fw7BaseDraw();
+ const g=state.npcs.find(function(n){return n.id==='guard';});
+ if(g&&!isNight()){
+  if(g.trainingKind==='bow')fw7DrawTarget(g.x+3,g.y);
+  else fw7DrawDummy(g.x+1.55,g.y);
+ }
+ const tr=state.training;if(!tr)return;
+ if(tr.kind==='sword')fw7DrawDummy(tr.target.x,tr.target.y);
+ else{
+  fw7DrawTarget(tr.target.x,tr.target.y);
+  const s=worldToScreen(tr.target.x,tr.target.y),off=Math.sin(tr.aimPhase)*TILE*.75;
+  ctx.save();ctx.strokeStyle='#7ee7ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(s.x+TILE/2+off,s.y+TILE/2-18,10,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(s.x+TILE/2+off-14,s.y+TILE/2-18);ctx.lineTo(s.x+TILE/2+off+14,s.y+TILE/2-18);ctx.moveTo(s.x+TILE/2+off,s.y+TILE/2-32);ctx.lineTo(s.x+TILE/2+off,s.y+TILE/2-4);ctx.stroke();ctx.restore();
+  (tr.arrows||[]).forEach(function(a){const t=clamp(a.t,0,1),x=a.sx+(a.tx-a.sx)*t,y=a.sy+(a.ty-a.sy)*t,ps=worldToScreen(x,y);ctx.save();ctx.strokeStyle='#eee0b8';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(ps.x,ps.y);ctx.lineTo(ps.x-12,ps.y+1);ctx.stroke();ctx.restore();});
+ }
+};
+
+const fw7BaseUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(isNight()){return fw7BaseUpdateNPC(n,dt);}
+ if(n.role==='guard'&&!n.companion){
+  n.hunger=clamp(n.hunger-dt*.015,0,100);n.trainClock=(n.trainClock||0)-dt;
+  const home=state.buildings.find(function(b){return b.id===n.id;})||{x:36,y:42};
+  if(n.trainClock<=0){n.trainClock=5.5;n.trainingKind=n.trainingKind==='bow'?'sword':'bow';}
+  if(!n.trainingKind)n.trainingKind='sword';
+  setNpcTarget(n,home.x+1,home.y+2.5,n.trainingKind==='sword'?'⚔️ 剣の素振り':'🏹 弓の射撃訓練');
+  fw7MoveNpc(n,dt,.68);return;
+ }
+ if(n.companion&&(n.command||'follow')!=='follow'){
+  n.hunger=clamp(n.hunger-dt*.015,0,100);
+  const cmd=n.command,label={wood:'木',stone:'石',food:'食料',water:'水'}[cmd]||cmd;
+  if(!n.task||!state.objects.includes(n.task)||n.task.gather!==cmd)n.task=closestResource(n,cmd);
+  if(n.task){
+   setNpcTarget(n,n.task.x,n.task.y,'採集指示: '+label);
+   if(Math.hypot(n.task.x-n.x,n.task.y-n.y)<1.12){
+    state.camp[cmd]=(state.camp[cmd]||0)+1;state.objects=state.objects.filter(function(o){return o!==n.task;});n.task=null;n.st=clamp(n.st-3,0,100);
+   }
+  }else setNpcTarget(n,state.player.x+(n.id==='mio'?-1:1),state.player.y+1.3,'🔎 '+label+'を探索');
+  fw7MoveNpc(n,dt,1.0);return;
+ }
+ return fw7BaseUpdateNPC(n,dt);
+};
+
+renderDialogReplies=function(){
+ const n=getDialogSpeaker();if(!n)return;
+ $('#speaker').innerHTML=n.name+'<span class="friendTag">♥ '+n.friend+'</span>';
+ let a=[['hello','👋 挨拶'],['work','🪵 仕事'],['life','⛺ 暮らし'],['gift','🎁 プレゼント']];
+ if(n.id==='merchant')a.push(['buy','🛒 買う'],['sell','💰 売る']);
+ if(n.id==='guard')a.push(['trainSword','⚔️ 剣の訓練'],['trainBow','🏹 弓の訓練']);
+ if(n.id!=='merchant'&&n.id!=='guard'){
+  if(!n.companion)a.push(['recruit','🤝 仲間に誘う']);
+  else a.push(['cmdFollow','👣 ついて来て'],['cmdWood','🪵 木を集めて'],['cmdStone','🪨 石を集めて'],['cmdFood','🍎 食べ物を集めて'],['cmdWater','💧 水を集めて']);
+ }
+ $('#dialogReplies').innerHTML=a.map(function(q){return '<button data-reply="'+q[0]+'" type="button">'+q[1]+'</button>';}).join('');
+};
+
+function fw7RenderTrainingPanel(){
+ const tr=state.training;if(!tr)return;
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent=tr.kind==='sword'?'⚔️ 剣の訓練':'🏹 弓の訓練';
+ $('#panelBody').innerHTML='<div class="tileCard">'+(tr.kind==='sword'?'木人の近くまで移動して、剣を振って当てよう。':'照準が的の中心に重なった瞬間に射とう。')+'<br><b>'+tr.hits+' / '+tr.goal+'</b>　残り '+Math.max(0,Math.ceil(tr.time))+'s</div><button class="smallBtn" data-fw7="act">'+(tr.kind==='sword'?'⚔️ 剣を振る':'🏹 矢を射る')+'</button> <button class="smallBtn" data-fw7="stop">終了</button>';
+}
+function fw7StartTraining(kind){
+ const g=state.npcs.find(function(n){return n.id==='guard';});if(!g)return;
+ if(state.player.st<8){typeLine('疲れているな。少し休んでからにしよう。');return;}
+ closeDialog();state.training={kind:kind,hits:0,goal:5,time:30,aimPhase:0,arrows:[],target:{x:g.x+(kind==='sword'?1.7:5),y:g.y}};
+ state.player.weaponAnim={kind:kind,until:0};tap=null;
+ msg(kind==='sword'?'⚔️ 木人に5回当てよう。':'🏹 的の中心を狙って5回当てよう。');fw7RenderTrainingPanel();
+}
+function fw7TrainingAction(){
+ const tr=state.training;if(!tr)return;const p=state.player;
+ p.st=clamp(p.st-2,0,100);p.weaponAnim={kind:tr.kind,until:performance.now()+430};
+ if(tr.kind==='sword'){
+  if(Math.hypot(p.x-tr.target.x,p.y-tr.target.y)<1.65){tr.hits++;msg('⚔️ HIT '+tr.hits+'/'+tr.goal);}else msg('⚔️ 届かない。木人に近づいて。');
+ }else{
+  const off=Math.abs(Math.sin(tr.aimPhase)),hit=off<.28,dx=Math.sin(tr.aimPhase)*.75;
+  tr.arrows.push({sx:p.x,sy:p.y,tx:tr.target.x+dx,ty:tr.target.y,t:0});
+  if(hit){tr.hits++;msg('🎯 HIT '+tr.hits+'/'+tr.goal);}else msg('🏹 外れた。照準が中心に来る瞬間を狙おう。');
+ }
+ if(tr.hits>=tr.goal){
+  state.player.skills[tr.kind]++;const g=state.npcs.find(function(n){return n.id==='guard';});if(g)g.friend=clamp(g.friend+1,0,100);
+  msg('✅ 訓練成功！ '+(tr.kind==='sword'?'剣':'弓')+'Lv.'+state.player.skills[tr.kind]);state.training=null;$('#panel').classList.add('hidden');return;
+ }
+ fw7RenderTrainingPanel();
+}
+function fw7StopTraining(){if(!state.training)return;state.training=null;$('#panel').classList.add('hidden');msg('訓練を終了した。');}
+const fw7BaseUpdate=update;
+update=function(dt){
+ fw7BaseUpdate(dt);const tr=state.training;if(!tr)return;
+ tr.time-=dt;tr.aimPhase+=dt*3.1;(tr.arrows||[]).forEach(function(a){a.t+=dt*2.8;});tr.arrows=(tr.arrows||[]).filter(function(a){return a.t<1.08;});
+ tr.uiClock=(tr.uiClock||0)-dt;if(tr.uiClock<=0){tr.uiClock=.25;fw7RenderTrainingPanel();}
+ if(tr.time<=0){msg('⏱️ 訓練終了。もう一度挑戦できる。');state.training=null;$('#panel').classList.add('hidden');}
+};
+
+const fw7BaseHandleDialogAction=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();
+ if(n&&k.indexOf('cmd')===0){
+  const m={cmdFollow:'follow',cmdWood:'wood',cmdStone:'stone',cmdFood:'food',cmdWater:'water'},line={follow:'ついて行くね。',wood:'木を集めてくるね。',stone:'石を探してくる。',food:'食べ物を集めてくるね。',water:'水を集めてくるね。'};
+  n.command=m[k];n.task=null;typeLine(line[n.command]);msg('📣 '+n.name+'：'+line[n.command]);renderDialogReplies();return;
+ }
+ if(k==='trainSword'){fw7StartTraining('sword');return;}
+ if(k==='trainBow'){fw7StartTraining('bow');return;}
+ fw7BaseHandleDialogAction(k);
+ if(k==='recruit'&&n&&n.companion){n.command='follow';renderDialogReplies();}
+};
+
+const fw7BaseRunCommand=runCommand;
+runCommand=function(k){if(state.training&&k==='action'){fw7TrainingAction();return;}fw7BaseRunCommand(k);};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw7]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw7==='act')fw7TrainingAction();else fw7StopTraining();
+},true);
+canvas.addEventListener('pointerdown',function(e){if(state.training&&state.training.kind==='bow'){e.preventDefault();e.stopImmediatePropagation();fw7TrainingAction();}},true);
+root.addEventListener('keydown',function(e){if(state.training&&(e.key===' '||e.key.toLowerCase()==='e')){e.preventDefault();e.stopImmediatePropagation();fw7TrainingAction();}},true);
+$('#closePanel').addEventListener('click',function(e){if(state.training){e.preventDefault();e.stopImmediatePropagation();fw7StopTraining();}},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
