@@ -610,6 +610,418 @@ canvas.addEventListener('pointerdown',function(e){if(state.training&&state.train
 root.addEventListener('keydown',function(e){if(state.training&&(e.key===' '||e.key.toLowerCase()==='e')){e.preventDefault();e.stopImmediatePropagation();fw7TrainingAction();}},true);
 $('#closePanel').addEventListener('click',function(e){if(state.training){e.preventDefault();e.stopImmediatePropagation();fw7StopTraining();}},true);
 
+
+/* FRONTIER_V8_COMBAT_CRAFT_FAMILY */
+state.projectiles=[];
+state.trainingGround={dummy:{x:33.5,y:46.4},target:{x:33.5,y:49.2},swordStand:{x:35.4,y:46.4},bowStand:{x:38.0,y:49.2}};
+state.player.inv.fiber=state.player.inv.fiber||0;
+state.chest.fiber=state.chest.fiber||0;
+state.chest.crafted=state.chest.crafted||[];
+state.player.items=state.player.items||[];
+state.player.ammo=state.player.ammo==null?12:state.player.ammo;
+state.player.equipment=state.player.equipment||{weapon:'training_sword',tool:null,clothing:null,accessory:null};
+state.player.skills=Object.assign({craft:0,cooking:0,tailoring:0,jewelry:0},state.player.skills||{});
+state.family=state.family||{children:[],lastDay:state.day};
+state.crafting=null;
+
+const FW8_RECIPES={
+ stone_axe:{name:'石の斧',icon:'🪓',cat:'tool',skill:'craft',cost:{wood:2,stone:2},value:34,slot:'tool'},
+ travel_sword:{name:'旅人の剣',icon:'⚔️',cat:'equipment',skill:'craft',cost:{wood:1,stone:3},value:48,slot:'weapon'},
+ hunting_bow:{name:'狩猟弓',icon:'🏹',cat:'equipment',skill:'craft',cost:{wood:3,fiber:1},value:46,slot:'weapon'},
+ arrows:{name:'矢束',icon:'➶',cat:'ammo',skill:'craft',cost:{wood:1,stone:1},value:14,qty:6},
+ stew:{name:'野営シチュー',icon:'🍲',cat:'food',skill:'cooking',cost:{food:2,water:1},value:24},
+ cloak:{name:'旅人のマント',icon:'🧥',cat:'clothing',skill:'tailoring',cost:{fiber:4},value:52,slot:'clothing'},
+ stone_charm:{name:'石のお守り',icon:'📿',cat:'accessory',skill:'jewelry',cost:{stone:2,fiber:1},value:42,slot:'accessory'}
+};
+state.recipesKnown=state.recipesKnown||Object.keys(FW8_RECIPES);
+const FW8_QUALITY=['粗末','普通','良品','上質','名品'];
+function fw8QualityMult(q){return [0.7,1,1.25,1.6,2.2][q]||1;}
+function fw8DirVec(dir){return dir==='left'?{x:-1,y:0}:dir==='right'?{x:1,y:0}:dir==='back'?{x:0,y:-1}:{x:0,y:1};}
+function fw8EnsureNpc(n){
+ if(n.loyalty==null)n.loyalty=Math.max(5,Math.round(n.friend*.72));
+ if(!n.inv)n.inv={wood:0,stone:0,food:0,water:0,fiber:0};
+ if(!n.relationship)n.relationship=n.companion?'companion':'acquaintance';
+ if(n.familyCooldown==null)n.familyCooldown=-99;
+}
+state.npcs.forEach(fw8EnsureNpc);
+
+const fw8BaseMakeMap=makeMap;
+makeMap=function(){
+ fw8BaseMakeMap();
+ state.objects.forEach(function(o){if(o.type==='grass')o.gather='fiber';});
+ for(let i=0;i<18;i++){
+  const x=20+Math.random()*54,y=22+Math.random()*54;
+  if(!blocked(x,y))state.objects.push({type:'grass',x:x,y:y,solid:true,gather:'fiber'});
+ }
+};
+
+function fw8DrawDummy(wx,wy){
+ const s=worldToScreen(wx,wy),cx=s.x+TILE/2,cy=s.y+TILE/2;
+ ctx.save();ctx.globalAlpha=isNight()?.42:1;ctx.lineCap='round';
+ ctx.strokeStyle='#6f4327';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(cx,cy+20);ctx.lineTo(cx,cy-15);ctx.stroke();
+ ctx.strokeStyle='#bd8a52';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(cx-15,cy-2);ctx.lineTo(cx+15,cy-2);ctx.stroke();
+ ctx.fillStyle='#aa6d37';ctx.beginPath();ctx.arc(cx,cy-23,9,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#e8d3a8';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText('剣術木人',cx,cy+34);ctx.restore();
+}
+function fw8DrawTarget(wx,wy){
+ const s=worldToScreen(wx,wy),cx=s.x+TILE/2,cy=s.y+TILE/2;
+ ctx.save();ctx.globalAlpha=isNight()?.42:1;
+ ctx.strokeStyle='#5d3b22';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(cx,cy+22);ctx.lineTo(cx,cy-18);ctx.stroke();
+ [[17,'#eee8d6'],[12,'#ca514a'],[7,'#e2bc45'],[3,'#2b3137']].forEach(function(q){ctx.fillStyle=q[1];ctx.beginPath();ctx.arc(cx,cy-20,q[0],0,Math.PI*2);ctx.fill();});
+ ctx.fillStyle='#e8d3a8';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText('弓術的',cx,cy+34);ctx.restore();
+}
+fw7DrawDummy=function(){};
+fw7DrawTarget=function(){};
+
+const fw8BaseBlocked=blocked;
+blocked=function(x,y){
+ const g=state.trainingGround;
+ if(Math.hypot(x-g.dummy.x,y-g.dummy.y)<.62||Math.hypot(x-g.target.x,y-g.target.y)<.62)return true;
+ return fw8BaseBlocked(x,y);
+};
+
+fw7DrawWeapon=function(p){
+ const wa=p.weaponAnim,guardActive=p.role==='guard'&&!isNight();
+ const kind=(wa&&wa.kind)||p.trainingKind;
+ if(!kind||(!guardActive&&!(wa&&wa.until>performance.now())))return;
+ const s=worldToScreen(p.x,p.y),cx=s.x+TILE/2,cy=s.y+TILE*.48,v=fw8DirVec(p.dir);
+ const perp={x:-v.y,y:v.x};ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+ if(kind==='sword'){
+  const t=wa?clamp(1-(wa.until-performance.now())/430,0,1):(.5+.5*Math.sin(performance.now()/180));
+  const swing=(t-.5)*1.9;
+  const a=Math.atan2(v.y,v.x)+swing;
+  const hx=cx+Math.cos(a)*10,hy=cy+Math.sin(a)*10,tx=cx+Math.cos(a)*33,ty=cy+Math.sin(a)*33;
+  ctx.strokeStyle='rgba(210,235,255,.40)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,30,Math.atan2(v.y,v.x)-1.1,Math.atan2(v.y,v.x)+1.1);ctx.stroke();
+  ctx.strokeStyle='#8b5b30';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(hx,hy);ctx.stroke();
+  ctx.strokeStyle='#e4edf3';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(tx,ty);ctx.stroke();
+ }else{
+  const bx=cx+v.x*8,by=cy+v.y*8;
+  ctx.strokeStyle='#b17c43';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(bx+perp.x*17,by+perp.y*17);ctx.quadraticCurveTo(bx-v.x*7,by-v.y*7,bx-perp.x*17,by-perp.y*17);ctx.stroke();
+  ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx+perp.x*17,by+perp.y*17);ctx.lineTo(bx-v.x*8,by-v.y*8);ctx.lineTo(bx-perp.x*17,by-perp.y*17);ctx.stroke();
+ }
+ ctx.restore();
+};
+
+function fw8SpawnArrow(owner,x,y,dx,dy,opt){
+ const speed=(opt&&opt.speed)||7.2,life=(opt&&opt.life)||2.3;
+ state.projectiles.push({owner:owner,x:x,y:y,vx:dx*speed,vy:dy*speed,life:life,training:opt&&opt.training,hit:opt&&opt.hit,targetX:opt&&opt.targetX,targetY:opt&&opt.targetY});
+}
+function fw8SwordHitTarget(p,target){
+ const v=fw8DirVec(p.dir),dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy)||.001;
+ return d<1.85&&(dx/d*v.x+dy/d*v.y)>.40;
+}
+function fw8SwordAttack(){
+ const p=state.player;if(p.st<2){msg('⚔️ スタミナが足りない。');return;}
+ p.st=clamp(p.st-2,0,100);p.weaponAnim={kind:'sword',until:performance.now()+430};
+ if(state.training&&state.training.kind==='sword'){
+  if(fw8SwordHitTarget(p,state.trainingGround.dummy)){state.training.hits++;msg('⚔️ 木人 HIT '+state.training.hits+'/'+state.training.goal);fw8TrainingMaybeFinish();}
+  else msg('⚔️ 木人の方向を向いて、もう少し近づこう。');
+ }
+}
+function fw8FireArrow(training){
+ const p=state.player,v=fw8DirVec(p.dir);
+ if(!training&&p.ammo<=0){msg('🏹 矢がない。家で矢束を作ろう。');return;}
+ if(p.st<2){msg('🏹 スタミナが足りない。');return;}
+ p.st=clamp(p.st-2,0,100);p.weaponAnim={kind:'bow',until:performance.now()+420};
+ if(training&&state.training&&state.training.kind==='bow'){
+  const tr=state.training,off=Math.sin(tr.aimPhase)*.78;
+  const tx=state.trainingGround.target.x,ty=state.trainingGround.target.y+off;
+  const dx=tx-p.x,dy=ty-p.y,d=Math.hypot(dx,dy)||1;
+  p.dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'back':'front');
+  fw8SpawnArrow('player',p.x,p.y,dx/d,dy/d,{training:true,hit:Math.abs(off)<.25,targetX:tx,targetY:ty,speed:8.3});
+ }else{
+  p.ammo--;fw8SpawnArrow('player',p.x,p.y,v.x,v.y,{speed:8.3});
+ }
+}
+function fw8UpdateProjectiles(dt){
+ const keep=[];
+ for(const a of state.projectiles){
+  const ox=a.x,oy=a.y;a.x+=a.vx*dt;a.y+=a.vy*dt;a.life-=dt;
+  if(a.training&&a.targetX!=null){
+   const before=Math.hypot(ox-a.targetX,oy-a.targetY),after=Math.hypot(a.x-a.targetX,a.y-a.targetY);
+   if(after<.35||after>before&&before<.65){
+    if(a.hit&&state.training&&state.training.kind==='bow'){state.training.hits++;msg('🎯 的中 '+state.training.hits+'/'+state.training.goal);fw8TrainingMaybeFinish();}
+    else msg('🏹 的を外れた。');
+    continue;
+   }
+  }
+  if(a.life>0&&a.x>=0&&a.y>=0&&a.x<MAP&&a.y<MAP)keep.push(a);
+ }
+ state.projectiles=keep;
+}
+function fw8DrawProjectiles(){
+ for(const a of state.projectiles){
+  const s=worldToScreen(a.x,a.y),ang=Math.atan2(a.vy,a.vx);ctx.save();ctx.translate(s.x+TILE/2,s.y+TILE/2);ctx.rotate(ang);
+  ctx.strokeStyle='#eadbb7';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-14,0);ctx.lineTo(8,0);ctx.stroke();
+  ctx.fillStyle='#cdd8df';ctx.beginPath();ctx.moveTo(11,0);ctx.lineTo(4,-4);ctx.lineTo(4,4);ctx.closePath();ctx.fill();ctx.restore();
+ }
+}
+
+function fw8TrainingMaybeFinish(){
+ const tr=state.training;if(!tr)return;
+ if(tr.hits>=tr.goal){
+  state.player.skills[tr.kind]=(state.player.skills[tr.kind]||0)+1;
+  const g=state.npcs.find(function(n){return n.id==='guard';});if(g){g.friend=clamp(g.friend+1,0,100);g.loyalty=clamp((g.loyalty||0)+1,0,100);}
+  msg('✅ 訓練成功！ '+(tr.kind==='sword'?'剣':'弓')+' Lv.'+state.player.skills[tr.kind]);
+  state.training=null;$('#panel').classList.add('hidden');
+ }
+}
+fw7StartTraining=function(kind){
+ const g=state.npcs.find(function(n){return n.id==='guard';});if(!g)return;
+ closeDialog();state.training={kind:kind,hits:0,goal:5,time:35,aimPhase:0,target:kind==='sword'?state.trainingGround.dummy:state.trainingGround.target};
+ msg(kind==='sword'?'⚔️ 固定木人に向かって5回剣を当てよう。':'🏹 固定の的へ、照準が中央に来た時に5本当てよう。');
+ fw7RenderTrainingPanel();
+};
+fw7TrainingAction=function(){
+ if(!state.training)return;
+ if(state.training.kind==='sword')fw8SwordAttack();else fw8FireArrow(true);
+ if(state.training)fw7RenderTrainingPanel();
+};
+
+const fw8PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ fw8EnsureNpc(n);
+ if(!isNight()&&n.role==='guard'){
+  n.hunger=clamp(n.hunger-dt*.015,0,100);n.trainClock=(n.trainClock||0)-dt;n.shotClock=(n.shotClock||0)-dt;
+  if(n.trainClock<=0){n.trainClock=7;n.trainingKind=n.trainingKind==='bow'?'sword':'bow';}
+  const stand=n.trainingKind==='bow'?state.trainingGround.bowStand:state.trainingGround.swordStand;
+  setNpcTarget(n,stand.x,stand.y,n.trainingKind==='bow'?'🏹 固定的で射撃訓練':'⚔️ 固定木人で剣術訓練');fw7MoveNpc(n,dt,.76);
+  if(Math.hypot(n.x-stand.x,n.y-stand.y)<.25){
+   const target=n.trainingKind==='bow'?state.trainingGround.target:state.trainingGround.dummy;
+   setDirFromVector(n,target.x-n.x,target.y-n.y);
+   if(n.trainingKind==='bow'&&n.shotClock<=0){n.shotClock=1.7;const dx=target.x-n.x,dy=target.y-n.y,d=Math.hypot(dx,dy)||1;n.weaponAnim={kind:'bow',until:performance.now()+420};fw8SpawnArrow('guard',n.x,n.y,dx/d,dy/d,{speed:7.3,life:1.4});}
+   if(n.trainingKind==='sword'&&n.shotClock<=0){n.shotClock=.9;n.weaponAnim={kind:'sword',until:performance.now()+430};}
+  }
+  return;
+ }
+ if(!isNight()&&n.companion&&(n.command||'follow')!=='follow'){
+  const home=state.buildings.find(function(b){return b.id==='player';})||{x:44,y:43};
+  const carry=Object.keys(n.inv).reduce(function(a,k){return a+(n.inv[k]||0);},0);
+  if(carry>=4||state.hour>=17.4)n.returning=true;
+  if(n.returning){
+   setNpcTarget(n,home.x+1,home.y+2.6,'🏕️ 野営地へ帰還中');fw7MoveNpc(n,dt,1.0);
+   if(Math.hypot(n.x-(home.x+1),n.y-(home.y+2.6))<.65){
+    const rate=.25+.65*(n.loyalty/100),parts=[];
+    ['wood','stone','food','water','fiber'].forEach(function(k){
+     const have=n.inv[k]||0,put=Math.min(have,Math.floor(have*rate+(n.loyalty>70?.5:0)));
+     if(put>0){if(k==='fiber'){state.chest.fiber=(state.chest.fiber||0)+put;}else state.camp[k]=(state.camp[k]||0)+put;n.inv[k]-=put;parts.push(k+' '+put);}
+    });
+    n.returning=false;n.task=null;n.status='🏕️ 帰還済み';if(parts.length)msg('📦 '+n.name+'が忠誠 '+Math.round(n.loyalty)+' に応じて共通倉庫へ納品：'+parts.join(' / '));
+    if(state.hour>=17.4)n.command='follow';
+   }
+   return;
+  }
+  const cmd=n.command;if(!n.task||!state.objects.includes(n.task)||n.task.gather!==cmd)n.task=closestResource(n,cmd);
+  if(n.task){
+   setNpcTarget(n,n.task.x,n.task.y,'採集指示: '+({wood:'木',stone:'石',food:'食料',water:'水',fiber:'繊維'}[cmd]||cmd));fw7MoveNpc(n,dt,1.0);
+   if(Math.hypot(n.task.x-n.x,n.task.y-n.y)<1.05){n.inv[cmd]=(n.inv[cmd]||0)+1;state.objects=state.objects.filter(function(o){return o!==n.task;});n.task=null;n.st=clamp(n.st-3,0,100);}
+  }else{n.returning=true;}
+  return;
+ }
+ return fw8PrevUpdateNPC(n,dt);
+};
+
+const fw8PrevRespawn=respawnResources;
+respawnResources=function(dt){
+ fw8PrevRespawn(dt);
+ if(Math.random()<dt*.035&&state.objects.filter(function(o){return o.gather==='fiber';}).length<22){
+  for(let k=0;k<12;k++){const x=18+Math.random()*58,y=20+Math.random()*58;if(!blocked(x,y)){state.objects.push({type:'grass',x:x,y:y,solid:true,gather:'fiber'});break;}}
+ }
+};
+
+const fw8PrevAction=action;
+action=function(){
+ const o=nearestResource();
+ if(o&&o.gather==='fiber'){state.player.inv.fiber++;state.player.st=clamp(state.player.st-2,0,100);state.objects=state.objects.filter(function(x){return x!==o;});msg('🌿 繊維 +1');return;}
+ fw8PrevAction();
+};
+
+function fw8CostText(cost){return Object.keys(cost).map(function(k){return ({wood:'木',stone:'石',food:'食料',water:'水',fiber:'繊維'}[k]||k)+' '+cost[k];}).join(' / ');}
+function fw8HaveCost(cost){return Object.keys(cost).every(function(k){return (state.player.inv[k]||0)+(state.chest[k]||0)>=cost[k];});}
+function fw8ConsumeCost(cost){
+ for(const k of Object.keys(cost)){let n=cost[k],a=Math.min(n,state.player.inv[k]||0);state.player.inv[k]=(state.player.inv[k]||0)-a;n-=a;if(n>0)state.chest[k]=(state.chest[k]||0)-n;}
+}
+function fw8MakeItem(recipe,q,bonus){
+ if(recipe.cat==='ammo'){state.player.ammo+=(recipe.qty||1)+(bonus||0);return;}
+ const item={rid:Object.keys(FW8_RECIPES).find(function(k){return FW8_RECIPES[k]===recipe;}),name:recipe.name,icon:recipe.icon,cat:recipe.cat,slot:recipe.slot||null,quality:q,value:Math.round(recipe.value*fw8QualityMult(q)),qty:1};
+ state.player.items.push(item);if(bonus)state.player.items.push(Object.assign({},item));
+}
+function fw8CraftQuality(recipe,manualScore){
+ const lv=Math.floor(state.player.skills[recipe.skill]||0),roll=Math.random()+lv*.11+(manualScore==null?0:manualScore*.65);
+ return clamp(Math.floor(roll*2.05),0,4);
+}
+function fw8CraftAuto(id){
+ const r=FW8_RECIPES[id];if(!r||!nearHomeChest()){msg('🏠 家で製作して。');return;}if(!fw8HaveCost(r.cost)){msg('🔨 材料が足りない。');return;}
+ fw8ConsumeCost(r.cost);const q=fw8CraftQuality(r,null);fw8MakeItem(r,q,0);state.player.skills[r.skill]=(state.player.skills[r.skill]||0)+.08;
+ msg('🔨 '+r.name+'を自動製作：'+FW8_QUALITY[q]);fw8OpenCraftHub();
+}
+function fw8StartCraftMini(id){
+ const r=FW8_RECIPES[id];if(!r||!nearHomeChest()){msg('🏠 家で製作して。');return;}if(!fw8HaveCost(r.cost)){msg('🔨 材料が足りない。');return;}
+ fw8ConsumeCost(r.cost);state.crafting={id:id,cursor:.05,dir:1,time:8};fw8RenderCraftMini();
+}
+function fw8RenderCraftMini(){
+ const c=state.crafting;if(!c)return;const r=FW8_RECIPES[c.id],pct=Math.round(c.cursor*100);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🛠️ ミニゲーム製作：'+r.name;
+ $('#panelBody').innerHTML='<div class="tileCard">中央の緑ゾーンで止める。外すと失敗の可能性あり。<br><div style="position:relative;height:24px;background:#333;border-radius:12px;margin:12px 0;overflow:hidden"><div style="position:absolute;left:42%;width:16%;top:0;bottom:0;background:#3d9a58"></div><div style="position:absolute;left:'+pct+'%;width:4px;top:0;bottom:0;background:white"></div></div><b>残り '+c.time.toFixed(1)+' 秒</b></div><button class="smallBtn" data-fw8="craft-hit">🔨 今！</button> <button class="smallBtn" data-fw8="craft-cancel">中止（材料は戻らない）</button>';
+}
+function fw8CraftHit(){
+ const c=state.crafting;if(!c)return;const r=FW8_RECIPES[c.id],score=clamp(1-Math.abs(c.cursor-.5)*2,0,1);
+ const fail=score<.28&&Math.random()<.62;if(fail){state.player.skills[r.skill]=(state.player.skills[r.skill]||0)+.08;msg('💥 製作失敗。材料を失ったが経験にはなった。');}
+ else{const q=fw8CraftQuality(r,score),bonus=score>.88&&Math.random()<.55?1:0;fw8MakeItem(r,q,bonus);state.player.skills[r.skill]=(state.player.skills[r.skill]||0)+(.22+score*.25);msg('✨ '+r.name+'完成：'+FW8_QUALITY[q]+(bonus?' ×2':'')+'　製作経験UP');}
+ state.crafting=null;fw8OpenCraftHub();
+}
+function fw8OpenCraftHub(){
+ if(!nearHomeChest()){msg('🏠 製作は家・自分のテントで行える。');return;}
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🏠 家の製作台';
+ let cards='';
+ state.recipesKnown.forEach(function(id){const r=FW8_RECIPES[id];cards+='<div class="tileCard"><b>'+r.icon+' '+r.name+'</b><br>'+r.cat+' / '+fw8CostText(r.cost)+'<br><button class="smallBtn" data-fw8="craft-auto" data-id="'+id+'">自動製作</button> <button class="smallBtn" data-fw8="craft-mini" data-id="'+id+'">ミニゲーム</button></div>';});
+ const sk=state.player.skills;
+ $('#panelBody').innerHTML='<div class="grid3">'+cards+'</div><div class="legend">製作 '+Math.floor(sk.craft)+' / 料理 '+Math.floor(sk.cooking)+' / 裁縫 '+Math.floor(sk.tailoring)+' / 細工 '+Math.floor(sk.jewelry)+'</div><p class="note">自動製作は安定。ミニゲームは失敗リスクがある代わりに、上質品・複数完成・経験値上昇を狙えます。</p>';
+}
+const fw8PrevBuild=build;
+build=function(){if(nearHomeChest())fw8OpenCraftHub();else fw8PrevBuild();};
+
+function fw8ItemLabel(it){return it.icon+' '+it.name+'【'+FW8_QUALITY[it.quality]+'】';}
+function fw8EquipItem(i){
+ const it=state.player.items[i];if(!it||!it.slot)return;state.player.equipment[it.slot]=it.rid;msg('✅ '+it.name+'を装備した。');openInventory();
+}
+function fw8UseItem(i){
+ const it=state.player.items[i];if(!it)return;if(it.cat==='food'){state.player.hunger=clamp(state.player.hunger+35+it.quality*5,0,100);state.player.st=clamp(state.player.st+12+it.quality*3,0,100);state.player.items.splice(i,1);msg('🍲 '+it.name+'を食べた。');openInventory();}else msg('このアイテムは装備して使う。');
+}
+function fw8StoreCrafted(i){
+ if(!nearHomeChest())return;const it=state.player.items[i];if(!it)return;state.chest.crafted.push(it);state.player.items.splice(i,1);openInventory();
+}
+function fw8TakeCrafted(i){
+ if(!nearHomeChest())return;const it=state.chest.crafted[i];if(!it)return;state.player.items.push(it);state.chest.crafted.splice(i,1);openInventory();
+}
+openInventory=function(){
+ const p=state.player,c=state.chest,near=nearHomeChest(),raw=[['wood','🪵'],['stone','🪨'],['food','🍎'],['water','💧'],['fiber','🌿']];
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent=near?'📦 家の倉庫・装備':'🎒 インベントリ・装備';
+ let rawHtml=raw.map(function(q){const k=q[0];return '<div class="tileCard">'+q[1]+' '+k+'<br><b>'+(p.inv[k]||0)+'</b> / chest '+(c[k]||0)+(near?'<br><button class="smallBtn" data-panel-action="store" data-item="'+k+'">→入れる</button> <button class="smallBtn" data-panel-action="take" data-item="'+k+'">←出す</button>':'')+'</div>';}).join('');
+ let items=p.items.map(function(it,i){return '<div class="tileCard"><b>'+fw8ItemLabel(it)+'</b><br>価値 '+it.value+'C'+(it.slot?'<br><button class="smallBtn" data-fw8="equip" data-i="'+i+'">装備</button>':'')+(it.cat==='food'?'<br><button class="smallBtn" data-fw8="use" data-i="'+i+'">使う</button>':'')+(near?'<br><button class="smallBtn" data-fw8="store-crafted" data-i="'+i+'">倉庫へ</button>':'')+'</div>';}).join('');
+ let chestItems=near?c.crafted.map(function(it,i){return '<button class="smallBtn" data-fw8="take-crafted" data-i="'+i+'">'+fw8ItemLabel(it)+' ←取り出す</button>';}).join(''):'';
+ $('#panelBody').innerHTML='<div class="grid3">'+rawHtml+'</div><div class="legend">💰 '+p.coins+'C　矢 '+p.ammo+'　本　装備：⚔️ '+(p.equipment.weapon||'なし')+' / 🧥 '+(p.equipment.clothing||'なし')+' / 📿 '+(p.equipment.accessory||'なし')+'</div><h3>作った物</h3><div class="grid3">'+(items||'<div class="tileCard">まだありません</div>')+'</div>'+(near?'<h3>倉庫の完成品</h3><div>'+chestItems+'</div><div class="legend">共通備蓄　🍎'+state.camp.food+' 💧'+state.camp.water+' 🪵'+state.camp.wood+' 🪨'+state.camp.stone+'</div>':'');
+};
+
+const fw8PrevOpenShop=openShop;
+openShop=function(mode){
+ fw8PrevOpenShop(mode);
+ if(mode!=='sell'||!state.player.items.length)return;
+ const extra='<h3>製作品を売る</h3><div class="shopGrid">'+state.player.items.map(function(it,i){return '<button class="smallBtn" data-fw8="sell-crafted" data-i="'+i+'">'+fw8ItemLabel(it)+'<br>'+it.value+'C</button>';}).join('')+'</div>';
+ $('#panelBody').insertAdjacentHTML('beforeend',extra);
+};
+function fw8SellCrafted(i){
+ const it=state.player.items[i];if(!it)return;state.player.coins+=it.value;state.player.items.splice(i,1);msg('💰 '+it.name+'を '+it.value+'C で売った。');openShop('sell');
+}
+
+const fw8PrevGiftItem=giftItem;
+giftItem=function(item){
+ const n=getDialogSpeaker();fw8EnsureNpc(n);const before=n?n.friend:0;fw8PrevGiftItem(item);if(n&&n.friend>before)n.loyalty=clamp(n.loyalty+2,0,100);
+};
+openGift=function(n){
+ fw8EnsureNpc(n);$('#panel').classList.remove('hidden');$('#panelTitle').textContent='🎁 '+n.name+'へプレゼント';
+ const crafted=state.player.items.map(function(it,i){return '<button class="smallBtn" data-fw8="gift-crafted" data-i="'+i+'">'+fw8ItemLabel(it)+'</button>';}).join('');
+ $('#panelBody').innerHTML='<div class="grid3"><button class="smallBtn" data-panel-action="gift" data-item="food">🍎 食料 ('+(state.player.inv.food||0)+')</button><button class="smallBtn" data-panel-action="gift" data-item="wood">🪵 木材 ('+(state.player.inv.wood||0)+')</button><button class="smallBtn" data-panel-action="gift" data-item="stone">🪨 石 ('+(state.player.inv.stone||0)+')</button></div><h3>作った物を贈る</h3><div class="shopGrid">'+crafted+'</div><div class="legend">友好 '+n.friend+' / 忠誠 '+Math.round(n.loyalty)+'</div>';
+};
+function fw8GiftCrafted(i){
+ const n=getDialogSpeaker(),it=state.player.items[i];if(!n||!it)return;fw8EnsureNpc(n);
+ state.player.items.splice(i,1);const gain=4+it.quality*2;n.friend=clamp(n.friend+gain,0,100);n.loyalty=clamp(n.loyalty+3+it.quality,0,100);
+ msg('🎁 '+n.name+'に '+it.name+'。友好 +'+gain+' / 忠誠UP');renderDialogReplies();openGift(n);
+}
+function fw8AtCamp(n){
+ const h=state.buildings.find(function(b){return b.id==='player';})||{x:44,y:43};
+ return Math.hypot(n.x-(h.x+1),n.y-(h.y+2.5))<4.2&&nearHomeChest();
+}
+function fw8ServeMeal(n){
+ if(!fw8AtCamp(n)){typeLine('野営地に戻った時に、ゆっくり食べよう。');return;}
+ let idx=state.player.items.findIndex(function(it){return it.rid==='stew';});
+ if(idx>=0)state.player.items.splice(idx,1);
+ else{if((state.player.inv.food||0)<1||(state.player.inv.water||0)<1){typeLine('料理に使える食料と水が足りないみたい。');return;}state.player.inv.food--;state.player.inv.water--;}
+ n.hunger=100;n.st=clamp(n.st+25,0,100);n.friend=clamp(n.friend+5,0,100);n.loyalty=clamp(n.loyalty+5,0,100);
+ typeLine('おいしい！ みんなで食べると、なんだかほっとするね。');msg('🍲 '+n.name+'に料理を振る舞った。友好・忠誠UP');renderDialogReplies();
+}
+function fw8ShowBag(n){
+ fw8EnsureNpc(n);$('#panel').classList.remove('hidden');$('#panelTitle').textContent='🎒 '+n.name+'の持ち物';
+ $('#panelBody').innerHTML='<div class="grid3">'+['wood','stone','food','water','fiber'].map(function(k){return '<div class="tileCard">'+k+'<br><b>'+(n.inv[k]||0)+'</b></div>';}).join('')+'</div><div class="legend">忠誠 '+Math.round(n.loyalty)+' / 共通倉庫へ納める割合 約'+Math.round((.25+.65*n.loyalty/100)*100)+'%</div>';
+}
+function fw8RelLabel(n){return n.relationship==='family'?'家族':n.relationship==='lover'?'恋人':n.relationship==='friend'?'友達':n.companion?'仲間':'知人';}
+function fw8AdvanceRelationship(n,type){
+ const req={friend:55,lover:80,family:95}[type]||999;if(n.friend<req){typeLine('もう少し一緒に過ごしてからにしよう。');return;}
+ n.relationship=type;n.loyalty=clamp(n.loyalty+(type==='family'?15:10),0,100);
+ typeLine(type==='friend'?'これからは友達だね。もっと色々話そう。':type==='lover'?'これからは、もっと特別な存在として一緒にいたい。':'これからは家族として、この場所を育てていこう。');
+ msg('💞 '+n.name+'との関係：'+fw8RelLabel(n));renderDialogReplies();
+}
+function fw8FamilyFuture(n){
+ if(n.relationship!=='family')return;
+ if(state.day-n.familyCooldown<5){typeLine('家族のことは、もう少し時間をかけて考えよう。');return;}
+ if(state.family.children.length>=4){typeLine('今はこの家族で、ゆっくり暮らしていこう。');return;}
+ n.familyCooldown=state.day;const no=state.family.children.length+1;
+ state.family.children.push({name:'Child '+no,parent:n.id,ageDays:0});typeLine('家族がひとり増えた。みんなで大切に育てていこう。');msg('👶 家族が増えた！');
+}
+function fw8FamilyTick(){
+ if(state.day===state.family.lastDay)return;const d=Math.max(1,state.day-state.family.lastDay);state.family.lastDay=state.day;
+ state.family.children.forEach(function(c){c.ageDays+=d;});
+}
+function fw8DrawChildren(){
+ if(isNight())return;const h=state.buildings.find(function(b){return b.id==='player';})||{x:44,y:43};
+ state.family.children.forEach(function(c,i){
+  const stage=c.ageDays<7?'幼児':c.ageDays<25?'子ども':'成長';
+  const key=(c.parent==='riku'?'riku_front':'mio_front'),a=ATLAS[key];if(!a)return;
+  const wx=h.x+.45+(i%3)*.65,wy=h.y+2.45+Math.floor(i/3)*.65,s=worldToScreen(wx,wy),sz=stage==='幼児'?TILE*.48:TILE*.62;
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],s.x+(TILE-sz)/2,s.y+TILE-sz,sz,sz);
+  ctx.fillStyle='#fff';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(c.name+' '+stage,s.x+TILE/2,s.y+TILE+9);ctx.restore();
+ });
+}
+
+const fw8PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ const n=getDialogSpeaker();if(!n)return;fw8EnsureNpc(n);
+ $('#speaker').innerHTML=n.name+'<span class="friendTag">♥ '+n.friend+' / 忠誠 '+Math.round(n.loyalty)+' / '+fw8RelLabel(n)+'</span>';
+ let a=[['hello','👋 挨拶'],['work','🪵 仕事'],['life','⛺ 暮らし'],['gift','🎁 プレゼント']];
+ if(n.id==='merchant')a.push(['buy','🛒 買う'],['sell','💰 売る']);
+ else if(n.id==='guard')a.push(['trainSword','⚔️ 剣の訓練'],['trainBow','🏹 弓の訓練']);
+ else{
+  if(!n.companion)a.push(['recruit','🤝 仲間に誘う']);
+  else{
+   a.push(['cmdFollow','👣 ついて来て'],['cmdWood','🪵 木を集めて'],['cmdStone','🪨 石を集めて'],['cmdFood','🍎 食べ物を集めて'],['cmdWater','💧 水を集めて'],['bag','🎒 持ち物'],['meal','🍲 料理を振る舞う']);
+   if(n.relationship==='companion'&&n.friend>=55)a.push(['relFriend','🤝 友達になる']);
+   if(n.relationship==='friend'&&n.friend>=80)a.push(['relLover','💗 恋人になる']);
+   if(n.relationship==='lover'&&n.friend>=95)a.push(['relFamily','🏠 家族になる']);
+   if(n.relationship==='family')a.push(['familyFuture','👶 家族の将来']);
+  }
+ }
+ $('#dialogReplies').innerHTML=a.map(function(q){return '<button data-reply="'+q[0]+'" type="button">'+q[1]+'</button>';}).join('');
+};
+const fw8PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();if(!n)return;fw8EnsureNpc(n);
+ if(k==='bag'){fw8ShowBag(n);return;}if(k==='meal'){fw8ServeMeal(n);return;}
+ if(k==='relFriend'){fw8AdvanceRelationship(n,'friend');return;}if(k==='relLover'){fw8AdvanceRelationship(n,'lover');return;}if(k==='relFamily'){fw8AdvanceRelationship(n,'family');return;}if(k==='familyFuture'){fw8FamilyFuture(n);return;}
+ fw8PrevHandleDialog(k);fw8EnsureNpc(n);if(k==='recruit'&&n.companion&&n.relationship==='acquaintance')n.relationship='companion';renderDialogReplies();
+};
+
+const fw8PrevRunCommand=runCommand;
+runCommand=function(k){
+ if(k==='attack'){fw8SwordAttack();return;}
+ if(k==='hunt'){fw8FireArrow(false);return;}
+ fw8PrevRunCommand(k);
+};
+
+const fw8PrevUpdate=update;
+update=function(dt){
+ fw8PrevUpdate(dt);fw8UpdateProjectiles(dt);fw8FamilyTick();
+ if(state.crafting){state.crafting.cursor+=state.crafting.dir*dt*.72;if(state.crafting.cursor>=.99){state.crafting.cursor=.99;state.crafting.dir=-1;}if(state.crafting.cursor<=.01){state.crafting.cursor=.01;state.crafting.dir=1;}state.crafting.time-=dt;state.crafting.ui=(state.crafting.ui||0)-dt;if(state.crafting.ui<=0){state.crafting.ui=.08;fw8RenderCraftMini();}if(state.crafting&&state.crafting.time<=0){msg('⌛ 製作タイミングを逃して失敗した。');state.crafting=null;fw8OpenCraftHub();}}
+};
+const fw8PrevDraw=draw;
+draw=function(){fw8PrevDraw();fw8DrawDummy(state.trainingGround.dummy.x,state.trainingGround.dummy.y);fw8DrawTarget(state.trainingGround.target.x,state.trainingGround.target.y);fw8DrawProjectiles();fw8DrawChildren();};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw8]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ const a=b.dataset.fw8,i=Number(b.dataset.i),id=b.dataset.id;
+ if(a==='craft-auto')fw8CraftAuto(id);else if(a==='craft-mini')fw8StartCraftMini(id);else if(a==='craft-hit')fw8CraftHit();else if(a==='craft-cancel'){state.crafting=null;fw8OpenCraftHub();}
+ else if(a==='equip')fw8EquipItem(i);else if(a==='use')fw8UseItem(i);else if(a==='store-crafted')fw8StoreCrafted(i);else if(a==='take-crafted')fw8TakeCrafted(i);else if(a==='sell-crafted')fw8SellCrafted(i);else if(a==='gift-crafted')fw8GiftCrafted(i);
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
