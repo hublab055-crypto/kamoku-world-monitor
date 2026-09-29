@@ -1022,6 +1022,150 @@ $('#panelBody').addEventListener('click',function(e){
  else if(a==='equip')fw8EquipItem(i);else if(a==='use')fw8UseItem(i);else if(a==='store-crafted')fw8StoreCrafted(i);else if(a==='take-crafted')fw8TakeCrafted(i);else if(a==='sell-crafted')fw8SellCrafted(i);else if(a==='gift-crafted')fw8GiftCrafted(i);
 },true);
 
+
+/* FRONTIER_V9_COMPANION_HOME_JOBS */
+function fw9EnsureNpc(n){
+ fw8EnsureNpc(n);
+ if(!n.skills){
+  n.skills={craft:n.id==='riku'?1.5:.5,cooking:n.id==='mio'?1.4:.55,tailoring:n.id==='mio'?.8:.4,jewelry:n.id==='riku'?.75:.3};
+ }
+ if(!n.homeJob)n.homeJob=null;
+}
+state.npcs.forEach(fw9EnsureNpc);
+
+function fw9HomeSpot(n){
+ const b=state.buildings.find(function(x){return x.id===n.id;})||state.buildings.find(function(x){return x.id==='player';})||{x:44,y:43,type:'tent'};
+ const h=b.type==='house'?3.2:2.35;
+ return {x:b.x+1,y:b.y+h,b:b};
+}
+function fw9SharedCount(n,k){
+ return (n.inv&&n.inv[k]||0)+(state.chest[k]||0)+(state.camp[k]||0);
+}
+function fw9HaveShared(n,cost){
+ return Object.keys(cost).every(function(k){return fw9SharedCount(n,k)>=cost[k];});
+}
+function fw9ConsumeShared(n,cost){
+ for(const k of Object.keys(cost)){
+  let left=cost[k];
+  const ni=Math.min(left,n.inv[k]||0);n.inv[k]=(n.inv[k]||0)-ni;left-=ni;
+  const ch=Math.min(left,state.chest[k]||0);state.chest[k]=(state.chest[k]||0)-ch;left-=ch;
+  if(left>0){const ca=Math.min(left,state.camp[k]||0);state.camp[k]=(state.camp[k]||0)-ca;left-=ca;}
+ }
+}
+function fw9NpcQuality(n,recipe){
+ const lv=n.skills[recipe.skill]||0,loy=(n.loyalty||0)/100;
+ const roll=Math.random()+lv*.13+loy*.18;
+ return clamp(Math.floor(roll*1.85),0,4);
+}
+function fw9NpcMake(n,id){
+ const recipe=FW8_RECIPES[id],q=fw9NpcQuality(n,recipe);
+ if(recipe.cat==='ammo'){
+  const item={rid:id,name:recipe.name,icon:recipe.icon,cat:'ammo',slot:null,quality:q,value:Math.round(recipe.value*fw8QualityMult(q)),qty:recipe.qty||6};
+  state.chest.crafted.push(item);
+ }else{
+  state.chest.crafted.push({rid:id,name:recipe.name,icon:recipe.icon,cat:recipe.cat,slot:recipe.slot||null,quality:q,value:Math.round(recipe.value*fw8QualityMult(q)),qty:1});
+ }
+ n.skills[recipe.skill]=(n.skills[recipe.skill]||0)+.18;
+ n.st=clamp(n.st-7,0,100);
+ n.loyalty=clamp((n.loyalty||0)+.35,0,100);
+ msg((recipe.cat==='food'?'🍳 ':'🔨 ')+n.name+'が '+recipe.name+'【'+FW8_QUALITY[q]+'】を完成。家の倉庫へ入れた。');
+}
+function fw9AssignRecipe(n,id){
+ fw9EnsureNpc(n);const recipe=FW8_RECIPES[id];if(!recipe)return;
+ n.command='homeCraft';n.homeJob={id:id,started:false,timer:0};n.task=null;n.returning=false;
+ $('#panel').classList.add('hidden');
+ typeLine(recipe.cat==='food'?'うん。家に戻って料理しておくね。':'わかった。家の作業台で作っておくよ。');
+ msg('📣 '+n.name+'へ依頼：'+recipe.name);
+ renderDialogReplies();
+}
+function fw9OpenDelegate(n,kind){
+ fw9EnsureNpc(n);
+ const ids=state.recipesKnown.filter(function(id){const r=FW8_RECIPES[id];return kind==='cook'?r.cat==='food':r.cat!=='food';});
+ $('#panel').classList.remove('hidden');
+ $('#panelTitle').textContent=(kind==='cook'?'🍳 ':'🔨 ')+n.name+'に'+(kind==='cook'?'料理':'制作')+'を任せる';
+ const cards=ids.map(function(id){
+  const r=FW8_RECIPES[id],skill=n.skills[r.skill]||0,ok=fw9HaveShared(n,r.cost);
+  return '<div class="tileCard"><b>'+r.icon+' '+r.name+'</b><br>'+fw8CostText(r.cost)+'<br>'+r.skill+' Lv.'+skill.toFixed(1)+'<br><button class="smallBtn" data-fw9="assign" data-id="'+id+'" '+(ok?'':'disabled')+'>'+(ok?'作ってもらう':'材料不足')+'</button></div>';
+ }).join('');
+ $('#panelBody').innerHTML='<div class="grid3">'+cards+'</div><div class="legend">材料は本人の持ち物 → 家のチェスト → 共通備蓄の順で使用。完成品は家の倉庫へ。</div>';
+}
+function fw9SendRest(n){
+ fw9EnsureNpc(n);n.command='homeRest';n.homeJob=null;n.task=null;n.returning=false;
+ typeLine('わかった。少し家で休んでくるね。');msg('💤 '+n.name+'に家で休むよう指示した。');renderDialogReplies();
+}
+function fw9HomeWait(n,dt,label){
+ const h=fw9HomeSpot(n);setNpcTarget(n,h.x,h.y,label);fw7MoveNpc(n,dt,.9);
+ if(Math.hypot(n.x-h.x,n.y-h.y)<.38){n.st=clamp(n.st+dt*2.8,0,100);n.status=label;}
+}
+const fw9PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ fw9EnsureNpc(n);
+ if(n.companion&&n.command==='homeRest'){
+  n.hunger=clamp(n.hunger-dt*.012,0,100);fw9HomeWait(n,dt,'💤 家で休憩');
+  if(n.st>=98){n.st=100;n.command='homeWait';n.status='🏠 休息完了・待機';msg('💤 '+n.name+'の休息が終わった。');}
+  return;
+ }
+ if(n.companion&&n.command==='homeWait'){
+  fw9HomeWait(n,dt,'🏠 家で待機');return;
+ }
+ if(n.companion&&n.command==='homeCraft'&&n.homeJob){
+  n.hunger=clamp(n.hunger-dt*.018,0,100);
+  const h=fw9HomeSpot(n),job=n.homeJob,recipe=FW8_RECIPES[job.id];
+  setNpcTarget(n,h.x,h.y,(recipe.cat==='food'?'🍳 ':'🔨 ')+recipe.name+'の準備');
+  fw7MoveNpc(n,dt,.9);
+  if(Math.hypot(n.x-h.x,n.y-h.y)<.42){
+   if(!job.started){
+    if(!fw9HaveShared(n,recipe.cost)){n.status='📦 材料待ち：'+recipe.name;return;}
+    fw9ConsumeShared(n,recipe.cost);job.started=true;job.timer=Math.max(3.2,7.4-(n.skills[recipe.skill]||0)*.55);n.status=(recipe.cat==='food'?'🍳 調理中：':'🔨 制作中：')+recipe.name;
+   }else{
+    job.timer-=dt;n.st=clamp(n.st-dt*.16,0,100);
+    n.status=(recipe.cat==='food'?'🍳 調理中 ':'🔨 制作中 ')+Math.max(0,job.timer).toFixed(1)+'s';
+    if(job.timer<=0){fw9NpcMake(n,job.id);n.homeJob=null;n.command='homeWait';n.status='🏠 完成・待機';}
+   }
+  }
+  return;
+ }
+ return fw9PrevUpdateNPC(n,dt);
+};
+
+const fw9PrevDrawPerson=drawPerson;
+drawPerson=function(p,sprite){
+ fw9PrevDrawPerson(p,sprite);
+ if(!p.homeJob&&p.command!=='homeRest'&&p.command!=='homeWait')return;
+ const s=worldToScreen(p.x,p.y),symbol=p.command==='homeRest'?'💤':p.command==='homeWait'?'🏠':(FW8_RECIPES[p.homeJob.id].cat==='food'?'🍳':'🔨');
+ ctx.save();ctx.font='17px system-ui';ctx.textAlign='center';ctx.fillText(symbol,s.x+TILE/2,s.y-25+Math.sin(performance.now()/300)*2);ctx.restore();
+};
+
+const fw9PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw9PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n||!n.companion||n.id==='guard'||n.id==='merchant')return;
+ fw9EnsureNpc(n);
+ const r=$('#dialogReplies');
+ const extra=[
+  ['delegateCook','🍳 料理を作って'],
+  ['delegateCraft','🔨 アイテムを作って'],
+  ['restHome','💤 家で休んで']
+ ];
+ r.insertAdjacentHTML('beforeend',extra.map(function(q){return '<button data-reply="'+q[0]+'" type="button">'+q[1]+'</button>';}).join(''));
+};
+const fw9PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();
+ if(n&&n.companion){
+  if(k==='delegateCook'){fw9OpenDelegate(n,'cook');return;}
+  if(k==='delegateCraft'){fw9OpenDelegate(n,'craft');return;}
+  if(k==='restHome'){fw9SendRest(n);return;}
+ }
+ fw9PrevHandleDialog(k);
+};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw9]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ const n=getDialogSpeaker();if(!n)return;
+ if(b.dataset.fw9==='assign')fw9AssignRecipe(n,b.dataset.id);
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
