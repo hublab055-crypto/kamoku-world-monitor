@@ -383,7 +383,7 @@ function draw(){
  state.objects.forEach(drawObject);
  state.buildings.forEach(drawBuilding);
  state.npcs.forEach(n=>drawPerson(n,n.sprite));
- drawPerson({...state.player,name:'YOU'},'you');
+ drawPerson({...state.player,name:state.player.name||'YOU'},state.player.sprite||'you');
  const h=state.hour;let a=0;if(h>=20||h<5)a=.56;else if(h>=18)a=(h-18)*.28;else if(h<7)a=(7-h)*.28;if(a>0){ctx.fillStyle=`rgba(4,8,28,${Math.min(.58,a)})`;ctx.fillRect(0,0,W,H);}
  drawHUD();
  $('#coord').textContent=Math.round(state.player.x)+','+Math.round(state.player.y);
@@ -1164,6 +1164,602 @@ $('#panelBody').addEventListener('click',function(e){
  const b=e.target.closest('[data-fw9]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
  const n=getDialogSpeaker();if(!n)return;
  if(b.dataset.fw9==='assign')fw9AssignRecipe(n,b.dataset.id);
+},true);
+
+
+/* FRONTIER_V10_HOMES_LIFECYCLE_SAVE */
+state.player.sprite=state.player.sprite||'you';
+state.player.ageYears=state.player.ageYears||30;
+state.player.ageFrac=state.player.ageFrac||0;
+state.player.alive=state.player.alive!==false;
+state.player.autoSchedule=state.player.autoSchedule||{enabled:false,target:null,patrol:0,lastFarm:0,suspendUntil:0};
+state.interior=state.interior||null;
+state.graves=state.graves||[];
+state.ceremony=state.ceremony||null;
+state.ceremonies=state.ceremonies||[];
+state.gameOver=state.gameOver||false;
+state.lifecycleLastDay=state.lifecycleLastDay||state.day;
+state.saveClock=state.saveClock||20;
+state.farm=state.farm||{x:61,y:55,w:5,h:4,plots:Array.from({length:12},function(_,i){return {i:i,growth:Math.random()*.55,planted:true};})};
+state.buildPlots=state.buildPlots||[
+ {x:63,y:39},{x:66,y:45},{x:64,y:53},{x:38,y:55},{x:34,y:51},{x:59,y:39}
+];
+
+(function addMoreDialogue(){
+ const extra={
+  mio:{
+   intro:['おかえり。今日はどんな一日だった？','朝のうちに水を汲んでおくと、あとが楽だよ。','少しずつ家が増えると、本当に村になってきた感じがするね。'],
+   hello:['ちゃんと食べた？ 顔を見ると少し疲れてそう。','何か手伝えることがあったら言ってね。','昨日より道が歩きやすくなった気がする。','夜の焚き火って、ずっと見ていられるよね。','あなたが帰ってくると、ちょっと安心するんだ。'],
+   work:['食料と水は毎日必要だから、備蓄を切らしたくないな。','木材があれば家具も作れるし、石があれば丈夫な家にできる。','料理を任せてもらえれば、帰ってくる頃には用意しておくよ。','畑が安定したら、野生の食料だけに頼らなくてもよくなるね。'],
+   life:['家の中に棚を増やして、みんなの道具を整理したいな。','子どもが増えたら、危なくない遊び場も必要だね。','いつかこの野営地の昔話を、子どもたちに聞かせる日が来るのかな。','誰かのお墓ができても、忘れずに花を供えたい。','結婚式は派手じゃなくても、みんなで祝えたら素敵だね。']
+  },
+  riku:{
+   intro:['備蓄の減り方を見ると、次に集める物がだいたい分かるよ。','家を建てるなら、材料だけじゃなく建てる場所も考えたい。'],
+   hello:['道具の状態はどう？ 壊れる前に直す方が安く済む。','今日は何を作ろうか。材料があれば試してみたい。','木と石の在庫を見ると落ち着くんだ。変かな。'],
+   work:['作業台があれば、同じ材料でももっと良い物が作れる。','家を建てるなら基礎を先に固めよう。','採集だけじゃなく加工までできると、売値も上がるね。','共通倉庫は余裕を持たせたい。非常時に効いてくるから。'],
+   life:['自分の部屋ができたら、設計図を壁に貼りたいな。','子どもが大きくなったら、道具の使い方も教えたい。','村が長く続くなら、記録を残す人も必要になるね。']
+  },
+  guard:{
+   intro:['訓練場の木人と的は常設した。好きな時に使え。','巡回経路は毎日変えている。油断は禁物だ。'],
+   hello:['武器を持つなら、振り回す前に周囲を見ろ。','守る相手が増えるほど、見張る場所も増える。','夜間は音の方が頼りになることもある。'],
+   work:['柵、照明、見張り台。防衛は一つの設備だけでは成り立たん。','弓は距離、剣は間合いだ。どちらも立ち位置が重要になる。','巡回を任せるなら、道を塞ぐ物は少ない方がいい。'],
+   life:['祝い事の日くらいは鎧を脱ぎたいものだ。','葬儀の時は警備を厚くする。皆が安心して見送れるようにな。']
+  },
+  merchant:{
+   intro:['作った品も買い取るよ。出来が良ければ値段も上がる。','村が大きくなるほど、扱える品も増やしたいね。'],
+   hello:['今日は売る？ 買う？ それとも世間話かな。','良い職人がいる村には、人も商売も集まるものさ。'],
+   work:['料理も装備も品質で値段が変わる。腕を磨く価値はあるよ。','家が増えれば家具も売れそうだ。品揃えを考えておくよ。'],
+   life:['結婚式の日は祝いの品を少し安くしてもいいかな。','墓碑に刻む言葉って、その人らしさが出るよね。']
+  }
+ };
+ state.npcs.forEach(function(n){
+  const e=extra[n.id];if(!e||!n.dialog)return;
+  Object.keys(e).forEach(function(k){if(Array.isArray(n.dialog[k]))n.dialog[k].push.apply(n.dialog[k],e[k]);});
+ });
+})();
+
+function fw10EnsureNpc(n){
+ fw9EnsureNpc(n);
+ if(n.alive==null)n.alive=true;
+ if(n.controlled==null)n.controlled=false;
+ if(n.ageYears==null)n.ageYears=n.id==='merchant'?58:n.id==='guard'?38:n.id==='riku'?21:22;
+ if(n.ageFrac==null)n.ageFrac=0;
+}
+state.npcs.forEach(fw10EnsureNpc);
+
+function fw10BuildingSize(b){
+ if(b.type==='house')return {w:3,h:3};
+ return {w:2,h:2};
+}
+function fw10Entrance(b){
+ const s=fw10BuildingSize(b);return {x:b.x+s.w/2,y:b.y+s.h+.35};
+}
+function fw10CanEnterBuilding(b){
+ if(!b)return false;
+ if(b.id==='player'||b.type==='shop'||b.access==='public')return true;
+ if(b.ownerId){
+  const n=state.npcs.find(function(x){return x.id===b.ownerId;});
+  return !!(n&&(n.companion||n.relationship==='family'||n.relationship==='lover'));
+ }
+ const n=state.npcs.find(function(x){return x.id===b.id;});
+ return !!(n&&(n.companion||n.relationship==='family'||n.relationship==='lover'));
+}
+function fw10NearEntrance(maxD){
+ let best=null,bd=maxD||1.45;
+ for(const b of state.buildings){
+  const e=fw10Entrance(b),d=Math.hypot(state.player.x-e.x,state.player.y-e.y);
+  if(d<bd){bd=d;best=b;}
+ }
+ return best;
+}
+function fw10EnterBuilding(b){
+ if(!fw10CanEnterBuilding(b)){msg('🔒 この建物には入れない。');return;}
+ const house=b.type==='house',rw=house?7:6,rh=house?6:5;
+ state.interior={buildingId:b.id,roomW:rw,roomH:rh,pos:{x:rw/2,y:rh-1.0},tap:null};
+ tap=null;joy.x=joy.y=0;closeDialog();
+ msg('🚪 '+(b.owner||'建物')+'の'+(house?'家':'テント')+'に入った。');
+}
+function fw10ExitBuilding(){
+ if(!state.interior)return;
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});
+ if(b){const e=fw10Entrance(b);state.player.x=e.x;state.player.y=e.y+.15;}
+ state.interior=null;tap=null;msg('🚪 外に出た。');
+}
+function fw10DrawInterior(){
+ const it=state.interior;if(!it)return;
+ const b=state.buildings.find(function(x){return x.id===it.buildingId;})||{owner:'Home',type:'house'};
+ const rw=it.roomW,rh=it.roomH,scale=Math.min((W-150)/rw,(H-190)/rh),ox=(W-rw*scale)/2,oy=80;
+ ctx.clearRect(0,0,W,H);ctx.fillStyle='#101820';ctx.fillRect(0,0,W,H);
+ ctx.fillStyle=b.type==='house'?'#9a734f':'#b99b6e';ctx.fillRect(ox,oy,rw*scale,rh*scale);
+ ctx.strokeStyle=b.type==='house'?'#563923':'#806341';ctx.lineWidth=18;ctx.strokeRect(ox,oy,rw*scale,rh*scale);
+ const doorX=ox+rw*scale/2;
+ ctx.fillStyle='#2c2018';ctx.fillRect(doorX-scale*.48,oy+rh*scale-18,scale*.96,24);
+ ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='22px system-ui';ctx.fillText((b.owner||'Home')+' — '+(b.type==='house'?'家':'テント'),24,40);
+ ctx.font='13px system-ui';ctx.fillStyle='#d6d9dc';ctx.fillText('入口から出る / 家具の近くで⚡行動',24,62);
+
+ // furniture
+ drawAsset('bedroll',ox+scale*.65,oy+scale*.75,scale*1.1,scale*1.45,1);
+ drawAsset('chest',ox+scale*(rw-1.65),oy+scale*.85,scale*.95,scale*.95,1);
+ drawAsset('table',ox+scale*(rw/2-.65),oy+scale*(rh/2-.35),scale*1.3,scale*.9,1);
+ drawAsset('chair',ox+scale*(rw/2+.6),oy+scale*(rh/2-.05),scale*.7,scale*.85,1);
+ drawAsset('fireplace',ox+scale*.5,oy+scale*(rh-1.65),scale*.95,scale*.95,1);
+
+ const p=it.pos,key=(state.player.sprite||'you')+'_'+state.player.dir,a=ATLAS[key];
+ if(a){
+  const sz=scale*.72,sx=ox+p.x*scale-sz/2,sy=oy+p.y*scale-sz*.68;
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],sx,sy,sz,sz);
+ }
+ ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='12px system-ui';ctx.fillText(state.player.name||'YOU',ox+p.x*scale,oy+p.y*scale+scale*.45);
+ drawHUD();
+}
+function fw10UpdateInterior(dt,jx,jy){
+ const it=state.interior;if(!it)return;
+ let dx=jx,dy=jy;
+ if(it.tap){
+  const ax=it.tap.x-it.pos.x,ay=it.tap.y-it.pos.y,d=Math.hypot(ax,ay);
+  if(d<.10)it.tap=null;else{dx=ax/d;dy=ay/d;}
+ }
+ if(Math.hypot(dx,dy)>.08){
+  setDirFromVector(state.player,dx,dy);const sp=3.25;
+  it.pos.x=clamp(it.pos.x+dx*sp*dt,.55,it.roomW-.55);
+  it.pos.y=clamp(it.pos.y+dy*sp*dt,.55,it.roomH-.18);
+  state.player.st=clamp(state.player.st-dt*.12,0,100);
+ }
+ if(it.pos.y>it.roomH-.30&&Math.abs(it.pos.x-it.roomW/2)<.72)fw10ExitBuilding();
+}
+const fw10PrevNearHomeChest=nearHomeChest;
+nearHomeChest=function(){
+ if(state.interior){
+  const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});
+  return !!b&&(b.id==='player'||b.type==='house'||fw10CanEnterBuilding(b));
+ }
+ return fw10PrevNearHomeChest();
+};
+
+state.buildPlots=state.buildPlots||[];
+function fw10BuildStock(k){return (state.camp[k]||0)+(state.chest[k]||0);}
+function fw10HaveBuildCost(){return fw10BuildStock('wood')>=18&&fw10BuildStock('stone')>=8;}
+function fw10ConsumeBuildCost(){
+ let w=18,s=8,a=Math.min(w,state.camp.wood||0);state.camp.wood-=a;w-=a;if(w){state.chest.wood=Math.max(0,(state.chest.wood||0)-w);}
+ a=Math.min(s,state.camp.stone||0);state.camp.stone-=a;s-=a;if(s){state.chest.stone=Math.max(0,(state.chest.stone||0)-s);}
+}
+function fw10FindBuildPlot(){
+ return state.buildPlots.find(function(p){
+  return !state.buildings.some(function(b){const sz=fw10BuildingSize(b);return Math.hypot((b.x+sz.w/2)-(p.x+1.5),(b.y+sz.h/2)-(p.y+1.5))<4.2;});
+ })||null;
+}
+function fw10AssignHouseBuild(n){
+ if(!fw10HaveBuildCost()){typeLine('家を建てるには、共通備蓄とチェストを合わせて木18・石8くらい欲しいな。');return;}
+ const p=fw10FindBuildPlot();if(!p){typeLine('今の野営地だと、建てやすい場所がもう少ないみたい。');return;}
+ n.command='buildHouse';n.buildJob={x:p.x,y:p.y,timer:16,started:false};n.task=null;n.returning=false;
+ typeLine('わかった。場所を決めて家を建ててみる。');msg('🏗️ '+n.name+'が家の建設を開始する。');renderDialogReplies();
+}
+const fw10PrevHomeSpot=fw9HomeSpot;
+fw9HomeSpot=function(n){
+ if(n.homeId){
+  const b=state.buildings.find(function(x){return x.id===n.homeId;});
+  if(b){const e=fw10Entrance(b);return {x:e.x,y:e.y-.3,b:b};}
+ }
+ return fw10PrevHomeSpot(n);
+};
+
+state.player.autoSchedule=state.player.autoSchedule||{enabled:false,target:null,patrol:0,lastFarm:0,suspendUntil:0};
+function fw10HarvestObject(o){
+ if(!o)return;
+ const k=o.gather;
+ if(k==='fiber')state.player.inv.fiber=(state.player.inv.fiber||0)+1;
+ else if(k)state.player.inv[k]=(state.player.inv[k]||0)+1;
+ state.objects=state.objects.filter(function(x){return x!==o;});
+ state.player.st=clamp(state.player.st-(k==='stone'?4:k==='wood'?3:2),0,100);
+}
+function fw10AutoMove(tx,ty,dt){
+ const p=state.player,dx=tx-p.x,dy=ty-p.y,d=Math.hypot(dx,dy);if(d<.05)return true;
+ const vx=dx/d,vy=dy/d;setDirFromVector(p,vx,vy);const sp=3.15,nx=p.x+vx*sp*dt,ny=p.y+vy*sp*dt;
+ if(!blocked(nx,p.y))p.x=nx;if(!blocked(p.x,ny))p.y=ny;p.st=clamp(p.st-dt*.23,0,100);return d<.65;
+}
+function fw10PickAutoResource(){
+ const prefs=['water','food','wood','stone','fiber'];
+ for(const k of prefs){
+  let best=null,bd=999;for(const o of state.objects){if(o.gather!==k)continue;const d=Math.hypot(o.x-state.player.x,o.y-state.player.y);if(d<bd){bd=d;best=o;}}
+  if(best)return best;
+ }
+ return null;
+}
+function fw10FarmPos(i){
+ const f=state.farm,c=i%4,r=Math.floor(i/4);return {x:f.x+c+0.45,y:f.y+r+0.45};
+}
+function fw10UpdateFarm(dt){
+ state.farm.plots.forEach(function(p){if(p.planted)p.growth=clamp(p.growth+dt*.004,0,1);});
+}
+function fw10AutoPlayer(dt){
+ const a=state.player.autoSchedule;if(!a||!a.enabled||state.gameOver||state.interior||state.dialog||state.training||state.crafting)return;
+ if(performance.now()<a.suspendUntil)return;
+ const h=state.hour;
+ if(h<6||h>=20){
+  const b=state.buildings.find(function(x){return x.id==='player';}),e=b?fw10Entrance(b):{x:45,y:45};
+  state.player.status='🌙 帰宅';if(fw10AutoMove(e.x,e.y,dt)&&state.player.st<90)state.player.st=clamp(state.player.st+dt*1.2,0,100);return;
+ }
+ if((h>=10&&h<13)||(h>=15&&h<16)){
+  state.player.status='🌱 畑作業';const p=fw10FarmPos(a.farmIndex||0);
+  if(fw10AutoMove(p.x,p.y,dt)){
+   a.lastFarm=(a.lastFarm||0)+dt;if(a.lastFarm>1.2){a.lastFarm=0;const pl=state.farm.plots[a.farmIndex||0];if(pl.growth>=1){state.player.inv.food=(state.player.inv.food||0)+2;pl.growth=.05;pl.planted=true;msg('🌾 自動農作業：作物を収穫 +2');}else pl.growth=clamp(pl.growth+.12,0,1);a.farmIndex=((a.farmIndex||0)+1)%state.farm.plots.length;}
+  }
+  return;
+ }
+ if(h>=17&&h<20){
+  state.player.status='🛡️ 巡回・防衛';const pts=[[43,41],[55,41],[60,51],[48,57],[36,50]],q=pts[a.patrol%pts.length];
+  if(fw10AutoMove(q[0],q[1],dt))a.patrol=(a.patrol+1)%pts.length;return;
+ }
+ state.player.status='🧺 自動採取';
+ if(!a.target||!state.objects.includes(a.target))a.target=fw10PickAutoResource();
+ if(a.target){
+  if(fw10AutoMove(a.target.x,a.target.y,dt)){fw10HarvestObject(a.target);a.target=null;}
+ }else state.player.status='🔎 資源探索中';
+}
+
+function fw10ChildStage(c){
+ return c.ageDays<10?'baby':c.ageDays<35?'youth':'adult';
+}
+function fw10EnsureChild(c,i){
+ if(!c.id)c.id='child_'+(i+1)+'_'+(c.parent||'family');
+ if(!c.gender)c.gender=Math.random()<.5?'boy':'girl';
+ if(c.bond==null)c.bond=25;
+ if(!c.needs)c.needs={milk:80,diaper:82,bath:85,sleep:78,affection:80};
+ if(c.married==null)c.married=false;
+ if(c.controlled==null)c.controlled=false;
+ c.isChild=true;c.portrait=c.parent==='riku'?'riku':'mio';
+}
+(state.family.children||[]).forEach(fw10EnsureChild);
+state.family.members=state.family.members||[];
+
+function fw10ChildPos(c,i){
+ const h=state.buildings.find(function(b){return b.id==='player';})||{x:44,y:43};
+ return {x:h.x+.55+(i%4)*.72,y:h.y+2.35+Math.floor(i/4)*.75};
+}
+fw8DrawChildren=function(){
+ if(isNight())return;
+ (state.family.children||[]).forEach(function(c,i){
+  fw10EnsureChild(c,i);if(c.controlled)return;
+  const st=fw10ChildStage(c),p=fw10ChildPos(c,i),key=(c.parent==='riku'?'riku_front':'mio_front'),a=ATLAS[key];if(!a)return;
+  const s=worldToScreen(p.x,p.y),sz=st==='baby'?TILE*.42:st==='youth'?TILE*.58:TILE*.72;
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],s.x+(TILE-sz)/2,s.y+TILE-sz,sz,sz);
+  ctx.fillStyle='#fff';ctx.font='9px system-ui';ctx.textAlign='center';ctx.fillText(c.name+' '+(st==='baby'?'赤ちゃん':st==='youth'?(c.gender==='boy'?'少年':'少女'):'成人'),s.x+TILE/2,s.y+TILE+9);ctx.restore();
+  if(c.married&&c.spouseName){
+   const ss=worldToScreen(p.x+.45,p.y+.2),ak=ATLAS[c.parent==='riku'?'mio_front':'riku_front'];
+   if(ak)ctx.drawImage(atlasImg,ak[0],ak[1],ak[2],ak[3],ss.x+TILE*.55,ss.y+TILE*.2,TILE*.52,TILE*.52);
+  }
+ });
+};
+function fw10NearestChild(){
+ let best=null,bd=2.0,idx=-1;(state.family.children||[]).forEach(function(c,i){
+  if(c.controlled)return;const p=fw10ChildPos(c,i),d=Math.hypot(p.x-state.player.x,p.y-state.player.y);if(d<bd){bd=d;best=c;idx=i;}
+ });
+ return best?{child:best,index:idx,d:bd}:null;
+}
+function fw10UpdateChildren(dt){
+ (state.family.children||[]).forEach(function(c,i){
+  fw10EnsureChild(c,i);if(fw10ChildStage(c)!=='baby')return;
+  c.needs.milk=clamp(c.needs.milk-dt*.12,0,100);
+  c.needs.diaper=clamp(c.needs.diaper-dt*.08,0,100);
+  c.needs.bath=clamp(c.needs.bath-dt*.035,0,100);
+  c.needs.sleep=clamp(c.needs.sleep-dt*.09,0,100);
+  c.needs.affection=clamp(c.needs.affection-dt*.05,0,100);
+ });
+}
+function fw10CareChild(k){
+ const c=getDialogSpeaker();if(!c||!c.isChild)return;const st=fw10ChildStage(c);
+ if(st!=='baby'&&['milk','diaper','bath','sleep'].includes(k)){typeLine('もう赤ちゃんのお世話は必要ないよ。');return;}
+ const cost={milk:9,hug:5,diaper:11,bath:15,sleep:13}[k]||5;
+ if(state.player.st<cost){typeLine('かなり疲れているみたい。少し休んでからにしよう。');return;}
+ if(k==='milk'){
+  if((state.player.inv.food||0)<1||(state.player.inv.water||0)<1){typeLine('ミルク代わりに使える食料と水が足りない。');return;}
+  state.player.inv.food--;state.player.inv.water--;c.needs.milk=100;
+ }else if(k==='hug'){c.needs.affection=100;c.bond=clamp(c.bond+3,0,100);}
+ else if(k==='diaper')c.needs.diaper=100;
+ else if(k==='bath')c.needs.bath=100;
+ else if(k==='sleep')c.needs.sleep=100;
+ state.player.st=clamp(state.player.st-cost,0,100);c.bond=clamp(c.bond+1,0,100);
+ typeLine({milk:'おなかいっぱいになって、落ち着いたみたい。',hug:'抱っこすると安心したように笑った。',diaper:'おむつを替えて、すっきりしたみたい。',bath:'お風呂できれいになった。',sleep:'ゆっくり寝かしつけた。'}[k]);
+ msg('👶 お世話：スタミナ -'+cost);renderDialogReplies();
+}
+
+function fw10StartCeremony(type,title,desc){
+ state.ceremony={type:type,title:title,desc:desc,timer:8};
+ state.ceremonies.push({day:state.day,type:type,title:title,desc:desc});
+ msg((type==='wedding'?'💒 ':type==='funeral'?'🕯️ ':type==='coming'?'🎊 ':'🎉 ')+title);
+}
+const fw10PrevFamilyFuture=fw8FamilyFuture;
+fw8FamilyFuture=function(n){
+ const before=(state.family.children||[]).length;fw10PrevFamilyFuture(n);
+ if((state.family.children||[]).length>before){
+  const c=state.family.children[state.family.children.length-1];fw10EnsureChild(c,state.family.children.length-1);
+  fw10StartCeremony('birth','新しい家族の誕生',c.name+'が家族に加わった。');
+ }
+};
+const fw10PrevAdvanceRel=fw8AdvanceRelationship;
+fw8AdvanceRelationship=function(n,type){
+ const before=n.relationship;fw10PrevAdvanceRel(n,type);
+ if(before!=='family'&&n.relationship==='family')fw10StartCeremony('wedding',n.name+'との結婚式','家族と仲間が集まって二人を祝った。');
+};
+
+function fw10MarriageAndGrowth(){
+ (state.family.children||[]).forEach(function(c,i){
+  fw10EnsureChild(c,i);const st=fw10ChildStage(c),prev=c.lastStage||st;
+  if(prev!==st){
+   if(st==='adult')fw10StartCeremony('coming',c.name+'の成人祝い',c.name+'が成人した。');
+   c.lastStage=st;
+  }
+  if(st==='adult'&&!c.married&&c.ageDays>=48&&Math.random()<.08){
+   c.married=true;c.spouseName=(c.gender==='boy'?'Ari':'Noa')+' '+(i+1);
+   state.family.members.push({name:c.spouseName,relation:'in-law',alive:true,ageYears:22});
+   fw10StartCeremony('wedding',c.name+'の結婚式',c.spouseName+'が家族に加わった。');
+  }
+ });
+}
+function fw10GravePos(i){return {x:69+(i%4)*1.25,y:58+Math.floor(i/4)*1.35};}
+function fw10CreateGrave(name,defaultText){
+ const i=state.graves.length,p=fw10GravePos(i);state.graves.push({name:name,epitaph:defaultText||name+' ここに眠る',x:p.x,y:p.y});
+}
+function fw10DrawGraves(){
+ state.graves.forEach(function(g){
+  const s=worldToScreen(g.x,g.y);ctx.save();ctx.fillStyle='#777';ctx.fillRect(s.x+9,s.y+6,18,25);ctx.fillStyle='#999';ctx.fillRect(s.x+6,s.y+28,24,6);
+  ctx.fillStyle='#eee';ctx.font='8px system-ui';ctx.textAlign='center';ctx.fillText(g.name,s.x+18,s.y+45);ctx.restore();
+ });
+}
+function fw10NearGrave(){
+ let best=null,bd=1.25;state.graves.forEach(function(g){const d=Math.hypot(g.x-state.player.x,g.y-state.player.y);if(d<bd){bd=d;best=g;}});return best;
+}
+const fw10PrevBlocked=blocked;
+blocked=function(x,y){
+ if(state.graves.some(function(g){return Math.hypot(g.x-x,g.y-y)<.48;}))return true;
+ return fw10PrevBlocked(x,y);
+};
+
+function fw10EligibleSuccessors(){
+ const a=[];
+ state.npcs.forEach(function(n){fw10EnsureNpc(n);if(n.alive&&!n.controlled&&(n.relationship==='family'||n.loyalty>=75))a.push({type:'npc',ref:n,score:(n.relationship==='family'?120:0)+n.loyalty});});
+ (state.family.children||[]).forEach(function(c,i){fw10EnsureChild(c,i);if(!c.controlled&&fw10ChildStage(c)==='adult')a.push({type:'child',ref:c,index:i,score:110+c.bond});});
+ return a.sort(function(x,y){return y.score-x.score;});
+}
+function fw10AdoptIdentityFromNpc(n,fromDeath){
+ const old={name:state.player.name,sprite:state.player.sprite||'you',portrait:state.player.portrait||'mio',x:state.player.x,y:state.player.y,hp:state.player.hp,st:state.player.st,hunger:state.player.hunger,ageYears:state.player.ageYears,ageFrac:state.player.ageFrac,skills:state.player.skills,alive:!fromDeath};
+ const nx=n.x,ny=n.y,nn=n.name,ns=n.sprite,np=n.portrait,nh=n.hp,nst=n.st,nhu=n.hunger,na=n.ageYears,nsk=n.skills;
+ if(!fromDeath){n.name=old.name;n.sprite=old.sprite;n.portrait=old.portrait;n.x=old.x;n.y=old.y;n.hp=old.hp;n.st=old.st;n.hunger=old.hunger;n.ageYears=old.ageYears;n.ageFrac=old.ageFrac;n.skills=old.skills;n.relationship='family';n.loyalty=100;n.controlled=false;n.alive=true;}
+ else n.controlled=true;
+ state.player.name=nn;state.player.sprite=ns;state.player.portrait=np;state.player.x=nx;state.player.y=ny;state.player.hp=nh||100;state.player.st=nst||100;state.player.hunger=nhu||100;state.player.ageYears=na||20;state.player.ageFrac=0;state.player.skills=Object.assign({sword:0,bow:0,craft:0,cooking:0,tailoring:0,jewelry:0},nsk||{});state.player.alive=true;
+ msg('👑 操作キャラを '+nn+' に引き継いだ。');
+}
+function fw10AdoptIdentityFromChild(c,fromDeath){
+ const idx=(state.family.children||[]).indexOf(c),p=fw10ChildPos(c,Math.max(0,idx));
+ if(!fromDeath){
+  state.npcs.push({id:'former_'+Date.now(),x:state.player.x,y:state.player.y,dir:state.player.dir||'front',name:state.player.name,sprite:state.player.sprite||'you',portrait:state.player.portrait||'mio',hp:state.player.hp,st:state.player.st,hunger:state.player.hunger,friend:100,loyalty:100,relationship:'family',role:'family',status:'家族',companion:true,alive:true,controlled:false,ageYears:state.player.ageYears,ageFrac:state.player.ageFrac,skills:state.player.skills,inv:{wood:0,stone:0,food:0,water:0,fiber:0}});
+ }
+ c.controlled=true;state.player.name=c.name;state.player.sprite=c.parent==='riku'?'riku':'mio';state.player.portrait=c.parent==='riku'?'riku':'mio';state.player.x=p.x;state.player.y=p.y;state.player.ageYears=18;state.player.ageFrac=0;state.player.hp=100;state.player.st=100;state.player.hunger=100;state.player.skills={sword:0,bow:0,craft:0,cooking:0,tailoring:0,jewelry:0};state.player.alive=true;
+ msg('👑 操作キャラを '+c.name+' に引き継いだ。');
+}
+function fw10SwitchTo(kind,id,fromDeath){
+ if(kind==='npc'){const n=state.npcs.find(function(x){return x.id===id;});if(n)fw10AdoptIdentityFromNpc(n,fromDeath);}
+ else{const c=(state.family.children||[]).find(function(x){return x.id===id;});if(c)fw10AdoptIdentityFromChild(c,fromDeath);}
+ $('#panel').classList.add('hidden');$('#settingsPanel').classList.add('hidden');
+}
+function fw10Succession(){
+ const e=fw10EligibleSuccessors();if(!e.length){state.gameOver=true;msg('☠️ 引き継げる家族・忠誠の高い仲間がいない。ゲームオーバー。');return;}
+ const h=e[0];fw10SwitchTo(h.type,h.ref.id,true);
+}
+function fw10NpcDeath(n){
+ if(!n.alive)return;n.alive=false;n.controlled=false;fw10CreateGrave(n.name,n.name+'の歩みを忘れない');
+ fw10StartCeremony('funeral',n.name+'の葬儀',n.name+'を皆で見送った。');
+}
+function fw10PlayerDeath(){
+ if(!state.player.alive)return;state.player.alive=false;const old=state.player.name;fw10CreateGrave(old,old+' ここに眠る');
+ fw10StartCeremony('funeral',old+'の葬儀',old+'の意志を次の世代へ引き継ぐ。');fw10Succession();
+}
+function fw10AgeOneDay(){
+ const Y=20;state.player.ageFrac+=1/Y;if(state.player.ageFrac>=1){state.player.ageFrac-=1;state.player.ageYears++;
+  if(state.player.ageYears>=82&&Math.random()<Math.min(.55,.10+(state.player.ageYears-82)*.025))fw10PlayerDeath();}
+ state.npcs.forEach(function(n){fw10EnsureNpc(n);if(!n.alive||n.controlled)return;n.ageFrac+=1/Y;if(n.ageFrac>=1){n.ageFrac-=1;n.ageYears++;
+  if(n.ageYears>=78&&Math.random()<Math.min(.5,.08+(n.ageYears-78)*.022))fw10NpcDeath(n);}});
+ fw10MarriageAndGrowth();
+}
+function fw10DrawCeremony(){
+ const c=state.ceremony;if(!c)return;
+ ctx.save();ctx.fillStyle=c.type==='funeral'?'rgba(15,15,22,.62)':'rgba(15,10,25,.48)';ctx.fillRect(120,340,W-240,180);
+ ctx.strokeStyle=c.type==='wedding'?'#f0d6b4':c.type==='funeral'?'#aaa':'#e3c25a';ctx.lineWidth=3;ctx.strokeRect(120,340,W-240,180);
+ ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 30px system-ui';ctx.fillText(c.title,W/2,400);ctx.font='16px system-ui';ctx.fillText(c.desc,W/2,440);ctx.font='13px system-ui';ctx.fillStyle='#ddd';ctx.fillText('Day '+state.day,W/2,475);ctx.restore();
+}
+function fw10DrawGameOver(){
+ if(!state.gameOver)return;ctx.save();ctx.fillStyle='rgba(0,0,0,.78)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 42px system-ui';ctx.fillText('GAME OVER',W/2,H/2-20);ctx.font='18px system-ui';ctx.fillText('一族・忠誠を継ぐ者がいなくなった',W/2,H/2+24);ctx.restore();
+}
+
+function fw10SaveGame(){
+ try{
+  const snapshot=JSON.parse(JSON.stringify(state,function(k,v){if(k==='dialog'||k==='training'||k==='crafting')return null;if(k==='task'&&v&&typeof v==='object')return null;return v;}));
+  localStorage.setItem('frontier_world_save_v10',JSON.stringify({version:10,savedAt:Date.now(),state:snapshot}));
+  msg('💾 セーブしました。');return true;
+ }catch(e){msg('⚠️ セーブに失敗：'+e.message);return false;}
+}
+function fw10LoadGame(){
+ try{
+  const raw=localStorage.getItem('frontier_world_save_v10');if(!raw){msg('📂 セーブデータがありません。');return;}
+  const data=JSON.parse(raw);Object.keys(state).forEach(function(k){delete state[k];});Object.assign(state,data.state);
+  state.dialog=null;state.training=null;state.crafting=null;state.interior=null;state.gameOver=!!state.gameOver;
+  state.player.sprite=state.player.sprite||'you';state.player.autoSchedule=state.player.autoSchedule||{enabled:false,target:null,patrol:0,lastFarm:0,suspendUntil:0};
+  state.npcs.forEach(fw10EnsureNpc);(state.family.children||[]).forEach(fw10EnsureChild);
+  $('#dialogPanel').classList.add('hidden');$('#panel').classList.add('hidden');$('#settingsPanel').classList.add('hidden');tap=null;joy.x=joy.y=0;msg('📂 セーブデータをロードしました。');
+ }catch(e){msg('⚠️ ロードに失敗：'+e.message);}
+}
+function fw10OpenSwitchPanel(){
+ const e=fw10EligibleSuccessors();$('#panel').classList.remove('hidden');$('#panelTitle').textContent='👑 操作キャラ切替';
+ $('#panelBody').innerHTML=e.length?e.map(function(h){
+  const age=h.type==='npc'?Math.floor(h.ref.ageYears||0):18;
+  return '<button class="smallBtn" data-fw10="switch" data-kind="'+h.type+'" data-id="'+h.ref.id+'">'+h.ref.name+'　'+(h.type==='npc'?'忠誠 '+Math.round(h.ref.loyalty):'家族')+'　年齢 '+age+'</button>';
+ }).join(''):'<div class="tileCard">切り替え可能な家族・忠誠75以上の仲間はいません。</div>';
+}
+function fw10OpenCeremonyLog(){
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='📜 一族・冠婚葬祭';
+ const rows=(state.ceremonies||[]).slice().reverse().map(function(c){return '<div class="tileCard">Day '+c.day+'　<b>'+c.title+'</b><br>'+c.desc+'</div>';}).join('');
+ $('#panelBody').innerHTML=rows||'<div class="tileCard">まだ記録はありません。</div>';
+}
+const fw10PrevRenderSettings=renderSettings;
+renderSettings=function(){
+ fw10PrevRenderSettings();
+ const save=localStorage.getItem('frontier_world_save_v10');
+ $('#slotEditor').insertAdjacentHTML('beforeend',
+  '<div class="tileCard" style="margin-top:10px"><b>生活・継承</b><br>'+
+  '<button class="smallBtn" data-fw10-settings="auto">🤖 定時自動行動 '+(state.player.autoSchedule&&state.player.autoSchedule.enabled?'ON':'OFF')+'</button> '+
+  '<button class="smallBtn" data-fw10-settings="save">💾 セーブ</button> '+
+  '<button class="smallBtn" data-fw10-settings="load" '+(save?'':'disabled')+'>📂 ロード</button><br>'+
+  '<button class="smallBtn" data-fw10-settings="switch">👑 操作キャラ切替</button> '+
+  '<button class="smallBtn" data-fw10-settings="log">📜 一族の記録</button></div>');
+};
+
+const fw10PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ fw10EnsureNpc(n);if(!n.alive||n.controlled)return;
+ if(n.companion&&n.command==='buildHouse'&&n.buildJob){
+  const j=n.buildJob;setNpcTarget(n,j.x+1.5,j.y+3.2,'🏗️ 家を建設中');fw7MoveNpc(n,dt,.82);
+  if(Math.hypot(n.x-(j.x+1.5),n.y-(j.y+3.2))<.55){
+   if(!j.started){if(!fw10HaveBuildCost()){n.status='📦 建材待ち';return;}fw10ConsumeBuildCost();j.started=true;}
+   j.timer-=dt;n.st=clamp(n.st-dt*.18,0,100);n.status='🔨 建設 '+Math.max(0,j.timer).toFixed(1)+'s';
+   if(j.timer<=0){const id='house_'+n.id+'_'+state.day+'_'+Math.floor(performance.now());state.buildings.push({id:id,x:j.x,y:j.y,owner:n.name,ownerId:n.id,type:'house',access:'ally',furniture:[]});n.homeId=id;n.buildJob=null;n.command='homeWait';n.status='🏠 新居完成';n.loyalty=clamp(n.loyalty+5,0,100);msg('🏠 '+n.name+'が新しい家を建てた！');}
+  }return;
+ }
+ return fw10PrevUpdateNPC(n,dt);
+};
+
+const fw10PrevDrawPerson=drawPerson;
+drawPerson=function(p,sprite){
+ if(p&&p.alive===false)return;if(p&&p.controlled)return;
+ fw10PrevDrawPerson(p,sprite);
+ if(p&&p.command==='buildHouse'&&p.buildJob){
+  const s=worldToScreen(p.x,p.y);ctx.save();ctx.font='18px system-ui';ctx.textAlign='center';ctx.fillText('🏗️',s.x+TILE/2,s.y-26);ctx.restore();
+ }
+};
+
+nearestNPC=function(){
+ let best=null,bd=2.1;for(const n of state.npcs){fw10EnsureNpc(n);if(!n.alive||n.controlled)continue;const d=Math.hypot(n.x-state.player.x,n.y-state.player.y);if(d<bd){bd=d;best=n;}}return best;
+};
+const fw10PrevTalk=talk;
+talk=function(){
+ const c=fw10NearestChild(),n=nearestNPC();let nd=n?Math.hypot(n.x-state.player.x,n.y-state.player.y):999;
+ if(c&&c.d<nd){
+  state.dialog={speaker:c.child};$('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();
+  typeLine(fw10ChildStage(c.child)==='baby'?'赤ちゃんがこちらを見ている。':fw10ChildStage(c.child)==='youth'?'ねえ、今日は何する？':'家族として話せることが増えたね。');msg('💬 '+c.child.name+'と会話中。');return;
+ }
+ fw10PrevTalk();
+};
+
+const fw10PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ const n=getDialogSpeaker();if(!n)return;
+ if(n.isChild){
+  const st=fw10ChildStage(n);fw10EnsureChild(n,(state.family.children||[]).indexOf(n));
+  $('#speaker').innerHTML=n.name+'<span class="friendTag">'+(st==='baby'?'赤ちゃん':st==='youth'?(n.gender==='boy'?'少年':'少女'):'成人')+' / 絆 '+Math.round(n.bond)+'</span>';
+  let a=st==='baby'?[['milk','🍼 ミルク'],['hug','🤱 抱っこ'],['diaper','🧷 おむつ'],['bath','🛁 お風呂'],['sleep','🌙 寝かしつけ']]:[['hug','🤗 抱きしめる'],['hello','💬 話す']];
+  if(st==='adult'&&!n.married)a.push(['childFuture','💒 結婚について']);
+  $('#dialogReplies').innerHTML=a.map(function(q){return '<button data-reply="'+q[0]+'" type="button">'+q[1]+'</button>';}).join('');
+  const need=n.needs||{};$('#dialogText').textContent=st==='baby'?'🍼'+Math.round(need.milk||0)+'　🧷'+Math.round(need.diaper||0)+'　🛁'+Math.round(need.bath||0)+'　🌙'+Math.round(need.sleep||0)+'　♡'+Math.round(need.affection||0):$('#dialogText').textContent;
+  return;
+ }
+ fw10PrevRenderDialog();fw10EnsureNpc(n);
+ if(n.companion&&n.id!=='guard'&&n.id!=='merchant'){
+  $('#dialogReplies').insertAdjacentHTML('beforeend','<button data-reply="buildHouse" type="button">🏠 家を建てて</button>');
+ }
+ const age=Math.floor(n.ageYears||0);$('#speaker').insertAdjacentHTML('beforeend','<span class="friendTag"> / '+age+'歳</span>');
+};
+const fw10PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();if(!n)return;
+ if(n.isChild){
+  if(['milk','hug','diaper','bath','sleep'].includes(k)){fw10CareChild(k);return;}
+  if(k==='hello'){n.bond=clamp(n.bond+1,0,100);typeLine('うん。もっといろんなことを教えて。');renderDialogReplies();return;}
+  if(k==='childFuture'){typeLine(n.married?'もう家族がいるよ。':'いつか大切な人と一緒に暮らせたらいいな。');return;}
+ }
+ if(k==='buildHouse'){fw10AssignHouseBuild(n);return;}
+ fw10PrevHandleDialog(k);
+};
+
+const fw10PrevAction=action;
+action=function(){
+ if(state.interior){
+  const it=state.interior;
+  if(it.pos.y>it.roomH-1.05&&Math.abs(it.pos.x-it.roomW/2)<1.1){fw10ExitBuilding();return;}
+  if(it.pos.x>it.roomW-2.1&&it.pos.y<2.5){openInventory();msg('📦 家のチェストを開いた。');return;}
+  if(it.pos.x<2.1&&it.pos.y<2.7){rest();return;}
+  if(Math.abs(it.pos.x-it.roomW/2)<1.5&&Math.abs(it.pos.y-it.roomH/2)<1.25){fw8OpenCraftHub();return;}
+  msg('🏠 家の中。入口・チェスト・寝床・作業台を使える。');return;
+ }
+ const g=fw10NearGrave();if(g){
+  const t=prompt('墓碑に刻む碑文',g.epitaph||g.name+' ここに眠る');if(t!=null&&t.trim()){g.epitaph=t.trim();msg('🪦 墓碑に「'+g.epitaph+'」と刻んだ。');}return;
+ }
+ const b=fw10NearEntrance(1.5);if(b){fw10EnterBuilding(b);return;}
+ fw10PrevAction();
+};
+
+const fw10PrevRest=rest;
+rest=function(){
+ if(state.interior){
+  state.player.st=100;state.player.hunger=clamp(state.player.hunger-3,0,100);
+  if(isNight()){state.hour=6.5;state.day++;}msg('🛏️ 家の中でしっかり休んだ。');return;
+ }
+ fw10PrevRest();
+};
+
+const fw10PrevUpdate=update;
+update=function(dt){
+ if(state.gameOver){if(state.ceremony){state.ceremony.timer-=dt;if(state.ceremony.timer<=0)state.ceremony=null;}return;}
+ if(state.interior){
+  const jx=joy.x,jy=joy.y,oldTap=tap;joy.x=joy.y=0;tap=null;fw10PrevUpdate(dt);joy.x=jx;joy.y=jy;tap=oldTap;fw10UpdateInterior(dt,jx,jy);
+ }else{
+  fw10PrevUpdate(dt);fw10AutoPlayer(dt);
+ }
+ fw10UpdateFarm(dt);fw10UpdateChildren(dt);
+ if(state.ceremony){state.ceremony.timer-=dt;if(state.ceremony.timer<=0)state.ceremony=null;}
+ if(state.day!==state.lifecycleLastDay){
+  const diff=Math.max(1,state.day-state.lifecycleLastDay);for(let i=0;i<diff;i++)fw10AgeOneDay();state.lifecycleLastDay=state.day;fw10SaveGame();
+ }
+ state.saveClock-=dt;if(state.saveClock<=0){state.saveClock=30;fw10SaveGame();}
+};
+
+function fw10DrawFarm(){
+ const f=state.farm;
+ ctx.save();
+ for(let i=0;i<f.plots.length;i++){
+  const p=fw10FarmPos(i),s=worldToScreen(p.x-.45,p.y-.45),pl=f.plots[i];
+  ctx.fillStyle='#6f4e2e';ctx.fillRect(s.x,s.y,TILE*.9,TILE*.9);
+  if(pl.planted){ctx.fillStyle=pl.growth>.75?'#69b64a':'#87a94b';const h=TILE*(.18+.45*pl.growth);ctx.fillRect(s.x+TILE*.39,s.y+TILE*.72-h,TILE*.12,h);}
+ }
+ ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';const s=worldToScreen(f.x+2,f.y-.4);ctx.fillText('🌱 畑',s.x,s.y);ctx.restore();
+}
+const fw10PrevDraw=draw;
+draw=function(){
+ if(state.interior){fw10DrawInterior();if(state.ceremony)fw10DrawCeremony();if(state.gameOver)fw10DrawGameOver();return;}
+ fw10PrevDraw();fw10DrawFarm();fw10DrawGraves();if(state.ceremony)fw10DrawCeremony();if(state.gameOver)fw10DrawGameOver();
+};
+
+canvas.addEventListener('pointerdown',function(e){
+ if(!state.interior)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const r=canvas.getBoundingClientRect(),sx=(e.clientX-r.left)*W/r.width,sy=(e.clientY-r.top)*H/r.height,it=state.interior;
+ const scale=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*scale)/2,oy=80;
+ it.tap={x:clamp((sx-ox)/scale,.55,it.roomW-.55),y:clamp((sy-oy)/scale,.55,it.roomH-.2)};
+ state.player.autoSchedule.suspendUntil=performance.now()+8000;root.focus();
+},true);
+joyBase.addEventListener('pointerdown',function(){if(state.player.autoSchedule)state.player.autoSchedule.suspendUntil=performance.now()+8000;},true);
+root.addEventListener('keydown',function(e){if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())&&state.player.autoSchedule)state.player.autoSchedule.suspendUntil=performance.now()+8000;},true);
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw10]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw10==='switch')fw10SwitchTo(b.dataset.kind,b.dataset.id,false);
+},true);
+$('#settingsPanel').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw10-settings]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ const a=b.dataset.fw10Settings;
+ if(a==='auto'){state.player.autoSchedule.enabled=!state.player.autoSchedule.enabled;state.player.autoSchedule.target=null;renderSettings();msg('🤖 定時自動行動 '+(state.player.autoSchedule.enabled?'ON':'OFF'));}
+ else if(a==='save')fw10SaveGame();
+ else if(a==='load')fw10LoadGame();
+ else if(a==='switch')fw10OpenSwitchPanel();
+ else if(a==='log')fw10OpenCeremonyLog();
 },true);
 
 const joyBase=$('#joy'),knob=$('#knob');
