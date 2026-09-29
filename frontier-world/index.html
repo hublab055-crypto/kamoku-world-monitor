@@ -1745,7 +1745,7 @@ canvas.addEventListener('pointerdown',function(e){
  it.tap={x:clamp((sx-ox)/scale,.55,it.roomW-.55),y:clamp((sy-oy)/scale,.55,it.roomH-.2)};
  state.player.autoSchedule.suspendUntil=performance.now()+8000;root.focus();
 },true);
-joyBase.addEventListener('pointerdown',function(){if(state.player.autoSchedule)state.player.autoSchedule.suspendUntil=performance.now()+8000;},true);
+$('#joy').addEventListener('pointerdown',function(){if(state.player.autoSchedule)state.player.autoSchedule.suspendUntil=performance.now()+8000;},true);
 root.addEventListener('keydown',function(e){if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())&&state.player.autoSchedule)state.player.autoSchedule.suspendUntil=performance.now()+8000;},true);
 
 $('#panelBody').addEventListener('click',function(e){
