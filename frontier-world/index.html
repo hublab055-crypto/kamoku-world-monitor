@@ -377,7 +377,7 @@ function drawPerson(p,sprite){
 
 function drawHUD(){
  const p=state.player,h=Math.floor(state.hour),m=Math.floor((state.hour-h)*60);
- const load=p.inv.wood*3+p.inv.stone*4+p.inv.food+p.inv.water;
+ const load=(typeof fw18LoadKg==='function'?fw18LoadKg(p.inv):p.inv.wood*3+p.inv.stone*4+p.inv.food+p.inv.water);
  ctx.fillStyle='rgba(0,0,0,.60)';ctx.beginPath();ctx.roundRect(12,12,258,118,13);ctx.fill();
  ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='16px system-ui';
  ctx.fillText((isNight()?'🌙 ':'☀️ ')+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+'  Day '+state.day,25,38);
@@ -3462,6 +3462,453 @@ fw10LoadGame=function(){
  state.player.preferences=state.player.preferences||{};
  state.npcs.forEach(function(n){if(n.autoSchedule)n.autoSchedule=fw17EnsureAuto(n.autoSchedule,n.x,n.y);});
  fw13RefreshAutoButton();renderButtons();
+};
+
+
+/* FRONTIER_V18_SOCIAL_FARM_RECIPEBOOKS */
+state.settlement=state.settlement||{rankOverride:null,name:'Frontier Camp'};
+state.player.parentTitle=state.player.parentTitle||'パパ';
+state.player.inv.treeSeed=state.player.inv.treeSeed||0;
+state.player.inv.cropSeed=state.player.inv.cropSeed||0;
+state.player.inv.fertilizer=state.player.inv.fertilizer||0;
+state.chest.treeSeed=state.chest.treeSeed||0;
+state.chest.cropSeed=state.chest.cropSeed||0;
+state.chest.fertilizer=state.chest.fertilizer||0;
+state.player.recipeBooks=state.player.recipeBooks||{};
+state.customFields=state.customFields||[];
+state.treasures=state.treasures||[
+ {id:'treasure_recipe_1',x:27,y:36,opened:false},
+ {id:'treasure_recipe_2',x:70,y:57,opened:false},
+ {id:'treasure_recipe_3',x:64,y:28,opened:false}
+];
+
+Object.assign(FW8_RECIPES,{
+ fish_stew:{name:'魚のシチュー',icon:'🍲🐟',cat:'food',skill:'cooking',cost:{fish:2,water:1},value:38},
+ field_hoe:{name:'畑のくわ',icon:'🧑‍🌾',cat:'tool',skill:'craft',cost:{wood:2,stone:1},value:42,slot:'tool'},
+ fishing_rod:{name:'釣り竿',icon:'🎣',cat:'tool',skill:'craft',cost:{wood:2,fiber:2},value:48,slot:'tool'},
+ work_clothes:{name:'作業着',icon:'🥼',cat:'clothing',skill:'tailoring',cost:{fiber:4},value:58,slot:'clothing'},
+ moon_charm:{name:'月石のお守り',icon:'🌙📿',cat:'accessory',skill:'jewelry',cost:{stone:3,fiber:1},value:74,slot:'accessory'}
+});
+const FW18_BOOKS={
+ cooking:{name:'家庭料理のレシピ本',icon:'📕🍳',buy:70,sell:30,recipes:['fish_stew']},
+ tools:{name:'開拓道具の設計書',icon:'📘🛠️',buy:85,sell:38,recipes:['field_hoe','fishing_rod']},
+ clothes:{name:'旅装の型紙集',icon:'📗🧵',buy:76,sell:34,recipes:['work_clothes']},
+ jewelry:{name:'装身具の細工書',icon:'📙📿',buy:95,sell:44,recipes:['moon_charm']}
+};
+
+function fw18LoadKg(inv){
+ inv=inv||{};
+ return Math.round(((inv.wood||0)*3+(inv.stone||0)*4+(inv.food||0)+(inv.water||0)+(inv.fiber||0)*.5+(inv.fish||0)*1.2+(inv.treeSeed||0)*.1+(inv.cropSeed||0)*.1+(inv.fertilizer||0)*.8)*10)/10;
+}
+function fw18SettlementStatus(){
+ const pop=1+state.npcs.filter(function(n){return n.alive!==false;}).length+(state.family.children||[]).length+(state.family.members||[]).filter(function(m){return m.alive!==false;}).length;
+ const houses=state.buildings.filter(function(b){return b.type==='house';}).length;
+ const guards=state.npcs.filter(function(n){return n.alive!==false&&n.role==='guard';}).length;
+ const castle=state.buildings.some(function(b){return b.type==='castle';});
+ let rank='camp';
+ if(pop>=6&&houses>=2)rank='village';
+ if(pop>=10&&houses>=4)rank='town';
+ if(castle&&guards>=3)rank='castle';
+ if(castle&&guards>=5&&pop>=20)rank='realm';
+ if(state.settlement.rankOverride)rank=state.settlement.rankOverride;
+ return {rank:rank,population:pop,houses:houses,guards:guards,castle:castle};
+}
+function fw18Address(n){
+ const s=fw18SettlementStatus();
+ if(n&&n.isChild){
+  if(s.rank==='castle'||s.rank==='realm')return '父上';
+  return state.player.parentTitle||'パパ';
+ }
+ if(n&&n.role==='guard'){
+  if(s.rank==='realm')return '陛下';
+  if(s.rank==='castle'||s.rank==='town')return '殿';
+  return n.relationship==='friend'?'隊長':'あなた';
+ }
+ const rel=n&&n.relationship||'acquaintance';
+ if(rel==='family'||rel==='lover')return 'あなた';
+ if(rel==='friend')return Math.random()<.5?'君':(state.player.name||'君');
+ if(rel==='companion')return Math.random()<.5?'君':'あなた';
+ return 'あなた';
+}
+const fw18PrevRelLine=fw12RelLine;
+fw12RelLine=function(n,key){
+ let line=fw18PrevRelLine(n,key),addr=fw18Address(n);
+ if(line&&addr&&Math.random()<.46&&!line.startsWith(addr))line=addr+'、'+line;
+ return line;
+};
+
+function fw18EnsureHeart(n){
+ if(!n||n.isChild)return 0;
+ if(n.heartMeter==null){
+  n.heartMeter=n.relationship==='family'?120:n.relationship==='lover'?75:n.relationship==='friend'?35:0;
+ }
+ n.heartMeter=clamp(n.heartMeter,0,200);
+ return n.heartMeter;
+}
+function fw18HeartGain(n,amount){
+ if(!n||!['lover','family'].includes(n.relationship))return;
+ fw18EnsureHeart(n);n.heartMeter=clamp(n.heartMeter+(amount||1),0,200);
+}
+state.npcs.forEach(fw18EnsureHeart);
+
+const fw18PrevAdvanceRel=fw8AdvanceRelationship;
+fw8AdvanceRelationship=function(n,type){
+ fw18PrevAdvanceRel(n,type);fw18EnsureHeart(n);
+ if(type==='lover'&&n.relationship==='lover')n.heartMeter=Math.max(n.heartMeter,75);
+ if(type==='family'&&n.relationship==='family')n.heartMeter=Math.max(n.heartMeter,120);
+};
+
+const fw18PrevExchangeAnswer=fw17ExchangeAnswer;
+fw17ExchangeAnswer=function(n,key){
+ fw18PrevExchangeAnswer(n,key);fw18HeartGain(n,4);
+ if(n&&['friend','lover','family'].includes(n.relationship)&&Math.random()<.10){
+  const ids=Object.keys(FW18_BOOKS),id=ids[Math.floor(Math.random()*ids.length)];
+  fw18GiveBook(id,'present');typeLine('そうだ、これも持っていって。あなたなら役立てられそう。');
+ }
+ if(state.dialog){
+  state.dialog.chatDepth=(state.dialog.chatDepth||0)+1;
+  if(state.dialog.chatDepth<6)$('#dialogReplies').insertAdjacentHTML('afterbegin','<button data-reply="chatContinue" type="button">💬 それで？ もう少し話す</button>');
+ }
+};
+function fw18ContinueChat(n){
+ if(!state.dialog)return;
+ const d=state.dialog.chatDepth||0;
+ const lead=[
+  'もうひとつ聞いていい？',
+  'じゃあ、次はこんな話はどう？',
+  'そうなんだ。もう少し知りたくなった。',
+  '話してると時間が早いね。次も聞いていい？',
+  '最後にもうひとつだけ。'
+ ][Math.min(d,4)];
+ typeLine(fw18Address(n)+'、'+lead);
+ setTimeout(function(){if(state.dialog&&state.dialog.speaker===n)fw17StartExchange(n);},380);
+}
+
+Object.assign(FW15_CONDITIONS,{
+ loadAbove:{label:'持ち物重量が以上',numeric:true,min:1,max:120,step:1},
+ noTreeInRange:{label:'範囲内に木がない',numeric:false},
+ fieldCountBelow:{label:'範囲内の畑が未満',numeric:true,min:1,max:64,step:1},
+ fieldNeedsSeed:{label:'種まき前の畑がある',numeric:false},
+ fieldNeedsWater:{label:'水不足の畑がある',numeric:false},
+ fieldNeedsFertilizer:{label:'未施肥の畑がある',numeric:false},
+ fieldHasWeeds:{label:'雑草のある畑がある',numeric:false},
+ fieldReady:{label:'収穫できる畑がある',numeric:false}
+});
+const fw18PrevCond=fw15ConditionPass;
+fw15ConditionPass=function(c){
+ if(!c)return true;const v=Number(c.value||0);
+ if(c.type==='loadAbove')return fw18LoadKg(state.player.inv)>=v;
+ if(c.type==='noTreeInRange')return fw18TreesInRange()===0;
+ if(c.type==='fieldCountBelow')return fw18FieldsInRange().length<v;
+ if(c.type==='fieldNeedsSeed')return !!fw18NearestField(function(f){return !f.seeded;});
+ if(c.type==='fieldNeedsWater')return !!fw18NearestField(function(f){return f.seeded&&f.moisture<45;});
+ if(c.type==='fieldNeedsFertilizer')return !!fw18NearestField(function(f){return f.seeded&&!f.fertilized;});
+ if(c.type==='fieldHasWeeds')return !!fw18NearestField(function(f){return f.weeds>35;});
+ if(c.type==='fieldReady')return !!fw18NearestField(function(f){return f.seeded&&f.growth>=1;});
+ return fw18PrevCond(c);
+};
+const fw18PrevDefault=fw15DefaultValue;
+fw15DefaultValue=function(type){
+ if(type==='loadAbove')return 18;if(type==='fieldCountBelow')return 8;
+ return fw18PrevDefault(type);
+};
+
+Object.assign(FW11_PRIORITY,{
+ plantTrees:{icon:'🌱🌲',label:'木を植える',desc:'指定範囲に苗木を植える'},
+ makeField:{icon:'🟫',label:'畑を作る',desc:'指定範囲に畑マスを増やす'},
+ sowField:{icon:'🌱',label:'種をまく',desc:'空いている畑へ作物の種をまく'},
+ waterField:{icon:'💧🌾',label:'畑に水をまく',desc:'乾いた畑へ水をまく'},
+ fertilizeField:{icon:'🪴',label:'肥料をまく',desc:'作物へ肥料を与える'},
+ weedField:{icon:'🌿✋',label:'雑草を抜く',desc:'畑の雑草を抜く'},
+ harvestField:{icon:'🌾🧺',label:'作物を収穫',desc:'育った作物を収穫する'},
+ eat:{icon:'🍽️',label:'食料を食べる',desc:'料理・食料・魚の順に食べて満腹度を回復'}
+});
+
+function fw18TreesInRange(){
+ const a=state.player.autoSchedule,o=a.origin||state.player,r=a.radius||6;
+ return state.objects.filter(function(x){return (x.type==='tree'||x.type==='tree2'||x.type==='sapling')&&Math.hypot(x.x-o.x,x.y-o.y)<=r;}).length;
+}
+function fw18FindEmptyPoint(){
+ const a=state.player.autoSchedule,o=a.origin||state.player,r=a.radius||6;
+ for(let ring=1;ring<=Math.ceil(r);ring++){
+  for(let q=0;q<24;q++){
+   const ang=(q/24)*Math.PI*2,x=o.x+Math.cos(ang)*ring,y=o.y+Math.sin(ang)*ring;
+   if(Math.hypot(x-o.x,y-o.y)>r||blocked(x,y))continue;
+   if(state.customFields.some(function(f){return Math.hypot(f.x-x,f.y-y)<.8;}))continue;
+   return {x:x,y:y};
+  }
+ }
+ return null;
+}
+function fw18PlantTree(dt){
+ if((state.player.inv.treeSeed||0)<=0){state.player.status='🌱🌲 苗木がない';return false;}
+ const p=fw18FindEmptyPoint();if(!p)return false;
+ if(!fw13MoveOrReach(p.x,p.y,dt,.75))return true;
+ state.player.inv.treeSeed--;state.objects.push({type:'sapling',x:p.x,y:p.y,solid:false,gather:'wood',growth:0,planted:true});
+ state.player.st=clamp(state.player.st-2,0,100);state.player.status='🌱🌲 苗木を植えた';fw13AddAutoXP(1);return true;
+}
+function fw18FieldsInRange(){
+ const a=state.player.autoSchedule,o=a.origin||state.player,r=a.radius||6;
+ return state.customFields.filter(function(f){return Math.hypot(f.x-o.x,f.y-o.y)<=r;});
+}
+function fw18NearestField(test){
+ let best=null,bd=999;for(const f of fw18FieldsInRange()){if(test&&!test(f))continue;const d=Math.hypot(f.x-state.player.x,f.y-state.player.y);if(d<bd){bd=d;best=f;}}return best;
+}
+function fw18MakeField(dt){
+ const p=fw18FindEmptyPoint();if(!p)return false;
+ if(!fw13MoveOrReach(p.x,p.y,dt,.7))return true;
+ state.customFields.push({x:p.x,y:p.y,seeded:false,growth:0,moisture:0,fertilized:false,weeds:0});
+ state.player.st=clamp(state.player.st-3,0,100);state.player.status='🟫 畑を1マス作った';fw13AddAutoXP(1);return true;
+}
+function fw18FieldAction(kind,dt){
+ let f=null;
+ if(kind==='sowField')f=fw18NearestField(function(x){return !x.seeded;});
+ if(kind==='waterField')f=fw18NearestField(function(x){return x.seeded&&x.moisture<45;});
+ if(kind==='fertilizeField')f=fw18NearestField(function(x){return x.seeded&&!x.fertilized;});
+ if(kind==='weedField')f=fw18NearestField(function(x){return x.weeds>35;});
+ if(kind==='harvestField')f=fw18NearestField(function(x){return x.seeded&&x.growth>=1;});
+ if(!f)return false;
+ if(!fw13MoveOrReach(f.x,f.y,dt,.7))return true;
+ if(kind==='sowField'){
+  if((state.player.inv.cropSeed||0)<=0){state.player.status='🌱 種がない';return false;}
+  state.player.inv.cropSeed--;f.seeded=true;f.growth=.02;f.moisture=35;f.weeds=0;state.player.status='🌱 種まき';
+ }else if(kind==='waterField'){
+  if((state.player.inv.water||0)<=0){state.player.status='💧 水がない';return false;}
+  state.player.inv.water--;f.moisture=100;state.player.status='💧🌾 水やり';
+ }else if(kind==='fertilizeField'){
+  if((state.player.inv.fertilizer||0)<=0){state.player.status='🪴 肥料がない';return false;}
+  state.player.inv.fertilizer--;f.fertilized=true;state.player.status='🪴 施肥';
+ }else if(kind==='weedField'){f.weeds=0;state.player.status='🌿✋ 草むしり';
+ }else if(kind==='harvestField'){
+  const yieldN=2+(f.fertilized?1:0)+(f.weeds<25?1:0);state.player.inv.food=(state.player.inv.food||0)+yieldN;
+  if(Math.random()<.65)state.player.inv.cropSeed=(state.player.inv.cropSeed||0)+1;
+  f.seeded=false;f.growth=0;f.moisture=0;f.fertilized=false;f.weeds=0;state.player.status='🌾🧺 収穫 +'+yieldN;
+ }
+ state.player.st=clamp(state.player.st-2,0,100);fw13AddAutoXP(1);return true;
+}
+function fw18AutoEat(){
+ const cooked=state.player.items&&state.player.items.findIndex(function(it){return it.cat==='food';});
+ if(cooked>=0){
+  const it=state.player.items[cooked];state.player.hunger=clamp(state.player.hunger+38+it.quality*5,0,100);state.player.st=clamp(state.player.st+8,0,100);state.player.items.splice(cooked,1);state.player.status='🍽️ '+it.name;return true;
+ }
+ if((state.player.inv.food||0)>0){state.player.inv.food--;state.player.hunger=clamp(state.player.hunger+28,0,100);state.player.status='🍎 食事';return true;}
+ if((state.player.inv.fish||0)>0){state.player.inv.fish--;state.player.hunger=clamp(state.player.hunger+18,0,100);state.player.status='🐟 魚を食べた';return true;}
+ return false;
+}
+
+const fw18PrevCanAction=fw14CanAction;
+fw14CanAction=function(k){
+ if(k==='plantTrees')return (state.player.inv.treeSeed||0)>0&&!!fw18FindEmptyPoint();
+ if(k==='makeField')return !!fw18FindEmptyPoint();
+ if(k==='sowField')return (state.player.inv.cropSeed||0)>0&&!!fw18NearestField(function(f){return !f.seeded;});
+ if(k==='waterField')return (state.player.inv.water||0)>0&&!!fw18NearestField(function(f){return f.seeded&&f.moisture<45;});
+ if(k==='fertilizeField')return (state.player.inv.fertilizer||0)>0&&!!fw18NearestField(function(f){return f.seeded&&!f.fertilized;});
+ if(k==='weedField')return !!fw18NearestField(function(f){return f.weeds>35;});
+ if(k==='harvestField')return !!fw18NearestField(function(f){return f.seeded&&f.growth>=1;});
+ if(k==='eat')return state.player.hunger<100&&((state.player.inv.food||0)>0||(state.player.inv.fish||0)>0||(state.player.items||[]).some(function(it){return it.cat==='food';}));
+ return fw18PrevCanAction(k);
+};
+const fw18PrevRunAction=fw14RunAction;
+fw14RunAction=function(k,dt){
+ if(k==='plantTrees')return fw18PlantTree(dt);
+ if(k==='makeField')return fw18MakeField(dt);
+ if(['sowField','waterField','fertilizeField','weedField','harvestField'].includes(k))return fw18FieldAction(k,dt);
+ if(k==='eat')return fw18AutoEat();
+ return fw18PrevRunAction(k,dt);
+};
+
+function fw18UpdateAgriculture(dt){
+ state.objects.forEach(function(o){
+  if(o.type==='sapling'){o.growth=(o.growth||0)+dt*.003;if(o.growth>=1){o.type=Math.random()<.4?'tree2':'tree';o.solid=true;o.growth=1;}}
+ });
+ state.customFields.forEach(function(f){
+  if(!f.seeded)return;f.moisture=clamp(f.moisture-dt*.12,0,100);f.weeds=clamp(f.weeds+dt*.018,0,100);
+  let rate=.0018*(f.moisture>25?1:.35)*(f.fertilized?1.35:1)*(f.weeds>60?.6:1);f.growth=clamp(f.growth+dt*rate,0,1);
+ });
+}
+const fw18PrevDrawObject=drawObject;
+drawObject=function(o){
+ if(o.type==='sapling'){
+  const s=worldToScreen(o.x,o.y),g=clamp(o.growth||0,0,1),sz=TILE*(.55+g*.7);
+  drawAsset('tree',s.x+TILE*.5-sz*.5,s.y+TILE*.72-sz,sz,sz*1.35,1);return;
+ }
+ fw18PrevDrawObject(o);
+};
+function fw18DrawFields(){
+ state.customFields.forEach(function(f){
+  const s=worldToScreen(f.x,f.y);ctx.save();ctx.fillStyle=f.moisture>45?'#65452f':'#765238';ctx.fillRect(s.x+3,s.y+3,TILE-6,TILE-6);
+  ctx.strokeStyle='#3e2b1d';ctx.lineWidth=2;for(let k=0;k<3;k++){ctx.beginPath();ctx.moveTo(s.x+7,s.y+10+k*9);ctx.lineTo(s.x+TILE-7,s.y+10+k*9);ctx.stroke();}
+  if(f.seeded){ctx.fillStyle=f.growth>=1?'#e2c94a':'#65ad48';const h=8+f.growth*18;ctx.fillRect(s.x+TILE*.44,s.y+TILE*.75-h,5,h);}
+  if(f.weeds>35){ctx.fillStyle='#39783c';ctx.font='13px system-ui';ctx.fillText('🌿',s.x+5,s.y+15);}
+  if(f.fertilized){ctx.fillStyle='#e7d29e';ctx.font='9px system-ui';ctx.fillText('✦',s.x+TILE-12,s.y+12);}
+  ctx.restore();
+ });
+}
+function fw18DrawTreasures(){
+ state.treasures.forEach(function(t){if(t.opened)return;const s=worldToScreen(t.x,t.y);ctx.save();ctx.font='25px system-ui';ctx.textAlign='center';ctx.fillText('🧰',s.x+TILE/2,s.y+TILE*.76);ctx.restore();});
+}
+const fw18PrevDraw=draw;
+draw=function(){fw18PrevDraw();if(!state.interior){fw18DrawFields();fw18DrawTreasures();}};
+
+function fw18GiveBook(id,source){
+ const b=FW18_BOOKS[id];if(!b)return;
+ state.player.recipeBooks[id]=(state.player.recipeBooks[id]||0)+1;
+ msg((source==='monster'?'👺':source==='treasure'?'🧰':'🎁')+' '+b.name+'を手に入れた！');
+}
+function fw18ReadBook(id){
+ const b=FW18_BOOKS[id];if(!b||(state.player.recipeBooks[id]||0)<=0)return;
+ state.player.recipeBooks[id]--;let learned=[];
+ b.recipes.forEach(function(rid){if(!state.recipesKnown.includes(rid)){state.recipesKnown.push(rid);learned.push(FW8_RECIPES[rid].name);}});
+ msg(learned.length?'📖 覚えた：'+learned.join(' / '):'📖 すでに内容を覚えている。');openInventory();
+}
+function fw18BookTrade(id,mode){
+ const b=FW18_BOOKS[id];if(!b)return;
+ if(mode==='buy'){if(state.player.coins<b.buy){msg('💰 お金が足りない。');return;}state.player.coins-=b.buy;state.player.recipeBooks[id]=(state.player.recipeBooks[id]||0)+1;msg('📚 '+b.name+'を買った。');}
+ else{if((state.player.recipeBooks[id]||0)<=0){msg('📚 売れる本がない。');return;}state.player.recipeBooks[id]--;state.player.coins+=b.sell;msg('💰 '+b.name+'を売った。');}
+ openShop(mode);
+}
+const fw18PrevOpenShop=openShop;
+openShop=function(mode){
+ fw18PrevOpenShop(mode);
+ const seedPrices={treeSeed:{name:'🌰 苗木',buy:4,sell:1},cropSeed:{name:'🌾 作物の種',buy:3,sell:1},fertilizer:{name:'🪴 肥料',buy:7,sell:3}};
+ let extra='<h3>農業用品</h3><div class="shopGrid">'+Object.keys(seedPrices).map(function(k){const q=seedPrices[k];return '<button class="smallBtn" data-fw18-shop="'+mode+'" data-item="'+k+'">'+q.name+'<br>'+(mode==='buy'?q.buy:q.sell)+'C　所持 '+(state.player.inv[k]||0)+'</button>';}).join('')+'</div>';
+ extra+='<h3>レシピ本</h3><div class="shopGrid">'+Object.keys(FW18_BOOKS).map(function(id){const b=FW18_BOOKS[id];return '<button class="smallBtn" data-fw18-booktrade="'+mode+'" data-book="'+id+'">'+b.icon+' '+b.name+'<br>'+(mode==='buy'?b.buy:b.sell)+'C　所持 '+(state.player.recipeBooks[id]||0)+'</button>';}).join('')+'</div>';
+ $('#panelBody').insertAdjacentHTML('beforeend',extra);
+};
+function fw18SeedTrade(item,mode){
+ const p={treeSeed:{buy:4,sell:1},cropSeed:{buy:3,sell:1},fertilizer:{buy:7,sell:3}}[item];if(!p)return;
+ const price=p[mode];if(mode==='buy'){if(state.player.coins<price){msg('💰 お金が足りない。');return;}state.player.coins-=price;state.player.inv[item]=(state.player.inv[item]||0)+1;}
+ else{if((state.player.inv[item]||0)<=0){msg('📦 売れる物がない。');return;}state.player.inv[item]--;state.player.coins+=price;}openShop(mode);
+}
+const fw18PrevInventory=openInventory;
+openInventory=function(){
+ fw18PrevInventory();
+ let books=Object.keys(FW18_BOOKS).filter(function(id){return (state.player.recipeBooks[id]||0)>0;}).map(function(id){const b=FW18_BOOKS[id];return '<button class="smallBtn" data-fw18-read="'+id+'">'+b.icon+' '+b.name+' ×'+state.player.recipeBooks[id]+'<br>読む</button>';}).join('');
+ $('#panelBody').insertAdjacentHTML('beforeend',
+  '<h3>農業・食料</h3><div class="grid3"><div class="tileCard">🌰 苗木<br><b>'+(state.player.inv.treeSeed||0)+'</b></div><div class="tileCard">🌾 種<br><b>'+(state.player.inv.cropSeed||0)+'</b></div><div class="tileCard">🪴 肥料<br><b>'+(state.player.inv.fertilizer||0)+'</b></div></div>'+
+  '<button class="smallBtn" data-fw18-eat="1">🍽️ 今すぐ食べる</button>'+
+  '<h3>レシピ本</h3><div class="shopGrid">'+(books||'<div class="tileCard">本はありません</div>')+'</div>');
+};
+
+function fw18NearestTreasure(){
+ let best=null,bd=1.45;state.treasures.forEach(function(t){if(t.opened)return;const d=Math.hypot(t.x-state.player.x,t.y-state.player.y);if(d<bd){bd=d;best=t;}});return best;
+}
+function fw18OpenTreasure(t){
+ if(!t||t.opened)return;t.opened=true;
+ const ids=Object.keys(FW18_BOOKS),id=ids[Math.floor(Math.random()*ids.length)];fw18GiveBook(id,'treasure');
+ state.player.coins+=8+Math.floor(Math.random()*18);msg('🧰 宝箱：'+FW18_BOOKS[id].name+' とコインを発見！');
+}
+const fw18PrevAction=action;
+action=function(){const t=fw18NearestTreasure();if(t){fw18OpenTreasure(t);return;}fw18PrevAction();};
+
+function fw18MonsterBookDrop(){
+ if(Math.random()>=.13)return;
+ const ids=Object.keys(FW18_BOOKS),id=ids[Math.floor(Math.random()*ids.length)];fw18GiveBook(id,'monster');
+}
+fw13AutoFight=function(dt){
+ const a=state.player.autoSchedule,e=fw13NearestEnemy();state.player.status='⚔️ 敵と戦う';
+ if(!e){state.player.status='⚔️ 範囲内に敵なし';return;}
+ const d=Math.hypot(e.x-state.player.x,e.y-state.player.y);
+ if(d>1.55){fw10AutoMove(e.x,e.y,dt);return;}
+ setDirFromVector(state.player,e.x-state.player.x,e.y-state.player.y);
+ a.actionClock-=dt;if(a.actionClock<=0){
+  a.actionClock=.75;state.player.weaponAnim={kind:'sword',until:performance.now()+430};state.player.st=clamp(state.player.st-2,0,100);
+  const dmg=5+Math.floor((state.player.skills.sword||0)*1.5);e.hp-=dmg;msg('⚔️ '+e.name+'へ '+dmg+'ダメージ');
+  if(e.hp<=0){e.alive=false;state.player.coins+=5;state.player.skills.sword=(state.player.skills.sword||0)+.08;fw13AddAutoXP(2);fw18MonsterBookDrop();if(!state.player.recipeBooks)state.player.recipeBooks={};}
+ }
+};
+
+const fw18PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw18PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n)return;
+ if(n.isChild){
+  const sp=$('#speaker');if(sp)sp.insertAdjacentHTML('beforeend','<span class="friendTag"> / 呼び方：'+fw18Address(n)+'</span>');
+  return;
+ }
+ fw18EnsureHeart(n);
+ const sp=$('#speaker');
+ if(sp)sp.insertAdjacentHTML('beforeend','<span class="friendTag"> / 呼び方：'+fw18Address(n)+(['lover','family'].includes(n.relationship)?' / ❤️ '+Math.round(n.heartMeter)+'/200':'')+'</span>');
+ const old=$('#dialogReplies').querySelector('[data-reply="familyFuture"]');
+ if(old){
+  old.textContent='❤️ 二人の時間 '+Math.round(n.heartMeter)+'/200';
+  old.disabled=n.heartMeter<200;
+ }
+};
+const fw18PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();if(!n)return;
+ if(k==='chatContinue'){fw18ContinueChat(n);return;}
+ if(k==='familyFuture'&&!n.isChild){
+  fw18EnsureHeart(n);
+  if(n.heartMeter<200){typeLine('もう少し二人で過ごして、気持ちが満ちてからにしよう。');return;}
+  if(state.day-(n.heartDay||-99)<3){typeLine('焦らず、今日はゆっくり過ごそう。');return;}
+  n.heartMeter=100;fw12Heart(n);renderDialogReplies();return;
+ }
+ fw18PrevHandleDialog(k);
+};
+const fw18PrevGift=giftItem;
+giftItem=function(item){const n=getDialogSpeaker();fw18PrevGift(item);fw18HeartGain(n,6);};
+const fw18PrevGiftCrafted=fw8GiftCrafted;
+fw8GiftCrafted=function(i){const n=getDialogSpeaker();fw18PrevGiftCrafted(i);fw18HeartGain(n,8);};
+const fw18PrevMeal=fw8ServeMeal;
+fw8ServeMeal=function(n){fw18PrevMeal(n);fw18HeartGain(n,5);};
+
+const fw18PrevCanContinue=fw16CanContinueAction;
+fw16CanContinueAction=function(k,i){
+ const a=state.player.autoSchedule,c=fw16NormalizeCondition(a.slotConditions[i],k);
+ if(k==='eat'&&c.type==='hungerBelow'&&c.holdUntil)return state.player.hunger<Number(c.untilValue)&&fw14CanAction('eat');
+ return fw18PrevCanContinue(k,i);
+};
+
+// Latest auto menu: dynamic slots + new farming/eating actions + new conditions.
+fw11OpenThinkMenu=function(){
+ const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y),max=fw13AutoMaxRadius(),count=fw17UnlockedSlotCount(a.autoLevel),next=fw17NextSlotUnlock(a.autoLevel);
+ const keys=['none','enemy','baby','transport','eat','nearest','gather','wood','water','stone','food','plantTrees','makeField','sowField','waterField','fertilizeField','weedField','harvestField','farm','social','trainSword','trainBow','hunt','fish','patrol','rest','schedule'];
+ const actionOpts=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const condOpts=function(value){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const slotRow=function(i){
+  let c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]),def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i,latched=a.enabled&&a.latchedSlot===i,extra='';
+  if(def.numeric){
+   extra+='<label class="settingsRow"><span>開始しきい値</span><input data-fw15-value="'+i+'" type="number" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+c.value+'" style="width:88px"></label>';
+   if(fw16IsBelowCondition(c.type)){
+    extra+='<label class="settingsRow"><span>終了値まで継続</span><input data-fw16-hold="'+i+'" type="checkbox" '+(c.holdUntil?'checked':'')+'></label>';
+    if(c.holdUntil)extra+='<label class="settingsRow"><span>終了値</span><input data-fw16-until="'+i+'" type="number" min="'+(Number(c.value)+1)+'" max="100" step="'+def.step+'" value="'+c.untilValue+'" style="width:88px"></label>';
+   }
+  }
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #7ee7ff"':'')+'><b>優先度 '+(i+1)+'</b>'+
+   '<select data-fw14-slot="'+i+'" style="width:100%;margin:5px 0">'+actionOpts(a.slots[i])+'</select>'+
+   '<select data-fw15-cond="'+i+'" style="width:100%;margin:5px 0">'+condOpts(c.type)+'</select>'+extra+
+   '<div class="note">'+(latched?'🔒 継続中　':active?'▶ 実行中　':'')+'条件：'+fw15CondText(c)+(c.holdUntil?' → '+c.untilValue+'まで':'')+'</div></div>';
+ };
+ const rank=fw18SettlementStatus();
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 条件付き自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  'スロット <b>'+count+' / 10</b>'+(next?'　次の解放 Lv.'+next:'　全スロット解放済み')+'<br>行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button></div>'+
+  Array.from({length:count},function(_,i){return slotRow(i);}).join('')+
+  '<div class="legend">領地：'+rank.rank+' / 人口 '+rank.population+' / 家 '+rank.houses+' / 衛兵 '+rank.guards+'<br>例：重量18kg以上→📦運搬、木がない→🌱🌲植樹、畑8未満→🟫畑作り、満腹35以下→🍽️食事。</div>';
+};
+
+const fw18PrevUpdate=update;
+update=function(dt){fw18PrevUpdate(dt);fw18UpdateAgriculture(dt);};
+
+$('#panelBody').addEventListener('click',function(e){
+ const read=e.target.closest('[data-fw18-read]');if(read){e.preventDefault();e.stopImmediatePropagation();fw18ReadBook(read.dataset.fw18Read);return;}
+ const eat=e.target.closest('[data-fw18-eat]');if(eat){e.preventDefault();e.stopImmediatePropagation();if(!fw18AutoEat())msg('🍽️ 食べられる物がない。');openInventory();return;}
+ const trade=e.target.closest('[data-fw18-booktrade]');if(trade){e.preventDefault();e.stopImmediatePropagation();fw18BookTrade(trade.dataset.book,trade.dataset.fw18Booktrade);return;}
+ const shop=e.target.closest('[data-fw18-shop]');if(shop){e.preventDefault();e.stopImmediatePropagation();fw18SeedTrade(shop.dataset.item,shop.dataset.fw18Shop);return;}
+},true);
+
+const fw18PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw18PrevLoad();
+ state.player.inv.treeSeed=state.player.inv.treeSeed||0;state.player.inv.cropSeed=state.player.inv.cropSeed||0;state.player.inv.fertilizer=state.player.inv.fertilizer||0;
+ state.chest.treeSeed=state.chest.treeSeed||0;state.chest.cropSeed=state.chest.cropSeed||0;state.chest.fertilizer=state.chest.fertilizer||0;
+ state.player.recipeBooks=state.player.recipeBooks||{};state.customFields=state.customFields||[];state.treasures=state.treasures||[];
+ state.settlement=state.settlement||{rankOverride:null,name:'Frontier Camp'};state.npcs.forEach(fw18EnsureHeart);
 };
 
 const joyBase=$('#joy'),knob=$('#knob');
