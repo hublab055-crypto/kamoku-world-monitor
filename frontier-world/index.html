@@ -2592,6 +2592,175 @@ $('#panelBody').addEventListener('click',function(e){
  if(b.dataset.fw13==='origin')fw13SetOriginHere();else if(b.dataset.fw13==='toggle'){fw13ToggleAuto();fw11OpenThinkMenu();}
 },true);
 
+
+/* FRONTIER_V14_AUTO_PRIORITY_SLOTS */
+Object.assign(FW11_PRIORITY,{
+ trainSword:{icon:'⚔️',label:'剣の訓練',desc:'固定木人で剣の訓練を行う'},
+ trainBow:{icon:'🏹',label:'弓の訓練',desc:'固定的へ訓練矢を射って練習する'},
+ none:{icon:'—',label:'なし',desc:'このスロットを使わない'}
+});
+const fw14A=state.player.autoSchedule;
+if(!Array.isArray(fw14A.slots))fw14A.slots=[fw14A.priority||'nearest','transport','rest'];
+while(fw14A.slots.length<3)fw14A.slots.push('none');
+fw14A.slots=fw14A.slots.slice(0,3);
+fw14A.autoTraining=fw14A.autoTraining||{kind:null,hits:0,cool:0};
+
+function fw14ResourceInRange(kind){
+ return fw13NearestBy(state.objects.filter(function(o){return !kind||kind==='nearest'||o.gather===kind;}),function(o){return o;});
+}
+function fw14HarvestTarget(target,dt,label){
+ if(!target)return false;
+ const d=Math.hypot(target.x-state.player.x,target.y-state.player.y);
+ state.player.status=label||'🧺 採集';
+ if(d<=1.42){
+  fw10HarvestObject(target);state.player.autoSchedule.target=null;fw13AddAutoXP(1);return true;
+ }
+ // Solid resources can stop the character before the old 1.05-tile threshold.
+ // Approach the resource itself, but harvest from a wider interaction radius.
+ fw10AutoMove(target.x,target.y,dt);return true;
+}
+function fw14AutoResource(kind,dt){
+ const a=state.player.autoSchedule;
+ let t=a.target;
+ if(!t||!state.objects.includes(t)||!fw13WithinRadius(t.x,t.y)||(kind!=='nearest'&&t.gather!==kind)){
+  t=fw14ResourceInRange(kind);a.target=t||null;
+ }
+ if(!t)return false;
+ const p=kind==='nearest'?FW11_PRIORITY.nearest:fw11PriorityLabel(kind);
+ return fw14HarvestTarget(t,dt,p.icon+' '+p.label);
+}
+
+function fw14TrainingPos(kind){return kind==='trainSword'?state.trainingGround.swordStand:state.trainingGround.bowStand;}
+function fw14TrainingTarget(kind){return kind==='trainSword'?state.trainingGround.dummy:state.trainingGround.target;}
+function fw14CanTrain(kind){
+ const p=fw14TrainingPos(kind);return !!p&&fw13WithinRadius(p.x,p.y)&&state.player.st>4;
+}
+function fw14AutoTrain(kind,dt){
+ if(!fw14CanTrain(kind))return false;
+ const a=state.player.autoSchedule,stand=fw14TrainingPos(kind),target=fw14TrainingTarget(kind),isSword=kind==='trainSword';
+ state.player.status=(isSword?'⚔️ 剣':'🏹 弓')+'の訓練';
+ if(!fw13MoveOrReach(stand.x,stand.y,dt,.35))return true;
+ setDirFromVector(state.player,target.x-state.player.x,target.y-state.player.y);
+ a.autoTraining=a.autoTraining||{kind:kind,hits:0,cool:0};
+ if(a.autoTraining.kind!==kind){a.autoTraining.kind=kind;a.autoTraining.hits=0;a.autoTraining.cool=0;}
+ a.autoTraining.cool-=dt;
+ if(a.autoTraining.cool>0)return true;
+ a.autoTraining.cool=isSword?.85:1.25;
+ state.player.st=clamp(state.player.st-(isSword?1.6:1.2),0,100);
+ if(isSword){
+  state.player.weaponAnim={kind:'sword',until:performance.now()+430};
+  a.autoTraining.hits++;
+  msg('⚔️ 自動剣訓練 '+a.autoTraining.hits+'/5');
+ }else{
+  state.player.weaponAnim={kind:'bow',until:performance.now()+420};
+  const dx=target.x-state.player.x,dy=target.y-state.player.y,d=Math.hypot(dx,dy)||1;
+  fw8SpawnArrow('player',state.player.x,state.player.y,dx/d,dy/d,{speed:8.1,life:1.2});
+  a.autoTraining.hits++;
+  msg('🏹 自動弓訓練 '+a.autoTraining.hits+'/5');
+ }
+ if(a.autoTraining.hits>=5){
+  const skill=isSword?'sword':'bow';
+  state.player.skills[skill]=(state.player.skills[skill]||0)+1;
+  a.autoTraining.hits=0;fw13AddAutoXP(2);
+  msg('✅ '+(isSword?'剣':'弓')+'の訓練完了。'+(isSword?'剣':'弓')+'Lv.'+Math.floor(state.player.skills[skill]));
+ }
+ return true;
+}
+
+function fw14CanAction(k){
+ if(!k||k==='none'||k==='off')return false;
+ if(k==='schedule')return true;
+ if(k==='nearest'||k==='gather')return !!fw14ResourceInRange('nearest');
+ if(['wood','water','stone','food'].includes(k))return !!fw14ResourceInRange(k);
+ if(k==='transport')return ['wood','stone','food','water','fiber','fish'].some(function(x){return (state.player.inv[x]||0)>0;});
+ if(k==='social'){
+  return state.npcs.some(function(n){return n.alive!==false&&!n.controlled&&fw13WithinRadius(n.x,n.y)&&((state.player.autoSchedule.socialSeen||{})[n.id]||0)<performance.now();});
+ }
+ if(k==='baby')return !!fw13LowestBaby();
+ if(k==='enemy')return !!fw13NearestEnemy();
+ if(k==='hunt')return !!fw13NearestWildlife()&&state.player.ammo>0;
+ if(k==='fish')return !!fw13NearestWater();
+ if(k==='farm'){
+  const p=fw10FarmPos(state.player.autoSchedule.farmIndex||0);return fw13WithinRadius(p.x,p.y);
+ }
+ if(k==='patrol')return true;
+ if(k==='rest')return state.player.st<55;
+ if(k==='trainSword'||k==='trainBow')return fw14CanTrain(k);
+ return false;
+}
+function fw14RunAction(k,dt){
+ if(k==='schedule'){fw13ScheduleAuto(dt);return true;}
+ if(k==='nearest'||k==='gather')return fw14AutoResource('nearest',dt);
+ if(['wood','water','stone','food'].includes(k))return fw14AutoResource(k,dt);
+ if(k==='transport'){fw11AutoTransport(dt);return true;}
+ if(k==='social'){fw13AutoSocial(dt);return true;}
+ if(k==='baby'){fw13AutoBaby(dt);return true;}
+ if(k==='enemy'){fw13AutoFight(dt);return true;}
+ if(k==='hunt'){fw13AutoHunt(dt);return true;}
+ if(k==='fish'){fw13AutoFish(dt);return true;}
+ if(k==='farm'){fw11AutoFarm(dt);return true;}
+ if(k==='patrol'){fw11AutoPatrol(dt);return true;}
+ if(k==='rest'){fw11AutoRest(dt);return true;}
+ if(k==='trainSword'||k==='trainBow')return fw14AutoTrain(k,dt);
+ return false;
+}
+
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;
+ if(!a||!a.enabled||state.gameOver||state.interior||state.dialog||state.training||state.crafting)return;
+ if(performance.now()<a.suspendUntil)return;
+ fw13ClampRadius();
+ if(!Array.isArray(a.slots))a.slots=[a.priority||'nearest','transport','rest'];
+ for(let i=0;i<a.slots.length;i++){
+  const k=a.slots[i];
+  if(fw14CanAction(k)){a.priority=k;fw14RunAction(k,dt);return;}
+ }
+ state.player.status='🤔 優先行動待機';
+};
+
+const fw14PrevSetPriority=fw11SetPriority;
+fw11SetPriority=function(k,closePanel){
+ const a=state.player.autoSchedule;
+ if(k==='off'){a.enabled=false;a.target=null;fw13RefreshAutoButton();if(closePanel)$('#panel').classList.add('hidden');return;}
+ if(!Array.isArray(a.slots))a.slots=['nearest','transport','rest'];
+ a.slots[0]=k;a.priority=k;a.enabled=true;a.origin=a.origin||{x:state.player.x,y:state.player.y};a.target=null;a.suspendUntil=0;
+ fw13RefreshAutoButton();renderButtons();msg((FW11_PRIORITY[k]||{icon:'🤔',label:k}).icon+' 優先度1：'+(FW11_PRIORITY[k]||{label:k}).label);
+ if(closePanel)$('#panel').classList.add('hidden');
+};
+
+fw11OpenThinkMenu=function(){
+ const a=state.player.autoSchedule||{},max=fw13AutoMaxRadius();
+ if(!Array.isArray(a.slots))a.slots=[a.priority||'nearest','transport','rest'];
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','stone','food','farm','social','trainSword','trainBow','hunt','fish','patrol','rest','schedule'];
+ const options=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 自動行動・優先スロット';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button></div>'+
+  '<div class="tileCard"><b>優先度スロット</b><br><span class="note">上から判定し、対象が無ければ次のスロットへ移ります。</span>'+
+  '<label class="settingsRow"><span>① 最優先</span><select data-fw14-slot="0">'+options(a.slots[0])+'</select></label>'+
+  '<label class="settingsRow"><span>② 次点</span><select data-fw14-slot="1">'+options(a.slots[1])+'</select></label>'+
+  '<label class="settingsRow"><span>③ 予備</span><select data-fw14-slot="2">'+options(a.slots[2])+'</select></label></div>'+
+  '<div class="legend">例：①敵と戦う → ②赤ちゃんの世話 → ③最寄り資源。敵がいなければ育児、育児対象がなければ採集へ移ります。</div>';
+};
+
+const fw14PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw14PrevLoad();
+ const a=state.player.autoSchedule;
+ if(!Array.isArray(a.slots))a.slots=[a.priority||'nearest','transport','rest'];
+ while(a.slots.length<3)a.slots.push('none');a.slots=a.slots.slice(0,3);
+ a.autoTraining=a.autoTraining||{kind:null,hits:0,cool:0};
+};
+
+$('#panelBody').addEventListener('change',function(e){
+ const s=e.target.closest('[data-fw14-slot]');if(!s)return;e.preventDefault();e.stopImmediatePropagation();
+ const a=state.player.autoSchedule,i=Number(s.dataset.fw14Slot);a.slots[i]=s.value;a.priority=a.slots[0];a.target=null;
+ msg('🤔 優先度'+(i+1)+'：'+FW11_PRIORITY[s.value].label);
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
