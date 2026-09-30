@@ -2903,6 +2903,178 @@ $('#panelBody').addEventListener('change',function(e){
  }
 },true);
 
+
+/* FRONTIER_V16_HYSTERESIS_UNTIL */
+function fw16IsBelowCondition(type){
+ return ['staminaBelow','hungerBelow','hpBelow','campFoodBelow','campWaterBelow','campWoodBelow','campStoneBelow','babyNeedBelow'].includes(type);
+}
+function fw16Metric(c){
+ if(!c)return null;
+ if(c.type==='staminaBelow')return state.player.st;
+ if(c.type==='hungerBelow')return state.player.hunger;
+ if(c.type==='hpBelow')return state.player.hp;
+ if(c.type==='campFoodBelow')return state.camp.food||0;
+ if(c.type==='campWaterBelow')return state.camp.water||0;
+ if(c.type==='campWoodBelow')return state.camp.wood||0;
+ if(c.type==='campStoneBelow')return state.camp.stone||0;
+ if(c.type==='babyNeedBelow')return fw15LowestBabyNeed();
+ return null;
+}
+function fw16DefaultUntil(type,start){
+ const d={
+  staminaBelow:100,hungerBelow:90,hpBelow:100,
+  campFoodBelow:20,campWaterBelow:20,campWoodBelow:30,campStoneBelow:20,
+  babyNeedBelow:90
+ }[type];
+ if(d==null)return Number(start||0);
+ return Math.max(Number(start||0)+1,d);
+}
+function fw16NormalizeCondition(c,action){
+ c=c||{type:'always',value:0};
+ if(fw16IsBelowCondition(c.type)){
+  if(c.holdUntil==null)c.holdUntil=(c.type==='staminaBelow'&&action==='rest');
+  if(c.untilValue==null)c.untilValue=fw16DefaultUntil(c.type,c.value);
+  c.untilValue=clamp(Number(c.untilValue)||fw16DefaultUntil(c.type,c.value),Number(c.value||0)+1,100);
+ }else{
+  c.holdUntil=false;
+ }
+ return c;
+}
+(function fw16Init(){
+ const a=state.player.autoSchedule;
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30,holdUntil:true,untilValue:100}];
+ while(a.slotConditions.length<3)a.slotConditions.push({type:'always',value:0});
+ for(let i=0;i<3;i++)a.slotConditions[i]=fw16NormalizeCondition(a.slotConditions[i],(a.slots||[])[i]);
+ if(a.latchedSlot==null)a.latchedSlot=-1;
+})();
+
+function fw16CondReachedEnd(c){
+ if(!c||!c.holdUntil||!fw16IsBelowCondition(c.type))return false;
+ const m=fw16Metric(c);
+ return m!=null&&m>=Number(c.untilValue);
+}
+function fw16CanContinueAction(k,i){
+ const a=state.player.autoSchedule,c=fw16NormalizeCondition(a.slotConditions[i],k);
+ if(!c.holdUntil)return fw14CanAction(k);
+ if(fw16CondReachedEnd(c))return false;
+ if(k==='rest'&&c.type==='staminaBelow')return state.player.st<Number(c.untilValue);
+ if(k==='baby'&&c.type==='babyNeedBelow')return fw15LowestBabyNeed()<Number(c.untilValue)&&!!fw13LowestBaby();
+ // For other actions, keep the latch only while the action itself remains executable.
+ return fw14CanAction(k);
+}
+function fw16HigherPriorityReady(activeIndex){
+ const a=state.player.autoSchedule;
+ for(let i=0;i<activeIndex;i++){
+  const k=a.slots[i],c=fw16NormalizeCondition(a.slotConditions[i],k);
+  if(fw15ConditionPass(c)&&fw14CanAction(k))return i;
+ }
+ return -1;
+}
+
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;
+ if(!a||!a.enabled||state.gameOver||state.interior||state.dialog||state.training||state.crafting)return;
+ if(performance.now()<a.suspendUntil)return;
+ fw13ClampRadius();
+ if(!Array.isArray(a.slots))a.slots=['nearest','transport','rest'];
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30,holdUntil:true,untilValue:100}];
+ while(a.slotConditions.length<3)a.slotConditions.push({type:'always',value:0});
+
+ // A latched action continues until its completion threshold.
+ // Higher-priority rules may still interrupt it.
+ if(a.latchedSlot>=0&&a.latchedSlot<a.slots.length){
+  const hi=fw16HigherPriorityReady(a.latchedSlot);
+  if(hi>=0){
+   a.latchedSlot=-1;
+  }else{
+   const i=a.latchedSlot,k=a.slots[i],c=fw16NormalizeCondition(a.slotConditions[i],k);
+   if(fw16CondReachedEnd(c)){
+    msg('✅ '+(FW11_PRIORITY[k]?.label||k)+'：終了値 '+c.untilValue+' に到達');
+    a.latchedSlot=-1;a.activeSlot=-1;
+   }else if(fw16CanContinueAction(k,i)){
+    a.priority=k;a.activeSlot=i;fw14RunAction(k,dt);return;
+   }else{
+    a.latchedSlot=-1;
+   }
+  }
+ }
+
+ for(let i=0;i<a.slots.length;i++){
+  const k=a.slots[i],c=fw16NormalizeCondition(a.slotConditions[i],k);
+  if(!fw15ConditionPass(c))continue;
+  if(fw14CanAction(k)){
+   a.priority=k;a.activeSlot=i;
+   if(c.holdUntil&&fw16IsBelowCondition(c.type))a.latchedSlot=i;
+   fw14RunAction(k,dt);
+   return;
+  }
+ }
+ a.activeSlot=-1;
+ state.player.status='🤔 条件待ち';
+};
+
+fw11OpenThinkMenu=function(){
+ const a=state.player.autoSchedule||{},max=fw13AutoMaxRadius();
+ if(!Array.isArray(a.slots))a.slots=[a.priority||'nearest','transport','rest'];
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30,holdUntil:true,untilValue:100}];
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','stone','food','farm','social','trainSword','trainBow','hunt','fish','patrol','rest','schedule'];
+ const actionOpts=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const condOpts=function(value){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const slotRow=function(i,label){
+  let c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+  const def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i,latched=a.enabled&&a.latchedSlot===i;
+  let extra='';
+  if(def.numeric){
+   extra+='<label class="settingsRow"><span>開始しきい値</span><input data-fw15-value="'+i+'" type="number" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+c.value+'" style="width:88px"></label>';
+   if(fw16IsBelowCondition(c.type)){
+    extra+='<label class="settingsRow"><span>終了値まで継続</span><input data-fw16-hold="'+i+'" type="checkbox" '+(c.holdUntil?'checked':'')+'></label>';
+    if(c.holdUntil)extra+='<label class="settingsRow"><span>終了値</span><input data-fw16-until="'+i+'" type="number" min="'+(Number(c.value)+1)+'" max="100" step="'+def.step+'" value="'+c.untilValue+'" style="width:88px"></label>';
+   }
+  }
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #7ee7ff"':'')+'><b>'+label+'</b>'+
+   '<select data-fw14-slot="'+i+'" style="width:100%;margin:5px 0">'+actionOpts(a.slots[i])+'</select>'+
+   '<select data-fw15-cond="'+i+'" style="width:100%;margin:5px 0">'+condOpts(c.type)+'</select>'+
+   extra+
+   '<div class="note">'+(latched?'🔒 継続中　':active?'▶ 実行中　':'')+'条件：'+fw15CondText(c)+(c.holdUntil?' → '+c.untilValue+'まで':'')+'</div></div>';
+ };
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 条件付き自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button></div>'+
+  slotRow(0,'① 最優先')+slotRow(1,'② 次点')+slotRow(2,'③ 予備')+
+  '<div class="legend">「開始しきい値」と「終了値」を別にできます。<br>例：💤休息 / スタミナ30以下 / 終了値100 → 30以下で休息を開始し、100まで回復してから次の行動へ移ります。</div>';
+};
+
+const fw16PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw16PrevLoad();
+ const a=state.player.autoSchedule;
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30,holdUntil:true,untilValue:100}];
+ while(a.slotConditions.length<3)a.slotConditions.push({type:'always',value:0});
+ for(let i=0;i<3;i++)a.slotConditions[i]=fw16NormalizeCondition(a.slotConditions[i],(a.slots||[])[i]);
+ a.latchedSlot=-1;
+};
+
+$('#panelBody').addEventListener('change',function(e){
+ const hold=e.target.closest('[data-fw16-hold]');
+ if(hold){
+  e.preventDefault();e.stopImmediatePropagation();
+  const i=Number(hold.dataset.fw16Hold),a=state.player.autoSchedule,c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+  c.holdUntil=!!hold.checked;if(c.holdUntil)c.untilValue=fw16DefaultUntil(c.type,c.value);
+  a.slotConditions[i]=c;if(a.latchedSlot===i)a.latchedSlot=-1;
+  msg('🤔 優先度'+(i+1)+'：'+(c.holdUntil?'終了値まで継続':'単発判定'));fw11OpenThinkMenu();return;
+ }
+ const until=e.target.closest('[data-fw16-until]');
+ if(until){
+  e.preventDefault();e.stopImmediatePropagation();
+  const i=Number(until.dataset.fw16Until),a=state.player.autoSchedule,c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+  c.untilValue=clamp(Number(until.value)||fw16DefaultUntil(c.type,c.value),Number(c.value)+1,100);a.slotConditions[i]=c;
+  msg('🤔 優先度'+(i+1)+'：終了値 '+c.untilValue);fw11OpenThinkMenu();
+ }
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
