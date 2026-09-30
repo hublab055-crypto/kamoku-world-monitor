@@ -3249,7 +3249,15 @@ function fw17NpcNearestResource(n,a,kind){
   const d=Math.hypot(o.x-n.x,o.y-n.y);if(d<bd){bd=d;best=o;}}
  return best;
 }
-function fw17NpcNearestEnemy(n,a){return fw13NearestBy.call(null,state.enemies.filter(function(e){return e.alive&&fw17NpcWithin(n,a,e.x,e.y);}),function(e){return e;});}
+function fw17NpcNearestEnemy(n,a){
+ let best=null,bd=999;
+ for(const e of state.enemies){
+  if(!e.alive||!fw17NpcWithin(n,a,e.x,e.y))continue;
+  const d=Math.hypot(e.x-n.x,e.y-n.y);
+  if(d<bd){bd=d;best=e;}
+ }
+ return best;
+}
 function fw17NpcNearestWild(n,a){
  let best=null,bd=999;for(const w of state.wildlife){if(!w.alive||!fw17NpcWithin(n,a,w.x,w.y))continue;const d=Math.hypot(w.x-n.x,w.y-n.y);if(d<bd){bd=d;best=w;}}return best;
 }
