@@ -2761,6 +2761,148 @@ $('#panelBody').addEventListener('change',function(e){
  msg('🤔 優先度'+(i+1)+'：'+FW11_PRIORITY[s.value].label);
 },true);
 
+
+/* FRONTIER_V15_GAMBIT_CONDITIONS */
+(function fw15InitConditions(){
+ const a=state.player.autoSchedule;
+ if(!Array.isArray(a.slotConditions)){
+  a.slotConditions=[
+   {type:'always',value:0},
+   {type:'always',value:0},
+   {type:'staminaBelow',value:30}
+  ];
+ }
+ while(a.slotConditions.length<3)a.slotConditions.push({type:'always',value:0});
+ a.slotConditions=a.slotConditions.slice(0,3);
+})();
+
+const FW15_CONDITIONS={
+ always:{label:'常に',numeric:false},
+ staminaBelow:{label:'スタミナが以下',numeric:true,min:0,max:100,step:5},
+ hungerBelow:{label:'満腹度が以下',numeric:true,min:0,max:100,step:5},
+ hpBelow:{label:'HPが以下',numeric:true,min:0,max:100,step:5},
+ campFoodBelow:{label:'共通備蓄 食料が未満',numeric:true,min:0,max:99,step:1},
+ campWaterBelow:{label:'共通備蓄 水が未満',numeric:true,min:0,max:99,step:1},
+ campWoodBelow:{label:'共通備蓄 木材が未満',numeric:true,min:0,max:99,step:1},
+ campStoneBelow:{label:'共通備蓄 石が未満',numeric:true,min:0,max:99,step:1},
+ invAny:{label:'何か持っている',numeric:false},
+ babyNeedBelow:{label:'赤ちゃん欲求が以下',numeric:true,min:0,max:100,step:5},
+ enemyInRange:{label:'範囲内に敵がいる',numeric:false},
+ daytime:{label:'昼間',numeric:false},
+ nighttime:{label:'夜間',numeric:false}
+};
+function fw15CondText(c){
+ const d=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always;
+ return d.label+(d.numeric?' '+c.value:'');
+}
+function fw15LowestBabyNeed(){
+ let low=101,found=false;
+ (state.family.children||[]).forEach(function(c){
+  if(fw10ChildStage(c)!=='baby'||c.controlled)return;
+  const n=c.needs||{};['milk','diaper','bath','sleep','affection'].forEach(function(k){if(n[k]!=null){low=Math.min(low,n[k]);found=true;}});
+ });
+ return found?low:101;
+}
+function fw15ConditionPass(c){
+ c=c||{type:'always',value:0};
+ const v=Number(c.value||0);
+ if(c.type==='always')return true;
+ if(c.type==='staminaBelow')return state.player.st<=v;
+ if(c.type==='hungerBelow')return state.player.hunger<=v;
+ if(c.type==='hpBelow')return state.player.hp<=v;
+ if(c.type==='campFoodBelow')return (state.camp.food||0)<v;
+ if(c.type==='campWaterBelow')return (state.camp.water||0)<v;
+ if(c.type==='campWoodBelow')return (state.camp.wood||0)<v;
+ if(c.type==='campStoneBelow')return (state.camp.stone||0)<v;
+ if(c.type==='invAny')return ['wood','stone','food','water','fiber','fish'].some(function(k){return (state.player.inv[k]||0)>0;});
+ if(c.type==='babyNeedBelow')return fw15LowestBabyNeed()<=v;
+ if(c.type==='enemyInRange')return !!fw13NearestEnemy();
+ if(c.type==='daytime')return !isNight();
+ if(c.type==='nighttime')return isNight();
+ return true;
+}
+function fw15DefaultValue(type){
+ return {
+  staminaBelow:30,hungerBelow:35,hpBelow:50,
+  campFoodBelow:10,campWaterBelow:10,campWoodBelow:15,campStoneBelow:10,
+  babyNeedBelow:65
+ }[type]||0;
+}
+
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;
+ if(!a||!a.enabled||state.gameOver||state.interior||state.dialog||state.training||state.crafting)return;
+ if(performance.now()<a.suspendUntil)return;
+ fw13ClampRadius();
+ if(!Array.isArray(a.slots))a.slots=['nearest','transport','rest'];
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30}];
+
+ for(let i=0;i<a.slots.length;i++){
+  const k=a.slots[i],cond=a.slotConditions[i]||{type:'always',value:0};
+  if(!fw15ConditionPass(cond))continue;
+  if(fw14CanAction(k)){
+   a.priority=k;
+   a.activeSlot=i;
+   fw14RunAction(k,dt);
+   return;
+  }
+ }
+ a.activeSlot=-1;
+ state.player.status='🤔 条件待ち';
+};
+
+fw11OpenThinkMenu=function(){
+ const a=state.player.autoSchedule||{},max=fw13AutoMaxRadius();
+ if(!Array.isArray(a.slots))a.slots=[a.priority||'nearest','transport','rest'];
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30}];
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','stone','food','farm','social','trainSword','trainBow','hunt','fish','patrol','rest','schedule'];
+ const actionOpts=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const condOpts=function(value){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const slotRow=function(i,label){
+  const c=a.slotConditions[i]||{type:'always',value:0},def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i;
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #7ee7ff"':'')+'><b>'+label+'</b>'+
+   '<select data-fw14-slot="'+i+'" style="width:100%;margin:5px 0">'+actionOpts(a.slots[i])+'</select>'+
+   '<select data-fw15-cond="'+i+'" style="width:100%;margin:5px 0">'+condOpts(c.type)+'</select>'+
+   (def.numeric?'<label class="settingsRow"><span>しきい値</span><input data-fw15-value="'+i+'" type="number" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+c.value+'" style="width:88px"></label>':'')+
+   '<div class="note">'+(active?'▶ 実行中　':'')+'条件：'+fw15CondText(c)+'</div></div>';
+ };
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 条件付き自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button></div>'+
+  slotRow(0,'① 最優先')+slotRow(1,'② 次点')+slotRow(2,'③ 予備')+
+  '<div class="legend">上から順に「条件を満たすか」→「実行対象があるか」を判定します。<br>例：① 食料10未満→🍎採集　② スタミナ30以下→💤休息　③ 常に→📍最寄り資源。</div>';
+};
+
+const fw15PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw15PrevLoad();
+ const a=state.player.autoSchedule;
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[{type:'always',value:0},{type:'always',value:0},{type:'staminaBelow',value:30}];
+ while(a.slotConditions.length<3)a.slotConditions.push({type:'always',value:0});
+ a.slotConditions=a.slotConditions.slice(0,3);
+};
+
+$('#panelBody').addEventListener('change',function(e){
+ const c=e.target.closest('[data-fw15-cond]');
+ if(c){
+  e.preventDefault();e.stopImmediatePropagation();
+  const i=Number(c.dataset.fw15Cond),a=state.player.autoSchedule;
+  a.slotConditions[i]={type:c.value,value:fw15DefaultValue(c.value)};
+  msg('🤔 優先度'+(i+1)+' 条件：'+fw15CondText(a.slotConditions[i]));
+  fw11OpenThinkMenu();return;
+ }
+ const v=e.target.closest('[data-fw15-value]');
+ if(v){
+  e.preventDefault();e.stopImmediatePropagation();
+  const i=Number(v.dataset.fw15Value),a=state.player.autoSchedule,cfg=a.slotConditions[i]||{type:'always',value:0},def=FW15_CONDITIONS[cfg.type];
+  cfg.value=clamp(Number(v.value)||0,def&&def.min!=null?def.min:0,def&&def.max!=null?def.max:999);
+  a.slotConditions[i]=cfg;msg('🤔 優先度'+(i+1)+' 条件：'+fw15CondText(cfg));fw11OpenThinkMenu();
+ }
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
