@@ -2283,6 +2283,315 @@ $('#panelBody').addEventListener('click',function(e){
  else if(b.dataset.fw12==='crib')fw12PlaceFurniture('crib',Number(b.dataset.slot));
 },true);
 
+
+/* FRONTIER_V13_AUTO_ACTION_RADIUS */
+state.player.autoSchedule=state.player.autoSchedule||{};
+if(state.player.autoSchedule.autoLevel==null)state.player.autoSchedule.autoLevel=1;
+if(state.player.autoSchedule.autoXP==null)state.player.autoSchedule.autoXP=0;
+if(state.player.autoSchedule.radius==null)state.player.autoSchedule.radius=6;
+if(!state.player.autoSchedule.origin)state.player.autoSchedule.origin={x:state.player.x,y:state.player.y};
+if(state.player.autoSchedule.priority==null)state.player.autoSchedule.priority='schedule';
+state.player.autoSchedule.actionClock=state.player.autoSchedule.actionClock||0;
+state.player.autoSchedule.socialSeen=state.player.autoSchedule.socialSeen||{};
+state.enemies=state.enemies||[];
+state.wildlife=state.wildlife||[];
+state.player.inv.fish=state.player.inv.fish||0;
+state.chest.fish=state.chest.fish||0;
+
+Object.assign(FW11_PRIORITY,{
+ nearest:{icon:'📍',label:'最寄りの資源を採集',desc:'種類を問わず、行動範囲内で最も近い資源を採集'},
+ social:{icon:'💬',label:'みんなと会話する',desc:'行動範囲内の住民を順番に訪ねて会話する'},
+ baby:{icon:'👶',label:'赤ちゃんの世話',desc:'赤ちゃんの一番低い欲求を優先して世話する'},
+ enemy:{icon:'⚔️',label:'敵と戦う',desc:'行動範囲内の敵を探して接近・攻撃する'},
+ hunt:{icon:'🏹',label:'狩をする',desc:'行動範囲内の獲物を探して狩る'},
+ fish:{icon:'🎣',label:'魚をつる',desc:'行動範囲内の水場へ行き、魚を釣る'}
+});
+
+function fw13AutoMaxRadius(){
+ const lv=Math.max(1,Math.floor(state.player.autoSchedule.autoLevel||1));
+ return Math.min(30,6+(lv-1)*3);
+}
+function fw13ClampRadius(){
+ const a=state.player.autoSchedule;a.radius=clamp(Math.round(a.radius||6),2,fw13AutoMaxRadius());
+}
+fw13ClampRadius();
+
+function fw13AddAutoXP(n){
+ const a=state.player.autoSchedule;a.autoXP=(a.autoXP||0)+(n||1);
+ let need=(a.autoLevel||1)*10;
+ if(a.autoXP>=need&&a.autoLevel<10){
+  a.autoXP-=need;a.autoLevel++;fw13ClampRadius();
+  msg('🤖 自動行動Lv.'+a.autoLevel+'！ 行動範囲MAX '+fw13AutoMaxRadius()+'マス');
+ }
+}
+function fw13Origin(){
+ const a=state.player.autoSchedule;
+ if(!a.origin)a.origin={x:state.player.x,y:state.player.y};
+ return a.origin;
+}
+function fw13WithinRadius(x,y){
+ const o=fw13Origin(),r=state.player.autoSchedule.radius||6;
+ return Math.hypot(x-o.x,y-o.y)<=r;
+}
+function fw13SetOriginHere(){
+ state.player.autoSchedule.origin={x:state.player.x,y:state.player.y};
+ state.player.autoSchedule.target=null;
+ msg('📍 自動行動の中心を現在地に設定した。');
+ fw11OpenThinkMenu();
+}
+function fw13ToggleAuto(){
+ const a=state.player.autoSchedule;
+ a.enabled=!a.enabled;
+ if(a.enabled){a.origin={x:state.player.x,y:state.player.y};a.target=null;a.suspendUntil=0;msg('🤖 自動行動 ON');}
+ else{a.target=null;state.player.status='手動';msg('🤖 自動行動 OFF');}
+ fw13RefreshAutoButton();renderButtons();
+}
+function fw13RefreshAutoButton(){
+ const b=document.getElementById('autoToggle');
+ if(!b)return;const on=!!state.player.autoSchedule.enabled;
+ b.textContent=on?'🤖ON':'🤖OFF';b.title='自動行動 '+(on?'ON':'OFF');b.setAttribute('aria-label',b.title);
+ b.style.opacity=on?'1':'.62';
+}
+(function fw13InstallFixedAutoButton(){
+ if(document.getElementById('autoToggle'))return;
+ const row=root.querySelector('.cmdrow');if(!row)return;
+ const b=document.createElement('button');b.id='autoToggle';b.className='cmd';b.type='button';b.textContent='🤖OFF';
+ b.style.fontSize='11px';b.style.minWidth='58px';b.style.padding='0 4px';
+ row.appendChild(b);b.addEventListener('click',fw13ToggleAuto);fw13RefreshAutoButton();
+})();
+
+const fw13PrevRenderButtons=renderButtons;
+renderButtons=function(){fw13PrevRenderButtons();fw13RefreshAutoButton();};
+
+function fw13NearestBy(list,posFn){
+ let best=null,bd=Infinity;
+ for(const x of list){
+  const p=posFn(x);if(!p||!fw13WithinRadius(p.x,p.y))continue;
+  const d=Math.hypot(p.x-state.player.x,p.y-state.player.y);
+  if(d<bd){bd=d;best=x;}
+ }
+ return best;
+}
+function fw13NearestAnyResource(){
+ return fw13NearestBy(state.objects.filter(function(o){return !!o.gather;}),function(o){return o;});
+}
+function fw13MoveOrReach(x,y,dt,range){
+ const d=Math.hypot(x-state.player.x,y-state.player.y);
+ if(d<=(range||.75))return true;
+ fw10AutoMove(x,y,dt);return false;
+}
+function fw13NearestTalkTarget(){
+ const list=state.npcs.filter(function(n){return n.alive!==false&&!n.controlled;});
+ return fw13NearestBy(list,function(n){return n;});
+}
+function fw13AutoSocial(dt){
+ const a=state.player.autoSchedule,n=fw13NearestTalkTarget();
+ state.player.status='💬 みんなと会話';
+ if(!n){state.player.status='💬 範囲内に話せる住民なし';return;}
+ if(fw13MoveOrReach(n.x,n.y,dt,1.35)){
+  a.actionClock-=dt;if(a.actionClock<=0){
+   a.actionClock=4.2;n.friend=clamp((n.friend||0)+.35,0,100);if(n.companion)n.loyalty=clamp((n.loyalty||0)+.08,0,100);
+   msg('💬 '+n.name+'「'+fw12RelLine(n,'hello')+'」');fw13AddAutoXP(.5);
+   // move this resident briefly to the back of the route by using a cooldown map
+   a.socialSeen[n.id]=performance.now()+9000;
+   const candidates=state.npcs.filter(function(x){return x.alive!==false&&!x.controlled&&fw13WithinRadius(x.x,x.y)&&(a.socialSeen[x.id]||0)<performance.now();});
+   if(candidates.length){const nx=fw13NearestBy(candidates,function(x){return x;});if(nx){a.target=nx;}}
+  }
+ }
+}
+function fw13LowestBaby(){
+ let best=null,bscore=999,bpos=null;
+ (state.family.children||[]).forEach(function(c,i){
+  fw12EnsureBaby(c,i);if(fw10ChildStage(c)!=='baby'||c.controlled)return;
+  const p=fw10ChildPos(c,i);if(!fw13WithinRadius(p.x,p.y))return;
+  const vals=c.needs||{},score=Math.min(vals.milk||100,vals.diaper||100,vals.bath||100,vals.sleep||100,vals.affection||100);
+  if(score<bscore){bscore=score;best=c;bpos=p;}
+ });
+ return best?{child:best,pos:bpos,score:bscore}:null;
+}
+function fw13AutoBaby(dt){
+ const a=state.player.autoSchedule,b=fw13LowestBaby();
+ state.player.status='👶 赤ちゃんの世話';
+ if(!b){state.player.status='👶 範囲内に赤ちゃんなし';return;}
+ if(fw13MoveOrReach(b.pos.x,b.pos.y,dt,1.15)){
+  a.actionClock-=dt;if(a.actionClock>0)return;a.actionClock=2.4;
+  const c=b.child,needs=c.needs,arr=[['milk',needs.milk],['diaper',needs.diaper],['bath',needs.bath],['sleep',needs.sleep],['hug',needs.affection]].sort(function(x,y){return x[1]-y[1];}),k=arr[0][0];
+  const cost={milk:9,diaper:11,bath:15,sleep:13,hug:5}[k];
+  if(state.player.st<cost){msg('👶 お世話するには疲れすぎている。');return;}
+  if(k==='milk'){
+   if((state.player.inv.food||0)<1||(state.player.inv.water||0)<1){msg('🍼 ミルク用の食料・水が足りない。');return;}
+   state.player.inv.food--;state.player.inv.water--;needs.milk=100;
+  }else if(k==='diaper')needs.diaper=100;
+  else if(k==='bath')needs.bath=100;
+  else if(k==='sleep')needs.sleep=100;
+  else{needs.affection=100;c.bond=clamp((c.bond||0)+2,0,100);}
+  state.player.st=clamp(state.player.st-cost,0,100);msg('👶 自動お世話：'+({milk:'ミルク',diaper:'おむつ',bath:'お風呂',sleep:'寝かしつけ',hug:'抱っこ'}[k]));fw13AddAutoXP(1);
+ }
+}
+function fw13SpawnWorldActors(){
+ if(!state.enemies.length){
+  [[29,41],[66,50],[41,62],[72,38]].forEach(function(p,i){state.enemies.push({id:'enemy_'+i,x:p[0],y:p[1],hp:24,maxHp:24,name:'ゴブリン',dir:'front',cool:0,alive:true});});
+ }
+ if(!state.wildlife.length){
+  [[25,55],[57,63],[70,48],[31,32],[62,30]].forEach(function(p,i){state.wildlife.push({id:'wild_'+i,x:p[0],y:p[1],hp:14,maxHp:14,name:i%2?'ウサギ':'シカ',kind:i%2?'rabbit':'deer',alive:true,cool:0});});
+ }
+}
+const fw13PrevMakeMap=makeMap;
+makeMap=function(){fw13PrevMakeMap();fw13SpawnWorldActors();};
+
+function fw13DrawActors(){
+ state.enemies.forEach(function(e){if(!e.alive)return;const s=worldToScreen(e.x,e.y);ctx.save();ctx.font='26px system-ui';ctx.textAlign='center';ctx.fillText('👺',s.x+TILE/2,s.y+TILE*.72);bar(s.x+TILE/2,s.y+2,28,e.hp/e.maxHp*100,'#e35d62');ctx.fillStyle='#fff';ctx.font='8px system-ui';ctx.fillText(e.name,s.x+TILE/2,s.y+TILE+10);ctx.restore();});
+ state.wildlife.forEach(function(w){if(!w.alive)return;const s=worldToScreen(w.x,w.y);ctx.save();ctx.font='25px system-ui';ctx.textAlign='center';ctx.fillText(w.kind==='deer'?'🦌':'🐇',s.x+TILE/2,s.y+TILE*.72);ctx.restore();});
+}
+function fw13UpdateEnemies(dt){
+ state.enemies.forEach(function(e){
+  if(!e.alive)return;e.cool-=dt;
+  const d=Math.hypot(e.x-state.player.x,e.y-state.player.y);
+  if(d<1.35&&e.cool<=0&&!state.gameOver){e.cool=1.35;state.player.hp=clamp(state.player.hp-4,0,100);msg('💥 '+e.name+'の攻撃！ HP -4');if(state.player.hp<=0)fw10PlayerDeath();}
+ });
+}
+function fw13NearestEnemy(){
+ return fw13NearestBy(state.enemies.filter(function(e){return e.alive;}),function(e){return e;});
+}
+function fw13AutoFight(dt){
+ const a=state.player.autoSchedule,e=fw13NearestEnemy();state.player.status='⚔️ 敵と戦う';
+ if(!e){state.player.status='⚔️ 範囲内に敵なし';return;}
+ const d=Math.hypot(e.x-state.player.x,e.y-state.player.y);
+ if(d>1.55){fw10AutoMove(e.x,e.y,dt);return;}
+ setDirFromVector(state.player,e.x-state.player.x,e.y-state.player.y);
+ a.actionClock-=dt;if(a.actionClock<=0){
+  a.actionClock=.75;state.player.weaponAnim={kind:'sword',until:performance.now()+430};state.player.st=clamp(state.player.st-2,0,100);
+  const dmg=5+Math.floor((state.player.skills.sword||0)*1.5);e.hp-=dmg;msg('⚔️ '+e.name+'へ '+dmg+'ダメージ');
+  if(e.hp<=0){e.alive=false;state.player.coins+=5;state.player.skills.sword=(state.player.skills.sword||0)+.08;fw13AddAutoXP(2);msg('✅ '+e.name+'を倒した。+5C');}
+ }
+}
+function fw13NearestWildlife(){
+ return fw13NearestBy(state.wildlife.filter(function(w){return w.alive;}),function(w){return w;});
+}
+function fw13AutoHunt(dt){
+ const a=state.player.autoSchedule,w=fw13NearestWildlife();state.player.status='🏹 狩り';
+ if(!w){state.player.status='🏹 範囲内に獲物なし';return;}
+ const d=Math.hypot(w.x-state.player.x,w.y-state.player.y);
+ if(d>4.3){fw10AutoMove(w.x,w.y,dt);return;}
+ setDirFromVector(state.player,w.x-state.player.x,w.y-state.player.y);
+ a.actionClock-=dt;if(a.actionClock<=0){
+  a.actionClock=1.1;
+  if(state.player.ammo<=0){msg('🏹 矢がない。狩りを続けられない。');return;}
+  const dx=w.x-state.player.x,dy=w.y-state.player.y,dd=Math.hypot(dx,dy)||1;state.player.ammo--;state.player.weaponAnim={kind:'bow',until:performance.now()+420};fw8SpawnArrow('player',state.player.x,state.player.y,dx/dd,dy/dd,{speed:8.3,life:.8});
+  const dmg=7+Math.floor(state.player.skills.bow||0);w.hp-=dmg;
+  if(w.hp<=0){w.alive=false;state.player.inv.food=(state.player.inv.food||0)+(w.kind==='deer'?3:1);state.player.skills.bow=(state.player.skills.bow||0)+.08;fw13AddAutoXP(2);msg('🏹 '+w.name+'を狩った。食料 +'+(w.kind==='deer'?3:1));}
+ }
+}
+function fw13NearestWater(){
+ return fw13NearestBy(state.objects.filter(function(o){return o.gather==='water';}),function(o){return o;});
+}
+function fw13AutoFish(dt){
+ const a=state.player.autoSchedule,w=fw13NearestWater();state.player.status='🎣 魚をつる';
+ if(!w){state.player.status='🎣 範囲内に水場なし';return;}
+ const d=Math.hypot(w.x-state.player.x,w.y-state.player.y);
+ if(d>1.4){fw10AutoMove(w.x,w.y,dt);return;}
+ a.actionClock-=dt;if(a.actionClock<=0){
+  a.actionClock=3.2+Math.random()*2.4;state.player.st=clamp(state.player.st-2,0,100);
+  if(Math.random()<.64){state.player.inv.fish=(state.player.inv.fish||0)+1;fw13AddAutoXP(1);msg('🎣 魚が釣れた！ 🐟 +1');}else msg('🎣 あたりはあったけど逃げられた。');
+ }
+}
+function fw13AutoNearest(dt){
+ const a=state.player.autoSchedule;state.player.status='📍 最寄りの資源を採集';
+ if(!a.target||!state.objects.includes(a.target)||!fw13WithinRadius(a.target.x,a.target.y))a.target=fw13NearestAnyResource();
+ if(!a.target){state.player.status='📍 範囲内に資源なし';return;}
+ if(fw13MoveOrReach(a.target.x,a.target.y,dt,1.05)){fw10HarvestObject(a.target);a.target=null;fw13AddAutoXP(1);}
+}
+function fw13ScheduleAuto(dt){
+ const a=state.player.autoSchedule,h=state.hour;
+ if(h<6||h>=20){fw11AutoRest(dt);return;}
+ if((h>=10&&h<13)||(h>=15&&h<16)){const p=fw10FarmPos(a.farmIndex||0);if(fw13WithinRadius(p.x,p.y)){fw11AutoFarm(dt);return;}}
+ if(h>=17&&h<20){fw11AutoPatrol(dt);return;}
+ fw13AutoNearest(dt);
+}
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;
+ if(!a||!a.enabled||state.gameOver||state.interior||state.dialog||state.training||state.crafting)return;
+ if(performance.now()<a.suspendUntil)return;
+ fw13ClampRadius();
+ const p=a.priority||'schedule';
+ if(p==='schedule'){fw13ScheduleAuto(dt);return;}
+ if(p==='nearest'){fw13AutoNearest(dt);return;}
+ if(p==='social'){fw13AutoSocial(dt);return;}
+ if(p==='baby'){fw13AutoBaby(dt);return;}
+ if(p==='enemy'){fw13AutoFight(dt);return;}
+ if(p==='hunt'){fw13AutoHunt(dt);return;}
+ if(p==='fish'){fw13AutoFish(dt);return;}
+ if(p==='gather'){const t=fw13NearestAnyResource();if(t){a.target=t;fw13AutoNearest(dt);}else state.player.status='🧺 範囲内に資源なし';return;}
+ if(['wood','water','stone','food'].includes(p)){
+  let t=fw13NearestBy(state.objects.filter(function(o){return o.gather===p;}),function(o){return o;});
+  state.player.status=fw11PriorityLabel(p).icon+' '+fw11PriorityLabel(p).label;
+  if(!t){state.player.status='🔎 範囲内に対象なし';return;}
+  if(fw13MoveOrReach(t.x,t.y,dt,1.05)){fw10HarvestObject(t);fw13AddAutoXP(1);}return;
+ }
+ if(p==='farm'){fw11AutoFarm(dt);return;}
+ if(p==='transport'){fw11AutoTransport(dt);return;}
+ if(p==='patrol'){fw11AutoPatrol(dt);return;}
+ if(p==='rest'){fw11AutoRest(dt);return;}
+};
+
+fw11OpenThinkMenu=function(){
+ const a=state.player.autoSchedule||{},current=a.enabled?(a.priority||'schedule'):'off',max=fw13AutoMaxRadius(),p=fw11PriorityLabel(current);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 優先行動';
+ const keys=['schedule','nearest','gather','wood','water','stone','food','farm','transport','social','baby','enemy','hunt','fish','patrol','rest','off'];
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button></div>'+
+  '<div class="legend">現在：'+p.icon+' '+p.label+'　中心 '+Math.round(fw13Origin().x)+','+Math.round(fw13Origin().y)+'</div>'+
+  '<div class="grid3">'+keys.map(function(k){const q=FW11_PRIORITY[k],sel=k===current?' style="outline:2px solid #e8c96a"':'';return '<button class="smallBtn" data-fw11="priority" data-priority="'+k+'"'+sel+'><b>'+q.icon+' '+q.label+'</b><br><span style="font-size:11px;opacity:.78">'+q.desc+'</span></button>';}).join('')+'</div>';
+};
+const fw13PrevSetPriority=fw11SetPriority;
+fw11SetPriority=function(k,closePanel){
+ if(k!=='off'&&!state.player.autoSchedule.enabled){state.player.autoSchedule.enabled=true;state.player.autoSchedule.origin={x:state.player.x,y:state.player.y};}
+ fw13PrevSetPriority(k,closePanel);fw13RefreshAutoButton();
+};
+
+const fw13PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw13PrevLoad();
+ const a=state.player.autoSchedule;
+ if(a.autoLevel==null)a.autoLevel=1;if(a.autoXP==null)a.autoXP=0;if(a.radius==null)a.radius=6;if(!a.origin)a.origin={x:state.player.x,y:state.player.y};if(!a.priority)a.priority='schedule';
+ state.enemies=state.enemies||[];state.wildlife=state.wildlife||[];state.player.inv.fish=state.player.inv.fish||0;state.chest.fish=state.chest.fish||0;fw13ClampRadius();fw13SpawnWorldActors();fw13RefreshAutoButton();
+};
+
+const fw13PrevUpdate=update;
+update=function(dt){fw13PrevUpdate(dt);fw13UpdateEnemies(dt);};
+const fw13PrevDraw=draw;
+draw=function(){
+ fw13PrevDraw();if(state.interior)return;
+ fw13DrawActors();
+ const a=state.player.autoSchedule;
+ if(a&&a.enabled){
+  const o=fw13Origin(),s=worldToScreen(o.x,o.y);ctx.save();ctx.strokeStyle='rgba(120,220,255,.34)';ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.beginPath();ctx.arc(s.x+TILE/2,s.y+TILE/2,(a.radius||6)*TILE,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(120,220,255,.85)';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText('AUTO範囲 '+a.radius,s.x+TILE/2,s.y+TILE/2-8);ctx.restore();
+ }
+};
+
+const fw13PrevInventory=openInventory;
+openInventory=function(){
+ fw13PrevInventory();
+ if((state.player.inv.fish||0)||(state.chest.fish||0)){
+  $('#panelBody').insertAdjacentHTML('beforeend','<div class="tileCard">🐟 魚<br><b>'+(state.player.inv.fish||0)+'</b> / chest '+(state.chest.fish||0)+(nearHomeChest()?'<br><button class="smallBtn" data-panel-action="store" data-item="fish">→入れる</button> <button class="smallBtn" data-panel-action="take" data-item="fish">←出す</button>':'')+'</div>');
+ }
+};
+
+$('#panelBody').addEventListener('input',function(e){
+ const el=e.target.closest('[data-fw13-radius]');if(!el)return;state.player.autoSchedule.radius=Number(el.value);fw13ClampRadius();
+ const title=$('#panelTitle');if(title&&title.textContent.includes('優先行動')){const b=el.previousElementSibling;if(b&&b.tagName==='BR'){}}
+},true);
+$('#panelBody').addEventListener('change',function(e){
+ const el=e.target.closest('[data-fw13-radius]');if(!el)return;state.player.autoSchedule.radius=Number(el.value);fw13ClampRadius();fw11OpenThinkMenu();
+},true);
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw13]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw13==='origin')fw13SetOriginHere();else if(b.dataset.fw13==='toggle'){fw13ToggleAuto();fw11OpenThinkMenu();}
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
