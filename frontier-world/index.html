@@ -51,6 +51,22 @@ select{width:100%;min-height:44px;background:#22262a;color:var(--text);border:1p
 }
 
 .friendTag{font-size:12px;color:#ffb8c8;margin-left:7px}.replies button[disabled]{opacity:.45}.shopGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.smallBtn{min-height:42px;padding:6px 10px}.statline{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* FRONTIER_V17_DIALOG_STICKY */
+#dialogPanel{position:sticky;bottom:8px;z-index:35;max-height:min(48vh,440px);overflow:hidden}
+#dialogPanel .dialog{align-items:start;max-height:min(44vh,410px)}
+#dialogPanel .dialog>div{min-width:0;min-height:0;display:flex;flex-direction:column;max-height:min(44vh,410px);overflow:hidden}
+#dialogPanel #portrait{align-self:start;position:sticky;top:0;z-index:2}
+#dialogPanel .panelHead,#dialogPanel #dialogText{flex:0 0 auto}
+#dialogPanel .replies{flex:1 1 auto;min-height:0;max-height:24vh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;align-content:flex-start;padding-right:4px;-webkit-overflow-scrolling:touch}
+@media(max-width:520px){
+ #dialogPanel{max-height:52vh}
+ #dialogPanel .dialog{grid-template-columns:78px minmax(0,1fr);max-height:48vh}
+ #dialogPanel #portrait{width:78px;height:78px}
+ #dialogPanel .dialog>div{max-height:48vh}
+ #dialogPanel .replies{max-height:28vh}
+}
+
 </style>
 </head>
 <body>
@@ -3074,6 +3090,371 @@ $('#panelBody').addEventListener('change',function(e){
   msg('🤔 優先度'+(i+1)+'：終了値 '+c.untilValue);fw11OpenThinkMenu();
  }
 },true);
+
+
+/* FRONTIER_V17_DYNAMIC_SLOTS_DIALOG_NPC_AUTO */
+function fw17UnlockedSlotCount(level){
+ return Math.min(10,4+Math.floor(Math.max(0,Number(level||1))/5));
+}
+function fw17FreshAuto(x,y){
+ return {
+  enabled:false,autoLevel:1,autoXP:0,radius:6,origin:{x:x==null?state.player.x:x,y:y==null?state.player.y:y},
+  target:null,patrol:0,lastFarm:0,suspendUntil:0,actionClock:0,socialSeen:{},
+  slots:['nearest','transport','rest','none'],
+  slotConditions:[
+   {type:'always',value:0},{type:'invAny',value:0},
+   {type:'staminaBelow',value:30,holdUntil:true,untilValue:100},{type:'always',value:0}
+  ],
+  activeSlot:-1,latchedSlot:-1,autoTraining:{kind:null,hits:0,cool:0}
+ };
+}
+function fw17EnsureAuto(a,x,y){
+ if(!a)a=fw17FreshAuto(x,y);
+ if(a.autoLevel==null)a.autoLevel=1;if(a.autoXP==null)a.autoXP=0;
+ if(a.radius==null)a.radius=6;if(!a.origin)a.origin={x:x==null?state.player.x:x,y:y==null?state.player.y:y};
+ if(!Array.isArray(a.slots))a.slots=['nearest','transport','rest','none'];
+ if(!Array.isArray(a.slotConditions))a.slotConditions=[];
+ const count=fw17UnlockedSlotCount(a.autoLevel);
+ while(a.slots.length<count)a.slots.push('none');
+ while(a.slotConditions.length<count)a.slotConditions.push({type:'always',value:0});
+ if(a.slots.length>count)a.slots=a.slots.slice(0,count);
+ if(a.slotConditions.length>count)a.slotConditions=a.slotConditions.slice(0,count);
+ for(let i=0;i<count;i++)a.slotConditions[i]=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+ if(a.activeSlot==null)a.activeSlot=-1;if(a.latchedSlot==null)a.latchedSlot=-1;
+ a.target=null;
+ return a;
+}
+state.player.autoSchedule=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+
+fw13AddAutoXP=function(n){
+ const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ a.autoXP=(a.autoXP||0)+(n||1);
+ let leveled=false,oldSlots=fw17UnlockedSlotCount(a.autoLevel);
+ while(a.autoLevel<30&&a.autoXP>=a.autoLevel*10){
+  a.autoXP-=a.autoLevel*10;a.autoLevel++;leveled=true;
+ }
+ fw17EnsureAuto(a,state.player.x,state.player.y);
+ const newSlots=fw17UnlockedSlotCount(a.autoLevel);
+ if(leveled){
+  msg('🤖 自動行動Lv.'+a.autoLevel+'！ 行動範囲MAX '+fw13AutoMaxRadius()+'マス'+(newSlots>oldSlots?' / 自動行動スロット '+newSlots+'枠に拡張！':''));
+ }
+};
+
+function fw17NextSlotUnlock(level){
+ const n=fw17UnlockedSlotCount(level);if(n>=10)return null;
+ return Math.ceil((Number(level||1)+1)/5)*5;
+}
+
+// Fixed 🤔 next to 🤖.
+(function fw17InstallThinkButton(){
+ let think=document.getElementById('thinkToggle');
+ if(!think){
+  think=document.createElement('button');think.id='thinkToggle';think.className='cmd';think.type='button';think.textContent='🤔';think.title='自動行動スロット設定';think.setAttribute('aria-label',think.title);
+ }
+ const auto=document.getElementById('autoToggle'),row=root.querySelector('.cmdrow');
+ if(auto&&auto.parentNode){auto.insertAdjacentElement('afterend',think);}
+ else if(row)row.appendChild(think);
+ if(!think.dataset.bound){think.dataset.bound='1';think.addEventListener('click',function(){fw11OpenThinkMenu();});}
+})();
+
+fw11OpenThinkMenu=function(){
+ const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y),max=fw13AutoMaxRadius(),count=fw17UnlockedSlotCount(a.autoLevel),next=fw17NextSlotUnlock(a.autoLevel);
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','stone','food','farm','social','trainSword','trainBow','hunt','fish','patrol','rest','schedule'];
+ const actionOpts=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const condOpts=function(value){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const slotRow=function(i){
+  let c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+  const def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i,latched=a.enabled&&a.latchedSlot===i;
+  let extra='';
+  if(def.numeric){
+   extra+='<label class="settingsRow"><span>開始しきい値</span><input data-fw15-value="'+i+'" type="number" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+c.value+'" style="width:88px"></label>';
+   if(fw16IsBelowCondition(c.type)){
+    extra+='<label class="settingsRow"><span>終了値まで継続</span><input data-fw16-hold="'+i+'" type="checkbox" '+(c.holdUntil?'checked':'')+'></label>';
+    if(c.holdUntil)extra+='<label class="settingsRow"><span>終了値</span><input data-fw16-until="'+i+'" type="number" min="'+(Number(c.value)+1)+'" max="100" step="'+def.step+'" value="'+c.untilValue+'" style="width:88px"></label>';
+   }
+  }
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #7ee7ff"':'')+'><b>①②③④⑤⑥⑦⑧⑨⑩'.charAt(i)+' 優先度'+(i+1)+'</b>'+
+   '<select data-fw14-slot="'+i+'" style="width:100%;margin:5px 0">'+actionOpts(a.slots[i])+'</select>'+
+   '<select data-fw15-cond="'+i+'" style="width:100%;margin:5px 0">'+condOpts(c.type)+'</select>'+
+   extra+'<div class="note">'+(latched?'🔒 継続中　':active?'▶ 実行中　':'')+'条件：'+fw15CondText(c)+(c.holdUntil?' → '+c.untilValue+'まで':'')+'</div></div>';
+ };
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 条件付き自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  'スロット <b>'+count+' / 10</b>'+(next?'　次の解放 Lv.'+next:'　全スロット解放済み')+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button></div>'+
+  Array.from({length:count},function(_,i){return slotRow(i);}).join('')+
+  '<div class="legend">初期4枠。自動行動Lv.が5上がるごとに1枠解放し、最大10枠です。上から順に条件と対象を判定します。</div>';
+};
+
+// Fix auto-rest: tents/buildings are solid, so resting starts when the entrance is reached,
+// rather than requiring the exact target coordinate.
+fw11AutoRest=function(dt){
+ const b=state.buildings.find(function(x){return x.id==='player';}),e=b?fw10Entrance(b):{x:45,y:45};
+ const d=Math.hypot(state.player.x-e.x,state.player.y-e.y);
+ state.player.status='💤 '+(d<=1.15?'休息中':'家へ戻る');
+ if(d>1.15){fw10AutoMove(e.x,e.y,dt);return;}
+ state.player.st=clamp(state.player.st+dt*(isNight()?6.2:4.4),0,100);
+ state.player.hunger=clamp(state.player.hunger-dt*.015,0,100);
+};
+
+// Preserve per-character auto rules and let the previous controlled character continue them.
+function fw17CloneAuto(a,x,y){
+ let c;
+ try{c=JSON.parse(JSON.stringify(a||fw17FreshAuto(x,y)));}catch(e){c=fw17FreshAuto(x,y);}
+ c.target=null;c.activeSlot=-1;c.latchedSlot=-1;c.suspendUntil=0;c.actionClock=0;c.socialSeen={};
+ return fw17EnsureAuto(c,x,y);
+}
+const fw17PrevSwitchTo=fw10SwitchTo;
+fw10SwitchTo=function(kind,id,fromDeath){
+ const oldAuto=fw17CloneAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ let target=null,targetAuto=null,beforeLen=state.npcs.length;
+ if(kind==='npc'){target=state.npcs.find(function(x){return x.id===id;});if(target)targetAuto=fw17CloneAuto(target.autoSchedule,target.x,target.y);}
+ else{target=(state.family.children||[]).find(function(x){return x.id===id;});if(target)targetAuto=fw17CloneAuto(target.autoSchedule,state.player.x,state.player.y);}
+ fw17PrevSwitchTo(kind,id,fromDeath);
+ if(!fromDeath){
+  let former=null;
+  if(kind==='npc'&&target)former=target;
+  else if(kind==='child'&&state.npcs.length>beforeLen)former=state.npcs[state.npcs.length-1];
+  if(former){
+   former.autoSchedule=oldAuto;former.autonomousFormerPlayer=true;former.autoSchedule.origin={x:former.x,y:former.y};
+   former.status=oldAuto.enabled?'🤖 自動行動':'家族・待機';
+  }
+ }
+ state.player.autoSchedule=targetAuto||fw17FreshAuto(state.player.x,state.player.y);
+ fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ fw13RefreshAutoButton();renderButtons();
+};
+
+function fw17NpcWithin(n,a,x,y){const o=a.origin||{x:n.x,y:n.y};return Math.hypot(x-o.x,y-o.y)<=(a.radius||6);}
+function fw17NpcMetric(n,c){
+ if(c.type==='staminaBelow')return n.st;
+ if(c.type==='hungerBelow')return n.hunger;
+ if(c.type==='hpBelow')return n.hp;
+ if(c.type==='campFoodBelow')return state.camp.food||0;if(c.type==='campWaterBelow')return state.camp.water||0;
+ if(c.type==='campWoodBelow')return state.camp.wood||0;if(c.type==='campStoneBelow')return state.camp.stone||0;
+ if(c.type==='babyNeedBelow')return fw15LowestBabyNeed();return null;
+}
+function fw17NpcCondition(n,c){
+ const v=Number(c.value||0),m=fw17NpcMetric(n,c);
+ if(c.type==='always')return true;if(m!=null)return m<=v;
+ if(c.type==='invAny')return ['wood','stone','food','water','fiber','fish'].some(function(k){return (n.inv&&n.inv[k]||0)>0;});
+ if(c.type==='enemyInRange')return !!fw17NpcNearestEnemy(n,n.autoSchedule);
+ if(c.type==='daytime')return !isNight();if(c.type==='nighttime')return isNight();return true;
+}
+function fw17NpcNearestResource(n,a,kind){
+ let best=null,bd=999;for(const o of state.objects){if(!o.gather)continue;if(kind&&kind!=='nearest'&&o.gather!==kind)continue;if(!fw17NpcWithin(n,a,o.x,o.y))continue;
+  const d=Math.hypot(o.x-n.x,o.y-n.y);if(d<bd){bd=d;best=o;}}
+ return best;
+}
+function fw17NpcNearestEnemy(n,a){return fw13NearestBy.call(null,state.enemies.filter(function(e){return e.alive&&fw17NpcWithin(n,a,e.x,e.y);}),function(e){return e;});}
+function fw17NpcNearestWild(n,a){
+ let best=null,bd=999;for(const w of state.wildlife){if(!w.alive||!fw17NpcWithin(n,a,w.x,w.y))continue;const d=Math.hypot(w.x-n.x,w.y-n.y);if(d<bd){bd=d;best=w;}}return best;
+}
+function fw17NpcMove(n,x,y,dt,status){setNpcTarget(n,x,y,status);fw7MoveNpc(n,dt,.92);}
+function fw17NpcCan(n,k,a){
+ if(!k||k==='none'||k==='off')return false;
+ if(['nearest','gather'].includes(k))return !!fw17NpcNearestResource(n,a,'nearest');
+ if(['wood','water','stone','food'].includes(k))return !!fw17NpcNearestResource(n,a,k);
+ if(k==='transport')return ['wood','stone','food','water','fiber','fish'].some(function(x){return (n.inv&&n.inv[x]||0)>0;});
+ if(k==='rest')return n.st<95;
+ if(k==='enemy')return !!fw17NpcNearestEnemy(n,a);
+ if(k==='hunt')return !!fw17NpcNearestWild(n,a);
+ if(k==='fish')return !!fw17NpcNearestResource(n,a,'water');
+ if(k==='baby')return n.relationship==='family'&&!!fw13LowestBaby();
+ if(k==='farm'||k==='patrol'||k==='social'||k==='trainSword'||k==='trainBow'||k==='schedule')return true;
+ return false;
+}
+function fw17NpcRun(n,k,dt,a){
+ if(k==='schedule')k=isNight()?'rest':(state.hour>=17?'patrol':'nearest');
+ if(['nearest','gather','wood','water','stone','food'].includes(k)){
+  const kind=(k==='nearest'||k==='gather')?'nearest':k,t=fw17NpcNearestResource(n,a,kind);if(!t)return false;
+  const d=Math.hypot(t.x-n.x,t.y-n.y);n.status='🤖 採集 '+(t.gather||'資源');
+  if(d<=1.35){n.inv=n.inv||{};n.inv[t.gather]=(n.inv[t.gather]||0)+1;state.objects=state.objects.filter(function(o){return o!==t;});n.st=clamp(n.st-2,0,100);}else fw17NpcMove(n,t.x,t.y,dt,n.status);return true;
+ }
+ if(k==='transport'){
+  const b=state.buildings.find(function(x){return x.id==='player';}),e=b?fw10Entrance(b):{x:45,y:45},d=Math.hypot(n.x-e.x,n.y-e.y);
+  if(d>1.2){fw17NpcMove(n,e.x,e.y,dt,'📦 運搬');return true;}
+  ['wood','stone','food','water'].forEach(function(x){const q=n.inv[x]||0;if(q){state.camp[x]=(state.camp[x]||0)+q;n.inv[x]=0;}});
+  ['fiber','fish'].forEach(function(x){const q=n.inv[x]||0;if(q){state.chest[x]=(state.chest[x]||0)+q;n.inv[x]=0;}});
+  n.status='📦 納品完了';return true;
+ }
+ if(k==='rest'){
+  const h=fw9HomeSpot(n),d=Math.hypot(n.x-h.x,n.y-h.y);if(d>1.1){fw17NpcMove(n,h.x,h.y,dt,'💤 帰宅');return true;}
+  n.st=clamp(n.st+dt*4.5,0,100);n.status='💤 休息中';return true;
+ }
+ if(k==='patrol'){a.patrol=(a.patrol||0)%5;const pts=[[43,41],[55,41],[60,51],[48,57],[36,50]],p=pts[a.patrol];fw17NpcMove(n,p[0],p[1],dt,'🛡️ 巡回');if(Math.hypot(n.x-p[0],n.y-p[1])<.6)a.patrol=(a.patrol+1)%5;return true;}
+ if(k==='social'){
+  const others=state.npcs.filter(function(x){return x!==n&&x.alive!==false&&!x.controlled&&fw17NpcWithin(n,a,x.x,x.y);});
+  if(!others.length)return false;let t=others[0],bd=999;others.forEach(function(x){const d=Math.hypot(x.x-n.x,x.y-n.y);if(d<bd){bd=d;t=x;}});
+  if(bd>1.4)fw17NpcMove(n,t.x,t.y,dt,'💬 '+t.name+'と会話へ');else{n.status='💬 '+t.name+'と会話';n.friend=clamp((n.friend||0)+dt*.03,0,100);}return true;
+ }
+ if(k==='baby'){const b=fw13LowestBaby();if(!b)return false;const d=Math.hypot(n.x-b.pos.x,n.y-b.pos.y);if(d>1.2)fw17NpcMove(n,b.pos.x,b.pos.y,dt,'👶 お世話へ');else{const c=b.child,q=fw12CareChoice(c)[0];c.needs[q==='hug'?'affection':q]=clamp(c.needs[q==='hug'?'affection':q]+dt*18,0,100);n.st=clamp(n.st-dt*.5,0,100);n.status='👶 お世話';}return true;}
+ if(k==='enemy'){const e=fw17NpcNearestEnemy(n,a);if(!e)return false;const d=Math.hypot(e.x-n.x,e.y-n.y);if(d>1.5)fw17NpcMove(n,e.x,e.y,dt,'⚔️ 戦闘へ');else{a.actionClock=(a.actionClock||0)-dt;if(a.actionClock<=0){a.actionClock=.9;e.hp-=6;n.weaponAnim={kind:'sword',until:performance.now()+430};if(e.hp<=0)e.alive=false;}}return true;}
+ if(k==='hunt'){const w=fw17NpcNearestWild(n,a);if(!w)return false;const d=Math.hypot(w.x-n.x,w.y-n.y);if(d>3.5)fw17NpcMove(n,w.x,w.y,dt,'🏹 狩り');else{a.actionClock=(a.actionClock||0)-dt;if(a.actionClock<=0){a.actionClock=1.4;w.hp-=7;n.weaponAnim={kind:'bow',until:performance.now()+420};if(w.hp<=0){w.alive=false;n.inv.food=(n.inv.food||0)+(w.kind==='deer'?3:1);}}}return true;}
+ if(k==='fish'){const w=fw17NpcNearestResource(n,a,'water');if(!w)return false;const d=Math.hypot(w.x-n.x,w.y-n.y);if(d>1.4)fw17NpcMove(n,w.x,w.y,dt,'🎣 水場へ');else{a.actionClock=(a.actionClock||0)-dt;if(a.actionClock<=0){a.actionClock=4;n.inv.fish=(n.inv.fish||0)+(Math.random()<.6?1:0);n.status='🎣 釣り';}}return true;}
+ if(k==='farm'){const p=fw10FarmPos(a.farmIndex||0);fw17NpcMove(n,p.x,p.y,dt,'🌾 畑');if(Math.hypot(n.x-p.x,n.y-p.y)<.65){const pl=state.farm.plots[a.farmIndex||0];pl.growth=clamp(pl.growth+dt*.18,0,1);if(pl.growth>=1){n.inv.food=(n.inv.food||0)+2;pl.growth=.05;}a.farmIndex=((a.farmIndex||0)+1)%state.farm.plots.length;}return true;}
+ if(k==='trainSword'||k==='trainBow'){const stand=fw14TrainingPos(k),target=fw14TrainingTarget(k);fw17NpcMove(n,stand.x,stand.y,dt,k==='trainSword'?'⚔️ 剣訓練':'🏹 弓訓練');if(Math.hypot(n.x-stand.x,n.y-stand.y)<.5){setDirFromVector(n,target.x-n.x,target.y-n.y);a.actionClock=(a.actionClock||0)-dt;if(a.actionClock<=0){a.actionClock=k==='trainSword'?.9:1.3;n.weaponAnim={kind:k==='trainSword'?'sword':'bow',until:performance.now()+430};n.skills=n.skills||{};n.skills[k==='trainSword'?'sword':'bow']=(n.skills[k==='trainSword'?'sword':'bow']||0)+.03;}}return true;}
+ return false;
+}
+function fw17UpdateFormerPlayer(n,dt){
+ const a=fw17EnsureAuto(n.autoSchedule,n.x,n.y);if(!a.enabled)return false;
+ n.hunger=clamp(n.hunger-dt*.018,0,100);
+ if(a.latchedSlot>=0&&a.latchedSlot<a.slots.length){
+  const i=a.latchedSlot,k=a.slots[i],c=a.slotConditions[i],m=fw17NpcMetric(n,c);
+  if(c&&c.holdUntil&&m!=null&&m<Number(c.untilValue)&&fw17NpcCan(n,k,a)){fw17NpcRun(n,k,dt,a);return true;}
+  a.latchedSlot=-1;
+ }
+ for(let i=0;i<a.slots.length;i++){
+  const k=a.slots[i],c=fw16NormalizeCondition(a.slotConditions[i],k);
+  if(!fw17NpcCondition(n,c)||!fw17NpcCan(n,k,a))continue;
+  a.activeSlot=i;if(c.holdUntil&&fw16IsBelowCondition(c.type))a.latchedSlot=i;
+  fw17NpcRun(n,k,dt,a);return true;
+ }
+ n.status='🤖 条件待ち';return true;
+}
+const fw17PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(n&&n.autonomousFormerPlayer&&n.autoSchedule&&n.autoSchedule.enabled){if(fw17UpdateFormerPlayer(n,dt))return;}
+ return fw17PrevUpdateNPC(n,dt);
+};
+
+// More relationship-aware dialogue.
+const FW17_REL_EXTRA={
+ acquaintance:{
+  intro:['今日は風が少し強いね。','この辺りの道、まだ覚えきれてないんだ。','何か変わったことはあった？'],
+  hello:['会う回数が増えてきたね。','最近、少しこの村に馴染んできた気がする。','挨拶してもらえるとちょっと嬉しい。'],
+  work:['仕事の段取りが分かれば、もう少し効率よくできそう。','得意なことを見つけたいと思ってる。'],
+  life:['知らない人ばかりだった頃より、ずっと落ち着くよ。','夜は星がよく見えるね。']
+ },
+ companion:{
+  intro:['次の仕事、もう決まってる？','一緒に動くなら準備しておくよ。','今日も無事に帰ってこよう。'],
+  hello:['あなたのやり方、だいぶ分かってきた。','一緒に働くと時間が早いね。','何か運ぶ物があったら持つよ。'],
+  work:['採集の帰りに倉庫へ寄るようにする。','危ない場所なら先に教えて。','道具が揃えばもっと遠くまで行けそうだ。'],
+  life:['仲間と食べるご飯って、ひとりよりうまいね。','焚き火の番を交代できるだけでも助かるよ。']
+ },
+ friend:{
+  intro:['お、ちょうど話したいと思ってた。','ちょっと休憩していかない？','今日は面白いことあった？'],
+  hello:['友達の顔を見ると気が抜けるね。','今度一緒に釣りでも行こうよ。','困ってるなら先に言って。手伝うから。'],
+  work:['終わったら何か食べよう。','無理なら交代しよう。友達なんだから。','一緒にやると面倒な仕事も少し楽だね。'],
+  life:['家に遊びに来るなら片づけておかないとな。','昔の話も、そのうち聞かせてよ。','この村で長く付き合える友達ができるとは思わなかった。']
+ },
+ lover:{
+  intro:['会いたかった。少しだけここにいて。','おかえり。無事でよかった。','あなたの足音、もう分かる気がする。'],
+  hello:['今日はちゃんと休めてる？','あなたが楽しそうだと私も嬉しい。','たまには仕事を忘れて歩こうよ。'],
+  work:['危ない仕事なら一人で行かないで。','帰ってくるまで待ってるから。','二人でやれば早く終わるよ。'],
+  life:['同じ景色をこれから何度も見られたらいいね。','好きなもの、もっと覚えておきたいな。','記念になる物を一緒に作るのもいいかも。']
+ },
+ family:{
+  intro:['おかえり。手を洗ったらご飯にしよう。','今日は家の中もにぎやかだったよ。','帰ってきてくれて安心した。'],
+  hello:['ちゃんと休まないと家族みんな心配するよ。','今日のこと、あとでゆっくり聞かせて。','家のことは一人で抱え込まなくていいからね。'],
+  work:['子どもの様子を見ながらできる仕事を進めるね。','食料と水だけは切らさないようにしよう。','家族が増えると洗濯も料理も増えるね。'],
+  life:['子どもが寝た後の静かな時間も好き。','いつか家族写真みたいなものを残したいね。','この家を、帰ってきたくなる場所にしよう。','年を取っても、こうして話していられたらいいな。']
+ }
+};
+const fw17PrevRelLine=fw12RelLine;
+fw12RelLine=function(n,key){
+ const rel=n.relationship||'acquaintance',arr=(FW17_REL_EXTRA[rel]&&FW17_REL_EXTRA[rel][key])||[];
+ if(arr.length&&Math.random()<.68)return arr[Math.floor(Math.random()*arr.length)];
+ return fw17PrevRelLine(n,key);
+};
+
+// Conversation exchanges: NPC asks, player answers, relationship and gifts react.
+state.player.preferences=state.player.preferences||{};
+function fw17StartExchange(n){
+ const rel=n.relationship||'acquaintance';
+ const prompts=[
+  {id:'favorite',text:rel==='lover'||rel==='family'?'ねえ、改めて聞きたいんだけど、今いちばん嬉しいものって何？':'そういえば、どんなものが好き？',
+   choices:[['sweet','🍎 食べ物'],['fish','🐟 釣り・魚'],['craft','🪵 ものづくり'],['stone','🪨 きれいな石'],['nature','🌿 自然']]},
+  {id:'future',text:'この村がもっと大きくなったら、何を一番やりたい？',
+   choices:[['farm','🌾 畑を広げる'],['family','🏠 家族と暮らす'],['adventure','🗺️ 冒険する'],['trade','💰 商売する']]},
+  {id:'mood',text:'今日はどんな気分？',
+   choices:[['good','😄 元気'],['tired','😮‍💨 少し疲れた'],['go','⚔️ 何かしたい'],['slow','☕ のんびりしたい']]}
+ ];
+ const q=prompts[Math.floor(Math.random()*prompts.length)];
+ state.dialog.exchange={id:q.id,choices:q.choices};
+ typeLine(q.text);
+ $('#dialogReplies').innerHTML=q.choices.map(function(c){return '<button data-reply="ex_'+q.id+'_'+c[0]+'" type="button">'+c[1]+'</button>';}).join('')+'<button data-reply="exchangeCancel" type="button">↩ 戻る</button>';
+}
+function fw17FavoriteGift(n,key){
+ const map={
+  sweet:{item:'food',qty:1,text:'🍎 食料'},
+  fish:{item:'fish',qty:1,text:'🐟 魚'},
+  craft:{item:'wood',qty:2,text:'🪵 木材'},
+  stone:{item:'stone',qty:1,text:'🪨 石'},
+  nature:{item:'fiber',qty:2,text:'🌿 繊維'}
+ },g=map[key]||map.sweet;
+ state.player.inv[g.item]=(state.player.inv[g.item]||0)+g.qty;
+ return g.text+(g.qty>1?' ×'+g.qty:'');
+}
+function fw17ExchangeAnswer(n,key){
+ const ex=state.dialog&&state.dialog.exchange;if(!ex)return;
+ const part=key.split('_'),kind=part[1],ans=part.slice(2).join('_');
+ n.friend=clamp((n.friend||0)+2,0,100);if(n.companion)n.loyalty=clamp((n.loyalty||0)+1,0,100);
+ let reply='';
+ if(kind==='favorite'){
+  state.player.preferences[n.id]=ans;const gift=fw17FavoriteGift(n,ans);
+  reply=(n.relationship==='lover'||n.relationship==='family'?'覚えておくね。あなたが喜ぶ顔、好きだから。':'へえ、そうなんだ。覚えておくよ。')+' ちょうどいい物があるから、これどうぞ。';
+  msg('🎁 '+n.name+'から '+gift+' をもらった！');
+ }else if(kind==='future'){
+  const r={farm:'じゃあ畑をもっと良くしよう。私も手伝うよ。',family:'うん。帰ってきたくなる場所にしたいね。',adventure:'いいね。準備を整えて、いつか遠くまで行こう。',trade:'市場がにぎわったら面白そう。店主にも相談してみよう。'};
+  reply=r[ans]||'それ、いいと思う。';
+ }else{
+  const r={good:'その調子。私まで元気になるよ。',tired:'今日は無理しないで。休むのも仕事だよ。',go:'じゃあ何か一緒にやろう。',slow:'いいね。たまにはそういう日も必要。'};
+  reply=r[ans]||'そっか。話してくれてありがとう。';
+ }
+ state.dialog.exchange=null;typeLine(reply);renderDialogReplies();
+}
+const fw17PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw17PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n||n.isChild||n.id==='merchant')return;
+ if(state.dialog&&state.dialog.exchange)return;
+ $('#dialogReplies').insertAdjacentHTML('beforeend','<button data-reply="chatExchange" type="button">🔄 もう少し話す</button>');
+};
+const fw17PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();if(!n)return;
+ if(k==='chatExchange'){fw17StartExchange(n);return;}
+ if(k==='exchangeCancel'){if(state.dialog)state.dialog.exchange=null;renderDialogReplies();typeLine('また何か聞きたくなったら話そう。');return;}
+ if(k.indexOf('ex_')===0){fw17ExchangeAnswer(n,k);return;}
+ fw17PrevHandleDialog(k);
+};
+
+// Gift responses.
+function fw17Thanks(n,itemName){
+ const rel=n.relationship||'acquaintance';
+ const lines={
+  acquaintance:['ありがとう。助かるよ。','わざわざありがとう。受け取っておくね。'],
+  companion:['ありがとう！ 大事に使うよ。','助かる。仲間からもらうと嬉しいな。'],
+  friend:['ありがとう！ 私のこと考えて選んでくれたんだね。','うれしい。今度は私からも何か渡すよ。'],
+  lover:['ありがとう……すごくうれしい。大切にするね。','私に？ ありがとう。ずっと覚えておく。'],
+  family:['ありがとう。家族でも、こういうのはやっぱり嬉しいね。','ありがとう。大切に使おうね。']
+ };
+ const a=lines[rel]||lines.acquaintance;return a[Math.floor(Math.random()*a.length)]+(itemName?' '+itemName+'、いいね。':'');
+}
+giftItem=function(item){
+ const n=getDialogSpeaker();if(!n||state.player.inv[item]<=0){msg('🎁 渡せる物がない。');return;}
+ state.player.inv[item]--;const gain=item==='food'?6:item==='wood'?3:2;n.friend=clamp(n.friend+gain,0,100);fw8EnsureNpc(n);if(n.companion)n.loyalty=clamp(n.loyalty+2,0,100);
+ const label={food:'食料',wood:'木材',stone:'石'}[item]||item;
+ msg('🎁 '+n.name+'にプレゼント。友好 +'+gain);typeLine(fw17Thanks(n,label));renderDialogReplies();openGift(n);
+};
+fw8GiftCrafted=function(i){
+ const n=getDialogSpeaker(),it=state.player.items[i];if(!n||!it)return;fw8EnsureNpc(n);
+ state.player.items.splice(i,1);const gain=4+it.quality*2;n.friend=clamp(n.friend+gain,0,100);n.loyalty=clamp(n.loyalty+3+it.quality,0,100);
+ msg('🎁 '+n.name+'に '+it.name+'。友好 +'+gain+' / 忠誠UP');typeLine(fw17Thanks(n,it.name));renderDialogReplies();openGift(n);
+};
+
+const fw17PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ fw17PrevLoad();
+ state.player.autoSchedule=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ state.player.preferences=state.player.preferences||{};
+ state.npcs.forEach(function(n){if(n.autoSchedule)n.autoSchedule=fw17EnsureAuto(n.autoSchedule,n.x,n.y);});
+ fw13RefreshAutoButton();renderButtons();
+};
 
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
