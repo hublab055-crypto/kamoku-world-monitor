@@ -3911,6 +3911,434 @@ fw10LoadGame=function(){
  state.settlement=state.settlement||{rankOverride:null,name:'Frontier Camp'};state.npcs.forEach(fw18EnsureHeart);
 };
 
+
+/* FRONTIER_V19_SAVE_SCHEDULE_PATH_DIALOG */
+state.player.happiness=state.player.happiness==null?82:state.player.happiness;
+state.player.personalSchedule=state.player.personalSchedule||null;
+state.npcs.forEach(function(n){if(n.happiness==null)n.happiness=78;});
+
+const FW19_SCHEDULE_TASKS={
+ auto:{icon:'🤖',label:'自動行動'},
+ sleep:{icon:'😴',label:'睡眠'},
+ housework:{icon:'🏠',label:'家事'},
+ bath:{icon:'🛁',label:'風呂'},
+ laundry:{icon:'🧺',label:'洗濯'},
+ clean:{icon:'🧹',label:'掃除'},
+ leisure:{icon:'☕',label:'余暇'}
+};
+function fw19DefaultSchedule(){
+ return {enabled:true,blocks:['sleep','sleep','housework','auto','auto','auto','leisure','sleep']};
+}
+function fw19EnsureSchedule(a){
+ if(!a.personalSchedule)a.personalSchedule=fw19DefaultSchedule();
+ if(!Array.isArray(a.personalSchedule.blocks))a.personalSchedule.blocks=fw19DefaultSchedule().blocks.slice();
+ while(a.personalSchedule.blocks.length<8)a.personalSchedule.blocks.push('auto');
+ a.personalSchedule.blocks=a.personalSchedule.blocks.slice(0,8);
+ if(a.personalSchedule.enabled==null)a.personalSchedule.enabled=true;
+ if(a.happiness==null)a.happiness=80;
+ return a.personalSchedule;
+}
+fw19EnsureSchedule(state.player);state.npcs.forEach(fw19EnsureSchedule);
+
+function fw19ScheduleTask(actor){
+ const s=fw19EnsureSchedule(actor);if(!s.enabled)return 'auto';
+ const i=Math.min(7,Math.floor(state.hour/3));return s.blocks[i]||'auto';
+}
+function fw19AllAuto(actor){
+ const s=fw19EnsureSchedule(actor);return s.enabled&&s.blocks.every(function(x){return x==='auto';});
+}
+function fw19HomeFor(actor){
+ if(actor===state.player)return state.buildings.find(function(b){return b.id==='player';})||null;
+ return fw12SharedHome(actor)||state.buildings.find(function(b){return b.id===actor.id;})||state.buildings.find(function(b){return b.id==='player';})||null;
+}
+
+// Simple A* fallback + steering so characters can route around trees, rocks and buildings.
+function fw19CellWalkable(x,y){
+ if(x<1||y<1||x>=MAP-1||y>=MAP-1)return false;
+ return !blocked(x+.5,y+.5);
+}
+function fw19GoalCell(tx,ty){
+ const gx=Math.floor(tx),gy=Math.floor(ty),cand=[];
+ for(let r=0;r<=2;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+  if(r&&Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+  const x=gx+dx,y=gy+dy;if(fw19CellWalkable(x,y))cand.push({x:x,y:y,d:Math.hypot(x+.5-tx,y+.5-ty)});
+ }
+ cand.sort(function(a,b){return a.d-b.d;});return cand[0]||null;
+}
+function fw19FindPath(actor,tx,ty){
+ const sx=Math.floor(actor.x),sy=Math.floor(actor.y),goal=fw19GoalCell(tx,ty);if(!goal)return [];
+ const key=function(x,y){return x+','+y;},open=[{x:sx,y:sy,g:0,f:0}],best=new Map([[key(sx,sy),0]]),came=new Map(),dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+ let end=null,nodes=0;
+ while(open.length&&nodes++<1400){
+  open.sort(function(a,b){return a.f-b.f;});const cur=open.shift();
+  if(cur.x===goal.x&&cur.y===goal.y){end=cur;break;}
+  for(const d of dirs){
+   const nx=cur.x+d[0],ny=cur.y+d[1];if(!fw19CellWalkable(nx,ny))continue;
+   if(d[0]&&d[1]&&(!fw19CellWalkable(cur.x+d[0],cur.y)||!fw19CellWalkable(cur.x,cur.y+d[1])))continue;
+   const ng=cur.g+(d[0]&&d[1]?1.414:1),kk=key(nx,ny);if(best.has(kk)&&best.get(kk)<=ng)continue;
+   best.set(kk,ng);came.set(kk,{x:cur.x,y:cur.y});open.push({x:nx,y:ny,g:ng,f:ng+Math.hypot(goal.x-nx,goal.y-ny)});
+  }
+ }
+ if(!end)return [];
+ const out=[];let c={x:end.x,y:end.y};
+ while(c.x!==sx||c.y!==sy){out.push({x:c.x+.5,y:c.y+.5});c=came.get(key(c.x,c.y));if(!c)break;}
+ out.reverse();return out;
+}
+function fw19MoveActor(actor,tx,ty,dt,speed){
+ const dx=tx-actor.x,dy=ty-actor.y,d=Math.hypot(dx,dy);if(d<.08)return true;
+ const vx=dx/d,vy=dy/d,step=(speed||1)*dt,nx=actor.x+vx*step,ny=actor.y+vy*step;
+ if(!blocked(nx,ny)){
+  setDirFromVector(actor,vx,vy);actor.x=nx;actor.y=ny;actor._nav19=null;return d<.2;
+ }
+ const now=performance.now();let nav=actor._nav19;
+ if(!nav||Math.hypot(nav.tx-tx,nav.ty-ty)>.7||now-nav.stamp>1000||!nav.path||!nav.path.length){
+  nav=actor._nav19={tx:tx,ty:ty,path:fw19FindPath(actor,tx,ty),idx:0,stamp:now};
+ }
+ if(nav.path&&nav.idx<nav.path.length){
+  let p=nav.path[nav.idx],ax=p.x-actor.x,ay=p.y-actor.y,ad=Math.hypot(ax,ay);
+  if(ad<.18&&nav.idx<nav.path.length-1){nav.idx++;p=nav.path[nav.idx];ax=p.x-actor.x;ay=p.y-actor.y;ad=Math.hypot(ax,ay);}
+  if(ad>.001){
+   const qx=ax/ad,qy=ay/ad,mx=actor.x+qx*step,my=actor.y+qy*step;
+   if(!blocked(mx,my)){setDirFromVector(actor,qx,qy);actor.x=mx;actor.y=my;return false;}
+  }
+ }
+ // last-resort wall following
+ const base=Math.atan2(dy,dx),angles=[.65,-.65,1.2,-1.2,1.57,-1.57,2.2,-2.2];
+ for(const off of angles){
+  const qx=Math.cos(base+off),qy=Math.sin(base+off),mx=actor.x+qx*step,my=actor.y+qy*step;
+  if(!blocked(mx,my)){setDirFromVector(actor,qx,qy);actor.x=mx;actor.y=my;return false;}
+ }
+ return false;
+}
+fw10AutoMove=function(tx,ty,dt){
+ const p=state.player,done=fw19MoveActor(p,tx,ty,dt,3.15);
+ p.st=clamp(p.st-dt*.23,0,100);return done;
+};
+fw7MoveNpc=function(n,dt,sp){return fw19MoveActor(n,n.tx,n.ty,dt,sp||.9);};
+
+// Furniture and household amenities.
+function fw19EnsureAmenities(b){
+ if(!b)return [];
+ if(!Array.isArray(b.amenities19))b.amenities19=[];
+ return b.amenities19;
+}
+function fw19AmenityPos(type,rw,rh){
+ const m={
+  toilet:{x:rw-1.25,y:1.0},bath:{x:rw-2.2,y:rh-1.55},laundry:{x:1.0,y:rh-1.45},
+  shelf:{x:rw-1.2,y:2.05},table:{x:rw/2-.45,y:rh/2+.65}
+ };return m[type]||{x:rw/2,y:rh/2};
+}
+function fw19DrawAmenity(type,px,py,scale){
+ const ico={toilet:'🚽',bath:'🛁',laundry:'🧺',shelf:'🗄️',table:'🪑'}[type]||'🪑';
+ ctx.save();ctx.font=Math.round(scale*.7)+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ico,px+scale*.45,py+scale*.45);ctx.restore();
+}
+const fw19PrevInteriorFurniture=fw12DrawInteriorFurniture;
+fw12DrawInteriorFurniture=function(b,ox,oy,scale,rw,rh){
+ fw19PrevInteriorFurniture(b,ox,oy,scale,rw,rh);
+ fw19EnsureAmenities(b).forEach(function(f){fw19DrawAmenity(f.type,ox+f.x*scale,oy+f.y*scale,scale);});
+};
+function fw19FurnitureCost(type){
+ return {toilet:{wood:1,stone:3},bath:{wood:3,stone:2},laundry:{wood:2,fiber:2},shelf:{wood:3},table:{wood:3}}[type]||{wood:2};
+}
+function fw19PayCost(cost){
+ for(const k of Object.keys(cost))if((state.player.inv[k]||0)+(state.chest[k]||0)<cost[k])return false;
+ for(const k of Object.keys(cost)){
+  let n=cost[k],a=Math.min(n,state.player.inv[k]||0);state.player.inv[k]-=a;n-=a;if(n)state.chest[k]-=n;
+ }return true;
+}
+function fw19OpenFurnitureMenu(){
+ if(!state.interior){msg('🏠 家の中で家具を配置して。');return;}
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return;
+ fw19EnsureAmenities(b);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🪑 家具・生活設備';
+ const types=['toilet','bath','laundry','shelf','table'],names={toilet:'🚽 トイレ',bath:'🛁 風呂',laundry:'🧺 洗濯設備',shelf:'🗄️ 棚',table:'🪑 食卓'};
+ $('#panelBody').innerHTML='<button class="smallBtn" data-fw19="beds">🛏️ ベッド・ベビーベッド</button><div class="grid3">'+types.map(function(t){
+  const have=b.amenities19.some(function(f){return f.type===t;}),c=fw19FurnitureCost(t);
+  return '<div class="tileCard"><b>'+names[t]+'</b><br>'+Object.keys(c).map(function(k){return k+' '+c[k];}).join(' / ')+'<br><button class="smallBtn" data-fw19="furniture" data-type="'+t+'" '+(have?'disabled':'')+'>'+(have?'設置済み':'設置')+'</button></div>';
+ }).join('')+'</div>';
+}
+const fw19PrevBuild=build;
+build=function(){if(state.interior){fw19OpenFurnitureMenu();return;}fw19PrevBuild();};
+function fw19PlaceFurniture(type){
+ const b=state.buildings.find(function(x){return state.interior&&x.id===state.interior.buildingId;});if(!b)return;
+ fw19EnsureAmenities(b);if(b.amenities19.some(function(f){return f.type===type;})){msg('その設備は設置済み。');return;}
+ if(!fw19PayCost(fw19FurnitureCost(type))){msg('🪑 材料が足りない。');return;}
+ const p=fw19AmenityPos(type,state.interior.roomW,state.interior.roomH);b.amenities19.push({type:type,x:p.x,y:p.y});msg('✅ '+type+' を設置した。');fw19OpenFurnitureMenu();
+}
+
+// Schedules for every controllable character.
+function fw19ScheduleActors(){
+ const out=[{key:'player',name:(state.player.name||'YOU')+'（操作中）',actor:state.player}];
+ state.npcs.forEach(function(n){if(n.alive!==false&&(n.relationship==='family'||n.loyalty>=75||n.autonomousFormerPlayer))out.push({key:'npc:'+n.id,name:n.name,actor:n});});
+ return out;
+}
+function fw19ActorByKey(key){
+ if(key==='player')return state.player;
+ if(key&&key.startsWith('npc:'))return state.npcs.find(function(n){return n.id===key.slice(4);})||null;
+ return null;
+}
+state.ui19=state.ui19||{scheduleKey:'player'};
+function fw19OpenScheduleEditor(key){
+ const list=fw19ScheduleActors();if(key)state.ui19.scheduleKey=key;
+ if(!list.some(function(x){return x.key===state.ui19.scheduleKey;}))state.ui19.scheduleKey='player';
+ const actor=fw19ActorByKey(state.ui19.scheduleKey)||state.player,s=fw19EnsureSchedule(actor),allAuto=fw19AllAuto(actor);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='📅 個人予定表';
+ const optActor=list.map(function(x){return '<option value="'+x.key+'" '+(x.key===state.ui19.scheduleKey?'selected':'')+'>'+x.name+'</option>';}).join('');
+ const taskOpts=function(v){return Object.keys(FW19_SCHEDULE_TASKS).map(function(k){const q=FW19_SCHEDULE_TASKS[k];return '<option value="'+k+'" '+(k===v?'selected':'')+'>'+q.icon+' '+q.label+'</option>';}).join('');};
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><select data-fw19-schedule-actor>'+optActor+'</select><br>幸福度 <b>'+Math.round(actor.happiness||0)+'</b>'+(actor!==state.player?' / 忠誠 '+Math.round(actor.loyalty||0):'')+
+  '<br><button class="smallBtn" data-fw19="schedule-toggle">'+(s.enabled?'予定表ON':'予定表OFF')+'</button> <button class="smallBtn" data-fw19="balanced">⚖️ 生活バランス</button> <button class="smallBtn" data-fw19="all-auto">🤖 全部自動行動</button></div>'+
+  Array.from({length:8},function(_,i){const a=i*3,b=(i+1)*3;return '<label class="settingsRow"><span>'+String(a).padStart(2,'0')+'-'+String(b).padStart(2,'0')+'</span><select data-fw19-block="'+i+'">'+taskOpts(s.blocks[i])+'</select></label>';}).join('')+
+  '<div class="legend">'+(allAuto?'⚠️ 全時間を自動行動にすると幸福度が徐々に低下し、NPCは忠誠心も下がります。':'睡眠・家事・余暇を混ぜると幸福度を維持しやすくなります。')+'</div>';
+}
+function fw19ScheduleHomeTask(actor,task,dt){
+ const home=fw19HomeFor(actor);if(!home)return false;const e=fw10Entrance(home),isPlayer=actor===state.player,d=Math.hypot(actor.x-e.x,actor.y-e.y);
+ if(isPlayer){
+  if(!state.interior){
+   if(d>1.25){fw10AutoMove(e.x,e.y,dt);actor.status='🏠 帰宅：'+FW19_SCHEDULE_TASKS[task].label;return true;}
+   fw10EnterBuilding(home);actor.status='🏠 '+FW19_SCHEDULE_TASKS[task].label;return true;
+  }
+  return true;
+ }
+ if(d>1.15){fw17NpcMove(actor,e.x,e.y,dt,'🏠 '+FW19_SCHEDULE_TASKS[task].label);return true;}
+ if(task==='sleep'){actor.st=clamp(actor.st+dt*4.8,0,100);actor.status='😴 睡眠';}
+ else if(task==='bath'){actor.st=clamp(actor.st+dt*.9,0,100);actor.happiness=clamp(actor.happiness+dt*.035,0,100);actor.status='🛁 入浴';}
+ else if(task==='laundry'){actor.st=clamp(actor.st-dt*.08,0,100);actor.happiness=clamp(actor.happiness+dt*.008,0,100);actor.status='🧺 洗濯';}
+ else if(task==='clean'){actor.st=clamp(actor.st-dt*.08,0,100);actor.happiness=clamp(actor.happiness+dt*.008,0,100);actor.status='🧹 掃除';}
+ else{actor.st=clamp(actor.st-dt*.05,0,100);actor.status='🏠 家事';}
+ return true;
+}
+function fw19RunPlayerSchedule(task,dt){
+ if(task==='auto')return false;
+ if(['sleep','housework','bath','laundry','clean'].includes(task)){fw19ScheduleHomeTask(state.player,task,dt);return true;}
+ if(task==='leisure'){
+  state.player.status='☕ 余暇';state.player.happiness=clamp(state.player.happiness+dt*.045,0,100);state.player.st=clamp(state.player.st+dt*.35,0,100);return true;
+ }
+ return false;
+}
+const fw19PrevAutoPlayer=fw10AutoPlayer;
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;if(!a||!a.enabled)return;
+ const task=fw19ScheduleTask(state.player);
+ if(fw19RunPlayerSchedule(task,dt))return;
+ return fw19PrevAutoPlayer(dt);
+};
+
+// Auto-rest now enters the home and finishes recovering inside.
+fw11AutoRest=function(dt){
+ const b=fw19HomeFor(state.player);if(!b)return false;
+ if(state.interior){state.player.status='💤 休息中';return true;}
+ const e=fw10Entrance(b),d=Math.hypot(state.player.x-e.x,state.player.y-e.y);
+ state.player.status=d<=1.25?'💤 家に入る':'💤 家へ戻る';
+ if(d>1.25){fw10AutoMove(e.x,e.y,dt);return true;}
+ fw10EnterBuilding(b);state.player.status='💤 休息中';return true;
+};
+
+function fw19IndoorAutomation(dt){
+ if(!state.interior||!state.player.autoSchedule||!state.player.autoSchedule.enabled)return;
+ const a=state.player.autoSchedule,task=fw19ScheduleTask(state.player);
+ let restLatch=false,restUntil=100;
+ if(a.latchedSlot>=0&&a.slots&&a.slots[a.latchedSlot]==='rest'){
+  const c=a.slotConditions[a.latchedSlot];restLatch=true;restUntil=c&&c.untilValue!=null?Number(c.untilValue):100;
+ }
+ if(task==='auto'&&!restLatch){fw10ExitBuilding();return;}
+ const actual=restLatch?'sleep':task;
+ if(actual==='sleep'){
+  state.player.status='😴 睡眠・休息';state.player.st=clamp(state.player.st+dt*6.2,0,100);state.player.hunger=clamp(state.player.hunger-dt*.012,0,100);
+  if(restLatch&&state.player.st>=restUntil){a.latchedSlot=-1;a.activeSlot=-1;msg('✅ 休息完了：スタミナ '+Math.round(state.player.st));fw10ExitBuilding();}
+ }else if(actual==='bath'){state.player.status='🛁 入浴';state.player.st=clamp(state.player.st+dt*.9,0,100);state.player.happiness=clamp(state.player.happiness+dt*.04,0,100);}
+ else if(actual==='laundry'){state.player.status='🧺 洗濯';state.player.st=clamp(state.player.st-dt*.08,0,100);state.player.happiness=clamp(state.player.happiness+dt*.01,0,100);}
+ else if(actual==='clean'){state.player.status='🧹 掃除';state.player.st=clamp(state.player.st-dt*.08,0,100);state.player.happiness=clamp(state.player.happiness+dt*.01,0,100);}
+ else if(actual==='housework'){state.player.status='🏠 家事';state.player.st=clamp(state.player.st-dt*.05,0,100);}
+ else if(actual==='leisure'){state.player.status='☕ 家で余暇';state.player.happiness=clamp(state.player.happiness+dt*.05,0,100);state.player.st=clamp(state.player.st+dt*.35,0,100);}
+}
+const fw19PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ fw19EnsureSchedule(n);
+ if(n.alive!==false&&n.personalSchedule&&n.personalSchedule.enabled){
+  const task=fw19ScheduleTask(n);
+  if(task==='auto'&&n.autoSchedule&&n.autoSchedule.enabled){if(fw17UpdateFormerPlayer(n,dt))return;}
+  if(['sleep','housework','bath','laundry','clean'].includes(task)){fw19ScheduleHomeTask(n,task,dt);return;}
+  if(task==='leisure'){n.status='☕ 余暇';n.happiness=clamp(n.happiness+dt*.04,0,100);n.st=clamp(n.st+dt*.28,0,100);return;}
+ }
+ return fw19PrevUpdateNPC(n,dt);
+};
+
+function fw19Wellbeing(dt){
+ const p=state.player;if(p.autoSchedule&&p.autoSchedule.enabled&&fw19AllAuto(p))p.happiness=clamp(p.happiness-dt*.008,0,100);
+ state.npcs.forEach(function(n){
+  if(n.alive===false)return;fw19EnsureSchedule(n);
+  if(n.autoSchedule&&n.autoSchedule.enabled&&fw19AllAuto(n)){n.happiness=clamp(n.happiness-dt*.007,0,100);n.loyalty=clamp((n.loyalty||0)-dt*.0035,0,100);}
+ });
+}
+
+// Preserve schedule/happiness with each identity when changing controlled character.
+const fw19PrevSwitchTo=fw10SwitchTo;
+fw10SwitchTo=function(kind,id,fromDeath){
+ const oldName=state.player.name,oldSchedule=JSON.parse(JSON.stringify(fw19EnsureSchedule(state.player))),oldHappy=state.player.happiness;
+ let target=null,targetSchedule=null,targetHappy=80,before=state.npcs.length;
+ if(kind==='npc'){target=state.npcs.find(function(n){return n.id===id;});if(target){targetSchedule=JSON.parse(JSON.stringify(fw19EnsureSchedule(target)));targetHappy=target.happiness;}}
+ else{target=(state.family.children||[]).find(function(c){return c.id===id;});if(target){targetSchedule=target.personalSchedule?JSON.parse(JSON.stringify(target.personalSchedule)):fw19DefaultSchedule();targetHappy=target.happiness==null?82:target.happiness;}}
+ fw19PrevSwitchTo(kind,id,fromDeath);
+ let former=null;
+ if(!fromDeath){
+  if(kind==='npc'&&target)former=target;
+  else if(state.npcs.length>before)former=state.npcs[state.npcs.length-1];
+  else former=state.npcs.find(function(n){return n.name===oldName&&n.alive!==false;});
+  if(former){former.personalSchedule=oldSchedule;former.happiness=oldHappy;fw19EnsureSchedule(former);}
+ }
+ state.player.personalSchedule=targetSchedule||fw19DefaultSchedule();state.player.happiness=targetHappy;fw19EnsureSchedule(state.player);
+};
+
+// Stable multi-slot saves with verification and backup.
+const FW19_SAVE_PREFIX='frontier_world_save_v19_';
+function fw19SaveKey(slot){return FW19_SAVE_PREFIX+(slot==='autosave'?'autosave':'slot_'+slot);}
+function fw19Hash(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
+function fw19Snapshot(){
+ return JSON.parse(JSON.stringify(state,function(k,v){
+  if(k==='dialog'||k==='training'||k==='crafting'||k==='_nav19')return null;
+  if(k==='task'&&v&&typeof v==='object')return null;
+  if(k==='target'&&v&&typeof v==='object')return null;
+  return v;
+ }));
+}
+function fw19EncodeSave(){
+ const body=JSON.stringify({version:19,savedAt:Date.now(),state:fw19Snapshot()});
+ return JSON.stringify({hash:fw19Hash(body),body:body});
+}
+function fw19DecodeSave(raw){
+ const env=JSON.parse(raw);if(env&&env.body&&env.hash){if(fw19Hash(env.body)!==env.hash)throw new Error('チェックサム不一致');return JSON.parse(env.body);}
+ if(env&&env.state)return env;
+ throw new Error('セーブ形式を確認できません');
+}
+function fw19WriteSave(slot,silent){
+ try{
+  const key=fw19SaveKey(slot),tmp=key+'.tmp',bak=key+'.bak',data=fw19EncodeSave(),old=localStorage.getItem(key);
+  localStorage.setItem(tmp,data);fw19DecodeSave(localStorage.getItem(tmp));
+  if(old)localStorage.setItem(bak,old);
+  localStorage.setItem(key,data);fw19DecodeSave(localStorage.getItem(key));localStorage.removeItem(tmp);
+  if(!silent)msg('💾 '+(slot==='autosave'?'オートセーブ':'スロット'+slot)+'に保存しました。');return true;
+ }catch(e){msg('⚠️ セーブ失敗：'+e.message);return false;}
+}
+function fw19NormalizeAfterLoad(){
+ state.dialog=null;state.training=null;state.crafting=null;state.interior=null;state.gameOver=!!state.gameOver;
+ state.family=state.family||{children:[],members:[],pregnancies:[]};state.npcs=state.npcs||[];state.buildings=state.buildings||[];
+ state.player.sprite=state.player.sprite||'you';state.player.inv=state.player.inv||{};state.chest=state.chest||{};state.camp=state.camp||{};
+ state.player.autoSchedule=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);fw19EnsureSchedule(state.player);
+ state.player.happiness=state.player.happiness==null?82:state.player.happiness;state.player.preferences=state.player.preferences||{};
+ state.npcs.forEach(function(n){fw10EnsureNpc(n);fw18EnsureHeart(n);fw19EnsureSchedule(n);if(n.autoSchedule)n.autoSchedule=fw17EnsureAuto(n.autoSchedule,n.x,n.y);});
+ (state.family.children||[]).forEach(function(c,i){fw12EnsureBaby(c,i);});
+ state.customFields=state.customFields||[];state.treasures=state.treasures||[];state.settlement=state.settlement||{rankOverride:null,name:'Frontier Camp'};
+ state.player.recipeBooks=state.player.recipeBooks||{};state.enemies=state.enemies||[];state.wildlife=state.wildlife||[];fw13SpawnWorldActors();
+ $('#dialogPanel').classList.add('hidden');$('#panel').classList.add('hidden');$('#settingsPanel').classList.add('hidden');tap=null;joy.x=joy.y=0;
+ fw13RefreshAutoButton();renderButtons();
+}
+function fw19LoadSlot(slot,backup){
+ const key=fw19SaveKey(slot)+(backup?'.bak':'');
+ try{
+  let raw=localStorage.getItem(key);
+  if(!raw&&slot===1&&!backup)raw=localStorage.getItem('frontier_world_save_v10');
+  if(!raw){msg('📂 セーブデータがありません。');return false;}
+  const data=fw19DecodeSave(raw),loaded=data.state;
+  Object.keys(state).forEach(function(k){delete state[k];});Object.assign(state,loaded);fw19NormalizeAfterLoad();
+  msg('📂 '+(backup?'バックアップ':'セーブ')+'をロードしました。');return true;
+ }catch(e){
+  if(!backup&&localStorage.getItem(fw19SaveKey(slot)+'.bak')){msg('⚠️ 本体セーブに問題。バックアップを試します。');return fw19LoadSlot(slot,true);}
+  msg('⚠️ ロード失敗：'+e.message);return false;
+ }
+}
+fw10SaveGame=function(slot,silent){return fw19WriteSave(slot==null?'autosave':slot,slot==null?true:!!silent);};
+fw10LoadGame=function(slot){return fw19LoadSlot(slot==null?'autosave':slot,false);};
+function fw19SaveMeta(slot){
+ try{const raw=localStorage.getItem(fw19SaveKey(slot));if(!raw)return null;const d=fw19DecodeSave(raw);return {savedAt:d.savedAt,day:d.state.day,name:d.state.player&&d.state.player.name};}catch(e){return {broken:true};}
+}
+function fw19OpenSaveManager(){
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='💾 セーブ管理';
+ const rows=[1,2,3,4,5].map(function(i){const m=fw19SaveMeta(i),bak=!!localStorage.getItem(fw19SaveKey(i)+'.bak');
+  return '<div class="tileCard"><b>スロット '+i+'</b><br>'+(m?(m.broken?'⚠️ 読み込み異常':'Day '+m.day+' / '+(m.name||'YOU')+'<br>'+new Date(m.savedAt).toLocaleString()):'空き')+
+  '<br><button class="smallBtn" data-fw19-save="'+i+'">💾 保存</button> <button class="smallBtn" data-fw19-load="'+i+'" '+(m?'':'disabled')+'>📂 読込</button> '+(bak?'<button class="smallBtn" data-fw19-backup="'+i+'">🛟 前回版</button>':'')+'</div>';
+ }).join('');
+ const a=fw19SaveMeta('autosave');
+ $('#panelBody').innerHTML='<div class="grid3">'+rows+'</div><div class="tileCard"><b>オートセーブ</b><br>'+(a?(a.broken?'⚠️ 読み込み異常':'Day '+a.day+' / '+(a.name||'YOU')):'なし')+'<br><button class="smallBtn" data-fw19-load="autosave" '+(a?'':'disabled')+'>📂 オートセーブ読込</button></div><p class="note">保存時に内容を検証し、同じスロットの一つ前の状態をバックアップとして残します。</p>';
+}
+
+// Settings hooks.
+const fw19PrevRenderSettings=renderSettings;
+renderSettings=function(){
+ fw19PrevRenderSettings();
+ $('#slotEditor').insertAdjacentHTML('beforeend','<div class="tileCard" style="margin-top:10px"><b>💾📅 管理</b><br><button class="smallBtn" data-fw19-settings="save">💾 セーブスロット</button> <button class="smallBtn" data-fw19-settings="schedule">📅 個人予定表</button></div>');
+};
+
+// More conversation exchanges.
+const fw19PrevStartExchange=fw17StartExchange;
+fw17StartExchange=function(n){
+ const rel=n.relationship||'acquaintance';
+ const prompts=[
+  {id:'favorite',text:'そういえば、'+fw18Address(n)+'は何をもらうと一番うれしい？',choices:[['sweet','🍎 食べ物'],['fish','🐟 魚'],['craft','🪵 ものづくり'],['stone','🪨 石'],['nature','🌿 自然']]},
+  {id:'future',text:'この村の未来、どんなふうになったら嬉しい？',choices:[['farm','🌾 畑の町'],['family','🏠 家族の町'],['adventure','🗺️ 冒険の拠点'],['trade','💰 商業の町']]},
+  {id:'mood',text:'今日はどんな気分？',choices:[['good','😄 元気'],['tired','😮‍💨 疲れた'],['go','⚔️ 動きたい'],['slow','☕ のんびり']]},
+  {id:'home',text:'家で一番落ち着く時間っていつ？',choices:[['morning','🌅 朝'],['meal','🍲 食事'],['night','🌙 夜'],['family','👨‍👩‍👧 家族の時間']]},
+  {id:'memory',text:'ここへ来てから、一番印象に残ってることは？',choices:[['meet','🤝 出会い'],['build','🏠 家を建てた時'],['danger','⚔️ 危険を越えた時'],['baby','👶 家族が増えた時']]},
+  {id:'dream',text:'もし丸一日自由なら、何をしたい？',choices:[['sleep','😴 寝る'],['trip','🗺️ 出かける'],['craft','🔨 作る'],['talk','💬 ずっと話す']]},
+  {id:'foodtalk',text:'今夜食べるなら何がいい？',choices:[['stew','🍲 シチュー'],['fish','🐟 魚料理'],['fruit','🍎 果物'],['simple','🥖 簡単なもの']]},
+  {id:'worry',text:'最近ちょっと気になってること、ある？',choices:[['safety','🛡️ 村の安全'],['stock','📦 備蓄'],['family','❤️ 家族'],['none','✨ 特にない']]},
+  {id:'season',text:'どんな天気の日が好き？',choices:[['sun','☀️ 晴れ'],['rain','🌧️ 雨'],['snow','❄️ 雪'],['wind','🍃 風']]},
+  {id:'worktalk',text:'一緒にやるなら何が楽しそう？',choices:[['farm','🌾 農作業'],['hunt','🏹 狩り'],['cook','🍳 料理'],['build','🔨 建築']]}
+ ];
+ const q=prompts[Math.floor(Math.random()*prompts.length)];
+ state.dialog.exchange={id:q.id,choices:q.choices};typeLine(q.text);
+ $('#dialogReplies').innerHTML=q.choices.map(function(c){return '<button data-reply="ex_'+q.id+'_'+c[0]+'" type="button">'+c[1]+'</button>';}).join('')+'<button data-reply="exchangeCancel" type="button">↩ 戻る</button>';
+};
+const fw19PrevExchangeAnswer=fw17ExchangeAnswer;
+fw17ExchangeAnswer=function(n,key){
+ const part=key.split('_'),kind=part[1],ans=part.slice(2).join('_');
+ if(['favorite','future','mood'].includes(kind)){
+  fw19PrevExchangeAnswer(n,key);
+ }else{
+  n.friend=clamp((n.friend||0)+2,0,100);if(n.companion)n.loyalty=clamp((n.loyalty||0)+.8,0,100);fw18HeartGain(n,3);
+  const replies={
+   home:'いいね。そういう時間をちゃんと守れる家にしたいな。',
+   memory:'それ、私も覚えてる。あの時から少しずつ変わったよね。',
+   dream:'それなら今度、本当にそんな日を作ろう。',
+   foodtalk:'じゃあ今度それを作ろう。材料を見ておくね。',
+   worry:'話してくれてありがとう。一人で抱えないでね。',
+   season:'分かる。そんな日に一緒に歩くのもいいね。',
+   worktalk:'いいね。次に時間が合ったら一緒にやろう。'
+  };
+  if(state.dialog)state.dialog.exchange=null;typeLine(replies[kind]||'へえ、そうなんだ。もっと聞きたい。');
+ }
+ if(state.dialog){
+  state.dialog.chatDepth=(state.dialog.chatDepth||0)+1;
+  $('#dialogReplies').innerHTML='<button data-reply="chatContinue" type="button">💬 もうひとつ話す</button><button data-reply="exchangeCancel" type="button">↩ 会話メニューへ</button>';
+ }
+};
+
+const fw19PrevUpdate=update;
+update=function(dt){fw19PrevUpdate(dt);fw19IndoorAutomation(dt);fw19Wellbeing(dt);};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw19]');if(b){
+  e.preventDefault();e.stopImmediatePropagation();
+  if(b.dataset.fw19==='beds')fw12OpenBedArrange();
+  else if(b.dataset.fw19==='furniture')fw19PlaceFurniture(b.dataset.type);
+  else if(b.dataset.fw19==='schedule-toggle'){const a=fw19ActorByKey(state.ui19.scheduleKey)||state.player;fw19EnsureSchedule(a).enabled=!fw19EnsureSchedule(a).enabled;fw19OpenScheduleEditor();}
+  else if(b.dataset.fw19==='balanced'){const a=fw19ActorByKey(state.ui19.scheduleKey)||state.player;a.personalSchedule=fw19DefaultSchedule();fw19OpenScheduleEditor();}
+  else if(b.dataset.fw19==='all-auto'){const a=fw19ActorByKey(state.ui19.scheduleKey)||state.player;const s=fw19EnsureSchedule(a);s.enabled=true;s.blocks=Array(8).fill('auto');if(a.autoSchedule)a.autoSchedule.enabled=true;fw19OpenScheduleEditor();}
+  return;
+ }
+ const save=e.target.closest('[data-fw19-save]');if(save){e.preventDefault();e.stopImmediatePropagation();fw19WriteSave(Number(save.dataset.fw19Save),false);fw19OpenSaveManager();return;}
+ const load=e.target.closest('[data-fw19-load]');if(load){e.preventDefault();e.stopImmediatePropagation();const v=load.dataset.fw19Load;fw19LoadSlot(v==='autosave'?'autosave':Number(v),false);return;}
+ const bak=e.target.closest('[data-fw19-backup]');if(bak){e.preventDefault();e.stopImmediatePropagation();fw19LoadSlot(Number(bak.dataset.fw19Backup),true);return;}
+},true);
+$('#panelBody').addEventListener('change',function(e){
+ const who=e.target.closest('[data-fw19-schedule-actor]');if(who){e.preventDefault();e.stopImmediatePropagation();fw19OpenScheduleEditor(who.value);return;}
+ const block=e.target.closest('[data-fw19-block]');if(block){e.preventDefault();e.stopImmediatePropagation();const a=fw19ActorByKey(state.ui19.scheduleKey)||state.player,s=fw19EnsureSchedule(a);s.blocks[Number(block.dataset.fw19Block)]=block.value;fw19OpenScheduleEditor();return;}
+},true);
+$('#settingsPanel').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw19-settings]');if(b){e.preventDefault();e.stopImmediatePropagation();$('#settingsPanel').classList.add('hidden');if(b.dataset.fw19Settings==='save')fw19OpenSaveManager();else fw19OpenScheduleEditor();return;}
+ const old=e.target.closest('[data-fw10-settings="save"],[data-fw10-settings="load"]');if(old){e.preventDefault();e.stopImmediatePropagation();$('#settingsPanel').classList.add('hidden');fw19OpenSaveManager();}
+},true);
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
