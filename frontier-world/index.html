@@ -4518,6 +4518,335 @@ draw=function(){
  fw20DrawSleepFade();
 };
 
+
+/* FRONTIER_V21_PROACTIVE_DIALOG_LOAD_INDOOR_LIFE */
+state.social21=state.social21||{lastApproachAt:0};
+state.player.conversationMemory=state.player.conversationMemory||{};
+
+// Save/load recovery: keep permanent schedules/gambits, reset only transient runtime state.
+const fw21PrevNormalizeAfterLoad=fw19NormalizeAfterLoad;
+fw19NormalizeAfterLoad=function(){
+ fw21PrevNormalizeAfterLoad();
+ state.sleepFade20=null;state.interior=null;state.dialog=null;state.training=null;state.crafting=null;
+ state.social21=state.social21||{lastApproachAt:0};
+ state.player.conversationMemory=state.player.conversationMemory||{};
+ const resetAuto=function(a,x,y){
+  if(!a)return;
+  fw17EnsureAuto(a,x,y);
+  a.target=null;a.suspendUntil=0;a.actionClock=0;a.activeSlot=-1;a.latchedSlot=-1;
+  a.socialSeen={};a.autoTraining=a.autoTraining||{kind:null,hits:0,cool:0};a.autoTraining.cool=0;
+ };
+ resetAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ state.player._nav19=null;
+ state.npcs.forEach(function(n){
+  n._nav19=null;n.inside20=null;n.followInto20=null;n.approach21=null;
+  if(n.autoSchedule)resetAuto(n.autoSchedule,n.x,n.y);
+ });
+ tap=null;joy.x=joy.y=0;state.resting=false;
+ if(typeof last!=='undefined')last=performance.now();
+ fw13RefreshAutoButton();renderButtons();
+ msg('📂 ロード完了。自動行動・予定表を引き継いで再開します。');
+};
+
+// Less repetitive forms of address while keeping relationship/rank-aware terms available.
+const fw21PrevRelLine=fw12RelLine;
+fw12RelLine=function(n,key){
+ let line=fw21PrevRelLine(n,key);
+ if(typeof line!=='string')return line;
+ if(Math.random()<.74)line=line.replace(/^(あなた|君|パパ|父上|殿|陛下|隊長)、\s*/,'');
+ return line;
+};
+
+function fw21SelfIntro(n){
+ const lines={
+  mio:'はじめまして。Mioです。食料を集めたり、料理をしたりするのが得意。ここを安心して暮らせる場所にしたいな。よろしくね。',
+  riku:'はじめまして、Riku。道具作りや建築が好きなんだ。材料がそろったら、いろいろ作ってみよう。',
+  guard:'初対面だな。ここの警備を担当している。巡回と訓練が仕事だ。危険を見つけたら知らせる。',
+  merchant:'はじめまして。行商をしながら、この野営地で店を開いているよ。買い物も買い取りも任せて。'
+ };
+ return lines[n.id]||('はじめまして。'+n.name+'です。これからよろしく。');
+}
+function fw21OpenNpcDialog(n,reason){
+ if(!n||state.dialog||state.gameOver)return false;
+ state.dialog={speaker:n,initiatedByNpc:true,reason21:reason||'talk'};
+ $('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();
+ let line='';
+ if(!n.introduced21){n.introduced21=true;n.metDay21=state.day;line=fw21SelfIntro(n);}
+ else if(reason==='lowstock')line='ちょっといい？ 食料か水の備蓄が少なくなってきたみたい。早めに集めておいた方がよさそう。';
+ else if(reason==='danger')line='少し話がある。近くに敵の気配がある。出るなら武器とスタミナを確認しておいてくれ。';
+ else if(reason==='crafted')line='頼まれていた物、できたよ。家の倉庫に入れておいたから、あとで見てみて。';
+ else if(reason==='family')line=fw21FamilyLead(n);
+ else line=fw12RelLine(n,'intro');
+ typeLine(line);msg('💬 '+n.name+'から話しかけられた。');
+ n.lastApproachDay21=state.day;n.approach21=null;n.approachCooldown21=25+Math.random()*20;
+ return true;
+}
+function fw21ReasonToApproach(n){
+ if(!n||n.alive===false||n.controlled||n.inside20)return null;
+ if(!n.introduced21)return 'first';
+ if(n.pendingTalk21){const r=n.pendingTalk21;n.pendingTalk21=null;return r;}
+ if(n.role==='guard'&&state.enemies&&state.enemies.some(function(e){return e.alive&&Math.hypot(e.x-state.player.x,e.y-state.player.y)<8;})){
+  if(n.lastDangerDay21!==state.day){n.lastDangerDay21=state.day;return 'danger';}
+ }
+ if(n.companion&&((state.camp.food||0)<4||(state.camp.water||0)<4)&&n.lastStockDay21!==state.day){
+  n.lastStockDay21=state.day;return 'lowstock';
+ }
+ if(n.relationship==='family'&&n.lastFamilyApproach21!==state.day&&state.hour>=7&&state.hour<21&&Math.random()<.28){
+  n.lastFamilyApproach21=state.day;return 'family';
+ }
+ return null;
+}
+function fw21CanApproachNow(){
+ return !state.dialog&&!state.interior&&!state.training&&!state.crafting&&!state.gameOver&&
+  $('#panel').classList.contains('hidden')&&$('#settingsPanel').classList.contains('hidden')&&
+  performance.now()-(state.social21.lastApproachAt||0)>9000;
+}
+function fw21ApproachUpdate(n,dt){
+ if(!fw21CanApproachNow())return false;
+ n.approachCooldown21=(n.approachCooldown21==null?3+Math.random()*6:n.approachCooldown21)-dt;
+ if(!n.approach21&&n.approachCooldown21<=0){
+  n.approachCooldown21=12+Math.random()*18;
+  const reason=fw21ReasonToApproach(n),d=Math.hypot(n.x-state.player.x,n.y-state.player.y);
+  if(reason&&d<=12)n.approach21={reason:reason};
+ }
+ if(!n.approach21)return false;
+ const d=Math.hypot(n.x-state.player.x,n.y-state.player.y);
+ if(d>1.35){
+  setNpcTarget(n,state.player.x,state.player.y,'💬 話したいことがある');
+  if(typeof fw19MoveActor==='function')fw19MoveActor(n,state.player.x,state.player.y,dt,.98);else fw7MoveNpc(n,dt,.98);
+  return true;
+ }
+ state.social21.lastApproachAt=performance.now();
+ fw21OpenNpcDialog(n,n.approach21.reason);return true;
+}
+const fw21PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(fw21ApproachUpdate(n,dt))return;
+ return fw21PrevUpdateNPC(n,dt);
+};
+
+// Completing delegated work gives the NPC a reason to report back later.
+const fw21PrevNpcMake=fw9NpcMake;
+fw9NpcMake=function(n,id){
+ fw21PrevNpcMake(n,id);if(n)n.pendingTalk21='crafted';
+};
+
+// First manual conversation always starts with a proper introduction.
+const fw21PrevTalk=talk;
+talk=function(){
+ fw21PrevTalk();
+ const n=state.dialog&&state.dialog.speaker;
+ if(n&&!n.isChild&&!n.introduced21){
+  n.introduced21=true;n.metDay21=state.day;typeLine(fw21SelfIntro(n));renderDialogReplies();
+ }
+};
+
+// Family everyday episodes and tutorial-like small talk.
+const FW21_FAMILY_EPISODES=[
+ {text:'今日、洗濯物を干してたら片方の靴下だけ風で飛んでいってね。家の裏でやっと見つけた。',
+  choices:[['laugh','😄 それは大変だったね'],['help','🧺 次は手伝うよ'],['more','👂 それで？']]},
+ {text:'朝、誰かが食卓に木の実をひとつだけ置いてたんだ。たぶん「朝ごはん」のつもりだったみたい。',
+  choices:[['cute','😊 かわいいね'],['eat','🍎 食べた？'],['more','👂 それで？']]},
+ {text:'さっき家の前を掃除してたら、昔ここがただの野営地だった頃を思い出したよ。',
+  choices:[['memory','🏕️ 懐かしいね'],['future','🏘️ もっと大きくしよう'],['slow','☕ 今もいいよ']]},
+ {text:'今日はみんなの帰りが少し遅くて、夕飯を温め直すタイミングで迷ったんだ。',
+  choices:[['thanks','🍲 いつもありがとう'],['together','🏠 今度は一緒に作ろう'],['sorry','😅 待たせたね']]},
+ {text:'子どもが木の枝を剣にして、衛兵のまねをしてたよ。本人はかなり真剣だった。',
+  choices:[['cute','😄 見たかった'],['safe','🛡️ 怪我しないようにね'],['train','⚔️ 今度教えてあげよう']]},
+ {tutorial:true,text:'そういえば、荷物が重くなってから毎回手動で戻るの大変じゃない？ 🤔の条件で「持ち物重量が以上 → 運搬」にすると楽だよ。',
+  choices:[['know','👍 やってみる'],['already','✅ もう使ってる'],['teach','❓ 他にもある？']]},
+ {tutorial:true,text:'休息は「スタミナ30以下で開始 → 100まで継続」にすると、少し回復しただけで仕事へ戻らなくなるよ。',
+  choices:[['know','👍 それいいね'],['already','✅ 設定済み'],['teach','❓ 畑は？']]},
+ {tutorial:true,text:'畑は、畑を作る→種をまく→水→肥料→雑草抜き→収穫を自動行動に並べると、かなり手離れが良くなるよ。',
+  choices:[['farm','🌾 試してみる'],['already','✅ もう回してる'],['more','👂 なるほど']]}
+];
+function fw21LastMemory(n){
+ const a=state.player.conversationMemory[n.id]||[];return a.length?a[a.length-1]:null;
+}
+function fw21FamilyLead(n){
+ const mem=fw21LastMemory(n);
+ if(mem&&Math.random()<.28)return 'そういえば前に「'+mem.text.slice(0,26)+'」って話してたよね。ちゃんと覚えてるよ。';
+ return FW21_FAMILY_EPISODES[Math.floor(Math.random()*FW21_FAMILY_EPISODES.length)].text;
+}
+function fw21StartFamilyStory(n){
+ const ep=FW21_FAMILY_EPISODES[Math.floor(Math.random()*FW21_FAMILY_EPISODES.length)];
+ state.dialog.story21={episode:ep};
+ typeLine(ep.text);
+ $('#dialogReplies').innerHTML=ep.choices.map(function(c){return '<button data-reply="story21_'+c[0]+'" type="button">'+c[1]+'</button>';}).join('')+
+  '<button data-fw21="free-open" type="button">✍️ 自分で返す</button><button data-reply="story21_back" type="button">↩ 戻る</button>';
+}
+function fw21StoryReply(n,k){
+ if(k==='story21_back'){state.dialog.story21=null;renderDialogReplies();typeLine('うん。また思い出したら話すね。');return;}
+ const a=k.replace('story21_','');
+ const replies={
+  laugh:'ほんとに。見つからなかったら左右違う靴下で過ごすところだった。',
+  help:'ありがとう。そう言ってもらえるだけでも助かる。',
+  more:'それでね、結局みんなで笑って終わったんだ。',
+  cute:'ね。こういう何でもないこと、あとで思い出すんだろうね。',
+  eat:'ちゃんと分けて食べたよ。意外とおいしかった。',
+  memory:'うん。物は少なかったけど、あの頃にはあの頃の良さがあったね。',
+  future:'楽しみ。少しずつでいいから、一緒に作っていこう。',
+  slow:'そうだね。大きくすることだけが正解じゃないかも。',
+  thanks:'どういたしまして。そう言ってもらえると報われるよ。',
+  together:'いいね。今度は一緒に台所に立とう。',
+  sorry:'大丈夫。帰ってきてくれたから、それでいい。',
+  safe:'うん。遊び場もちゃんと考えないとね。',
+  train:'衛兵に頼んだら、きっと張り切って教えるよ。',
+  know:'うん。設定したらしばらく眺めて、変な動きがないかだけ見てみて。',
+  already:'さすが。じゃあ次は条件の組み合わせを詰められそう。',
+  teach:'あるよ。休息の終了値や畑の連続作業もかなり便利。',
+  farm:'収穫までつながると、暮らしがぐっと安定するよ。'
+ };
+ n.friend=clamp((n.friend||0)+1,0,100);fw18HeartGain(n,2);
+ typeLine(replies[a]||'うん、そうだね。話せてよかった。');
+ $('#dialogReplies').innerHTML='<button data-reply="familyStory" type="button">🏠 もうひとつ聞く</button><button data-reply="chatContinue" type="button">💬 別の話</button><button data-reply="exchangeCancel" type="button">↩ 会話メニュー</button>';
+}
+
+// Free text reply: stored per save/character and referenced later.
+function fw21OpenFreeInput(){
+ const n=getDialogSpeaker();if(!n)return;
+ $('#dialogReplies').innerHTML='<div style="display:grid;grid-template-columns:1fr auto;gap:6px;width:100%"><input id="fw21ChatInput" maxlength="120" placeholder="自由に返事を入力" style="min-height:44px;background:#1d2023;color:#fff;border:1px solid #666;border-radius:10px;padding:0 10px"><button data-fw21="free-send" type="button">送る</button></div><button data-reply="exchangeCancel" type="button">↩ 戻る</button>';
+ const input=document.getElementById('fw21ChatInput');if(input){input.focus();input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();fw21SubmitFreeInput();}});}
+}
+function fw21SubmitFreeInput(){
+ const n=getDialogSpeaker(),input=document.getElementById('fw21ChatInput');if(!n||!input)return;
+ const text=(input.value||'').trim();if(!text)return;
+ const list=state.player.conversationMemory[n.id]||(state.player.conversationMemory[n.id]=[]);
+ list.push({day:state.day,text:text,relation:n.relationship||'acquaintance'});while(list.length>24)list.shift();
+ n.friend=clamp((n.friend||0)+2,0,100);if(n.companion)n.loyalty=clamp((n.loyalty||0)+.4,0,100);fw18HeartGain(n,3);
+ let reply='うん。そういうふうに思ってるんだね。覚えておくよ。';
+ if(/疲|しんど|眠/.test(text))reply='そっか。今日は少し無理を減らそう。休める時に休んでね。';
+ else if(/家族|子ども|赤ちゃん/.test(text))reply='家族のこと、大事に考えてるんだね。私も一緒に守っていきたい。';
+ else if(/好き|楽しい|嬉しい/.test(text))reply='それが好きなんだ。覚えておく。今度その話、また聞かせて。';
+ else if(/怖|心配|不安/.test(text))reply='話してくれてありがとう。一人で抱えなくていいよ。';
+ else if(/畑|農/.test(text))reply='畑のことなんだね。次の作業の時、少し気にして見ておくよ。';
+ typeLine(reply);
+ $('#dialogReplies').innerHTML='<button data-reply="chatContinue" type="button">💬 続ける</button><button data-reply="familyStory" type="button">🏠 今日の話</button><button data-reply="exchangeCancel" type="button">↩ 戻る</button>';
+}
+const fw21PrevStartExchange=fw17StartExchange;
+fw17StartExchange=function(n){
+ fw21PrevStartExchange(n);
+ $('#dialogReplies').insertAdjacentHTML('beforeend','<button data-fw21="free-open" type="button">✍️ 自分で答える</button>');
+};
+
+const fw21PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw21PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n||n.isChild)return;
+ if(state.dialog&&(state.dialog.exchange||state.dialog.story21))return;
+ if(n.relationship==='family')$('#dialogReplies').insertAdjacentHTML('beforeend','<button data-reply="familyStory" type="button">🏠 今日の話</button>');
+};
+const fw21PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();if(!n)return;
+ if(k==='familyStory'){fw21StartFamilyStory(n);return;}
+ if(k.indexOf('story21_')===0){fw21StoryReply(n,k);return;}
+ fw21PrevHandleDialog(k);
+};
+$('#dialogReplies').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw21]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw21==='free-open')fw21OpenFreeInput();
+ else if(b.dataset.fw21==='free-send')fw21SubmitFreeInput();
+},true);
+
+// Indoor life: auto/scheduled chores now walk to the relevant furniture first.
+function fw21AmenityGoal(b,it,type){
+ fw19EnsureAmenities(b);
+ const f=b.amenities19.find(function(x){return x.type===type;});
+ if(f)return {x:clamp(f.x+.42,.65,it.roomW-.65),y:clamp(f.y+.45,.65,it.roomH-.72)};
+ const fallback={
+  bath:{x:it.roomW-1.5,y:it.roomH-1.5},laundry:{x:1.25,y:it.roomH-1.4},
+  clean:{x:1.0,y:1.0},housework:{x:it.roomW/2,y:it.roomH/2},
+  leisure:{x:it.roomW/2+.55,y:it.roomH/2+.55}
+ };
+ return fallback[type]||{x:it.roomW/2,y:it.roomH/2};
+}
+function fw21BedGoal(b,it,index){
+ fw12EnsureBeds(b);const p=b.beds[Math.min(index||0,b.beds.length-1)]||{x:.9,y:.8};
+ return {x:clamp(p.x+.45,.65,it.roomW-.65),y:clamp(p.y+.8,.65,it.roomH-.72)};
+}
+function fw21MoveInteriorPoint(actorPos,actor,goal,dt,speed){
+ const dx=goal.x-actorPos.x,dy=goal.y-actorPos.y,d=Math.hypot(dx,dy);
+ if(d<.14)return true;
+ const step=Math.min(d,dt*(speed||2.0));actorPos.x+=dx/d*step;actorPos.y+=dy/d*step;
+ if(actor)setDirFromVector(actor,dx,dy);return false;
+}
+fw19IndoorAutomation=function(dt){
+ if(!state.interior||!state.player.autoSchedule||!state.player.autoSchedule.enabled)return;
+ const a=state.player.autoSchedule;if(performance.now()<a.suspendUntil)return;
+ const task=fw19ScheduleTask(state.player);
+ let restLatch=false,restUntil=100;
+ if(a.latchedSlot>=0&&a.slots&&a.slots[a.latchedSlot]==='rest'){const c=a.slotConditions[a.latchedSlot];restLatch=true;restUntil=c&&c.untilValue!=null?Number(c.untilValue):100;}
+ if(task==='auto'&&!restLatch){fw10ExitBuilding();return;}
+ const actual=restLatch?'sleep':task,it=state.interior,b=state.buildings.find(function(x){return x.id===it.buildingId;});if(!b)return;
+ a.indoorRoute21=a.indoorRoute21||0;
+ let goal;
+ if(actual==='sleep')goal=fw21BedGoal(b,it,0);
+ else if(actual==='bath')goal=fw21AmenityGoal(b,it,'bath');
+ else if(actual==='laundry')goal=fw21AmenityGoal(b,it,'laundry');
+ else if(actual==='housework')goal=fw21AmenityGoal(b,it,'housework');
+ else if(actual==='leisure')goal=fw21AmenityGoal(b,it,'leisure');
+ else if(actual==='clean'){
+  const pts=[{x:1,y:1},{x:it.roomW-1,y:1},{x:it.roomW-1,y:it.roomH-1.25},{x:1,y:it.roomH-1.25}];
+  goal=pts[a.indoorRoute21%pts.length];
+ }else return;
+ const arrived=fw21MoveInteriorPoint(it.pos,state.player,goal,dt,2.15);
+ state.player.status={sleep:'😴 寝床へ',bath:'🛁 風呂へ',laundry:'🧺 洗濯へ',clean:'🧹 掃除中',housework:'🏠 家事中',leisure:'☕ 家で余暇'}[actual]||'🏠 室内';
+ if(!arrived)return;
+ if(actual==='sleep'){
+  state.player.status='😴 睡眠・休息';state.player.st=clamp(state.player.st+dt*6.2,0,100);state.player.hunger=clamp(state.player.hunger-dt*.012,0,100);
+  if(restLatch&&state.player.st>=restUntil){a.latchedSlot=-1;a.activeSlot=-1;msg('✅ 休息完了：スタミナ '+Math.round(state.player.st));fw10ExitBuilding();}
+ }else if(actual==='bath'){state.player.status='🛁 入浴';state.player.st=clamp(state.player.st+dt*.9,0,100);state.player.happiness=clamp(state.player.happiness+dt*.04,0,100);}
+ else if(actual==='laundry'){state.player.status='🧺 洗濯';state.player.st=clamp(state.player.st-dt*.08,0,100);state.player.happiness=clamp(state.player.happiness+dt*.01,0,100);}
+ else if(actual==='clean'){state.player.st=clamp(state.player.st-dt*.08,0,100);a.indoorCleanClock21=(a.indoorCleanClock21||0)+dt;if(a.indoorCleanClock21>1.4){a.indoorCleanClock21=0;a.indoorRoute21=(a.indoorRoute21+1)%4;}}
+ else if(actual==='housework'){state.player.st=clamp(state.player.st-dt*.05,0,100);}
+ else if(actual==='leisure'){state.player.happiness=clamp(state.player.happiness+dt*.05,0,100);state.player.st=clamp(state.player.st+dt*.35,0,100);}
+};
+
+// Family/companions can enter and visibly walk to chores/furniture indoors.
+fw20CanFollowInside=function(n){
+ return !!(n&&n.alive!==false&&!n.controlled&&(
+  n.relationship==='family'||n.relationship==='lover'||(n.companion&&(n.command||'follow')==='follow')
+ ));
+};
+fw10UpdateInterior=function(dt,jx,jy){
+ // Use the pre-follower interior movement, then manage residents here.
+ fw20PrevInteriorUpdate(dt,jx,jy);
+ const it=state.interior;if(!it)return;
+ const b=state.buildings.find(function(x){return x.id===it.buildingId;}),e=b?fw10Entrance(b):null;
+ if(e){
+  state.npcs.forEach(function(n){
+   if(!fw20CanFollowInside(n)||n.inside20||n.followInto20!==it.buildingId)return;
+   const d=Math.hypot(n.x-e.x,n.y-e.y);
+   if(d<=1.15){fw20AddFollowerInside(n,it);return;}
+   setNpcTarget(n,e.x,e.y,'🚪 家に入る');fw19MoveActor(n,e.x,e.y,dt,.98);
+  });
+ }
+ if(!Array.isArray(it.followers20))it.followers20=[];
+ it.followers20=it.followers20.filter(function(f){const n=state.npcs.find(function(x){return x.id===f.id;});return !!n&&fw20CanFollowInside(n)&&n.inside20===it.buildingId;});
+ it.followers20.forEach(function(f,i){
+  const n=state.npcs.find(function(x){return x.id===f.id;});if(!n)return;
+  let task=fw19ScheduleTask(n),goal;
+  if(task==='auto'&&(n.command||'follow')==='follow'){
+   const off=fw20FollowerOffset(i);goal={x:clamp(it.pos.x+off[0],.75,it.roomW-.75),y:clamp(it.pos.y+off[1],.75,it.roomH-.85)};
+  }else if(task==='sleep')goal=fw21BedGoal(b,it,i+1);
+  else if(task==='bath')goal=fw21AmenityGoal(b,it,'bath');
+  else if(task==='laundry')goal=fw21AmenityGoal(b,it,'laundry');
+  else if(task==='housework')goal=fw21AmenityGoal(b,it,'housework');
+  else if(task==='clean'){
+   n.indoorRoute21=n.indoorRoute21||0;const pts=[{x:1,y:1},{x:it.roomW-1,y:1},{x:it.roomW-1,y:it.roomH-1.3},{x:1,y:it.roomH-1.3}];goal=pts[n.indoorRoute21%pts.length];
+  }else goal=fw21AmenityGoal(b,it,'leisure');
+  const arrived=fw21MoveInteriorPoint(f,n,goal,dt,1.75);
+  if(task==='sleep'&&arrived){n.st=clamp(n.st+dt*4.8,0,100);n.status='😴 室内で睡眠';}
+  else if(task==='bath'&&arrived){n.st=clamp(n.st+dt*.8,0,100);n.happiness=clamp(n.happiness+dt*.035,0,100);n.status='🛁 入浴';}
+  else if(task==='laundry'&&arrived){n.st=clamp(n.st-dt*.07,0,100);n.status='🧺 洗濯';}
+  else if(task==='housework'&&arrived){n.st=clamp(n.st-dt*.05,0,100);n.status='🏠 家事';}
+  else if(task==='clean'&&arrived){n.status='🧹 掃除';n.indoorCleanClock21=(n.indoorCleanClock21||0)+dt;if(n.indoorCleanClock21>1.6){n.indoorCleanClock21=0;n.indoorRoute21=(n.indoorRoute21+1)%4;}}
+  else if(task==='leisure'&&arrived){n.happiness=clamp(n.happiness+dt*.04,0,100);n.status='☕ 室内で余暇';}
+  else if(task==='auto')n.status='🏠 一緒に室内';
+ });
+};
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
