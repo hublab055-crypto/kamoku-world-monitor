@@ -4339,6 +4339,185 @@ $('#settingsPanel').addEventListener('click',function(e){
  const old=e.target.closest('[data-fw10-settings="save"],[data-fw10-settings="load"]');if(old){e.preventDefault();e.stopImmediatePropagation();$('#settingsPanel').classList.add('hidden');fw19OpenSaveManager();}
 },true);
 
+
+/* FRONTIER_V20_SLEEP_FADE_FOLLOWER_INTERIORS */
+state.sleepFade20=state.sleepFade20||null;
+
+function fw20CanFollowInside(n){
+ return !!(n&&n.alive!==false&&!n.controlled&&n.companion&&(n.command||'follow')==='follow');
+}
+function fw20FollowerOffset(i){
+ const p=[[-.85,.25],[.85,.25],[-1.15,.95],[1.15,.95],[-.55,1.55],[.55,1.55]];
+ return p[i%p.length];
+}
+function fw20AddFollowerInside(n,it){
+ if(!n||!it)return;
+ if(!Array.isArray(it.followers20))it.followers20=[];
+ if(it.followers20.some(function(f){return f.id===n.id;}))return;
+ const off=fw20FollowerOffset(it.followers20.length);
+ const f={id:n.id,x:clamp(it.pos.x+off[0],.7,it.roomW-.7),y:clamp(it.pos.y+off[1],.7,it.roomH-.8),dir:'front'};
+ it.followers20.push(f);n.inside20=it.buildingId;n.followInto20=null;n.status='🏠 一緒に室内';
+}
+const fw20PrevEnter=fw10EnterBuilding;
+fw10EnterBuilding=function(b){
+ fw20PrevEnter(b);
+ const it=state.interior;if(!it||it.buildingId!==b.id)return;
+ it.followers20=[];
+ const e=fw10Entrance(b);
+ state.npcs.forEach(function(n){
+  if(!fw20CanFollowInside(n))return;
+  const d=Math.hypot(n.x-e.x,n.y-e.y);
+  if(d<=2.2)fw20AddFollowerInside(n,it);
+  else n.followInto20=b.id;
+ });
+};
+
+const fw20PrevExit=fw10ExitBuilding;
+fw10ExitBuilding=function(){
+ const it=state.interior;
+ if(!it){fw20PrevExit();return;}
+ const b=state.buildings.find(function(x){return x.id===it.buildingId;}),e=b?fw10Entrance(b):{x:state.player.x,y:state.player.y};
+ const ids=(it.followers20||[]).map(function(f){return f.id;});
+ ids.forEach(function(id,i){
+  const n=state.npcs.find(function(x){return x.id===id;});if(!n)return;
+  n.inside20=null;n.followInto20=null;
+  const side=i%2===0?-1:1,row=Math.floor(i/2);
+  n.x=e.x+side*(.6+row*.18);n.y=e.y+.55+row*.28;n.dir='front';n.status='👣 ついて来る';
+ });
+ state.npcs.forEach(function(n){if(n.followInto20===it.buildingId)n.followInto20=null;});
+ fw20PrevExit();
+};
+
+const fw20PrevUpdateNpc=updateNPC;
+updateNPC=function(n,dt){
+ if(n&&n.inside20)return;
+ return fw20PrevUpdateNpc(n,dt);
+};
+const fw20PrevDrawPerson=drawPerson;
+drawPerson=function(p,sprite){
+ if(p&&p.inside20)return;
+ fw20PrevDrawPerson(p,sprite);
+};
+
+const fw20PrevInteriorUpdate=fw10UpdateInterior;
+fw10UpdateInterior=function(dt,jx,jy){
+ fw20PrevInteriorUpdate(dt,jx,jy);
+ const it=state.interior;if(!it)return;
+ const b=state.buildings.find(function(x){return x.id===it.buildingId;}),e=b?fw10Entrance(b):null;
+
+ if(e){
+  state.npcs.forEach(function(n){
+   if(!fw20CanFollowInside(n)||n.inside20||n.followInto20!==it.buildingId)return;
+   const d=Math.hypot(n.x-e.x,n.y-e.y);
+   if(d<=1.15){fw20AddFollowerInside(n,it);return;}
+   setNpcTarget(n,e.x,e.y,'🚪 家に入る');
+   if(typeof fw19MoveActor==='function')fw19MoveActor(n,e.x,e.y,dt,.98);else fw7MoveNpc(n,dt,.98);
+  });
+ }
+
+ if(!Array.isArray(it.followers20))return;
+ it.followers20=it.followers20.filter(function(f){
+  const n=state.npcs.find(function(x){return x.id===f.id;});
+  return !!n&&fw20CanFollowInside(n)&&n.inside20===it.buildingId;
+ });
+ it.followers20.forEach(function(f,i){
+  const n=state.npcs.find(function(x){return x.id===f.id;});if(!n)return;
+  const off=fw20FollowerOffset(i),tx=clamp(it.pos.x+off[0],.75,it.roomW-.75),ty=clamp(it.pos.y+off[1],.75,it.roomH-.85);
+  const dx=tx-f.x,dy=ty-f.y,d=Math.hypot(dx,dy);
+  if(d>.1){
+   const step=Math.min(d,dt*2.15);f.x+=dx/d*step;f.y+=dy/d*step;
+   f.dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'back':'front');
+  }
+  n.status='🏠 一緒に室内';
+ });
+};
+
+function fw20DrawInteriorFollowers(){
+ const it=state.interior;if(!it||!Array.isArray(it.followers20))return;
+ const rw=it.roomW,rh=it.roomH,scale=Math.min((W-150)/rw,(H-190)/rh),ox=(W-rw*scale)/2,oy=80;
+ it.followers20.forEach(function(f){
+  const n=state.npcs.find(function(x){return x.id===f.id;});if(!n)return;
+  const key=(n.sprite||n.portrait||'mio')+'_'+(f.dir||'front'),a=ATLAS[key];if(!a)return;
+  const sz=scale*.65,sx=ox+f.x*scale-sz/2,sy=oy+f.y*scale-sz*.68;
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],sx,sy,sz,sz);
+  ctx.fillStyle='#fff';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText(n.name,ox+f.x*scale,oy+f.y*scale+scale*.41);ctx.restore();
+ });
+}
+const fw20PrevInteriorDraw=fw10DrawInterior;
+fw10DrawInterior=function(){
+ fw20PrevInteriorDraw();
+ fw20DrawInteriorFollowers();
+};
+
+const fw20PrevTalk=talk;
+talk=function(){
+ if(state.interior&&Array.isArray(state.interior.followers20)&&state.interior.followers20.length){
+  let best=null,bd=1.8;
+  state.interior.followers20.forEach(function(f){
+   const d=Math.hypot(f.x-state.interior.pos.x,f.y-state.interior.pos.y);
+   if(d<bd){bd=d;best=f;}
+  });
+  if(best){
+   const n=state.npcs.find(function(x){return x.id===best.id;});
+   if(n){
+    state.dialog={speaker:n};$('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();
+    typeLine(typeof fw12RelLine==='function'?fw12RelLine(n,'intro'):'一緒に入ってきたよ。');
+    msg('💬 '+n.name+'と家の中で会話中。');return;
+   }
+  }
+ }
+ fw20PrevTalk();
+};
+
+function fw20BeginSleepFade(){
+ if(state.sleepFade20)return;
+ state.sleepFade20={t:0,duration:2.4,morning:false};
+ tap=null;joy.x=joy.y=0;state.resting=false;msg('🌙 眠りについた……');
+}
+const fw20PrevRest=rest;
+rest=function(){
+ if(state.interior&&isNight()){
+  state.player.st=100;state.player.hunger=clamp(state.player.hunger-3,0,100);
+  fw20BeginSleepFade();return;
+ }
+ fw20PrevRest();
+};
+function fw20UpdateSleepFade(dt){
+ const tr=state.sleepFade20;if(!tr)return;
+ tr.t+=dt;
+ if(!tr.morning&&tr.t>=tr.duration*.5){
+  tr.morning=true;state.hour=6.5;state.day++;state.player.st=100;
+  if(state.interior&&Array.isArray(state.interior.followers20)){
+   state.interior.followers20.forEach(function(f){
+    const n=state.npcs.find(function(x){return x.id===f.id;});if(n){n.st=clamp(n.st+35,0,100);n.status='☀️ おはよう';}
+   });
+  }
+ }
+ if(tr.t>=tr.duration){state.sleepFade20=null;msg('☀️ 朝になった。');}
+}
+function fw20DrawSleepFade(){
+ const tr=state.sleepFade20;if(!tr)return;
+ const h=tr.duration*.5;
+ let a=tr.t<=h?tr.t/h:(tr.duration-tr.t)/h;a=clamp(a,0,1);
+ ctx.save();ctx.fillStyle='rgba(0,0,0,'+a+')';ctx.fillRect(0,0,W,H);
+ if(a>.76){
+  ctx.fillStyle='rgba(255,255,255,'+(clamp((a-.76)/.24,0,1)*.88)+')';ctx.textAlign='center';ctx.font='18px system-ui';
+  ctx.fillText(tr.morning?'朝……':'おやすみ……',W/2,H/2);
+ }
+ ctx.restore();
+}
+
+const fw20PrevUpdate=update;
+update=function(dt){
+ if(state.sleepFade20){fw20UpdateSleepFade(dt);return;}
+ fw20PrevUpdate(dt);
+};
+const fw20PrevDraw=draw;
+draw=function(){
+ fw20PrevDraw();
+ fw20DrawSleepFade();
+};
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
