@@ -4847,6 +4847,187 @@ fw10UpdateInterior=function(dt,jx,jy){
  });
 };
 
+
+/* FRONTIER_V22_STABLE_LOAD_RECOVERY */
+const FW22_BASE_STATE=(function(){
+ try{return JSON.parse(JSON.stringify(state,function(k,v){
+  if(k==='dialog'||k==='training'||k==='crafting'||k==='_nav19'||k==='target'||k==='task'||k==='approach21'||k==='inside20'||k==='followInto20')return undefined;
+  return v;
+ }));}catch(e){return {};}
+})();
+
+function fw22Clone(v){
+ if(v==null)return v;
+ return JSON.parse(JSON.stringify(v));
+}
+function fw22Merge(base,loaded){
+ if(Array.isArray(loaded))return fw22Clone(loaded);
+ if(loaded&&typeof loaded==='object'){
+  const out=(base&&typeof base==='object'&&!Array.isArray(base))?fw22Clone(base):{};
+  Object.keys(loaded).forEach(function(k){out[k]=fw22Merge(out[k],loaded[k]);});
+  return out;
+ }
+ return loaded;
+}
+function fw22ValidateSaveState(x){
+ if(!x||typeof x!=='object')throw new Error('stateがありません');
+ if(!x.player||typeof x.player!=='object')throw new Error('playerデータがありません');
+ if(!Number.isFinite(Number(x.player.x))||!Number.isFinite(Number(x.player.y)))throw new Error('player座標が不正です');
+ if(!Array.isArray(x.npcs))throw new Error('NPCデータが不正です');
+ if(!Array.isArray(x.tiles)||!x.tiles.length)throw new Error('マップデータがありません');
+ return true;
+}
+function fw22EnsureCore(){
+ state.player=state.player||{};
+ state.player.inv=state.player.inv||{};
+ state.player.skills=Object.assign({sword:0,bow:0,craft:0,cooking:0,tailoring:0,jewelry:0},state.player.skills||{});
+ state.player.items=Array.isArray(state.player.items)?state.player.items:[];
+ state.player.equipment=state.player.equipment||{weapon:'training_sword',tool:null,clothing:null,accessory:null};
+ state.player.preferences=state.player.preferences||{};
+ state.player.conversationMemory=state.player.conversationMemory||{};
+ state.chest=state.chest||{};state.chest.crafted=Array.isArray(state.chest.crafted)?state.chest.crafted:[];
+ state.camp=state.camp||{food:0,water:0,wood:0,stone:0,buildLevel:0};
+ state.family=state.family||{};state.family.children=Array.isArray(state.family.children)?state.family.children:[];
+ state.family.members=Array.isArray(state.family.members)?state.family.members:[];
+ state.family.pregnancies=Array.isArray(state.family.pregnancies)?state.family.pregnancies:[];
+ state.npcs=Array.isArray(state.npcs)?state.npcs:[];
+ state.objects=Array.isArray(state.objects)?state.objects:[];
+ state.buildings=Array.isArray(state.buildings)?state.buildings:[];
+ state.enemies=Array.isArray(state.enemies)?state.enemies:[];
+ state.wildlife=Array.isArray(state.wildlife)?state.wildlife:[];
+ state.customFields=Array.isArray(state.customFields)?state.customFields:[];
+ state.treasures=Array.isArray(state.treasures)?state.treasures:[];
+ state.graves=Array.isArray(state.graves)?state.graves:[];
+ state.ceremonies=Array.isArray(state.ceremonies)?state.ceremonies:[];
+ state.ui19=state.ui19||{scheduleKey:'player'};
+ state.social21=state.social21||{lastApproachAt:0};
+ state.settlement=state.settlement||{rankOverride:null,name:'Frontier Camp'};
+ state.farm=state.farm||fw22Clone(FW22_BASE_STATE.farm)||{x:61,y:55,w:5,h:4,plots:[]};
+ state.player.autoSchedule=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ fw19EnsureSchedule(state.player);
+ state.npcs.forEach(function(n,i){
+  fw10EnsureNpc(n);fw18EnsureHeart(n);fw19EnsureSchedule(n);
+  if(n.autoSchedule)n.autoSchedule=fw17EnsureAuto(n.autoSchedule,n.x,n.y);
+  n._nav19=null;n.inside20=null;n.followInto20=null;n.approach21=null;
+  n._loadResume22=performance.now()+700+i*140;
+ });
+ (state.family.children||[]).forEach(function(c,i){fw12EnsureBaby(c,i);});
+ state.sleepFade20=null;state.dialog=null;state.training=null;state.crafting=null;state.interior=null;
+ state.resting=false;state.gameOver=!!state.gameOver;
+ state.player._nav19=null;
+ state.player.autoSchedule.target=null;state.player.autoSchedule.activeSlot=-1;state.player.autoSchedule.latchedSlot=-1;
+ state.player.autoSchedule.actionClock=0;state.player.autoSchedule.socialSeen={};
+ state.player.autoSchedule.suspendUntil=performance.now()+900;
+ if(!state.buildings.length&&typeof tents!=='undefined'){
+  state.buildings=tents.map(function(t){return Object.assign({},t,{furniture:[]});});
+ }
+ if(!Array.isArray(state.tiles)||!state.tiles.length)throw new Error('マップ復元に失敗しました');
+ tap=null;joy.x=joy.y=0;
+ if(typeof last!=='undefined')last=performance.now();
+}
+function fw22ApplyLoaded(loaded){
+ fw22ValidateSaveState(loaded);
+ const merged=fw22Merge(FW22_BASE_STATE,loaded);
+ const rollback=fw19Snapshot();
+ try{
+  Object.keys(state).forEach(function(k){delete state[k];});
+  Object.assign(state,merged);
+  fw22EnsureCore();
+  // Run existing migrations only after critical defaults exist.
+  fw19NormalizeAfterLoad();
+  fw22EnsureCore();
+  state.loadGrace22=performance.now()+1200;
+  fw13RefreshAutoButton();renderButtons();
+  $('#dialogPanel').classList.add('hidden');$('#panel').classList.add('hidden');$('#settingsPanel').classList.add('hidden');
+  return true;
+ }catch(e){
+  Object.keys(state).forEach(function(k){delete state[k];});
+  Object.assign(state,rollback);
+  try{fw22EnsureCore();}catch(_){}
+  throw e;
+ }
+}
+fw19LoadSlot=function(slot,backup){
+ const key=fw19SaveKey(slot)+(backup?'.bak':'');
+ try{
+  let raw=localStorage.getItem(key);
+  if(!raw&&slot===1&&!backup)raw=localStorage.getItem('frontier_world_save_v10');
+  if(!raw){msg('📂 セーブデータがありません。');return false;}
+  const data=fw19DecodeSave(raw);
+  fw22ApplyLoaded(data.state);
+  msg('📂 '+(backup?'バックアップ':'セーブ')+'をロードしました。少し待ってから再開します。');
+  return true;
+ }catch(e){
+  if(!backup&&localStorage.getItem(fw19SaveKey(slot)+'.bak')){
+   msg('⚠️ 本体セーブの復元で問題。バックアップを試します。');
+   return fw19LoadSlot(slot,true);
+  }
+  msg('⚠️ ロード失敗：'+e.message);
+  return false;
+ }
+};
+fw10LoadGame=function(slot){return fw19LoadSlot(slot==null?'autosave':slot,false);};
+
+// New saves omit transient movement/UI state that can become invalid after reload.
+fw19Snapshot=function(){
+ return JSON.parse(JSON.stringify(state,function(k,v){
+  if(k==='dialog'||k==='training'||k==='crafting'||k==='_nav19'||k==='target'||k==='task'||
+     k==='approach21'||k==='inside20'||k==='followInto20'||k==='sleepFade20'||k==='loadGrace22'||
+     k==='_loadResume22'||k==='navBudget22')return undefined;
+  return v;
+ }));
+};
+fw19EncodeSave=function(){
+ const body=JSON.stringify({version:22,savedAt:Date.now(),state:fw19Snapshot()});
+ return JSON.stringify({hash:fw19Hash(body),body:body});
+};
+
+// Loading can make many actors request A* routes at once. Limit expensive route builds
+// per frame so iPhone does not appear frozen immediately after a load.
+state.navBudget22=2;
+const fw22PrevFindPath=fw19FindPath;
+fw19FindPath=function(actor,tx,ty){
+ if((state.navBudget22||0)<=0)return [];
+ state.navBudget22--;
+ return fw22PrevFindPath(actor,tx,ty);
+};
+const fw22PrevUpdate=update;
+update=function(dt){
+ state.navBudget22=2;
+ if(state.loadGrace22&&performance.now()<state.loadGrace22){
+  state.hour+=dt*.01;
+  return;
+ }
+ state.loadGrace22=0;
+ fw22PrevUpdate(dt);
+};
+const fw22PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(n&&n._loadResume22&&performance.now()<n._loadResume22){
+  n.status='📂 再開準備';return;
+ }
+ if(n)n._loadResume22=0;
+ return fw22PrevUpdateNPC(n,dt);
+};
+
+// Last-resort frame recovery: a single bad migrated field no longer kills the RAF loop.
+const fw22RawLoop=loop;
+let fw22FrameErrorCount=0;
+loop=function(t){
+ try{
+  fw22RawLoop(t);
+  fw22FrameErrorCount=0;
+ }catch(e){
+  fw22FrameErrorCount++;
+  try{
+   last=performance.now();
+   if(state&&state.player&&state.player.autoSchedule)state.player.autoSchedule.suspendUntil=performance.now()+1800;
+   msg('⚠️ 復旧中：'+(e&&e.message?e.message:'描画エラー'));
+  }catch(_){}
+  if(fw22FrameErrorCount<20)raf=requestAnimationFrame(loop);
+ }
+};
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
