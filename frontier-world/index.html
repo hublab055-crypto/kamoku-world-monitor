@@ -5028,6 +5028,96 @@ loop=function(t){
  }
 };
 
+
+/* FRONTIER_V23_LOAD_TRAININGGROUND_REPAIR */
+const FW23_TRAINING_GROUND_DEFAULT={
+ dummy:{x:33.5,y:46.4},
+ target:{x:33.5,y:49.2},
+ swordStand:{x:35.4,y:46.4},
+ bowStand:{x:38.0,y:49.2}
+};
+function fw23Point(v,d){
+ if(!v||typeof v!=='object')return {x:d.x,y:d.y};
+ const x=Number(v.x),y=Number(v.y);
+ return {x:Number.isFinite(x)?x:d.x,y:Number.isFinite(y)?y:d.y};
+}
+function fw23EnsureTrainingGround(){
+ const g=(state.trainingGround&&typeof state.trainingGround==='object')?state.trainingGround:{};
+ state.trainingGround={
+  dummy:fw23Point(g.dummy,FW23_TRAINING_GROUND_DEFAULT.dummy),
+  target:fw23Point(g.target,FW23_TRAINING_GROUND_DEFAULT.target),
+  swordStand:fw23Point(g.swordStand,FW23_TRAINING_GROUND_DEFAULT.swordStand),
+  bowStand:fw23Point(g.bowStand,FW23_TRAINING_GROUND_DEFAULT.bowStand)
+ };
+ return state.trainingGround;
+}
+function fw23RepairLoadedState(){
+ fw23EnsureTrainingGround();
+ state.projectiles=Array.isArray(state.projectiles)?state.projectiles:[];
+ state.enemies=Array.isArray(state.enemies)?state.enemies:[];
+ state.wildlife=Array.isArray(state.wildlife)?state.wildlife:[];
+ state.player=state.player||{};
+ state.player.inv=state.player.inv||{};
+ state.player.skills=Object.assign({sword:0,bow:0,craft:0,cooking:0,tailoring:0,jewelry:0},state.player.skills||{});
+ state.player.autoSchedule=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ state.npcs=Array.isArray(state.npcs)?state.npcs:[];
+ state.npcs.forEach(function(n){
+  fw10EnsureNpc(n);
+  if(n.autoSchedule)n.autoSchedule=fw17EnsureAuto(n.autoSchedule,n.x,n.y);
+ });
+ if(typeof fw13SpawnWorldActors==='function')fw13SpawnWorldActors();
+ state.loadGrace22=performance.now()+900;
+ if(typeof last!=='undefined')last=performance.now();
+}
+fw23EnsureTrainingGround();
+
+// Older saves may contain null/missing training-ground children.
+// Repair immediately after every load before the next animation frame.
+const fw23PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fw23PrevLoadGame(slot);
+ if(ok!==false){
+  try{
+   fw23RepairLoadedState();
+   msg('📂 ロード完了。旧セーブの不足データも補修しました。');
+  }catch(e){
+   msg('⚠️ ロード後補修に失敗：'+(e&&e.message?e.message:e));
+   return false;
+  }
+ }
+ return ok;
+};
+
+// Guard all hot paths too, so one malformed save field cannot kill RAF.
+const fw23PrevBlocked=blocked;
+blocked=function(x,y){fw23EnsureTrainingGround();return fw23PrevBlocked(x,y);};
+const fw23PrevDraw=draw;
+draw=function(){fw23EnsureTrainingGround();return fw23PrevDraw();};
+const fw23PrevUpdate=update;
+update=function(dt){fw23EnsureTrainingGround();return fw23PrevUpdate(dt);};
+fw14TrainingPos=function(kind){
+ const g=fw23EnsureTrainingGround();
+ return kind==='trainSword'?g.swordStand:g.bowStand;
+};
+fw14TrainingTarget=function(kind){
+ const g=fw23EnsureTrainingGround();
+ return kind==='trainSword'?g.dummy:g.target;
+};
+
+// Save transient navigation targets without accidentally deleting trainingGround.target.
+fw19Snapshot=function(){
+ return JSON.parse(JSON.stringify(state,function(k,v){
+  if(k==='target'){
+   if(this===state.trainingGround)return v;
+   return undefined;
+  }
+  if(k==='dialog'||k==='training'||k==='crafting'||k==='_nav19'||k==='task'||
+     k==='approach21'||k==='inside20'||k==='followInto20'||k==='sleepFade20'||k==='loadGrace22'||
+     k==='_loadResume22'||k==='navBudget22')return undefined;
+  return v;
+ }));
+};
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
