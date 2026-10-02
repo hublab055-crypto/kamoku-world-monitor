@@ -1,0 +1,58 @@
+{
+  "project": "Frontier World",
+  "updated_at": "2026-10-03T06:00:00+09:00",
+  "repository": "hublab055-crypto/kamoku-world-monitor",
+  "branch": "main",
+  "game_path": "frontier-world/index.html",
+  "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
+  "implementation_version": "V22",
+  "game_commit": "a90ec292f93b798618af99e85b7eb49c22545455",
+  "spec_path": "frontier-world/SPEC.md",
+  "collaboration_path": "frontier-world/COLLAB.md",
+  "dialogue_path": "frontier-world/data/dialogue-pack.json",
+  "spec_viewer_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/spec/",
+  "implemented": [
+    "day-night and sleep fade",
+    "enterable tents and houses",
+    "following companions can enter interiors",
+    "resources and collision",
+    "A* fallback pathfinding and load-time staggered recovery",
+    "companions, recruitment, orders, loyalty and inventory",
+    "crafting, cooking, quality, equipment and recipe books",
+    "shops and item trading",
+    "combat, flying arrows, hunting, fishing and training",
+    "farming, planting, watering, fertilizing, weeding and harvesting",
+    "conditional gambit auto-actions with hysteresis",
+    "4 initial auto slots, +1 each 5 auto levels, maximum 10",
+    "per-character schedules and happiness/loyalty tradeoff",
+    "former controlled characters continue their own schedules and gambits",
+    "relationship-specific dialogue, titles, multi-turn conversations and memory",
+    "heart meter 0-200; couple time unlocks at 200 and resets to 100",
+    "pregnancy delay, baby care, growth, marriage, ceremonies, graves and succession",
+    "five manual save slots, autosave, backups, checksum and migration recovery"
+  ],
+  "partial_or_planned": [
+    "runtime loading of dialogue-pack.json",
+    "castle construction and full territory progression",
+    "recruiting multiple guards as a proper economy/system",
+    "cloud/exportable saves",
+    "full modular split of the monolithic index.html",
+    "large-population AI optimization"
+  ],
+  "known_issues": [
+    "index.html is very large and prone to merge/regression risk",
+    "dense dynamic obstacles may still produce pathfinding stalls",
+    "dialogue content exists both in game code and external staging pack until loader integration"
+  ],
+  "collaboration": {
+    "gameplay_owner": [
+      "frontier-world/index.html",
+      "frontier-world/SPEC.md",
+      "frontier-world/project-state.json"
+    ],
+    "dialogue_owner": [
+      "frontier-world/data/dialogue-pack.json"
+    ],
+    "rule": "Do not have two chats edit frontier-world/index.html concurrently. Always refetch latest SHA before writes."
+  }
+}
