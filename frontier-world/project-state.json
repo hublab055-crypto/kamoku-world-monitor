@@ -1,6 +1,6 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-04T07:17:00+09:00",
+  "updated_at": "2026-10-04T07:32:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
@@ -31,7 +31,8 @@
     "pregnancy delay, baby care, growth, marriage, ceremonies, graves and succession",
     "five manual save slots, autosave, backups, checksum and migration recovery",
     "indoor furniture drag rearrangement and deletion with protected occupied cribs",
-    "human-facing Creator Suite authoring editors with JSON import/export and validation"
+    "human-facing Creator Suite authoring editors with JSON import/export and validation",
+    "Creator Suite image asset editor with paint tools, IndexedDB storage, recoverable trash and PNG export"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -64,6 +65,7 @@
     "editors": [
       "characters",
       "sprites",
+      "image_assets",
       "dialogue",
       "items",
       "recipes",
@@ -75,12 +77,15 @@
       "economy_shops",
       "world_layout",
       "validation_json"
-    ]
+    ],
+    "image_storage": "IndexedDB: frontier-world-creator-assets",
+    "image_trash": "soft delete with restore; permanent delete only from trash"
   },
   "next_tasks": [
     "split hardcoded content definitions into frontier-world/data files",
     "add runtime loaders for Creator Suite exported content",
     "connect dialogue-pack.json to game runtime",
-    "add multi-cell world objects, layers and collision preview to Creator Suite"
+    "add multi-cell world objects, layers and collision preview to Creator Suite",
+    "connect Creator Suite image asset manifest and exported PNG assets to game runtime"
   ]
 }
