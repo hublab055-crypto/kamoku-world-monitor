@@ -25,11 +25,13 @@
       <button class="nav active" data-view="dashboard">🏕️ <span>概要</span></button>
       <button class="nav" data-view="characters">🧑 <span>キャラクター</span></button>
       <button class="nav" data-view="sprites">🎞️ <span>スプライト</span></button>
+      <button class="nav" data-view="images">🎨 <span>画像エディタ</span></button>
       <button class="nav" data-view="dialogue">💬 <span>会話</span></button>
       <button class="nav" data-view="items">🎒 <span>アイテム</span></button>
       <button class="nav" data-view="recipes">🛠️ <span>レシピ</span></button>
       <button class="nav" data-view="buildings">🏠 <span>建物・家具</span></button>
-      <button class="nav" data-view="gambits">🤖 <span>AI・ガンビット</span></button>\n      <button class="nav" data-view="schedules">🕒 <span>個人予定表</span></button>
+      <button class="nav" data-view="gambits">🤖 <span>AI・ガンビット</span></button>
+      <button class="nav" data-view="schedules">🕒 <span>個人予定表</span></button>
       <button class="nav" data-view="quests">📜 <span>クエスト</span></button>
       <button class="nav" data-view="events">🎉 <span>イベント</span></button>
       <button class="nav" data-view="economy">🪙 <span>経済・店</span></button>
@@ -116,6 +118,82 @@
         </div>
       </section>
 
+
+      <section class="view" id="view-images">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">IMAGE ASSETS</div>
+            <h2>画像エディタ</h2>
+            <p>新規作成、画像取込、ペイント編集、ゴミ箱への移動、復元、PNG書き出しを行います。</p>
+          </div>
+          <div class="view-actions">
+            <button id="btnImageNew" class="primary">＋ 新規作成</button>
+            <button id="btnImageImport" class="ghost">画像を取込</button>
+            <button id="btnImageTrashView" class="ghost">🗑️ ゴミ箱</button>
+            <input id="imageImportInput" type="file" accept="image/png,image/webp,image/jpeg" hidden>
+          </div>
+        </div>
+
+        <div class="image-editor-layout">
+          <aside class="panel image-library-panel">
+            <div class="image-library-head">
+              <input id="imageSearch" class="search" placeholder="画像を検索">
+              <div class="image-library-tabs">
+                <button id="btnImageLibraryTab" class="ghost active">ライブラリ</button>
+                <button id="btnImageTrashTab" class="ghost">ゴミ箱</button>
+              </div>
+            </div>
+            <div id="imageLibrary" class="image-library"></div>
+          </aside>
+
+          <div class="image-editor-main">
+            <div class="panel image-toolbar">
+              <div class="image-tool-group">
+                <button class="image-tool active" data-image-tool="brush" title="ブラシ">🖌️</button>
+                <button class="image-tool" data-image-tool="eraser" title="消しゴム">⌫</button>
+                <button class="image-tool" data-image-tool="line" title="直線">╱</button>
+                <button class="image-tool" data-image-tool="fill" title="塗りつぶし">🪣</button>
+                <button class="image-tool" data-image-tool="eyedropper" title="スポイト">💧</button>
+              </div>
+              <label class="mini-field"><span>色</span><input id="imageColor" type="color" value="#222222"></label>
+              <label class="mini-field size-field"><span>太さ</span><input id="imageBrushSize" type="range" min="1" max="64" value="4"><b id="imageBrushSizeValue">4</b></label>
+              <div class="image-tool-group">
+                <button id="btnImageUndo" class="ghost" title="元に戻す">↶</button>
+                <button id="btnImageRedo" class="ghost" title="やり直し">↷</button>
+                <button id="btnImageClear" class="ghost">全消去</button>
+              </div>
+              <label class="mini-field zoom-field"><span>表示</span><select id="imageZoom">
+                <option value="0.5">50%</option><option value="1" selected>100%</option>
+                <option value="2">200%</option><option value="4">400%</option><option value="8">800%</option>
+              </select></label>
+            </div>
+
+            <div class="panel image-canvas-panel">
+              <div id="imageCanvasViewport" class="image-canvas-viewport checker">
+                <canvas id="imagePaintCanvas" width="256" height="256"></canvas>
+              </div>
+            </div>
+
+            <div class="panel image-meta-panel">
+              <div class="image-meta-grid">
+                <label class="field"><span>画像名</span><input id="imageName"></label>
+                <label class="field"><span>用途 / タグ</span><input id="imageTags" placeholder="mio, face, ui"></label>
+                <div class="image-dimensions"><span id="imageDimensions">256 × 256 px</span></div>
+              </div>
+              <label class="field"><span>メモ</span><textarea id="imageNotes" rows="2"></textarea></label>
+              <div class="image-bottom-actions">
+                <button id="btnImageSave" class="primary">保存</button>
+                <button id="btnImageExportPng" class="ghost">PNG書き出し</button>
+                <button id="btnImageDuplicate" class="ghost">複製</button>
+                <button id="btnImageDelete" class="danger">🗑️ ゴミ箱へ</button>
+                <button id="btnImageRestore" class="primary" hidden>↩ 復元</button>
+                <button id="btnImageDeleteForever" class="danger" hidden>完全削除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-dialogue">
         <div class="view-head">
           <div><div class="eyebrow">NARRATIVE</div><h2>会話エディタ</h2><p>既存の <code>data/dialogue-pack.json</code> を直接扱える形式です。</p></div>
@@ -193,5 +271,6 @@
 
   <div id="toast" class="toast"></div>
   <script src="./app.js"></script>
+  <script src="./image-editor.js"></script>
 </body>
 </html>
