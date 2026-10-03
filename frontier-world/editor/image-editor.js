@@ -180,22 +180,31 @@ function syncMeta(){
   $("#btnImageDelete").hidden=!has || !!current.deletedAt;
   $("#btnImageRestore").hidden=!has || !current.deletedAt;
   $("#btnImageDeleteForever").hidden=!has || !current.deletedAt;
-  ["imageName","imageTags","imageNotes","btnImageSave","btnImageExportPng","btnImageDuplicate","btnImageClear","btnImageUndo","btnImageRedo"].forEach(id=>{
-    const el=$("#"+id); if(el) el.disabled=!has;
+  const editable=has && !current.deletedAt;
+  ["imageName","imageTags","imageNotes","btnImageSave","btnImageDuplicate","btnImageClear","btnImageUndo","btnImageRedo"].forEach(id=>{
+    const el=$("#"+id); if(el) el.disabled=!editable;
   });
+  $("#btnImageExportPng").disabled=!has;
+  $(".image-tool").forEach(el=>el.disabled=!editable);
+  $("#imageColor").disabled=!editable;
+  $("#imageBrushSize").disabled=!editable;
 }
 
 async function saveCurrent(silent=false){
-  if(!current) return;
-  current.name=$("#imageName").value.trim()||current.name||"image";
-  current.tags=$("#imageTags").value.trim();
-  current.notes=$("#imageNotes").value;
-  current.width=canvas.width; current.height=canvas.height;
-  current.blob=await canvasBlob("image/png");
-  current.updatedAt=Date.now();
-  await dbPut(current);
+  if(!current || current.deletedAt) return;
+  const target=current;
+  const meta={
+    name:$("#imageName").value.trim()||target.name||"image",
+    tags:$("#imageTags").value.trim(),
+    notes:$("#imageNotes").value,
+    width:canvas.width,
+    height:canvas.height
+  };
+  const blob=await canvasBlob("image/png");
+  Object.assign(target,meta,{blob,updatedAt:Date.now()});
+  await dbPut(target);
   await renderLibrary();
-  if(!silent) toast("画像を保存しました");
+  if(!silent && current && current.id===target.id) toast("画像を保存しました");
 }
 
 async function renderLibrary(){
