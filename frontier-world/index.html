@@ -5656,6 +5656,115 @@ fw24UseToilet=function(){
  if(!state.player.toiletMsg25||now-state.player.toiletMsg25>4500){state.player.toiletMsg25=now;msg('🚽 トイレを済ませた。');}
 };
 
+
+/* FRONTIER_V26_SAVE_MIGRATION_HOTFIX */
+function fw26DefaultSeedDrops(){
+ return [
+  {x:30,y:45,taken:false},{x:59,y:57,taken:false},{x:68,y:42,taken:false},
+  {x:40,y:31,taken:false},{x:73,y:62,taken:false},{x:25,y:58,taken:false}
+ ];
+}
+function fw26EnsureLatestState(){
+ state.player=state.player||{};
+ state.player.inv=state.player.inv||{};
+ state.player.skills=state.player.skills||{};
+ state.chest=state.chest||{};
+ state.camp=state.camp||{food:0,water:0,wood:0,stone:0,buildLevel:0};
+ state.family=state.family||{children:[],members:[],pregnancies:[],lastDay:state.day||1};
+ state.family.children=Array.isArray(state.family.children)?state.family.children:[];
+ state.family.members=Array.isArray(state.family.members)?state.family.members:[];
+ state.family.pregnancies=Array.isArray(state.family.pregnancies)?state.family.pregnancies:[];
+ state.objects=Array.isArray(state.objects)?state.objects:[];
+ state.buildings=Array.isArray(state.buildings)?state.buildings:[];
+ state.npcs=Array.isArray(state.npcs)?state.npcs:[];
+ state.projectiles=Array.isArray(state.projectiles)?state.projectiles:[];
+ state.enemies=Array.isArray(state.enemies)?state.enemies:[];
+ state.wildlife=Array.isArray(state.wildlife)?state.wildlife:[];
+ state.graves=Array.isArray(state.graves)?state.graves:[];
+ state.customFields=Array.isArray(state.customFields)?state.customFields:[];
+ state.treasures=Array.isArray(state.treasures)?state.treasures:[
+  {id:'treasure_recipe_1',x:27,y:36,opened:false},
+  {id:'treasure_recipe_2',x:70,y:57,opened:false},
+  {id:'treasure_recipe_3',x:64,y:28,opened:false}
+ ];
+ state.seedDrops24=Array.isArray(state.seedDrops24)?state.seedDrops24:fw26DefaultSeedDrops();
+ state.meal24=state.meal24||{key:null,active:false};
+ state.greeting24=state.greeting24||{};
+ state.player.bladder=state.player.bladder==null?18:state.player.bladder;
+ state.player.hygiene=state.player.hygiene==null?82:state.player.hygiene;
+ state.player.happiness=state.player.happiness==null?80:state.player.happiness;
+ state.player.recipeBooks=state.player.recipeBooks||{};
+ ['wood','stone','food','water','fiber','fish','treeSeed','cropSeed','fertilizer','wheatSeed','tomatoSeed','eggplantSeed','wheat','tomato','eggplant'].forEach(function(k){
+  state.player.inv[k]=Number(state.player.inv[k]||0);
+  state.chest[k]=Number(state.chest[k]||0);
+ });
+ if(!Array.isArray(state.recipesKnown))state.recipesKnown=Object.keys(FW8_RECIPES||{});
+ if(state.player.weaponAnim&&(!Number.isFinite(state.player.weaponAnim.until)||state.player.weaponAnim.until<=performance.now()))state.player.weaponAnim=null;
+ if(state.player.trainingKind&&!state.training)state.player.trainingKind=null;
+ state.npcs.forEach(function(n){
+  if(n.weaponAnim&&(!Number.isFinite(n.weaponAnim.until)||n.weaponAnim.until<=performance.now()))n.weaponAnim=null;
+  if(n.role!=='guard'&&!state.training)n.trainingKind=null;
+  if(!n.inv)n.inv={wood:0,stone:0,food:0,water:0,fiber:0,fish:0};
+ });
+ return state;
+}
+fw26EnsureLatestState();
+
+const fw26PrevRepairLoaded=fw23RepairLoadedState;
+fw23RepairLoadedState=function(){
+ fw26PrevRepairLoaded();
+ fw26EnsureLatestState();
+ state.player.weaponAnim=null;
+ state.player.trainingKind=null;
+ state.projectiles=[];
+ state.npcs.forEach(function(n){n.weaponAnim=null;if(n.role!=='guard')n.trainingKind=null;});
+};
+
+const fw26PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fw26PrevLoadGame(slot);
+ try{
+  fw26EnsureLatestState();
+  state.player.weaponAnim=null;
+  state.player.trainingKind=null;
+  if(ok!==false)msg('📂 ロード完了。最新データ形式へ補修しました。');
+ }catch(e){
+  msg('⚠️ ロード補修エラー：'+(e&&e.message?e.message:e));
+  return false;
+ }
+ return ok;
+};
+
+const fw26PrevDraw=draw;
+draw=function(){
+ fw26EnsureLatestState();
+ return fw26PrevDraw();
+};
+const fw26PrevUpdate=update;
+update=function(dt){
+ fw26EnsureLatestState();
+ if(state.player.weaponAnim&&state.player.weaponAnim.until<=performance.now())state.player.weaponAnim=null;
+ state.npcs.forEach(function(n){if(n.weaponAnim&&n.weaponAnim.until<=performance.now())n.weaponAnim=null;});
+ return fw26PrevUpdate(dt);
+};
+const fw26PrevAction=action;
+action=function(){
+ fw26EnsureLatestState();
+ return fw26PrevAction();
+};
+
+// V24 hot paths must tolerate old saves even before the migration wrapper finishes.
+fw24NearestSeedDrop=function(){
+ fw26EnsureLatestState();
+ let best=null,bd=1.35;
+ state.seedDrops24.forEach(function(s){if(s.taken)return;const d=Math.hypot(s.x-state.player.x,s.y-state.player.y);if(d<bd){bd=d;best=s;}});
+ return best;
+};
+fw24DrawSeedDrops=function(){
+ fw26EnsureLatestState();
+ state.seedDrops24.forEach(function(d){if(d.taken)return;const s=worldToScreen(d.x,d.y);ctx.save();ctx.font='20px system-ui';ctx.textAlign='center';ctx.fillText('🌰',s.x+TILE/2,s.y+TILE*.72);ctx.restore();});
+};
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
