@@ -6048,6 +6048,347 @@ fw26EnsureLatestState=function(){
  return st;
 };
 
+
+/* FRONTIER_V28_DINING_TIME_FURNITURE */
+// ---- dining loop + explicit time trigger + clearer furniture rearranging ----
+Object.assign(FW11_PRIORITY,{
+ serveMeal:{icon:'🍽️',label:'料理を配膳する',desc:'作った料理を食卓の皿に盛り付ける'},
+ eatMeal:{icon:'😋',label:'配膳した料理を食べる',desc:'食卓に配膳された料理を食べる'},
+ clearDishes:{icon:'🧽',label:'空いた皿を片付ける',desc:'食後の皿を片付けて食卓をきれいにする'}
+});
+FW15_CONDITIONS.timeAt={label:'指定時刻になったら',numeric:false,time:true};
+
+function fw28ParseTime(v){
+ if(typeof v==='number'&&Number.isFinite(v))return ((v%24)+24)%24;
+ const m=String(v||'11:00').match(/^(\d{1,2}):(\d{2})$/);
+ if(!m)return 11;
+ return (clamp(Number(m[1]),0,23)+clamp(Number(m[2]),0,59)/60)%24;
+}
+function fw28TimeText(v){
+ const h=fw28ParseTime(v),hh=Math.floor(h),mm=Math.round((h-hh)*60)%60;
+ return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+}
+const fw28PrevDefaultCond=fw15DefaultValue;
+fw15DefaultValue=function(type){
+ if(type==='timeAt')return '11:00';
+ return fw28PrevDefaultCond(type);
+};
+const fw28PrevCondText=fw15CondText;
+fw15CondText=function(c){
+ if(c&&c.type==='timeAt')return '時刻 '+fw28TimeText(c.value||'11:00');
+ return fw28PrevCondText(c);
+};
+const fw28PrevConditionPass=fw15ConditionPass;
+fw15ConditionPass=function(c){
+ if(c&&c.type==='timeAt'){
+  if(c.lastTriggeredDay===state.day)return false;
+  const target=fw28ParseTime(c.value||'11:00'),now=((state.hour%24)+24)%24,delta=(now-target+24)%24;
+  return delta>=0&&delta<.75; // 45 game-minutes: missed frames / indoor travel still trigger reliably.
+ }
+ return fw28PrevConditionPass(c);
+};
+function fw28MarkTimeTrigger(a){
+ if(!a||a.activeSlot==null||a.activeSlot<0||!a.slotConditions)return;
+ const c=a.slotConditions[a.activeSlot];
+ if(c&&c.type==='timeAt'&&c.lastTriggeredDay!==state.day)c.lastTriggeredDay=state.day;
+}
+
+function fw28EnsureDining(b){
+ if(!b)return {served:[],dirty:0};
+ if(!b.dining28)b.dining28={served:[],dirty:0,lastMeal:null};
+ if(!Array.isArray(b.dining28.served))b.dining28.served=[];
+ b.dining28.dirty=Number(b.dining28.dirty||0);
+ return b.dining28;
+}
+function fw28HomeBuilding(){
+ return (typeof fw19HomeFor==='function'?fw19HomeFor(state.player):null)||state.buildings.find(function(b){return b.id==='player';})||null;
+}
+function fw28CurrentDining(){
+ const b=state.interior?state.buildings.find(function(x){return x.id===state.interior.buildingId;}):fw28HomeBuilding();
+ return b?fw28EnsureDining(b):null;
+}
+function fw28TablePos(b,rw,rh){
+ if(!b)return null;
+ fw19EnsureAmenities(b);
+ const amen=b.amenities19.find(function(f){return f.type==='table';});
+ if(amen)return {x:amen.x,y:amen.y};
+ const legacy=fw25EnsureLegacyFurniture(b,rw||7,rh||6).find(function(f){return f.type==='table';});
+ return legacy?{x:legacy.x,y:legacy.y}:null;
+}
+function fw28HasTable(b){
+ if(!b)return false;
+ return !!fw28TablePos(b,state.interior?state.interior.roomW:7,state.interior?state.interior.roomH:6);
+}
+function fw28PreparedCount(){
+ return (state.player.items||[]).filter(function(it){return it.cat==='food';}).length+
+  (state.chest.crafted||[]).filter(function(it){return it.cat==='food';}).length;
+}
+function fw28TakePrepared(){
+ let i=(state.player.items||[]).findIndex(function(it){return it.cat==='food';});
+ if(i>=0)return state.player.items.splice(i,1)[0];
+ i=(state.chest.crafted||[]).findIndex(function(it){return it.cat==='food';});
+ if(i>=0)return state.chest.crafted.splice(i,1)[0];
+ return null;
+}
+function fw28ServeOne(silent){
+ const d=fw28CurrentDining(),it=fw28TakePrepared();
+ if(!d){if(!silent)msg('🍽️ 食卓が見つからない。');return false;}
+ if(!it){if(!silent)msg('🍽️ 配膳できる完成済みの料理がない。先に料理しよう。');return false;}
+ d.served.push({name:it.name||'料理',quality:Number(it.quality||1),icon:it.icon||'🍲'});
+ d.lastMeal=it.name||'料理';
+ state.player.st=clamp(state.player.st-1,0,100);
+ if(!silent)msg('🍽️ '+(it.name||'料理')+'を皿に盛って食卓へ配膳した。');
+ return true;
+}
+function fw28EatOne(silent){
+ const d=fw28CurrentDining();if(!d||!d.served.length){if(!silent)msg('😋 食卓に料理が配膳されていない。');return false;}
+ const m=d.served.shift(),q=Number(m.quality||1);
+ state.player.hunger=clamp(state.player.hunger+30+q*5,0,100);
+ state.player.st=clamp(state.player.st+8+q*2,0,100);
+ state.player.happiness=clamp((state.player.happiness||80)+3+q,0,100);
+ d.dirty++;if(!silent)msg('😋 '+m.name+'を食べた。空いた皿が残った。');
+ return true;
+}
+function fw28ClearDishes(silent){
+ const d=fw28CurrentDining();if(!d||d.dirty<=0){if(!silent)msg('🧽 片付ける皿はない。');return false;}
+ const n=d.dirty;d.dirty=0;state.player.st=clamp(state.player.st-2,0,100);
+ state.player.happiness=clamp((state.player.happiness||80)+1,0,100);
+ if(!silent)msg('🧽 空いた皿 '+n+'枚を片付けた。');
+ return true;
+}
+function fw28OpenDiningMenu(){
+ if(!state.interior){msg('🏠 家の中のキッチン・食卓で行って。');return;}
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;}),d=fw28EnsureDining(b);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🍳 キッチン・食卓';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>食卓の状態</b><br>🍽️ 配膳 '+d.served.length+'皿 / 🧽 空き皿 '+d.dirty+'枚 / 🍲 完成料理 '+fw28PreparedCount()+'個</div>'+
+  '<div class="grid3">'+
+   '<button class="smallBtn" data-fw28="cook">🍳 料理する</button>'+
+   '<button class="smallBtn" data-fw28="serve" '+(fw28PreparedCount()?'':'disabled')+'>🍽️ 皿に盛って配膳</button>'+
+   '<button class="smallBtn" data-fw28="eat" '+(d.served.length?'':'disabled')+'>😋 配膳したものを食べる</button>'+
+   '<button class="smallBtn" data-fw28="clear" '+(d.dirty?'':'disabled')+'>🧽 空いた皿を片付ける</button>'+
+  '</div><div class="legend">料理 → 盛り付け・配膳 → 食べる → 皿を片付ける、の順で生活動作がつながります。</div>';
+}
+
+// Draw plated food / used plates on the actual movable table.
+const fw28PrevLegacyDraw=fw25DrawLegacyFurniture;
+fw25DrawLegacyFurniture=function(b,ox,oy,scale,rw,rh){
+ fw28PrevLegacyDraw(b,ox,oy,scale,rw,rh);
+ const d=fw28EnsureDining(b),t=fw28TablePos(b,rw,rh);if(!t)return;
+ const x=ox+(t.x+.58)*scale,y=oy+(t.y+.36)*scale;
+ ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+ const show=Math.min(4,d.served.length);
+ for(let i=0;i<show;i++){ctx.font=Math.max(12,Math.round(scale*.24))+'px system-ui';ctx.fillText(d.served[i].icon||'🍲',x+(i-1.5)*scale*.22,y+(i%2)*scale*.18);}
+ if(d.dirty>0){ctx.font=Math.max(12,Math.round(scale*.22))+'px system-ui';ctx.fillText('🍽️',x+scale*.45,y+scale*.22);ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.fillText('×'+d.dirty,x+scale*.63,y+scale*.22);}
+ ctx.restore();
+};
+
+// Make furniture rearrangement conspicuous and preserve drag editing.
+const fw28PrevFurnitureMenu=fw19OpenFurnitureMenu;
+fw19OpenFurnitureMenu=function(){
+ fw28PrevFurnitureMenu();
+ if(!state.interior)return;
+ const b=$('#panelBody').querySelector('[data-fw24="edit"]');
+ if(b)b.textContent=state.interior.furnitureEdit24?'✅ 家具の配置換え中':'🖐️ 家具の配置換え';
+ $('#panelBody').insertAdjacentHTML('beforeend','<div class="legend">「家具の配置換え」をONにしてから、ベッド・キッチン・食卓・椅子・チェスト・暖炉などを指でドラッグしてください。</div>');
+};
+const fw28PrevDragMove=fw24DragMove;
+fw24DragMove=function(e){
+ fw28PrevDragMove(e);
+ if(state.interior&&state.interior.drag24)state.interior.lastMoved28=state.interior.drag24;
+};
+canvas.addEventListener('pointerup',function(){
+ const it=state.interior,d=it&&it.lastMoved28;if(!it||!d)return;
+ const o=d.arr&&d.arr[d.i];if(o){o.x=Math.round(o.x*4)/4;o.y=Math.round(o.y*4)/4;}
+ it.lastMoved28=null;
+},true);
+
+// Manual action near kitchen/table/fireplace opens the full dining workflow.
+const fw28PrevAction=action;
+action=function(){
+ if(state.interior){
+  if(fw24NearAmenity('kitchen',1.2)||fw24NearAmenity('table',1.2)||fw25NearLegacy('table',1.2)||fw25NearLegacy('fireplace',1.2)){
+   fw28OpenDiningMenu();return;
+  }
+ }
+ fw28PrevAction();
+};
+
+// Auto actions for serving / eating / clearing use the same home-entry and indoor-navigation loop as V27.
+const fw28PrevCanAction=fw14CanAction;
+fw14CanAction=function(k){
+ const home=fw28HomeBuilding(),d=home?fw28EnsureDining(home):null;
+ if(k==='serveMeal')return !!home&&fw28HasTable(home)&&fw28PreparedCount()>0;
+ if(k==='eatMeal')return !!home&&!!d&&d.served.length>0&&state.player.hunger<98;
+ if(k==='clearDishes')return !!home&&!!d&&d.dirty>0;
+ return fw28PrevCanAction(k);
+};
+function fw28GoHomeFor(k,dt){
+ const a=state.player.autoSchedule,b=fw28HomeBuilding();if(!b)return false;
+ a.indoorTask27=k;
+ const e=fw10Entrance(b),d=Math.hypot(state.player.x-e.x,state.player.y-e.y);
+ const label={serveMeal:'🍽️ 配膳へ',eatMeal:'😋 食事へ',clearDishes:'🧽 片付けへ'}[k]||'🏠 帰宅';
+ state.player.status=label;
+ if(d>1.2){fw10AutoMove(e.x,e.y,dt);return true;}
+ fw10EnterBuilding(b);return true;
+}
+const fw28PrevRunAction=fw14RunAction;
+fw14RunAction=function(k,dt){
+ fw28MarkTimeTrigger(state.player.autoSchedule);
+ if(k==='serveMeal'||k==='eatMeal'||k==='clearDishes')return fw28GoHomeFor(k,dt);
+ return fw28PrevRunAction(k,dt);
+};
+const fw28PrevInteriorGoal=fw27InteriorGoal;
+fw27InteriorGoal=function(k){
+ if(['serveMeal','eatMeal','clearDishes'].includes(k)){
+  const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});
+  const t=b&&fw28TablePos(b,it.roomW,it.roomH);return t?{x:t.x+.55,y:t.y+.55}:null;
+ }
+ return fw28PrevInteriorGoal(k);
+};
+const fw28PrevFinishHomeTask=fw27FinishHomeTask;
+fw27FinishHomeTask=function(k){
+ const a=state.player.autoSchedule;
+ if(k==='serveMeal'){fw28ServeOne(false);a.indoorTask27=null;a.exitHome27=true;a.activeSlot=-1;a.latchedSlot=-1;return;}
+ if(k==='eatMeal'){fw28EatOne(false);a.indoorTask27=null;a.exitHome27=true;a.activeSlot=-1;a.latchedSlot=-1;return;}
+ if(k==='clearDishes'){fw28ClearDishes(false);a.indoorTask27=null;a.exitHome27=true;a.activeSlot=-1;a.latchedSlot=-1;return;}
+ fw28PrevFinishHomeTask(k);
+};
+fw27IndoorAuto=function(dt){
+ const a=state.player.autoSchedule;if(!state.interior||!a||!a.enabled||performance.now()<a.suspendUntil||state.interior.furnitureEdit24)return;
+ if(a.indoorTask27){
+  const g=fw27InteriorGoal(a.indoorTask27);
+  if(!g){a.indoorTask27=null;a.exitHome27=true;return;}
+  if(fw27MoveInteriorTo(g,dt)){
+   a.indoorActionClock27=(a.indoorActionClock27||0)+dt;
+   const labels={cook:'🍳 料理中',bath:'🛁 入浴中',laundry:'🧺 洗濯中',serveMeal:'🍽️ 盛り付け・配膳中',eatMeal:'😋 食事中',clearDishes:'🧽 食器を片付け中'};
+   state.player.status=labels[a.indoorTask27]||'🏠 家事中';
+   if(a.indoorActionClock27>=2.2){const k=a.indoorTask27;a.indoorActionClock27=0;fw27FinishHomeTask(k);}
+  }
+  return;
+ }
+ if(a.exitHome27){
+  const it=state.interior,g={x:it.roomW/2,y:it.roomH-.24};
+  if(fw27MoveInteriorTo(g,dt)){a.exitHome27=false;fw10ExitBuilding();}
+ }
+};
+
+// Previous controlled characters also honor the new meal actions and time triggers.
+const fw28PrevNpcCan=fw17NpcCan;
+fw17NpcCan=function(n,k,a){
+ if(k==='serveMeal'){
+  const h=fw27NpcHome(n),d=h&&fw28EnsureDining(h);return !!h&&!!d&&fw28PreparedCount()>0;
+ }
+ if(k==='eatMeal'){
+  const h=fw27NpcHome(n),d=h&&fw28EnsureDining(h);return !!d&&d.served.length>0&&n.hunger<98;
+ }
+ if(k==='clearDishes'){
+  const h=fw27NpcHome(n),d=h&&fw28EnsureDining(h);return !!d&&d.dirty>0;
+ }
+ return fw28PrevNpcCan(n,k,a);
+};
+const fw28PrevNpcCondition=fw17NpcCondition;
+fw17NpcCondition=function(n,c){
+ if(c&&c.type==='timeAt'){
+  if(c.lastTriggeredDay===state.day)return false;
+  const target=fw28ParseTime(c.value||'11:00'),now=((state.hour%24)+24)%24,delta=(now-target+24)%24;
+  return delta>=0&&delta<.75;
+ }
+ return fw28PrevNpcCondition(n,c);
+};
+const fw28PrevNpcRun=fw17NpcRun;
+fw17NpcRun=function(n,k,dt,a){
+ if(a&&a.activeSlot>=0&&a.slotConditions){
+  const c=a.slotConditions[a.activeSlot];if(c&&c.type==='timeAt'&&c.lastTriggeredDay!==state.day)c.lastTriggeredDay=state.day;
+ }
+ if(k==='serveMeal'||k==='eatMeal'||k==='clearDishes'){
+  const h=fw27NpcHome(n),e=h?fw10Entrance(h):{x:n.x,y:n.y},d=Math.hypot(n.x-e.x,n.y-e.y),meal=h&&fw28EnsureDining(h);
+  if(d>1.15){fw17NpcMove(n,e.x,e.y,dt,k==='serveMeal'?'🍽️ 配膳へ':k==='eatMeal'?'😋 食事へ':'🧽 片付けへ');return true;}
+  a.actionClock=(a.actionClock||0)-dt;if(a.actionClock>0)return true;a.actionClock=3;
+  if(k==='serveMeal'){if(!fw28ServeOne(true))return false;n.status='🍽️ 配膳完了';}
+  else if(k==='eatMeal'){
+   if(!meal||!meal.served.length)return false;const m=meal.served.shift();n.hunger=clamp(n.hunger+35,0,100);n.st=clamp(n.st+8,0,100);meal.dirty++;n.status='😋 '+m.name+'を食事';
+  }else{if(!meal||!meal.dirty)return false;meal.dirty=0;n.status='🧽 食器片付け';}
+  return true;
+ }
+ return fw28PrevNpcRun(n,k,dt,a);
+};
+
+// Replace the dynamic gambit editor so time triggers and dining actions are easy to configure.
+fw11OpenThinkMenu=function(){
+ const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y),max=fw13AutoMaxRadius(),count=fw17UnlockedSlotCount(a.autoLevel),next=fw17NextSlotUnlock(a.autoLevel);
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','stone','food','farm','social','trainSword','trainBow','hunt','fish','cook','serveMeal','eatMeal','clearDishes','bath','laundry','patrol','rest','schedule'];
+ const actionOpts=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const condOpts=function(value){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const slotRow=function(i){
+  let c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+  const def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i,latched=a.enabled&&a.latchedSlot===i;
+  let extra='';
+  if(c.type==='timeAt'){
+   extra='<label class="settingsRow"><span>時刻</span><input data-fw28-time="'+i+'" type="time" value="'+fw28TimeText(c.value||'11:00')+'" style="width:130px"></label>';
+  }else if(def.numeric){
+   extra+='<label class="settingsRow"><span>開始しきい値</span><input data-fw15-value="'+i+'" type="number" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+c.value+'" style="width:88px"></label>';
+   if(fw16IsBelowCondition(c.type)){
+    extra+='<label class="settingsRow"><span>終了値まで継続</span><input data-fw16-hold="'+i+'" type="checkbox" '+(c.holdUntil?'checked':'')+'></label>';
+    if(c.holdUntil)extra+='<label class="settingsRow"><span>終了値</span><input data-fw16-until="'+i+'" type="number" min="'+(Number(c.value)+1)+'" max="100" step="'+def.step+'" value="'+c.untilValue+'" style="width:88px"></label>';
+   }
+  }
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #7ee7ff"':'')+'><b>優先度 '+(i+1)+'</b>'+
+   '<select data-fw14-slot="'+i+'" style="width:100%;margin:5px 0">'+actionOpts(a.slots[i])+'</select>'+
+   '<select data-fw15-cond="'+i+'" style="width:100%;margin:5px 0">'+condOpts(c.type)+'</select>'+
+   extra+'<div class="note">'+(latched?'🔒 継続中　':active?'▶ 実行中　':'')+'条件：'+fw15CondText(c)+(c.holdUntil?' → '+c.untilValue+'まで':'')+'</div></div>';
+ };
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 条件付き自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  'スロット <b>'+count+' / 10</b>'+(next?'　次の解放 Lv.'+next:'　全スロット解放済み')+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button> '+
+  '<button class="smallBtn" data-fw28="preset1100">🍳 11:00料理プリセット</button></div>'+
+  Array.from({length:count},function(_,i){return slotRow(i);}).join('')+
+  '<div class="legend">時刻トリガー例：11:00 → 🍳料理する。料理後に別スロットで 🍽️配膳 → 😋食事 → 🧽片付け も自動化できます。</div>';
+};
+
+function fw28Install1100Preset(){
+ const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+ let i=a.slots.findIndex(function(k){return k==='none';});if(i<0)i=Math.min(a.slots.length-1,0);
+ a.slots[i]='cook';a.slotConditions[i]={type:'timeAt',value:'11:00',lastTriggeredDay:null};a.enabled=true;a.origin=a.origin||{x:state.player.x,y:state.player.y};
+ msg('🍳 優先度'+(i+1)+'に「11:00 → 料理する」を設定した。');fw13RefreshAutoButton();fw11OpenThinkMenu();
+}
+
+$('#panelBody').addEventListener('change',function(e){
+ const t=e.target.closest('[data-fw28-time]');if(!t)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const i=Number(t.dataset.fw28Time),a=state.player.autoSchedule,c=a.slotConditions[i]||{type:'timeAt'};
+ c.type='timeAt';c.value=t.value||'11:00';c.lastTriggeredDay=null;a.slotConditions[i]=c;
+ msg('🕒 優先度'+(i+1)+'：'+fw28TimeText(c.value));fw11OpenThinkMenu();
+},true);
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw28]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const a=b.dataset.fw28;
+ if(a==='cook'){fw24OpenKitchen();return;}
+ if(a==='serve'){fw28ServeOne(false);fw28OpenDiningMenu();return;}
+ if(a==='eat'){fw28EatOne(false);fw28OpenDiningMenu();return;}
+ if(a==='clear'){fw28ClearDishes(false);fw28OpenDiningMenu();return;}
+ if(a==='preset1100'){fw28Install1100Preset();return;}
+},true);
+
+// Persist / migrate the new per-building dining state and time conditions.
+const fw28PrevEnsureLatest=fw26EnsureLatestState;
+fw26EnsureLatestState=function(){
+ const st=fw28PrevEnsureLatest();
+ state.buildings.forEach(function(b){fw28EnsureDining(b);});
+ if(state.player&&state.player.autoSchedule){
+  const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y);
+  a.slotConditions.forEach(function(c){if(c&&c.type==='timeAt'&&!c.value)c.value='11:00';});
+ }
+ state.npcs.forEach(function(n){if(n.autoSchedule&&Array.isArray(n.autoSchedule.slotConditions))n.autoSchedule.slotConditions.forEach(function(c){if(c&&c.type==='timeAt'&&!c.value)c.value='11:00';});});
+ return st;
+};
+fw26EnsureLatestState();
+
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
  e.preventDefault();
