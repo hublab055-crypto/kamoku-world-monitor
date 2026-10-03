@@ -492,6 +492,8 @@ UI:
 - 入口: `frontier-world/editor/index.html`
 - キャラクターエディタ
 - スプライト / アニメーション定義エディタ（ローカル画像プレビュー、フレーム境界表示）
+- 画像アセットエディタ（新規作成、PNG/WebP/JPEG取込、ブラシ、消しゴム、直線、塗りつぶし、スポイト、Undo/Redo、ズーム、PNG出力）
+- 画像ゴミ箱（論理削除、復元、完全削除）
 - `data/dialogue-pack.json` 対応会話エディタ
 - アイテムエディタ
 - 制作 / 料理レシピエディタ
@@ -513,3 +515,8 @@ Creator Suite の出力 `frontier-world-content.json` は現状ステージン�
 - `frontier-world/editor/app.js`
 - `frontier-world/editor/styles.css`
 - `frontier-world/editor/README.md`
+
+
+### Creator Suite 画像保存
+
+画像バイナリはプロジェクトJSONに埋め込まず、IndexedDB `frontier-world-creator-assets` に保存する。削除操作は `deletedAt` を付与する論理削除とし、ゴミ箱から復元可能。完全削除はゴミ箱内から明示実行した場合のみ行う。
