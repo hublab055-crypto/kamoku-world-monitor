@@ -483,3 +483,32 @@ UI:
 新しいチャットでは最初に次を伝える。
 
 > GitHub `hublab055-crypto/kamoku-world-monitor` の `frontier-world/SPEC.md`、`frontier-world/COLLAB.md`、`frontier-world/project-state.json` を読み、`frontier-world/index.html` の最新コミットも確認してください。SPEC.md を現行仕様の基準とし、実装後は SPEC.md と project-state.json も更新してください。セリフ作業だけの場合は `frontier-world/data/dialogue-pack.json` のみを編集し、index.html は変更しないでください。
+
+
+## 25. 人間向け Creator Suite
+
+実装済み（ゲーム本体とは分離した authoring/staging tool）。
+
+- 入口: `frontier-world/editor/index.html`
+- キャラクターエディタ
+- スプライト / アニメーション定義エディタ（ローカル画像プレビュー、フレーム境界表示）
+- `data/dialogue-pack.json` 対応会話エディタ
+- アイテムエディタ
+- 制作 / 料理レシピエディタ
+- 建物 / 家具エディタ
+- AI / ガンビットエディタ
+- クエストエディタ
+- イベントエディタ
+- 経済 / 店エディタ
+- 2Dワールド配置エディタ
+- ID重複・参照切れ検証
+- Project JSON import/export
+- localStorage 自動保存
+
+Creator Suite の出力 `frontier-world-content.json` は現状ステージング用。ゲーム本体が全項目をランタイムロードする統合は未実装。次段階では `frontier-world/data/` に定義を分割し、index.html のハードコードを段階的に外部データ参照へ置換する。
+
+関連ファイル:
+- `frontier-world/editor/index.html`
+- `frontier-world/editor/app.js`
+- `frontier-world/editor/styles.css`
+- `frontier-world/editor/README.md`
