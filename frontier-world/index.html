@@ -5237,7 +5237,11 @@ function fw24DragMove(e){
 }
 canvas.addEventListener('pointerdown',function(e){
  if(!state.interior||(!state.interior.furnitureEdit24&&!state.interior.furnitureDelete29))return;
- const p=fw24RoomPoint(e);if(!p)return;const hit=fw24HitFurniture(p.x,p.y);if(!hit){if(state.interior.furnitureDelete29)msg('🗑️ 撤去する家具をタップ。');return;}
+ const p=fw24RoomPoint(e);if(!p)return;const hit=fw24HitFurniture(p.x,p.y);
+ if(!hit){
+  if(state.interior.furnitureDelete29){e.preventDefault();e.stopImmediatePropagation();state.interior.tap=null;msg('🗑️ 撤去する家具をタップ。');}
+  return;
+ }
  e.preventDefault();e.stopImmediatePropagation();state.interior.tap=null;
  if(state.interior.furnitureDelete29){fw29DeleteFurnitureHit(hit);return;}
  state.interior.drag24=hit;
@@ -5248,7 +5252,10 @@ canvas.addEventListener('pointermove',function(e){
 },true);
 function fw24DragEnd(e){
  if(!state.interior||!state.interior.drag24)return;
- e.preventDefault();e.stopImmediatePropagation();fw24DragMove(e);state.interior.drag24=null;msg('🪑 家具を移動した。');
+ e.preventDefault();e.stopImmediatePropagation();
+ const d=state.interior.drag24;fw24DragMove(e);
+ const o=d.arr&&d.arr[d.i];if(o){o.x=Math.round(o.x*4)/4;o.y=Math.round(o.y*4)/4;}
+ state.interior.drag24=null;state.interior.lastMoved28=null;msg('🪑 家具を移動した。');
 }
 canvas.addEventListener('pointerup',fw24DragEnd,true);
 canvas.addEventListener('pointercancel',fw24DragEnd,true);
