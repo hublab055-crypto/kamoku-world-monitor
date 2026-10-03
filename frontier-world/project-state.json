@@ -69,6 +69,7 @@
       "recipes",
       "buildings_furniture",
       "ai_gambits",
+      "personal_schedules",
       "quests",
       "events",
       "economy_shops",
