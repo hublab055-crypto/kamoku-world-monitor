@@ -228,7 +228,7 @@ $$(".nav").forEach(n=>n.addEventListener("click",()=>showView(n.dataset.view)));
 function renderDashboard(){
   const stats=[
     ["🧑","キャラクター",state.characters.length],["🎒","アイテム",state.items.length],["🛠️","レシピ",state.recipes.length],["🏠","建物・家具",state.buildings.length],
-    ["🤖","ガンビット",state.gambits.length],["🕒","予定表",state.schedules.length],["📜","クエスト",state.quests.length],["🗺️","配置物",state.world.placements.length]
+    ["🤖","ガンビット",state.gambits.length],["🕒","予定表",state.schedules.length],["📜","クエスト",state.quests.length],["🎉","イベント",state.events.length],["🗺️","配置物",state.world.placements.length]
   ];
   $("#dashboardCards").innerHTML=stats.map(x=>'<div class="card"><div>'+x[0]+' '+esc(x[1])+'</div><div class="count">'+x[2]+'</div><small>records</small></div>').join("");
 }
@@ -377,6 +377,13 @@ function ensureDialogue(){ if(!state.dialogue) state.dialogue=makeDialogueSkelet
 
 function renderDialogue(){
   const d=ensureDialogue();
+  state.characters.forEach(ch=>{
+    if(ch.id && !d.characters[ch.id]){
+      const relationships={};
+      RELATIONSHIPS.forEach(r=>{relationships[r]={};DIALOGUE_CATEGORIES.forEach(c=>relationships[r][c]=[]);});
+      d.characters[ch.id]={relationships};
+    }
+  });
   const charSel=$("#dlgCharacter");
   const charIds=Object.keys(d.characters||{});
   if(!charIds.length){ d.characters={mio:{relationships:{}}}; }
