@@ -52,6 +52,21 @@ const configs = {
       f("notes","条件式 / 対象選択メモ","textarea","","",null,true)
     ]
   },
+  schedules: {
+    eyebrow:"LIFE AI", title:"個人予定表エディタ", description:"1日を3時間×8ブロックで編集します。操作キャラを外れたNPCの自律生活にも使う設計です。",
+    fields:[
+      f("id","ID","text"), f("characterId","キャラクターID","text"),
+      f("h00","00:00–03:00","select","sleep","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h03","03:00–06:00","select","sleep","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h06","06:00–09:00","select","auto","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h09","09:00–12:00","select","auto","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h12","12:00–15:00","select","auto","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h15","15:00–18:00","select","auto","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h18","18:00–21:00","select","leisure","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("h21","21:00–24:00","select","sleep","",["auto","sleep","housework","bath","laundry","cleaning","leisure"]),
+      f("notes","生活バランス / 幸福度メモ","textarea","","",null,true)
+    ]
+  },
   quests: {
     eyebrow:"QUEST", title:"クエストエディタ", description:"受注条件、段階、完了条件、報酬を編集します。",
     fields:[
@@ -127,6 +142,9 @@ function makeDefaultState(){
       {id:"rest_low_stamina",name:"疲れたら休む",condition:"stamina_below",threshold:30,endThreshold:100,action:"rest",priority:90,radius:12,interruptible:true,notes:"ヒステリシス例"},
       {id:"gather_wood",name:"木を集める",condition:"stock_wood_below",threshold:30,endThreshold:60,action:"gather_wood",priority:40,radius:18,interruptible:true,notes:""}
     ],
+    schedules:[
+      {id:"mio_default",characterId:"mio",h00:"sleep",h03:"sleep",h06:"auto",h09:"auto",h12:"auto",h15:"auto",h18:"housework",h21:"sleep",notes:""}
+    ],
     quests:[], events:[],
     economy:[],
     world:{width:40,height:24,placements:[{x:4,y:5,type:"spawn",ref:"player"},{x:10,y:8,type:"building",ref:"tent"},{x:12,y:8,type:"npc",ref:"mio"}]},
@@ -148,7 +166,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 function normalizeState(raw){
   const base = makeDefaultState();
   const out = {...base,...raw};
-  ["characters","sprites","items","recipes","buildings","gambits","quests","events","economy"].forEach(k => {
+  ["characters","sprites","items","recipes","buildings","gambits","schedules","quests","events","economy"].forEach(k => {
     if(!Array.isArray(out[k])) out[k] = base[k];
   });
   if(!out.world || typeof out.world !== "object") out.world = base.world;
@@ -210,7 +228,7 @@ $$(".nav").forEach(n=>n.addEventListener("click",()=>showView(n.dataset.view)));
 function renderDashboard(){
   const stats=[
     ["🧑","キャラクター",state.characters.length],["🎒","アイテム",state.items.length],["🛠️","レシピ",state.recipes.length],["🏠","建物・家具",state.buildings.length],
-    ["🤖","ガンビット",state.gambits.length],["📜","クエスト",state.quests.length],["🎉","イベント",state.events.length],["🗺️","配置物",state.world.placements.length]
+    ["🤖","ガンビット",state.gambits.length],["🕒","予定表",state.schedules.length],["📜","クエスト",state.quests.length],["🗺️","配置物",state.world.placements.length]
   ];
   $("#dashboardCards").innerHTML=stats.map(x=>'<div class="card"><div>'+x[0]+' '+esc(x[1])+'</div><div class="count">'+x[2]+'</div><small>records</small></div>').join("");
 }
@@ -433,7 +451,7 @@ function drawWorld(){
 
 function validate(){
   const issues=[];
-  const collections=["characters","sprites","items","recipes","buildings","gambits","quests","events","economy"];
+  const collections=["characters","sprites","items","recipes","buildings","gambits","schedules","quests","events","economy"];
   collections.forEach(k=>{
     const ids=new Map();
     state[k].forEach((o,i)=>{
@@ -448,6 +466,7 @@ function validate(){
     Object.keys(r.outputs||{}).forEach(id=>{if(!itemIds.has(id))issues.push({level:"warn",text:"recipe "+r.id+" の完成品参照が未定義: "+id});});
   });
   state.sprites.forEach(s=>{if(s.characterId&&!charIds.has(s.characterId))issues.push({level:"warn",text:"sprite "+s.id+" のcharacterIdが未定義: "+s.characterId});});
+  state.schedules.forEach(s=>{if(s.characterId&&!charIds.has(s.characterId))issues.push({level:"warn",text:"schedule "+s.id+" のcharacterIdが未定義: "+s.characterId});});
   state.world.placements.forEach((p,i)=>{
     if(p.type==="npc"&&p.ref&&!charIds.has(p.ref))issues.push({level:"warn",text:"world #"+(i+1)+" のNPC参照が未定義: "+p.ref});
     if(p.type==="building"&&p.ref&&!buildingIds.has(p.ref))issues.push({level:"warn",text:"world #"+(i+1)+" の建物参照が未定義: "+p.ref});
