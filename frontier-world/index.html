@@ -398,6 +398,7 @@ function draw(){
  }
  state.objects.forEach(drawObject);
  state.buildings.forEach(drawBuilding);
+ if(typeof fw24DrawFieldsBelow==='function')fw24DrawFieldsBelow();
  state.npcs.forEach(n=>drawPerson(n,n.sprite));
  drawPerson({...state.player,name:state.player.name||'YOU'},state.player.sprite||'you');
  const h=state.hour;let a=0;if(h>=20||h<5)a=.56;else if(h>=18)a=(h-18)*.28;else if(h<7)a=(7-h)*.28;if(a>0){ctx.fillStyle=`rgba(4,8,28,${Math.min(.58,a)})`;ctx.fillRect(0,0,W,H);}
@@ -5117,6 +5118,469 @@ fw19Snapshot=function(){
   return v;
  }));
 };
+
+
+/* FRONTIER_V24_INTERIOR_ROUTINES_COMBAT_FARM */
+state.player.bladder=state.player.bladder==null?18:state.player.bladder;
+state.player.hygiene=state.player.hygiene==null?82:state.player.hygiene;
+state.meal24=state.meal24||{key:null,active:false};
+state.seedDrops24=Array.isArray(state.seedDrops24)?state.seedDrops24:[
+ {x:30,y:45,taken:false},{x:59,y:57,taken:false},{x:68,y:42,taken:false},
+ {x:40,y:31,taken:false},{x:73,y:62,taken:false},{x:25,y:58,taken:false}
+];
+['wheatSeed','tomatoSeed','eggplantSeed','wheat','tomato','eggplant'].forEach(function(k){
+ state.player.inv[k]=state.player.inv[k]||0;state.chest[k]=state.chest[k]||0;
+});
+Object.assign(FW19_SCHEDULE_TASKS,{
+ toilet:{icon:'🚽',label:'トイレ'},
+ meal:{icon:'🍽️',label:'家族で食事'},
+ cook:{icon:'🍳',label:'料理'}
+});
+
+// ---- load repair: transient weapon animation must never survive a reload ----
+const fw24PrevRepairLoaded=fw23RepairLoadedState;
+fw23RepairLoadedState=function(){
+ fw24PrevRepairLoaded();
+ state.player.weaponAnim=null;state.player.trainingKind=null;
+ state.projectiles=[];
+ state.npcs.forEach(function(n){n.weaponAnim=null;if(n.role!=='guard')n.trainingKind=null;});
+};
+
+// ---- interior furniture: no static spouse duplicate; real beds + kitchen ----
+function fw24EnsureKitchen(b){
+ fw19EnsureAmenities(b);
+ return b.amenities19.find(function(f){return f.type==='kitchen';})||null;
+}
+function fw24DrawBed(p,ox,oy,scale){
+ const x=ox+p.x*scale,y=oy+p.y*scale,w=scale*1.08,h=scale*1.43;
+ ctx.save();
+ ctx.fillStyle='#5b3828';ctx.fillRect(x-3,y-3,w+6,h+6);
+ ctx.fillStyle='#e8dfcf';ctx.fillRect(x,y,w,h);
+ ctx.fillStyle='#f7f2e8';ctx.fillRect(x+scale*.10,y+scale*.08,w-scale*.20,scale*.28);
+ ctx.fillStyle='#6f89a7';ctx.fillRect(x+scale*.06,y+scale*.38,w-scale*.12,h-scale*.44);
+ ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(x+scale*.12,y+scale*.44,w-scale*.24,h-scale*.58);
+ ctx.restore();
+}
+function fw24DrawAmenity(f,ox,oy,scale){
+ const x=ox+f.x*scale,y=oy+f.y*scale;
+ if(f.type==='kitchen'){
+  ctx.save();ctx.fillStyle='#7a6651';ctx.fillRect(x,y,scale*1.25,scale*.68);
+  ctx.fillStyle='#b7c3ca';ctx.fillRect(x+scale*.08,y+scale*.09,scale*.42,scale*.28);
+  ctx.fillStyle='#2f3337';ctx.fillRect(x+scale*.72,y+scale*.08,scale*.38,scale*.30);
+  ctx.fillStyle='#ddd';ctx.font=Math.round(scale*.25)+'px system-ui';ctx.fillText('🍳',x+scale*.83,y+scale*.53);ctx.restore();return;
+ }
+ fw19DrawAmenity(f.type,x,y,scale);
+}
+fw12DrawInteriorFurniture=function(b,ox,oy,scale,rw,rh){
+ fw12EnsureBeds(b);fw19EnsureAmenities(b);
+ b.beds.forEach(function(p){fw24DrawBed(p,ox,oy,scale);});
+ b.cribs.forEach(function(p){
+  const baby=(state.family.children||[]).find(function(c){return c.sleepingInCrib&&c.cribBuildingId===b.id;});
+  fw12DrawCrib(ox,oy,scale,p.x,p.y,baby);
+ });
+ b.amenities19.forEach(function(f){fw24DrawAmenity(f,ox,oy,scale);});
+};
+
+const fw24PrevFurnitureCost=fw19FurnitureCost;
+fw19FurnitureCost=function(type){
+ if(type==='kitchen')return {wood:4,stone:2};
+ return fw24PrevFurnitureCost(type);
+};
+fw19OpenFurnitureMenu=function(){
+ if(!state.interior){msg('🏠 家の中で家具を配置して。');return;}
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return;
+ fw19EnsureAmenities(b);
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🪑 家具・生活設備';
+ const types=['kitchen','toilet','bath','laundry','shelf','table'],
+ names={kitchen:'🍳 キッチン',toilet:'🚽 トイレ',bath:'🛁 風呂',laundry:'🧺 洗濯設備',shelf:'🗄️ 棚',table:'🪑 食卓'};
+ $('#panelBody').innerHTML=
+  '<button class="smallBtn" data-fw19="beds">🛏️ ベッド・ベビーベッド</button> '+
+  '<button class="smallBtn" data-fw24="edit">'+(state.interior.furnitureEdit24?'✅ 配置編集ON':'🖐️ 家具をドラッグ移動')+'</button>'+
+  '<div class="grid3">'+types.map(function(t){
+   const have=b.amenities19.some(function(f){return f.type===t;}),c=fw19FurnitureCost(t);
+   return '<div class="tileCard"><b>'+names[t]+'</b><br>'+Object.keys(c).map(function(k){return k+' '+c[k];}).join(' / ')+'<br>'+
+    '<button class="smallBtn" data-fw19="furniture" data-type="'+t+'" '+(have?'disabled':'')+'>'+(have?'設置済み':'設置')+'</button></div>';
+  }).join('')+'</div><div class="legend">配置編集ON中は、室内のベッド・ベビーベッド・家具を指でドラッグできます。</div>';
+};
+const fw24PrevAmenityPos=fw19AmenityPos;
+fw19AmenityPos=function(type,rw,rh){
+ if(type==='kitchen')return {x:.9,y:1.0};
+ return fw24PrevAmenityPos(type,rw,rh);
+};
+
+// ---- drag/drop furniture in room coordinates ----
+function fw24RoomMetrics(){
+ const it=state.interior;if(!it)return null;
+ const scale=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*scale)/2,oy=80;
+ return {it:it,scale:scale,ox:ox,oy:oy};
+}
+function fw24RoomPoint(e){
+ const m=fw24RoomMetrics();if(!m)return null;
+ const r=canvas.getBoundingClientRect(),sx=(e.clientX-r.left)*W/r.width,sy=(e.clientY-r.top)*H/r.height;
+ return {x:(sx-m.ox)/m.scale,y:(sy-m.oy)/m.scale,m:m};
+}
+function fw24HitFurniture(x,y){
+ const it=state.interior,b=state.buildings.find(function(q){return q.id===it.buildingId;});if(!b)return null;
+ fw12EnsureBeds(b);fw19EnsureAmenities(b);
+ let best=null,bd=.9;
+ b.beds.forEach(function(p,i){const d=Math.hypot(x-(p.x+.5),y-(p.y+.7));if(d<bd){bd=d;best={arr:b.beds,i:i,type:'bed'};}});
+ b.cribs.forEach(function(p,i){const d=Math.hypot(x-(p.x+.6),y-(p.y+.35));if(d<bd){bd=d;best={arr:b.cribs,i:i,type:'crib'};}});
+ b.amenities19.forEach(function(p,i){const d=Math.hypot(x-(p.x+.45),y-(p.y+.45));if(d<bd){bd=d;best={arr:b.amenities19,i:i,type:p.type};}});
+ return best;
+}
+function fw24DragMove(e){
+ if(!state.interior||!state.interior.furnitureEdit24||!state.interior.drag24)return;
+ const p=fw24RoomPoint(e),d=state.interior.drag24;if(!p)return;
+ const obj=d.arr[d.i];if(!obj)return;
+ obj.x=clamp(p.x-.45,.35,state.interior.roomW-1.45);
+ obj.y=clamp(p.y-.45,.35,state.interior.roomH-1.35);
+ state.interior.tap=null;
+}
+canvas.addEventListener('pointerdown',function(e){
+ if(!state.interior||!state.interior.furnitureEdit24)return;
+ const p=fw24RoomPoint(e);if(!p)return;const hit=fw24HitFurniture(p.x,p.y);if(!hit)return;
+ e.preventDefault();e.stopImmediatePropagation();state.interior.tap=null;state.interior.drag24=hit;
+ try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+},true);
+canvas.addEventListener('pointermove',function(e){
+ if(state.interior&&state.interior.furnitureEdit24&&state.interior.drag24){e.preventDefault();e.stopImmediatePropagation();fw24DragMove(e);}
+},true);
+function fw24DragEnd(e){
+ if(!state.interior||!state.interior.drag24)return;
+ e.preventDefault();e.stopImmediatePropagation();fw24DragMove(e);state.interior.drag24=null;msg('🪑 家具を移動した。');
+}
+canvas.addEventListener('pointerup',fw24DragEnd,true);
+canvas.addEventListener('pointercancel',fw24DragEnd,true);
+
+// ---- interior needs, manual amenities, kitchen cooking ----
+function fw24Amenity(b,type){return fw19EnsureAmenities(b).find(function(f){return f.type===type;})||null;}
+function fw24NearAmenity(type,dist){
+ if(!state.interior)return null;const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return null;
+ const f=fw24Amenity(b,type);if(!f)return null;
+ return Math.hypot(state.interior.pos.x-(f.x+.45),state.interior.pos.y-(f.y+.45))<=(dist||1.05)?f:null;
+}
+function fw24UseToilet(){
+ state.player.bladder=0;state.player.st=clamp(state.player.st+2,0,100);state.player.happiness=clamp((state.player.happiness||80)+1,0,100);
+ msg('🚽 トイレを済ませた。');
+}
+function fw24UseBath(){
+ state.player.hygiene=100;state.player.st=clamp(state.player.st+10,0,100);state.player.happiness=clamp((state.player.happiness||80)+4,0,100);
+ msg('🛁 お風呂に入ってさっぱりした。');
+}
+function fw24OpenKitchen(){
+ if(!state.interior)return fw8OpenCraftHub();
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;}),has=!!fw24Amenity(b,'kitchen');
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent=has?'🍳 キッチン':'🔥 暖炉・食卓で料理';
+ const ids=state.recipesKnown.filter(function(id){return FW8_RECIPES[id]&&FW8_RECIPES[id].cat==='food';});
+ $('#panelBody').innerHTML='<div class="legend">'+(has?'キッチンで安全に調理できます。':'キッチンがないので暖炉＋食卓を使います。')+'</div><div class="grid3">'+ids.map(function(id){
+  const q=FW8_RECIPES[id];return '<div class="tileCard"><b>'+q.icon+' '+q.name+'</b><br>'+fw8CostText(q.cost)+'<br><button class="smallBtn" data-fw8="craft-auto" data-id="'+id+'">自動調理</button> <button class="smallBtn" data-fw8="craft-mini" data-id="'+id+'">調理ミニゲーム</button></div>';
+ }).join('')+'</div>';
+}
+const fw24PrevAction=action;
+action=function(){
+ if(state.interior){
+  if(fw24NearAmenity('toilet')){fw24UseToilet();return;}
+  if(fw24NearAmenity('bath')){fw24UseBath();return;}
+  if(fw24NearAmenity('kitchen')||(!fw24Amenity(state.buildings.find(function(x){return x.id===state.interior.buildingId;}),'kitchen')&&
+     Math.hypot(state.interior.pos.x-1,state.interior.pos.y-(state.interior.roomH-1.25))<1.6)){fw24OpenKitchen();return;}
+ }
+ const bag=fw24NearestSeedDrop();if(bag){fw24TakeSeedDrop(bag);return;}
+ fw24PrevAction();
+};
+
+// ---- daily schedule/needs: toilet, bath, bed, family meals ----
+function fw24MealWindow(){
+ const h=state.hour;
+ if(h>=7&&h<8.6)return 'breakfast';
+ if(h>=18&&h<19.7)return 'dinner';
+ return null;
+}
+function fw24ImplicitHomeTask(){
+ if(state.player.bladder>=84)return 'toilet';
+ const meal=fw24MealWindow();if(meal&&state.meal24.key!==(state.day+':'+meal))return 'meal';
+ if(state.hour>=19&&state.hour<22&&state.player.hygiene<55)return 'bath';
+ return null;
+}
+function fw24HomeGoal(type){
+ const it=state.interior,b=state.buildings.find(function(x){return x.id===it.buildingId;});if(!b)return null;
+ if(type==='sleep')return fw21BedGoal(b,it,0);
+ if(type==='meal'||type==='cook')return fw21AmenityGoal(b,it,'housework');
+ if(type==='toilet'){const f=fw24Amenity(b,'toilet');return f?{x:f.x+.45,y:f.y+.45}:fw21AmenityGoal(b,it,'housework');}
+ if(type==='bath'){const f=fw24Amenity(b,'bath');return f?{x:f.x+.45,y:f.y+.45}:fw21AmenityGoal(b,it,'bath');}
+ return fw21AmenityGoal(b,it,type);
+}
+const fw24PrevRunPlayerSchedule=fw19RunPlayerSchedule;
+fw19RunPlayerSchedule=function(task,dt){
+ if(['toilet','meal','cook'].includes(task)){fw19ScheduleHomeTask(state.player,task,dt);return true;}
+ return fw24PrevRunPlayerSchedule(task,dt);
+};
+const fw24PrevScheduleHomeTask=fw19ScheduleHomeTask;
+fw19ScheduleHomeTask=function(actor,task,dt){
+ if(!['toilet','meal','cook'].includes(task))return fw24PrevScheduleHomeTask(actor,task,dt);
+ const home=fw19HomeFor(actor);if(!home)return false;const e=fw10Entrance(home),isPlayer=actor===state.player,d=Math.hypot(actor.x-e.x,actor.y-e.y);
+ if(isPlayer){
+  if(!state.interior){if(d>1.25){fw10AutoMove(e.x,e.y,dt);actor.status='🏠 帰宅：'+FW19_SCHEDULE_TASKS[task].label;return true;}fw10EnterBuilding(home);return true;}
+  return true;
+ }
+ if(d>1.15){fw17NpcMove(actor,e.x,e.y,dt,'🏠 '+FW19_SCHEDULE_TASKS[task].label);return true;}
+ if(task==='toilet'){actor.bladder=0;actor.status='🚽 トイレ';}
+ else if(task==='meal'){actor.hunger=clamp(actor.hunger+dt*10,0,100);actor.status='🍽️ 家族で食事';}
+ else actor.status='🍳 料理';
+ return true;
+};
+const fw24PrevAutoPlayer=fw10AutoPlayer;
+fw10AutoPlayer=function(dt){
+ const a=state.player.autoSchedule;
+ if(a&&a.enabled&&!state.interior&&!state.dialog&&!state.training&&!state.crafting){
+  const imp=fw24ImplicitHomeTask();if(imp){fw19ScheduleHomeTask(state.player,imp,dt);return;}
+ }
+ return fw24PrevAutoPlayer(dt);
+};
+fw19IndoorAutomation=function(dt){
+ if(!state.interior||!state.player.autoSchedule||!state.player.autoSchedule.enabled)return;
+ const a=state.player.autoSchedule;if(performance.now()<a.suspendUntil)return;
+ let task=fw19ScheduleTask(state.player),restLatch=false,restUntil=100;
+ if(a.latchedSlot>=0&&a.slots&&a.slots[a.latchedSlot]==='rest'){const c=a.slotConditions[a.latchedSlot];restLatch=true;restUntil=c&&c.untilValue!=null?Number(c.untilValue):100;}
+ if(restLatch)task='sleep';
+ else if(task==='auto'){const imp=fw24ImplicitHomeTask();if(imp)task=imp;else{fw10ExitBuilding();return;}}
+ const goal=fw24HomeGoal(task);if(!goal)return;
+ const arrived=fw21MoveInteriorPoint(state.interior.pos,state.player,goal,dt,2.15);
+ state.player.status={sleep:'😴 ベッドへ',bath:'🛁 風呂へ',toilet:'🚽 トイレへ',meal:'🍽️ 食卓へ',cook:'🍳 キッチンへ',laundry:'🧺 洗濯へ',clean:'🧹 掃除',housework:'🏠 家事',leisure:'☕ 余暇'}[task]||'🏠 室内';
+ if(!arrived)return;
+ if(task==='sleep'){
+  state.player.status='😴 睡眠・休息';state.player.st=clamp(state.player.st+dt*6.2,0,100);
+  if(isNight()&&state.hour>=22&&!state.sleepFade20)fw20BeginSleepFade();
+  if(restLatch&&state.player.st>=restUntil){a.latchedSlot=-1;a.activeSlot=-1;}
+ }else if(task==='toilet'){fw24UseToilet();}
+ else if(task==='bath'){state.player.hygiene=clamp(state.player.hygiene+dt*22,0,100);state.player.st=clamp(state.player.st+dt*1.2,0,100);state.player.happiness=clamp(state.player.happiness+dt*.08,0,100);}
+ else if(task==='meal'){
+  const meal=fw24MealWindow()||'meal',key=state.day+':'+meal;state.meal24.active=true;
+  state.player.hunger=clamp(state.player.hunger+dt*18,0,100);
+  if(state.player.hunger>=94&&state.meal24.key!==key){state.meal24.key=key;state.meal24.active=false;msg('🍽️ 家族で食卓を囲んだ。');fw24FamilyTableTalk();}
+ }else if(task==='cook'){fw24OpenKitchen();}
+ else if(task==='laundry'){state.player.st=clamp(state.player.st-dt*.08,0,100);}
+ else if(task==='clean'||task==='housework'){state.player.st=clamp(state.player.st-dt*.07,0,100);}
+ else if(task==='leisure'){state.player.happiness=clamp(state.player.happiness+dt*.05,0,100);}
+};
+
+function fw24FamilyTableTalk(){
+ const fam=state.npcs.filter(function(n){return n.alive!==false&&n.relationship==='family';});
+ if(!fam.length)return;
+ const n=fam[Math.floor(Math.random()*fam.length)],lines=[
+  '今日あったこと、あとでゆっくり聞かせて。',
+  'みんなで食べると、同じ料理でもおいしいね。',
+  '明日は何から始めようか。',
+  'こうして食卓を囲める時間、大事にしたいね。'
+ ];
+ msg('🍽️ '+n.name+'「'+lines[Math.floor(Math.random()*lines.length)]+'」');
+}
+function fw24NeedsTick(dt){
+ state.player.bladder=clamp(state.player.bladder+dt*.055,0,100);
+ state.player.hygiene=clamp(state.player.hygiene-dt*.012,0,100);
+ state.npcs.forEach(function(n){n.bladder=clamp((n.bladder==null?20:n.bladder)+dt*.045,0,100);n.hygiene=clamp((n.hygiene==null?80:n.hygiene)-dt*.009,0,100);});
+}
+
+// Morning / bedtime greetings.
+function fw24GreetingTick(){
+ state.greeting24=state.greeting24||{};
+ const fam=state.npcs.filter(function(n){return n.alive!==false&&n.relationship==='family'&&!n.controlled;});
+ if(state.hour>=6.5&&state.hour<8&&state.greeting24.morning!==state.day){
+  state.greeting24.morning=state.day;fam.forEach(function(n){n.pendingTalk21='morning24';});
+ }
+ if(state.hour>=20.5&&state.hour<22.5&&state.greeting24.night!==state.day){
+  state.greeting24.night=state.day;fam.forEach(function(n){n.pendingTalk21='night24';});
+ }
+}
+const fw24PrevOpenNpcDialog=fw21OpenNpcDialog;
+fw21OpenNpcDialog=function(n,reason){
+ if(reason==='morning24'||reason==='night24'){
+  if(!n||state.dialog||state.gameOver)return false;
+  state.dialog={speaker:n,initiatedByNpc:true,reason21:reason};$('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();
+  typeLine(reason==='morning24'?'おはよう。よく眠れた？ 今日も一緒にやっていこう。':'おやすみ。今日はお疲れさま。明日もまた話そうね。');
+  msg((reason==='morning24'?'☀️ ':'🌙 ')+n.name+'が挨拶に来た。');n.approach21=null;return true;
+ }
+ return fw24PrevOpenNpcDialog(n,reason);
+};
+
+// ---- sleeping visuals: blanket covers body below neck ----
+function fw24SleepingPlayer(){
+ if(!state.interior)return false;
+ const task=fw19ScheduleTask(state.player);
+ return task==='sleep'||(state.player.autoSchedule&&state.player.autoSchedule.latchedSlot>=0&&state.player.autoSchedule.slots[state.player.autoSchedule.latchedSlot]==='rest')||!!state.sleepFade20;
+}
+function fw24DrawBlanketAt(p,actor,ox,oy,scale){
+ const x=ox+p.x*scale,y=oy+p.y*scale,w=scale*1.08,h=scale*1.43;
+ const sprite=(actor.sprite||actor.portrait||'mio')+'_front',a=ATLAS[sprite];
+ ctx.save();
+ if(a){const headH=a[3]*.43;ctx.drawImage(atlasImg,a[0],a[1],a[2],headH,x+scale*.31,y+scale*.03,scale*.46,scale*.42);}
+ ctx.fillStyle='#6f89a7';ctx.fillRect(x+scale*.05,y+scale*.38,w-scale*.10,h-scale*.42);
+ ctx.fillStyle='rgba(255,255,255,.16)';ctx.fillRect(x+scale*.13,y+scale*.44,w-scale*.26,h-scale*.56);
+ ctx.restore();
+}
+const fw24PrevInteriorDraw=fw10DrawInterior;
+fw10DrawInterior=function(){
+ fw24PrevInteriorDraw();
+ const it=state.interior;if(!it)return;const b=state.buildings.find(function(x){return x.id===it.buildingId;});if(!b)return;
+ fw12EnsureBeds(b);const scale=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*scale)/2,oy=80;
+ let bedIdx=0;
+ if(fw24SleepingPlayer()&&b.beds[0]){fw24DrawBlanketAt(b.beds[0],state.player,ox,oy,scale);bedIdx=1;}
+ if(Array.isArray(it.followers20)){
+  it.followers20.forEach(function(f){
+   const n=state.npcs.find(function(x){return x.id===f.id;});if(!n||fw19ScheduleTask(n)!=='sleep'||!b.beds[bedIdx])return;
+   fw24DrawBlanketAt(b.beds[bedIdx],n,ox,oy,scale);bedIdx++;
+  });
+ }
+ if(it.furnitureEdit24){
+  ctx.save();ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(18,H-54,330,34);ctx.fillStyle='#fff';ctx.font='14px system-ui';ctx.fillText('🖐️ 家具配置編集：家具をドラッグ',30,H-32);ctx.restore();
+ }
+};
+
+// ---- fields below actors and visible crop stages ----
+fw18DrawFields=function(){}; // old wrapper no longer overlays characters
+function fw24CropIcon(f){
+ if(!f.seeded)return '';
+ if(f.growth<.28)return '🌱';
+ if(f.growth<.62)return '🌿';
+ const type=f.cropType||'wheat';
+ if(f.growth<1)return type==='tomato'?'🌿':type==='eggplant'?'🌿':'🌾';
+ return type==='tomato'?'🍅':type==='eggplant'?'🍆':'🌾';
+}
+function fw24DrawFieldsBelow(){
+ state.customFields.forEach(function(f){
+  const s=worldToScreen(f.x,f.y);ctx.save();
+  ctx.fillStyle=f.moisture>45?'#65452f':'#765238';ctx.fillRect(s.x+3,s.y+3,TILE-6,TILE-6);
+  ctx.strokeStyle='#3e2b1d';ctx.lineWidth=2;for(let k=0;k<3;k++){ctx.beginPath();ctx.moveTo(s.x+7,s.y+10+k*9);ctx.lineTo(s.x+TILE-7,s.y+10+k*9);ctx.stroke();}
+  if(f.seeded){ctx.font=Math.round(TILE*(.35+.28*Math.min(1,f.growth)))+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(fw24CropIcon(f),s.x+TILE/2,s.y+TILE*.53);}
+  if(f.weeds>35){ctx.font='13px system-ui';ctx.fillText('🌿',s.x+8,s.y+13);}
+  if(f.fertilized){ctx.font='10px system-ui';ctx.fillText('✦',s.x+TILE-10,s.y+11);}ctx.restore();
+ });
+}
+function fw24SeedKeyForCrop(type){return type==='tomato'?'tomatoSeed':type==='eggplant'?'eggplantSeed':'wheatSeed';}
+function fw24CropItem(type){return type==='tomato'?'tomato':type==='eggplant'?'eggplant':'wheat';}
+function fw24PickSeed(){
+ const inv=state.player.inv,types=['wheat','tomato','eggplant'].filter(function(t){return (inv[fw24SeedKeyForCrop(t)]||0)>0;});
+ if(types.length)return types[Math.floor(Math.random()*types.length)];
+ if((inv.cropSeed||0)>0)return ['wheat','tomato','eggplant'][Math.floor(Math.random()*3)];
+ return null;
+}
+fw18FieldAction=function(kind,dt){
+ let f=null;
+ if(kind==='sowField')f=fw18NearestField(function(x){return !x.seeded;});
+ if(kind==='waterField')f=fw18NearestField(function(x){return x.seeded&&x.moisture<45;});
+ if(kind==='fertilizeField')f=fw18NearestField(function(x){return x.seeded&&!x.fertilized;});
+ if(kind==='weedField')f=fw18NearestField(function(x){return x.weeds>35;});
+ if(kind==='harvestField')f=fw18NearestField(function(x){return x.seeded&&x.growth>=1;});
+ if(!f)return false;if(!fw13MoveOrReach(f.x,f.y,dt,.8))return true;
+ if(kind==='sowField'){
+  const crop=fw24PickSeed();if(!crop){state.player.status='🌱 種がない';return false;}
+  const key=fw24SeedKeyForCrop(crop);if((state.player.inv[key]||0)>0)state.player.inv[key]--;else state.player.inv.cropSeed--;
+  f.seeded=true;f.cropType=crop;f.growth=.02;f.moisture=35;f.weeds=0;state.player.status='🌱 '+crop+' を種まき';
+ }else if(kind==='waterField'){
+  if((state.player.inv.water||0)<=0)return false;state.player.inv.water--;f.moisture=100;state.player.status='💧🌾 水やり';
+ }else if(kind==='fertilizeField'){
+  if((state.player.inv.fertilizer||0)<=0)return false;state.player.inv.fertilizer--;f.fertilized=true;state.player.status='🪴 施肥';
+ }else if(kind==='weedField'){f.weeds=0;state.player.status='🌿✋ 草むしり';
+ }else if(kind==='harvestField'){
+  const crop=f.cropType||'wheat',yieldN=2+(f.fertilized?1:0)+(f.weeds<25?1:0),item=fw24CropItem(crop);
+  state.player.inv[item]=(state.player.inv[item]||0)+yieldN;if(Math.random()<.7)state.player.inv[fw24SeedKeyForCrop(crop)]=(state.player.inv[fw24SeedKeyForCrop(crop)]||0)+1;
+  f.seeded=false;f.growth=0;f.moisture=0;f.fertilized=false;f.weeds=0;f.cropType=null;state.player.status='🌾🧺 '+item+' +'+yieldN;
+ }
+ state.player.st=clamp(state.player.st-2,0,100);fw13AddAutoXP(1);return true;
+};
+
+// Specific seeds/crops buy & sell.
+const fw24PrevOpenShop=openShop;
+openShop=function(mode){
+ fw24PrevOpenShop(mode);
+ const p={
+  wheatSeed:{n:'🌾 小麦の種',buy:3,sell:1},tomatoSeed:{n:'🍅 トマトの種',buy:4,sell:1},eggplantSeed:{n:'🍆 ナスの種',buy:4,sell:1},
+  wheat:{n:'🌾 小麦',buy:7,sell:3},tomato:{n:'🍅 トマト',buy:8,sell:4},eggplant:{n:'🍆 ナス',buy:8,sell:4}
+ };
+ $('#panelBody').insertAdjacentHTML('beforeend','<h3>作物・種</h3><div class="shopGrid">'+Object.keys(p).map(function(k){
+  const q=p[k];return '<button class="smallBtn" data-fw24-trade="'+mode+'" data-item="'+k+'">'+q.n+'<br>'+(mode==='buy'?q.buy:q.sell)+'C　所持 '+(state.player.inv[k]||0)+'</button>';
+ }).join('')+'</div>');
+};
+function fw24Trade(item,mode){
+ const p={wheatSeed:[3,1],tomatoSeed:[4,1],eggplantSeed:[4,1],wheat:[7,3],tomato:[8,4],eggplant:[8,4]}[item];if(!p)return;
+ const price=mode==='buy'?p[0]:p[1];
+ if(mode==='buy'){if(state.player.coins<price){msg('💰 お金が足りない。');return;}state.player.coins-=price;state.player.inv[item]=(state.player.inv[item]||0)+1;}
+ else{if((state.player.inv[item]||0)<=0){msg('📦 売れる物がない。');return;}state.player.inv[item]--;state.player.coins+=price;}
+ openShop(mode);
+}
+function fw24NearestSeedDrop(){
+ let best=null,bd=1.35;state.seedDrops24.forEach(function(s){if(s.taken)return;const d=Math.hypot(s.x-state.player.x,s.y-state.player.y);if(d<bd){bd=d;best=s;}});return best;
+}
+function fw24TakeSeedDrop(s){
+ s.taken=true;const crops=['wheat','tomato','eggplant'],t=crops[Math.floor(Math.random()*3)],k=fw24SeedKeyForCrop(t),q=1+Math.floor(Math.random()*3);
+ state.player.inv[k]=(state.player.inv[k]||0)+q;msg('🌰 '+t+' の種を拾った ×'+q);
+}
+function fw24DrawSeedDrops(){
+ state.seedDrops24.forEach(function(d){if(d.taken)return;const s=worldToScreen(d.x,d.y);ctx.save();ctx.font='20px system-ui';ctx.textAlign='center';ctx.fillText('🌰',s.x+TILE/2,s.y+TILE*.72);ctx.restore();});
+}
+
+// ---- manual combat actually damages enemies / wildlife ----
+function fw24FrontTarget(list,range,cone){
+ const p=state.player,v=fw8DirVec(p.dir);let best=null,bd=range||1.8;
+ list.forEach(function(e){if(!e.alive)return;const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||.001;if(d>bd)return;const dot=(dx/d)*v.x+(dy/d)*v.y;if(dot<(cone||.25))return;bd=d;best=e;});return best;
+}
+const fw24PrevSwordAttack=fw8SwordAttack;
+fw8SwordAttack=function(){
+ const before=state.player.st;fw24PrevSwordAttack();
+ if(state.player.st===before&&before<2)return;
+ let e=fw24FrontTarget(state.enemies,1.9,.2),wild=false;if(!e){e=fw24FrontTarget(state.wildlife,1.9,.2);wild=true;}
+ if(!e)return;const dmg=6+Math.floor((state.player.skills.sword||0)*1.4);e.hp-=dmg;msg('⚔️ '+e.name+'に '+dmg+'ダメージ');
+ if(e.hp<=0){e.alive=false;if(wild){state.player.inv.food=(state.player.inv.food||0)+(e.kind==='deer'?3:1);}else{state.player.coins+=5;if(typeof fw18MonsterBookDrop==='function')fw18MonsterBookDrop();}state.player.skills.sword=(state.player.skills.sword||0)+.08;}
+};
+const fw24PrevProjectileUpdate=fw8UpdateProjectiles;
+fw8UpdateProjectiles=function(dt){
+ fw24PrevProjectileUpdate(dt);
+ const remove=new Set();
+ state.projectiles.forEach(function(a){
+  if(a.owner!=='player'||a.training)return;
+  let target=null,wild=false;
+  state.enemies.forEach(function(e){if(!target&&e.alive&&Math.hypot(e.x-a.x,e.y-a.y)<.65)target=e;});
+  if(!target)state.wildlife.forEach(function(w){if(!target&&w.alive&&Math.hypot(w.x-a.x,w.y-a.y)<.65){target=w;wild=true;}});
+  if(!target)return;const dmg=7+Math.floor(state.player.skills.bow||0);target.hp-=dmg;remove.add(a);
+  msg('🏹 '+target.name+'に '+dmg+'ダメージ');
+  if(target.hp<=0){target.alive=false;if(wild)state.player.inv.food=(state.player.inv.food||0)+(target.kind==='deer'?3:1);else{state.player.coins+=5;if(typeof fw18MonsterBookDrop==='function')fw18MonsterBookDrop();}state.player.skills.bow=(state.player.skills.bow||0)+.08;}
+ });
+ if(remove.size)state.projectiles=state.projectiles.filter(function(a){return !remove.has(a);});
+};
+
+// ---- guard patrol with training windows ----
+const fw24PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(n&&n.role==='guard'&&!n.companion&&n.alive!==false&&!n.inside20&&!n.approach21){
+  const h=state.hour;
+  if(h>=8&&h<10.5){
+   const kind=(Math.floor(h*2)%2)?'sword':'bow',stand=fw14TrainingPos(kind==='sword'?'trainSword':'trainBow'),target=fw14TrainingTarget(kind==='sword'?'trainSword':'trainBow');
+   n.trainingKind=kind;fw17NpcMove(n,stand.x,stand.y,dt,kind==='sword'?'⚔️ 剣術訓練':'🏹 弓術訓練');
+   if(Math.hypot(n.x-stand.x,n.y-stand.y)<.55){setDirFromVector(n,target.x-n.x,target.y-n.y);n.shotClock=(n.shotClock||0)-dt;if(n.shotClock<=0){n.shotClock=kind==='sword'?.9:1.7;n.weaponAnim={kind:kind,until:performance.now()+430};if(kind==='bow'){const dx=target.x-n.x,dy=target.y-n.y,d=Math.hypot(dx,dy)||1;fw8SpawnArrow('guard',n.x,n.y,dx/d,dy/d,{speed:7.3,life:1.5});}}}
+   return;
+  }
+  const pts=h>=20||h<6?[[42,42],[48,41],[55,44],[55,52],[45,55],[36,50]]:[[35,43],[43,39],[54,40],[61,48],[55,57],[44,59],[34,52]];
+  n.guardPatrol24=(n.guardPatrol24||0)%pts.length;const p=pts[n.guardPatrol24];
+  fw17NpcMove(n,p[0],p[1],dt,h>=20||h<6?'🌙 夜間警戒':'🛡️ パトロール');
+  if(Math.hypot(n.x-p[0],n.y-p[1])<.65)n.guardPatrol24=(n.guardPatrol24+1)%pts.length;
+  return;
+ }
+ return fw24PrevUpdateNPC(n,dt);
+};
+
+// ---- draw overlays / routine tick ----
+const fw24PrevDraw=draw;
+draw=function(){fw24PrevDraw();if(!state.interior)fw24DrawSeedDrops();};
+
+const fw24PrevUpdate=update;
+update=function(dt){
+ fw24NeedsTick(dt);fw24GreetingTick();fw24PrevUpdate(dt);
+};
+
+// panel handlers
+$('#panelBody').addEventListener('click',function(e){
+ const edit=e.target.closest('[data-fw24="edit"]');if(edit){e.preventDefault();e.stopImmediatePropagation();if(state.interior){state.interior.furnitureEdit24=!state.interior.furnitureEdit24;state.interior.drag24=null;fw19OpenFurnitureMenu();}return;}
+ const tr=e.target.closest('[data-fw24-trade]');if(tr){e.preventDefault();e.stopImmediatePropagation();fw24Trade(tr.dataset.item,tr.dataset.fw24Trade);return;}
+},true);
 
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
