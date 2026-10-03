@@ -1296,10 +1296,7 @@ function fw10DrawInterior(){
 
  // furniture
  fw12DrawInteriorFurniture(b,ox,oy,scale,rw,rh);
- drawAsset('chest',ox+scale*(rw-1.65),oy+scale*.85,scale*.95,scale*.95,1);
- drawAsset('table',ox+scale*(rw/2-.65),oy+scale*(rh/2-.35),scale*1.3,scale*.9,1);
- drawAsset('chair',ox+scale*(rw/2+.6),oy+scale*(rh/2-.05),scale*.7,scale*.85,1);
- drawAsset('fireplace',ox+scale*.5,oy+scale*(rh-1.65),scale*.95,scale*.95,1);
+ fw25DrawLegacyFurniture(b,ox,oy,scale,rw,rh);
 
  const p=it.pos,key=(state.player.sprite||'you')+'_'+state.player.dir,a=ATLAS[key];
  if(a){
@@ -5581,6 +5578,83 @@ $('#panelBody').addEventListener('click',function(e){
  const edit=e.target.closest('[data-fw24="edit"]');if(edit){e.preventDefault();e.stopImmediatePropagation();if(state.interior){state.interior.furnitureEdit24=!state.interior.furnitureEdit24;state.interior.drag24=null;fw19OpenFurnitureMenu();}return;}
  const tr=e.target.closest('[data-fw24-trade]');if(tr){e.preventDefault();e.stopImmediatePropagation();fw24Trade(tr.dataset.item,tr.dataset.fw24Trade);return;}
 },true);
+
+
+/* FRONTIER_V25_MOVABLE_DEFAULT_FURNITURE */
+function fw25EnsureLegacyFurniture(b,rw,rh){
+ if(!b)return [];
+ if(!Array.isArray(b.legacyFurniture25)){
+  b.legacyFurniture25=[
+   {type:'chest',x:rw-1.65,y:.85},
+   {type:'table',x:rw/2-.65,y:rh/2-.35},
+   {type:'chair',x:rw/2+.6,y:rh/2-.05},
+   {type:'fireplace',x:.5,y:rh-1.65}
+  ];
+ }
+ return b.legacyFurniture25;
+}
+function fw25DrawLegacyFurniture(b,ox,oy,scale,rw,rh){
+ fw25EnsureLegacyFurniture(b,rw,rh).forEach(function(f){
+  const map={chest:['chest',.95,.95],table:['table',1.3,.9],chair:['chair',.7,.85],fireplace:['fireplace',.95,.95]},m=map[f.type];if(!m)return;
+  drawAsset(m[0],ox+scale*f.x,oy+scale*f.y,scale*m[1],scale*m[2],1);
+ });
+}
+const fw25PrevHitFurniture=fw24HitFurniture;
+fw24HitFurniture=function(x,y){
+ const old=fw25PrevHitFurniture(x,y);if(old)return old;
+ const it=state.interior,b=it&&state.buildings.find(function(q){return q.id===it.buildingId;});if(!b)return null;
+ const arr=fw25EnsureLegacyFurniture(b,it.roomW,it.roomH);let best=null,bd=.95;
+ arr.forEach(function(p,i){const d=Math.hypot(x-(p.x+.45),y-(p.y+.45));if(d<bd){bd=d;best={arr:arr,i:i,type:p.type};}});
+ return best;
+};
+function fw25NearLegacy(type,dist){
+ if(!state.interior)return null;const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return null;
+ const a=fw25EnsureLegacyFurniture(b,state.interior.roomW,state.interior.roomH);
+ let best=null,bd=dist||1.05;a.forEach(function(f){if(f.type!==type)return;const d=Math.hypot(state.interior.pos.x-(f.x+.45),state.interior.pos.y-(f.y+.45));if(d<bd){bd=d;best=f;}});return best;
+}
+const fw25PrevAction=action;
+action=function(){
+ if(state.interior){
+  if(fw25NearLegacy('chest')){openInventory();msg('📦 チェストを開いた。');return;}
+  if(fw25NearLegacy('fireplace')||fw25NearLegacy('table')){fw24OpenKitchen();return;}
+  const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(b){
+   fw12EnsureBeds(b);
+   const nearBed=b.beds.some(function(p){return Math.hypot(state.interior.pos.x-(p.x+.5),state.interior.pos.y-(p.y+.7))<1.0;});
+   if(nearBed){rest();return;}
+  }
+ }
+ fw25PrevAction();
+};
+
+// Consume one meal when a family meal actually starts.
+function fw25ConsumeMeal(){
+ const items=state.player.items||[],i=items.findIndex(function(it){return it.cat==='food';});
+ if(i>=0){const it=items.splice(i,1)[0];return it.name;}
+ if((state.player.inv.tomato||0)>0){state.player.inv.tomato--;return 'トマト料理';}
+ if((state.player.inv.eggplant||0)>0){state.player.inv.eggplant--;return 'ナス料理';}
+ if((state.player.inv.wheat||0)>0){state.player.inv.wheat--;return '小麦料理';}
+ if((state.player.inv.food||0)>0){state.player.inv.food--;return '食事';}
+ if((state.chest.food||0)>0){state.chest.food--;return '備蓄の食事';}
+ return null;
+}
+const fw25PrevFamilyTableTalk=fw24FamilyTableTalk;
+fw24FamilyTableTalk=function(){
+ const key=state.day+':'+(fw24MealWindow()||'meal');
+ if(state.meal24.consumedKey!==key){
+  const meal=fw25ConsumeMeal();state.meal24.consumedKey=key;
+  if(meal)msg('🍽️ '+meal+'を家族で食べた。');
+  else msg('🍽️ 食卓についたけれど、食べ物が足りない。');
+ }
+ fw25PrevFamilyTableTalk();
+};
+
+// Avoid repeated toilet notifications during an explicit multi-hour schedule block.
+const fw25PrevUseToilet=fw24UseToilet;
+fw24UseToilet=function(){
+ const now=performance.now();
+ state.player.bladder=0;state.player.st=clamp(state.player.st+2,0,100);state.player.happiness=clamp((state.player.happiness||80)+1,0,100);
+ if(!state.player.toiletMsg25||now-state.player.toiletMsg25>4500){state.player.toiletMsg25=now;msg('🚽 トイレを済ませた。');}
+};
 
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
