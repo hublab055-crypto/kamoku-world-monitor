@@ -1753,6 +1753,8 @@ draw=function(){
 
 canvas.addEventListener('pointerdown',function(e){
  if(!state.interior)return;
+ // Furniture edit/delete modes own pointer input. Do not consume the event as a walk tap.
+ if(state.interior.furnitureEdit24||state.interior.furnitureDelete29)return;
  e.preventDefault();e.stopImmediatePropagation();
  const r=canvas.getBoundingClientRect(),sx=(e.clientX-r.left)*W/r.width,sy=(e.clientY-r.top)*H/r.height,it=state.interior;
  const scale=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*scale)/2,oy=80;
@@ -5234,9 +5236,11 @@ function fw24DragMove(e){
  state.interior.tap=null;
 }
 canvas.addEventListener('pointerdown',function(e){
- if(!state.interior||!state.interior.furnitureEdit24)return;
- const p=fw24RoomPoint(e);if(!p)return;const hit=fw24HitFurniture(p.x,p.y);if(!hit)return;
- e.preventDefault();e.stopImmediatePropagation();state.interior.tap=null;state.interior.drag24=hit;
+ if(!state.interior||(!state.interior.furnitureEdit24&&!state.interior.furnitureDelete29))return;
+ const p=fw24RoomPoint(e);if(!p)return;const hit=fw24HitFurniture(p.x,p.y);if(!hit){if(state.interior.furnitureDelete29)msg('🗑️ 撤去する家具をタップ。');return;}
+ e.preventDefault();e.stopImmediatePropagation();state.interior.tap=null;
+ if(state.interior.furnitureDelete29){fw29DeleteFurnitureHit(hit);return;}
+ state.interior.drag24=hit;
  try{canvas.setPointerCapture(e.pointerId);}catch(_){}
 },true);
 canvas.addEventListener('pointermove',function(e){
@@ -5575,7 +5579,16 @@ update=function(dt){
 
 // panel handlers
 $('#panelBody').addEventListener('click',function(e){
- const edit=e.target.closest('[data-fw24="edit"]');if(edit){e.preventDefault();e.stopImmediatePropagation();if(state.interior){state.interior.furnitureEdit24=!state.interior.furnitureEdit24;state.interior.drag24=null;fw19OpenFurnitureMenu();}return;}
+ const edit=e.target.closest('[data-fw24="edit"]');if(edit){
+  e.preventDefault();e.stopImmediatePropagation();
+  if(state.interior){
+   state.interior.furnitureEdit24=!state.interior.furnitureEdit24;
+   state.interior.furnitureDelete29=false;state.interior.drag24=null;state.interior.lastMoved28=null;
+   if(state.interior.furnitureEdit24){$('#panel').classList.add('hidden');msg('🖐️ 家具を指でドラッグして配置換え。🔨で家具メニューを開くと終了できます。');}
+   else fw19OpenFurnitureMenu();
+  }
+  return;
+ }
  const tr=e.target.closest('[data-fw24-trade]');if(tr){e.preventDefault();e.stopImmediatePropagation();fw24Trade(tr.dataset.item,tr.dataset.fw24Trade);return;}
 },true);
 
@@ -6388,6 +6401,48 @@ fw26EnsureLatestState=function(){
  return st;
 };
 fw26EnsureLatestState();
+
+
+/* FRONTIER_V29_FURNITURE_EDIT_DELETE_FIX */
+function fw29FurnitureName(type){
+ return ({bed:'ベッド',crib:'ベビーベッド',kitchen:'キッチン',toilet:'トイレ',bath:'風呂',laundry:'洗濯設備',shelf:'棚',table:'食卓',chair:'椅子',chest:'チェスト',fireplace:'暖炉'})[type]||'家具';
+}
+function fw29DeleteFurnitureHit(hit){
+ const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});
+ if(!it||!b||!hit||!hit.arr||!hit.arr[hit.i])return false;
+ if(hit.arr===b.cribs&&(state.family.children||[]).some(function(c){return c.sleepingInCrib&&c.cribBuildingId===b.id;})){
+  msg('👶 赤ちゃんが寝ている間はベビーベッドを撤去できない。');
+  it.furnitureDelete29=false;fw19OpenFurnitureMenu();return false;
+ }
+ const name=fw29FurnitureName(hit.type);
+ hit.arr.splice(hit.i,1);it.drag24=null;it.lastMoved28=null;it.furnitureDelete29=false;
+ msg('🗑️ '+name+'を撤去した。');fw19OpenFurnitureMenu();return true;
+}
+const fw29PrevFurnitureMenu=fw19OpenFurnitureMenu;
+fw19OpenFurnitureMenu=function(){
+ fw29PrevFurnitureMenu();
+ if(!state.interior)return;
+ const edit=$('#panelBody').querySelector('[data-fw24="edit"]');
+ if(edit){
+  edit.textContent=state.interior.furnitureEdit24?'✅ 家具の配置換え中':'🖐️ 家具の配置換え';
+  edit.insertAdjacentHTML('afterend',' <button class="smallBtn" data-fw29="delete">'+(state.interior.furnitureDelete29?'✅ 撤去モード中':'🗑️ 家具を撤去')+'</button>');
+ }
+ $('#panelBody').insertAdjacentHTML('beforeend','<div class="legend">配置換え：ボタンを押すとメニューが閉じます。そのまま家具を指でドラッグしてください。撤去：ボタンを押した後、消したい家具を1つタップしてください。</div>');
+};
+$('#panelBody').addEventListener('click',function(e){
+ const del=e.target.closest('[data-fw29="delete"]');if(!del)return;
+ e.preventDefault();e.stopImmediatePropagation();if(!state.interior)return;
+ state.interior.furnitureDelete29=!state.interior.furnitureDelete29;
+ state.interior.furnitureEdit24=false;state.interior.drag24=null;state.interior.lastMoved28=null;
+ if(state.interior.furnitureDelete29){$('#panel').classList.add('hidden');msg('🗑️ 撤去する家具をタップ。');}
+ else fw19OpenFurnitureMenu();
+},true);
+const fw29PrevInteriorDraw=fw10DrawInterior;
+fw10DrawInterior=function(){
+ fw29PrevInteriorDraw();
+ const it=state.interior;if(!it||!it.furnitureDelete29)return;
+ ctx.save();ctx.fillStyle='rgba(86,0,0,.72)';ctx.fillRect(18,H-54,350,34);ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='14px system-ui';ctx.fillText('🗑️ 家具撤去：消したい家具をタップ',30,H-32);ctx.restore();
+};
 
 const joyBase=$('#joy'),knob=$('#knob');
 function joyMove(e){
