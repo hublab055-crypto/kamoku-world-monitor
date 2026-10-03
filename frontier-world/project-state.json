@@ -1,6 +1,6 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-04T06:40:00+09:00",
+  "updated_at": "2026-10-04T07:17:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
@@ -30,7 +30,8 @@
     "heart meter 0-200; couple time unlocks at 200 and resets to 100",
     "pregnancy delay, baby care, growth, marriage, ceremonies, graves and succession",
     "five manual save slots, autosave, backups, checksum and migration recovery",
-    "indoor furniture drag rearrangement and deletion with protected occupied cribs"
+    "indoor furniture drag rearrangement and deletion with protected occupied cribs",
+    "human-facing Creator Suite authoring editors with JSON import/export and validation"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -55,5 +56,30 @@
       "frontier-world/data/dialogue-pack.json"
     ],
     "rule": "Do not have two chats edit frontier-world/index.html concurrently. Always refetch latest SHA before writes."
-  }
+  },
+  "creator_suite": {
+    "path": "frontier-world/editor/index.html",
+    "url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/editor/",
+    "status": "authoring_staging_tool",
+    "editors": [
+      "characters",
+      "sprites",
+      "dialogue",
+      "items",
+      "recipes",
+      "buildings_furniture",
+      "ai_gambits",
+      "quests",
+      "events",
+      "economy_shops",
+      "world_layout",
+      "validation_json"
+    ]
+  },
+  "next_tasks": [
+    "split hardcoded content definitions into frontier-world/data files",
+    "add runtime loaders for Creator Suite exported content",
+    "connect dialogue-pack.json to game runtime",
+    "add multi-cell world objects, layers and collision preview to Creator Suite"
+  ]
 }
