@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-04T16:01:53+09:00",
+  "updated_at": "2026-10-05T00:10:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V31",
-  "game_commit": "5a5f707f66a364943dc2ab55cc4fc142ef53b7c7",
+  "implementation_version": "V32",
+  "game_commit": "2558be3258d5f6e9fc255c637f249920666b57b1",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -34,12 +34,13 @@
     "human-facing Creator Suite authoring editors with JSON import/export and validation",
     "Creator Suite image asset editor with paint tools, IndexedDB storage, recoverable trash and PNG export",
     "Creator Suite GitHub OAuth login and direct repository editing client",
-    "both legacy farm plots and custom fields rendered in the ground layer behind world objects and characters"
+    "both legacy farm plots and custom fields rendered in the ground layer behind world objects and characters",
+    "NPC employment with skill/level-based daily wages, automatic payroll, arrears suspension and paid-loyalty floor"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
     "castle construction and full territory progression",
-    "recruiting multiple guards as a proper economy/system",
+    "large-scale workforce/guard recruitment, wage negotiation and settlement labor economy",
     "cloud/exportable saves",
     "full modular split of the monolithic index.html",
     "large-population AI optimization"
@@ -47,7 +48,8 @@
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
     "dense dynamic obstacles may still produce pathfinding stalls",
-    "dialogue content exists both in game code and external staging pack until loader integration"
+    "dialogue content exists both in game code and external staging pack until loader integration",
+    "employment UI uses G while some existing shop/economy UI still uses C"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -108,6 +110,9 @@
     "add runtime loaders for Creator Suite exported content",
     "connect dialogue-pack.json to game runtime",
     "add multi-cell world objects, layers and collision preview to Creator Suite",
-    "connect Creator Suite image asset manifest and exported PNG assets to game runtime"
-  ]
+    "connect Creator Suite image asset manifest and exported PNG assets to game runtime",
+    "add workforce roster UI for all employees, payroll forecast and wage negotiation"
+  ],
+  "changelog_path": "frontier-world/CHANGELOG.md",
+  "debug_path": "frontier-world/DEBUG.md"
 }
