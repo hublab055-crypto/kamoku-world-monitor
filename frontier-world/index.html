@@ -6527,6 +6527,211 @@ let ready=0;
 function oneReady(){ready++;if(ready===2)start();}
 if(atlasImg.complete)oneReady();else atlasImg.addEventListener('load',oneReady,{once:true});
 if(faceImg.complete)oneReady();else faceImg.addEventListener('load',oneReady,{once:true});
+
+/* FRONTIER_V32_EMPLOYMENT_WAGES_LOYALTY */
+const FW32_LOYALTY_FLOOR=75;
+const FW32_ROLE_BONUS={guard:2,gatherer:1,family:1,merchant:0};
+
+function fw32SkillEntries(n){
+ const s=n&&n.skills&&typeof n.skills==='object'?n.skills:{};
+ return Object.keys(s).map(function(k){return [k,Number(s[k])||0];}).filter(function(x){return x[1]>0;}).sort(function(a,b){return b[1]-a[1];});
+}
+function fw32DailyWage(n){
+ const e=n.employment||{},lv=Math.max(1,Number(e.level)||1),skills=fw32SkillEntries(n);
+ const best=(skills[0]?skills[0][1]:0)+(skills[1]?skills[1][1]:0);
+ const role=FW32_ROLE_BONUS[n.role]||0;
+ return Math.max(4,Math.round(4+lv*1.5+best*1.25+role));
+}
+function fw32EnsureNpc(n){
+ if(!n)return;
+ if(typeof fw9EnsureNpc==='function')fw9EnsureNpc(n);
+ if(!n.skills||typeof n.skills!=='object')n.skills={};
+ if(!n.employment||typeof n.employment!=='object')n.employment={};
+ const e=n.employment;
+ if(e.active==null)e.active=false;
+ if(e.level==null)e.level=1;
+ if(e.xp==null)e.xp=0;
+ if(e.paidDays==null)e.paidDays=0;
+ if(e.unpaidDays==null)e.unpaidDays=0;
+ if(e.unpaidDebt==null)e.unpaidDebt=0;
+ if(e.suspended==null)e.suspended=false;
+ if(e.lastPaidDay==null)e.lastPaidDay=-1;
+ e.dailyWage=fw32DailyWage(n);
+ if(e.active)n.companion=true;
+}
+function fw32EnsureState(){
+ if(!state.employment32||typeof state.employment32!=='object')state.employment32={};
+ const x=state.employment32;
+ if(x.lastPayrollDay==null)x.lastPayrollDay=state.day;
+ if(x.loyaltyFloor==null)x.loyaltyFloor=FW32_LOYALTY_FLOOR;
+ if(!Array.isArray(x.history))x.history=[];
+ state.npcs.forEach(fw32EnsureNpc);
+}
+function fw32Log(kind,n,amount,day){
+ fw32EnsureState();
+ state.employment32.history.push({day:day==null?state.day:day,kind:kind,npcId:n.id,npcName:n.name,amount:Number(amount)||0,balance:state.player.coins});
+ if(state.employment32.history.length>50)state.employment32.history.splice(0,state.employment32.history.length-50);
+}
+function fw32GainWorkXp(n,amount){
+ const e=n.employment;e.xp+=(Number(amount)||0);
+ let leveled=false;
+ while(e.xp>=e.level*10){e.xp-=e.level*10;e.level++;leveled=true;}
+ e.dailyWage=fw32DailyWage(n);
+ return leveled;
+}
+function fw32SkillText(n){
+ const labels={craft:'制作',cooking:'料理',tailoring:'裁縫',jewelry:'細工',sword:'剣',bow:'弓'};
+ const a=fw32SkillEntries(n).slice(0,5);
+ if(!a.length)return 'スキルなし';
+ return a.map(function(x){return (labels[x[0]]||x[0])+' Lv.'+x[1].toFixed(1);}).join(' / ');
+}
+function fw32EmploymentStatus(n){
+ const e=n.employment;
+ if(!e.active&&e.unpaidDebt>0)return '契約終了・未払い '+e.unpaidDebt+'G';
+ if(!e.active)return '未雇用';
+ if(e.suspended)return '給料未払い・作業停止';
+ return '雇用中・Day '+e.lastPaidDay+' 支払済み';
+}
+function fw32OpenEmployment(n){
+ fw32EnsureNpc(n);fw32EnsureState();
+ const e=n.employment,w=fw32DailyWage(n),can=state.player.coins>=w;
+ e.dailyWage=w;
+ $('#panel').classList.remove('hidden');
+ $('#panelTitle').textContent='💼 '+n.name+' 雇用';
+ let action='';
+ if(!e.active){
+  if(e.unpaidDebt>0){
+   action='<button class="smallBtn" data-fw32="payDebt">💰 未払い '+e.unpaidDebt+'G を支払う</button>';
+  }else{
+   action='<button class="smallBtn" data-fw32="hire" '+(can?'':'disabled')+'>💼 日給 '+w+'G で雇う</button>';
+  }
+ }else if(e.suspended){
+  action='<button class="smallBtn" data-fw32="payDebt">💰 未払い '+e.unpaidDebt+'G を支払って復帰</button> <button class="smallBtn" data-fw32="end">契約終了</button>';
+ }else{
+  action='<button class="smallBtn" data-fw32="end">契約終了</button>';
+ }
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>'+fw32EmploymentStatus(n)+'</b><br>日給 <b>'+w+'G</b>　職能Lv.<b>'+e.level+'</b>　XP '+Math.floor(e.xp)+'/'+(e.level*10)+'<br>忠誠 '+Math.round(n.loyalty||0)+' / 支払い中の最低保証 '+FW32_LOYALTY_FLOOR+'<br><span class="note">'+fw32SkillText(n)+'</span></div>'+
+  '<div class="tileCard">所持金 <b>'+state.player.coins+'G</b><br>支払済み '+e.paidDays+'日 / 未払い発生 '+e.unpaidDays+'回'+(e.unpaidDebt?'<br>未払い賃金 <b>'+e.unpaidDebt+'G</b>':'')+'</div>'+
+  action+
+  '<div class="legend">日給は職能Lvと上位スキルから毎日再計算。給料が支払われている間は忠誠心が'+FW32_LOYALTY_FLOOR+'未満に下がりません。</div>';
+}
+function fw32Hire(n){
+ fw32EnsureNpc(n);fw32EnsureState();
+ if(n.id==='merchant'){msg('💼 店主は現在雇用できない。');return false;}
+ const e=n.employment,w=fw32DailyWage(n);
+ if(e.active)return true;
+ if(e.unpaidDebt>0){msg('💰 先に未払い賃金を精算して。');return false;}
+ if(state.player.coins<w){msg('💰 雇用に必要な '+w+'G が足りない。');return false;}
+ state.player.coins-=w;
+ e.wasCompanion=!!n.companion;e.wasRelationship=n.relationship||'acquaintance';
+ e.active=true;e.suspended=false;e.unpaidDebt=0;e.lastPaidDay=state.day;e.paidDays++;
+ n.companion=true;if(!n.relationship||n.relationship==='acquaintance')n.relationship='companion';
+ n.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(n.loyalty)||0);
+ fw32GainWorkXp(n,1);fw32Log('hire_paid',n,w,state.day);
+ typeLine('わかった。日給 '+w+'G なら働くよ。今日の分は受け取った。');
+ msg('💼 '+n.name+'を日給 '+w+'G で雇用。');renderDialogReplies();return true;
+}
+function fw32EndEmployment(n){
+ fw32EnsureNpc(n);const e=n.employment;if(!e.active)return;
+ e.active=false;e.suspended=false;
+ if(!e.wasCompanion&&n.relationship==='companion'){n.companion=false;n.relationship=e.wasRelationship||'acquaintance';}
+ fw32Log('contract_end',n,0,state.day);
+ typeLine('契約はここまでだね。また必要になったら声をかけて。');
+ msg('💼 '+n.name+'との雇用契約を終了。');renderDialogReplies();
+}
+function fw32PayDebt(n){
+ fw32EnsureNpc(n);const e=n.employment,debt=Math.max(0,Math.round(e.unpaidDebt||0));
+ if(!debt)return true;
+ if(state.player.coins<debt){msg('💰 未払い '+debt+'G を払うお金が足りない。');return false;}
+ state.player.coins-=debt;e.unpaidDebt=0;e.suspended=false;e.lastPaidDay=state.day;
+ if(e.active){n.companion=true;n.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(n.loyalty)||0);fw32GainWorkXp(n,1);}
+ fw32Log('arrears_paid',n,debt,state.day);
+ msg('💰 '+n.name+'へ未払い '+debt+'G を支払った。'+(e.active?' 作業再開。':''));
+ if(state.dialog&&state.dialog.speaker===n)typeLine(e.active?'支払いを確認したよ。じゃあ仕事に戻るね。':'未払い分、受け取ったよ。');
+ return true;
+}
+function fw32PayOneDay(day){
+ state.npcs.forEach(function(n){
+  fw32EnsureNpc(n);const e=n.employment;if(!e.active||e.suspended)return;
+  const w=fw32DailyWage(n);e.dailyWage=w;
+  if(state.player.coins>=w){
+   state.player.coins-=w;e.lastPaidDay=day;e.paidDays++;e.unpaidDebt=0;
+   n.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(n.loyalty)||0);
+   const lv=fw32GainWorkXp(n,2);fw32Log('daily_paid',n,w,day);
+   msg('💰 Day '+day+' 給料：'+n.name+' '+w+'G 支給'+(lv?' / 職能Lv.'+e.level+'へUP':'')+'。');
+  }else{
+   e.suspended=true;e.unpaidDebt=w;e.unpaidSinceDay=day;e.unpaidDays++;
+   n.loyalty=clamp((Number(n.loyalty)||0)-12,0,100);fw32Log('unpaid',n,w,day);
+   msg('⚠️ '+n.name+'の日給 '+w+'G を払えない。作業停止・忠誠低下。');
+  }
+ });
+}
+function fw32PayrollCheck(){
+ fw32EnsureState();const x=state.employment32;
+ if(state.day<=x.lastPayrollDay)return;
+ const start=Math.max(x.lastPayrollDay+1,state.day-30);
+ for(let d=start;d<=state.day;d++)fw32PayOneDay(d);
+ x.lastPayrollDay=state.day;
+}
+
+const fw32PrevRelLabel=fw8RelLabel;
+fw8RelLabel=function(n){
+ const base=fw32PrevRelLabel(n);fw32EnsureNpc(n);
+ return n.employment.active?(base==='仲間'?'従業員':base+'・雇用中'):base;
+};
+
+const fw32PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw32PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n||n.id==='merchant')return;fw32EnsureNpc(n);
+ const r=$('#dialogReplies');if(!r)return;
+ const label=n.employment.active?'💼 雇用管理':'💼 雇う（日給 '+fw32DailyWage(n)+'G）';
+ if(!r.querySelector('[data-reply="employment32"]'))r.insertAdjacentHTML('beforeend','<button data-reply="employment32" type="button">'+label+'</button>');
+};
+const fw32PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ if(k==='employment32'){const n=getDialogSpeaker();if(n)fw32OpenEmployment(n);return;}
+ return fw32PrevHandleDialog(k);
+};
+
+const fw32PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ fw32EnsureNpc(n);const e=n.employment;
+ if(e.active&&e.suspended){
+  n.hunger=clamp(n.hunger-dt*.01,0,100);
+  const h=typeof fw9HomeSpot==='function'?fw9HomeSpot(n):{x:n.x,y:n.y};
+  setNpcTarget(n,h.x,h.y,'💸 給料未払い・作業停止');
+  if(typeof fw7MoveNpc==='function')fw7MoveNpc(n,dt,.72);
+  return;
+ }
+ fw32PrevUpdateNPC(n,dt);
+ if(e.active&&!e.suspended&&e.lastPaidDay>=state.day)n.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(n.loyalty)||0);
+};
+
+const fw32PrevUpdate=update;
+update=function(dt){
+ fw32EnsureState();fw32PrevUpdate(dt);fw32PayrollCheck();
+};
+
+const fw32PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fw32PrevLoadGame(slot);
+ try{fw32EnsureState();fw32PayrollCheck();}catch(e){msg('⚠️ 雇用データ補修に失敗：'+(e&&e.message?e.message:e));}
+ return ok;
+};
+
+root.addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw32]');if(!b)return;
+ e.preventDefault();e.stopPropagation();
+ const n=getDialogSpeaker();if(!n)return;
+ const a=b.getAttribute('data-fw32');
+ if(a==='hire')fw32Hire(n);else if(a==='end')fw32EndEmployment(n);else if(a==='payDebt')fw32PayDebt(n);
+ fw32OpenEmployment(n);
+},true);
+
+fw32EnsureState();
+
 })();
 </script>
 </body>
