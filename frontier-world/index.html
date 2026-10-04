@@ -396,9 +396,10 @@ function draw(){
    if(wx<0||wy<0||wx>=MAP||wy>=MAP){ctx.fillStyle='#203126';ctx.fillRect(px,py,TILE,TILE);continue;}
    drawTile(px,py,state.tiles[wy][wx].ground);
  }
+ // Ground layer: fields/crops must always stay behind world objects and characters.
+ if(typeof fw24DrawFieldsBelow==='function')fw24DrawFieldsBelow();
  state.objects.forEach(drawObject);
  state.buildings.forEach(drawBuilding);
- if(typeof fw24DrawFieldsBelow==='function')fw24DrawFieldsBelow();
  state.npcs.forEach(n=>drawPerson(n,n.sprite));
  drawPerson({...state.player,name:state.player.name||'YOU'},state.player.sprite||'you');
  const h=state.hour;let a=0;if(h>=20||h<5)a=.56;else if(h>=18)a=(h-18)*.28;else if(h<7)a=(7-h)*.28;if(a>0){ctx.fillStyle=`rgba(4,8,28,${Math.min(.58,a)})`;ctx.fillRect(0,0,W,H);}
@@ -3748,7 +3749,12 @@ function fw18DrawTreasures(){
  state.treasures.forEach(function(t){if(t.opened)return;const s=worldToScreen(t.x,t.y);ctx.save();ctx.font='25px system-ui';ctx.textAlign='center';ctx.fillText('🧰',s.x+TILE/2,s.y+TILE*.76);ctx.restore();});
 }
 const fw18PrevDraw=draw;
-draw=function(){fw18PrevDraw();if(!state.interior){fw18DrawFields();fw18DrawTreasures();}};
+draw=function(){
+ fw18PrevDraw();
+ // Fields are rendered inside the base world's ground layer. Never redraw them here,
+ // because this wrapper runs after characters and would cover them.
+ if(!state.interior)fw18DrawTreasures();
+};
 
 function fw18GiveBook(id,source){
  const b=FW18_BOOKS[id];if(!b)return;
@@ -6409,6 +6415,10 @@ fw26EnsureLatestState=function(){
 };
 fw26EnsureLatestState();
 
+
+/* FRONTIER_V30_FIELD_GROUND_LAYER_FIX */
+// Field/crop rendering is owned by the base world ground layer only.
+// The V18 post-draw field pass is intentionally disabled to prevent crops from covering actors.
 
 /* FRONTIER_V29_FURNITURE_EDIT_DELETE_FIX */
 function fw29FurnitureName(type){
