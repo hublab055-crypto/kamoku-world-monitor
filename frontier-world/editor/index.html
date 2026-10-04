@@ -36,6 +36,7 @@
       <button class="nav" data-view="events">🎉 <span>イベント</span></button>
       <button class="nav" data-view="economy">🪙 <span>経済・店</span></button>
       <button class="nav" data-view="world">🗺️ <span>ワールド配置</span></button>
+      <button class="nav" data-view="github">🐙 <span>GitHub連携</span></button>
       <button class="nav" data-view="validate">🧪 <span>検証・JSON</span></button>
     </aside>
 
@@ -250,6 +251,82 @@
         </div>
       </section>
 
+
+      <section class="view" id="view-github">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">VERSION CONTROL</div>
+            <h2>GitHub連携</h2>
+            <p>GitHubアカウントでログインし、Frontier Worldのファイルを直接読み込み・更新します。</p>
+          </div>
+          <div class="view-actions">
+            <button id="btnGithubLogin" class="primary">GitHubでログイン</button>
+            <button id="btnGithubLogout" class="ghost" hidden>ログアウト</button>
+          </div>
+        </div>
+
+        <div class="panel github-status-panel">
+          <div class="github-status-grid">
+            <div><span class="meta-label">接続</span><b id="githubConnectionStatus">未接続</b></div>
+            <div><span class="meta-label">GitHub</span><b id="githubUserName">—</b></div>
+            <div><span class="meta-label">Repository</span><b>hublab055-crypto/kamoku-world-monitor</b></div>
+            <div><span class="meta-label">Branch</span><b>main</b></div>
+          </div>
+          <p id="githubPermissionStatus" class="hint">GitHubログイン後、push権限を確認します。</p>
+        </div>
+
+        <details class="panel github-setup">
+          <summary>初回ログイン設定</summary>
+          <div class="setup-grid">
+            <div><span>Creator Suite URL</span><code>https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/editor/</code></div>
+            <div><span>GitHub OAuth callback</span><code>https://htwcscrllohavtbejhjr.supabase.co/auth/v1/callback</code></div>
+          </div>
+          <p class="hint">GitHub OAuth Appを作成し、Supabase AuthのGitHub providerへ Client ID / Secret を設定するとログインできます。秘密鍵はCreator Suiteへ保存しません。</p>
+        </details>
+
+        <div class="github-editor-layout">
+          <div class="panel github-browser-panel">
+            <label class="field"><span>ディレクトリ / ファイルパス</span>
+              <div class="inline-control">
+                <input id="githubPath" value="frontier-world/data/dialogue-pack.json" spellcheck="false">
+                <button id="btnGithubLoad" class="primary">読込</button>
+              </div>
+            </label>
+            <div class="inline-control">
+              <button id="btnGithubBrowse" class="ghost">📂 一覧</button>
+              <button id="btnGithubNewFile" class="ghost">＋ 新規ファイル</button>
+              <button id="btnGithubRefresh" class="ghost">↻ 再読込</button>
+            </div>
+            <div id="githubFileList" class="github-file-list"></div>
+          </div>
+
+          <div class="github-edit-column">
+            <div class="panel github-file-meta">
+              <div class="github-meta-row">
+                <span id="githubLoadedPath">ファイル未読込</span>
+                <span id="githubFileSha" class="mono muted"></span>
+              </div>
+              <div id="githubBinaryPreview" class="github-binary-preview" hidden>
+                <img id="githubImagePreview" alt="GitHub image preview">
+                <button id="btnGithubOpenImageEditor" class="ghost">🎨 画像エディタで開く</button>
+              </div>
+              <textarea id="githubTextEditor" class="github-text-editor" spellcheck="false" disabled></textarea>
+            </div>
+
+            <div class="panel github-commit-panel">
+              <label class="field"><span>コミットメッセージ</span><input id="githubCommitMessage" value="Update Frontier World content from Creator Suite"></label>
+              <label class="checkbox"><input id="githubConfirmMainGame" type="checkbox"><span>ゲーム本体 index.html の直接更新を許可</span></label>
+              <div class="github-save-actions">
+                <button id="btnGithubDiff" class="ghost">差分確認</button>
+                <button id="btnGithubSave" class="primary">GitHubへ保存</button>
+                <button id="btnGithubDelete" class="danger">GitHubから削除</button>
+              </div>
+              <div id="githubDiff" class="github-diff" hidden></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-validate">
         <div class="view-head">
           <div><div class="eyebrow">QUALITY</div><h2>検証 / Project JSON</h2><p>ID重複や参照切れを確認し、最終データを直接確認できます。</p></div>
@@ -270,7 +347,9 @@
   </footer>
 
   <div id="toast" class="toast"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
   <script src="./app.js"></script>
   <script src="./image-editor.js"></script>
+  <script src="./github-sync.js"></script>
 </body>
 </html>
