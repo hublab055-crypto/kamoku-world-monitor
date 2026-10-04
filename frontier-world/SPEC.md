@@ -520,3 +520,22 @@ Creator Suite の出力 `frontier-world-content.json` は現状ステージン�
 ### Creator Suite 画像保存
 
 画像バイナリはプロジェクトJSONに埋め込まず、IndexedDB `frontier-world-creator-assets` に保存する。削除操作は `deletedAt` を付与する論理削除とし、ゴミ箱から復元可能。完全削除はゴミ箱内から明示実行した場合のみ行う。
+
+
+### Creator Suite GitHub直接編集
+
+実装済みUI/クライアント機能:
+
+- Supabase Auth経由のGitHub OAuthログイン
+- 対象repoを `hublab055-crypto/kamoku-world-monitor` に固定
+- `frontier-world/` 配下のGitHubファイル一覧・読込
+- テキストファイルの新規作成・編集・簡易差分確認・commit
+- GitHub上のファイル削除
+- 読込時SHAを使った更新競合検出
+- ゲーム本体 `frontier-world/index.html` 直接更新の追加確認
+- GitHub画像を画像エディタへ取り込み
+- 編集PNGを元GitHubパスへcommit
+- GitHub provider tokenはsessionStorageにのみ一時保持
+
+初回利用にはGitHub OAuth Appの作成とSupabase Auth GitHub providerへのClient ID / Secret設定が必要。
+設定値は `frontier-world/editor/GITHUB_AUTH_SETUP.md` に記載。
