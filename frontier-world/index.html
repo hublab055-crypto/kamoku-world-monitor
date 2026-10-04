@@ -6733,6 +6733,299 @@ root.addEventListener('click',function(e){
 
 fw32EnsureState();
 
+
+/* FRONTIER_V33_MERCHANT_COMPANY_OWNERSHIP */
+const FW33_BUSINESS_ID='frontier_trading_company';
+
+function fw33Merchant(){
+ return state.npcs.find(function(n){return n&&n.role==='merchant';})||null;
+}
+function fw33DefaultBusiness(){
+ return {
+  id:FW33_BUSINESS_ID,
+  name:'Frontier Trading Company',
+  owner:'merchant',
+  cash:90,
+  goodwill:20,
+  acquiredDay:null,
+  lastBusinessDay:state.day,
+  profitHistory:[],
+  transactionVolume:0,
+  totalPlayerWithdrawn:0,
+  totalPlayerInvested:0
+ };
+}
+function fw33EnsureState(){
+ if(!state.commerce33||typeof state.commerce33!=='object')state.commerce33={};
+ if(!state.commerce33.businesses||typeof state.commerce33.businesses!=='object')state.commerce33.businesses={};
+ if(!state.commerce33.businesses[FW33_BUSINESS_ID])state.commerce33.businesses[FW33_BUSINESS_ID]=fw33DefaultBusiness();
+ const b=state.commerce33.businesses[FW33_BUSINESS_ID];
+ if(b.owner!=='player'&&b.owner!=='merchant')b.owner='merchant';
+ if(b.cash==null)b.cash=90;
+ if(b.goodwill==null)b.goodwill=20;
+ if(b.lastBusinessDay==null)b.lastBusinessDay=state.day;
+ if(!Array.isArray(b.profitHistory))b.profitHistory=[];
+ if(b.transactionVolume==null)b.transactionVolume=0;
+ if(b.totalPlayerWithdrawn==null)b.totalPlayerWithdrawn=0;
+ if(b.totalPlayerInvested==null)b.totalPlayerInvested=0;
+ const m=fw33Merchant();
+ if(m){
+  fw32EnsureNpc(m);
+  m.skills=m.skills||{};
+  if(m.skills.trade==null)m.skills.trade=2.0;
+  const e=m.employment;
+  if(e.merchantContract==null)e.merchantContract=false;
+  if(e.merchantContract){e.active=true;m.companion=false;}
+ }
+ return b;
+}
+function fw33Business(){
+ fw33EnsureState();
+ return state.commerce33.businesses[FW33_BUSINESS_ID];
+}
+function fw33AvgProfit(){
+ const h=fw33Business().profitHistory.slice(-7);
+ if(!h.length)return 8;
+ return h.reduce(function(a,x){return a+(Number(x.net)||0);},0)/h.length;
+}
+function fw33CompanyValue(){
+ const b=fw33Business(),avg=fw33AvgProfit();
+ return Math.max(180,Math.round(150+Math.max(0,b.cash)*.7+Math.max(0,avg)*14+(b.goodwill||0)*3));
+}
+function fw33MerchantWage(){
+ const m=fw33Merchant();if(!m)return 0;fw32EnsureNpc(m);
+ return Math.max(8,fw32DailyWage(m)+2);
+}
+function fw33FundsForMerchant(){
+ const b=fw33Business();
+ return b.owner==='player'?b.cash:state.player.coins;
+}
+function fw33DeductMerchantWage(amount){
+ const b=fw33Business();
+ if(b.owner==='player')b.cash-=amount;else state.player.coins-=amount;
+}
+function fw33HireMerchant(){
+ const m=fw33Merchant();if(!m)return false;fw33EnsureState();
+ const e=m.employment,w=fw33MerchantWage();
+ if(e.active&&e.merchantContract)return true;
+ if(e.unpaidDebt>0){msg('💰 先に商人の未払い賃金 '+e.unpaidDebt+'G を精算して。');return false;}
+ if(fw33FundsForMerchant()<w){msg('💰 商人を雇う初日給 '+w+'G が足りない。');return false;}
+ fw33DeductMerchantWage(w);
+ e.wasCompanion=!!m.companion;e.wasRelationship=m.relationship||'acquaintance';
+ e.active=true;e.merchantContract=true;e.suspended=false;e.unpaidDebt=0;e.lastPaidDay=state.day;e.paidDays++;
+ m.companion=false;
+ m.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(m.loyalty)||0);
+ fw32GainWorkXp(m,1);fw32Log('merchant_hire_paid',m,w,state.day);
+ typeLine('商売の管理なら任せて。日給 '+w+'G で引き受けよう。');
+ msg('🧑‍💼 '+m.name+'と専属商人契約。日給 '+w+'G。');
+ return true;
+}
+function fw33EndMerchant(){
+ const m=fw33Merchant();if(!m)return;fw32EnsureNpc(m);
+ const e=m.employment;if(!e.merchantContract)return;
+ e.active=false;e.merchantContract=false;e.suspended=false;m.companion=!!e.wasCompanion;
+ fw32Log('merchant_contract_end',m,0,state.day);
+ typeLine('契約終了だね。店の商売自体は続けておくよ。');
+ msg('🧑‍💼 '+m.name+'との専属商人契約を終了。');
+}
+function fw33PayMerchantDebt(){
+ const m=fw33Merchant();if(!m)return false;fw32EnsureNpc(m);
+ const e=m.employment,debt=Math.max(0,Math.round(e.unpaidDebt||0));
+ if(!debt)return true;
+ if(fw33FundsForMerchant()<debt){msg('💰 商人の未払い '+debt+'G を払う資金が足りない。');return false;}
+ fw33DeductMerchantWage(debt);
+ e.unpaidDebt=0;e.suspended=false;e.lastPaidDay=state.day;
+ if(e.merchantContract){e.active=true;m.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(m.loyalty)||0);fw32GainWorkXp(m,1);}
+ fw32Log('merchant_arrears_paid',m,debt,state.day);
+ msg('💰 商人の未払い '+debt+'G を精算。');
+ return true;
+}
+
+const fw33PrevEnsureNpc=fw32EnsureNpc;
+fw32EnsureNpc=function(n){
+ fw33PrevEnsureNpc(n);
+ if(n&&n.role==='merchant'&&n.employment&&n.employment.merchantContract)n.companion=false;
+ return n;
+};
+
+const fw33PrevPayOneDay=fw32PayOneDay;
+fw32PayOneDay=function(day){
+ const m=fw33Merchant();
+ let processMerchant=false;
+ if(m){fw32EnsureNpc(m);processMerchant=!!(m.employment.active&&m.employment.merchantContract);if(processMerchant)m.employment.active=false;}
+ fw33PrevPayOneDay(day);
+ if(!m||!processMerchant)return;
+ const e=m.employment;e.active=true;m.companion=false;
+ const w=fw33MerchantWage();e.dailyWage=w;
+ if(fw33FundsForMerchant()>=w){
+  fw33DeductMerchantWage(w);e.lastPaidDay=day;e.paidDays++;e.unpaidDebt=0;e.suspended=false;
+  m.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(m.loyalty)||0);
+  const lv=fw32GainWorkXp(m,2);fw32Log('merchant_daily_paid',m,w,day);
+  msg('💰 Day '+day+' 商人給料：'+w+'G 支給'+(lv?' / 職能Lv.'+e.level+'へUP':'')+'。');
+ }else{
+  e.suspended=true;e.unpaidDebt=w;e.unpaidSinceDay=day;e.unpaidDays++;
+  m.loyalty=clamp((Number(m.loyalty)||0)-12,0,100);fw32Log('merchant_unpaid',m,w,day);
+  msg('⚠️ 商人の日給 '+w+'G を払えない。商業管理を停止。');
+ }
+};
+
+function fw33SimulateBusinessDay(day){
+ const b=fw33Business(),m=fw33Merchant();
+ const employed=!!(m&&m.employment&&m.employment.merchantContract&&m.employment.active&&!m.employment.suspended);
+ const tradeLv=m&&m.skills?Number(m.skills.trade||0):0;
+ const settlement=Math.max(0,Number(state.camp&&state.camp.buildLevel||0));
+ const demand=.88+((Math.sin(day*1.73)+1)/2)*.34;
+ let efficiency=1;
+ if(b.owner==='player')efficiency=employed?1.16:.66;
+ const revenue=Math.max(4,Math.round((15+settlement*3+(employed?tradeLv*2.3:0))*demand*efficiency));
+ const operating=Math.max(3,Math.round(7+settlement*1.2+(b.owner==='player'?2:0)));
+ const net=revenue-operating;
+ b.cash=Math.round((Number(b.cash)||0)+net);
+ b.transactionVolume+=revenue;
+ b.goodwill=clamp((Number(b.goodwill)||0)+(net>=0?.15:-.25),0,100);
+ let commission=0;
+ if(b.owner==='merchant'&&employed){
+  commission=Math.min(Math.max(0,b.cash),Math.max(1,Math.round(revenue*.12)));
+  if(commission>0){b.cash-=commission;state.player.coins+=commission;}
+ }
+ b.profitHistory.push({day:day,revenue:revenue,cost:operating,net:net,commission:commission,cash:b.cash});
+ if(b.profitHistory.length>30)b.profitHistory.splice(0,b.profitHistory.length-30);
+ if(m&&employed)m.skills.trade=(Number(m.skills.trade)||0)+.08;
+ if(b.owner==='player')msg('🏢 Day '+day+' 自社商店 '+(net>=0?'+':'')+net+'G / 会社資金 '+b.cash+'G');
+ else if(commission)msg('🧑‍💼 交易手数料 '+commission+'G を受け取った。');
+}
+function fw33BusinessDayCheck(){
+ const b=fw33Business();
+ if(state.day<=b.lastBusinessDay)return;
+ const start=Math.max(b.lastBusinessDay+1,state.day-30);
+ for(let d=start;d<=state.day;d++)fw33SimulateBusinessDay(d);
+ b.lastBusinessDay=state.day;
+}
+function fw33Acquire(){
+ const b=fw33Business();if(b.owner==='player')return true;
+ const price=fw33CompanyValue();
+ if(state.player.coins<price){msg('🏢 買収資金 '+price+'G が足りない。');return false;}
+ state.player.coins-=price;b.owner='player';b.acquiredDay=state.day;b.purchasePrice=price;
+ msg('🏢 '+b.name+'を '+price+'G で買収。会社資金 '+b.cash+'G と店舗事業を引き継いだ。');
+ const m=fw33Merchant();if(m)typeLine('本当に会社ごと買ったんだね。私は雇われるなら、引き続き店を任せてもらえるよ。');
+ return true;
+}
+function fw33SellCompany(){
+ const b=fw33Business();if(b.owner!=='player')return false;
+ const price=Math.max(100,Math.round(fw33CompanyValue()*.85));
+ state.player.coins+=price;b.owner='merchant';b.acquiredDay=null;b.salePrice=price;
+ msg('🏢 '+b.name+'を '+price+'G で売却した。');
+ return true;
+}
+function fw33Transfer(amount,dir){
+ const b=fw33Business();if(b.owner!=='player')return false;
+ if(amount==='all')amount=Math.max(0,Math.floor(b.cash));
+ amount=Math.max(0,Math.floor(Number(amount)||0));if(!amount)return false;
+ if(dir==='withdraw'){
+  if(b.cash<amount){msg('🏢 会社資金が足りない。');return false;}
+  b.cash-=amount;state.player.coins+=amount;b.totalPlayerWithdrawn+=amount;msg('🏢 会社から '+amount+'G 引き出した。');
+ }else{
+  if(state.player.coins<amount){msg('💰 出資する資金が足りない。');return false;}
+  state.player.coins-=amount;b.cash+=amount;b.totalPlayerInvested+=amount;msg('🏢 会社へ '+amount+'G 出資した。');
+ }
+ return true;
+}
+function fw33OpenCommerce(){
+ const b=fw33Business(),m=fw33Merchant();if(m)fw32EnsureNpc(m);
+ const e=m?m.employment:null,value=fw33CompanyValue(),owned=b.owner==='player';
+ const employed=!!(e&&e.merchantContract&&e.active);
+ const wage=m?fw33MerchantWage():0;
+ const avg=fw33AvgProfit();
+ let merchantActions='';
+ if(m){
+  if(e.unpaidDebt>0)merchantActions='<button class="smallBtn" data-fw33="payDebt">💰 商人未払い '+e.unpaidDebt+'G を精算</button>';
+  else if(!employed)merchantActions='<button class="smallBtn" data-fw33="hireMerchant">🧑‍💼 商人を雇う 日給 '+wage+'G</button>';
+  else merchantActions='<button class="smallBtn" data-fw33="endMerchant">🧑‍💼 商人契約を終了</button>';
+ }
+ let ownerActions=owned
+  ?'<button class="smallBtn" data-fw33="withdraw25">会社→25G</button> <button class="smallBtn" data-fw33="withdrawAll">会社→全額</button> <button class="smallBtn" data-fw33="invest25">25G→会社</button> <button class="smallBtn" data-fw33="sellCompany">会社を売却 約'+Math.round(value*.85)+'G</button>'
+  :'<button class="smallBtn" data-fw33="acquire" '+(state.player.coins>=value?'':'disabled')+'>🏢 会社を買収 '+value+'G</button>';
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🏢 商売・会社';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>'+b.name+'</b><br>所有：<b>'+(owned?'あなた':'商人')+'</b>　企業価値 約<b>'+value+'G</b><br>会社資金 <b>'+Math.round(b.cash)+'G</b>　7日平均利益 '+avg.toFixed(1)+'G/日<br>信用 '+Math.round(b.goodwill)+'/100</div>'+
+  '<div class="tileCard"><b>商人</b><br>'+(employed?'専属契約中':'未契約')+(e&&e.suspended?' / 給料未払いで停止':'')+'<br>日給 '+wage+'G / 交易Lv.'+(m&&m.skills?Number(m.skills.trade||0).toFixed(1):'0.0')+' / 忠誠 '+(m?Math.round(m.loyalty||0):'-')+'</div>'+
+  '<div>'+merchantActions+'</div><div style="margin-top:8px">'+ownerActions+'</div>'+
+  '<div class="legend">商人を雇うことと会社を所有することは別。商人だけ雇って交易手数料を得ることも、会社を買って自分の資産として経営することもできる。自社は商人なしでも動くが効率が落ちる。</div>';
+}
+function fw33RecordTrade(beforeCoins){
+ const b=fw33Business(),delta=beforeCoins-state.player.coins;
+ if(!delta)return;
+ b.cash=Math.round((Number(b.cash)||0)+delta);
+ b.transactionVolume+=Math.abs(delta);
+ const el=document.getElementById('fw33ShopLedger');
+ if(el)el.innerHTML='🏢 '+(b.owner==='player'?'自社店舗':'独立商店')+' / 会社資金 <b>'+b.cash+'G</b> / 企業価値 約'+fw33CompanyValue()+'G';
+}
+function fw33AppendShopStatus(){
+ const b=fw33Business(),body=$('#panelBody');if(!body)return;
+ let el=document.getElementById('fw33ShopLedger');
+ if(!el){body.insertAdjacentHTML('beforeend','<div id="fw33ShopLedger" class="legend"></div>');el=document.getElementById('fw33ShopLedger');}
+ if(el)el.innerHTML='🏢 '+(b.owner==='player'?'自社店舗':'独立商店')+' / 会社資金 <b>'+b.cash+'G</b> / 企業価値 約'+fw33CompanyValue()+'G';
+}
+
+const fw33PrevShopTrade=shopTrade;
+shopTrade=function(item,mode){const before=state.player.coins;const r=fw33PrevShopTrade(item,mode);fw33RecordTrade(before);return r;};
+if(typeof fw18SeedTrade==='function'){
+ const fw33PrevSeedTrade=fw18SeedTrade;
+ fw18SeedTrade=function(item,mode){const before=state.player.coins;const r=fw33PrevSeedTrade(item,mode);fw33RecordTrade(before);return r;};
+}
+if(typeof fw18BookTrade==='function'){
+ const fw33PrevBookTrade=fw18BookTrade;
+ fw18BookTrade=function(id,mode){const before=state.player.coins;const r=fw33PrevBookTrade(id,mode);fw33RecordTrade(before);return r;};
+}
+if(typeof fw8SellCrafted==='function'){
+ const fw33PrevSellCrafted=fw8SellCrafted;
+ fw8SellCrafted=function(i){const before=state.player.coins;const r=fw33PrevSellCrafted(i);fw33RecordTrade(before);return r;};
+}
+const fw33PrevOpenShop=openShop;
+openShop=function(mode){const r=fw33PrevOpenShop(mode);fw33AppendShopStatus();return r;};
+
+const fw33PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw33PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n||n.role!=='merchant')return;
+ const r=$('#dialogReplies');
+ if(r&&!r.querySelector('[data-reply="commerce33"]'))r.insertAdjacentHTML('beforeend','<button data-reply="commerce33" type="button">🏢 商売・会社</button>');
+};
+const fw33PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ if(k==='commerce33'){fw33OpenCommerce();return;}
+ return fw33PrevHandleDialog(k);
+};
+
+const fw33PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fw33PrevLoadGame(slot);
+ try{fw33EnsureState();fw33BusinessDayCheck();}catch(e){msg('⚠️ 商業データ補修に失敗：'+(e&&e.message?e.message:e));}
+ return ok;
+};
+
+const fw33PrevUpdate=update;
+update=function(dt){
+ fw33EnsureState();fw33PrevUpdate(dt);fw33BusinessDayCheck();
+};
+
+root.addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw33]');if(!b)return;
+ e.preventDefault();e.stopPropagation();
+ const a=b.getAttribute('data-fw33');
+ if(a==='hireMerchant')fw33HireMerchant();
+ else if(a==='endMerchant')fw33EndMerchant();
+ else if(a==='payDebt')fw33PayMerchantDebt();
+ else if(a==='acquire')fw33Acquire();
+ else if(a==='sellCompany')fw33SellCompany();
+ else if(a==='withdraw25')fw33Transfer(25,'withdraw');
+ else if(a==='withdrawAll')fw33Transfer('all','withdraw');
+ else if(a==='invest25')fw33Transfer(25,'invest');
+ fw33OpenCommerce();
+},true);
+
+fw33EnsureState();
+
 })();
 </script>
 </body>
