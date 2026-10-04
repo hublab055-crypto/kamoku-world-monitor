@@ -6635,7 +6635,8 @@ function fw32Hire(n){
 function fw32EndEmployment(n){
  fw32EnsureNpc(n);const e=n.employment;if(!e.active)return;
  e.active=false;e.suspended=false;
- if(!e.wasCompanion&&n.relationship==='companion'){n.companion=false;n.relationship=e.wasRelationship||'acquaintance';}
+ if(!e.wasCompanion)n.companion=false;
+ if(n.relationship==='companion'&&e.wasRelationship)n.relationship=e.wasRelationship;
  fw32Log('contract_end',n,0,state.day);
  typeLine('契約はここまでだね。また必要になったら声をかけて。');
  msg('💼 '+n.name+'との雇用契約を終了。');renderDialogReplies();
