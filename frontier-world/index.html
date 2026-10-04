@@ -7092,10 +7092,13 @@ function fw34CurrentHome(){
  if(state.interior)return state.buildings.find(function(b){return b.id===state.interior.buildingId;})||null;
  return fw34HomeFor(state.player);
 }
+let fw34DirtClock=0;
 function fw34DirtTick(dt){
+ fw34DirtClock+=dt;if(fw34DirtClock<1)return;
+ const elapsed=fw34DirtClock;fw34DirtClock=0;
  const rates={kitchen:.008,table:.006,toilet:.012,bath:.005,bed:.003,crib:.004,laundry:.005};
  state.buildings.forEach(function(b){
-  fw34CleanTargets(b).forEach(function(t){t.obj.cleanliness34=clamp(t.obj.cleanliness34-(rates[t.type]||.003)*dt,0,100);});
+  fw34CleanTargets(b).forEach(function(t){t.obj.cleanliness34=clamp(t.obj.cleanliness34-(rates[t.type]||.003)*elapsed,0,100);});
  });
 }
 function fw34TakeShared(actor,key,qty){
@@ -7194,6 +7197,7 @@ function fw34NpcCleanTick(n,h,b,dt){
  if(!t){
   n.status='✨ 掃除完了・室内待機';
   if(h.source==='gambit'){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+  else if(h.source==='command'){n.command='homeWait';h.kind='wait';}
   return true;
  }
  if(!fw34MoveIndoor(h,n,{x:t.x,y:t.y},dt)) {n.status='🧹 '+t.name+'へ';return true;}
@@ -7278,7 +7282,7 @@ function fw34NpcIndoorTick(n,h,dt){
   if(h.kind==='laundry'&&h.phase&&['leave','toLine','hang','dry','take','return','fold','store'].includes(h.phase)){
    // Finish a laundry cycle even if the schedule block changes mid-cycle.
   }else if(FW34_INDOOR_SCHEDULE.has(nowTask)&&nowTask!==h.kind){
-   h.kind=nowTask;h.phase=null;h.timer=0;h.started=false;h.doneKey=null;
+   h.kind=nowTask;h.phase=null;h.timer=0;h.started=false;h.doneKey=null;h.recipeId=null;h.used34=false;h.waterTaken=false;
   }else if(!FW34_INDOOR_SCHEDULE.has(nowTask)){
    fw34ExitNpc(n,false);return false;
   }
@@ -7302,7 +7306,9 @@ function fw34NpcIndoorTick(n,h,dt){
  }
  if(h.kind==='bath'){
   const g=fw34AmenityGoal(b,'bath');if(!fw34MoveIndoor(h,n,g,dt)){n.status='🛁 風呂へ';return true;}
-  n.hygiene=clamp((n.hygiene==null?78:n.hygiene)+dt*22,0,100);n.st=clamp(n.st+dt*.8,0,100);n.status='🛁 入浴';fw34AddDirt(b,'bath',dt*.15);return true;
+  n.hygiene=clamp((n.hygiene==null?78:n.hygiene)+dt*22,0,100);n.st=clamp(n.st+dt*.8,0,100);n.status='🛁 入浴';fw34AddDirt(b,'bath',dt*.15);
+  if(h.source==='gambit'&&n.hygiene>=98){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+  return true;
  }
  if(h.kind==='toilet'){
   const g=fw34AmenityGoal(b,'toilet');if(!fw34MoveIndoor(h,n,g,dt)){n.status='🚽 トイレへ';return true;}
