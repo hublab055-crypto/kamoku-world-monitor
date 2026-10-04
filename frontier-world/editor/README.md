@@ -80,3 +80,19 @@ Creator Suite は **authoring/staging tool**。
 - ゴミ箱内のみ完全削除
 
 削除直後に画像データを破棄しないため、誤削除から復旧できる。
+
+
+## GitHub 直接編集
+
+Creator Suite は Supabase Auth + GitHub OAuth を使ったログインUIと、GitHub REST APIによる直接編集機能を持つ。
+
+- 対象 repository: `hublab055-crypto/kamoku-world-monitor`
+- branch: `main`
+- 通常編集範囲: `frontier-world/`
+- テキストファイル読込 / 新規作成 / 差分確認 / commit / delete
+- SHAベースの競合検出
+- 画像をGitHubから画像エディタへ直接読込
+- 編集画像をGitHubへ直接PNG commit
+- `frontier-world/index.html` は追加チェックなしでは更新不可
+
+GitHub OAuth provider の初回設定は `GITHUB_AUTH_SETUP.md` を参照。
