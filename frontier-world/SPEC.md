@@ -3,7 +3,7 @@
 更新日: 2026-10-04 JST  
 対象: `frontier-world/index.html`  
 実装系列: Frontier V32  
-基準コミット: `2558be3258d5f6e9fc255c637f249920666b57b1`
+基準コミット: `db7f05e5c1365461ed6d93e23a90e546584195e2`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
