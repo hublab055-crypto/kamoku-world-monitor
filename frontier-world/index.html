@@ -396,7 +396,8 @@ function draw(){
    if(wx<0||wy<0||wx>=MAP||wy>=MAP){ctx.fillStyle='#203126';ctx.fillRect(px,py,TILE,TILE);continue;}
    drawTile(px,py,state.tiles[wy][wx].ground);
  }
- // Ground layer: fields/crops must always stay behind world objects and characters.
+ // Ground layer: every farm/field renderer must stay behind world objects and characters.
+ if(typeof fw10DrawFarm==='function')fw10DrawFarm();
  if(typeof fw24DrawFieldsBelow==='function')fw24DrawFieldsBelow();
  state.objects.forEach(drawObject);
  state.buildings.forEach(drawBuilding);
@@ -1749,7 +1750,8 @@ function fw10DrawFarm(){
 const fw10PrevDraw=draw;
 draw=function(){
  if(state.interior){fw10DrawInterior();if(state.ceremony)fw10DrawCeremony();if(state.gameOver)fw10DrawGameOver();return;}
- fw10PrevDraw();fw10DrawFarm();fw10DrawGraves();if(state.ceremony)fw10DrawCeremony();if(state.gameOver)fw10DrawGameOver();
+ // fw10DrawFarm() is rendered by the base ground layer before actors.
+ fw10PrevDraw();fw10DrawGraves();if(state.ceremony)fw10DrawCeremony();if(state.gameOver)fw10DrawGameOver();
 };
 
 canvas.addEventListener('pointerdown',function(e){
@@ -6415,6 +6417,9 @@ fw26EnsureLatestState=function(){
 };
 fw26EnsureLatestState();
 
+
+/* FRONTIER_V31_ALL_FARMS_BEHIND_ACTORS */
+// Both legacy state.farm and customFields are drawn only in the base ground layer.
 
 /* FRONTIER_V30_FIELD_GROUND_LAYER_FIX */
 // Field/crop rendering is owned by the base world ground layer only.
