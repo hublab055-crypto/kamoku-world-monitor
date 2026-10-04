@@ -1,6 +1,6 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-04T07:32:00+09:00",
+  "updated_at": "2026-10-04T13:06:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
@@ -32,7 +32,8 @@
     "five manual save slots, autosave, backups, checksum and migration recovery",
     "indoor furniture drag rearrangement and deletion with protected occupied cribs",
     "human-facing Creator Suite authoring editors with JSON import/export and validation",
-    "Creator Suite image asset editor with paint tools, IndexedDB storage, recoverable trash and PNG export"
+    "Creator Suite image asset editor with paint tools, IndexedDB storage, recoverable trash and PNG export",
+    "Creator Suite GitHub OAuth login and direct repository editing client"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -79,7 +80,27 @@
       "validation_json"
     ],
     "image_storage": "IndexedDB: frontier-world-creator-assets",
-    "image_trash": "soft delete with restore; permanent delete only from trash"
+    "image_trash": "soft delete with restore; permanent delete only from trash",
+    "github_sync": {
+      "status": "implemented_requires_oauth_provider_setup",
+      "auth": "Supabase Auth + GitHub OAuth",
+      "repo": "hublab055-crypto/kamoku-world-monitor",
+      "branch": "main",
+      "editable_root": "frontier-world/",
+      "features": [
+        "browse",
+        "load",
+        "new_text_file",
+        "edit_text",
+        "diff_preview",
+        "commit",
+        "delete",
+        "sha_conflict_detection",
+        "image_open_in_editor",
+        "image_commit"
+      ],
+      "setup_path": "frontier-world/editor/GITHUB_AUTH_SETUP.md"
+    }
   },
   "next_tasks": [
     "split hardcoded content definitions into frontier-world/data files",
