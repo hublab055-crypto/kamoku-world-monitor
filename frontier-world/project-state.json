@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-04T13:06:00+09:00",
+  "updated_at": "2026-10-04T15:41:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V29",
-  "game_commit": "9b5b134ada881518e4035ba40b4f61c9c0fa0f3e",
+  "implementation_version": "V30",
+  "game_commit": "89f37c9d949b1b18b9cdb9582330f9481bba321a",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -33,7 +33,8 @@
     "indoor furniture drag rearrangement and deletion with protected occupied cribs",
     "human-facing Creator Suite authoring editors with JSON import/export and validation",
     "Creator Suite image asset editor with paint tools, IndexedDB storage, recoverable trash and PNG export",
-    "Creator Suite GitHub OAuth login and direct repository editing client"
+    "Creator Suite GitHub OAuth login and direct repository editing client",
+    "fields and crops rendered in the ground layer behind world objects and characters"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
