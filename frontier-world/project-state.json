@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T00:49:46+09:00",
+  "updated_at": "2026-10-05T01:10:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V34",
-  "game_commit": "f99c55e7eb34d859efbdf9e600642b031b41b630",
+  "implementation_version": "V34.1",
+  "game_commit": "51e8db0f38118857f30fd711f5eeb27394df5aa8",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -42,7 +42,8 @@
     "staged water-consuming laundry workflow from wash tub to outdoor drying, folding and storage",
     "autonomous NPC travel speed aligned near controlled-character auto movement",
     "numeric gambit comparison operators including less-than, less-or-equal, equal, greater-or-equal, greater-than and not-equal",
-    "home cleanliness gambit condition and automatic house-cleaning action"
+    "home cleanliness gambit condition and automatic house-cleaning action",
+    "indoor family schedule movement and conversation distance regression fixes"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
