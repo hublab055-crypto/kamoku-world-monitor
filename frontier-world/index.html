@@ -7804,8 +7804,9 @@ function fw35IdleGoal(n,h,b){
    {x:clamp(size.w-1.25,.7,size.w-.7),y:clamp(1.25+.3*(seed%2),.7,size.h-.75)},
    {x:clamp(size.w/2+.65,.7,size.w-.7),y:clamp(size.h/2+.55,.7,size.h-.75)}
   ];
-  h.idleGoal35=spots[seed%spots.length];
-  h.idleClock35=3.5+(seed%4)*1.1;
+  h.idleIndex35=((h.idleIndex35==null?seed:h.idleIndex35)+1)%spots.length;
+  h.idleGoal35=spots[h.idleIndex35];
+  h.idleClock35=3.5+((seed+h.idleIndex35)%4)*1.1;
  }
  return h.idleGoal35;
 }
