@@ -7024,6 +7024,742 @@ root.addEventListener('click',function(e){
  fw33OpenCommerce();
 },true);
 
+/* FRONTIER_V34_HOUSEHOLD_LIFE */
+// Household simulation: real indoor NPC work, furniture cleanliness, staged laundry,
+// near-player automatic movement speed, and selectable numeric gambit comparisons.
+const FW34_AUTO_SPEED=3.05;
+const FW34_OPS={
+ lt:{label:'未満',symbol:'<'},
+ lte:{label:'以下',symbol:'≤'},
+ eq:{label:'同じ',symbol:'='},
+ gte:{label:'以上',symbol:'≥'},
+ gt:{label:'より大きい',symbol:'>'},
+ neq:{label:'以外',symbol:'≠'}
+};
+const FW34_INDOOR_SCHEDULE=new Set(['sleep','housework','bath','laundry','clean','cook','toilet','meal']);
+
+function fw34RoomSize(b){return b&&b.type==='house'?{w:7,h:6}:{w:6,h:5};}
+function fw34HomeFor(actor){
+ return (typeof fw19HomeFor==='function'?fw19HomeFor(actor):null)||
+  (actor!==state.player&&actor.homeId?state.buildings.find(function(b){return b.id===actor.homeId;}):null)||
+  state.buildings.find(function(b){return b.id==='player';})||null;
+}
+function fw34IsHomeBuilding(b){return !!(b&&b.type!=='shop');}
+function fw34EnsureCleanObject(o){
+ if(!o)return o;
+ if(!Number.isFinite(Number(o.cleanliness34)))o.cleanliness34=92;
+ o.cleanliness34=clamp(Number(o.cleanliness34),0,100);
+ return o;
+}
+function fw34CleanTargets(b){
+ if(!fw34IsHomeBuilding(b))return [];
+ const size=fw34RoomSize(b),out=[];
+ if(typeof fw12EnsureBeds==='function')fw12EnsureBeds(b);
+ if(typeof fw19EnsureAmenities==='function')fw19EnsureAmenities(b);
+ (b.beds||[]).forEach(function(o,i){fw34EnsureCleanObject(o);out.push({obj:o,type:'bed',name:'ベッド '+(i+1),x:o.x+.38,y:o.y+.65});});
+ (b.cribs||[]).forEach(function(o,i){fw34EnsureCleanObject(o);out.push({obj:o,type:'crib',name:'ベビーベッド '+(i+1),x:o.x+.55,y:o.y+.35});});
+ (b.amenities19||[]).forEach(function(o){
+  if(!['kitchen','table','toilet','bath','laundry'].includes(o.type))return;
+  fw34EnsureCleanObject(o);
+  const names={kitchen:'キッチン',table:'食卓・机',toilet:'トイレ',bath:'風呂',laundry:'タライ'};
+  out.push({obj:o,type:o.type,name:names[o.type]||o.type,x:o.x+.45,y:o.y+.45});
+ });
+ if(typeof fw25EnsureLegacyFurniture==='function'){
+  const legacy=fw25EnsureLegacyFurniture(b,size.w,size.h);
+  legacy.forEach(function(o){
+   if(!['table'].includes(o.type))return;
+   fw34EnsureCleanObject(o);out.push({obj:o,type:o.type,name:'食卓・机',x:o.x+.45,y:o.y+.45});
+  });
+ }
+ return out;
+}
+function fw34HomeCleanliness(b){
+ const a=fw34CleanTargets(b);if(!a.length)return 100;
+ return a.reduce(function(s,t){return s+t.obj.cleanliness34;},0)/a.length;
+}
+function fw34Dirtiest(b,limit){
+ const a=fw34CleanTargets(b).filter(function(t){return t.obj.cleanliness34<(limit==null?99:limit);});
+ a.sort(function(x,y){return x.obj.cleanliness34-y.obj.cleanliness34;});
+ return a[0]||null;
+}
+function fw34TargetOfType(b,type){
+ return fw34CleanTargets(b).find(function(t){return t.type===type;})||null;
+}
+function fw34AddDirt(b,type,amount){
+ const t=fw34TargetOfType(b,type);if(t)t.obj.cleanliness34=clamp(t.obj.cleanliness34-Math.max(0,Number(amount)||0),0,100);
+}
+function fw34CurrentHome(){
+ if(state.interior)return state.buildings.find(function(b){return b.id===state.interior.buildingId;})||null;
+ return fw34HomeFor(state.player);
+}
+function fw34DirtTick(dt){
+ const rates={kitchen:.008,table:.006,toilet:.012,bath:.005,bed:.003,crib:.004,laundry:.005};
+ state.buildings.forEach(function(b){
+  fw34CleanTargets(b).forEach(function(t){t.obj.cleanliness34=clamp(t.obj.cleanliness34-(rates[t.type]||.003)*dt,0,100);});
+ });
+}
+function fw34TakeShared(actor,key,qty){
+ let left=qty;
+ actor.inv=actor.inv||{};
+ const a=Math.min(left,Number(actor.inv[key]||0));actor.inv[key]=(actor.inv[key]||0)-a;left-=a;
+ if(left>0){const q=Math.min(left,Number(state.chest[key]||0));state.chest[key]=(state.chest[key]||0)-q;left-=q;}
+ if(left>0){const q=Math.min(left,Number(state.camp[key]||0));state.camp[key]=(state.camp[key]||0)-q;left-=q;}
+ return left<=0;
+}
+function fw34HasShared(actor,key,qty){
+ return Number(actor.inv&&actor.inv[key]||0)+Number(state.chest[key]||0)+Number(state.camp[key]||0)>=qty;
+}
+function fw34AmenityGoal(b,type){
+ const size=fw34RoomSize(b);
+ if(typeof fw19EnsureAmenities==='function')fw19EnsureAmenities(b);
+ const a=(b.amenities19||[]).find(function(x){return x.type===type;});
+ if(a)return {x:a.x+.45,y:a.y+.45};
+ if(type==='table'||type==='kitchen'){
+  const l=typeof fw25EnsureLegacyFurniture==='function'?fw25EnsureLegacyFurniture(b,size.w,size.h):[];
+  const q=l.find(function(x){return x.type===(type==='kitchen'?'fireplace':'table');})||l.find(function(x){return x.type==='table';});
+  if(q)return {x:q.x+.45,y:q.y+.45};
+ }
+ return {x:size.w/2,y:size.h/2};
+}
+function fw34BedGoal(b,n){
+ const size=fw34RoomSize(b);if(typeof fw12EnsureBeds==='function')fw12EnsureBeds(b);
+ const a=b.beds||[];if(!a.length)return {x:1.1,y:1.25};
+ let h=0;String(n&&n.id||'0').split('').forEach(function(ch){h=(h*31+ch.charCodeAt(0))>>>0;});
+ const q=a[h%a.length];return {x:q.x+.38,y:q.y+.65};
+}
+function fw34StorageGoal(b){
+ if(typeof fw19EnsureAmenities==='function')fw19EnsureAmenities(b);
+ const s=(b.amenities19||[]).find(function(x){return x.type==='shelf';});
+ if(s)return {x:s.x+.45,y:s.y+.45};
+ const size=fw34RoomSize(b),l=typeof fw25EnsureLegacyFurniture==='function'?fw25EnsureLegacyFurniture(b,size.w,size.h):[];
+ const c=l.find(function(x){return x.type==='chest';});return c?{x:c.x+.45,y:c.y+.45}:{x:size.w-1,y:1};
+}
+function fw34CraftGoal(b,food){
+ if(food)return fw34AmenityGoal(b,'kitchen');
+ const table=fw34AmenityGoal(b,'table');return table||fw34StorageGoal(b);
+}
+function fw34MoveIndoor(h,n,g,dt,speed){
+ if(!h||!g)return false;const dx=g.x-h.x,dy=g.y-h.y,d=Math.hypot(dx,dy);
+ if(d<=.16)return true;
+ const sp=speed||FW34_AUTO_SPEED,step=Math.min(d,sp*dt),vx=dx/d,vy=dy/d;
+ h.x=clamp(h.x+vx*step,.55,h.rw-.55);h.y=clamp(h.y+vy*step,.55,h.rh-.32);
+ h.dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'back':'front');n.dir=h.dir;
+ return d<=.22;
+}
+function fw34RemoveFollower(n,bid){
+ const it=state.interior;if(!it||it.buildingId!==bid||!Array.isArray(it.followers20))return;
+ it.followers20=it.followers20.filter(function(f){return f.id!==n.id;});
+}
+function fw34SyncResident(n){
+ const h=n&&n.household34,it=state.interior;if(!h||!it||h.buildingId!==it.buildingId||!n.inside20)return;
+ if(!Array.isArray(it.followers20))it.followers20=[];
+ let f=it.followers20.find(function(x){return x.id===n.id;});
+ if(!f){f={id:n.id,x:h.x,y:h.y,dir:h.dir||'front'};it.followers20.push(f);}
+ f.x=h.x;f.y=h.y;f.dir=h.dir||n.dir||'front';
+}
+function fw34EnterNpc(n,b,kind,source){
+ const size=fw34RoomSize(b),old=n.household34;
+ const h=old&&old.buildingId===b.id?old:{
+  buildingId:b.id,rw:size.w,rh:size.h,x:size.w/2,y:size.h-1,dir:'back',
+  kind:kind,source:source||'schedule',phase:null,timer:0,started:false,waterTaken:false
+ };
+ h.kind=kind;h.source=source||h.source||'schedule';h.rw=size.w;h.rh=size.h;
+ if(!Number.isFinite(h.x))h.x=size.w/2;if(!Number.isFinite(h.y))h.y=size.h-1;
+ n.household34=h;n.inside20=b.id;n.followInto20=null;n._nav19=null;
+ fw34SyncResident(n);return h;
+}
+function fw34ExitNpc(n,keepTask){
+ const h=n&&n.household34;if(!h)return;
+ const b=state.buildings.find(function(x){return x.id===h.buildingId;}),e=b?fw10Entrance(b):{x:n.x,y:n.y};
+ fw34RemoveFollower(n,h.buildingId);n.inside20=null;n.followInto20=null;n.x=e.x;n.y=e.y+.18;n.dir='front';n._nav19=null;
+ if(!keepTask)n.household34=null;
+}
+function fw34ApproachNpcHome(n,kind,source,dt){
+ const b=fw34HomeFor(n);if(!b)return false;const e=fw10Entrance(b),d=Math.hypot(n.x-e.x,n.y-e.y);
+ if(d>1.15){fw17NpcMove(n,e.x,e.y,dt,'🏠 '+({cook:'料理',craft:'制作',clean:'掃除',laundry:'洗濯',sleep:'睡眠',bath:'風呂'}[kind]||'家事')+'へ');return true;}
+ fw34EnterNpc(n,b,kind,source);return true;
+}
+function fw34NpcLinePos(n,b){
+ const e=fw10Entrance(b);let h=0;String(n.id||'x').split('').forEach(function(ch){h+=ch.charCodeAt(0);});
+ return {x:e.x+(h%2?2.1:-2.1),y:e.y+.55};
+}
+function fw34PlayerLinePos(b){
+ const e=fw10Entrance(b);return {x:e.x+2.1,y:e.y+.55};
+}
+function fw34FinishNpcGambit(n){
+ const a=n.autoSchedule;if(a){a.activeSlot=-1;a.latchedSlot=-1;a.actionClock=0;}
+}
+function fw34NpcCleanTick(n,h,b,dt){
+ let t=fw34Dirtiest(b,99);
+ if(!t){
+  n.status='✨ 掃除完了・室内待機';
+  if(h.source==='gambit'){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+  return true;
+ }
+ if(!fw34MoveIndoor(h,n,{x:t.x,y:t.y},dt)) {n.status='🧹 '+t.name+'へ';return true;}
+ t.obj.cleanliness34=clamp(t.obj.cleanliness34+dt*24,0,100);n.st=clamp(n.st-dt*.10,0,100);n.status='🧹 '+t.name+'を掃除 '+Math.round(t.obj.cleanliness34)+'%';
+ if(t.type==='table'&&b.dining28&&b.dining28.dirty&&t.obj.cleanliness34>94)b.dining28.dirty=0;
+ return true;
+}
+function fw34NpcRecipeTick(n,h,b,dt,food){
+ const recipe=h.recipeId&&FW8_RECIPES[h.recipeId]?FW8_RECIPES[h.recipeId]:
+  (food&&typeof fw27NpcFoodRecipe==='function'?FW8_RECIPES[fw27NpcFoodRecipe(n)]:null);
+ if(!recipe){n.status=food?'📦 料理の材料待ち':'📦 制作材料待ち';return true;}
+ h.recipeId=h.recipeId||Object.keys(FW8_RECIPES).find(function(id){return FW8_RECIPES[id]===recipe;});
+ const g=fw34CraftGoal(b,food);
+ if(!fw34MoveIndoor(h,n,g,dt)){n.status=(food?'🍳 キッチンへ':'🔨 作業場所へ');return true;}
+ if(!h.started){
+  if(!fw9HaveShared(n,recipe.cost)){n.status='📦 材料待ち：'+recipe.name;return true;}
+  fw9ConsumeShared(n,recipe.cost);h.started=true;h.timer=Math.max(2.8,7.2-(n.skills&&n.skills[recipe.skill]||0)*.55);
+ }
+ h.timer-=dt;n.st=clamp(n.st-dt*.16,0,100);n.status=(food?'🍳 調理中：':'🔨 制作中：')+recipe.name+' '+Math.max(0,h.timer).toFixed(1)+'s';
+ if(h.timer>0)return true;
+ fw9NpcMake(n,h.recipeId);fw34AddDirt(b,food?'kitchen':'table',food?7:3);
+ h.started=false;h.timer=0;
+ if(h.source==='command'){
+  n.homeJob=null;n.command='homeWait';h.kind='wait';h.recipeId=null;n.status='🏠 完成・室内待機';
+ }else if(h.source==='gambit'){
+  if(n.autoSchedule)n.autoSchedule.homeCooldown34=performance.now()+12000;
+  fw34FinishNpcGambit(n);fw34ExitNpc(n,false);
+ }else{
+  h.doneKey=state.day+':'+Math.floor(state.hour/3);n.status=(food?'🍳 料理':'🔨 制作')+'完了・室内待機';
+ }
+ return true;
+}
+function fw34NpcLaundryTick(n,h,b,dt){
+ const basin=fw34AmenityGoal(b,'laundry'),door={x:h.rw/2,y:h.rh-.26};
+ if(!h.phase)h.phase='wash';
+ if(h.phase==='wash'){
+  if(!fw34MoveIndoor(h,n,basin,dt)){n.status='🪣 タライへ';return true;}
+  if(!h.waterTaken){
+   if(!fw34HasShared(n,'water',1)){n.status='💧 洗濯用の水が足りない';return true;}
+   fw34TakeShared(n,'water',1);h.waterTaken=true;h.timer=3.2;
+  }
+  h.timer-=dt;n.st=clamp(n.st-dt*.16,0,100);n.status='🪣 タライで水洗い';
+  if(h.timer<=0){fw34AddDirt(b,'laundry',5);h.phase='leave';h.timer=0;}return true;
+ }
+ if(h.phase==='leave'){
+  if(fw34MoveIndoor(h,n,door,dt)){fw34ExitNpc(n,true);h.phase='toLine';}else n.status='🧺 洗濯物を外へ運ぶ';return true;
+ }
+ const line=fw34NpcLinePos(n,b);
+ if(h.phase==='toLine'){
+  if(Math.hypot(n.x-line.x,n.y-line.y)>.35){fw17NpcMove(n,line.x,line.y,dt,'🧺 物干し場へ');return true;}
+  h.phase='hang';h.timer=1.5;
+ }
+ if(h.phase==='hang'){h.timer-=dt;n.status='👕 洗濯物を干す';if(h.timer<=0){h.phase='dry';h.timer=7;}return true;}
+ if(h.phase==='dry'){h.timer-=dt;n.status='☀️ 洗濯物を乾かす';if(h.timer<=0){h.phase='take';h.timer=1.4;}return true;}
+ if(h.phase==='take'){h.timer-=dt;n.status='🧺 乾いた洗濯物を取り込む';if(h.timer<=0)h.phase='return';return true;}
+ if(h.phase==='return'){
+  const e=fw10Entrance(b);if(Math.hypot(n.x-e.x,n.y-e.y)>1.0){fw17NpcMove(n,e.x,e.y,dt,'🏠 洗濯物を家へ');return true;}
+  fw34EnterNpc(n,b,'laundry',h.source);n.household34.phase='fold';n.household34.waterTaken=true;n.household34.timer=2;return true;
+ }
+ if(h.phase==='fold'){
+  const g=fw34AmenityGoal(b,'table');if(!fw34MoveIndoor(h,n,g,dt)){n.status='🧺 畳む場所へ';return true;}
+  if(!h.timer)h.timer=2;h.timer-=dt;n.status='🧺 洗濯物を畳む';
+  if(h.timer<=0){h.phase='store';h.timer=1.6;}return true;
+ }
+ if(h.phase==='store'){
+  const g=fw34StorageGoal(b);if(!fw34MoveIndoor(h,n,g,dt)){n.status='🗄️ 収納へ';return true;}
+  h.timer-=dt;n.status='🗄️ 洗濯物を収納';
+  if(h.timer<=0){
+   n.dirtyLaundry27=0;n.happiness=clamp((n.happiness||78)+2,0,100);n.status='✅ 洗濯完了';
+   if(h.source==='command'){n.command='homeWait';h.kind='wait';h.phase=null;}
+   else if(h.source==='gambit'){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+   else {h.doneKey=state.day+':'+Math.floor(state.hour/3);h.kind='wait';h.phase=null;}
+  }
+  return true;
+ }
+ return true;
+}
+function fw34NpcIndoorTick(n,h,dt){
+ const b=state.buildings.find(function(x){return x.id===h.buildingId;});if(!b){n.household34=null;n.inside20=null;return false;}
+ if(h.source==='schedule'){
+  const nowTask=fw19ScheduleTask(n);
+  if(h.kind==='laundry'&&h.phase&&['leave','toLine','hang','dry','take','return','fold','store'].includes(h.phase)){
+   // Finish a laundry cycle even if the schedule block changes mid-cycle.
+  }else if(FW34_INDOOR_SCHEDULE.has(nowTask)&&nowTask!==h.kind){
+   h.kind=nowTask;h.phase=null;h.timer=0;h.started=false;h.doneKey=null;
+  }else if(!FW34_INDOOR_SCHEDULE.has(nowTask)){
+   fw34ExitNpc(n,false);return false;
+  }
+ }
+ if(h.source==='command'){
+  if(h.kind==='wait'&&n.command!=='homeWait'){fw34ExitNpc(n,false);return false;}
+  if(h.kind==='sleep'&&n.command!=='homeRest'){fw34ExitNpc(n,false);return false;}
+  if((h.kind==='cook'||h.kind==='craft')&&n.command!=='homeCraft'&&n.command!=='homeWait'){fw34ExitNpc(n,false);return false;}
+  if(h.kind==='clean'&&n.command!=='homeClean34'){fw34ExitNpc(n,false);return false;}
+  if(h.kind==='laundry'&&n.command!=='homeLaundry34'&&h.phase!=='fold'&&h.phase!=='store'){fw34ExitNpc(n,false);return false;}
+ }
+ if(h.kind==='clean'||h.kind==='housework')return fw34NpcCleanTick(n,h,b,dt);
+ if(h.kind==='cook'){
+  if(h.source==='schedule'&&h.doneKey===state.day+':'+Math.floor(state.hour/3)){n.status='🍳 料理済み・室内待機';return true;}
+  return fw34NpcRecipeTick(n,h,b,dt,true);
+ }
+ if(h.kind==='craft')return fw34NpcRecipeTick(n,h,b,dt,false);
+ if(h.kind==='laundry'){
+  if((n.dirtyLaundry27||0)<.35&&!h.phase){n.status='🧺 洗濯物なし・室内待機';return true;}
+  return fw34NpcLaundryTick(n,h,b,dt);
+ }
+ if(h.kind==='bath'){
+  const g=fw34AmenityGoal(b,'bath');if(!fw34MoveIndoor(h,n,g,dt)){n.status='🛁 風呂へ';return true;}
+  n.hygiene=clamp((n.hygiene==null?78:n.hygiene)+dt*22,0,100);n.st=clamp(n.st+dt*.8,0,100);n.status='🛁 入浴';fw34AddDirt(b,'bath',dt*.15);return true;
+ }
+ if(h.kind==='toilet'){
+  const g=fw34AmenityGoal(b,'toilet');if(!fw34MoveIndoor(h,n,g,dt)){n.status='🚽 トイレへ';return true;}
+  if(!h.used34){n.bladder=0;fw34AddDirt(b,'toilet',4);h.used34=true;}n.status='🚽 トイレ';return true;
+ }
+ if(h.kind==='meal'){
+  const g=fw34AmenityGoal(b,'table');if(!fw34MoveIndoor(h,n,g,dt)){n.status='🍽️ 食卓へ';return true;}
+  n.hunger=clamp(n.hunger+dt*12,0,100);n.status='🍽️ 家族で食事';fw34AddDirt(b,'table',dt*.12);return true;
+ }
+ if(h.kind==='sleep'){
+  const g=fw34BedGoal(b,n);if(!fw34MoveIndoor(h,n,g,dt)){n.status='😴 ベッドへ';return true;}
+  n.st=clamp(n.st+dt*5.2,0,100);n.status='😴 室内で睡眠';
+  if(h.source==='command'&&n.st>=98){n.st=100;n.command='homeWait';h.kind='wait';}
+  return true;
+ }
+ if(h.kind==='wait'){
+  const g=fw34StorageGoal(b);fw34MoveIndoor(h,n,g,dt);n.status='🏠 室内で待機';return true;
+ }
+ return true;
+}
+function fw34NpcTaskStart(n,dt){
+ if(!n||n.alive===false||n.controlled||n.role==='merchant')return false;
+ if(n.command==='homeCraft'&&n.homeJob){
+  const r=FW8_RECIPES[n.homeJob.id],kind=r&&r.cat==='food'?'cook':'craft';
+  if(n.household34){n.household34.recipeId=n.homeJob.id;return true;}
+  fw34ApproachNpcHome(n,kind,'command',dt);
+  if(n.household34)n.household34.recipeId=n.homeJob.id;
+  return true;
+ }
+ if(n.command==='homeClean34'){fw34ApproachNpcHome(n,'clean','command',dt);return true;}
+ if(n.command==='homeLaundry34'){fw34ApproachNpcHome(n,'laundry','command',dt);return true;}
+ if(n.command==='homeRest'){fw34ApproachNpcHome(n,'sleep','command',dt);return true;}
+ if(n.command==='homeWait'){fw34ApproachNpcHome(n,'wait','command',dt);return true;}
+ if(n.personalSchedule&&n.personalSchedule.enabled){
+  const task=fw19ScheduleTask(n);
+  if(FW34_INDOOR_SCHEDULE.has(task)){fw34ApproachNpcHome(n,task,'schedule',dt);return true;}
+ }
+ return false;
+}
+
+// Household residents remain real indoor actors even when the player is outdoors.
+const fw34PrevCanFollowInside=fw20CanFollowInside;
+fw20CanFollowInside=function(n){return !!(n&&n.household34&&n.inside20)||fw34PrevCanFollowInside(n);};
+
+const fw34PrevEnterBuilding=fw10EnterBuilding;
+fw10EnterBuilding=function(b){
+ fw34PrevEnterBuilding(b);
+ state.npcs.forEach(function(n){if(n.household34&&n.inside20===b.id)fw34SyncResident(n);});
+};
+
+const fw34PrevExitBuilding=fw10ExitBuilding;
+fw10ExitBuilding=function(){
+ const it=state.interior;
+ if(!it){fw34PrevExitBuilding();return;}
+ const bid=it.buildingId,keep=state.npcs.filter(function(n){return n.household34&&n.inside20===bid;});
+ if(Array.isArray(it.followers20))it.followers20=it.followers20.filter(function(f){return !keep.some(function(n){return n.id===f.id;});});
+ fw34PrevExitBuilding();
+ keep.forEach(function(n){n.inside20=bid;n.followInto20=null;});
+};
+
+const fw34PrevInteriorUpdate=fw10UpdateInterior;
+fw10UpdateInterior=function(dt,jx,jy){
+ fw34PrevInteriorUpdate(dt,jx,jy);
+ state.npcs.forEach(function(n){if(n.household34&&n.inside20)fw34SyncResident(n);});
+};
+
+// Make autonomous travel comparable to the controlled character instead of ~1/3 speed.
+fw17NpcMove=function(n,x,y,dt,status){
+ setNpcTarget(n,x,y,status);
+ if(typeof fw19MoveActor==='function')return fw19MoveActor(n,x,y,dt,FW34_AUTO_SPEED);
+ return fw7MoveNpc(n,dt,FW34_AUTO_SPEED);
+};
+
+// Take household chores before the legacy outdoor-at-the-door simulation.
+const fw34PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(n&&n.employment&&n.employment.active&&n.employment.suspended){
+  if(n.household34)fw34ExitNpc(n,false);
+  return fw34PrevUpdateNPC(n,dt);
+ }
+ if(n&&n.household34){
+  const done=fw34NpcIndoorTick(n,n.household34,dt);fw34SyncResident(n);
+  if(n.employment&&n.employment.active&&!n.employment.suspended&&n.employment.lastPaidDay>=state.day)n.loyalty=Math.max(FW32_LOYALTY_FLOOR,Number(n.loyalty)||0);
+  if(done)return;
+ }
+ if(fw34NpcTaskStart(n,dt))return;
+ return fw34PrevUpdateNPC(n,dt);
+};
+
+// Route NPC gambit household actions into the same indoor engine.
+Object.assign(FW11_PRIORITY,{
+ cleanHome:{icon:'🧹',label:'家を掃除する',desc:'家へ戻り、汚れている家具・設備から順に掃除する'}
+});
+const fw34PrevNpcCan=fw17NpcCan;
+fw17NpcCan=function(n,k,a){
+ if(k==='cleanHome'){const b=fw34HomeFor(n);return !!b&&fw34HomeCleanliness(b)<98;}
+ if(k==='cook'&&a&&a.homeCooldown34&&performance.now()<a.homeCooldown34)return false;
+ return fw34PrevNpcCan(n,k,a);
+};
+const fw34PrevNpcRun=fw17NpcRun;
+fw17NpcRun=function(n,k,dt,a){
+ if(['cook','bath','laundry','cleanHome'].includes(k)){
+  const kind=k==='cleanHome'?'clean':k;
+  if(!n.household34)fw34ApproachNpcHome(n,kind,'gambit',dt);
+  if(n.household34){n.household34.kind=kind;n.household34.source='gambit';fw34NpcIndoorTick(n,n.household34,dt);fw34SyncResident(n);}
+  return true;
+ }
+ return fw34PrevNpcRun(n,k,dt,a);
+};
+
+// Player cleaning + staged laundry.
+function fw34PlayerCleanTick(dt,fromGambit){
+ const b=fw34CurrentHome();if(!b)return false;
+ const t=fw34Dirtiest(b,99);
+ if(!t){
+  state.player.status='✨ 掃除完了';
+  if(fromGambit){
+   const a=state.player.autoSchedule;a.indoorTask34=null;a.activeSlot=-1;a.latchedSlot=-1;a.exitHome27=true;
+  }
+  return true;
+ }
+ const g={x:t.x,y:t.y};
+ if(!fw21MoveInteriorPoint(state.interior.pos,state.player,g,dt,3.05)){state.player.status='🧹 '+t.name+'へ';return true;}
+ t.obj.cleanliness34=clamp(t.obj.cleanliness34+dt*26,0,100);state.player.st=clamp(state.player.st-dt*.10,0,100);
+ state.player.status='🧹 '+t.name+'を掃除 '+Math.round(t.obj.cleanliness34)+'%';
+ if(t.type==='table'&&b.dining28&&b.dining28.dirty&&t.obj.cleanliness34>94)b.dining28.dirty=0;
+ return true;
+}
+function fw34StartPlayerLaundry(source){
+ const p=state.player,b=fw34CurrentHome()||fw34HomeFor(p);if(!b)return false;
+ if((p.dirtyLaundry27||0)<.35){p.status='🧺 洗濯物はない';return false;}
+ if(!p.laundry34)p.laundry34={buildingId:b.id,source:source||'schedule',phase:'wash',timer:0,waterTaken:false};
+ return true;
+}
+function fw34FinishPlayerLaundry(){
+ const p=state.player,l=p.laundry34;p.dirtyLaundry27=0;p.happiness=clamp((p.happiness||80)+2,0,100);p.status='✅ 洗濯完了';
+ if(l&&l.source==='gambit'){const a=p.autoSchedule;a.activeSlot=-1;a.latchedSlot=-1;a.indoorTask27=null;a.indoorTask34=null;}
+ p.laundry34=null;
+}
+function fw34PlayerLaundryIndoor(dt){
+ const p=state.player,l=p.laundry34;if(!l||!state.interior)return false;
+ const b=state.buildings.find(function(x){return x.id===l.buildingId;})||fw34CurrentHome();if(!b)return false;
+ if(l.phase==='wash'){
+  const g=fw34AmenityGoal(b,'laundry');
+  if(!fw21MoveInteriorPoint(state.interior.pos,p,g,dt,3.05)){p.status='🪣 タライへ';return true;}
+  if(!l.waterTaken){
+   if(!fw34HasShared(p,'water',1)){p.status='💧 洗濯用の水が足りない';return true;}
+   fw34TakeShared(p,'water',1);l.waterTaken=true;l.timer=3.2;
+  }
+  l.timer-=dt;p.st=clamp(p.st-dt*.16,0,100);p.status='🪣 タライで水洗い';
+  if(l.timer<=0){fw34AddDirt(b,'laundry',5);l.phase='leave';}return true;
+ }
+ if(l.phase==='leave'){
+  const g={x:state.interior.roomW/2,y:state.interior.roomH-.24};
+  p.status='🧺 洗濯物を外へ運ぶ';
+  if(fw21MoveInteriorPoint(state.interior.pos,p,g,dt,3.05)){l.phase='toLine';fw10ExitBuilding();}
+  return true;
+ }
+ if(l.phase==='fold'){
+  const g=fw34AmenityGoal(b,'table');if(!fw21MoveInteriorPoint(state.interior.pos,p,g,dt,3.05)){p.status='🧺 畳む場所へ';return true;}
+  if(!l.timer)l.timer=2;l.timer-=dt;p.status='🧺 洗濯物を畳む';if(l.timer<=0){l.phase='store';l.timer=1.6;}return true;
+ }
+ if(l.phase==='store'){
+  const g=fw34StorageGoal(b);if(!fw21MoveInteriorPoint(state.interior.pos,p,g,dt,3.05)){p.status='🗄️ 収納へ';return true;}
+  l.timer-=dt;p.status='🗄️ 洗濯物を収納';if(l.timer<=0)fw34FinishPlayerLaundry();return true;
+ }
+ return false;
+}
+function fw34PlayerLaundryOutdoor(dt){
+ const p=state.player,l=p.laundry34;if(!l||state.interior)return false;
+ const b=state.buildings.find(function(x){return x.id===l.buildingId;});if(!b){p.laundry34=null;return false;}
+ const line=fw34PlayerLinePos(b);
+ if(l.phase==='leave')l.phase='toLine';
+ if(l.phase==='toLine'){
+  if(Math.hypot(p.x-line.x,p.y-line.y)>.35){fw10AutoMove(line.x,line.y,dt);p.status='🧺 物干し場へ';return true;}
+  l.phase='hang';l.timer=1.5;
+ }
+ if(l.phase==='hang'){l.timer-=dt;p.status='👕 洗濯物を干す';if(l.timer<=0){l.phase='dry';l.timer=7;}return true;}
+ if(l.phase==='dry'){l.timer-=dt;p.status='☀️ 洗濯物を乾かす';if(l.timer<=0){l.phase='take';l.timer=1.4;}return true;}
+ if(l.phase==='take'){l.timer-=dt;p.status='🧺 乾いた洗濯物を取り込む';if(l.timer<=0)l.phase='return';return true;}
+ if(l.phase==='return'){
+  const e=fw10Entrance(b);if(Math.hypot(p.x-e.x,p.y-e.y)>1.1){fw10AutoMove(e.x,e.y,dt);p.status='🏠 洗濯物を家へ';return true;}
+  fw10EnterBuilding(b);if(state.interior){l.phase='fold';l.timer=2;}return true;
+ }
+ return true;
+}
+
+const fw34PrevIndoorAutomation=fw19IndoorAutomation;
+fw19IndoorAutomation=function(dt){
+ if(!state.interior)return fw34PrevIndoorAutomation(dt);
+ const a=state.player.autoSchedule||{},task=fw19ScheduleTask(state.player);
+ if(a.indoorTask27==='laundry'&&!state.player.laundry34){
+  fw34StartPlayerLaundry('gambit');a.indoorTask27=null;a.exitHome27=false;
+ }
+ if(state.player.laundry34)return fw34PlayerLaundryIndoor(dt);
+ if(a.indoorTask34==='clean')return fw34PlayerCleanTick(dt,true);
+ if(task==='clean'||task==='housework')return fw34PlayerCleanTick(dt,false);
+ if(task==='laundry'){
+  if(!state.player.laundry34)fw34StartPlayerLaundry('schedule');
+  if(state.player.laundry34)return fw34PlayerLaundryIndoor(dt);
+ }
+ return fw34PrevIndoorAutomation(dt);
+};
+const fw34PrevAutoPlayer=fw10AutoPlayer;
+fw10AutoPlayer=function(dt){
+ if(state.player.laundry34&&!state.interior)return fw34PlayerLaundryOutdoor(dt);
+ return fw34PrevAutoPlayer(dt);
+};
+const fw34PrevCanAction=fw14CanAction;
+fw14CanAction=function(k){
+ if(k==='cleanHome'){const b=fw34HomeFor(state.player);return !!b&&fw34HomeCleanliness(b)<98;}
+ return fw34PrevCanAction(k);
+};
+const fw34PrevRunAction=fw14RunAction;
+fw14RunAction=function(k,dt){
+ if(k==='cleanHome'){
+  const a=state.player.autoSchedule,b=fw34HomeFor(state.player);if(!b)return false;
+  a.indoorTask34='clean';const e=fw10Entrance(b),d=Math.hypot(state.player.x-e.x,state.player.y-e.y);
+  state.player.status='🧹 掃除へ';
+  if(d>1.2){fw10AutoMove(e.x,e.y,dt);return true;}fw10EnterBuilding(b);return true;
+ }
+ return fw34PrevRunAction(k,dt);
+};
+
+// Direct household delegation buttons.
+const fw34PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw34PrevRenderDialog();
+ const n=getDialogSpeaker();if(!n||n.id==='merchant'||n.isChild)return;
+ if(!(n.companion||n.relationship==='family'||n.relationship==='lover'||(n.employment&&n.employment.active)))return;
+ const r=$('#dialogReplies');if(!r)return;
+ if(!r.querySelector('[data-reply="homeClean34"]'))r.insertAdjacentHTML('beforeend',
+  '<button data-reply="homeClean34" type="button">🧹 家を掃除して</button><button data-reply="homeLaundry34" type="button">🧺 洗濯して</button>');
+};
+const fw34PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const n=getDialogSpeaker();
+ if(n&&(k==='homeClean34'||k==='homeLaundry34')){
+  n.command=k;n.homeJob=null;n.task=null;n.returning=false;
+  typeLine(k==='homeClean34'?'わかった。汚れているところから順に掃除しておくね。':'わかった。水を使ってタライで洗って、外に干して片づけておくね。');
+  msg((k==='homeClean34'?'🧹 ':'🧺 ')+n.name+'へ家事を依頼。');renderDialogReplies();return;
+ }
+ return fw34PrevHandleDialog(k);
+};
+
+// Furniture use creates dirt; cleaning affects both cleanliness and dining dishes.
+const fw34PrevUseToilet=fw24UseToilet;
+fw24UseToilet=function(){const r=fw34PrevUseToilet();fw34AddDirt(fw34CurrentHome(),'toilet',4);return r;};
+const fw34PrevUseBath=fw24UseBath;
+fw24UseBath=function(){const r=fw34PrevUseBath();fw34AddDirt(fw34CurrentHome(),'bath',2);return r;};
+const fw34PrevMakeItem=fw8MakeItem;
+fw8MakeItem=function(recipe,q,bonus){
+ const r=fw34PrevMakeItem(recipe,q,bonus);
+ if(recipe&&recipe.cat==='food')fw34AddDirt(fw34CurrentHome(),'kitchen',6);
+ return r;
+};
+const fw34PrevServeOne=fw28ServeOne;
+fw28ServeOne=function(silent){const ok=fw34PrevServeOne(silent);if(ok)fw34AddDirt(fw34CurrentHome(),'table',3);return ok;};
+const fw34PrevEatOne=fw28EatOne;
+fw28EatOne=function(silent){const ok=fw34PrevEatOne(silent);if(ok)fw34AddDirt(fw34CurrentHome(),'table',2);return ok;};
+const fw34PrevClearDishes=fw28ClearDishes;
+fw28ClearDishes=function(silent){
+ const ok=fw34PrevClearDishes(silent),b=fw34CurrentHome(),t=b&&fw34TargetOfType(b,'table');
+ if(ok&&t)t.obj.cleanliness34=clamp(t.obj.cleanliness34+12,0,100);return ok;
+};
+
+// Show home cleanliness in the furniture panel and call the laundry amenity a wash tub.
+const fw34PrevFurnitureMenu=fw19OpenFurnitureMenu;
+fw19OpenFurnitureMenu=function(){
+ fw34PrevFurnitureMenu();if(!state.interior)return;
+ const b=state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return;
+ const body=$('#panelBody');if(!body)return;
+ body.innerHTML=body.innerHTML.replace(/🧺 洗濯設備/g,'🪣 タライ（洗濯）');
+ const rows=fw34CleanTargets(b).map(function(t){return t.name+' '+Math.round(t.obj.cleanliness34)+'%';}).join(' / ');
+ body.insertAdjacentHTML('beforeend','<div class="tileCard"><b>🧹 家の清潔度 '+Math.round(fw34HomeCleanliness(b))+'%</b><br><span class="note">'+rows+'</span></div>');
+};
+
+// Laundry line visual while clothes are outdoors.
+function fw34DrawLineAt(p){
+ const s=worldToScreen(p.x,p.y);ctx.save();ctx.textAlign='center';ctx.font='17px system-ui';
+ ctx.strokeStyle='rgba(235,235,235,.75)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x-22,s.y);ctx.lineTo(s.x+22,s.y);ctx.stroke();
+ ctx.fillText('👕　🧦',s.x,s.y+4);ctx.restore();
+}
+const fw34PrevDraw=draw;
+draw=function(){
+ fw34PrevDraw();if(state.interior)return;
+ const l=state.player.laundry34,b=l&&state.buildings.find(function(x){return x.id===l.buildingId;});
+ if(l&&b&&['hang','dry','take'].includes(l.phase))fw34DrawLineAt(fw34PlayerLinePos(b));
+ state.npcs.forEach(function(n){
+  const h=n.household34,q=h&&state.buildings.find(function(x){return x.id===h.buildingId;});
+  if(h&&q&&['hang','dry','take'].includes(h.phase))fw34DrawLineAt(fw34NpcLinePos(n,q));
+ });
+};
+
+// Numeric gambit conditions can choose <, <=, =, >=, >, != instead of being locked by the type name.
+Object.assign(FW15_CONDITIONS,{
+ homeCleanBelow:{label:'家の清潔度',numeric:true,min:0,max:100,step:5}
+});
+const neutralLabels={
+ staminaBelow:'スタミナ',hungerBelow:'満腹度',hpBelow:'HP',
+ campFoodBelow:'共通備蓄 食料',campWaterBelow:'共通備蓄 水',campWoodBelow:'共通備蓄 木材',campStoneBelow:'共通備蓄 石',
+ babyNeedBelow:'赤ちゃん欲求',loadAbove:'持ち物重量',fieldCountBelow:'範囲内の畑数',
+ hygieneBelow:'清潔度（本人）',laundryAbove:'汚れた洗濯物',homeCleanBelow:'家の清潔度'
+};
+Object.keys(neutralLabels).forEach(function(k){if(FW15_CONDITIONS[k])FW15_CONDITIONS[k].label=neutralLabels[k];});
+function fw34DefaultOp(type){
+ if(type==='loadAbove'||type==='laundryAbove')return 'gte';
+ if(['campFoodBelow','campWaterBelow','campWoodBelow','campStoneBelow','fieldCountBelow'].includes(type))return 'lt';
+ return 'lte';
+}
+function fw34NormalizeOp(c){
+ if(!c)return c;const d=FW15_CONDITIONS[c.type];
+ if(d&&d.numeric&&!c.op)c.op=fw34DefaultOp(c.type);
+ return c;
+}
+function fw34Compare(a,op,b){
+ a=Number(a);b=Number(b);if(!Number.isFinite(a)||!Number.isFinite(b))return false;
+ if(op==='lt')return a<b;if(op==='lte')return a<=b;if(op==='gt')return a>b;if(op==='gte')return a>=b;
+ if(op==='eq')return Math.round(a)===Math.round(b);
+ if(op==='neq')return Math.round(a)!==Math.round(b);
+ return a<=b;
+}
+function fw34PlayerMetric(type){
+ if(type==='staminaBelow')return state.player.st;
+ if(type==='hungerBelow')return state.player.hunger;
+ if(type==='hpBelow')return state.player.hp;
+ if(type==='campFoodBelow')return state.camp.food||0;if(type==='campWaterBelow')return state.camp.water||0;
+ if(type==='campWoodBelow')return state.camp.wood||0;if(type==='campStoneBelow')return state.camp.stone||0;
+ if(type==='babyNeedBelow')return fw15LowestBabyNeed();
+ if(type==='loadAbove')return fw18LoadKg(state.player.inv);
+ if(type==='fieldCountBelow')return fw18FieldsInRange().length;
+ if(type==='hygieneBelow')return state.player.hygiene==null?100:state.player.hygiene;
+ if(type==='laundryAbove')return state.player.dirtyLaundry27||0;
+ if(type==='homeCleanBelow'){const b=fw34HomeFor(state.player);return b?fw34HomeCleanliness(b):100;}
+ return null;
+}
+function fw34NpcMetric(n,type){
+ if(type==='staminaBelow')return n.st;if(type==='hungerBelow')return n.hunger;if(type==='hpBelow')return n.hp;
+ if(type==='campFoodBelow')return state.camp.food||0;if(type==='campWaterBelow')return state.camp.water||0;
+ if(type==='campWoodBelow')return state.camp.wood||0;if(type==='campStoneBelow')return state.camp.stone||0;
+ if(type==='babyNeedBelow')return fw15LowestBabyNeed();
+ if(type==='loadAbove')return fw18LoadKg(n.inv||{});
+ if(type==='fieldCountBelow'){
+  const a=n.autoSchedule||{},o=a.origin||n,r=a.radius||6;
+  return (state.customFields||[]).filter(function(f){return Math.hypot(f.x-o.x,f.y-o.y)<=r;}).length;
+ }
+ if(type==='hygieneBelow')return n.hygiene==null?100:n.hygiene;
+ if(type==='laundryAbove')return n.dirtyLaundry27||0;
+ if(type==='homeCleanBelow'){const b=fw34HomeFor(n);return b?fw34HomeCleanliness(b):100;}
+ return null;
+}
+const fw34PrevConditionPass=fw15ConditionPass;
+fw15ConditionPass=function(c){
+ c=fw34NormalizeOp(c||{type:'always',value:0});const d=FW15_CONDITIONS[c.type],m=d&&d.numeric?fw34PlayerMetric(c.type):null;
+ if(m!=null)return fw34Compare(m,c.op,Number(c.value||0));
+ return fw34PrevConditionPass(c);
+};
+const fw34PrevNpcCondition=fw17NpcCondition;
+fw17NpcCondition=function(n,c){
+ c=fw34NormalizeOp(c||{type:'always',value:0});const d=FW15_CONDITIONS[c.type],m=d&&d.numeric?fw34NpcMetric(n,c.type):null;
+ if(m!=null)return fw34Compare(m,c.op,Number(c.value||0));
+ return fw34PrevNpcCondition(n,c);
+};
+const fw34PrevNpcMetric=fw17NpcMetric;
+fw17NpcMetric=function(n,c){const m=c&&fw34NpcMetric(n,c.type);return m==null?fw34PrevNpcMetric(n,c):m;};
+const fw34PrevNormalizeCondition=fw16NormalizeCondition;
+fw16NormalizeCondition=function(c,action){
+ c=fw34NormalizeOp(c||{type:'always',value:0});
+ c=fw34PrevNormalizeCondition(c,action);fw34NormalizeOp(c);
+ if(c.op!=='lt'&&c.op!=='lte')c.holdUntil=false;
+ return c;
+};
+const fw34PrevCondText=fw15CondText;
+fw15CondText=function(c){
+ c=fw34NormalizeOp(c);const d=c&&FW15_CONDITIONS[c.type];
+ if(d&&d.numeric){const q=FW34_OPS[c.op]||FW34_OPS.lte;return d.label+' '+q.symbol+' '+c.value;}
+ return fw34PrevCondText(c);
+};
+const fw34PrevDefaultValue=fw15DefaultValue;
+fw15DefaultValue=function(type){if(type==='homeCleanBelow')return 70;return fw34PrevDefaultValue(type);};
+
+function fw34OpOptions(c){
+ fw34NormalizeOp(c);
+ return Object.keys(FW34_OPS).map(function(k){const q=FW34_OPS[k];return '<option value="'+k+'" '+(c.op===k?'selected':'')+'>'+q.label+' ('+q.symbol+')</option>';}).join('');
+}
+
+// Latest gambit editor with comparison selector.
+fw11OpenThinkMenu=function(){
+ const a=fw17EnsureAuto(state.player.autoSchedule,state.player.x,state.player.y),max=fw13AutoMaxRadius(),count=fw17UnlockedSlotCount(a.autoLevel),next=fw17NextSlotUnlock(a.autoLevel);
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','stone','food','farm','social','trainSword','trainBow','hunt','fish','cook','serveMeal','eatMeal','clearDishes','bath','laundry','cleanHome','patrol','rest','schedule'];
+ const actionOpts=function(value){return keys.map(function(k){const p=FW11_PRIORITY[k];return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const condOpts=function(value){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===value?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const slotRow=function(i){
+  let c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+  const def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i,latched=a.enabled&&a.latchedSlot===i;
+  let extra='';
+  if(c.type==='timeAt'){
+   extra='<label class="settingsRow"><span>時刻</span><input data-fw28-time="'+i+'" type="time" value="'+fw28TimeText(c.value||'11:00')+'" style="width:130px"></label>';
+  }else if(def.numeric){
+   extra+='<label class="settingsRow"><span>比較</span><select data-fw34-op="'+i+'" style="width:150px">'+fw34OpOptions(c)+'</select></label>'+
+    '<label class="settingsRow"><span>基準値</span><input data-fw15-value="'+i+'" type="number" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+c.value+'" style="width:88px"></label>';
+   if(fw16IsBelowCondition(c.type)&&(c.op==='lt'||c.op==='lte')){
+    extra+='<label class="settingsRow"><span>終了値まで継続</span><input data-fw16-hold="'+i+'" type="checkbox" '+(c.holdUntil?'checked':'')+'></label>';
+    if(c.holdUntil)extra+='<label class="settingsRow"><span>終了値</span><input data-fw16-until="'+i+'" type="number" min="'+(Number(c.value)+1)+'" max="100" step="'+def.step+'" value="'+c.untilValue+'" style="width:88px"></label>';
+   }
+  }
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #7ee7ff"':'')+'><b>優先度 '+(i+1)+'</b>'+
+   '<select data-fw14-slot="'+i+'" style="width:100%;margin:5px 0">'+actionOpts(a.slots[i])+'</select>'+
+   '<select data-fw15-cond="'+i+'" style="width:100%;margin:5px 0">'+condOpts(c.type)+'</select>'+
+   extra+'<div class="note">'+(latched?'🔒 継続中　':active?'▶ 実行中　':'')+'条件：'+fw15CondText(c)+(c.holdUntil?' → '+c.untilValue+'まで':'')+'</div></div>';
+ };
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🤔 条件付き自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>🤖 自動 '+(a.enabled?'ON':'OFF')+'</b>　自動行動Lv.'+a.autoLevel+'　XP '+Math.floor(a.autoXP)+'/'+(a.autoLevel*10)+'<br>'+
+  'スロット <b>'+count+' / 10</b>'+(next?'　次の解放 Lv.'+next:'　全スロット解放済み')+'<br>'+
+  '行動範囲 半径 <b>'+a.radius+'マス</b> / MAX '+max+'マス<br>'+
+  '<input data-fw13-radius type="range" min="2" max="'+max+'" step="1" value="'+a.radius+'" style="width:100%">'+
+  '<button class="smallBtn" data-fw13="origin">📍 中心を現在地にする</button> <button class="smallBtn" data-fw13="toggle">🤖 '+(a.enabled?'OFFにする':'ONにする')+'</button> '+
+  '<button class="smallBtn" data-fw28="preset1100">🍳 11:00料理プリセット</button></div>'+
+  Array.from({length:count},function(_,i){return slotRow(i);}).join('')+
+  '<div class="legend">数値条件は「未満・以下・同じ・以上・より大きい・以外」を選択できます。掃除は「家の清潔度 70以下 → 🧹家を掃除する」のように設定できます。</div>';
+};
+$('#panelBody').addEventListener('change',function(e){
+ const op=e.target.closest('[data-fw34-op]');if(!op)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const i=Number(op.dataset.fw34Op),a=state.player.autoSchedule,c=fw34NormalizeOp(a.slotConditions[i]||{type:'always',value:0});
+ c.op=op.value;if(c.op!=='lt'&&c.op!=='lte')c.holdUntil=false;a.slotConditions[i]=c;
+ msg('🤔 優先度'+(i+1)+' 条件：'+fw15CondText(c));fw11OpenThinkMenu();
+},true);
+
+// Cleanliness + migration. Transient indoor phase data is deliberately not persisted.
+function fw34EnsureState(){
+ state.buildings.forEach(function(b){fw34CleanTargets(b);});
+ const fix=function(actor){
+  if(actor.autoSchedule&&Array.isArray(actor.autoSchedule.slotConditions))actor.autoSchedule.slotConditions.forEach(fw34NormalizeOp);
+ };
+ fix(state.player);state.npcs.forEach(fix);
+}
+const fw34PrevSnapshot=fw19Snapshot;
+fw19Snapshot=function(){
+ const s=fw34PrevSnapshot();
+ if(s.player)delete s.player.laundry34;
+ (s.npcs||[]).forEach(function(n){delete n.household34;delete n.inside20;delete n.followInto20;});
+ return s;
+};
+const fw34PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fw34PrevLoadGame(slot);
+ state.player.laundry34=null;
+ state.npcs.forEach(function(n){n.household34=null;n.inside20=null;n.followInto20=null;});
+ fw34EnsureState();return ok;
+};
+const fw34PrevUpdate=update;
+update=function(dt){fw34PrevUpdate(dt);fw34DirtTick(dt);};
+
+fw34EnsureState();
+
 fw33EnsureState();
 
 })();
