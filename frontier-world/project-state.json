@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T00:12:00+09:00",
+  "updated_at": "2026-10-05T00:34:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V32",
-  "game_commit": "db7f05e5c1365461ed6d93e23a90e546584195e2",
+  "implementation_version": "V33",
+  "game_commit": "3eedf4151a660538e75694430b6fbc9eeca0c991",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -35,7 +35,8 @@
     "Creator Suite image asset editor with paint tools, IndexedDB storage, recoverable trash and PNG export",
     "Creator Suite GitHub OAuth login and direct repository editing client",
     "both legacy farm plots and custom fields rendered in the ground layer behind world objects and characters",
-    "NPC employment with skill/level-based daily wages, automatic payroll, arrears suspension and paid-loyalty floor"
+    "NPC employment with skill/level-based daily wages, automatic payroll, arrears suspension and paid-loyalty floor",
+    "merchant hiring separated from business ownership, dynamic company valuation, acquisition/sale, business cash ledger and daily profits"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -49,7 +50,9 @@
     "index.html is very large and prone to merge/regression risk",
     "dense dynamic obstacles may still produce pathfinding stalls",
     "dialogue content exists both in game code and external staging pack until loader integration",
-    "employment UI uses G while some existing shop/economy UI still uses C"
+    "employment UI uses G while some existing shop/economy UI still uses C",
+    "merchant company daily revenue is currently abstract simulation rather than item-level demand/stock",
+    "company cash may become negative when buying items from the player; hard liquidity limits and insolvency are not implemented yet"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -111,7 +114,10 @@
     "connect dialogue-pack.json to game runtime",
     "add multi-cell world objects, layers and collision preview to Creator Suite",
     "connect Creator Suite image asset manifest and exported PNG assets to game runtime",
-    "add workforce roster UI for all employees, payroll forecast and wage negotiation"
+    "add workforce roster UI for all employees, payroll forecast and wage negotiation",
+    "expand commerce to multiple companies, shops, merchants and locations",
+    "add company debt, insolvency, financing, partial equity ownership and dividends",
+    "add item-level inventory, procurement, dynamic pricing and demand to businesses"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md"
