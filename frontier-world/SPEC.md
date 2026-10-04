@@ -2,8 +2,8 @@
 
 更新日: 2026-10-04 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V30  
-基準コミット: `89f37c9d949b1b18b9cdb9582330f9481bba321a`
+実装系列: Frontier V31  
+基準コミット: `5a5f707f66a364943dc2ab55cc4fc142ef53b7c7`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
@@ -43,7 +43,7 @@ Frontier World は、2D の開拓生活シミュレーションを中心に、RP
 - V19 以降、簡易 A* + ステアリング + 壁沿い回避を実装。
 - V22 でロード直後の多数NPC経路探索を分散し、フリーズを軽減。
 - 自動採集は固形資源の手前で止まっても採集可能距離から取得する。
-- 畑・作物は地面レイヤーで描画し、オブジェクト・建物・NPC・プレイヤーより後ろに固定する。
+- 旧 `state.farm` と `customFields` の両方の畑・作物を地面レイヤーで描画し、オブジェクト・建物・NPC・プレイヤーより後ろに固定する。
 - 自動行動の行動範囲は中心座標 + 半径で制限。半径上限は自動行動Lvで拡張。
 
 ## 4. 昼夜・睡眠
