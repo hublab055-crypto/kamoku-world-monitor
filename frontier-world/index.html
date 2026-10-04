@@ -312,7 +312,7 @@ function update(dt){
  let dx=joy.x,dy=joy.y;if(tap&&!joy.active){const ax=tap.x-state.player.x,ay=tap.y-state.player.y,d=Math.hypot(ax,ay);if(d<.12)tap=null;else{dx=ax/d;dy=ay/d;}}
  if(Math.hypot(dx,dy)>.08)movePlayer(dx,dy,dt);else if(state.resting||state.player.st<=0){const rate=isNight()?3.4:1.3;state.player.st=clamp(state.player.st+dt*rate,0,100);if(state.player.st>=20&&state.player.st<21)state.resting=false;}
  state.player.hunger=clamp(state.player.hunger-dt*.03,0,100);state.npcs.forEach(n=>updateNPC(n,dt));respawnResources(dt);maybeDevelopCamp();
- if(state.dialog?.speaker&&Math.hypot(state.dialog.speaker.x-state.player.x,state.dialog.speaker.y-state.player.y)>3.1){closeDialog();msg('💬 離れたので会話を終了した。');}
+ if(state.dialog?.speaker&&fw35DialogDistance(state.dialog.speaker)>3.1){closeDialog();msg('💬 離れたので会話を終了した。');}
 }
 
 function tileColor(g){return g==='road'?'#8a765d':'#356342';}
@@ -7765,6 +7765,172 @@ const fw34PrevUpdate=update;
 update=function(dt){fw34PrevUpdate(dt);fw34DirtTick(dt);};
 
 fw34EnsureState();
+
+/* FRONTIER_V34_1_INDOOR_FAMILY_REGRESSION_FIX */
+// Fix two V34 regressions:
+// 1) indoor conversations were still closed using stale outdoor x/y coordinates;
+// 2) family command=homeWait could override the personal schedule forever.
+
+FW34_INDOOR_SCHEDULE.add('leisure');
+
+function fw35IndoorPoint(n){
+ const it=state.interior;if(!it||!n)return null;
+ if(Array.isArray(it.followers20)){
+  const f=it.followers20.find(function(x){return x.id===n.id;});
+  if(f)return {x:f.x,y:f.y};
+ }
+ const h=n.household34;
+ if(h&&h.buildingId===it.buildingId&&n.inside20===it.buildingId)return {x:h.x,y:h.y};
+ return null;
+}
+function fw35DialogDistance(speaker){
+ if(!speaker)return 999;
+ const it=state.interior;
+ if(it&&!speaker.isChild){
+  const p=fw35IndoorPoint(speaker);
+  if(p)return Math.hypot(p.x-it.pos.x,p.y-it.pos.y);
+  // An NPC explicitly marked as inside this building should never be compared
+  // against its stale outdoor world coordinate.
+  if(speaker.inside20===it.buildingId)return 0;
+ }
+ return Math.hypot(Number(speaker.x||0)-state.player.x,Number(speaker.y||0)-state.player.y);
+}
+function fw35IdleGoal(n,h,b){
+ if(!h.idleGoal35||h.idleClock35<=0||Math.hypot(h.x-h.idleGoal35.x,h.y-h.idleGoal35.y)<.18){
+  const size=fw34RoomSize(b),seed=((String(n.id||'x').charCodeAt(0)||1)+(state.day||0)+Math.floor(state.hour*3));
+  const spots=[
+   fw34AmenityGoal(b,'table'),
+   {x:clamp(1.1+.35*(seed%3),.7,size.w-.7),y:clamp(size.h-1.4,.7,size.h-.75)},
+   {x:clamp(size.w-1.25,.7,size.w-.7),y:clamp(1.25+.3*(seed%2),.7,size.h-.75)},
+   {x:clamp(size.w/2+.65,.7,size.w-.7),y:clamp(size.h/2+.55,.7,size.h-.75)}
+  ];
+  h.idleGoal35=spots[seed%spots.length];
+  h.idleClock35=3.5+(seed%4)*1.1;
+ }
+ return h.idleGoal35;
+}
+function fw35IndoorIdleTick(n,h,b,dt,label){
+ h.idleClock35=(h.idleClock35||0)-dt;
+ const g=fw35IdleGoal(n,h,b),arrived=fw34MoveIndoor(h,n,g,dt,2.35);
+ n.status=arrived?(label||'☕ 室内で過ごす'):'🚶 '+(label||'室内で過ごす');
+ if(h.kind==='leisure'){
+  n.happiness=clamp((n.happiness||78)+dt*.04,0,100);
+  n.st=clamp(n.st+dt*.20,0,100);
+ }
+ return true;
+}
+
+// Scheduled life must beat the passive "homeWait" command used when a spouse
+// moves into the player's home. Explicit work/rest requests still have priority.
+fw34NpcTaskStart=function(n,dt){
+ if(!n||n.alive===false||n.controlled||n.role==='merchant')return false;
+
+ if(n.command==='homeCraft'&&n.homeJob){
+  const r=FW8_RECIPES[n.homeJob.id],kind=r&&r.cat==='food'?'cook':'craft';
+  if(n.household34){n.household34.recipeId=n.homeJob.id;return true;}
+  fw34ApproachNpcHome(n,kind,'command',dt);
+  if(n.household34)n.household34.recipeId=n.homeJob.id;
+  return true;
+ }
+ if(n.command==='homeClean34'){fw34ApproachNpcHome(n,'clean','command',dt);return true;}
+ if(n.command==='homeLaundry34'){fw34ApproachNpcHome(n,'laundry','command',dt);return true;}
+ if(n.command==='homeRest'){fw34ApproachNpcHome(n,'sleep','command',dt);return true;}
+
+ // Personal schedule comes before passive homeWait.
+ if(n.personalSchedule&&n.personalSchedule.enabled){
+  const task=fw19ScheduleTask(n);
+  if(FW34_INDOOR_SCHEDULE.has(task)){
+   fw34ApproachNpcHome(n,task,'schedule',dt);return true;
+  }
+  // During an automatic-action block, do not let the marriage/default homeWait
+  // command pin the resident inside. Let the older autonomous/companion AI run.
+  if(task==='auto'&&n.command==='homeWait'&&(n.relationship==='family'||n.relationship==='lover')){
+   return false;
+  }
+ }
+
+ if(n.command==='homeWait'){fw34ApproachNpcHome(n,'wait','command',dt);return true;}
+ return false;
+};
+
+const fw35PrevNpcIndoorTick=fw34NpcIndoorTick;
+fw34NpcIndoorTick=function(n,h,dt){
+ if(!n||!h)return false;
+ const b=state.buildings.find(function(x){return x.id===h.buildingId;});
+ if(!b){n.household34=null;n.inside20=null;return false;}
+
+ // Pick up schedule changes before the old V34 handler can leave a resident
+ // stuck in command-wait.
+ if(n.personalSchedule&&n.personalSchedule.enabled&&
+    (h.source==='schedule'||(h.source==='command'&&h.kind==='wait'&&(n.relationship==='family'||n.relationship==='lover')))){
+  const task=fw19ScheduleTask(n);
+  if(FW34_INDOOR_SCHEDULE.has(task)){
+   if(h.source!=='schedule'||h.kind!==task){
+    h.source='schedule';h.kind=task;h.phase=null;h.timer=0;h.started=false;
+    h.doneKey=null;h.recipeId=null;h.used34=false;h.waterTaken=false;h.idleGoal35=null;h.idleClock35=0;
+   }
+  }else if(task==='auto'){
+   fw34ExitNpc(n,false);
+   return false;
+  }
+ }
+
+ if(h.kind==='leisure')return fw35IndoorIdleTick(n,h,b,dt,'☕ 室内で余暇');
+ if(h.kind==='wait')return fw35IndoorIdleTick(n,h,b,dt,'🏠 家で待機');
+ return fw35PrevNpcIndoorTick(n,h,dt);
+};
+
+// Prefer actual room coordinates when the talk button is pressed indoors.
+const fw35PrevTalk=talk;
+talk=function(){
+ if(state.interior){
+  let best=null,bd=2.15;
+  state.npcs.forEach(function(n){
+   if(!n||n.alive===false||n.controlled)return;
+   const p=fw35IndoorPoint(n);if(!p)return;
+   const d=Math.hypot(p.x-state.interior.pos.x,p.y-state.interior.pos.y);
+   if(d<bd){bd=d;best=n;}
+  });
+  if(best){
+   state.dialog={speaker:best};
+   $('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();
+   typeLine(typeof fw12RelLine==='function'?fw12RelLine(best,'intro'):'どうしたの？');
+   msg('💬 '+best.name+'と家の中で会話中。');
+   if(!best.introduced21){best.introduced21=true;best.metDay21=state.day;typeLine(fw21SelfIntro(best));renderDialogReplies();}
+   return;
+  }
+ }
+ fw35PrevTalk();
+};
+
+// If a resident is currently shown in the same room, never let proactive outdoor
+// approach logic try to drag its world coordinates toward the player.
+const fw35PrevApproachUpdate=fw21ApproachUpdate;
+fw21ApproachUpdate=function(n,dt){
+ if(state.interior&&fw35IndoorPoint(n))return false;
+ return fw35PrevApproachUpdate(n,dt);
+};
+
+function fw35RepairFamilyIndoorState(){
+ state.npcs.forEach(function(n){
+  if(!n||!n.household34)return;
+  const h=n.household34;
+  if(h.kind==='wait'&&h.source==='command'&&n.personalSchedule&&n.personalSchedule.enabled&&
+     (n.relationship==='family'||n.relationship==='lover')){
+    const task=fw19ScheduleTask(n);
+    if(FW34_INDOOR_SCHEDULE.has(task)){
+     h.source='schedule';h.kind=task;h.idleGoal35=null;h.idleClock35=0;
+    }else if(task==='auto'){
+     fw34ExitNpc(n,false);
+    }
+  }
+ });
+}
+const fw35PrevUpdate=update;
+update=function(dt){
+ fw35RepairFamilyIndoorState();
+ return fw35PrevUpdate(dt);
+};
 
 fw33EnsureState();
 
