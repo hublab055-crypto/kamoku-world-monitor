@@ -176,6 +176,7 @@ function syncMeta(){
   $("#imageName").value=has?(current.name||""):"";
   $("#imageTags").value=has?(current.tags||""):"";
   $("#imageNotes").value=has?(current.notes||""):"";
+  $("#imageGithubPath").value=has?(current.githubPath||""):"";
   $("#imageDimensions").textContent=has?(canvas.width+" × "+canvas.height+" px"):"—";
   $("#btnImageDelete").hidden=!has || !!current.deletedAt;
   $("#btnImageRestore").hidden=!has || !current.deletedAt;
@@ -197,6 +198,7 @@ async function saveCurrent(silent=false){
     name:$("#imageName").value.trim()||target.name||"image",
     tags:$("#imageTags").value.trim(),
     notes:$("#imageNotes").value,
+    githubPath:$("#imageGithubPath").value.trim(),
     width:canvas.width,
     height:canvas.height
   };
@@ -393,7 +395,62 @@ $("#btnImageDeleteForever").onclick=async()=>{
   canvas.width=256;canvas.height=256;ctx.clearRect(0,0,256,256);history=[];historyIndex=-1;syncMeta();updateCanvasScale();await renderLibrary();toast("完全に削除しました");
 };
 
-["imageName","imageTags","imageNotes"].forEach(id=>$("#"+id).addEventListener("change",()=>saveCurrent(true)));
+["imageName","imageTags","imageNotes","imageGithubPath"].forEach(id=>$("#"+id).addEventListener("change",()=>saveCurrent(true)));
+
+async function importGithubAsset(path,blob,sha=null){
+  const name=(path.split("/").pop()||"image.png");
+  const file=new File([blob],name,{type:blob.type||"image/png"});
+  await importFile(file);
+  if(current){
+    current.githubPath=path;
+    current.githubSha=sha;
+    current.notes=(current.notes||"")+(current.notes?"\n":"")+"GitHub: "+path;
+    await dbPut(current);
+    syncMeta();
+    await renderLibrary();
+  }
+  return current;
+}
+
+$("#btnImageGithubLoad").onclick=async()=>{
+  const sync=window.FrontierGitHubSync;
+  if(!sync?.isConnected?.()){toast("先にGitHub連携でログインしてください");return;}
+  const path=prompt("GitHub上の画像パス", $("#imageGithubPath").value||"frontier-world/assets/");
+  if(!path)return;
+  try{
+    const rec=await sync.getFileBlob(path);
+    if(!/^image\//.test(rec.blob.type)){toast("画像ファイルではありません");return;}
+    await importGithubAsset(rec.path,rec.blob,rec.sha);
+    toast("GitHub画像を読み込みました");
+  }catch(e){toast("GitHub画像の読込失敗: "+e.message);}
+};
+
+$("#btnImageGithubSave").onclick=async()=>{
+  const sync=window.FrontierGitHubSync;
+  if(!sync?.isConnected?.()){toast("先にGitHub連携でログインしてください");return;}
+  if(!current||current.deletedAt){toast("保存する画像を選択してください");return;}
+  try{
+    await saveCurrent(true);
+    let path=$("#imageGithubPath").value.trim()||current.githubPath||"";
+    if(!path) path=prompt("GitHub上の保存先", "frontier-world/assets/"+safeName(current.name)+".png")||"";
+    if(!path)return;
+    const blob=await canvasBlob("image/png");
+    const result=await sync.putBlob(path,blob,"Update "+path+" from Frontier World image editor",current.githubPath===path?current.githubSha:null);
+    current.githubPath=path;
+    current.githubSha=result?.content?.sha||current.githubSha||null;
+    await dbPut(current);
+    syncMeta();
+    await renderLibrary();
+    toast("画像をGitHubへコミットしました");
+  }catch(e){toast("GitHub保存失敗: "+e.message);}
+};
+
+window.FrontierImageEditor={
+  importGithubAsset,
+  getCurrent:()=>current,
+  saveCurrent,
+  getCurrentBlob:()=>canvasBlob("image/png")
+};
 
 const imageNav=$('.nav[data-view="images"]');
 if(imageNav) imageNav.addEventListener("click",async()=>{await renderLibrary();if(current)syncMeta();else syncMeta();});
