@@ -8203,10 +8203,12 @@ function fw36EnsureFinance(){
 }
 function fw36BookValue(){
  const b=fw36EnsureFinance();
- return Math.max(1,(Number(b.cash)||0)+(Number(b.fixedAssets36)||0)-(Number(b.liabilities36)||0));
+ return (Number(b.cash)||0)+(Number(b.fixedAssets36)||0)-(Number(b.liabilities36)||0);
 }
 function fw36ForecastProfit(){
- const avg=Number(fw33AvgProfit())||0;
+ const b=fw36EnsureFinance(),h=Array.isArray(b.profitHistory)?b.profitHistory.slice(-7):[];
+ if(!h.length)return 0;
+ const avg=h.reduce(function(a,x){return a+(Number(x.net)||0);},0)/h.length;
  return avg*FW36_FORECAST_DAYS;
 }
 function fw36Metrics(){
