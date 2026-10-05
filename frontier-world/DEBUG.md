@@ -206,7 +206,7 @@ dailyWage =
 
 実装系列: Frontier V35  
 対象: `frontier-world/index.html`  
-ゲーム実装コミット: `62e1d912cb458c5babd6b08b3832ff2f28a1ffcc`
+ゲーム実装コミット: `7f0c61bf8472c6d8105e4446b31bc35f0fd0922d`
 
 ### 静的確認済み
 - 全インラインJavaScriptの構文確認。
