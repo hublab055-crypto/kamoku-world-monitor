@@ -2,8 +2,8 @@
 
 更新日: 2026-10-05 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V36  
-基準コミット: `ef7a0f26c6407fa04b1c196c764c63ee9e91b367`
+実装系列: Frontier V38  
+基準コミット: `66ef76b8b947efae228a06523371746ab142a998`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
@@ -243,6 +243,47 @@ Frontier World は、2D の開拓生活シミュレーションを中心に、RP
 - 残高・保有株・約定更新はクライアントから直接UPDATEさせず、認証済みサーバー処理で原子的に決済する。
 - 自己売買、残高不足、保有株不足、二重約定、同時注文競合をサーバーで拒否する。
 - 現在のV35株式売買はオンライン接続前のローカル簡易市場として残す。
+
+
+### デバッグコンソール（V37）
+
+実装済み。ゲーム内に全体ログ / キャラクター別ログ、カテゴリ絞り込み、コピー、クリア、AI状態差分追跡を追加。V38市場処理も利用可能ならこのログへ market カテゴリで記録する。
+
+
+### オンライン株式マーケットβ（V38）
+
+実装済み。管理ID: `FW-2026-10-05-006`。
+
+- 既存Supabase `kamoku-cloud-v2` に市場用テーブルを追加。
+  - `fw_market_companies`
+  - `fw_market_accounts`
+  - `fw_market_holdings`
+  - `fw_market_orders`
+  - `fw_market_trades`
+  - `fw_market_ticker`
+- GitHub OAuthでユーザーを識別する市場ログインUIをゲーム本体へ追加。
+- Supabase JSは固定バージョン `2.117.2` を使用。
+- 初回ログイン時に市場β専用1000Gをサーバー側で1回だけ作成する。ゲーム内ローカルGとは未統合。
+- `Frontier Trading Company` はオンライン市場側でも100株。
+- 初期100株はIPO在庫。IPO価格10G。購入すると市場保有株へ移動する。
+- 指値買い / 指値売り。
+- 買い注文では必要G、売り注文では必要株をサーバー側で拘束。
+- 価格優先、同価格は時間優先。
+- 反対注文と価格が交差した場合、先に板へ存在した注文の価格で約定。
+- 部分約定対応。
+- 注文取消時に未約定分の拘束G / 株を解放。
+- 自己売買はマッチ対象外。
+- 買い板 / 売り板、歩み値、自分の未約定注文を表示。
+- `fw_market_ticker` をSupabase Realtimeへ追加し、板・歩み値更新の再取得トリガーに使用。
+- 市場口座、保有株、注文、約定はサーバー側を正本とする。
+- 公開テーブルはRLS有効。認証ユーザーからのINSERT/UPDATE/DELETEは明示的に剥奪。
+- 決済本体は非公開スキーマ `fw_market_private` の `SECURITY DEFINER` 関数で原子的に処理。
+- 公開 `public.fw_market_* RPC` は `SECURITY INVOKER` の薄いラッパーのみ。
+- `anon` は市場RPCを実行不可。
+- 市場用OAuth戻り先は `https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/` に固定。
+- Supabase AuthのRedirect URLsへ上記URLを登録する必要がある。
+- V36のPBR/PER/配当予想は現時点ではローカル会社帳簿由来。オンライン市場価格・オンライン会社決算の完全統合は今後。
+- ゲーム内Gと市場βGの安全な入出金は未実装。ローカル値をそのまま市場へ信用しない。
 
 ## 8. 制作・料理・装備
 
