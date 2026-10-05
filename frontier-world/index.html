@@ -7935,6 +7935,262 @@ update=function(dt){
 
 fw33EnsureState();
 
+
+/* FRONTIER_V35_EQUITY_DIVIDENDS_CONTROL */
+const FW_EQ35_TOTAL_SHARES=100;
+const FW_EQ35_DEFAULT_PAYOUT=.30;
+
+function fwEq35Business(){
+ return fw33Business();
+}
+function fwEq35Ensure(){
+ fw33EnsureState();
+ const b=fwEq35Business();
+ if(!b.equity35||typeof b.equity35!=='object'){
+  const legacyFull=b.owner==='player';
+  b.equity35={
+   totalShares:FW_EQ35_TOTAL_SHARES,
+   playerShares:legacyFull?FW_EQ35_TOTAL_SHARES:0,
+   dividendPayoutRatio:FW_EQ35_DEFAULT_PAYOUT,
+   totalDividendsReceived:0,
+   dividendHistory:[],
+   tradeHistory:[],
+   migratedFromLegacyOwner:true
+  };
+ }
+ const e=b.equity35;
+ e.totalShares=FW_EQ35_TOTAL_SHARES;
+ e.playerShares=clamp(Math.round(Number(e.playerShares)||0),0,e.totalShares);
+ if(e.dividendPayoutRatio==null)e.dividendPayoutRatio=FW_EQ35_DEFAULT_PAYOUT;
+ e.dividendPayoutRatio=clamp(Number(e.dividendPayoutRatio)||0,0,.9);
+ if(e.totalDividendsReceived==null)e.totalDividendsReceived=0;
+ if(!Array.isArray(e.dividendHistory))e.dividendHistory=[];
+ if(!Array.isArray(e.tradeHistory))e.tradeHistory=[];
+ fwEq35SyncControl(false);
+ return e;
+}
+function fwEq35Shares(){
+ return fwEq35Ensure().playerShares;
+}
+function fwEq35Pct(){
+ const e=fwEq35Ensure();
+ return e.totalShares?e.playerShares/e.totalShares*100:0;
+}
+function fwEq35HasControl(){return fwEq35Shares()>=51;}
+function fwEq35FullyOwned(){return fwEq35Shares()>=FW_EQ35_TOTAL_SHARES;}
+function fwEq35Status(){
+ const p=fwEq35Pct();
+ if(p>=100)return '完全買収・100%子会社';
+ if(p>=51)return '経営権あり';
+ if(p>=34)return '重要株主';
+ if(p>=10)return '大株主';
+ if(p>0)return '株主';
+ return '未保有';
+}
+function fwEq35SyncControl(notify){
+ const b=state.commerce33&&state.commerce33.businesses&&state.commerce33.businesses[FW33_BUSINESS_ID];
+ if(!b||!b.equity35)return;
+ const controlled=b.equity35.playerShares>=51,was=b.owner;
+ b.owner=controlled?'player':'merchant';
+ if(notify&&was!==b.owner){
+  msg(controlled?'🏢 持株比率51%以上。経営権を取得した。':'📉 持株比率が51%未満。経営権を失った。');
+ }
+}
+function fwEq35SharePrice(){
+ const value=Math.max(1,fw33CompanyValue());
+ return Math.max(1,Math.ceil(value/FW_EQ35_TOTAL_SHARES));
+}
+function fwEq35RecordTrade(kind,count,unit,total){
+ const e=fwEq35Ensure();
+ e.tradeHistory.push({day:state.day,kind:kind,count:count,unitPrice:unit,total:total,playerShares:e.playerShares});
+ if(e.tradeHistory.length>40)e.tradeHistory.splice(0,e.tradeHistory.length-40);
+}
+function fwEq35Buy(count,takeover){
+ const e=fwEq35Ensure(),available=e.totalShares-e.playerShares;
+ count=Math.min(available,Math.max(0,Math.floor(Number(count)||0)));
+ if(!count){msg('📈 買える株がない。');return false;}
+ const unit=fwEq35SharePrice(),premium=takeover?1.10:1;
+ const total=Math.max(1,Math.ceil(unit*count*premium));
+ if(state.player.coins<total){msg('💰 株式購入に '+total+'G 必要。');return false;}
+ state.player.coins-=total;e.playerShares+=count;fwEq35RecordTrade(takeover?'takeover_buy':'buy',count,unit,total);
+ fwEq35SyncControl(true);
+ msg((takeover?'🤝 公開買付':'📈 株式購入')+' '+count+'株 / '+total+'G。持株 '+e.playerShares+'%');
+ return true;
+}
+function fwEq35Sell(count){
+ const e=fwEq35Ensure();
+ count=Math.min(e.playerShares,Math.max(0,Math.floor(Number(count)||0)));
+ if(!count){msg('📉 売れる株がない。');return false;}
+ const unit=fwEq35SharePrice(),total=Math.max(1,Math.floor(unit*count*.95));
+ e.playerShares-=count;state.player.coins+=total;fwEq35RecordTrade('sell',count,unit,total);
+ fwEq35SyncControl(true);
+ msg('📉 '+count+'株売却 / '+total+'G。持株 '+e.playerShares+'%');
+ return true;
+}
+function fwEq35Takeover(){
+ const e=fwEq35Ensure(),remaining=e.totalShares-e.playerShares;
+ if(!remaining){msg('🏢 すでに100%保有している。');return true;}
+ return fwEq35Buy(remaining,true);
+}
+function fwEq35SellAll(){
+ const e=fwEq35Ensure();
+ return fwEq35Sell(e.playerShares);
+}
+function fwEq35SetPayout(percent){
+ if(!fwEq35HasControl()){msg('🗳️ 配当方針の変更には51%以上の経営権が必要。');return false;}
+ const e=fwEq35Ensure();
+ e.dividendPayoutRatio=clamp((Number(percent)||0)/100,0,.9);
+ msg('🗳️ 配当性向を '+Math.round(e.dividendPayoutRatio*100)+'% に設定。');
+ return true;
+}
+function fwEq35DistributeDividend(day,entry){
+ const b=fwEq35Business(),e=fwEq35Ensure();
+ if(!entry||entry.day!==day||entry._equity35Paid)return 0;
+ entry._equity35Paid=true;
+ const net=Math.max(0,Number(entry.net)||0),ratio=e.dividendPayoutRatio;
+ if(net<=0||ratio<=0||b.cash<=0){entry.dividendPool=0;entry.playerDividend=0;return 0;}
+ const pool=Math.min(Math.max(0,Math.floor(b.cash)),Math.max(0,Math.floor(net*ratio)));
+ if(pool<=0){entry.dividendPool=0;entry.playerDividend=0;return 0;}
+ const playerDividend=Math.floor(pool*(e.playerShares/e.totalShares));
+ b.cash-=pool;
+ if(playerDividend>0){
+  state.player.coins+=playerDividend;
+  e.totalDividendsReceived+=playerDividend;
+  msg('💹 Day '+day+' 配当 '+playerDividend+'G を受取。持株 '+e.playerShares+'%');
+ }
+ entry.dividendPool=pool;entry.playerDividend=playerDividend;entry.payoutRatio=ratio;
+ e.dividendHistory.push({day:day,pool:pool,playerDividend:playerDividend,shares:e.playerShares,payoutRatio:ratio});
+ if(e.dividendHistory.length>40)e.dividendHistory.splice(0,e.dividendHistory.length-40);
+ return playerDividend;
+}
+
+const fwEq35PrevSimulateBusinessDay=fw33SimulateBusinessDay;
+fw33SimulateBusinessDay=function(day){
+ fwEq35Ensure();
+ const b=fwEq35Business(),before=b.profitHistory.length;
+ const r=fwEq35PrevSimulateBusinessDay(day);
+ const entry=b.profitHistory.length>before?b.profitHistory[b.profitHistory.length-1]:null;
+ fwEq35DistributeDividend(day,entry);
+ return r;
+};
+
+// V33 whole-company buy/sell becomes share-based acquisition/divestment.
+fw33Acquire=function(){return fwEq35Takeover();};
+fw33SellCompany=function(){return fwEq35SellAll();};
+
+// Majority control can recapitalize the company. Personal withdrawals require 100% ownership.
+fw33Transfer=function(amount,dir){
+ const b=fwEq35Business();fwEq35Ensure();
+ if(dir==='withdraw'&&!fwEq35FullyOwned()){
+  msg('🏢 会社資金を個人へ直接引き出すには100%保有が必要。配当を利用して。');return false;
+ }
+ if(dir!=='withdraw'&&!fwEq35HasControl()){
+  msg('🏢 会社への直接出資操作には51%以上の経営権が必要。');return false;
+ }
+ if(amount==='all')amount=Math.max(0,Math.floor(b.cash));
+ amount=Math.max(0,Math.floor(Number(amount)||0));if(!amount)return false;
+ if(dir==='withdraw'){
+  if(b.cash<amount){msg('🏢 会社資金が足りない。');return false;}
+  b.cash-=amount;state.player.coins+=amount;b.totalPlayerWithdrawn+=amount;msg('🏢 100%子会社から '+amount+'G 引き出した。');
+ }else{
+  if(state.player.coins<amount){msg('💰 出資する資金が足りない。');return false;}
+  state.player.coins-=amount;b.cash+=amount;b.totalPlayerInvested+=amount;msg('🏢 会社へ '+amount+'G 増資した。');
+ }
+ return true;
+};
+
+function fwEq35MerchantActions(m){
+ if(!m)return '';
+ fw32EnsureNpc(m);
+ const e=m.employment,w=fw33MerchantWage(),employed=!!(e.merchantContract&&e.active);
+ if(e.unpaidDebt>0)return '<button class="smallBtn" data-fw33="payDebt">💰 商人未払い '+e.unpaidDebt+'G を精算</button>';
+ if(!employed)return '<button class="smallBtn" data-fw33="hireMerchant">🧑‍💼 商人を雇う 日給 '+w+'G</button>';
+ return '<button class="smallBtn" data-fw33="endMerchant">🧑‍💼 商人契約を終了</button>';
+}
+function fwEq35BuyButtons(){
+ const e=fwEq35Ensure(),remain=e.totalShares-e.playerShares,unit=fwEq35SharePrice();
+ if(remain<=0)return '<div class="note">全株取得済み。</div>';
+ const counts=[1,5,10].filter(function(x){return x<=remain;});
+ let h=counts.map(function(x){return '<button class="smallBtn" data-fweq35="buy" data-count="'+x+'">📈 '+x+'株 '+(unit*x)+'G</button>';}).join(' ');
+ const tender=Math.ceil(unit*remain*1.10);
+ h+=' <button class="smallBtn" data-fweq35="takeover" '+(state.player.coins>=tender?'':'disabled')+'>🤝 残り全株を買収 '+tender+'G</button>';
+ return h;
+}
+function fwEq35SellButtons(){
+ const e=fwEq35Ensure();if(e.playerShares<=0)return '';
+ const counts=[1,5,10].filter(function(x){return x<=e.playerShares;});
+ let h=counts.map(function(x){return '<button class="smallBtn" data-fweq35="sell" data-count="'+x+'">📉 '+x+'株売る</button>';}).join(' ');
+ h+=' <button class="smallBtn" data-fweq35="sellAll">全株売却</button>';
+ return h;
+}
+function fwEq35RightsText(){
+ if(fwEq35FullyOwned())return '100%: 完全買収。経営・配当方針・会社資金の直接移動が可能。';
+ if(fwEq35HasControl())return '51%以上: 経営権あり。配当方針・増資を決定可能。会社資金の個人引出は不可。';
+ if(fwEq35Pct()>=10)return '10%以上: 大株主。配当を持株比率に応じて受取。経営権はなし。';
+ if(fwEq35Pct()>0)return '少数株主。利益配当を持株比率に応じて受取。';
+ return '株式を買うと配当を受け取れ、51%で経営権、100%で完全買収。';
+}
+
+// Replace V33 commerce panel with an equity-aware version.
+fw33OpenCommerce=function(){
+ const b=fwEq35Business(),e=fwEq35Ensure(),m=fw33Merchant();
+ if(m)fw32EnsureNpc(m);
+ const value=fw33CompanyValue(),unit=fwEq35SharePrice(),pct=fwEq35Pct(),avg=fw33AvgProfit();
+ const last=e.dividendHistory.length?e.dividendHistory[e.dividendHistory.length-1]:null;
+ let controlActions='';
+ if(fwEq35HasControl()){
+  controlActions='<div class="tileCard"><b>🗳️ 経営</b><br>配当性向 '+Math.round(e.dividendPayoutRatio*100)+'%<br>'+
+   '<button class="smallBtn" data-fweq35="payout" data-value="0">配当0%</button> '+
+   '<button class="smallBtn" data-fweq35="payout" data-value="30">30%</button> '+
+   '<button class="smallBtn" data-fweq35="payout" data-value="60">60%</button> '+
+   '<button class="smallBtn" data-fweq35="payout" data-value="90">90%</button><br>'+
+   '<button class="smallBtn" data-fweq35="invest25">会社へ25G増資</button> '+
+   (fwEq35FullyOwned()?'<button class="smallBtn" data-fweq35="withdraw25">会社から25G</button> <button class="smallBtn" data-fweq35="withdrawAll">会社から全額</button>':'')+
+   '</div>';
+ }
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='📈 株式・会社';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><b>'+b.name+'</b><br>企業価値 約<b>'+value+'G</b>　1株 約<b>'+unit+'G</b><br>会社資金 <b>'+Math.round(b.cash)+'G</b>　7日平均利益 '+avg.toFixed(1)+'G/日<br>信用 '+Math.round(b.goodwill)+'/100</div>'+
+  '<div class="tileCard"><b>あなたの持株</b><br><b>'+e.playerShares+' / '+e.totalShares+'株（'+pct.toFixed(0)+'%）</b>　'+fwEq35Status()+'<br>累計配当 <b>'+Math.round(e.totalDividendsReceived)+'G</b>'+(last?'<br>直近配当 Day '+last.day+'：'+last.playerDividend+'G':'')+'<br><span class="note">'+fwEq35RightsText()+'</span></div>'+
+  '<div class="tileCard"><b>📈 株を買う</b><br>'+fwEq35BuyButtons()+'</div>'+
+  (e.playerShares>0?'<div class="tileCard"><b>📉 株を売る</b><br>'+fwEq35SellButtons()+'</div>':'')+
+  controlActions+
+  '<div class="tileCard"><b>🧑‍💼 商人</b><br>'+fwEq35MerchantActions(m)+'</div>'+
+  '<div class="legend">配当は会社が黒字の日に配当性向×利益を原資として支払い、あなたの受取額は持株比率で決まります。51%で経営権、100%で完全買収です。</div>';
+};
+
+const fwEq35PrevAppendShopStatus=fw33AppendShopStatus;
+fw33AppendShopStatus=function(){
+ fwEq35Ensure();
+ fwEq35PrevAppendShopStatus();
+ const b=fwEq35Business(),el=document.getElementById('fw33ShopLedger');
+ if(el)el.innerHTML='🏢 '+b.name+' / 持株 '+fwEq35Shares()+'% / 会社資金 <b>'+b.cash+'G</b> / 1株 約'+fwEq35SharePrice()+'G';
+};
+
+root.addEventListener('click',function(e){
+ const btn=e.target.closest('[data-fweq35]');if(!btn)return;
+ e.preventDefault();e.stopPropagation();
+ const a=btn.dataset.fweq35,count=Number(btn.dataset.count||0),value=Number(btn.dataset.value||0);
+ if(a==='buy')fwEq35Buy(count,false);
+ else if(a==='sell')fwEq35Sell(count);
+ else if(a==='takeover')fwEq35Takeover();
+ else if(a==='sellAll')fwEq35SellAll();
+ else if(a==='payout')fwEq35SetPayout(value);
+ else if(a==='invest25')fw33Transfer(25,'invest');
+ else if(a==='withdraw25')fw33Transfer(25,'withdraw');
+ else if(a==='withdrawAll')fw33Transfer('all','withdraw');
+ fw33OpenCommerce();
+},true);
+
+const fwEq35PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fwEq35PrevLoadGame(slot);
+ try{fwEq35Ensure();}catch(e){msg('⚠️ 株式データ補修に失敗：'+(e&&e.message?e.message:e));}
+ return ok;
+};
+
+fwEq35Ensure();
+
 })();
 </script>
 </body>
