@@ -8052,7 +8052,7 @@ function fwEq35DistributeDividend(day,entry){
  const pool=Math.min(Math.max(0,Math.floor(b.cash)),Math.max(0,Math.floor(net*ratio)));
  if(pool<=0){entry.dividendPool=0;entry.playerDividend=0;return 0;}
  const playerDividend=Math.floor(pool*(e.playerShares/e.totalShares));
- b.cash-=pool;
+ b.cash-=pool;entry.cash=b.cash;
  if(playerDividend>0){
   state.player.coins+=playerDividend;
   e.totalDividendsReceived+=playerDividend;
