@@ -8191,6 +8191,92 @@ fw10LoadGame=function(slot){
 
 fwEq35Ensure();
 
+
+/* FRONTIER_V36_INVESTMENT_METRICS_MARKET_PREVIEW */
+const FW36_FORECAST_DAYS=30;
+
+function fw36EnsureFinance(){
+ const b=fw33Business();
+ if(b.fixedAssets36==null)b.fixedAssets36=120;
+ if(b.liabilities36==null)b.liabilities36=0;
+ return b;
+}
+function fw36BookValue(){
+ const b=fw36EnsureFinance();
+ return Math.max(1,(Number(b.cash)||0)+(Number(b.fixedAssets36)||0)-(Number(b.liabilities36)||0));
+}
+function fw36ForecastProfit(){
+ const avg=Number(fw33AvgProfit())||0;
+ return avg*FW36_FORECAST_DAYS;
+}
+function fw36Metrics(){
+ const b=fw36EnsureFinance(),e=fwEq35Ensure();
+ const shares=Math.max(1,e.totalShares||100);
+ const price=Math.max(1,fwEq35SharePrice());
+ const marketCap=price*shares;
+ const bookValue=fw36BookValue();
+ const bps=bookValue/shares;
+ const forecastProfit=fw36ForecastProfit();
+ const eps=forecastProfit/shares;
+ const pbr=bookValue>0?marketCap/bookValue:null;
+ const per=forecastProfit>0?marketCap/forecastProfit:null;
+ const payout=clamp(Number(e.dividendPayoutRatio)||0,0,.9);
+ const forecastDividendTotal=Math.max(0,forecastProfit)*payout;
+ const dps=forecastDividendTotal/shares;
+ const playerDividend=dps*(Number(e.playerShares)||0);
+ const yieldPct=price>0?dps/price*100:0;
+ return {b:b,e:e,shares:shares,price:price,marketCap:marketCap,bookValue:bookValue,bps:bps,
+  forecastProfit:forecastProfit,eps:eps,pbr:pbr,per:per,payout:payout,
+  forecastDividendTotal:forecastDividendTotal,dps:dps,playerDividend:playerDividend,yieldPct:yieldPct};
+}
+function fw36FmtRatio(v){
+ return v==null||!isFinite(v)?'—':v.toFixed(2)+'倍';
+}
+function fw36FmtG(v,d){
+ if(!isFinite(v))return '—';
+ const n=d==null?0:d;
+ return Number(v).toFixed(n)+'G';
+}
+function fw36AppendMetrics(){
+ const body=$('#panelBody');if(!body||document.getElementById('fw36Metrics'))return;
+ const m=fw36Metrics();
+ const holder=(m.e.playerShares||0);
+ const html=
+  '<div id="fw36Metrics" class="tileCard"><b>📊 投資指標</b><br>'+
+  '株価 <b>'+fw36FmtG(m.price,0)+'</b>　時価総額 <b>'+fw36FmtG(m.marketCap,0)+'</b><br>'+
+  '純資産 <b>'+fw36FmtG(m.bookValue,0)+'</b>　BPS '+fw36FmtG(m.bps,2)+'　PBR <b>'+fw36FmtRatio(m.pbr)+'</b><br>'+
+  '30日予想利益 <b>'+fw36FmtG(m.forecastProfit,1)+'</b>　予想EPS '+fw36FmtG(m.eps,2)+'　予想PER <b>'+fw36FmtRatio(m.per)+'</b><br>'+
+  '<hr style="opacity:.25">'+
+  '<b>💹 配当予定</b><br>'+
+  '現在の配当性向 <b>'+Math.round(m.payout*100)+'%</b>　予想配当総額 <b>'+fw36FmtG(m.forecastDividendTotal,1)+'</b><br>'+
+  '1株予想配当 <b>'+fw36FmtG(m.dps,2)+'</b>　予想配当利回り <b>'+m.yieldPct.toFixed(2)+'%</b><br>'+
+  'あなた：'+holder+'株 → 30日予想配当 <b>'+fw36FmtG(m.playerDividend,2)+'</b><br>'+
+  '<span class="note">PER/EPS/予想配当は直近7日平均利益を30ゲーム日へ延長した予想値。PBRは会社資金＋店舗等固定資産−負債の簡易純資産で算出。</span></div>'+
+  '<div class="tileCard"><b>🌐 ユーザー間マーケット</b><br>'+
+  '設計：指値注文板 → 売買注文の価格優先・時間優先 → 約定 → 保有株と市場口座を同時決済。<br>'+
+  '<span class="note">現在の株売買はV35のローカル簡易市場。オンライン取引では、改ざん防止のため市場口座・保有株・約定をサーバー正本へ移してから有効化する。</span></div>';
+ const legend=body.querySelector('.legend');
+ if(legend)legend.insertAdjacentHTML('beforebegin',html);else body.insertAdjacentHTML('beforeend',html);
+}
+const fw36PrevOpenCommerce=fw33OpenCommerce;
+fw33OpenCommerce=function(){
+ const r=fw36PrevOpenCommerce();
+ fw36AppendMetrics();
+ return r;
+};
+
+// Re-render financial estimates immediately after payout changes or equity trades.
+root.addEventListener('click',function(e){
+ const b=e.target.closest('[data-fweq35]');
+ if(!b)return;
+ setTimeout(function(){
+  const panel=document.getElementById('fw36Metrics');
+  if(panel&&$('#panel')&&!$('#panel').classList.contains('hidden'))fw33OpenCommerce();
+ },0);
+},false);
+
+fw36EnsureFinance();
+
 })();
 </script>
 </body>
