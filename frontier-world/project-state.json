@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T12:31:00+09:00",
+  "updated_at": "2026-10-05T15:18:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V35",
-  "game_commit": "7f0c61bf8472c6d8105e4446b31bc35f0fd0922d",
+  "implementation_version": "V36",
+  "game_commit": "ef7a0f26c6407fa04b1c196c764c63ee9e91b367",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -44,7 +44,8 @@
     "numeric gambit comparison operators including less-than, less-or-equal, equal, greater-or-equal, greater-than and not-equal",
     "home cleanliness gambit condition and automatic house-cleaning action",
     "indoor family schedule movement and conversation distance regression fixes",
-    "100-share company equity system with proportional dividends, 51% management control, 100% full acquisition and tender offers"
+    "100-share company equity system with proportional dividends, 51% management control, 100% full acquisition and tender offers",
+    "investment dashboard with BPS/PBR, 30-game-day forecast EPS/PER, payout ratio, forecast DPS, dividend yield and holder dividend forecast"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -53,7 +54,8 @@
     "cloud/exportable saves",
     "full modular split of the monolithic index.html",
     "large-population AI optimization",
-    "weather-dependent outdoor laundry drying and rain response"
+    "weather-dependent outdoor laundry drying and rain response",
+    "server-authoritative user-to-user share market with order book, authenticated wallets, holdings, atomic settlement and realtime updates"
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -63,7 +65,9 @@
     "merchant company daily revenue is currently abstract simulation rather than item-level demand/stock",
     "company cash may become negative when buying items from the player; hard liquidity limits and insolvency are not implemented yet",
     "share trading currently uses formula-based prices and unlimited simplified counterparty liquidity rather than an order book",
-    "non-player shareholder dividends leave company cash but are not yet tracked in individual NPC wealth"
+    "non-player shareholder dividends leave company cash but are not yet tracked in individual NPC wealth",
+    "online user-to-user stock trading is not yet enabled; current V35 trading remains local simplified liquidity",
+    "game-local G and share balances cannot safely fund a shared market until wallet/holdings are server-authoritative"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -131,8 +135,13 @@
     "add company debt, insolvency, financing, bonds and restructuring",
     "add NPC investors, share market liquidity, order book and demand-driven share prices",
     "add new share issuance, dilution, shareholder voting and board governance",
-    "expand equity system to multiple companies and a player portfolio"
+    "expand equity system to multiple companies and a player portfolio",
+    "connect Supabase Auth to the game market UI",
+    "create server-authoritative market accounts, holdings, orders and trades with RLS",
+    "implement atomic price-time-priority matching, partial fills, cancellation and Realtime order-book updates",
+    "design a secure bridge between game G and the online market wallet"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
-  "debug_path": "frontier-world/DEBUG.md"
+  "debug_path": "frontier-world/DEBUG.md",
+  "market_architecture_path": "frontier-world/MARKET.md"
 }
