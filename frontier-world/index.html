@@ -8485,6 +8485,7 @@ const FW38_URL='https://htwcscrllohavtbejhjr.supabase.co';
 const FW38_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
 const FW38_LIB='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const FW38_CO='frontier_trading_company';
+const FW38_REDIRECT='https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/';
 let fw38C0=null,fw38CP=null,fw38S=null,fw38Snap=null,fw38Busy=false,fw38Error='',fw38Ch=null,fw38Timer=null;
 
 function fw38E(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -8515,7 +8516,7 @@ function fw38Name(){
  return m.user_name||m.preferred_username||m.full_name||u.email||('user-'+String(u.id).slice(0,8));
 }
 async function fw38Login(){
- try{const c=await fw38Client(),r=await c.auth.signInWithOAuth({provider:'github',options:{redirectTo:location.origin+location.pathname}});if(r.error)throw r.error;}
+ try{const c=await fw38Client(),r=await c.auth.signInWithOAuth({provider:'github',options:{redirectTo:FW38_REDIRECT}});if(r.error)throw r.error;}
  catch(e){fw38Error=fw38EM(e);fw38Log('login failed '+fw38Error,'error');fw38Render();}
 }
 async function fw38Logout(){try{const c=await fw38Client();await c.auth.signOut();fw38S=null;fw38Snap=null;fw38Render();}catch(e){fw38Error=fw38EM(e);fw38Render();}}
