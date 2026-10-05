@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T15:18:00+09:00",
+  "updated_at": "2026-10-05T21:04:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V36",
-  "game_commit": "ef7a0f26c6407fa04b1c196c764c63ee9e91b367",
+  "implementation_version": "V37",
+  "game_commit": "c614296c6301c9df85b543ace178474528f359f3",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -45,7 +45,8 @@
     "home cleanliness gambit condition and automatic house-cleaning action",
     "indoor family schedule movement and conversation distance regression fixes",
     "100-share company equity system with proportional dividends, 51% management control, 100% full acquisition and tender offers",
-    "investment dashboard with BPS/PBR, 30-game-day forecast EPS/PER, payout ratio, forecast DPS, dividend yield and holder dividend forecast"
+    "investment dashboard with BPS/PBR, 30-game-day forecast EPS/PER, payout ratio, forecast DPS, dividend yield and holder dividend forecast",
+    "in-game global and per-character debug console logs with persistent filtering, copy and runtime AI state-diff tracing"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -139,7 +140,8 @@
     "connect Supabase Auth to the game market UI",
     "create server-authoritative market accounts, holdings, orders and trades with RLS",
     "implement atomic price-time-priority matching, partial fills, cancellation and Realtime order-book updates",
-    "design a secure bridge between game G and the online market wallet"
+    "design a secure bridge between game G and the online market wallet",
+    "use V37 per-character console traces during playtests to isolate AI, indoor-task and employment regressions"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
