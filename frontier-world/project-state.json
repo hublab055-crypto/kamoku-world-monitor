@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T21:03:00+09:00",
+  "updated_at": "2026-10-06T06:13:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V38",
-  "game_commit": "66ef76b8b947efae228a06523371746ab142a998",
+  "implementation_version": "V39",
+  "game_commit": "96ba4735b10cc48963116020f1fdee5171269d08",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -47,7 +47,11 @@
     "100-share company equity system with proportional dividends, 51% management control, 100% full acquisition and tender offers",
     "investment dashboard with BPS/PBR, 30-game-day forecast EPS/PER, payout ratio, forecast DPS, dividend yield and holder dividend forecast",
     "in-game global and per-character debug console logs with persistent filtering, copy and runtime AI state-diff tracing",
-    "authenticated Supabase-backed online beta share market with IPO, server-authoritative beta wallet/holdings, price-time-priority limit orders, partial fills, cancellation, order book, trade tape and Realtime refresh"
+    "authenticated Supabase-backed online beta share market with IPO, server-authoritative beta wallet/holdings, price-time-priority limit orders, partial fills, cancellation, order book, trade tape and Realtime refresh",
+    "slow indoor life pacing with 35 percent indoor game-time speed",
+    "indoor NPC walking capped near 1 tile per second with seated rest dwell times",
+    "scheduled-cleaning hysteresis preventing kitchen-toilet ping-pong loops",
+    "family meal call and group eating commands with table gathering and shared seated start"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
