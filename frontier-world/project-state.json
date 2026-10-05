@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T01:10:00+09:00",
+  "updated_at": "2026-10-05T12:29:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V34.1",
-  "game_commit": "51e8db0f38118857f30fd711f5eeb27394df5aa8",
+  "implementation_version": "V35",
+  "game_commit": "62e1d912cb458c5babd6b08b3832ff2f28a1ffcc",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -43,7 +43,8 @@
     "autonomous NPC travel speed aligned near controlled-character auto movement",
     "numeric gambit comparison operators including less-than, less-or-equal, equal, greater-or-equal, greater-than and not-equal",
     "home cleanliness gambit condition and automatic house-cleaning action",
-    "indoor family schedule movement and conversation distance regression fixes"
+    "indoor family schedule movement and conversation distance regression fixes",
+    "100-share company equity system with proportional dividends, 51% management control, 100% full acquisition and tender offers"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -60,7 +61,9 @@
     "dialogue content exists both in game code and external staging pack until loader integration",
     "employment UI uses G while some existing shop/economy UI still uses C",
     "merchant company daily revenue is currently abstract simulation rather than item-level demand/stock",
-    "company cash may become negative when buying items from the player; hard liquidity limits and insolvency are not implemented yet"
+    "company cash may become negative when buying items from the player; hard liquidity limits and insolvency are not implemented yet",
+    "share trading currently uses formula-based prices and unlimited simplified counterparty liquidity rather than an order book",
+    "non-player shareholder dividends leave company cash but are not yet tracked in individual NPC wealth"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -124,8 +127,11 @@
     "connect Creator Suite image asset manifest and exported PNG assets to game runtime",
     "add workforce roster UI for all employees, payroll forecast and wage negotiation",
     "expand commerce to multiple companies, shops, merchants and locations",
-    "add company debt, insolvency, financing, partial equity ownership and dividends",
-    "add item-level inventory, procurement, dynamic pricing and demand to businesses"
+    "add item-level inventory, procurement, dynamic pricing and demand to businesses",
+    "add company debt, insolvency, financing, bonds and restructuring",
+    "add NPC investors, share market liquidity, order book and demand-driven share prices",
+    "add new share issuance, dilution, shareholder voting and board governance",
+    "expand equity system to multiple companies and a player portfolio"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md"
