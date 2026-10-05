@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-05T21:04:00+09:00",
+  "updated_at": "2026-10-05T21:03:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V37",
-  "game_commit": "c614296c6301c9df85b543ace178474528f359f3",
+  "implementation_version": "V38",
+  "game_commit": "66ef76b8b947efae228a06523371746ab142a998",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -46,7 +46,8 @@
     "indoor family schedule movement and conversation distance regression fixes",
     "100-share company equity system with proportional dividends, 51% management control, 100% full acquisition and tender offers",
     "investment dashboard with BPS/PBR, 30-game-day forecast EPS/PER, payout ratio, forecast DPS, dividend yield and holder dividend forecast",
-    "in-game global and per-character debug console logs with persistent filtering, copy and runtime AI state-diff tracing"
+    "in-game global and per-character debug console logs with persistent filtering, copy and runtime AI state-diff tracing",
+    "authenticated Supabase-backed online beta share market with IPO, server-authoritative beta wallet/holdings, price-time-priority limit orders, partial fills, cancellation, order book, trade tape and Realtime refresh"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -55,8 +56,7 @@
     "cloud/exportable saves",
     "full modular split of the monolithic index.html",
     "large-population AI optimization",
-    "weather-dependent outdoor laundry drying and rain response",
-    "server-authoritative user-to-user share market with order book, authenticated wallets, holdings, atomic settlement and realtime updates"
+    "weather-dependent outdoor laundry drying and rain response"
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -67,8 +67,11 @@
     "company cash may become negative when buying items from the player; hard liquidity limits and insolvency are not implemented yet",
     "share trading currently uses formula-based prices and unlimited simplified counterparty liquidity rather than an order book",
     "non-player shareholder dividends leave company cash but are not yet tracked in individual NPC wealth",
-    "online user-to-user stock trading is not yet enabled; current V35 trading remains local simplified liquidity",
-    "game-local G and share balances cannot safely fund a shared market until wallet/holdings are server-authoritative"
+    "V38 online market uses a separate beta-G wallet; game-local G is not yet safely bridged",
+    "GitHub market OAuth requires the canonical game URL to be present in Supabase Auth Redirect URLs",
+    "V36 PBR/PER/dividend forecasts still use the local company ledger rather than shared online market financial statements",
+    "V38 server matching is transaction-tested with one authenticated user, but a live two-user cross-order E2E test is still pending",
+    "V38 online market currently lists only Frontier Trading Company"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -137,13 +140,35 @@
     "add NPC investors, share market liquidity, order book and demand-driven share prices",
     "add new share issuance, dilution, shareholder voting and board governance",
     "expand equity system to multiple companies and a player portfolio",
-    "connect Supabase Auth to the game market UI",
-    "create server-authoritative market accounts, holdings, orders and trades with RLS",
-    "implement atomic price-time-priority matching, partial fills, cancellation and Realtime order-book updates",
     "design a secure bridge between game G and the online market wallet",
-    "use V37 per-character console traces during playtests to isolate AI, indoor-task and employment regressions"
+    "use V37 per-character console traces during playtests to isolate AI, indoor-task and employment regressions",
+    "run a live two-user V38 cross-order and Realtime E2E market test",
+    "design and implement a secure bridge between server-authoritative game G and the online market wallet",
+    "move listed-company financial statements and dividend decisions to shared server-authoritative data",
+    "add market OHLC, volume, price history charts, market orders and multiple listed companies"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
-  "market_architecture_path": "frontier-world/MARKET.md"
+  "market_architecture_path": "frontier-world/MARKET.md",
+  "market_auth_setup_path": "frontier-world/MARKET_AUTH_SETUP.md",
+  "market_backend": {
+    "status": "beta_implemented",
+    "provider": "Supabase",
+    "project": "kamoku-cloud-v2",
+    "company_id": "frontier_trading_company",
+    "auth": "GitHub OAuth",
+    "wallet": "server-authoritative beta G",
+    "tables": [
+      "fw_market_companies",
+      "fw_market_accounts",
+      "fw_market_holdings",
+      "fw_market_orders",
+      "fw_market_trades",
+      "fw_market_ticker"
+    ],
+    "matching": "price priority, then time priority; resting-order execution price; partial fills; self-trade excluded",
+    "security": "RLS + authenticated SELECT only + private SECURITY DEFINER settlement core + public SECURITY INVOKER RPC wrappers",
+    "realtime": "fw_market_ticker",
+    "game_currency_bridge": "not implemented"
+  }
 }
