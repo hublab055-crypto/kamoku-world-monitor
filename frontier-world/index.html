@@ -8395,8 +8395,17 @@ function fw39NpcMealTick(n,h,b,dt){
  }
  h.mealRest39=Math.max(0,(h.mealRest39||0)-dt);return true;
 }
+function fw39PlayerMealGoal(b){
+ const s=fw34RoomSize(b),t=fw39TableCenter(b);
+ return {x:clamp(t.x,.72,s.w-.72),y:clamp(t.y+.95,.72,s.h-.78)};
+}
+function fw39PlayerAtMealSeat(m){
+ if(!m||!state.interior||state.interior.buildingId!==m.buildingId)return false;
+ const b=state.buildings.find(function(x){return x.id===m.buildingId;});if(!b)return false;
+ const g=fw39PlayerMealGoal(b);return Math.hypot(state.interior.pos.x-g.x,state.interior.pos.y-g.y)<.28;
+}
 function fw39FamilyReady(m){
- return !!m&&m.participantIds.every(function(id){const n=state.npcs.find(function(x){return x.id===id;});return !!(n&&n.household34&&n.household34.buildingId===m.buildingId&&n.household34.pose39==='sit');});
+ return !!m&&fw39PlayerAtMealSeat(m)&&m.participantIds.every(function(id){const n=state.npcs.find(function(x){return x.id===id;});return !!(n&&n.household34&&n.household34.buildingId===m.buildingId&&n.household34.pose39==='sit');});
 }
 function fw39BeginEating(m){
  const b=state.buildings.find(function(x){return x.id===m.buildingId;});if(!b)return false;
@@ -8426,8 +8435,13 @@ function fw39FinishFamilyMeal(m){
  });
  state.player.status='🍽️ 家族の食事を終えた';msg('🍽️ ごちそうさま。家族で食事を終えた。');fw39Log('家族の食事終了',null);
 }
-function fw39FamilyMealUpdate(){
+function fw39FamilyMealUpdate(dt){
  const m=state.familyMeal39;if(!m||m.finished)return;
+ const b=state.buildings.find(function(x){return x.id===m.buildingId;});
+ if((m.requested||m.eating)&&b&&state.interior&&state.interior.buildingId===m.buildingId&&!fw39PlayerAtMealSeat(m)){
+  const g=fw39PlayerMealGoal(b);fw21MoveInteriorPoint(state.interior.pos,state.player,g,dt||.016,.92);
+  state.player.status='🍽️ 食卓へゆっくり移動';
+ }
  if(m.requested&&!m.eating){
   if(fw39FamilyReady(m))fw39BeginEating(m);
   else if(performance.now()-(m.requestedAt||0)>18000){msg('🍽️ まだ家族がそろっていません。食卓で待っています。');m.requestedAt=performance.now();}
@@ -8491,7 +8505,7 @@ fw10DrawInterior=function(){
 };
 
 const fw39PrevUpdate=update;
-update=function(dt){fw39PrevUpdate(dt);fw39FamilyMealUpdate();};
+update=function(dt){fw39PrevUpdate(dt);fw39FamilyMealUpdate(dt);};
 
 })();
 </script>
