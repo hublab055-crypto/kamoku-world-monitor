@@ -8281,5 +8281,205 @@ fw36EnsureFinance();
 
 })();
 </script>
+
+<script>
+/* FRONTIER_V37_CONSOLE_LOGS */
+(function(){
+'use strict';
+if(window.__fw37ConsoleInstalled)return;
+window.__fw37ConsoleInstalled=true;
+
+var FW37_KEY='frontier_world_console_v37',FW37_MAX=800;
+var fw37Store={seq:0,entries:[]},fw37SaveTimer=null,fw37RenderTimer=null;
+var fw37View={mode:'all',actorId:'',category:'all'},fw37LastActor=new Map(),fw37LastDay=null;
+
+try{
+ var raw=localStorage.getItem(FW37_KEY),parsed=raw?JSON.parse(raw):null;
+ if(parsed&&Array.isArray(parsed.entries)){
+  fw37Store.entries=parsed.entries.slice(-FW37_MAX);
+  fw37Store.seq=Number(parsed.seq)||fw37Store.entries.reduce(function(m,x){return Math.max(m,Number(x.seq)||0);},0);
+ }
+}catch(e){}
+
+function fw37Actors(){
+ var out=[],seen={};
+ function add(a){if(!a||!a.id||seen[a.id])return;seen[a.id]=1;out.push(a);}
+ try{add(state.player);(state.npcs||[]).forEach(add);((state.family&&state.family.children)||[]).forEach(add);}catch(e){}
+ return out;
+}
+function fw37Actor(v){
+ if(!v)return null;if(typeof v==='object')return v;
+ var id=String(v),a=fw37Actors();for(var i=0;i<a.length;i++)if(String(a[i].id)===id)return a[i];return null;
+}
+function fw37Name(a){return a?String(a.name||a.id||''):'';}
+function fw37GameTime(){
+ var d=0,h=0;try{d=Number(state.day)||0;h=Number(state.hour)||0;}catch(e){}
+ var hh=Math.floor(h)%24,mm=Math.floor((h-Math.floor(h))*60);if(mm<0)mm=0;
+ return {day:d,hour:h,label:'Day '+d+' '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')};
+}
+function fw37PersistSoon(){
+ if(fw37SaveTimer)return;fw37SaveTimer=setTimeout(function(){fw37SaveTimer=null;try{localStorage.setItem(FW37_KEY,JSON.stringify({seq:fw37Store.seq,entries:fw37Store.entries.slice(-FW37_MAX)}));}catch(e){}},250);
+}
+function fw37RefreshSoon(){
+ if(fw37RenderTimer)return;fw37RenderTimer=setTimeout(function(){fw37RenderTimer=null;if(document.getElementById('fw37Console'))fw37Render();},180);
+}
+function fw37Log(category,message,actor,level,detail){
+ var a=fw37Actor(actor),gt=fw37GameTime(),entry={
+  seq:++fw37Store.seq,at:Date.now(),day:gt.day,gameHour:gt.hour,gameTime:gt.label,
+  category:String(category||'system'),level:String(level||'info'),
+  actorId:a?String(a.id):'',actorName:a?fw37Name(a):'',
+  message:String(message==null?'':message),
+  detail:detail==null?'':(typeof detail==='string'?detail:(function(){try{return JSON.stringify(detail);}catch(e){return String(detail);}})())
+ };
+ fw37Store.entries.push(entry);
+ if(fw37Store.entries.length>FW37_MAX)fw37Store.entries.splice(0,fw37Store.entries.length-FW37_MAX);
+ fw37PersistSoon();fw37RefreshSoon();
+ try{
+  var tag='[FW]['+entry.category+']'+(entry.actorName?'['+entry.actorName+']':'');
+  if(entry.level==='error')console.error(tag,entry.message,entry.detail||'');
+  else if(entry.level==='warn')console.warn(tag,entry.message,entry.detail||'');
+  else console.log(tag,entry.message,entry.detail||'');
+ }catch(e){}
+ return entry;
+}
+window.fw37Log=fw37Log;
+
+function fw37Escape(v){return String(v==null?'':v).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});}
+function fw37Entries(){
+ var rows=fw37Store.entries.slice();
+ if(fw37View.mode==='actor')rows=rows.filter(function(x){return x.actorId===fw37View.actorId;});
+ if(fw37View.category!=='all')rows=rows.filter(function(x){return x.category===fw37View.category;});
+ return rows;
+}
+function fw37Categories(){
+ var a=['all','system','message','actor','dialog','employment','error'],seen={};a.forEach(function(x){seen[x]=1;});
+ fw37Store.entries.forEach(function(x){if(x.category&&!seen[x.category]){seen[x.category]=1;a.push(x.category);}});return a;
+}
+function fw37EnsureActor(){
+ var list=fw37Actors();if(!list.length){fw37View.actorId='';return;}
+ if(!fw37View.actorId||!list.some(function(x){return String(x.id)===fw37View.actorId;})){
+  var d=null;try{d=state.dialog&&state.dialog.speaker;}catch(e){}
+  fw37View.actorId=String((d&&d.id)||(state.player&&state.player.id)||list[0].id);
+ }
+}
+function fw37Render(){
+ var body=document.getElementById('panelBody');if(!body)return;fw37EnsureActor();
+ var actors=fw37Actors(),rows=fw37Entries().slice(-250).reverse();
+ var cats=fw37Categories().map(function(c){return '<option value="'+fw37Escape(c)+'" '+(fw37View.category===c?'selected':'')+'>'+(c==='all'?'すべて':fw37Escape(c))+'</option>';}).join('');
+ var actorSelect=fw37View.mode==='actor'?'<select data-fw37-actor>'+actors.map(function(a){return '<option value="'+fw37Escape(a.id)+'" '+(String(a.id)===fw37View.actorId?'selected':'')+'>'+fw37Escape(fw37Name(a))+'</option>';}).join('')+'</select>':'';
+ var s='<div id="fw37Console"><div class="fw37Tools">'+
+  '<button class="smallBtn '+(fw37View.mode==='all'?'active':'')+'" data-fw37-mode="all">🌍 全体</button>'+
+  '<button class="smallBtn '+(fw37View.mode==='actor'?'active':'')+'" data-fw37-mode="actor">👤 個人別</button>'+actorSelect+
+  '<select data-fw37-category>'+cats+'</select>'+
+  '<button class="smallBtn" data-fw37-copy>📋 コピー</button><button class="smallBtn" data-fw37-clear>🧹 消去</button></div>'+
+  '<div class="fw37Meta">表示 '+rows.length+'件 / 保存 '+fw37Store.entries.length+'件（最大'+FW37_MAX+'件）</div><div class="fw37Rows">';
+ if(!rows.length)s+='<div class="fw37Empty">この条件のログはまだありません。</div>';
+ rows.forEach(function(x){
+  s+='<div class="fw37Row fw37-'+fw37Escape(x.level)+'"><span class="fw37Time">'+fw37Escape(x.gameTime)+'</span><span class="fw37Cat">'+fw37Escape(x.category)+'</span>'+
+   (fw37View.mode==='all'&&x.actorName?'<span class="fw37Actor">'+fw37Escape(x.actorName)+'</span>':'')+
+   '<span class="fw37Msg">'+fw37Escape(x.message)+'</span></div>';
+ });
+ body.innerHTML=s+'</div></div>';
+}
+function fw37Open(){
+ var p=document.getElementById('panel');if(!p)return;
+ var sp=document.getElementById('settingsPanel');if(sp)sp.classList.add('hidden');
+ p.classList.remove('hidden');var t=document.getElementById('panelTitle');if(t)t.textContent='🧾 コンソールログ';fw37Render();
+}
+function fw37CopyText(){
+ return fw37Entries().map(function(x){return '['+x.gameTime+'] ['+x.category+']'+(x.actorName?' ['+x.actorName+']':'')+' '+x.message+(x.detail?' | '+x.detail:'');}).join('\n');
+}
+function fw37FallbackCopy(txt){
+ var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();
+ try{document.execCommand('copy');fw37Log('system','コンソールログをコピーしました。');}catch(e){fw37Log('error','ログのコピーに失敗しました。',null,'error',e&&e.message);}ta.remove();
+}
+function fw37Copy(){
+ var txt=fw37CopyText();
+ if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(function(){fw37Log('system','コンソールログをクリップボードへコピーしました。');}).catch(function(){fw37FallbackCopy(txt);});
+ else fw37FallbackCopy(txt);
+}
+function fw37Clear(){
+ var count=0;
+ if(fw37View.mode==='actor'){
+  var id=fw37View.actorId,cat=fw37View.category;
+  count=fw37Store.entries.filter(function(x){return x.actorId===id&&(cat==='all'||x.category===cat);}).length;
+  fw37Store.entries=fw37Store.entries.filter(function(x){return !(x.actorId===id&&(cat==='all'||x.category===cat));});
+ }else if(fw37View.category!=='all'){
+  var c=fw37View.category;count=fw37Store.entries.filter(function(x){return x.category===c;}).length;fw37Store.entries=fw37Store.entries.filter(function(x){return x.category!==c;});
+ }else{count=fw37Store.entries.length;fw37Store.entries=[];}
+ fw37PersistSoon();fw37Render();fw37Log('system','ログを'+count+'件消去しました。');
+}
+
+var st=document.createElement('style');
+st.textContent='#fw37Console{display:flex;flex-direction:column;gap:7px;max-height:58vh}.fw37Tools{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.fw37Tools select{max-width:150px;background:#1f252a;color:#eee;border:1px solid #52616a;border-radius:6px;padding:6px}.fw37Tools .active{outline:2px solid #d6b25e}.fw37Meta{font-size:11px;opacity:.72}.fw37Rows{overflow:auto;max-height:43vh;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:rgba(0,0,0,.28);-webkit-overflow-scrolling:touch}.fw37Row{display:grid;grid-template-columns:auto auto auto minmax(0,1fr);gap:6px;padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.07);font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;align-items:start}.fw37Row:last-child{border-bottom:0}.fw37Time{opacity:.72;white-space:nowrap}.fw37Cat{opacity:.8}.fw37Actor{font-weight:700;white-space:nowrap}.fw37Msg{white-space:pre-wrap;word-break:break-word}.fw37-error .fw37Msg{font-weight:700}.fw37-warn .fw37Msg{font-weight:600}.fw37Empty{padding:18px;text-align:center;opacity:.65}@media(max-width:520px){#fw37Console{max-height:62vh}.fw37Rows{max-height:48vh}.fw37Row{grid-template-columns:auto auto minmax(0,1fr)}.fw37Actor{grid-column:1/3}.fw37Msg{grid-column:3}}';
+document.head.appendChild(st);
+
+if(typeof renderSettings==='function'){
+ var prevSettings=renderSettings;
+ renderSettings=function(){
+  var r=prevSettings.apply(this,arguments),box=document.getElementById('slotEditor');
+  if(box&&!document.getElementById('fw37SettingsCard'))box.insertAdjacentHTML('beforeend','<div id="fw37SettingsCard" class="tileCard" style="margin-top:10px"><b>デバッグ</b><br><button class="smallBtn" data-fw37-open>🧾 コンソールログ</button><div class="note">全体ログ / 個人別ログ。AI状態・指示・家事・雇用・会話・エラーを確認できます。</div></div>');
+  return r;
+ };
+}
+if(typeof msg==='function'){
+ var prevMsg=msg;
+ msg=function(t){var r=prevMsg.apply(this,arguments),a=null;try{a=state.dialog&&state.dialog.speaker?state.dialog.speaker:null;}catch(e){}fw37Log('message',t,a,/⚠️|失敗|エラー/.test(String(t))?'warn':'info');return r;};
+}
+if(typeof talk==='function'){
+ var prevTalk=talk;
+ talk=function(){var r=prevTalk.apply(this,arguments);try{if(state.dialog&&state.dialog.speaker)fw37Log('dialog','会話開始',state.dialog.speaker);}catch(e){}return r;};
+}
+if(typeof handleDialogAction==='function'){
+ var prevDialogAction=handleDialogAction;
+ handleDialogAction=function(k){var a=null;try{a=typeof getDialogSpeaker==='function'?getDialogSpeaker():null;}catch(e){}fw37Log('dialog','選択: '+String(k),a);return prevDialogAction.apply(this,arguments);};
+}
+if(typeof fw32Log==='function'){
+ var prevEmploymentLog=fw32Log;
+ fw32Log=function(kind,n,amount,day){var r=prevEmploymentLog.apply(this,arguments);fw37Log('employment',String(kind)+' '+String(Number(amount)||0)+'G'+(day==null?'':' / Day '+day),n);return r;};
+}
+
+function fw37Val(v){return v==null||v===''?'—':String(v);}
+function fw37Task(a){var t=a&&a.task;if(!t)return '';if(typeof t==='string')return t;if(typeof t==='object')return String(t.kind||t.type||t.gather||t.action||'task');return String(t);}
+function fw37Sig(a){
+ var h=a&&a.household34,e=a&&a.employment;
+ return {status:fw37Val(a&&a.status),command:fw37Val(a&&a.command),task:fw37Val(fw37Task(a)),inside:fw37Val((a&&a.inside20)||(h&&h.buildingId)),
+  household:fw37Val(h?(String(h.kind||'')+'/'+String(h.phase||'')+'/'+String(h.source||'')):''),
+  companion:String(!!(a&&a.companion)),controlled:String(!!(a&&a.controlled)),alive:String(!(a&&a.alive===false)),
+  employment:fw37Val(e?((e.active?'雇用':'未雇用')+'/'+(e.suspended?'停止':'稼働')+'/未払'+(Number(e.unpaidDebt)||0)+'G/日給'+(Number(e.dailyWage)||0)+'G'):''),
+  friend:fw37Val(a&&a.friend!=null?Math.round(Number(a.friend)||0):''),loyalty:fw37Val(a&&a.loyalty!=null?Math.round(Number(a.loyalty)||0):'')};
+}
+function fw37Scan(){
+ var list=fw37Actors(),present={};
+ list.forEach(function(a){
+  var id=String(a.id),s=fw37Sig(a);present[id]=1;var p=fw37LastActor.get(id);
+  if(!p){fw37LastActor.set(id,s);var b=[];if(s.status!=='—')b.push('状態 '+s.status);if(s.command!=='—')b.push('指示 '+s.command);if(s.inside!=='—')b.push('室内 '+s.inside);if(s.employment!=='—')b.push(s.employment);fw37Log('actor','追跡開始'+(b.length?' / '+b.join(' / '):''),a);return;}
+  var labels={status:'状態',command:'指示',task:'タスク',inside:'場所',household:'室内AI',companion:'仲間',controlled:'操作',alive:'生存',employment:'雇用',friend:'友好',loyalty:'忠誠'},changes=[];
+  Object.keys(labels).forEach(function(k){if(p[k]!==s[k])changes.push(labels[k]+' '+p[k]+' → '+s[k]);});
+  if(changes.length)fw37Log('actor',changes.join(' / '),a,s.alive==='false'?'warn':'info');
+  fw37LastActor.set(id,s);
+ });
+ Array.from(fw37LastActor.keys()).forEach(function(id){if(!present[id])fw37LastActor.delete(id);});
+ try{var d=Number(state.day)||0;if(fw37LastDay==null)fw37LastDay=d;else if(d!==fw37LastDay){fw37Log('system','Day '+fw37LastDay+' → Day '+d);fw37LastDay=d;}}catch(e){}
+}
+
+root.addEventListener('click',function(e){
+ var b=e.target.closest('[data-fw37-open],[data-fw37-mode],[data-fw37-copy],[data-fw37-clear]');if(!b)return;
+ if(b.hasAttribute('data-fw37-open')){e.preventDefault();e.stopPropagation();fw37Open();return;}
+ if(b.hasAttribute('data-fw37-mode')){e.preventDefault();fw37View.mode=b.dataset.fw37Mode||'all';fw37Render();return;}
+ if(b.hasAttribute('data-fw37-copy')){e.preventDefault();fw37Copy();return;}
+ if(b.hasAttribute('data-fw37-clear')){e.preventDefault();fw37Clear();}
+},true);
+root.addEventListener('change',function(e){
+ var t=e.target;if(t&&t.hasAttribute('data-fw37-actor')){fw37View.actorId=String(t.value);fw37Render();}
+ if(t&&t.hasAttribute('data-fw37-category')){fw37View.category=String(t.value);fw37Render();}
+},true);
+window.addEventListener('error',function(e){fw37Log('error',(e&&e.message)||'JavaScript error',null,'error',(e&&e.filename?e.filename+':'+e.lineno+':'+e.colno:''));});
+window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;fw37Log('error','Unhandled Promise rejection',null,'error',r&&r.stack?r.stack:String(r||''));});
+
+fw37Scan();setInterval(fw37Scan,900);
+fw37Log('system','V37 コンソールログを開始しました。全体/個人別を記録します。');
+})();
+</script>
 </body>
 </html>
