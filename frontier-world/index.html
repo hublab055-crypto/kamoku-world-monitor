@@ -8479,6 +8479,128 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;fw37L
 
 fw37Scan();setInterval(fw37Scan,900);
 fw37Log('system','V37 コンソールログを開始しました。全体/個人別を記録します。');
+
+/* FRONTIER_V38_ONLINE_MARKET_BETA */
+const FW38_URL='https://htwcscrllohavtbejhjr.supabase.co';
+const FW38_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
+const FW38_LIB='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
+const FW38_CO='frontier_trading_company';
+let fw38C0=null,fw38CP=null,fw38S=null,fw38Snap=null,fw38Busy=false,fw38Error='',fw38Ch=null,fw38Timer=null;
+
+function fw38E(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fw38EM(e){return e&&e.message?e.message:String(e||'error');}
+function fw38Log(t,l){if(typeof fw37Log==='function')try{fw37Log('market',t,null,l||'info');}catch(e){}}
+
+async function fw38Client(){
+ if(fw38C0)return fw38C0;
+ if(!fw38CP)fw38CP=import(FW38_LIB).then(async function(m){
+  fw38C0=m.createClient(FW38_URL,FW38_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
+  fw38C0.auth.onAuthStateChange(function(ev,se){
+   fw38S=se||null;if(ev==='SIGNED_IN')fw38Sub();if(ev==='SIGNED_OUT')fw38Unsub();fw38Soon();
+  });
+  const x=await fw38C0.auth.getSession();fw38S=x.data.session||null;if(fw38S)fw38Sub();return fw38C0;
+ }).catch(function(e){fw38CP=null;throw e;});
+ return fw38CP;
+}
+function fw38Unsub(){if(fw38C0&&fw38Ch)try{fw38C0.removeChannel(fw38Ch);}catch(e){}fw38Ch=null;}
+async function fw38Sub(){
+ if(!fw38S)return;const c=await fw38Client();fw38Unsub();
+ fw38Ch=c.channel('fw38-'+fw38S.user.id).on('postgres_changes',
+  {event:'*',schema:'public',table:'fw_market_ticker',filter:'company_id=eq.'+FW38_CO},
+  function(){fw38Soon();}).subscribe();
+}
+function fw38Soon(){clearTimeout(fw38Timer);fw38Timer=setTimeout(function(){if(document.getElementById('fw38Market'))fw38Load();},250);}
+function fw38Name(){
+ if(!fw38S)return '';const u=fw38S.user,m=u.user_metadata||{};
+ return m.user_name||m.preferred_username||m.full_name||u.email||('user-'+String(u.id).slice(0,8));
+}
+async function fw38Login(){
+ try{const c=await fw38Client(),r=await c.auth.signInWithOAuth({provider:'github',options:{redirectTo:location.origin+location.pathname}});if(r.error)throw r.error;}
+ catch(e){fw38Error=fw38EM(e);fw38Log('login failed '+fw38Error,'error');fw38Render();}
+}
+async function fw38Logout(){try{const c=await fw38Client();await c.auth.signOut();fw38S=null;fw38Snap=null;fw38Render();}catch(e){fw38Error=fw38EM(e);fw38Render();}}
+
+async function fw38Load(){
+ if(fw38Busy)return;fw38Busy=true;fw38Error='';fw38Render();
+ try{
+  const c=await fw38Client(),ss=await c.auth.getSession();fw38S=ss.data.session||null;
+  if(!fw38S){fw38Snap=null;return;}
+  const reg=await c.rpc('fw_market_register');if(reg.error)throw reg.error;
+  const rr=await Promise.all([
+   c.from('fw_market_companies').select('id,name,issued_shares,treasury_shares,ipo_price,treasury_cash').eq('id',FW38_CO).single(),
+   c.from('fw_market_accounts').select('cash_balance,cash_reserved,beta_grant').single(),
+   c.from('fw_market_holdings').select('shares,shares_reserved').eq('company_id',FW38_CO).maybeSingle(),
+   c.from('fw_market_orders').select('id,side,limit_price,quantity,remaining_quantity,status,created_at').eq('company_id',FW38_CO).in('status',['open','partial']).order('created_at',{ascending:false}).limit(30),
+   c.rpc('fw_market_order_book',{p_company_id:FW38_CO}),
+   c.rpc('fw_market_recent_trades',{p_company_id:FW38_CO,p_limit:12}),
+   c.from('fw_market_ticker').select('last_price,last_quantity,updated_at').eq('company_id',FW38_CO).single()
+  ]);
+  rr.forEach(function(x){if(x.error)throw x.error;});
+  fw38Snap={co:rr[0].data,ac:rr[1].data,ho:rr[2].data||{shares:0,shares_reserved:0},orders:rr[3].data||[],book:rr[4].data||[],trades:rr[5].data||[],tick:rr[6].data};
+  fw38Sub();
+ }catch(e){fw38Error=fw38EM(e);fw38Log('refresh failed '+fw38Error,'error');}
+ finally{fw38Busy=false;fw38Render();}
+}
+function fw38Book(side){
+ const a=(fw38Snap?fw38Snap.book:[]).filter(function(x){return x.side===side;});
+ a.sort(function(x,y){return side==='buy'?Number(y.price)-Number(x.price):Number(x.price)-Number(y.price);});return a.slice(0,6);
+}
+function fw38BookHTML(side){
+ const a=fw38Book(side);if(!a.length)return '<span class="note">注文なし</span>';
+ return a.map(function(x){return '<div style="display:flex;justify-content:space-between"><span>'+Number(x.price)+'G</span><b>'+Number(x.quantity)+'株</b><span>'+Number(x.order_count)+'件</span></div>';}).join('');
+}
+function fw38OrdersHTML(){
+ const a=fw38Snap?fw38Snap.orders:[];if(!a.length)return '<span class="note">未約定なし</span>';
+ return a.map(function(o){return '<div style="display:flex;justify-content:space-between;align-items:center;gap:5px"><span>'+(o.side==='buy'?'🟢買':'🔴売')+' '+Number(o.limit_price)+'G × '+Number(o.remaining_quantity)+'/'+Number(o.quantity)+'株</span><button class="smallBtn" data-fw38="cancel" data-id="'+Number(o.id)+'">取消</button></div>';}).join('');
+}
+function fw38TradesHTML(){
+ const a=fw38Snap?fw38Snap.trades:[];if(!a.length)return '<span class="note">約定なし</span>';
+ return a.slice(0,8).map(function(t){let z='';try{z=new Date(t.executed_at).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});}catch(e){}return '<div style="display:flex;justify-content:space-between"><span>'+z+'</span><b>'+Number(t.price)+'G</b><span>'+Number(t.quantity)+'株</span></div>';}).join('');
+}
+function fw38Render(){
+ const box=document.getElementById('fw38Market');if(!box)return;
+ if(!fw38C0&&!fw38CP){box.innerHTML='<b>🌐 ユーザー間マーケット β</b><br><button class="smallBtn" data-fw38="refresh">市場へ接続</button>';return;}
+ if(fw38Busy&&!fw38Snap){box.innerHTML='<b>🌐 ユーザー間マーケット β</b><br>接続中…';return;}
+ if(!fw38S){
+  box.innerHTML='<b>🌐 ユーザー間マーケット β</b><br><button class="smallBtn" data-fw38="login">GitHubで市場ログイン</button> <button class="smallBtn" data-fw38="refresh">再読込</button>'+
+   (fw38Error?'<div class="note">⚠️ '+fw38E(fw38Error)+'</div>':'')+
+   '<div class="note">市場口座・保有株・注文・約定はサーバー正本。初回のみ市場β口座1000G。ゲーム内Gとはまだ別口座です。</div>';return;
+ }
+ if(!fw38Snap){
+  box.innerHTML='<b>🌐 ユーザー間マーケット β</b><br>'+fw38E(fw38Name())+' <button class="smallBtn" data-fw38="logout">Logout</button><br><button class="smallBtn" data-fw38="refresh">市場データ読込</button>'+(fw38Error?'<div class="note">⚠️ '+fw38E(fw38Error)+'</div>':'');return;
+ }
+ const s=fw38Snap,c=s.co,a=s.ac,h=s.ho,t=s.tick||{},cash=Number(a.cash_balance)-Number(a.cash_reserved),shares=Number(h.shares)-Number(h.shares_reserved),px=Number(t.last_price||c.ipo_price||1);
+ const ipos=[1,5,10].filter(function(q){return q<=Number(c.treasury_shares);}).map(function(q){return '<button class="smallBtn" data-fw38="ipo" data-q="'+q+'">IPO '+q+'株</button>';}).join(' ');
+ box.innerHTML=
+  '<div style="display:flex;justify-content:space-between;gap:6px"><b>🌐 ユーザー間マーケット β</b><span>'+fw38E(fw38Name())+' <button class="smallBtn" data-fw38="logout">Logout</button></span></div>'+
+  '<div class="tileCard">残高 <b>'+Number(a.cash_balance)+'G</b> / 拘束 '+Number(a.cash_reserved)+'G / 利用可能 <b>'+cash+'G</b><br>保有 <b>'+Number(h.shares)+'株</b> / 拘束 '+Number(h.shares_reserved)+'株 / 売却可能 <b>'+shares+'株</b><br>最終約定 <b>'+(t.last_price==null?'—':Number(t.last_price)+'G')+'</b>'+(t.last_quantity?' × '+Number(t.last_quantity)+'株':'')+'</div>'+
+  '<div class="tileCard"><b>IPO</b>　残 '+Number(c.treasury_shares)+'/'+Number(c.issued_shares)+'株　価格 '+Number(c.ipo_price)+'G<br>'+(ipos||'<span class="note">IPO完売。以後はユーザー間売買。</span>')+'</div>'+
+  '<div class="tileCard"><b>指値注文</b><br><select id="fw38Side" style="width:82px"><option value="buy">買い</option><option value="sell">売り</option></select> <input id="fw38Price" type="number" min="1" max="1000000000" value="'+px+'" style="width:75px">G × <input id="fw38Qty" type="number" min="1" max="'+Number(c.issued_shares)+'" value="1" style="width:55px">株 <button class="smallBtn" data-fw38="place">注文</button></div>'+
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><div class="tileCard"><b>🟢買い板</b><div style="font:12px/1.6 ui-monospace,monospace">'+fw38BookHTML('buy')+'</div></div><div class="tileCard"><b>🔴売り板</b><div style="font:12px/1.6 ui-monospace,monospace">'+fw38BookHTML('sell')+'</div></div></div>'+
+  '<div class="tileCard"><b>自分の注文</b>'+fw38OrdersHTML()+'</div><div class="tileCard"><b>歩み値</b><div style="font:12px/1.55 ui-monospace,monospace">'+fw38TradesHTML()+'</div></div>'+
+  (fw38Error?'<div class="note">⚠️ '+fw38E(fw38Error)+'</div>':'')+
+  '<div class="note">価格優先→同値は時間優先。価格が交差すると先に板へ出ていた注文価格で約定。自己売買は除外。</div>';
+}
+function fw38Append(){
+ const body=$('#panelBody');if(!body||document.getElementById('fw38Market'))return;
+ const h='<div id="fw38Market" class="tileCard"><b>🌐 ユーザー間マーケット β</b><br><button class="smallBtn" data-fw38="refresh">市場へ接続</button></div>',legend=body.querySelector('.legend');
+ if(legend)legend.insertAdjacentHTML('beforebegin',h);else body.insertAdjacentHTML('beforeend',h);
+}
+async function fw38Ipo(q){try{const c=await fw38Client(),r=await c.rpc('fw_market_ipo_buy',{p_company_id:FW38_CO,p_quantity:Number(q)});if(r.error)throw r.error;fw38Log('IPO '+q+'株');msg('📈 IPO '+q+'株取得');await fw38Load();}catch(e){fw38Error=fw38EM(e);fw38Render();}}
+async function fw38Place(){try{const side=document.getElementById('fw38Side').value,p=Number(document.getElementById('fw38Price').value),q=Number(document.getElementById('fw38Qty').value);if(!Number.isInteger(p)||p<=0||!Number.isInteger(q)||q<=0)throw new Error('価格と株数を正の整数で入力して。');const c=await fw38Client(),r=await c.rpc('fw_market_place_order',{p_company_id:FW38_CO,p_side:side,p_limit_price:p,p_quantity:q});if(r.error)throw r.error;fw38Log(side+' '+p+'G×'+q+'株');msg('📊 注文受付 / 約定 '+Number(r.data.filled_quantity||0)+'株');await fw38Load();}catch(e){fw38Error=fw38EM(e);fw38Log('order failed '+fw38Error,'error');fw38Render();}}
+async function fw38Cancel(id){try{const c=await fw38Client(),r=await c.rpc('fw_market_cancel_order',{p_order_id:Number(id)});if(r.error)throw r.error;msg('📊 注文取消');await fw38Load();}catch(e){fw38Error=fw38EM(e);fw38Render();}}
+
+const fw38PrevCommerce=fw33OpenCommerce;
+fw33OpenCommerce=function(){const r=fw38PrevCommerce();fw38Append();fw38Client().then(fw38Load).catch(function(e){fw38Error=fw38EM(e);fw38Render();});return r;};
+
+root.addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw38]');if(!b)return;e.preventDefault();e.stopPropagation();
+ const a=b.dataset.fw38;
+ if(a==='refresh')fw38Client().then(fw38Load).catch(function(x){fw38Error=fw38EM(x);fw38Render();});
+ else if(a==='login')fw38Login();else if(a==='logout')fw38Logout();
+ else if(a==='ipo')fw38Ipo(Number(b.dataset.q||0));else if(a==='place')fw38Place();else if(a==='cancel')fw38Cancel(Number(b.dataset.id||0));
+},true);
+
 })();
 </script>
 </body>
