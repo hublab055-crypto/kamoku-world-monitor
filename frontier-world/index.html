@@ -308,7 +308,7 @@ function maybeDevelopCamp(){
 function respawnResources(dt){state.resourceRespawn-=dt;if(state.resourceRespawn>0)return;state.resourceRespawn=5;const types=[['grass','food'],['berry','food'],['rock','stone'],['tree','wood'],['water','water']];if(state.objects.filter(o=>o.gather).length<135){const [type,gather]=types[Math.floor(Math.random()*types.length)];for(let k=0;k<20;k++){const x=16+Math.random()*62,y=20+Math.random()*58;if(Math.abs(x-47)<3||Math.abs(y-50)<2||blocked(x,y))continue;state.objects.push({type,x,y,solid:true,gather});break;}}}
 function closeDialog(){if(!state.dialog)return;$('#dialogPanel').classList.add('hidden');state.dialog=null;stopFaceTimers();}
 function update(dt){
- state.hour+=dt*.04;if(state.hour>=24){state.hour-=24;state.day++;}
+ state.hour+=dt*.04*fw39TimeScale();if(state.hour>=24){state.hour-=24;state.day++;}
  let dx=joy.x,dy=joy.y;if(tap&&!joy.active){const ax=tap.x-state.player.x,ay=tap.y-state.player.y,d=Math.hypot(ax,ay);if(d<.12)tap=null;else{dx=ax/d;dy=ay/d;}}
  if(Math.hypot(dx,dy)>.08)movePlayer(dx,dy,dt);else if(state.resting||state.player.st<=0){const rate=isNight()?3.4:1.3;state.player.st=clamp(state.player.st+dt*rate,0,100);if(state.player.st>=20&&state.player.st<21)state.resting=false;}
  state.player.hunger=clamp(state.player.hunger-dt*.03,0,100);state.npcs.forEach(n=>updateNPC(n,dt));respawnResources(dt);maybeDevelopCamp();
@@ -8278,6 +8278,220 @@ root.addEventListener('click',function(e){
 },false);
 
 fw36EnsureFinance();
+
+/* FRONTIER_V39_SLOW_INDOOR_LIFE_FAMILY_MEALS */
+const FW39_INDOOR_TIME_SCALE=.35;
+const FW39_INDOOR_WALK_SPEED=.92;
+const FW39_INDOOR_MAX_SPEED=1.15;
+
+function fw39TimeScale(){return state&&state.interior?FW39_INDOOR_TIME_SCALE:1;}
+function fw39Log(t,a,l){if(typeof fw37Log==='function')try{fw37Log('household',t,a||null,l||'info');}catch(_){}}
+
+// Indoor NPCs walk instead of sprinting. Old explicit speeds are capped.
+fw34MoveIndoor=function(h,n,g,dt,speed){
+ if(!h||!g)return false;
+ const dx=g.x-h.x,dy=g.y-h.y,d=Math.hypot(dx,dy);if(d<=.16)return true;
+ const req=Number(speed),sp=Math.min(Number.isFinite(req)&&req>0?req:FW39_INDOOR_WALK_SPEED,FW39_INDOOR_MAX_SPEED);
+ const step=Math.min(d,sp*dt),vx=dx/d,vy=dy/d;
+ h.x=clamp(h.x+vx*step,.55,h.rw-.55);h.y=clamp(h.y+vy*step,.55,h.rh-.32);
+ h.dir=Math.abs(dx)>Math.abs(dy)?(dx<0?'left':'right'):(dy<0?'back':'front');if(n)n.dir=h.dir;
+ return d<=.22;
+};
+
+function fw39LegacyFurniture(b){const s=fw34RoomSize(b);return typeof fw25EnsureLegacyFurniture==='function'?fw25EnsureLegacyFurniture(b,s.w,s.h):[];}
+function fw39ChairSpots(b){return fw39LegacyFurniture(b).filter(function(f){return f.type==='chair';}).map(function(f,i){return {x:f.x+.34,y:f.y+.48,sit:true,key:'chair:'+i,label:'🪑 椅子'};});}
+function fw39TableCenter(b){const s=fw34RoomSize(b),t=typeof fw28TablePos==='function'?fw28TablePos(b,s.w,s.h):null;return t?{x:t.x+.58,y:t.y+.52}:{x:s.w/2,y:s.h/2};}
+function fw39SeatOccupied(n,key){return state.npcs.some(function(o){return o!==n&&o.household34&&o.household34.pose39==='sit'&&o.household34.seatKey39===key;});}
+function fw39LeisureSpots(n,h,b){
+ const s=fw34RoomSize(b),chairs=fw39ChairSpots(b),table=fw39TableCenter(b),legacy=fw39LegacyFurniture(b),fire=legacy.find(function(f){return f.type==='fireplace';}),out=[];
+ chairs.forEach(function(q){if(!fw39SeatOccupied(n,q.key))out.push(q);});
+ out.push({x:clamp(table.x+.95,.75,s.w-.75),y:clamp(table.y+.2,.75,s.h-.8),sit:false,key:'table-side',label:'☕ 食卓のそば'});
+ if(fire)out.push({x:clamp(fire.x+1.05,.75,s.w-.75),y:clamp(fire.y+.35,.75,s.h-.8),sit:false,key:'fire',label:'🔥 暖炉のそば'});
+ out.push({x:clamp(s.w-1.15,.75,s.w-.75),y:clamp(1.1,.75,s.h-.8),sit:false,key:'window',label:'🏠 家でくつろぐ'});
+ return out;
+}
+function fw39ChooseLeisureSpot(n,h,b){
+ const a=fw39LeisureSpots(n,h,b);h.leisureIndex39=((h.leisureIndex39==null?Math.floor(Math.random()*a.length):h.leisureIndex39)+1)%a.length;return a[h.leisureIndex39];
+}
+function fw39IndoorRestTick(n,h,b,dt,label){
+ if(h.restTimer39>0){
+  h.restTimer39-=dt;n.st=clamp(n.st+dt*(h.pose39==='sit'?.34:.17),0,100);n.happiness=clamp((n.happiness||78)+dt*.025,0,100);
+  n.status=h.pose39==='sit'?'🪑 椅子に座って休憩':(label||'☕ 室内でゆっくり');
+  if(h.restTimer39<=0){h.pose39=null;h.seatKey39=null;h.leisureGoal39=null;}
+  return true;
+ }
+ if(!h.leisureGoal39)h.leisureGoal39=fw39ChooseLeisureSpot(n,h,b);
+ const q=h.leisureGoal39,arrived=fw34MoveIndoor(h,n,q,dt,FW39_INDOOR_WALK_SPEED);
+ n.status=arrived?(q.sit?'🪑 椅子に座る':q.label):'🚶 ゆっくり移動';
+ if(arrived){h.pose39=q.sit?'sit':'rest';h.seatKey39=q.sit?q.key:null;h.restTimer39=8+Math.random()*10;fw39Log((q.sit?'椅子で休憩':'室内で休憩'),n);}
+ return true;
+}
+fw35IndoorIdleTick=function(n,h,b,dt,label){return fw39IndoorRestTick(n,h,b,dt,label||'☕ 室内で余暇');};
+
+// Cleaning target hysteresis prevents kitchen/toilet ping-pong.
+function fw39CleanBlockKey(h){return state.day+':'+Math.floor(state.hour/3)+':'+String(h&&h.kind||'clean');}
+function fw39TargetStillExists(b,t){return !!(t&&t.obj&&fw34CleanTargets(b).some(function(x){return x.obj===t.obj;}));}
+fw34NpcCleanTick=function(n,h,b,dt){
+ const scheduled=h.source==='schedule',doneKey=fw39CleanBlockKey(h);
+ if(scheduled&&h.cleanDoneBlock39===doneKey)return fw39IndoorRestTick(n,h,b,dt,'🪑 掃除後に休憩');
+ if(h.cleanPause39>0){h.cleanPause39-=dt;n.status='🧹 掃除箇所を確認';return true;}
+ let t=h.cleanTarget39;if(!fw39TargetStillExists(b,t)||t.obj.cleanliness34>=99)t=null;
+ if(!t){t=fw34Dirtiest(b,scheduled?92:96);h.cleanTarget39=t||null;}
+ if(!t){
+  if(scheduled){h.cleanDoneBlock39=doneKey;h.leisureGoal39=null;h.restTimer39=0;return fw39IndoorRestTick(n,h,b,dt,'🪑 掃除後に休憩');}
+  n.status='✨ 掃除完了';
+  if(h.source==='gambit'){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+  else if(h.source==='command'){n.command='homeWait';h.kind='wait';h.source='command';}
+  return true;
+ }
+ h.pose39=null;h.seatKey39=null;
+ if(!fw34MoveIndoor(h,n,{x:t.x,y:t.y},dt,FW39_INDOOR_WALK_SPEED)){n.status='🧹 '+t.name+'へゆっくり移動';return true;}
+ t.obj.cleanliness34=clamp(t.obj.cleanliness34+dt*18,0,100);n.st=clamp(n.st-dt*.07,0,100);n.status='🧹 '+t.name+'を掃除 '+Math.round(t.obj.cleanliness34)+'%';
+ if(t.type==='table'&&b.dining28&&b.dining28.dirty&&t.obj.cleanliness34>94)b.dining28.dirty=0;
+ if(t.obj.cleanliness34>=99){t.obj.cleanliness34=100;h.cleanTarget39=null;h.cleanPause39=1.8;fw39Log(t.name+'の掃除完了',n);}
+ return true;
+};
+
+// Family meal workflow.
+function fw39DiningBuilding(){if(!state.interior)return null;return state.buildings.find(function(b){return b.id===state.interior.buildingId;})||null;}
+function fw39EligibleFamily(b){
+ if(!b)return [];
+ return state.npcs.filter(function(n){
+  if(!n||n.alive===false||n.controlled||n.role==='merchant'||!(n.relationship==='family'||n.relationship==='lover'))return false;
+  const h=fw34HomeFor(n);return !!h&&h.id===b.id;
+ });
+}
+function fw39MealSeatGoal(b,n,index){
+ const s=fw34RoomSize(b),table=fw39TableCenter(b),chairs=fw39ChairSpots(b);
+ if(index<chairs.length){const q=chairs[index];return {x:q.x,y:q.y,key:'meal-'+q.key,sit:true};}
+ const o=[[0,-.85],[.95,0],[-.95,0],[0,.92],[1,.78],[-1,.78]][index%6];
+ return {x:clamp(table.x+o[0],.72,s.w-.72),y:clamp(table.y+o[1],.72,s.h-.78),key:'meal-virtual-'+index,sit:true};
+}
+function fw39MealStateFor(b){const m=state.familyMeal39;return m&&b&&m.buildingId===b.id?m:null;}
+function fw39CallFamily(silent){
+ const b=fw39DiningBuilding();if(!b){if(!silent)msg('🏠 家の食卓から家族を呼んで。');return false;}
+ const fam=fw39EligibleFamily(b);if(!fam.length){if(!silent)msg('📣 今この家で呼べる家族はいない。');return false;}
+ state.familyMeal39Seq=(state.familyMeal39Seq||0)+1;
+ let m=fw39MealStateFor(b);
+ if(!m||m.finished)m=state.familyMeal39={id:state.familyMeal39Seq,buildingId:b.id,participantIds:fam.map(function(n){return n.id;}),calledAt:performance.now(),requested:false,eating:false,finished:false,playerEaten:false};
+ else m.participantIds=fam.map(function(n){return n.id;});
+ fam.forEach(function(n){
+  if(n.preMealCommand39==null)n.preMealCommand39=n.command||null;n.command='familyMeal39';n.task=null;n.returning=false;
+  if(n.household34&&n.household34.buildingId===b.id){n.household34.kind='familyMeal39';n.household34.source='command';n.household34.pose39=null;n.household34.restTimer39=0;}
+ });
+ if(!silent)msg('📣 「ごはんだよ」――家族を食卓へ呼んだ。');fw39Log('家族を食卓へ招集',null);return true;
+}
+function fw39NpcMealTick(n,h,b,dt){
+ const m=fw39MealStateFor(b);
+ if(!m||m.finished||!m.participantIds.includes(n.id)){n.command=n.preMealCommand39||'homeWait';n.preMealCommand39=null;h.kind='wait';h.source='command';h.pose39=null;return true;}
+ const idx=Math.max(0,m.participantIds.indexOf(n.id)),g=fw39MealSeatGoal(b,n,idx);
+ if(!fw34MoveIndoor(h,n,g,dt,.84)){h.pose39=null;n.status='🍽️ 食卓へゆっくり移動';return true;}
+ h.pose39='sit';h.seatKey39=g.key;n.status=m.eating?'😋 家族で食事中':'🪑 食卓で家族を待つ';
+ if(!m.eating)return true;
+ if(n.meal39Id!==m.id){
+  const d=fw28EnsureDining(b),dish=d.served.shift();if(!dish){n.status='🍽️ 配膳が足りない';return true;}
+  const q=Number(dish.quality||1);n.hunger=clamp(n.hunger+30+q*5,0,100);n.st=clamp(n.st+8+q*2,0,100);n.happiness=clamp((n.happiness||78)+4+q,0,100);
+  d.dirty++;n.meal39Id=m.id;h.mealRest39=5.5;fw34AddDirt(b,'table',2);fw39Log(dish.name+'を家族で食事',n);
+ }
+ h.mealRest39=Math.max(0,(h.mealRest39||0)-dt);return true;
+}
+function fw39FamilyReady(m){
+ return !!m&&m.participantIds.every(function(id){const n=state.npcs.find(function(x){return x.id===id;});return !!(n&&n.household34&&n.household34.buildingId===m.buildingId&&n.household34.pose39==='sit');});
+}
+function fw39BeginEating(m){
+ const b=state.buildings.find(function(x){return x.id===m.buildingId;});if(!b)return false;
+ const d=fw28EnsureDining(b),need=m.participantIds.length+1;
+ if(d.served.length<need){msg('🍽️ 人数分の配膳が足りません。あと '+(need-d.served.length)+'皿 必要です。');m.requested=false;return false;}
+ m.eating=true;m.requested=false;m.startedAt=performance.now();
+ if(!m.playerEaten){const dish=d.served.shift(),q=Number(dish.quality||1);state.player.hunger=clamp(state.player.hunger+30+q*5,0,100);state.player.st=clamp(state.player.st+8+q*2,0,100);state.player.happiness=clamp((state.player.happiness||80)+4+q,0,100);d.dirty++;m.playerEaten=true;fw34AddDirt(b,'table',2);}
+ state.player.status='😋 家族で食事中';msg('🍽️ みんなそろって「いただきます」。');fw39Log('家族全員で食事開始',null);return true;
+}
+function fw39StartFamilyMeal(){
+ const b=fw39DiningBuilding();if(!b){msg('🏠 家の食卓で行って。');return false;}
+ let m=fw39MealStateFor(b);if(!m){if(!fw39CallFamily(true))return false;m=fw39MealStateFor(b);}
+ const d=fw28EnsureDining(b),need=m.participantIds.length+1;
+ if(d.served.length<need){msg('🍽️ みんなで食べるには '+need+'皿 必要です。あと '+(need-d.served.length)+'皿 配膳して。');return false;}
+ m.requested=true;m.requestedAt=performance.now();state.player.status='🍽️ 家族がそろうのを待つ';
+ msg(fw39FamilyReady(m)?'🍽️ みんなそろった。食事を始めます。':'🍽️ 家族が食卓へ来るのを待っています。');
+ if(fw39FamilyReady(m))fw39BeginEating(m);return true;
+}
+function fw39FinishFamilyMeal(m){
+ if(!m||m.finished)return;m.finished=true;
+ m.participantIds.forEach(function(id){
+  const n=state.npcs.find(function(x){return x.id===id;});if(!n)return;
+  const old=n.preMealCommand39;n.preMealCommand39=null;n.command=old||((n.relationship==='family'||n.relationship==='lover')?'homeWait':'follow');
+  const h=n.household34;if(!h)return;h.pose39=null;h.seatKey39=null;h.mealRest39=0;
+  const task=n.personalSchedule&&n.personalSchedule.enabled?fw19ScheduleTask(n):'auto';
+  if(FW34_INDOOR_SCHEDULE.has(task)){h.kind=task;h.source='schedule';}else fw34ExitNpc(n,false);
+ });
+ state.player.status='🍽️ 家族の食事を終えた';msg('🍽️ ごちそうさま。家族で食事を終えた。');fw39Log('家族の食事終了',null);
+}
+function fw39FamilyMealUpdate(){
+ const m=state.familyMeal39;if(!m||m.finished)return;
+ if(m.requested&&!m.eating){
+  if(fw39FamilyReady(m))fw39BeginEating(m);
+  else if(performance.now()-(m.requestedAt||0)>18000){msg('🍽️ まだ家族がそろっていません。食卓で待っています。');m.requestedAt=performance.now();}
+ }
+ if(m.eating){
+  const all=m.participantIds.every(function(id){const n=state.npcs.find(function(x){return x.id===id;});return !!(n&&n.meal39Id===m.id);});
+  const rested=m.participantIds.every(function(id){const n=state.npcs.find(function(x){return x.id===id;});return !!(n&&n.household34&&(n.household34.mealRest39||0)<=0);});
+  if(all&&rested&&performance.now()-(m.startedAt||0)>4500)fw39FinishFamilyMeal(m);
+ }
+}
+
+const fw39PrevNpcTaskStart=fw34NpcTaskStart;
+fw34NpcTaskStart=function(n,dt){
+ if(n&&n.command==='familyMeal39'){
+  const m=state.familyMeal39,b=m&&state.buildings.find(function(x){return x.id===m.buildingId;});
+  if(!b||m.finished){n.command=n.preMealCommand39||'homeWait';n.preMealCommand39=null;return false;}
+  if(n.household34&&n.household34.buildingId!==b.id)fw34ExitNpc(n,false);
+  if(!n.household34)fw34ApproachNpcHome(n,'familyMeal39','command',dt);
+  if(n.household34){n.household34.kind='familyMeal39';n.household34.source='command';}return true;
+ }
+ return fw39PrevNpcTaskStart(n,dt);
+};
+
+const fw39PrevNpcIndoorTick=fw34NpcIndoorTick;
+fw34NpcIndoorTick=function(n,h,dt){
+ const b=h&&state.buildings.find(function(x){return x.id===h.buildingId;});
+ if(n&&h&&n.command==='familyMeal39'&&b){h.kind='familyMeal39';h.source='command';return fw39NpcMealTick(n,h,b,dt);}
+ if(n&&h&&b&&h.source==='schedule'&&(fw19ScheduleTask(n)==='clean'||fw19ScheduleTask(n)==='housework')&&h.cleanDoneBlock39===fw39CleanBlockKey(h))return fw39IndoorRestTick(n,h,b,dt,'🪑 掃除後に休憩');
+ return fw39PrevNpcIndoorTick(n,h,dt);
+};
+
+const fw39PrevDiningMenu=fw28OpenDiningMenu;
+fw28OpenDiningMenu=function(){
+ const r=fw39PrevDiningMenu.apply(this,arguments);if(!state.interior)return r;
+ const b=fw39DiningBuilding(),d=b&&fw28EnsureDining(b),body=$('#panelBody');if(!b||!d||!body)return r;
+ const fam=fw39EligibleFamily(b),m=fw39MealStateFor(b);
+ const html='<div class="tileCard"><b>👨‍👩‍👧‍👦 家族の食事</b><br>家族 '+fam.length+'人 / 必要な配膳 '+(fam.length+1)+'皿'+
+  (m&&!m.finished?'<br>状態：'+(m.eating?'😋 食事中':m.requested?'🪑 集合待ち':'📣 呼び出し済み'):'')+
+  '<br><button class="smallBtn" data-fw39="call" '+(fam.length?'':'disabled')+'>📣 家族を呼ぶ</button> '+
+  '<button class="smallBtn" data-fw39="eat" '+(d.served.length?'':'disabled')+'>🍽️ みんなで食べる</button></div>';
+ const legend=body.querySelector('.legend');if(legend)legend.insertAdjacentHTML('beforebegin',html);else body.insertAdjacentHTML('beforeend',html);return r;
+};
+
+Object.assign(commands,{familyCall39:{icon:'📣',label:'家族を食卓へ呼ぶ'},familyEat39:{icon:'🍽️',label:'みんなで食べる'}});
+const fw39PrevRunCommand=runCommand;
+runCommand=function(k){if(k==='familyCall39'){fw39CallFamily(false);return;}if(k==='familyEat39'){fw39StartFamilyMeal();return;}return fw39PrevRunCommand(k);};
+
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw39]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw39==='call')fw39CallFamily(false);else if(b.dataset.fw39==='eat')fw39StartFamilyMeal();fw28OpenDiningMenu();
+},true);
+
+const fw39PrevInteriorDraw=fw10DrawInterior;
+fw10DrawInterior=function(){
+ fw39PrevInteriorDraw();const it=state.interior;if(!it)return;
+ const scale=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*scale)/2,oy=80;
+ ctx.save();ctx.fillStyle='rgba(0,0,0,.52)';ctx.fillRect(W-190,18,170,28);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='12px system-ui';
+ ctx.fillText('🏠 室内時間 ×'+FW39_INDOOR_TIME_SCALE.toFixed(2),W-105,37);
+ state.npcs.forEach(function(n){const h=n.household34;if(!h||h.buildingId!==it.buildingId||!n.inside20||h.pose39!=='sit')return;ctx.font='15px system-ui';ctx.fillText(n.command==='familyMeal39'?'🍽️':'☕',ox+h.x*scale,oy+h.y*scale-scale*.48);});
+ ctx.restore();
+};
+
+const fw39PrevUpdate=update;
+update=function(dt){fw39PrevUpdate(dt);fw39FamilyMealUpdate();};
 
 })();
 </script>
