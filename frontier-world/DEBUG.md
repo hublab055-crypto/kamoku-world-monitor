@@ -246,7 +246,7 @@ dailyWage =
 
 実装系列: Frontier V36  
 対象: `frontier-world/index.html`  
-ゲーム実装コミット: `7fdb085952c56d422200dc90ac12d1ccef8fd0ff`
+ゲーム実装コミット: `ef7a0f26c6407fa04b1c196c764c63ee9e91b367`
 
 ### 静的確認対象
 - V36投資指標コード。
