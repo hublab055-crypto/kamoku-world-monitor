@@ -677,3 +677,41 @@ Creator Suite の出力 `frontier-world-content.json` は現状ステージン�
 
 初回利用にはGitHub OAuth Appの作成とSupabase Auth GitHub providerへのClient ID / Secret設定が必要。
 設定値は `frontier-world/editor/GITHUB_AUTH_SETUP.md` に記載。
+
+
+## 26. コンソールログ / デバッグトレース（V37）
+
+プレイテストでNPC AIや家事、雇用、会話などの不具合を再現した際、原因追跡できるゲーム内ログを持つ。
+
+### 表示モード
+- **全体ログ**: ワールド全体のイベントと全キャラクターの状態変化を時系列表示。
+- **個人別ログ**: 操作キャラ/NPC/家族の子どもから1人を選び、その人物に紐づくイベントだけを表示。
+
+### 記録項目
+- ゲーム内メッセージ
+- 会話開始・会話選択
+- 雇用/給与履歴
+- キャラの状態・指示・タスク
+- 室内/屋外、室内家事AI状態
+- 仲間・操作・生存状態
+- 友好・忠誠
+- 日付変更
+- JavaScript error / unhandled Promise rejection
+
+通常の座標移動は記録しない。状態差分は約0.9秒間隔で監視する。
+
+### 保存
+- 最大800件。
+- `localStorage: frontier_world_console_v37` に保存。
+- ページ再読込後も直近ログを維持。
+- ゲーム本体セーブとは分離し、セーブデータ肥大化を避ける。
+
+### 操作
+`⚙️ → デバッグ → 🧾 コンソールログ`
+- 🌍 全体
+- 👤 個人別
+- categoryフィルター
+- 📋 コピー
+- 🧹 消去
+
+ブラウザDevTools consoleにも `[FW][category][actor]` 形式で同時出力する。
