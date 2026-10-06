@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "kind": "items",
+  "version": "2026-10-07",
+  "status": "authoring_source_not_runtime_loaded",
+  "records": [
+    {
+      "id": "wood",
+      "name": "木",
+      "category": "material",
+      "icon": "🪵",
+      "weight": 3,
+      "basePrice": 4,
+      "stackMax": 99,
+      "tags": [
+        "resource",
+        "organic"
+      ],
+      "notes": "丸太・木材の基礎資源"
+    },
+    {
+      "id": "plank",
+      "name": "板材",
+      "category": "material",
+      "icon": "🪚",
+      "weight": 1.5,
+      "basePrice": 8,
+      "stackMax": 99,
+      "tags": [
+        "processed",
+        "building"
+      ],
+      "notes": "木を加工した建築・家具素材"
+    },
+    {
+      "id": "stone",
+      "name": "石",
+      "category": "material",
+      "icon": "🪨",
+      "weight": 4,
+      "basePrice": 5,
+      "stackMax": 99,
+      "tags": [
+        "resource",
+        "building"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "fiber",
+      "name": "繊維",
+      "category": "material",
+      "icon": "🧵",
+      "weight": 0.5,
+      "basePrice": 4,
+      "stackMax": 99,
+      "tags": [
+        "resource",
+        "textile"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "iron_ore",
+      "name": "鉄鉱石",
+      "category": "material",
+      "icon": "⛏️",
+      "weight": 3.5,
+      "basePrice": 12,
+      "stackMax": 99,
+      "tags": [
+        "ore",
+        "metal"
+      ],
+      "notes": "精錬前の鉄鉱石"
+    },
+    {
+      "id": "iron_ingot",
+      "name": "鉄インゴット",
+      "category": "material",
+      "icon": "🔩",
+      "weight": 2.5,
+      "basePrice": 28,
+      "stackMax": 99,
+      "tags": [
+        "processed",
+        "metal"
+      ],
+      "notes": "道具・設備向け"
+    },
+    {
+      "id": "coal",
+      "name": "石炭",
+      "category": "material",
+      "icon": "⚫",
+      "weight": 2,
+      "basePrice": 9,
+      "stackMax": 99,
+      "tags": [
+        "fuel"
+      ],
+      "notes": "炉や暖房の燃料"
+    },
+    {
+      "id": "clay",
+      "name": "粘土",
+      "category": "material",
+      "icon": "🟤",
+      "weight": 2,
+      "basePrice": 5,
+      "stackMax": 99,
+      "tags": [
+        "resource",
+        "pottery"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "cloth",
+      "name": "布",
+      "category": "material",
+      "icon": "🧶",
+      "weight": 0.4,
+      "basePrice": 14,
+      "stackMax": 99,
+      "tags": [
+        "processed",
+        "textile"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "leather",
+      "name": "革",
+      "category": "material",
+      "icon": "🟫",
+      "weight": 0.8,
+      "basePrice": 18,
+      "stackMax": 99,
+      "tags": [
+        "processed",
+        "armor"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "water",
+      "name": "水",
+      "category": "food",
+      "icon": "💧",
+      "weight": 1,
+      "basePrice": 3,
+      "stackMax": 99,
+      "tags": [
+        "resource",
+        "drink"
+      ],
+      "notes": "井戸・水源から取得"
+    },
+    {
+      "id": "berries",
+      "name": "木の実",
+      "category": "food",
+      "icon": "🫐",
+      "weight": 0.2,
+      "basePrice": 5,
+      "stackMax": 99,
+      "tags": [
+        "edible",
+        "forage"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "fish",
+      "name": "魚",
+      "category": "food",
+      "icon": "🐟",
+      "weight": 1.2,
+      "basePrice": 9,
+      "stackMax": 99,
+      "tags": [
+        "edible",
+        "fishing"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "meat",
+      "name": "肉",
+      "category": "food",
+      "icon": "🥩",
+      "weight": 1.2,
+      "basePrice": 12,
+      "stackMax": 99,
+      "tags": [
+        "edible",
+        "hunting"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "bread",
+      "name": "パン",
+      "category": "food",
+      "icon": "🍞",
+      "weight": 0.4,
+      "basePrice": 10,
+      "stackMax": 20,
+      "tags": [
+        "edible",
+        "cooked"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "medicine",
+      "name": "薬",
+      "category": "medicine",
+      "icon": "🧪",
+      "weight": 0.2,
+      "basePrice": 30,
+      "stackMax": 20,
+      "tags": [
+        "healing"
+      ],
+      "notes": "体力回復用の基礎薬"
+    },
+    {
+      "id": "seed",
+      "name": "種",
+      "category": "seed",
+      "icon": "🌱",
+      "weight": 0.1,
+      "basePrice": 3,
+      "stackMax": 99,
+      "tags": [
+        "farming"
+      ],
+      "notes": "汎用作物種"
+    },
+    {
+      "id": "seed_wheat",
+      "name": "小麦の種",
+      "category": "seed",
+      "icon": "🌾",
+      "weight": 0.1,
+      "basePrice": 4,
+      "stackMax": 99,
+      "tags": [
+        "farming",
+        "wheat"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "fertilizer",
+      "name": "肥料",
+      "category": "material",
+      "icon": "🪴",
+      "weight": 0.8,
+      "basePrice": 8,
+      "stackMax": 99,
+      "tags": [
+        "farming"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "candle",
+      "name": "ろうそく",
+      "category": "misc",
+      "icon": "🕯️",
+      "weight": 0.1,
+      "basePrice": 6,
+      "stackMax": 30,
+      "tags": [
+        "lighting"
+      ],
+      "notes": "室内照明用"
+    }
+  ]
+}
