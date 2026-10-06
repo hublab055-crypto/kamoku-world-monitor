@@ -8507,6 +8507,147 @@ fw10DrawInterior=function(){
 const fw39PrevUpdate=update;
 update=function(dt){fw39PrevUpdate(dt);fw39FamilyMealUpdate(dt);};
 
+
+/* FRONTIER_V39_1_INDOOR_DWELL_HOTFIX */
+// Stop indoor ping-pong: leisure favors real chairs and keeps residents there;
+// cleaning remembers already-cleaned furniture for the current schedule block.
+
+function fw40CleanKey(t){
+ return t?String(t.type||'f')+'@'+Number(t.x||0).toFixed(2)+','+Number(t.y||0).toFixed(2):'';
+}
+function fw40BlockedLeisurePoint(b,x,y){
+ const furniture=fw34CleanTargets(b);
+ return furniture.some(function(t){
+  // Chairs/table-side are intentionally allowed by their dedicated spots,
+  // but random rest points must not overlap beds, kitchen, toilet, bath or laundry.
+  if(t.type==='table')return false;
+  return Math.hypot(x-t.x,y-t.y)<.90;
+ });
+}
+fw39LeisureSpots=function(n,h,b){
+ const s=fw34RoomSize(b),chairs=fw39ChairSpots(b),legacy=fw39LegacyFurniture(b),out=[];
+ chairs.forEach(function(q){if(!fw39SeatOccupied(n,q.key))out.push(q);});
+
+ // If there is a chair, home leisure should mostly mean sitting down, not roaming.
+ if(out.length)return out;
+
+ const table=fw39TableCenter(b);
+ const tableSpot={x:clamp(table.x+.92,.75,s.w-.75),y:clamp(table.y+.25,.75,s.h-.8),sit:false,key:'table-side',label:'☕ 食卓のそば'};
+ if(!fw40BlockedLeisurePoint(b,tableSpot.x,tableSpot.y))out.push(tableSpot);
+
+ const fire=legacy.find(function(f){return f.type==='fireplace';});
+ if(fire){
+  const q={x:clamp(fire.x+1.05,.75,s.w-.75),y:clamp(fire.y+.35,.75,s.h-.8),sit:false,key:'fire',label:'🔥 暖炉のそば'};
+  if(!fw40BlockedLeisurePoint(b,q.x,q.y))out.push(q);
+ }
+ // No arbitrary "window" coordinate: it can overlap a movable bed/furniture.
+ if(!out.length)out.push({x:clamp(table.x+.75,.75,s.w-.75),y:clamp(table.y+.65,.75,s.h-.8),sit:false,key:'quiet',label:'☕ 室内で休む'});
+ return out;
+};
+fw39ChooseLeisureSpot=function(n,h,b){
+ const a=fw39LeisureSpots(n,h,b);
+ if(h.leisureGoal39&&a.some(function(q){return q.key===h.leisureGoal39.key;}))return h.leisureGoal39;
+ // Stable per-resident choice: no round-robin every few seconds.
+ let seed=0;String(n&&n.id||'x').split('').forEach(function(ch){seed=(seed*31+ch.charCodeAt(0))>>>0;});
+ return a[seed%a.length];
+};
+fw39IndoorRestTick=function(n,h,b,dt,label){
+ // A task transition may legitimately choose a new destination. Within the same
+ // leisure/wait phase, however, keep one destination and dwell there.
+ const kind=String(h.kind||'wait');
+ if(h.dwellKind40!==kind){
+  h.dwellKind40=kind;h.leisureGoal39=null;h.restTimer39=0;h.pose39=null;h.seatKey39=null;
+ }
+ if(h.restTimer39>0){
+  h.restTimer39-=dt;
+  n.st=clamp(n.st+dt*(h.pose39==='sit'?.34:.17),0,100);
+  n.happiness=clamp((n.happiness||78)+dt*.025,0,100);
+  n.status=h.pose39==='sit'?'🪑 椅子に座ってゆっくり休憩':(label||'☕ 室内でゆっくり');
+  // Remain at the same place after the timer as well. A new goal is chosen only
+  // when the schedule/task itself changes.
+  if(h.restTimer39<=0)h.restTimer39=h.pose39==='sit'?35+Math.random()*35:25+Math.random()*25;
+  return true;
+ }
+ if(!h.leisureGoal39)h.leisureGoal39=fw39ChooseLeisureSpot(n,h,b);
+ const q=h.leisureGoal39,arrived=fw34MoveIndoor(h,n,q,dt,.72);
+ n.status=arrived?(q.sit?'🪑 椅子に座る':q.label):'🚶 家の中をゆっくり歩く';
+ if(arrived){
+  h.pose39=q.sit?'sit':'rest';h.seatKey39=q.sit?q.key:null;
+  h.restTimer39=q.sit?35+Math.random()*35:25+Math.random()*25;
+  fw39Log((q.sit?'椅子で長めに休憩':'室内で長めに休憩'),n);
+ }
+ return true;
+};
+fw35IndoorIdleTick=function(n,h,b,dt,label){return fw39IndoorRestTick(n,h,b,dt,label||'☕ 室内で余暇');};
+
+// One cleaning pass per furniture item per 3-hour schedule block.
+// This prevents bed/table or kitchen/toilet from being selected again immediately.
+fw34NpcCleanTick=function(n,h,b,dt){
+ const scheduled=h.source==='schedule';
+ const blockKey=state.day+':'+Math.floor(state.hour/3)+':'+String(h.kind||'clean');
+ if(h.cleanVisitBlock40!==blockKey){
+  h.cleanVisitBlock40=blockKey;h.cleanVisited40=[];h.cleanTarget39=null;h.cleanPause39=0;
+ }
+ h.cleanVisited40=Array.isArray(h.cleanVisited40)?h.cleanVisited40:[];
+ if(scheduled&&h.cleanDoneBlock39===blockKey)return fw39IndoorRestTick(n,h,b,dt,'🪑 掃除後に休憩');
+ if(h.cleanPause39>0){h.cleanPause39-=dt;n.status='🧹 次の掃除まで少し休む';return true;}
+
+ let t=h.cleanTarget39;
+ if(t&&(h.cleanVisited40.includes(fw40CleanKey(t))||!fw39TargetStillExists(b,t)||t.obj.cleanliness34>=99))t=null;
+
+ if(!t){
+  const threshold=scheduled?92:96;
+  const candidates=fw34CleanTargets(b).filter(function(q){
+   return q.obj.cleanliness34<threshold&&!h.cleanVisited40.includes(fw40CleanKey(q));
+  });
+  candidates.sort(function(a,b){return a.obj.cleanliness34-b.obj.cleanliness34;});
+  t=candidates[0]||null;h.cleanTarget39=t;
+ }
+ if(!t){
+  if(scheduled){
+   h.cleanDoneBlock39=blockKey;h.leisureGoal39=null;h.restTimer39=0;
+   fw39Log('この時間帯の掃除完了。椅子で休憩へ。',n);
+   return fw39IndoorRestTick(n,h,b,dt,'🪑 掃除後に休憩');
+  }
+  n.status='✨ 掃除完了';
+  if(h.source==='gambit'){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+  else if(h.source==='command'){n.command='homeWait';h.kind='wait';h.source='command';h.leisureGoal39=null;h.restTimer39=0;}
+  return true;
+ }
+
+ h.pose39=null;h.seatKey39=null;h.restTimer39=0;
+ if(!fw34MoveIndoor(h,n,{x:t.x,y:t.y},dt,.78)){
+  n.status='🧹 '+t.name+'へゆっくり移動';return true;
+ }
+ t.obj.cleanliness34=clamp(t.obj.cleanliness34+dt*16,0,100);
+ n.st=clamp(n.st-dt*.07,0,100);
+ n.status='🧹 '+t.name+'を掃除 '+Math.round(t.obj.cleanliness34)+'%';
+ if(t.type==='table'&&b.dining28&&b.dining28.dirty&&t.obj.cleanliness34>94)b.dining28.dirty=0;
+ if(t.obj.cleanliness34>=99){
+  t.obj.cleanliness34=100;
+  const key=fw40CleanKey(t);if(!h.cleanVisited40.includes(key))h.cleanVisited40.push(key);
+  h.cleanTarget39=null;h.cleanPause39=3.5;
+  fw39Log(t.name+'の掃除完了。再掃除せず次へ。',n);
+ }
+ return true;
+};
+
+// Restore household status/position after legacy follower code has run.
+// Legacy followers remain only a render bridge; household34 owns actual indoor AI.
+const fw40PrevInteriorUpdate=fw10UpdateInterior;
+fw10UpdateInterior=function(dt,jx,jy){
+ const keep={};
+ state.npcs.forEach(function(n){
+  if(n&&n.household34&&n.inside20)keep[n.id]={status:n.status,dir:n.dir};
+ });
+ fw40PrevInteriorUpdate(dt,jx,jy);
+ state.npcs.forEach(function(n){
+  if(!n||!n.household34||!n.inside20)return;
+  fw34SyncResident(n);
+  const k=keep[n.id];if(k&&k.status)n.status=k.status;
+ });
+};
+
 })();
 </script>
 
