@@ -5,6 +5,12 @@ const STORAGE_KEY = "frontier-world-creator-suite-v1";
 const RELATIONSHIPS = ["acquaintance","companion","friend","lover","family"];
 const DIALOGUE_CATEGORIES = ["intro","hello","work","life","proactive"];
 const EVENT_CATEGORIES = ["low_stock","danger","crafted_complete","pregnancy","baby_care","wedding","funeral"];
+const CATALOG_PATHS = {
+  items:"../data/items.json",
+  tools:"../data/tools.json",
+  buildings:"../data/buildings.json",
+  furniture:"../data/furniture.json"
+};
 
 const configs = {
   characters: {
@@ -18,11 +24,21 @@ const configs = {
     ]
   },
   items: {
-    eyebrow:"CONTENT", title:"アイテムエディタ", description:"素材・食料・道具・武器・衣服・アクセサリーなどの共通定義です。",
+    eyebrow:"CONTENT", title:"アイテムエディタ", description:"素材・食料・薬・武器・衣服・アクセサリーなど、所持できる物品の共通定義です。",
     fields:[
-      f("id","ID","text"), f("name","名前","text"), f("category","カテゴリ","select","material","",["material","food","tool","weapon","ammo","clothes","accessory","book","seed","misc"]),
+      f("id","ID","text"), f("name","名前","text"), f("category","カテゴリ","select","material","",["material","food","medicine","tool","weapon","ammo","clothes","accessory","book","seed","misc"]),
       f("icon","アイコン","text","📦"), f("weight","重量 kg","number",0), f("basePrice","基準価格","number",0),
       f("stackMax","最大スタック","number",99), f("tags","タグ","tags",[]), f("notes","説明 / 効果","textarea","","",null,true)
+    ]
+  },
+  tools: {
+    eyebrow:"TOOLS", title:"道具エディタ", description:"採集・建築・農業・加工・釣りなどに使う道具を、耐久・作業力・修理素材まで含めて定義します。",
+    fields:[
+      f("id","ID","text"), f("name","名前","text"), f("category","種類","select","axe","",["axe","pickaxe","hammer","saw","shovel","hoe","sickle","knife","fishing","bucket","lantern","misc"]),
+      f("icon","アイコン","text","🛠️"), f("tier","Tier","number",1), f("durability","耐久値","number",100),
+      f("workPower","作業力","number",1), f("staminaCost","スタミナ消費","number",1), f("repairable","修理可能","checkbox",true),
+      f("repairCost","修理素材 id:個数","pairs",{}), f("basePrice","基準価格","number",0), f("tags","タグ","tags",[]),
+      f("notes","用途 / 対応作業","textarea","","",null,true)
     ]
   },
   recipes: {
@@ -35,12 +51,24 @@ const configs = {
     ]
   },
   buildings: {
-    eyebrow:"BUILD", title:"建物・家具エディタ", description:"サイズ、入口、衝突、室内設備を定義します。",
+    eyebrow:"BUILD", title:"建物エディタ", description:"住居・工房・倉庫・宿屋・酒場・図書館などの建物を、建築費・収容人数・設備まで含めて定義します。",
     fields:[
-      f("id","ID","text"), f("name","名前","text"), f("type","種別","select","building","",["tent","building","castle","wall","furniture","facility"]),
+      f("id","ID","text"), f("name","名前","text"), f("type","種別","select","building","",["tent","building","workshop","warehouse","farm","well","shop","inn","tavern","library","church","wall","castle","facility"]),
       f("width","幅","number",2), f("height","高さ","number",2), f("entranceX","入口X","number",0),
       f("entranceY","入口Y","number",1), f("collision","衝突あり","checkbox",true), f("indoor","室内あり","checkbox",true),
+      f("capacity","収容人数","number",0), f("buildCost","建築素材 id:個数","pairs",{}),
       f("facilities","設備タグ","tags",[]), f("notes","配置制約 / 用途","textarea","","",null,true)
+    ]
+  },
+  furniture: {
+    eyebrow:"FURNITURE", title:"家具エディタ", description:"ベッド・椅子・収納・調理設備・衛生設備など、室内生活で使う家具と機能を定義します。",
+    fields:[
+      f("id","ID","text"), f("name","名前","text"), f("category","種類","select","seating","",["seating","sleep","storage","work","cooking","sanitary","heating","lighting","decoration","misc"]),
+      f("width","幅","number",1), f("height","高さ","number",1), f("collision","衝突あり","checkbox",true),
+      f("functions","機能タグ","tags",[]), f("capacity","利用人数","number",1), f("comfort","快適度","number",0),
+      f("cleanable","清掃対象","checkbox",true), f("storageSlots","収納枠","number",0), f("basePrice","基準価格","number",0),
+      f("craftCost","制作素材 id:個数","pairs",{}), f("tags","タグ","tags",[]),
+      f("notes","配置制約 / 用途","textarea","","",null,true)
     ]
   },
   gambits: {
@@ -95,6 +123,21 @@ const configs = {
 
 function f(key,label,type="text",def="",hint="",options=null,wide=false){ return {key,label,type,default:def,hint,options,wide}; }
 const deepClone = v => JSON.parse(JSON.stringify(v));
+function mergeDefaultsById(current, defaults){
+  const arr=Array.isArray(current)?current.map(deepClone):[];
+  const byId=new Map(arr.map((o,i)=>[o&&o.id,i]).filter(([id])=>id));
+  (defaults||[]).forEach(def=>{
+    if(!def || !def.id) return;
+    if(byId.has(def.id)){
+      const i=byId.get(def.id);
+      arr[i]={...deepClone(def),...arr[i]};
+    }else{
+      byId.set(def.id,arr.length);
+      arr.push(deepClone(def));
+    }
+  });
+  return arr;
+}
 
 function makeDialogueSkeleton(){
   const relationships = {};
@@ -114,7 +157,7 @@ function makeDialogueSkeleton(){
 
 function makeDefaultState(){
   return {
-    schema_version:1,
+    schema_version:2,
     meta:{project:"Frontier World",editor:"Creator Suite",updated_at:new Date().toISOString()},
     characters:[
       {id:"mio",name:"Mio",role:"gatherer_cook",ageStage:"adult",traits:["kind","practical"],skills:["gathering","cooking"],spriteId:"mio_base",homeId:"",notes:"採集・料理寄り"},
@@ -133,10 +176,22 @@ function makeDefaultState(){
       {id:"seed",name:"種",category:"seed",icon:"🌱",weight:.1,basePrice:3,stackMax:99,tags:["farming"],notes:""},
       {id:"fertilizer",name:"肥料",category:"material",icon:"🪴",weight:.8,basePrice:8,stackMax:99,tags:["farming"],notes:""}
     ],
+    tools:[
+      {id:"stone_axe",name:"石斧",category:"axe",icon:"🪓",tier:1,durability:80,workPower:1.2,staminaCost:2,repairable:true,repairCost:{stone:1,wood:1},basePrice:18,tags:["woodcutting"],notes:"木材採集用"},
+      {id:"hammer",name:"金槌",category:"hammer",icon:"🔨",tier:1,durability:120,workPower:1.1,staminaCost:1,repairable:true,repairCost:{wood:1},basePrice:20,tags:["building","crafting"],notes:"建築・制作"},
+      {id:"hoe",name:"鍬",category:"hoe",icon:"⛏️",tier:1,durability:100,workPower:1,staminaCost:2,repairable:true,repairCost:{wood:1,stone:1},basePrice:16,tags:["farming"],notes:"耕作"}
+    ],
     recipes:[],
     buildings:[
       {id:"tent",name:"テント",type:"tent",width:2,height:2,entranceX:1,entranceY:1,collision:true,indoor:true,facilities:["bed"],notes:"初期の生活拠点"},
-      {id:"house",name:"家",type:"building",width:4,height:4,entranceX:2,entranceY:3,collision:true,indoor:true,facilities:["bed","chest","workbench"],notes:""}
+      {id:"house",name:"家",type:"building",width:4,height:4,entranceX:2,entranceY:3,collision:true,indoor:true,capacity:6,buildCost:{wood:8,stone:4},facilities:["bed","chest","workbench"],notes:""}
+    ],
+    furniture:[
+      {id:"bed",name:"ベッド",category:"sleep",width:1,height:2,collision:true,functions:["sleep"],capacity:1,comfort:35,cleanable:true,storageSlots:0,basePrice:30,craftCost:{wood:4,fiber:2},tags:["home"],notes:""},
+      {id:"chair",name:"椅子",category:"seating",width:1,height:1,collision:true,functions:["sit","rest"],capacity:1,comfort:12,cleanable:true,storageSlots:0,basePrice:12,craftCost:{wood:2},tags:["home"],notes:""},
+      {id:"table",name:"食卓",category:"work",width:2,height:1,collision:true,functions:["eat","serve"],capacity:4,comfort:0,cleanable:true,storageSlots:0,basePrice:24,craftCost:{wood:4},tags:["home","meal"],notes:""},
+      {id:"chest",name:"チェスト",category:"storage",width:1,height:1,collision:true,functions:["storage"],capacity:1,comfort:0,cleanable:true,storageSlots:24,basePrice:26,craftCost:{wood:4},tags:["storage"],notes:""},
+      {id:"workbench",name:"作業台",category:"work",width:2,height:1,collision:true,functions:["craft"],capacity:1,comfort:0,cleanable:true,storageSlots:4,basePrice:35,craftCost:{wood:5,stone:1},tags:["crafting"],notes:""}
     ],
     gambits:[
       {id:"rest_low_stamina",name:"疲れたら休む",condition:"stamina_below",threshold:30,endThreshold:100,action:"rest",priority:90,radius:12,interruptible:true,notes:"ヒステリシス例"},
@@ -166,9 +221,13 @@ const $$ = s => [...document.querySelectorAll(s)];
 function normalizeState(raw){
   const base = makeDefaultState();
   const out = {...base,...raw};
-  ["characters","sprites","items","recipes","buildings","gambits","schedules","quests","events","economy"].forEach(k => {
+  ["characters","sprites","items","tools","recipes","buildings","furniture","gambits","schedules","quests","events","economy"].forEach(k => {
     if(!Array.isArray(out[k])) out[k] = base[k];
   });
+  ["items","tools","buildings","furniture"].forEach(k => {
+    out[k] = mergeDefaultsById(out[k], base[k]);
+  });
+  out.schema_version = Math.max(2, Number(out.schema_version)||1);
   if(!out.world || typeof out.world !== "object") out.world = base.world;
   if(!Array.isArray(out.world.placements)) out.world.placements = [];
   out.world.width = clampInt(out.world.width,8,120,40);
@@ -227,14 +286,15 @@ $$(".nav").forEach(n=>n.addEventListener("click",()=>showView(n.dataset.view)));
 
 function renderDashboard(){
   const stats=[
-    ["🧑","キャラクター",state.characters.length],["🎒","アイテム",state.items.length],["🛠️","レシピ",state.recipes.length],["🏠","建物・家具",state.buildings.length],
-    ["🤖","ガンビット",state.gambits.length],["🕒","予定表",state.schedules.length],["📜","クエスト",state.quests.length],["🎉","イベント",state.events.length],["🗺️","配置物",state.world.placements.length]
+    ["🧑","キャラクター",state.characters.length],["🎒","アイテム",state.items.length],["🪓","道具",state.tools.length],["🛠️","レシピ",state.recipes.length],
+    ["🏠","建物",state.buildings.length],["🪑","家具",state.furniture.length],["🤖","ガンビット",state.gambits.length],["🕒","予定表",state.schedules.length],
+    ["📜","クエスト",state.quests.length],["🎉","イベント",state.events.length],["🗺️","配置物",state.world.placements.length]
   ];
   $("#dashboardCards").innerHTML=stats.map(x=>'<div class="card"><div>'+x[0]+' '+esc(x[1])+'</div><div class="count">'+x[2]+'</div><small>records</small></div>').join("");
 }
 
 function updateStats(){
-  $("#projectStats").textContent = "characters "+state.characters.length+" / items "+state.items.length+" / world "+state.world.placements.length;
+  $("#projectStats").textContent = "characters "+state.characters.length+" / items "+state.items.length+" / tools "+state.tools.length+" / buildings "+state.buildings.length+" / furniture "+state.furniture.length;
 }
 
 function newEntity(config){
@@ -261,7 +321,7 @@ function renderEntityList(){
   const arr=state[currentGeneric], q=($("#entitySearch").value||"").toLowerCase();
   const idx=selectedIndex[currentGeneric];
   $("#entityList").innerHTML = arr.map((o,i)=>({o,i})).filter(({o})=>{
-    const hay=(String(o.id||"")+" "+String(o.name||"")+" "+String(o.role||"")+" "+String(o.category||"")).toLowerCase();
+    const hay=(String(o.id||"")+" "+String(o.name||"")+" "+String(o.role||"")+" "+String(o.category||"")+" "+String(o.type||"")+" "+(Array.isArray(o.tags)?o.tags.join(" "):"")).toLowerCase();
     return hay.includes(q);
   }).map(({o,i})=>'<button class="entity-row '+(i===idx?"active":"")+'" data-i="'+i+'"><span><b>'+esc(o.name||o.id||("(record "+(i+1)+")"))+'</b><br><small>'+esc(o.id||"")+'</small></span><small>#'+(i+1)+'</small></button>').join("") || '<p class="hint">レコードがありません。</p>';
   $$("#entityList .entity-row").forEach(btn=>btn.onclick=()=>{selectedIndex[currentGeneric]=+btn.dataset.i;renderEntityList();renderEntityForm();});
@@ -456,9 +516,45 @@ function drawWorld(){
   state.world.placements.forEach(p=>{if(p.x<0||p.y<0||p.x>=state.world.width||p.y>=state.world.height)return;ctx.fillText(worldIcons[p.type]||"•",p.x*cell+cell/2,p.y*cell+cell/2);});
 }
 
+async function loadContentCatalogs(showMessage=true){
+  let added=0, enriched=0, loaded=0;
+  for(const [key,path] of Object.entries(CATALOG_PATHS)){
+    try{
+      const res=await fetch(path,{cache:"no-store"});
+      if(!res.ok) continue;
+      const payload=await res.json();
+      const records=Array.isArray(payload)?payload:(Array.isArray(payload.records)?payload.records:[]);
+      if(!records.length) continue;
+      const arr=Array.isArray(state[key])?state[key]:[];
+      const byId=new Map(arr.map((o,i)=>[o&&o.id,i]).filter(([id])=>id));
+      records.forEach(rec=>{
+        if(!rec || !rec.id) return;
+        if(byId.has(rec.id)){
+          const i=byId.get(rec.id), before=JSON.stringify(arr[i]);
+          arr[i]={...deepClone(rec),...arr[i]};
+          if(JSON.stringify(arr[i])!==before) enriched++;
+        }else{
+          byId.set(rec.id,arr.length);
+          arr.push(deepClone(rec));
+          added++;
+        }
+      });
+      state[key]=arr;
+      loaded++;
+    }catch(e){ console.warn("catalog load failed",key,e); }
+  }
+  if(added||enriched){
+    touch();
+    renderDashboard();
+    if(configs[currentGeneric] && $("#view-generic").classList.contains("active")) renderGeneric();
+  }
+  if(showMessage) toast(loaded ? "標準カタログ読込: 追加 "+added+" / 補完 "+enriched : "カタログを読み込めませんでした");
+  return {loaded,added,enriched};
+}
+
 function validate(){
   const issues=[];
-  const collections=["characters","sprites","items","recipes","buildings","gambits","schedules","quests","events","economy"];
+  const collections=["characters","sprites","items","tools","recipes","buildings","furniture","gambits","schedules","quests","events","economy"];
   collections.forEach(k=>{
     const ids=new Map();
     state[k].forEach((o,i)=>{
@@ -467,11 +563,15 @@ function validate(){
       else ids.set(o.id,i);
     });
   });
-  const itemIds=new Set(state.items.map(x=>x.id)),charIds=new Set(state.characters.map(x=>x.id)),buildingIds=new Set(state.buildings.map(x=>x.id));
+  const itemIds=new Set(state.items.map(x=>x.id)),toolIds=new Set(state.tools.map(x=>x.id)),furnitureIds=new Set(state.furniture.map(x=>x.id)),charIds=new Set(state.characters.map(x=>x.id)),buildingIds=new Set(state.buildings.map(x=>x.id));
+  const outputIds=new Set([...itemIds,...toolIds,...furnitureIds]);
   state.recipes.forEach(r=>{
     Object.keys(r.ingredients||{}).forEach(id=>{if(!itemIds.has(id))issues.push({level:"warn",text:"recipe "+r.id+" の材料参照が未定義: "+id});});
-    Object.keys(r.outputs||{}).forEach(id=>{if(!itemIds.has(id))issues.push({level:"warn",text:"recipe "+r.id+" の完成品参照が未定義: "+id});});
+    Object.keys(r.outputs||{}).forEach(id=>{if(!outputIds.has(id))issues.push({level:"warn",text:"recipe "+r.id+" の完成品参照が未定義: "+id});});
   });
+  state.tools.forEach(t=>Object.keys(t.repairCost||{}).forEach(id=>{if(!itemIds.has(id))issues.push({level:"warn",text:"tool "+t.id+" の修理素材参照が未定義: "+id});}));
+  state.buildings.forEach(b=>Object.keys(b.buildCost||{}).forEach(id=>{if(!itemIds.has(id))issues.push({level:"warn",text:"building "+b.id+" の建築素材参照が未定義: "+id});}));
+  state.furniture.forEach(f=>Object.keys(f.craftCost||{}).forEach(id=>{if(!itemIds.has(id))issues.push({level:"warn",text:"furniture "+f.id+" の制作素材参照が未定義: "+id});}));
   state.sprites.forEach(s=>{if(s.characterId&&!charIds.has(s.characterId))issues.push({level:"warn",text:"sprite "+s.id+" のcharacterIdが未定義: "+s.characterId});});
   state.schedules.forEach(s=>{if(s.characterId&&!charIds.has(s.characterId))issues.push({level:"warn",text:"schedule "+s.id+" のcharacterIdが未定義: "+s.characterId});});
   state.world.placements.forEach((p,i)=>{
@@ -500,7 +600,9 @@ $("#fileImport").onchange=async e=>{
   e.target.value="";
 };
 
+$("#btnLoadCatalogs").onclick=()=>loadContentCatalogs(true);
 updateStats();
 showView("dashboard");
+loadContentCatalogs(false);
 if(!state.dialogue) loadDialogueFromRepo();
 })();
