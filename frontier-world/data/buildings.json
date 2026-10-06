@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "kind": "buildings",
+  "version": "2026-10-07",
+  "status": "authoring_source_not_runtime_loaded",
+  "records": [
+    {
+      "id": "tent",
+      "name": "テント",
+      "type": "tent",
+      "width": 2,
+      "height": 2,
+      "entranceX": 1,
+      "entranceY": 1,
+      "collision": true,
+      "indoor": true,
+      "capacity": 2,
+      "buildCost": {
+        "wood": 3,
+        "fiber": 2
+      },
+      "facilities": [
+        "bed"
+      ],
+      "notes": "初期の生活拠点"
+    },
+    {
+      "id": "cabin",
+      "name": "小屋",
+      "type": "building",
+      "width": 3,
+      "height": 3,
+      "entranceX": 1,
+      "entranceY": 2,
+      "collision": true,
+      "indoor": true,
+      "capacity": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 2
+      },
+      "facilities": [
+        "bed",
+        "chest"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "house",
+      "name": "家",
+      "type": "building",
+      "width": 4,
+      "height": 4,
+      "entranceX": 2,
+      "entranceY": 3,
+      "collision": true,
+      "indoor": true,
+      "capacity": 6,
+      "buildCost": {
+        "wood": 8,
+        "stone": 4
+      },
+      "facilities": [
+        "bed",
+        "chest",
+        "workbench",
+        "kitchen",
+        "table"
+      ],
+      "notes": "家族生活の標準住居"
+    },
+    {
+      "id": "workshop",
+      "name": "工房",
+      "type": "workshop",
+      "width": 5,
+      "height": 4,
+      "entranceX": 2,
+      "entranceY": 3,
+      "collision": true,
+      "indoor": true,
+      "capacity": 6,
+      "buildCost": {
+        "wood": 10,
+        "stone": 8,
+        "iron_ingot": 2
+      },
+      "facilities": [
+        "workbench",
+        "storage",
+        "forge"
+      ],
+      "notes": "制作・修理拠点"
+    },
+    {
+      "id": "warehouse",
+      "name": "倉庫",
+      "type": "warehouse",
+      "width": 6,
+      "height": 4,
+      "entranceX": 3,
+      "entranceY": 3,
+      "collision": true,
+      "indoor": true,
+      "capacity": 8,
+      "buildCost": {
+        "wood": 12,
+        "stone": 6
+      },
+      "facilities": [
+        "storage"
+      ],
+      "notes": "物資保管"
+    },
+    {
+      "id": "barn",
+      "name": "納屋",
+      "type": "farm",
+      "width": 5,
+      "height": 4,
+      "entranceX": 2,
+      "entranceY": 3,
+      "collision": true,
+      "indoor": true,
+      "capacity": 8,
+      "buildCost": {
+        "wood": 10,
+        "stone": 3
+      },
+      "facilities": [
+        "farm_storage",
+        "animal"
+      ],
+      "notes": "農具・飼料・家畜向け"
+    },
+    {
+      "id": "well",
+      "name": "井戸",
+      "type": "well",
+      "width": 2,
+      "height": 2,
+      "entranceX": 1,
+      "entranceY": 1,
+      "collision": true,
+      "indoor": false,
+      "capacity": 2,
+      "buildCost": {
+        "stone": 8,
+        "wood": 3
+      },
+      "facilities": [
+        "water"
+      ],
+      "notes": "生活・農業用水源"
+    },
+    {
+      "id": "tavern",
+      "name": "酒場",
+      "type": "tavern",
+      "width": 6,
+      "height": 5,
+      "entranceX": 3,
+      "entranceY": 4,
+      "collision": true,
+      "indoor": true,
+      "capacity": 24,
+      "buildCost": {
+        "wood": 16,
+        "stone": 8,
+        "iron_ingot": 2
+      },
+      "facilities": [
+        "table",
+        "kitchen",
+        "bar",
+        "recruitment"
+      ],
+      "notes": "傭兵・労働者・職人・冒険者との出会い、雇用、交流"
+    },
+    {
+      "id": "inn",
+      "name": "宿屋",
+      "type": "inn",
+      "width": 7,
+      "height": 6,
+      "entranceX": 3,
+      "entranceY": 5,
+      "collision": true,
+      "indoor": true,
+      "capacity": 18,
+      "buildCost": {
+        "wood": 20,
+        "stone": 10,
+        "cloth": 6
+      },
+      "facilities": [
+        "bed",
+        "kitchen",
+        "table",
+        "guest_room"
+      ],
+      "notes": "旅人・商人・冒険者の宿泊"
+    },
+    {
+      "id": "library",
+      "name": "図書館",
+      "type": "library",
+      "width": 7,
+      "height": 6,
+      "entranceX": 3,
+      "entranceY": 5,
+      "collision": true,
+      "indoor": true,
+      "capacity": 30,
+      "buildCost": {
+        "wood": 18,
+        "stone": 14,
+        "cloth": 4
+      },
+      "facilities": [
+        "bookcase",
+        "desk",
+        "research"
+      ],
+      "notes": "知識・研究・技能・地図・記録の蓄積"
+    },
+    {
+      "id": "church",
+      "name": "教会",
+      "type": "church",
+      "width": 7,
+      "height": 7,
+      "entranceX": 3,
+      "entranceY": 6,
+      "collision": true,
+      "indoor": true,
+      "capacity": 40,
+      "buildCost": {
+        "wood": 16,
+        "stone": 20
+      },
+      "facilities": [
+        "ceremony",
+        "faith",
+        "counsel"
+      ],
+      "notes": "信仰・冠婚葬祭・相談・共同体形成"
+    },
+    {
+      "id": "market_stall",
+      "name": "市場の露店",
+      "type": "shop",
+      "width": 3,
+      "height": 2,
+      "entranceX": 1,
+      "entranceY": 1,
+      "collision": true,
+      "indoor": false,
+      "capacity": 4,
+      "buildCost": {
+        "wood": 5,
+        "cloth": 2
+      },
+      "facilities": [
+        "trade",
+        "stock"
+      ],
+      "notes": "市場の基本売買拠点"
+    }
+  ]
+}
