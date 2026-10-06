@@ -96,3 +96,18 @@ Creator Suite は Supabase Auth + GitHub OAuth を使ったログインUIと、G
 - `frontier-world/index.html` は追加チェックなしでは更新不可
 
 GitHub OAuth provider の初回設定は `GITHUB_AUTH_SETUP.md` を参照。
+
+## コンテンツカタログ V2
+
+2026-10-07 から、Creator Suite は次の4系統を独立編集できます。
+
+- アイテム: `frontier-world/data/items.json`
+- 道具: `frontier-world/data/tools.json`
+- 建物: `frontier-world/data/buildings.json`
+- 家具: `frontier-world/data/furniture.json`
+
+上部の「標準カタログ読込」で4ファイルを読み込みます。起動時にも不足レコードを自動マージします。同じIDのローカル編集値は優先し、カタログ側の新しいフィールドだけ補完するため、既存のCreator Suiteデータを極力壊しません。
+
+道具は耐久値・作業力・スタミナ消費・修理素材、建物は建築素材・収容人数・設備、家具は機能タグ・快適度・清掃対象・収納枠・制作素材を編集できます。
+
+> 現段階ではこれら4カタログは authoring source です。ゲーム本体 `frontier-world/index.html` のハードコード定義へはまだ自動読込されません。ランタイムローダー統合が次段階です。
