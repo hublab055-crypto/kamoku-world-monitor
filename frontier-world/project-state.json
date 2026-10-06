@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-06T12:40:00+09:00",
+  "updated_at": "2026-10-06T17:15:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V39.1",
-  "game_commit": "c362f774e76d78d419f2ebf22d398648c7f87991",
+  "implementation_version": "V39.2",
+  "game_commit": "df49fca0d8eb007ceec5a72bc87d8545e9277901",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -52,7 +52,9 @@
     "indoor NPC walking capped near 1 tile per second with seated rest dwell times",
     "scheduled-cleaning hysteresis preventing kitchen-toilet ping-pong loops",
     "family meal call and group eating commands with table gathering and shared seated start",
-    "indoor leisure dwell hotfix preventing bed-table and kitchen-toilet ping-pong"
+    "indoor leisure dwell hotfix preventing bed-table and kitchen-toilet ping-pong",
+    "single-authority indoor household task dispatcher preventing conflicting sleep/table/cleaning movement",
+    "scheduled cleaning threshold lowered to genuinely dirty homes with nearest-target routing"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
