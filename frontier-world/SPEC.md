@@ -2,8 +2,8 @@
 
 更新日: 2026-10-06 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V39.3  
-基準コミット: `e409ae6b1911b0450959c8662a4ffb5df4a6a890`
+実装系列: Frontier V39.4  
+基準コミット: `a429837898fb44b92e2d8b8a195a42b6cf51e8c4`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
@@ -563,6 +563,9 @@ UI:
 
 注意: 現在のゲーム本体はセリフを主に `index.html` 内にも保持している。dialogue-pack.json は **共同編集用の外部ソース** として作成し、今後メイン実装側で同期/ローダー統合する。
 
+
+- V39.4 でログをゲーム画面上の独立フローティングウィンドウへ変更。常設の「🧾ログ」ボタンで表示/非表示を切り替えられる。
+- ログ本文のみ縦スクロールし、ログ件数が増えてもゲーム画面全体を押し広げない。
 ## 17. プレゼント
 
 - 素材・食料・制作物を渡せる。
