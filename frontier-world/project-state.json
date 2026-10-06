@@ -1,6 +1,6 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-07T06:30:00+09:00",
+  "updated_at": "2026-10-07T07:20:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
@@ -56,7 +56,9 @@
     "single-authority indoor household task dispatcher preventing conflicting sleep/table/cleaning movement",
     "scheduled cleaning threshold lowered to genuinely dirty homes with nearest-target routing",
     "mobile-accessible debug console entry in settings header with scrollable settings and auto-scroll to logs",
-    "toggleable floating debug log window with bounded height, touch scrolling and preserved scroll position"
+    "toggleable floating debug log window with bounded height, touch scrolling and preserved scroll position",
+    "Creator Suite V2 with separate item, tool, building and furniture editors",
+    "versioned item/tool/building/furniture authoring catalogs with non-destructive local merge and reference validation"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -65,7 +67,8 @@
     "cloud/exportable saves",
     "full modular split of the monolithic index.html",
     "large-population AI optimization",
-    "weather-dependent outdoor laundry drying and rain response"
+    "weather-dependent outdoor laundry drying and rain response",
+    "runtime loading of items/tools/buildings/furniture catalogs and compatibility mapping from current hardcoded definitions"
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -104,14 +107,16 @@
       "dialogue",
       "items",
       "recipes",
-      "buildings_furniture",
       "ai_gambits",
       "personal_schedules",
       "quests",
       "events",
       "economy_shops",
       "world_layout",
-      "validation_json"
+      "validation_json",
+      "tools",
+      "buildings",
+      "furniture"
     ],
     "image_storage": "IndexedDB: frontier-world-creator-assets",
     "image_trash": "soft delete with restore; permanent delete only from trash",
@@ -134,10 +139,18 @@
         "image_commit"
       ],
       "setup_path": "frontier-world/editor/GITHUB_AUTH_SETUP.md"
+    },
+    "version": "V2",
+    "catalogs": {
+      "status": "authoring_source_not_runtime_loaded",
+      "items": "frontier-world/data/items.json",
+      "tools": "frontier-world/data/tools.json",
+      "buildings": "frontier-world/data/buildings.json",
+      "furniture": "frontier-world/data/furniture.json"
     }
   },
   "next_tasks": [
-    "split hardcoded content definitions into frontier-world/data files",
+    "connect versioned item/tool/building/furniture catalogs to the game runtime and migrate hardcoded definitions",
     "add runtime loaders for Creator Suite exported content",
     "connect dialogue-pack.json to game runtime",
     "add multi-cell world objects, layers and collision preview to Creator Suite",
@@ -179,5 +192,6 @@
     "security": "RLS + authenticated SELECT only + private SECURITY DEFINER settlement core + public SECURITY INVOKER RPC wrappers",
     "realtime": "fw_market_ticker",
     "game_currency_bridge": "not implemented"
-  }
+  },
+  "content_authoring_version": "V40"
 }
