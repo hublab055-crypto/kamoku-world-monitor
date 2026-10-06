@@ -8648,6 +8648,215 @@ fw10UpdateInterior=function(dt,jx,jy){
  });
 };
 
+
+/* FRONTIER_V39_2_SINGLE_INDOOR_TASK_AUTHORITY */
+// Root fix for indoor ping-pong:
+// - scheduled cleaning only starts when furniture is genuinely dirty;
+// - each frame resolves exactly one household mode;
+// - household34 is the sole movement authority for household residents.
+
+const FW41_SCHEDULE_CLEAN_THRESHOLD=68;
+const FW41_COMMAND_CLEAN_THRESHOLD=85;
+
+function fw41ResetMotionForMode(h,mode){
+ if(h.mode41===mode)return;
+ h.mode41=mode;
+ h.leisureGoal39=null;h.restTimer39=0;h.pose39=null;h.seatKey39=null;
+ h.cleanTarget39=null;h.cleanPause39=0;
+ h.idleGoal35=null;h.idleClock35=0;
+}
+function fw41ActiveLaundry(h){
+ return !!(h&&h.kind==='laundry'&&h.phase&&['leave','toLine','hang','dry','take','return','fold','store'].includes(h.phase));
+}
+function fw41MealActiveFor(n){
+ const m=state.familyMeal39;
+ return !!(n&&n.command==='familyMeal39'&&m&&!m.finished&&Array.isArray(m.participantIds)&&m.participantIds.includes(n.id));
+}
+function fw41ResolveIndoorMode(n,h){
+ // Multi-stage laundry is atomic once it has left the wash phase.
+ if(fw41ActiveLaundry(h))return 'laundry';
+
+ // Explicit commands have priority.
+ if(fw41MealActiveFor(n))return 'familyMeal39';
+ if(n.command==='homeCraft'&&n.homeJob){
+  const r=FW8_RECIPES[n.homeJob.id];return r&&r.cat==='food'?'cook':'craft';
+ }
+ if(n.command==='homeClean34')return 'clean';
+ if(n.command==='homeLaundry34')return 'laundry';
+ if(n.command==='homeRest')return 'sleep';
+
+ // Passive homeWait must never fight the personal schedule.
+ if(n.personalSchedule&&n.personalSchedule.enabled){
+  const task=fw19ScheduleTask(n);
+  if(FW34_INDOOR_SCHEDULE.has(task))return task;
+  if(task==='auto'&&(n.relationship==='family'||n.relationship==='lover'))return 'exit';
+ }
+
+ if(n.command==='homeWait')return 'wait';
+ return h.kind||'wait';
+}
+function fw41CurrentBlock(){
+ return state.day+':'+Math.floor(state.hour/3);
+}
+function fw41CleanCandidates(b,threshold,h){
+ const block=fw41CurrentBlock();
+ if(h.cleanVisitBlock41!==block){h.cleanVisitBlock41=block;h.cleanVisited41=[];}
+ h.cleanVisited41=Array.isArray(h.cleanVisited41)?h.cleanVisited41:[];
+ return fw34CleanTargets(b).filter(function(t){
+  return t.obj.cleanliness34<threshold&&!h.cleanVisited41.includes(fw40CleanKey(t));
+ });
+}
+function fw41NearestCleanCandidate(b,h,threshold){
+ const a=fw41CleanCandidates(b,threshold,h);
+ a.sort(function(x,y){
+  // Prefer nearest dirty object first to avoid criss-crossing the whole room.
+  const dx=Math.hypot(h.x-x.x,h.y-x.y),dy=Math.hypot(h.x-y.x,h.y-y.y);
+  if(Math.abs(dx-dy)>.12)return dx-dy;
+  return x.obj.cleanliness34-y.obj.cleanliness34;
+ });
+ return a[0]||null;
+}
+fw34NpcCleanTick=function(n,h,b,dt){
+ const scheduled=h.source==='schedule',threshold=scheduled?FW41_SCHEDULE_CLEAN_THRESHOLD:FW41_COMMAND_CLEAN_THRESHOLD;
+ const block=fw41CurrentBlock();
+ if(scheduled&&h.cleanDoneBlock41===block)return fw39IndoorRestTick(n,h,b,dt,'🪑 家事の合間に休憩');
+ if(h.cleanPause41>0){h.cleanPause41-=dt;n.status='🧹 掃除の合間に休憩';return true;}
+
+ let t=h.cleanTarget41;
+ if(t&&(!fw39TargetStillExists(b,t)||t.obj.cleanliness34>=99||h.cleanVisited41&&h.cleanVisited41.includes(fw40CleanKey(t))))t=null;
+ if(!t){t=fw41NearestCleanCandidate(b,h,threshold);h.cleanTarget41=t;}
+
+ if(!t){
+  if(scheduled){
+   h.cleanDoneBlock41=block;h.cleanTarget41=null;
+   fw39Log('家の清潔度は十分。掃除せず休憩。',n);
+   return fw39IndoorRestTick(n,h,b,dt,'🪑 家事の合間に休憩');
+  }
+  n.status='✨ 掃除完了';
+  if(h.source==='gambit'){fw34FinishNpcGambit(n);fw34ExitNpc(n,false);}
+  else if(h.source==='command'){n.command='homeWait';h.kind='wait';h.source='command';fw41ResetMotionForMode(h,'wait');}
+  return true;
+ }
+
+ h.pose39=null;h.seatKey39=null;h.restTimer39=0;
+ if(!fw34MoveIndoor(h,n,{x:t.x,y:t.y},dt,.72)){
+  n.status='🧹 '+t.name+'へゆっくり移動';return true;
+ }
+ t.obj.cleanliness34=clamp(t.obj.cleanliness34+dt*14,0,100);
+ n.st=clamp(n.st-dt*.06,0,100);
+ n.status='🧹 '+t.name+'を掃除 '+Math.round(t.obj.cleanliness34)+'%';
+ if(t.type==='table'&&b.dining28&&b.dining28.dirty&&t.obj.cleanliness34>94)b.dining28.dirty=0;
+ if(t.obj.cleanliness34>=99){
+  t.obj.cleanliness34=100;
+  const key=fw40CleanKey(t);
+  h.cleanVisited41=h.cleanVisited41||[];
+  if(!h.cleanVisited41.includes(key))h.cleanVisited41.push(key);
+  h.cleanTarget41=null;h.cleanPause41=5.5;
+  fw39Log(t.name+'の掃除完了。次の場所へ行く前に休憩。',n);
+ }
+ return true;
+};
+
+function fw41NpcIndoorDispatch(n,h,dt){
+ const b=state.buildings.find(function(x){return x.id===h.buildingId;});
+ if(!b){n.household34=null;n.inside20=null;return false;}
+
+ const mode=fw41ResolveIndoorMode(n,h);
+ if(mode==='exit'){
+  fw34ExitNpc(n,false);return false;
+ }
+ if(mode!==h.kind){
+  h.kind=mode;h.phase=null;h.timer=0;h.started=false;h.doneKey=null;
+  h.recipeId=null;h.used34=false;h.waterTaken=false;
+ }
+ fw41ResetMotionForMode(h,mode);
+ h.source=(['homeCraft','homeClean34','homeLaundry34','homeRest','familyMeal39'].includes(n.command))?'command':
+  (n.personalSchedule&&n.personalSchedule.enabled&&FW34_INDOOR_SCHEDULE.has(fw19ScheduleTask(n))?'schedule':h.source||'command');
+
+ if(mode==='familyMeal39')return fw39NpcMealTick(n,h,b,dt);
+ if(mode==='clean'||mode==='housework')return fw34NpcCleanTick(n,h,b,dt);
+ if(mode==='cook'){
+  if(h.source==='schedule'&&h.doneKey===fw41CurrentBlock())return fw39IndoorRestTick(n,h,b,dt,'🪑 料理後に休憩');
+  if(n.homeJob)h.recipeId=n.homeJob.id;
+  return fw34NpcRecipeTick(n,h,b,dt,true);
+ }
+ if(mode==='craft'){
+  if(n.homeJob)h.recipeId=n.homeJob.id;
+  return fw34NpcRecipeTick(n,h,b,dt,false);
+ }
+ if(mode==='laundry'){
+  if((n.dirtyLaundry27||0)<.35&&!h.phase){
+   n.status='🧺 洗濯物なし・休憩';return fw39IndoorRestTick(n,h,b,dt,'🪑 洗濯物なし・休憩');
+  }
+  return fw34NpcLaundryTick(n,h,b,dt);
+ }
+ if(mode==='bath'){
+  const g=fw34AmenityGoal(b,'bath');
+  if(!fw34MoveIndoor(h,n,g,dt,.72)){n.status='🛁 風呂へゆっくり移動';return true;}
+  n.hygiene=clamp((n.hygiene==null?78:n.hygiene)+dt*22,0,100);
+  n.st=clamp(n.st+dt*.8,0,100);n.status='🛁 入浴';fw34AddDirt(b,'bath',dt*.15);return true;
+ }
+ if(mode==='toilet'){
+  const g=fw34AmenityGoal(b,'toilet');
+  if(!fw34MoveIndoor(h,n,g,dt,.72)){n.status='🚽 トイレへゆっくり移動';return true;}
+  if(!h.used34){n.bladder=0;fw34AddDirt(b,'toilet',4);h.used34=true;}
+  n.status='🚽 トイレ';return true;
+ }
+ if(mode==='meal'){
+  const g=fw34AmenityGoal(b,'table');
+  if(!fw34MoveIndoor(h,n,g,dt,.72)){n.status='🍽️ 食卓へゆっくり移動';return true;}
+  n.hunger=clamp(n.hunger+dt*12,0,100);n.status='🍽️ 食卓で食事';fw34AddDirt(b,'table',dt*.10);return true;
+ }
+ if(mode==='sleep'){
+  const g=fw34BedGoal(b,n);
+  if(!fw34MoveIndoor(h,n,g,dt,.62)){n.status='😴 ベッドへゆっくり移動';return true;}
+  n.st=clamp(n.st+dt*5.2,0,100);n.status='😴 ベッドで睡眠';
+  if(h.source==='command'&&n.st>=98){n.st=100;n.command='homeWait';h.kind='wait';fw41ResetMotionForMode(h,'wait');}
+  return true;
+ }
+ if(mode==='leisure')return fw39IndoorRestTick(n,h,b,dt,'☕ 室内で余暇');
+ return fw39IndoorRestTick(n,h,b,dt,'🏠 家で待機');
+}
+
+// Final authoritative dispatcher. No older V34/V35/V39 wrapper may issue a second
+// destination in the same frame for an existing household resident.
+fw34NpcIndoorTick=function(n,h,dt){
+ return fw41NpcIndoorDispatch(n,h,dt);
+};
+
+// V39 family meal enters through the same authority instead of wrapping it again.
+fw34NpcTaskStart=(function(prev){
+ return function(n,dt){
+  if(n&&n.command==='familyMeal39'){
+   const m=state.familyMeal39,b=m&&state.buildings.find(function(x){return x.id===m.buildingId;});
+   if(!b||m.finished){n.command=n.preMealCommand39||'homeWait';n.preMealCommand39=null;return false;}
+   if(n.household34&&n.household34.buildingId!==b.id)fw34ExitNpc(n,false);
+   if(!n.household34)fw34ApproachNpcHome(n,'familyMeal39','command',dt);
+   if(n.household34){n.household34.kind='familyMeal39';n.household34.source='command';}
+   return true;
+  }
+  return prev(n,dt);
+ };
+})(fw34NpcTaskStart);
+
+// The old sleeping overlay used schedule alone, so a resident commanded to the table
+// could still appear in bed. Only draw NPC bedding when the authoritative mode is sleep.
+const fw41PrevDrawBlanketAt=fw24DrawBlanketAt;
+fw24DrawBlanketAt=function(p,actor,ox,oy,scale){
+ if(actor&&actor!==state.player&&actor.household34){
+  if(fw41ResolveIndoorMode(actor,actor.household34)!=='sleep')return;
+ }
+ return fw41PrevDrawBlanketAt(p,actor,ox,oy,scale);
+};
+
+// Clean old V39.1 transient state immediately on the currently running game.
+state.npcs.forEach(function(n){
+ const h=n&&n.household34;if(!h)return;
+ h.cleanTarget39=null;h.cleanTarget41=null;h.cleanPause39=0;h.cleanPause41=0;
+ h.cleanDoneBlock39=null;h.cleanVisited40=[];h.idleGoal35=null;h.idleClock35=0;
+ h.mode41=null;h.dwellKind40=null;h.leisureGoal39=null;h.restTimer39=0;
+});
+
 })();
 </script>
 
