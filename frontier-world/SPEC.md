@@ -2,8 +2,8 @@
 
 更新日: 2026-10-06 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V39.2  
-基準コミット: `df49fca0d8eb007ceec5a72bc87d8545e9277901`
+実装系列: Frontier V39.3  
+基準コミット: `e409ae6b1911b0450959c8662a4ffb5df4a6a890`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
@@ -766,3 +766,5 @@ Creator Suite の出力 `frontier-world-content.json` は現状ステージン�
 - 🧹 消去
 
 ブラウザDevTools consoleにも `[FW][category][actor]` 形式で同時出力する。
+
+- V39.3 でログ入口を設定画面ヘッダーへ常設し、iPhone向けに設定画面スクロールとログ画面への自動スクロールを追加。
