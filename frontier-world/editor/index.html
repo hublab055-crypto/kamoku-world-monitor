@@ -14,6 +14,7 @@
     </div>
     <div class="top-actions">
       <button id="btnLoadDialogue" class="ghost">会話を読込</button>
+      <button id="btnLoadCatalogs" class="ghost">標準カタログ読込</button>
       <button id="btnImport" class="ghost">JSON読込</button>
       <button id="btnExport" class="primary">プロジェクトを書出</button>
       <input id="fileImport" type="file" accept=".json,application/json" hidden>
@@ -28,8 +29,10 @@
       <button class="nav" data-view="images">🎨 <span>画像エディタ</span></button>
       <button class="nav" data-view="dialogue">💬 <span>会話</span></button>
       <button class="nav" data-view="items">🎒 <span>アイテム</span></button>
+      <button class="nav" data-view="tools">🪓 <span>道具</span></button>
       <button class="nav" data-view="recipes">🛠️ <span>レシピ</span></button>
-      <button class="nav" data-view="buildings">🏠 <span>建物・家具</span></button>
+      <button class="nav" data-view="buildings">🏠 <span>建物</span></button>
+      <button class="nav" data-view="furniture">🪑 <span>家具</span></button>
       <button class="nav" data-view="gambits">🤖 <span>AI・ガンビット</span></button>
       <button class="nav" data-view="schedules">🕒 <span>個人予定表</span></button>
       <button class="nav" data-view="quests">📜 <span>クエスト</span></button>
@@ -46,9 +49,9 @@
           <div>
             <div class="eyebrow">HUMAN AUTHORING TOOLS</div>
             <h2>ゲームの中身を、コードを書かずに作る。</h2>
-            <p>キャラクター、会話、アイテム、制作、建築、AI、クエスト、イベント、経済、ワールド配置を一つの編集環境で管理します。</p>
+            <p>キャラクター、会話、アイテム、道具、制作、建物、家具、AI、クエスト、イベント、経済、ワールド配置を一つの編集環境で管理します。</p>
           </div>
-          <div class="hero-badge">V1</div>
+          <div class="hero-badge">V2</div>
         </div>
         <div id="dashboardCards" class="cards"></div>
         <div class="panel">
