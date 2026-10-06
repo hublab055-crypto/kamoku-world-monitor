@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "kind": "tools",
+  "version": "2026-10-07",
+  "status": "authoring_source_not_runtime_loaded",
+  "records": [
+    {
+      "id": "stone_axe",
+      "name": "石斧",
+      "category": "axe",
+      "icon": "🪓",
+      "tier": 1,
+      "durability": 80,
+      "workPower": 1.2,
+      "staminaCost": 2,
+      "repairable": true,
+      "repairCost": {
+        "stone": 1,
+        "wood": 1
+      },
+      "basePrice": 18,
+      "tags": [
+        "woodcutting"
+      ],
+      "notes": "伐採の初期道具"
+    },
+    {
+      "id": "iron_axe",
+      "name": "鉄斧",
+      "category": "axe",
+      "icon": "🪓",
+      "tier": 2,
+      "durability": 180,
+      "workPower": 1.8,
+      "staminaCost": 1.6,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1,
+        "wood": 1
+      },
+      "basePrice": 55,
+      "tags": [
+        "woodcutting"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "stone_pickaxe",
+      "name": "石つるはし",
+      "category": "pickaxe",
+      "icon": "⛏️",
+      "tier": 1,
+      "durability": 85,
+      "workPower": 1.2,
+      "staminaCost": 2.2,
+      "repairable": true,
+      "repairCost": {
+        "stone": 2,
+        "wood": 1
+      },
+      "basePrice": 20,
+      "tags": [
+        "mining"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "iron_pickaxe",
+      "name": "鉄つるはし",
+      "category": "pickaxe",
+      "icon": "⛏️",
+      "tier": 2,
+      "durability": 190,
+      "workPower": 1.9,
+      "staminaCost": 1.8,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1,
+        "wood": 1
+      },
+      "basePrice": 58,
+      "tags": [
+        "mining"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "hammer",
+      "name": "金槌",
+      "category": "hammer",
+      "icon": "🔨",
+      "tier": 1,
+      "durability": 120,
+      "workPower": 1.1,
+      "staminaCost": 1,
+      "repairable": true,
+      "repairCost": {
+        "wood": 1
+      },
+      "basePrice": 20,
+      "tags": [
+        "building",
+        "crafting"
+      ],
+      "notes": "建築・家具制作"
+    },
+    {
+      "id": "saw",
+      "name": "のこぎり",
+      "category": "saw",
+      "icon": "🪚",
+      "tier": 1,
+      "durability": 110,
+      "workPower": 1.4,
+      "staminaCost": 1.3,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1
+      },
+      "basePrice": 32,
+      "tags": [
+        "woodworking"
+      ],
+      "notes": "木材加工"
+    },
+    {
+      "id": "shovel",
+      "name": "シャベル",
+      "category": "shovel",
+      "icon": "🛠️",
+      "tier": 1,
+      "durability": 100,
+      "workPower": 1.1,
+      "staminaCost": 1.8,
+      "repairable": true,
+      "repairCost": {
+        "wood": 1,
+        "iron_ingot": 1
+      },
+      "basePrice": 26,
+      "tags": [
+        "digging",
+        "farming"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "hoe",
+      "name": "鍬",
+      "category": "hoe",
+      "icon": "⛏️",
+      "tier": 1,
+      "durability": 100,
+      "workPower": 1,
+      "staminaCost": 2,
+      "repairable": true,
+      "repairCost": {
+        "wood": 1,
+        "stone": 1
+      },
+      "basePrice": 16,
+      "tags": [
+        "farming"
+      ],
+      "notes": "耕作"
+    },
+    {
+      "id": "sickle",
+      "name": "鎌",
+      "category": "sickle",
+      "icon": "🌾",
+      "tier": 1,
+      "durability": 95,
+      "workPower": 1.2,
+      "staminaCost": 1.4,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1
+      },
+      "basePrice": 24,
+      "tags": [
+        "farming",
+        "harvest"
+      ],
+      "notes": "収穫"
+    },
+    {
+      "id": "fishing_rod",
+      "name": "釣り竿",
+      "category": "fishing",
+      "icon": "🎣",
+      "tier": 1,
+      "durability": 90,
+      "workPower": 1,
+      "staminaCost": 1,
+      "repairable": true,
+      "repairCost": {
+        "wood": 1,
+        "fiber": 2
+      },
+      "basePrice": 22,
+      "tags": [
+        "fishing"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "bucket",
+      "name": "バケツ",
+      "category": "bucket",
+      "icon": "🪣",
+      "tier": 1,
+      "durability": 140,
+      "workPower": 1,
+      "staminaCost": 0.5,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1
+      },
+      "basePrice": 18,
+      "tags": [
+        "water",
+        "farming",
+        "cleaning"
+      ],
+      "notes": "水運搬・掃除・農業"
+    },
+    {
+      "id": "kitchen_knife",
+      "name": "包丁",
+      "category": "knife",
+      "icon": "🔪",
+      "tier": 1,
+      "durability": 100,
+      "workPower": 1.2,
+      "staminaCost": 0.5,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1
+      },
+      "basePrice": 20,
+      "tags": [
+        "cooking"
+      ],
+      "notes": "調理用"
+    },
+    {
+      "id": "lantern",
+      "name": "ランタン",
+      "category": "lantern",
+      "icon": "🏮",
+      "tier": 1,
+      "durability": 160,
+      "workPower": 0,
+      "staminaCost": 0,
+      "repairable": true,
+      "repairCost": {
+        "iron_ingot": 1
+      },
+      "basePrice": 30,
+      "tags": [
+        "lighting",
+        "travel"
+      ],
+      "notes": "夜間視認性向上"
+    }
+  ]
+}
