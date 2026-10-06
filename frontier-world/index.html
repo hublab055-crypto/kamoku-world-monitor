@@ -26,6 +26,8 @@ button{font:inherit;color:var(--text);background:#282b2f;border:1px solid var(--
 .cmd{font-size:24px}
 button:active{transform:translateY(1px)}
 .panel{margin-top:8px;background:var(--panel);border:1px solid var(--border);border-radius:15px;padding:12px}
+#settingsPanel{max-height:72vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#panel.fw37ConsolePanel{max-height:72vh;overflow:hidden;scroll-margin-top:8px}
 .hidden{display:none}
 .panelHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .close{min-width:44px}
@@ -107,7 +109,7 @@ select{width:100%;min-height:44px;background:#22262a;color:var(--text);border:1p
   </section>
 
   <section id="settingsPanel" class="panel hidden">
-    <div class="panelHead"><strong>⚙️ 5ボタン設定</strong><button id="closeSettings" class="close" type="button">✕</button></div>
+    <div class="panelHead"><strong>⚙️ 5ボタン設定</strong><div style="display:flex;gap:6px"><button class="smallBtn" data-fw37-open type="button" aria-label="コンソールログ">🧾 ログ</button><button id="closeSettings" class="close" type="button">✕</button></div></div>
     <div id="slotEditor"></div>
     <div class="note">⚡💬📦💤🔨 の5枠を、🏹⚔️🛡️🧪🌱などへ変更できます。</div>
   </section>
@@ -6495,7 +6497,7 @@ canvas.addEventListener('pointerdown',e=>{
 root.querySelectorAll('.cmd[data-slot]').forEach(b=>b.addEventListener('click',()=>runCommand(slots[Number(b.dataset.slot)])));
 $('#settings').addEventListener('click',()=>{$('#settingsPanel').classList.remove('hidden');renderSettings();});
 $('#closeSettings').addEventListener('click',()=>$('#settingsPanel').classList.add('hidden'));
-$('#closePanel').addEventListener('click',()=>$('#panel').classList.add('hidden'));
+$('#closePanel').addEventListener('click',()=>{$('#panel').classList.add('hidden');$('#panel').classList.remove('fw37ConsolePanel');});
 $('#closeDialog').addEventListener('click',closeDialog);
 $('#dialogReplies').addEventListener('click',e=>{const b=e.target.closest('[data-reply]');if(b&&!b.disabled)handleDialogAction(b.dataset.reply);});
 $('#panelBody').addEventListener('click',e=>{const b=e.target.closest('[data-panel-action]');if(!b)return;const a=b.dataset.panelAction,item=b.dataset.item;if(a==='gift')giftItem(item);else if(a==='store')transferChest(item,true);else if(a==='take')transferChest(item,false);else if(a==='buy'||a==='sell')shopTrade(item,a);else if(a==='shopmode')openShop(b.dataset.mode);});
@@ -8508,6 +8510,9 @@ const fw39PrevUpdate=update;
 update=function(dt){fw39PrevUpdate(dt);fw39FamilyMealUpdate(dt);};
 
 
+/* FRONTIER_V39_2_LOG_UI_HOTFIX */
+// Persistent settings-header log entry + mobile scrolling is implemented in HTML/CSS and V37 console opener.
+
 /* FRONTIER_V39_1_INDOOR_DWELL_HOTFIX */
 // Stop indoor ping-pong: leisure favors real chairs and keeps residents there;
 // cleaning remembers already-cleaned furniture for the current schedule block.
@@ -8962,8 +8967,14 @@ function fw37Render(){
 function fw37Open(){
  var p=document.getElementById('panel');if(!p)return;
  var sp=document.getElementById('settingsPanel');if(sp)sp.classList.add('hidden');
- p.classList.remove('hidden');var t=document.getElementById('panelTitle');if(t)t.textContent='🧾 コンソールログ';fw37Render();
+ p.classList.add('fw37ConsolePanel');p.classList.remove('hidden');
+ var t=document.getElementById('panelTitle');if(t)t.textContent='🧾 コンソールログ';
+ fw37Render();
+ requestAnimationFrame(function(){
+  try{p.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){try{p.scrollIntoView();}catch(_){}}
+ });
 }
+window.fw37OpenConsole=fw37Open;
 function fw37CopyText(){
  return fw37Entries().map(function(x){return '['+x.gameTime+'] ['+x.category+']'+(x.actorName?' ['+x.actorName+']':'')+' '+x.message+(x.detail?' | '+x.detail:'');}).join('\n');
 }
