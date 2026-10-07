@@ -2,8 +2,8 @@
 
 更新日: 2026-10-06 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V39.4  
-基準コミット: `a429837898fb44b92e2d8b8a195a42b6cf51e8c4`
+実装系列: Frontier V39.5  
+基準コミット: `2c816bcd4f6be1d58fbd5b42c84a3d2ae935c8e3`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
@@ -57,6 +57,10 @@ Frontier World は、2D の開拓生活シミュレーションを中心に、RP
 - 「ついて来て」中の仲間は、近ければ家/テントの中へ一緒に入れる。
 - 遅れて入口へ来た仲間も室内へ合流する。
 - 自動休息は建物の入口付近に到達すれば休息を開始するよう修正済み。
+
+
+- V39.5: ログボタンとログウィンドウはゲーム `root` の外、`document.body` 直下へ配置する。iPhoneのゲーム領域クリップや拡大縮小の影響を受けず、右上の `🧾 ログ` から常時開閉できる。
+- ログ本文だけを縦スクロール可能にし、ウィンドウの高さは画面内に制限する。
 
 ## 5. 建物・室内・家具
 
