@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-07T07:20:00+09:00",
+  "updated_at": "2026-10-07T17:20:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V39.4",
-  "game_commit": "a429837898fb44b92e2d8b8a195a42b6cf51e8c4",
+  "implementation_version": "V39.5",
+  "game_commit": "2c816bcd4f6be1d58fbd5b42c84a3d2ae935c8e3",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -58,7 +58,8 @@
     "mobile-accessible debug console entry in settings header with scrollable settings and auto-scroll to logs",
     "toggleable floating debug log window with bounded height, touch scrolling and preserved scroll position",
     "Creator Suite V2 with separate item, tool, building and furniture editors",
-    "versioned item/tool/building/furniture authoring catalogs with non-destructive local merge and reference validation"
+    "versioned item/tool/building/furniture authoring catalogs with non-destructive local merge and reference validation",
+    "body-level floating debug log toggle and window for reliable iPhone visibility"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
