@@ -8972,12 +8972,12 @@ function fw40EnsureLogWindow(){
  var toggle=document.createElement('button');
  toggle.id='fw40LogToggle';toggle.type='button';toggle.setAttribute('data-fw40-toggle','1');
  toggle.setAttribute('aria-label','ログウィンドウを表示・非表示');toggle.textContent='🧾 ログ';
- root.appendChild(toggle);
+ document.body.appendChild(toggle);
 
  win=document.createElement('section');
  win.id='fw40LogWindow';win.className='hidden';win.setAttribute('aria-label','コンソールログ');
  win.innerHTML='<div id="fw40LogHead"><strong>🧾 コンソールログ</strong><button type="button" class="smallBtn" data-fw40-hide aria-label="ログを閉じる">✕</button></div><div id="fw40LogBody"></div>';
- root.appendChild(win);
+ document.body.appendChild(win);
  return win;
 }
 function fw40SetLogVisible(show){
@@ -9039,6 +9039,15 @@ st40.textContent=
 '#fw40LogBody .fw37Rows{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch}'+
 '@media(max-width:520px){#fw40LogToggle{top:max(6px,env(safe-area-inset-top));right:6px;min-height:34px;padding:4px 8px;font-size:12px}#fw40LogWindow{top:calc(max(6px,env(safe-area-inset-top)) + 40px);right:6px;width:calc(100vw - 12px);height:min(44vh,360px);min-height:190px;padding:6px}#fw40LogBody .fw37Tools{gap:4px}#fw40LogBody .fw37Tools .smallBtn{min-height:34px;padding:3px 7px;font-size:12px}#fw40LogBody .fw37Tools select{min-height:34px;font-size:12px;max-width:120px}#fw40LogBody .fw37Row{font-size:10px;padding:4px 5px}}';
 document.head.appendChild(st40);
+
+/* FRONTIER_V40_1_LOG_VISIBILITY_FIX */
+var st401=document.createElement('style');
+st401.textContent=
+'#fw40LogToggle{position:fixed!important;z-index:2147483647!important;top:calc(env(safe-area-inset-top,0px) + 8px)!important;right:8px!important;display:block!important;visibility:visible!important;opacity:1!important;color:#fff!important;border:1px solid rgba(255,255,255,.38)!important;background:#20262c!important;-webkit-appearance:none!important;appearance:none!important;pointer-events:auto!important;transform:none!important}'+
+'#fw40LogWindow{position:fixed!important;z-index:2147483646!important;top:calc(env(safe-area-inset-top,0px) + 50px)!important;right:8px!important;left:auto!important;pointer-events:auto!important;transform:none!important}'+
+'#fw40LogWindow:not(.hidden){display:flex!important;visibility:visible!important;opacity:1!important}'+
+'#fw40LogWindow .fw37Rows{overflow-y:scroll!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important}';
+document.head.appendChild(st401);
 fw40EnsureLogWindow();
 
 if(typeof renderSettings==='function'){
@@ -9090,20 +9099,20 @@ function fw37Scan(){
  try{var d=Number(state.day)||0;if(fw37LastDay==null)fw37LastDay=d;else if(d!==fw37LastDay){fw37Log('system','Day '+fw37LastDay+' → Day '+d);fw37LastDay=d;}}catch(e){}
 }
 
-root.addEventListener('click',function(e){
+document.addEventListener('click',function(e){
  var b=e.target.closest('[data-fw40-toggle],[data-fw40-hide]');if(!b)return;
  e.preventDefault();e.stopPropagation();
  if(b.hasAttribute('data-fw40-hide'))fw40SetLogVisible(false);else fw40ToggleLogWindow();
 },true);
 
-root.addEventListener('click',function(e){
+document.addEventListener('click',function(e){
  var b=e.target.closest('[data-fw37-open],[data-fw37-mode],[data-fw37-copy],[data-fw37-clear]');if(!b)return;
  if(b.hasAttribute('data-fw37-open')){e.preventDefault();e.stopPropagation();fw37Open();return;}
- if(b.hasAttribute('data-fw37-mode')){e.preventDefault();fw37View.mode=b.dataset.fw37Mode||'all';fw37Render();return;}
- if(b.hasAttribute('data-fw37-copy')){e.preventDefault();fw37Copy();return;}
- if(b.hasAttribute('data-fw37-clear')){e.preventDefault();fw37Clear();}
+ if(b.hasAttribute('data-fw37-mode')){e.preventDefault();e.stopPropagation();fw37View.mode=b.dataset.fw37Mode||'all';fw37Render();return;}
+ if(b.hasAttribute('data-fw37-copy')){e.preventDefault();e.stopPropagation();fw37Copy();return;}
+ if(b.hasAttribute('data-fw37-clear')){e.preventDefault();e.stopPropagation();fw37Clear();}
 },true);
-root.addEventListener('change',function(e){
+document.addEventListener('change',function(e){
  var t=e.target;if(t&&t.hasAttribute('data-fw37-actor')){fw37View.actorId=String(t.value);fw37Render();}
  if(t&&t.hasAttribute('data-fw37-category')){fw37View.category=String(t.value);fw37Render();}
 },true);
