@@ -549,3 +549,41 @@ GitHub反映とJavaScript構文・接続点の静的確認まで実施。iPhone 
 4. コンソール個人別に「YOU（操作）」または現在の操作キャラが表示される。
 5. 手動で皿を片付けると「🧽 空いた皿 1枚を片付けた。」が操作キャラの message ログに出る。
 6. 自動皿片付けでも household ログに同内容が出る。
+
+
+## FW-2026-10-10-001 — ログ Day0 固定 / fw33OpenCommerce ReferenceError
+
+実装系列: Frontier V39.7  
+対象: `frontier-world/index.html`  
+ゲーム実装コミット: `b6eceab31d15bf97458b518f48ee2eeea57eeabb`
+
+### ユーザーログ
+- `[Day 0 00:00] [error] ReferenceError: Can't find variable: fw33OpenCommerce`
+- `Day 0 00:00` 固定。
+- 家事ログ「家の清潔度は十分。掃除せず休憩。」が多数残る。
+
+### 原因
+- ゲーム本体は第1 `<script>` 内のIIFEにあり、`state` / `fw33OpenCommerce` などはそのレキシカルスコープ内。
+- V37/V38は別の第2 `<script>` からそれらを直接参照していた。
+- V37のゲーム時刻取得は例外を握りつぶして0へフォールバックしていたため、エラー表示なしで Day 0 00:00 になった。
+- V38は `fw33OpenCommerce` の直接参照で例外停止した。
+
+### 修正
+- 本体IIFEから `window.__fwFrontierBridge` を公開。live state、root、query、message、commerce hookのみを限定共有。
+- V37はbridgeのstateを参照。
+- V38は `fw33OpenCommerce` を直接上書きせず、`afterCommerceOpen` hookへ接続。
+- 本体側commerce wrapperが全内部呼び出し後にhookを実行。
+- 同一householdログは6秒以内の重複を抑制。
+
+### 静的確認
+- 2本のscriptを個別に `new Function` で構文確認済み。
+- 第2script内の `fw33OpenCommerce` 直接参照0件。
+- bridge state export / market hook / log dedupeを確認。
+- floating log windowが `document.body` 直下にあることを確認。
+
+### 手動確認
+1. 再読み込み後、ログ時刻が実ゲームのDay/時刻を表示する。
+2. `Can't find variable: fw33OpenCommerce` が新規発生しない。
+3. 商業・会社画面を開いても例外停止しない。
+4. V38オンライン市場カードが商業画面へ追加される。
+5. 同じ「清潔度は十分」ログが短時間に大量連続しない。
