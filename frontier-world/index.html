@@ -8934,6 +8934,40 @@ update=function(dt){
  return fw42PrevUpdate(dt);
 };
 
+/* FRONTIER_V39_7_CROSS_SCRIPT_BRIDGE_FIX */
+// The game core lives inside this IIFE, while debug/online-market code is in the
+// following <script>. Export a narrow live bridge instead of relying on hidden
+// lexical variables crossing script boundaries.
+const fw43PrevOpenCommerce=fw33OpenCommerce;
+fw33OpenCommerce=function(){
+ const r=fw43PrevOpenCommerce.apply(this,arguments);
+ const bridge=window.__fwFrontierBridge;
+ if(bridge&&typeof bridge.afterCommerceOpen==='function'){
+  try{bridge.afterCommerceOpen();}catch(e){
+   if(typeof window.fw37Log==='function')try{window.fw37Log('error','商業パネル連携でエラー',null,'error',e&&e.message?e.message:String(e));}catch(_){}
+  }
+ }
+ return r;
+};
+window.__fwFrontierBridge={
+ get state(){return state;},
+ root:root,
+ query:function(sel){return $(sel);},
+ message:function(){return msg.apply(this,arguments);},
+ openCommerce:function(){return fw33OpenCommerce.apply(this,arguments);},
+ afterCommerceOpen:null
+};
+
+// Repeated household decisions are useful once, not dozens of times in the console.
+const fw43HouseLogSeen=new Map();
+const fw43PrevHouseLog=fw39Log;
+fw39Log=function(t,a,l){
+ const key=String(a&&a.id||'_')+'|'+String(t),now=performance.now(),last=fw43HouseLogSeen.get(key)||-1e9;
+ if(now-last<6000)return;
+ fw43HouseLogSeen.set(key,now);
+ return fw43PrevHouseLog(t,a,l);
+};
+
 })();
 </script>
 
@@ -8943,6 +8977,13 @@ update=function(dt){
 'use strict';
 if(window.__fw37ConsoleInstalled)return;
 window.__fw37ConsoleInstalled=true;
+
+// Live references exported by the game-core IIFE.
+var fwBridge=window.__fwFrontierBridge||{};
+var state=fwBridge.state||{day:0,hour:0,player:null,npcs:[],family:{children:[]}};
+var root=fwBridge.root||document.body;
+var $=fwBridge.query||function(sel){return document.querySelector(sel);};
+var msg=fwBridge.message||function(t){try{var el=document.getElementById('message');if(el)el.textContent=String(t);}catch(e){}};
 
 var FW37_KEY='frontier_world_console_v37',FW37_MAX=800;
 var fw37Store={seq:0,entries:[]},fw37SaveTimer=null,fw37RenderTimer=null;
@@ -9355,8 +9396,13 @@ async function fw38Ipo(q){try{const c=await fw38Client(),r=await c.rpc('fw_marke
 async function fw38Place(){try{const side=document.getElementById('fw38Side').value,p=Number(document.getElementById('fw38Price').value),q=Number(document.getElementById('fw38Qty').value);if(!Number.isInteger(p)||p<=0||!Number.isInteger(q)||q<=0)throw new Error('価格と株数を正の整数で入力して。');const c=await fw38Client(),r=await c.rpc('fw_market_place_order',{p_company_id:FW38_CO,p_side:side,p_limit_price:p,p_quantity:q});if(r.error)throw r.error;fw38Log(side+' '+p+'G×'+q+'株');msg('📊 注文受付 / 約定 '+Number(r.data.filled_quantity||0)+'株');await fw38Load();}catch(e){fw38Error=fw38EM(e);fw38Log('order failed '+fw38Error,'error');fw38Render();}}
 async function fw38Cancel(id){try{const c=await fw38Client(),r=await c.rpc('fw_market_cancel_order',{p_order_id:Number(id)});if(r.error)throw r.error;msg('📊 注文取消');await fw38Load();}catch(e){fw38Error=fw38EM(e);fw38Render();}}
 
-const fw38PrevCommerce=fw33OpenCommerce;
-fw33OpenCommerce=function(){const r=fw38PrevCommerce();fw38Append();fw38Client().then(fw38Load).catch(function(e){fw38Error=fw38EM(e);fw38Render();});return r;};
+function fw38AttachToCommerce(){
+ fw38Append();
+ fw38Client().then(fw38Load).catch(function(e){fw38Error=fw38EM(e);fw38Render();});
+}
+if(window.__fwFrontierBridge){
+ window.__fwFrontierBridge.afterCommerceOpen=fw38AttachToCommerce;
+}
 
 root.addEventListener('click',function(e){
  const b=e.target.closest('[data-fw38]');if(!b)return;e.preventDefault();e.stopPropagation();
