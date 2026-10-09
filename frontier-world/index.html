@@ -8287,7 +8287,7 @@ const FW39_INDOOR_WALK_SPEED=.92;
 const FW39_INDOOR_MAX_SPEED=1.15;
 
 function fw39TimeScale(){return state&&state.interior?FW39_INDOOR_TIME_SCALE:1;}
-function fw39Log(t,a,l){if(typeof fw37Log==='function')try{fw37Log('household',t,a||null,l||'info');}catch(_){}}
+function fw39Log(t,a,l){if(typeof window.fw37Log==='function')try{window.fw37Log('household',t,a||null,l||'info');}catch(_){}}
 
 // Indoor NPCs walk instead of sprinting. Old explicit speeds are capped.
 fw34MoveIndoor=function(h,n,g,dt,speed){
@@ -8914,7 +8914,7 @@ function fw42RecoverStaleIndoorFlags(){
     }
    }
    n.status='🚪 室内状態を復旧して屋外へ';
-   if(typeof fw37Log==='function')try{fw37Log('household','壊れた室内フラグを解除して屋外へ復旧',n,'warn');}catch(_){}
+   if(typeof window.fw37Log==='function')try{window.fw37Log('household','壊れた室内フラグを解除して屋外へ復旧',n,'warn');}catch(_){}
   }
 
   // Household residents in an autonomous block must not retain an old indoor flag.
@@ -8923,7 +8923,7 @@ function fw42RecoverStaleIndoorFlags(){
    if(task==='auto'||(task==='leisure'&&n.relationship!=='family'&&n.relationship!=='lover')){
     fw34ExitNpc(n,false);
     n.status=task==='auto'?'🚪 家を出て自動行動へ':'☕ 屋外で余暇';
-    if(typeof fw37Log==='function')try{fw37Log('household',task==='auto'?'自動行動時間のため外出':'非家族の余暇は屋外へ移行',n);}catch(_){}
+    if(typeof window.fw37Log==='function')try{window.fw37Log('household',task==='auto'?'自動行動時間のため外出':'非家族の余暇は屋外へ移行',n);}catch(_){}
    }
   }
  });
@@ -9254,7 +9254,7 @@ let fw38C0=null,fw38CP=null,fw38S=null,fw38Snap=null,fw38Busy=false,fw38Error=''
 
 function fw38E(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function fw38EM(e){return e&&e.message?e.message:String(e||'error');}
-function fw38Log(t,l){if(typeof fw37Log==='function')try{fw37Log('market',t,null,l||'info');}catch(e){}}
+function fw38Log(t,l){if(typeof window.fw37Log==='function')try{window.fw37Log('market',t,null,l||'info');}catch(e){}}
 
 async function fw38Client(){
  if(fw38C0)return fw38C0;
