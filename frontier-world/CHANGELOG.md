@@ -338,3 +338,14 @@
 - コンソールでは `state.player` を常に現在の操作キャラとして表示し、切替元の controlled NPC重複を除外。
 - HUD `msg()` は会話相手がいない場合、操作キャラへ紐付けて個人別ログに表示。
 - 操作ボタン、silent自動配膳・食事・空き皿片付けも個人別ログへ記録。
+
+
+### V39.7 hotfix — 2026-10-10 JST
+
+ゲーム実装コミット: `b6eceab31d15bf97458b518f48ee2eeea57eeabb`
+
+- ゲーム本体IIFEとログ/オンライン市場scriptの間に `window.__fwFrontierBridge` を追加。
+- ログ側が本物の `state.day / state.hour / state.player / state.npcs` を参照できるよう修正。
+- V38が別scriptから非公開の `fw33OpenCommerce` を直接参照していた `ReferenceError` を解消。
+- 商業パネルはbridgeのafter-hook経由でV38オンライン市場UIを追加する方式へ変更。
+- 同一の家事ログは6秒以内の連続重複を抑制。
