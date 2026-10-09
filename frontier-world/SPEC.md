@@ -2,8 +2,8 @@
 
 更新日: 2026-10-10 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V39.6
-基準コミット: `521c979fe4245ecc02f6060e46837d2e81204d29`
+実装系列: Frontier V39.7
+基準コミット: `b6eceab31d15bf97458b518f48ee2eeea57eeabb`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
@@ -60,6 +60,9 @@ Frontier World は、2D の開拓生活シミュレーションを中心に、RP
 
 
 - V39.5: ログボタンとログウィンドウはゲーム `root` の外、`document.body` 直下へ配置する。iPhoneのゲーム領域クリップや拡大縮小の影響を受けず、右上の `🧾 ログ` から常時開閉できる。
+- V39.7: ゲーム本体IIFEとログ/市場スクリプトの間に明示的な `window.__fwFrontierBridge` を追加し、ゲーム時刻・操作キャラ・NPC一覧・メッセージ・商業パネル連携を安全に共有する。
+- V39.7: V38オンライン市場が別scriptから `fw33OpenCommerce` を直接参照して発生していた `ReferenceError` を解消。ログの `Day 0 00:00` 固定も同じスコープ問題として修正。
+- V39.7: 同一の家事ログは短時間に連続記録しないよう抑制する。
 - ログ本文だけを縦スクロール可能にし、ウィンドウの高さは画面内に制限する。
 
 ## 5. 建物・室内・家具
