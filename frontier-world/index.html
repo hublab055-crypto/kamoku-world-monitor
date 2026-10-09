@@ -8862,6 +8862,78 @@ state.npcs.forEach(function(n){
  h.mode41=null;h.dwellKind40=null;h.leisureGoal39=null;h.restTimer39=0;
 });
 
+
+/* FRONTIER_V39_6_NPC_EXIT_PLAYER_LOG_FIX */
+// Recover NPCs that became permanently hidden indoors and keep non-family leisure interactable outdoors.
+
+function fw42HasExplicitIndoorCommand(n){
+ return !!(n&&(
+  (n.command==='homeCraft'&&n.homeJob)||
+  n.command==='homeClean34'||n.command==='homeLaundry34'||n.command==='homeRest'||
+  n.command==='familyMeal39'
+ ));
+}
+
+const fw42PrevResolveIndoorMode=fw41ResolveIndoorMode;
+fw41ResolveIndoorMode=function(n,h){
+ if(n&&n.personalSchedule&&n.personalSchedule.enabled&&!fw42HasExplicitIndoorCommand(n)&&!fw41ActiveLaundry(h)&&!fw41MealActiveFor(n)){
+  const task=fw19ScheduleTask(n);
+  // Every resident must be released when the schedule returns to autonomous work.
+  // The old V41 code did this only for family/lover, trapping Mio/Riku/Guard indoors.
+  if(task==='auto')return 'exit';
+  // Non-family leisure stays outdoors because the player may not have access to
+  // that NPC's private house. Family/lover leisure remains a real indoor activity.
+  if(task==='leisure'&&n.relationship!=='family'&&n.relationship!=='lover')return 'exit';
+ }
+ return fw42PrevResolveIndoorMode(n,h);
+};
+
+const fw42PrevNpcTaskStart=fw34NpcTaskStart;
+fw34NpcTaskStart=function(n,dt){
+ if(n&&n.personalSchedule&&n.personalSchedule.enabled&&!fw42HasExplicitIndoorCommand(n)){
+  const task=fw19ScheduleTask(n);
+  // Do not immediately re-enter after fw41ResolveIndoorMode has released the NPC.
+  if(task==='leisure'&&n.relationship!=='family'&&n.relationship!=='lover')return false;
+ }
+ return fw42PrevNpcTaskStart(n,dt);
+};
+
+function fw42RecoverStaleIndoorFlags(){
+ state.npcs.forEach(function(n){
+  if(!n||n.alive===false||n.controlled)return;
+
+  // Legacy follower-only indoor state is valid only while the player is actually
+  // viewing the same room. Outside that room it would make drawPerson() hide the NPC forever.
+  if(n.inside20&&!n.household34&&(!state.interior||state.interior.buildingId!==n.inside20)){
+   const bid=n.inside20,b=state.buildings.find(function(x){return x.id===bid;});
+   n.inside20=null;n.followInto20=null;n._nav19=null;
+   if(b){
+    const e=fw10Entrance(b);
+    if(!Number.isFinite(n.x)||!Number.isFinite(n.y)||Math.hypot(n.x-e.x,n.y-e.y)>12){
+      n.x=e.x;n.y=e.y+.35;
+    }
+   }
+   n.status='🚪 室内状態を復旧して屋外へ';
+   if(typeof fw37Log==='function')try{fw37Log('household','壊れた室内フラグを解除して屋外へ復旧',n,'warn');}catch(_){}
+  }
+
+  // Household residents in an autonomous block must not retain an old indoor flag.
+  if(n.household34&&n.inside20&&n.personalSchedule&&n.personalSchedule.enabled&&!fw42HasExplicitIndoorCommand(n)){
+   const task=fw19ScheduleTask(n);
+   if(task==='auto'||(task==='leisure'&&n.relationship!=='family'&&n.relationship!=='lover')){
+    fw34ExitNpc(n,false);
+    n.status=task==='auto'?'🚪 家を出て自動行動へ':'☕ 屋外で余暇';
+    if(typeof fw37Log==='function')try{fw37Log('household',task==='auto'?'自動行動時間のため外出':'非家族の余暇は屋外へ移行',n);}catch(_){}
+   }
+  }
+ });
+}
+const fw42PrevUpdate=update;
+update=function(dt){
+ fw42RecoverStaleIndoorFlags();
+ return fw42PrevUpdate(dt);
+};
+
 })();
 </script>
 
@@ -8887,14 +8959,23 @@ try{
 function fw37Actors(){
  var out=[],seen={};
  function add(a){if(!a||!a.id||seen[a.id])return;seen[a.id]=1;out.push(a);}
- try{add(state.player);(state.npcs||[]).forEach(add);((state.family&&state.family.children)||[]).forEach(add);}catch(e){}
+ try{
+  // state.player is always the canonical currently controlled actor.
+  add(state.player);
+  (state.npcs||[]).forEach(function(n){if(!n.controlled)add(n);});
+  ((state.family&&state.family.children)||[]).forEach(function(ch){if(!ch.controlled)add(ch);});
+ }catch(e){}
  return out;
 }
 function fw37Actor(v){
  if(!v)return null;if(typeof v==='object')return v;
  var id=String(v),a=fw37Actors();for(var i=0;i<a.length;i++)if(String(a[i].id)===id)return a[i];return null;
 }
-function fw37Name(a){return a?String(a.name||a.id||''):'';}
+function fw37Name(a){
+ if(!a)return '';
+ var name=String(a.name||a.id||'');
+ return a===state.player?name+'（操作）':name;
+}
 function fw37GameTime(){
  var d=0,h=0;try{d=Number(state.day)||0;h=Number(state.hour)||0;}catch(e){}
  var hh=Math.floor(h)%24,mm=Math.floor((h-Math.floor(h))*60);if(mm<0)mm=0;
@@ -9060,7 +9141,8 @@ if(typeof renderSettings==='function'){
 }
 if(typeof msg==='function'){
  var prevMsg=msg;
- msg=function(t){var r=prevMsg.apply(this,arguments),a=null;try{a=state.dialog&&state.dialog.speaker?state.dialog.speaker:null;}catch(e){}fw37Log('message',t,a,/⚠️|失敗|エラー/.test(String(t))?'warn':'info');return r;};
+ msg=function(t){var r=prevMsg.apply(this,arguments),a=null;try{a=state.dialog&&state.dialog.speaker?state.dialog.speaker:state.player;}catch(e){try{a=state.player;}catch(_){}}
+  fw37Log('message',t,a,/⚠️|失敗|エラー/.test(String(t))?'warn':'info');return r;};
 }
 if(typeof talk==='function'){
  var prevTalk=talk;
@@ -9081,7 +9163,7 @@ function fw37Sig(a){
  var h=a&&a.household34,e=a&&a.employment;
  return {status:fw37Val(a&&a.status),command:fw37Val(a&&a.command),task:fw37Val(fw37Task(a)),inside:fw37Val((a&&a.inside20)||(h&&h.buildingId)),
   household:fw37Val(h?(String(h.kind||'')+'/'+String(h.phase||'')+'/'+String(h.source||'')):''),
-  companion:String(!!(a&&a.companion)),controlled:String(!!(a&&a.controlled)),alive:String(!(a&&a.alive===false)),
+  companion:String(!!(a&&a.companion)),controlled:String(!!(a&&(a===state.player||a.controlled))),alive:String(!(a&&a.alive===false)),
   employment:fw37Val(e?((e.active?'雇用':'未雇用')+'/'+(e.suspended?'停止':'稼働')+'/未払'+(Number(e.unpaidDebt)||0)+'G/日給'+(Number(e.dailyWage)||0)+'G'):''),
   friend:fw37Val(a&&a.friend!=null?Math.round(Number(a.friend)||0):''),loyalty:fw37Val(a&&a.loyalty!=null?Math.round(Number(a.loyalty)||0):'')};
 }
@@ -9122,6 +9204,46 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;fw37L
 fw37Scan();setInterval(fw37Scan,900);
 fw37Log('system','V37 コンソールログを開始しました。全体/個人別を記録します。');
 
+
+
+/* FRONTIER_V39_6_CONTROLLED_ACTION_LOGS */
+if(typeof runCommand==='function'){
+ var fw42PrevRunCommandLog=runCommand;
+ runCommand=function(k){
+  var cmd=(typeof commands!=='undefined'&&commands[k])?commands[k]:null;
+  fw37Log('action','操作コマンド：'+(cmd?(cmd.icon+' '+cmd.label):String(k)),state.player);
+  return fw42PrevRunCommandLog.apply(this,arguments);
+ };
+}
+
+// Manual dining messages are captured by msg(). Silent automatic dining still gets
+// an explicit per-character household log.
+if(typeof fw28ServeOne==='function'){
+ var fw42PrevServeLog=fw28ServeOne;
+ fw28ServeOne=function(silent){
+  var ok=fw42PrevServeLog.apply(this,arguments);
+  if(ok&&silent)fw37Log('household','料理を1皿配膳した。',state.player);
+  return ok;
+ };
+}
+if(typeof fw28EatOne==='function'){
+ var fw42PrevEatLog=fw28EatOne;
+ fw28EatOne=function(silent){
+  var ok=fw42PrevEatLog.apply(this,arguments);
+  if(ok&&silent)fw37Log('household','配膳された料理を1皿食べた。空いた皿が残った。',state.player);
+  return ok;
+ };
+}
+if(typeof fw28ClearDishes==='function'){
+ var fw42PrevClearLog=fw28ClearDishes;
+ fw28ClearDishes=function(silent){
+  var d=null,before=0;
+  try{d=fw28CurrentDining();before=d?Number(d.dirty||0):0;}catch(e){}
+  var ok=fw42PrevClearLog.apply(this,arguments);
+  if(ok&&silent)fw37Log('household','空いた皿 '+before+'枚を片付けた。',state.player);
+  return ok;
+ };
+}
 /* FRONTIER_V38_ONLINE_MARKET_BETA */
 const FW38_URL='https://htwcscrllohavtbejhjr.supabase.co';
 const FW38_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
