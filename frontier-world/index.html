@@ -9868,6 +9868,138 @@ update=function(dt){
 /* END FRONTIER_V42_2_LIFE_AND_CONVERSATION */
 
 
+
+/* FRONTIER_V43_GREETINGS_AND_PROPOSALS */
+const FW43_GREETINGS=[
+ ['depart','🚶 いってきます','いってらっしゃい。気をつけてね。'],
+ ['sendoff','👋 いってらっしゃい','ありがとう。帰ったらまた話そうね。'],
+ ['return','🏠 ただいま','おかえり。無事に帰ってきてくれてよかった。'],
+ ['welcome','💕 おかえり','ただいま。会えて嬉しいよ。'],
+ ['bye','👋 さようなら','また会おうね。'],
+ ['first','🌸 はじめまして','はじめまして。これからよろしくね。'],
+ ['reunion','😊 ひさしぶり','久しぶり！ また話せて嬉しい。'],
+ ['guest','🏠 いらっしゃい','お邪魔します。招いてくれてありがとう。'],
+ ['regards','🤝 よろしく','こちらこそ、よろしくお願いします。'],
+ ['please','🙏 おねがい','もちろん。何をしてほしい？']
+];
+const fw43PreviousGreetingMenu=fw42Menu;
+fw42Menu=function(){
+ fw43PreviousGreetingMenu();
+ const d=state.dialog,r=$('#dialogReplies');
+ if(!d||!d.speaker||d.speaker.isChild||d.fw42Menu!=='greeting'||!r)return;
+ r.insertAdjacentHTML('beforeend','<div class="note" style="width:100%">生活の挨拶</div>'+
+  FW43_GREETINGS.map(function(g){return fw42HtmlButton('fw43:greeting:'+g[0],g[1]);}).join(''));
+};
+function fw43Greet(n,key){
+ const item=FW43_GREETINGS.find(function(g){return g[0]===key;});if(!item)return;
+ n.greetings43=n.greetings43||{};
+ const first=key==='first',gap=Number(state.day)-(Number(n.metDay21)||state.day);
+ const contextOK=!(first&&n.greetings43.first!=null)&&!(key==='reunion'&&gap<3);
+ const already=n.greetings43[key]===state.day;
+ if(!already){
+  n.greetings43[key]=state.day;
+  const change=contextOK?1:-1;
+  n.friend=clamp((Number(n.friend)||0)+change,0,100);
+  if(contextOK)fw18HeartGain(n,2);else fw18HeartGain(n,-1);
+ }
+ if(key==='first'&&n.metDay21==null)n.metDay21=state.day;
+ if(key==='depart')n.seenLeaving43=state.day;
+ if(key==='return')n.seenReturning43=state.day;
+ let response=contextOK?item[2]:(first?'もう知り合いだよね。ふふ。':'さっき会ったばかりだよ？');
+ if(key==='depart'&&['family','lover'].includes(n.relationship))response='いってらっしゃい。帰ってくるのを待ってるね。';
+ if(key==='return'&&['family','lover'].includes(n.relationship))response='おかえり。手を洗ったら、一緒にご飯にしようか？';
+ if(key==='please')response='お願いだね。何をしてほしいか教えて。';
+ typeLine(response+(already?'（今日の挨拶は済んでいるよ）':''));
+ if(key!=='return'){state.dialog.fw42Menu='greeting';fw42Menu();}
+ fw42Pause(n);
+}
+let fw43Proposal=null;
+function fw43InvitationKind(line){
+ if(typeof line!=='string')return null;
+ const t=line.replace(/\s+/g,'');
+ if(/(ハグして|抱きしめて|ぎゅっとして|ぎゅーして|抱きしめてもいい|ハグしてもいい)/.test(t))return 'hug';
+ if(/(キスして|キスしてもいい)/.test(t))return 'kiss';
+ if(/(散歩|お出かけ|一緒に歩|外を歩|外に行こう)/.test(t)&&/(行こう|行かない|いこう|しよう|行きたい|歩こう|歩かない|出かけたい)/.test(t))return 'walk';
+ if(/(ご飯にしよう|食事にしよう|一緒にご飯|一緒に食べ|食卓に|ごはんにしよう)/.test(t))return 'meal';
+ return null;
+}
+function fw43ShowProposal(n,kind){
+ if(!state.dialog||state.dialog.speaker!==n)return;
+ fw43Proposal={speakerId:n.id,kind:kind,day:state.day};
+ $('#dialogReplies').innerHTML='<div class="note" style="width:100%">返事を選んでください</div>'+
+  fw42HtmlButton('fw43:answer:yes','はい')+
+  fw42HtmlButton('fw43:answer:no','いいえ');
+}
+const fw43PrevTypeLine=typeLine;
+typeLine=function(t){
+ const r=fw43PrevTypeLine.apply(this,arguments),n=state.dialog&&state.dialog.speaker;
+ if(!n||n.isChild||fw422Pending)return r;
+ const kind=fw43InvitationKind(t);
+ if(kind&&!state.dialog.inputKind422)fw43ShowProposal(n,kind);
+ return r;
+};
+function fw43StartWalk(n){
+ if(!n||n.alive===false)return false;
+ if(n.role==='merchant'||n.role==='priest'){msg('今は仕事中なので、散歩には行けないみたい。');return false;}
+ const old=n.walkPrevious43||{command:n.command||'homeWait',companion:!!n.companion};
+ if(!n.walkPrevious43)n.walkPrevious43=old;
+ n.command='follow';n.companion=true;n.task=null;n.returning=false;n.approach21=null;
+ if(n.household34&&typeof fw34ExitNpc==='function')fw34ExitNpc(n,false);
+ n.status='🚶 一緒に散歩';n.tx=state.player.x;n.ty=state.player.y;
+ if(state.interior)n.followInto20=state.interior.buildingId;
+ msg('🚶 '+n.name+'が散歩について来るようになった。');
+ return true;
+}
+function fw43StopWalk(n){
+ if(!n||!n.walkPrevious43)return false;
+ const old=n.walkPrevious43;n.command=old.command;n.companion=old.companion;
+ n.walkPrevious43=null;n.followInto20=null;
+ n.status='🏡 散歩を終えた';
+ msg('🏡 '+n.name+'との散歩を終えた。');
+ return true;
+}
+function fw43AcceptProposal(n,kind){
+ if(kind==='walk'){
+  if(fw43StartWalk(n)){typeLine('うん！ 一緒に歩こう。ついていくね。');fw422Reward(n,1,1,'散歩に誘う');}
+  else typeLine('ごめんね。今は動けないけれど、また誘って。');
+ }else if(kind==='meal'){
+  const ok=fw39CallFamily(false);
+  if(ok){fw39StartFamilyMeal();typeLine('やった！ 食卓へ行こう。料理が足りなければ配膳をお願いね。');}
+  else typeLine('一緒に食べたいね。まずは家の食卓へ行こう。');
+ }else if(kind==='hug'||kind==='kiss'){
+  if(['lover','family'].includes(n.relationship)){
+   fw422StartAffection(n,kind);typeLine(kind==='hug'?'うれしい。ぎゅっとしよう。':'ふふ、いいよ。');
+  }else typeLine('もう少し仲良くなってからにしようね。');
+ }
+ if(state.dialog){state.dialog.fw42Menu='conversation';fw42Menu();}
+}
+const fw43PrevReply=handleDialogAction;
+handleDialogAction=function(k){
+ const d=state.dialog,n=d&&d.speaker;
+ if(typeof k==='string'&&n&&k.startsWith('fw43:')){
+  const parts=k.split(':');
+  if(parts[1]==='greeting'){fw43Greet(n,parts[2]);return;}
+  if(parts[1]==='answer'){
+   const proposal=fw43Proposal;fw43Proposal=null;
+   if(!proposal||proposal.speakerId!==n.id)return;
+   if(parts[2]==='yes')fw43AcceptProposal(n,proposal.kind);
+   else {typeLine('わかった。また今度にしよう。');d.fw42Menu='conversation';fw42Menu();}
+   fw42Pause(n);return;
+  }
+  if(parts[1]==='stopwalk'){fw43StopWalk(n);typeLine('うん、また一緒に歩こうね。');d.fw42Menu='conversation';fw42Menu();return;}
+ }
+ return fw43PrevReply(k);
+};
+const fw43PrevConversationMenu=fw42Menu;
+fw42Menu=function(){
+ fw43PrevConversationMenu();
+ const d=state.dialog,n=d&&d.speaker;
+ if(d&&n&&n.walkPrevious43&&d.fw42Menu==='conversation')$('#dialogReplies').insertAdjacentHTML('beforeend',fw42HtmlButton('fw43:stopwalk','🏡 散歩を終える'));
+};
+const fw43PrevClose=closeDialog;
+closeDialog=function(){fw43Proposal=null;return fw43PrevClose.apply(this,arguments);};
+/* END FRONTIER_V43_GREETINGS_AND_PROPOSALS */
+
 })();
 </script>
 
