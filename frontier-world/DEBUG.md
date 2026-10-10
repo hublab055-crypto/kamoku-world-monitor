@@ -1,5 +1,28 @@
 # Frontier World — デバッグ記録
 
+## FW-2026-10-10-004 — V42会話が反映されない／版切替
+
+### 原因
+- V42コードはゲーム本体スクリプトではなく、別のV37コンソールスクリプト内に挿入されていた。
+- `renderDialogReplies`・`fw12PregnancyTick` 等のゲームIIFEローカル関数が別スクリプトから見えず、実行時参照エラーとなる。
+
+### 対策と静的確認
+- `FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY` のまとまりをコアのIIFE内へ移設。
+- `fw42PrevUpdate` の名前重複を `fw42SocialPrevUpdate` へ変更。
+- 最新、V42固定、V41固定の各HTMLの全inline script構文チェック済み。
+- 設定バージョン選択UI（`fwVersionSelect`）、再読込ボタンの静的存在確認。
+- 版ごとのセーブ接頭辞を確認：latest=`frontier_world_save_v19_`、v42=`frontier_world_save_v42_v19_`、v41=`frontier_world_save_v41_v19_`。
+
+### 未完テスト
+1. GitHub Pagesから最新版をロードし、Mioとの会話で5分類が見える。
+2. V42固定を選択し、同様のメニュー・就寝イベントが動く。
+3. V41固定を開いたら古い会話メニューになり、新規セーブから始まる。
+4. 最新版へ戻っても元のセーブが保たれている。
+5. iPhoneで設定内の選択欄・起動ボタン・再読込が使用可能。
+
+変更コミット: 6815b9cded1bb83d5e572415f1b5a6a07ae3b5b0
+
+
 ## FW-2026-10-10-003 — V42 会話・夫婦・家族のデバッグ
 
 ゲーム実装コミット: c505a4d3f87fbd3c1dd0fc04abc2e27810b69392
