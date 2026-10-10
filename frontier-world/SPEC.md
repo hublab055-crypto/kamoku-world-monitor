@@ -3,14 +3,14 @@
 更新日: 2026-10-10 JST  
 対象: `frontier-world/index.html`  
 実装系列: Frontier V43.0
-基準コミット: `9c69c691663e93f7b6f1798390d3c034e85ddbca`
+基準コミット: `da8ef86efad2ab9e13c9f49f7b11df8fc65f49c2`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
 
 ## V43.0 — 挨拶・依頼応答・井戸・建物移動・司祭（2026-10-11）
 
-ゲーム実装コミット: `9c69c691663e93f7b6f1798390d3c034e85ddbca`
+ゲーム実装コミット: `da8ef86efad2ab9e13c9f49f7b11df8fc65f49c2`
 
 **実装済み（静的JavaScript構文と招待文言の単体試験済み）**
 - 挨拶に「いってきます／いってらっしゃい／ただいま／おかえり／さようなら／はじめまして／ひさしぶり／いらっしゃい／よろしく／おねがい」を追加。NPCごと・日付ごとに履歴を保持し、場面に合わない初対面/久々の挨拶には軽い減点を行う。
