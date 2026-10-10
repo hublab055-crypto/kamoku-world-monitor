@@ -10572,6 +10572,21 @@ update=function(dt){
  });
  return r;
 };
+
+// Guarantee priest creation after async atlas-driven makeMap() and direct V19 load slots.
+const fw43PreviousMakeMap=makeMap;
+makeMap=function(){
+ const r=fw43PreviousMakeMap.apply(this,arguments);
+ fw43EnsurePriest();
+ return r;
+};
+const fw43PreviousNormalizeLoad=fw19NormalizeAfterLoad;
+fw19NormalizeAfterLoad=function(){
+ const r=fw43PreviousNormalizeLoad.apply(this,arguments);
+ fw43EnsurePriest();
+ state.villageChronicle43=Array.isArray(state.villageChronicle43)?state.villageChronicle43:[];
+ return r;
+};
 /* END FRONTIER_V43_HOSPITAL_AND_MOBILE_BUILD_UI */
 /* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
 
