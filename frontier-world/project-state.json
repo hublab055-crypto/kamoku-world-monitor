@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-10T09:24:00+09:00",
+  "updated_at": "2026-10-10T13:23:44+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V39.8",
-  "game_commit": "d64e7cd7a7dfc97b219a0ce7c2094d3a852d5850",
+  "implementation_version": "V41.0",
+  "game_commit": "8fdad254745f63b6976f693daacfff7b111545f8",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -65,7 +65,13 @@
     "controlled-character console logging for HUD messages, commands and silent dining actions",
     "cross-script bridge exposing live game state and commerce hooks to debug/online-market code",
     "debug console game-time/actor access fixed across script boundary with household log deduplication",
-    "controlled-player cleaning target locking and 3-hour hysteresis preventing table-bed ping-pong"
+    "controlled-player cleaning target locking and 3-hour hysteresis preventing table-bed ping-pong",
+    "data-driven runtime book catalog loaded from frontier-world/data/books.json",
+    "paginated readable books with saved reading progress and first-read recipe/skill/knowledge rewards",
+    "non-consumable rereading of physical books",
+    "local player authoring for books, diaries, guides, stories and advertisements",
+    "local printing/binding copies, NPC sale and advertisement posting registry",
+    "Creator Suite image editor launch from the in-game publishing panel"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -75,7 +81,11 @@
     "full modular split of the monolithic index.html",
     "large-population AI optimization",
     "weather-dependent outdoor laundry drying and rain response",
-    "runtime loading of items/tools/buildings/furniture catalogs and compatibility mapping from current hardcoded definitions"
+    "runtime loading of items/tools/buildings/furniture catalogs and compatibility mapping from current hardcoded definitions",
+    "in-game attachment of photos and painted images to book covers/pages and advertisements",
+    "world-space advertisement placement on boards, walls, inns, taverns and markets",
+    "server-authoritative shared UGC marketplace with listings, purchases, ratings and reviews",
+    "UGC copyright/portrait/trademark declarations, automated risk checks, reports, moderation, appeals and audit logs"
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -157,6 +167,8 @@
     }
   },
   "next_tasks": [
+    "design Supabase schema/RLS for shared UGC publishing marketplace, ratings, reviews and moderation",
+    "connect Creator Suite image assets directly to authored book covers/pages and advertisements",
     "connect versioned item/tool/building/furniture catalogs to the game runtime and migrate hardcoded definitions",
     "add runtime loaders for Creator Suite exported content",
     "connect dialogue-pack.json to game runtime",
@@ -200,5 +212,39 @@
     "realtime": "fw_market_ticker",
     "game_currency_bridge": "not implemented"
   },
-  "content_authoring_version": "V40"
+  "content_authoring_version": "V40",
+  "book_catalog": {
+    "status": "runtime_loaded",
+    "path": "frontier-world/data/books.json",
+    "features": [
+      "pages",
+      "author",
+      "category",
+      "price",
+      "recipes",
+      "skillXp",
+      "knowledge",
+      "read_progress",
+      "read_completion"
+    ]
+  },
+  "user_publishing": {
+    "status": "local_beta",
+    "types": [
+      "book",
+      "diary",
+      "guide",
+      "story",
+      "advertisement"
+    ],
+    "features": [
+      "draft_save",
+      "read",
+      "print_bind",
+      "npc_sale",
+      "ad_post_registry",
+      "creator_suite_image_editor_link"
+    ],
+    "shared_market": "planned_requires_server_moderation"
+  }
 }
