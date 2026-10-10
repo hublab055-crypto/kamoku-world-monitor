@@ -8934,6 +8934,105 @@ update=function(dt){
  return fw42PrevUpdate(dt);
 };
 
+
+/* FRONTIER_V39_8_PLAYER_CLEANING_HYSTERESIS */
+// User log showed the controlled player still bouncing table <-> bed while cleaning.
+// NPC cleaning already had target locking/hysteresis; apply the same policy to the player.
+function fw44PlayerCleanState(){
+ const p=state.player;
+ if(!p.cleaning44||typeof p.cleaning44!=='object')p.cleaning44={block:'',visited:[],targetKey:'',pause:0,done:false,source:''};
+ return p.cleaning44;
+}
+function fw44PlayerCleanBlock(fromGambit){
+ return state.day+':'+Math.floor(state.hour/3)+':' +(fromGambit?'gambit':'schedule');
+}
+function fw44FindCleanTargetByKey(b,key){
+ if(!key)return null;
+ return fw34CleanTargets(b).find(function(t){return fw40CleanKey(t)===key;})||null;
+}
+function fw44ResetPlayerClean(s,block,source){
+ s.block=block;s.visited=[];s.targetKey='';s.pause=0;s.done=false;s.source=source;
+}
+fw34PlayerCleanTick=function(dt,fromGambit){
+ const b=fw34CurrentHome();if(!b||!state.interior)return false;
+ const p=state.player,s=fw44PlayerCleanState(),block=fw44PlayerCleanBlock(fromGambit);
+ const source=fromGambit?'gambit':'schedule';
+ if(s.block!==block||s.source!==source)fw44ResetPlayerClean(s,block,source);
+
+ // Scheduled housework is intentionally conservative; explicit auto/gambit cleaning
+ // can clean a somewhat less dirty home.
+ const threshold=fromGambit?FW41_COMMAND_CLEAN_THRESHOLD:FW41_SCHEDULE_CLEAN_THRESHOLD;
+
+ if(s.done){
+  p.status='✨ 掃除完了';
+  if(fromGambit){
+   const a=p.autoSchedule||{};
+   a.indoorTask34=null;a.activeSlot=-1;a.latchedSlot=-1;a.exitHome27=true;
+  }
+  return true;
+ }
+ if(s.pause>0){
+  s.pause-=dt;p.status='🧹 掃除の合間に少し休む';return true;
+ }
+
+ let t=fw44FindCleanTargetByKey(b,s.targetKey);
+ if(t&&(t.obj.cleanliness34>=99||s.visited.includes(fw40CleanKey(t))))t=null;
+
+ if(!t){
+  const candidates=fw34CleanTargets(b).filter(function(q){
+   return q.obj.cleanliness34<threshold&&!s.visited.includes(fw40CleanKey(q));
+  });
+  candidates.sort(function(a,bq){
+   const da=Math.hypot(state.interior.pos.x-a.x,state.interior.pos.y-a.y);
+   const db=Math.hypot(state.interior.pos.x-bq.x,state.interior.pos.y-bq.y);
+   if(Math.abs(da-db)>.12)return da-db;
+   return a.obj.cleanliness34-bq.obj.cleanliness34;
+  });
+  t=candidates[0]||null;s.targetKey=t?fw40CleanKey(t):'';
+ }
+
+ if(!t){
+  s.done=true;s.targetKey='';
+  p.status='✨ 掃除完了';
+  if(typeof window.fw37Log==='function')try{
+   window.fw37Log('household','掃除対象なし。'+(fromGambit?'自動掃除':'予定表の家事')+'を完了',p);
+  }catch(_){}
+  if(fromGambit){
+   const a=p.autoSchedule||{};
+   a.indoorTask34=null;a.activeSlot=-1;a.latchedSlot=-1;a.exitHome27=true;
+  }
+  return true;
+ }
+
+ const g={x:t.x,y:t.y};
+ if(!fw21MoveInteriorPoint(state.interior.pos,p,g,dt,.86)){
+  p.status='🧹 '+t.name+'へゆっくり移動';return true;
+ }
+
+ t.obj.cleanliness34=clamp(t.obj.cleanliness34+dt*18,0,100);
+ p.st=clamp(p.st-dt*.08,0,100);
+ p.status='🧹 '+t.name+'を掃除 '+Math.round(t.obj.cleanliness34)+'%';
+ if(t.type==='table'&&b.dining28&&b.dining28.dirty&&t.obj.cleanliness34>94)b.dining28.dirty=0;
+
+ if(t.obj.cleanliness34>=99){
+  t.obj.cleanliness34=100;
+  const key=fw40CleanKey(t);
+  if(!s.visited.includes(key))s.visited.push(key);
+  s.targetKey='';s.pause=3.5;
+  if(typeof window.fw37Log==='function')try{window.fw37Log('household',t.name+'の掃除完了。再選択しない',p);}catch(_){}
+ }
+ return true;
+};
+
+// Clear transient player-cleaning state on load; cleanliness itself remains persisted on furniture.
+const fw44PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(slot){
+ const ok=fw44PrevLoadGame(slot);
+ if(state.player)state.player.cleaning44=null;
+ return ok;
+};
+if(state.player)state.player.cleaning44=null;
+
 /* FRONTIER_V39_7_CROSS_SCRIPT_BRIDGE_FIX */
 // The game core lives inside this IIFE, while debug/online-market code is in the
 // following <script>. Export a narrow live bridge instead of relying on hidden
