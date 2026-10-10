@@ -10607,6 +10607,245 @@ closeDialog=function(){
 /* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
 
 
+
+/* FRONTIER_V44_EIGHT_SLOTS_PER_ACTOR_WELL_AND_GUARD_PATH */
+const FW44_AUTO_SLOTS=8;
+const fw44OriginalUnlockedSlotCount=fw17UnlockedSlotCount;
+fw17UnlockedSlotCount=function(level){
+ return Math.min(10,FW44_AUTO_SLOTS+Math.floor(Math.max(0,(Number(level)||1)-1)/10));
+};
+const fw44OriginalFreshAuto=fw17FreshAuto;
+fw17FreshAuto=function(x,y){
+ const a=fw44OriginalFreshAuto(x,y);
+ a.slots=['nearest','transport','rest','wellWater','none','none','none','none'];
+ a.slotConditions=[
+  {type:'always',value:0},{type:'invAny',value:0},
+  {type:'staminaBelow',value:30,holdUntil:true,untilValue:100},
+  {type:'campWaterBelow',value:30},{type:'always',value:0},
+  {type:'always',value:0},{type:'always',value:0},{type:'always',value:0}
+ ];
+ return a;
+};
+Object.assign(FW11_PRIORITY,{
+ wellWater:{icon:'🪣',label:'井戸で水を汲む',desc:'最寄りの井戸へ行って水を汲む。持ち水8で停止し、運搬スロットへ移る。'}
+});
+function fw44NormalizeActor(actor){
+ if(!actor||actor.alive===false)return null;
+ const was=actor.autoSchedule;
+ actor.autoSchedule=fw17EnsureAuto(was||fw17FreshAuto(actor.x,actor.y),actor.x,actor.y);
+ const a=actor.autoSchedule;
+ // A preexisting 3/4-slot save is extended, never discarded.
+ while(a.slots.length<FW44_AUTO_SLOTS)a.slots.push('none');
+ while(a.slotConditions.length<FW44_AUTO_SLOTS)a.slotConditions.push({type:'always',value:0});
+ // Old versions sometimes persisted a short slots array independently of the conditions.
+ for(let i=0;i<a.slots.length;i++)a.slotConditions[i]=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+ if(!Number.isFinite(a.activeSlot)||a.activeSlot>=a.slots.length)a.activeSlot=-1;
+ if(!Number.isFinite(a.latchedSlot)||a.latchedSlot>=a.slots.length)a.latchedSlot=-1;
+ return a;
+}
+function fw44ActorOptions(){
+ return fw19ScheduleActors().filter(function(x){return x.actor&&x.actor.alive!==false;});
+}
+function fw44CurrentActorEntry(){
+ const choices=fw44ActorOptions();
+ state.uiAuto44=state.uiAuto44||{actorKey:'player'};
+ let entry=choices.find(function(x){return x.key===state.uiAuto44.actorKey;});
+ if(!entry){entry=choices[0];state.uiAuto44.actorKey=entry?entry.key:'player';}
+ return entry||{key:'player',name:'YOU',actor:state.player};
+}
+function fw44AutoMenu(){
+ const choices=fw44ActorOptions(),selected=fw44CurrentActorEntry();
+ const actor=selected.actor,a=fw44NormalizeActor(actor);
+ const isCurrent=actor===state.player,level=Math.max(1,Number(a.autoLevel)||1);
+ const maxRadius=Math.min(30,6+(level-1)*3);
+ const keys=['none','enemy','baby','transport','nearest','gather','wood','water','wellWater','stone','food','farm','social','trainSword','trainBow','hunt','fish','patrol','rest','schedule','cook','cleanHome','serveMeal','eatMeal','clearDishes','bath','laundry'];
+ const actionOptions=function(v){return keys.map(function(k){const p=FW11_PRIORITY[k]||{icon:'⚙️',label:k};return '<option value="'+k+'" '+(k===v?'selected':'')+'>'+p.icon+' '+p.label+'</option>';}).join('');};
+ const conditionOptions=function(v){return Object.keys(FW15_CONDITIONS).map(function(k){return '<option value="'+k+'" '+(k===v?'selected':'')+'>'+FW15_CONDITIONS[k].label+'</option>';}).join('');};
+ const rows=a.slots.map(function(k,i){
+  const c=a.slotConditions[i]||{type:'always',value:0},def=FW15_CONDITIONS[c.type]||FW15_CONDITIONS.always,active=a.enabled&&a.activeSlot===i;
+  return '<div class="tileCard" '+(active?'style="outline:2px solid #80ccf9"':'')+'><b>優先 '+(i+1)+(active?'　▶実行中':'')+'</b>'+
+   '<select data-fw44-slot="'+i+'" aria-label="優先'+(i+1)+' の行動">'+actionOptions(k)+'</select>'+
+   '<select data-fw44-cond="'+i+'" aria-label="優先'+(i+1)+' の条件">'+conditionOptions(c.type)+'</select>'+
+   (def.numeric?'<label class="settingsRow"><span>しきい値</span><input type="number" style="min-width:0;width:100%" data-fw44-value="'+i+'" min="'+def.min+'" max="'+def.max+'" step="'+def.step+'" value="'+Number(c.value||0)+'"></label>':'')+
+   '<div class="note">'+fw15CondText(c)+'</div></div>';
+ }).join('');
+ $('#panel').classList.remove('hidden');
+ $('#panelTitle').textContent='🤖 キャラクター別・自動行動';
+ $('#panelBody').innerHTML=
+  '<div class="tileCard"><label><b>設定するキャラクター</b><select data-fw44-actor>'+
+  choices.map(function(x){return '<option value="'+x.key+'" '+(selected.key===x.key?'selected':'')+'>'+fw422Esc(x.name)+(x.actor===state.player?'（現在操作）':'（非操作）')+'</option>';}).join('')+
+  '</select></label><div class="note">現在操作していないキャラも個別設定できます。切替えても操作対象は変更しません。</div>'+
+  '<b>自動行動：'+(a.enabled?'ON':'OFF')+'</b>　Lv.'+level+'<br>'+
+  '<button class="smallBtn" type="button" data-fw44-toggle>'+ (a.enabled?'自動行動をOFF':'自動行動をON') +'</button>'+
+  ' <button class="smallBtn" type="button" data-fw44-origin>📍 そのキャラの現在地を中心に</button>'+
+  '<label>行動範囲：'+Math.round(a.radius||6)+'マス / 最大'+maxRadius+
+  '<input type="range" style="width:100%" data-fw44-radius min="2" max="'+maxRadius+'" value="'+clamp(Math.round(a.radius||6),2,maxRadius)+'"></label></div>'+
+  '<div class="note">全キャラ初期8スロット。上から条件と対象の有無を判定します。井戸→運搬の組み合わせがおすすめです。</div>'+
+  '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:8px">'+rows+'</div>'+
+  '<div class="note">※「時間割」は既存の生活予定表と連携します。個別の8スロットと予定表は独立して保存します。</div>';
+}
+fw11OpenThinkMenu=fw44AutoMenu;
+// Capturing handlers prevent the older player-only controls from stealing an NPC edit.
+$('#panelBody').addEventListener('change',function(e){
+ const el=e.target;
+ if(!el||!el.matches('[data-fw44-actor],[data-fw44-slot],[data-fw44-cond],[data-fw44-value],[data-fw44-radius]'))return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(el.hasAttribute('data-fw44-actor')){state.uiAuto44={actorKey:el.value};fw44AutoMenu();return;}
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ if(el.hasAttribute('data-fw44-slot')){
+  const i=Number(el.dataset.fw44Slot);if(i>=0&&i<a.slots.length){a.slots[i]=el.value;a.slotConditions[i]=fw16NormalizeCondition(a.slotConditions[i],el.value);a.target=null;a.latchedSlot=-1;}
+ }else if(el.hasAttribute('data-fw44-cond')){
+  const i=Number(el.dataset.fw44Cond);if(i>=0&&i<a.slots.length){a.slotConditions[i]=fw16NormalizeCondition({type:el.value,value:fw15DefaultValue(el.value)},a.slots[i]);a.latchedSlot=-1;}
+ }else if(el.hasAttribute('data-fw44-value')){
+  const i=Number(el.dataset.fw44Value),cfg=a.slotConditions[i];
+  if(cfg){const d=FW15_CONDITIONS[cfg.type];cfg.value=clamp(Number(el.value)||0,d&&d.min!=null?d.min:0,d&&d.max!=null?d.max:999);a.slotConditions[i]=fw16NormalizeCondition(cfg,a.slots[i]);a.latchedSlot=-1;}
+ }else if(el.hasAttribute('data-fw44-radius')){
+  const max=Math.min(30,6+(Math.max(1,Number(a.autoLevel)||1)-1)*3);
+  a.radius=clamp(Number(el.value)||6,2,max);a.target=null;
+ }
+ if(entry.actor===state.player)fw13RefreshAutoButton();
+ fw44AutoMenu();
+},true);
+$('#panelBody').addEventListener('click',function(e){
+ const btn=e.target.closest('[data-fw44-toggle],[data-fw44-origin]');
+ if(!btn)return;e.preventDefault();e.stopImmediatePropagation();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ if(btn.hasAttribute('data-fw44-toggle')){
+  a.enabled=!a.enabled;a.target=null;a.suspendUntil=0;a.activeSlot=-1;a.latchedSlot=-1;
+  entry.actor.status=a.enabled?'🤖 自動行動ON':'✋ 自動行動OFF';
+  msg('🤖 '+entry.actor.name+'：自動行動'+(a.enabled?'ON':'OFF'));
+ }else{
+  a.origin={x:entry.actor.x,y:entry.actor.y};a.target=null;
+  msg('📍 '+entry.actor.name+'の行動中心を更新');
+ }
+ if(entry.actor===state.player){fw13RefreshAutoButton();renderButtons();}
+ fw44AutoMenu();
+},true);
+const fw44PreviousSettings=renderSettings;
+renderSettings=function(){
+ fw44PreviousSettings();
+ const holder=$('#slotEditor');
+ if(holder&&!holder.querySelector('[data-fw44-open]'))
+  holder.insertAdjacentHTML('beforeend','<div class="tileCard"><b>🤖 全キャラクターの自動行動</b><br><button type="button" class="smallBtn" data-fw44-open>8スロットを設定</button><div class="note">本人・操作可能な家族/仲間の自動行動を別々に設定・ON/OFFできます。</div></div>');
+};
+$('#slotEditor').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw44-open]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();$('#settingsPanel').classList.add('hidden');fw44AutoMenu();
+},true);
+// Wells: never interact with a building center because it is a solid 2x2 obstacle.
+function fw44NearestWell(actor){
+ const a=actor.autoSchedule||{},origin=a.origin||{x:actor.x,y:actor.y},radius=Number(a.radius)||6;
+ return state.buildings.filter(function(b){return b.type==='well'&&Math.hypot(b.x+1-origin.x,b.y+1-origin.y)<=radius+1;})
+  .sort(function(p,q){return Math.hypot(actor.x-p.x-1,actor.y-p.y-1)-Math.hypot(actor.x-q.x-1,actor.y-q.y-1);})[0]||null;
+}
+function fw44WellStand(actor,well){
+ const pts=[
+  {x:well.x-.45,y:well.y+.75},{x:well.x+2.45,y:well.y+.75},
+  {x:well.x+.75,y:well.y-.45},{x:well.x+.75,y:well.y+2.45}
+ ].filter(function(p){return !blocked(p.x,p.y);});
+ if(!pts.length)return null;
+ pts.sort(function(p,q){return Math.hypot(p.x-actor.x,p.y-actor.y)-Math.hypot(q.x-actor.x,q.y-actor.y);});
+ return pts[0];
+}
+function fw44WellEligible(actor){
+ if(!actor||state.gameOver||state.interior)return false;
+ const a=actor.autoSchedule;if(!a||!a.enabled)return false;
+ if((actor.inv&&actor.inv.water||0)>=8||(Number(actor.st)||0)<3)return false;
+ const w=fw44NearestWell(actor);if(!w)return false;
+ return !!fw44WellStand(actor,w);
+}
+function fw44DrawFromWell(actor,dt){
+ const w=fw44NearestWell(actor);if(!w)return false;
+ const pos=fw44WellStand(actor,w);if(!pos)return false;
+ const dist=Math.hypot(actor.x-pos.x,actor.y-pos.y);
+ if(dist>.38){
+  if(actor===state.player)fw10AutoMove(pos.x,pos.y,dt);
+  else fw19MoveActor(actor,pos.x,pos.y,dt,.9);
+  actor.status='🪣 井戸へ移動';return true;
+ }
+ setDirFromVector(actor,w.x+1-actor.x,w.y+1-actor.y);
+ const now=state.day*24+state.hour;
+ if(now-(actor.wellLastUse44==null?-999:actor.wellLastUse44)<.4){
+  actor.status='🪣 汲み直し待ち';return true;
+ }
+ actor.wellLastUse44=now;
+ actor.inv=actor.inv||{};
+ actor.inv.water=Math.min(8,(Number(actor.inv.water)||0)+2);
+ actor.st=clamp(actor.st-2,0,100);
+ actor.status='🪣 井戸で水汲み';
+ if(typeof fw37Log==='function')fw37Log('action','井戸で水を汲んだ。水+2（持ち水 '+actor.inv.water+'）',actor);
+ return true;
+}
+const fw44OldPlayerCan=fw14CanAction,fw44OldPlayerRun=fw14RunAction;
+fw14CanAction=function(k){if(k==='wellWater')return fw44WellEligible(state.player);return fw44OldPlayerCan(k);};
+fw14RunAction=function(k,dt){if(k==='wellWater')return fw44DrawFromWell(state.player,dt);return fw44OldPlayerRun(k,dt);};
+const fw44OldNpcCan=fw17NpcCan,fw44OldNpcRun=fw17NpcRun;
+fw17NpcCan=function(n,k,a){if(k==='wellWater')return fw44WellEligible(n);return fw44OldNpcCan(n,k,a);};
+fw17NpcRun=function(n,k,dt,a){if(k==='wellWater')return fw44DrawFromWell(n,dt);return fw44OldNpcRun(n,k,dt,a);};
+// NPC moves must use actual obstacle-aware A* rather than fw7MoveNpc straight toward blocked goals.
+fw17NpcMove=function(n,x,y,dt,status){
+ if(!n)return false;
+ setNpcTarget(n,x,y,status);
+ return fw19MoveActor(n,x,y,dt,.92);
+};
+const FW44_GUARD_DAY=[[35,43],[43,39],[54,39],[64,43],[65,54],[55,59],[44,59],[33,54]];
+const FW44_GUARD_NIGHT=[[40,41],[49,39],[57,39],[65,43],[65,55],[50,60],[36,56]];
+function fw44GuardPatrol(n,dt){
+ const points=state.hour>=20||state.hour<6?FW44_GUARD_NIGHT:FW44_GUARD_DAY;
+ let index=(Number(n.guardPatrol24)||0)%points.length;
+ // Route to a *walkable* point, avoiding the Common House at 59..62,47..50.
+ let target=null;
+ for(let attempts=0;attempts<points.length;attempts++){
+  const p=points[index],cell=fw19GoalCell(p[0]+.5,p[1]+.5);
+  if(cell){target={x:cell.x+.5,y:cell.y+.5};break;}
+  index=(index+1)%points.length;
+ }
+ if(!target){n.status='🛡️ 巡回路確認';return true;}
+ const dist=Math.hypot(n.x-target.x,n.y-target.y);
+ if(dist<.75){n.guardPatrol24=(index+1)%points.length;n.guardWatch44=null;return true;}
+ const watch=n.guardWatch44||(n.guardWatch44={x:n.x,y:n.y,t:0});
+ watch.t+=dt;
+ if(Math.hypot(n.x-watch.x,n.y-watch.y)>.18){watch.x=n.x;watch.y=n.y;watch.t=0;}
+ if(watch.t>3.5){
+  n.guardPatrol24=(index+1)%points.length;n._nav19=null;n.guardWatch44=null;
+  n.status='🛡️ 障害物を迂回・次の巡回地点';
+  if(typeof fw37Log==='function')fw37Log('actor','衛兵が巡回中に停滞したため地点を再選択',n,'warn');
+  return true;
+ }
+ fw19MoveActor(n,target.x,target.y,dt,.95);
+ n.status='🛡️ '+(state.hour>=20||state.hour<6?'夜間警戒':'巡回中');
+ return true;
+}
+const fw44PreviousNpcUpdate=updateNPC;
+updateNPC=function(n,dt){
+ if(!n||n.alive===false)return fw44PreviousNpcUpdate(n,dt);
+ // The currently controlled actor never runs an NPC automation.
+ if(n!==state.player&&!n.controlled&&!state.gameOver&&n.autoSchedule&&n.autoSchedule.enabled&&
+   fw44ActorOptions().some(function(q){return q.actor===n;})){
+  if(n.inside20||n.household34)return fw44PreviousNpcUpdate(n,dt);
+  fw44NormalizeActor(n);
+  return fw17UpdateFormerPlayer(n,dt);
+ }
+ if(n.role==='guard'&&!n.controlled&&!n.companion&&!n.inside20&&!n.approach21&&
+    !(state.hour>=8&&state.hour<10.5)){
+  return fw44GuardPatrol(n,dt);
+ }
+ return fw44PreviousNpcUpdate(n,dt);
+};
+const fw44PreviousLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ const result=fw44PreviousLoad.apply(this,arguments);
+ fw44NormalizeActor(state.player);
+ fw44ActorOptions().forEach(function(e){if(e.actor!==state.player&&e.actor.autoSchedule)fw44NormalizeActor(e.actor);});
+ if(state.uiAuto44&&!fw44ActorOptions().some(function(e){return e.key===state.uiAuto44.actorKey;}))state.uiAuto44.actorKey='player';
+ return result;
+};
+fw44NormalizeActor(state.player);
+// Existing NPCs keep their existing ON/OFF state; no accidental bulk activation.
+state.npcs.forEach(function(n){if(n.autoSchedule)fw44NormalizeActor(n);});
+/* END FRONTIER_V44_EIGHT_SLOTS_PER_ACTOR_WELL_AND_GUARD_PATH */
+
+
 })();
 </script>
 
