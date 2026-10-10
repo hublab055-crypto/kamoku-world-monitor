@@ -10072,6 +10072,38 @@ fw10LoadGame=function(){
  return ok;
 };
 state.family.gestationDays=300;
+
+// Keep delayed pregnancy private: the V12 relationship summary must not announce it first.
+const fw42PrevRelPool=fw12RelPool;
+fw12RelPool=function(n,key){
+ const lines=fw42PrevRelPool(n,key),p=fw42Pregnancy(n);
+ return p&&!p.revealed?lines.filter(function(t){return !/赤ちゃんが生まれるまで|10か月くらい/.test(t);}):lines;
+};
+// Existing portraits only have normal/blink/talk frames; add a transient mood expression overlay.
+const fw42PrevPortrait=drawPortrait;
+drawPortrait=function(person){
+ fw42PrevPortrait(person);
+ const p=fw42Pregnancy(person);
+ if(p&&!p.revealed&&state.day-p.startDay>=25){
+  const mood=(Math.floor(state.day/4)%3===0)?'😣':'😮‍💨';
+  pctx.save();pctx.font='19px system-ui';pctx.textAlign='right';
+  pctx.fillText(mood,124,21);pctx.restore();
+ }
+};
+// V12 printed pregnancy progress unconditionally. Hide that legacy badge until the surprise.
+const fw42PrevRenderPrivate=renderDialogReplies;
+renderDialogReplies=function(){
+ fw42PrevRenderPrivate();
+ const n=getDialogSpeaker(),p=fw42Pregnancy(n),sp=$('#speaker');if(!p||!sp)return;
+ Array.from(sp.querySelectorAll('.friendTag')).forEach(function(tag){
+  if(tag.textContent.indexOf('🤰')>=0)tag.textContent=tag.textContent.split(' / 🤰')[0];
+ });
+ if(!p.revealed&&state.day-p.startDay>=25){
+  const tag=document.createElement('span');tag.className='friendTag';
+  tag.textContent=Math.floor(state.day/4)%3===0?' / 😣 いらいら気味':' / 😮‍💨 疲れ気味';
+  sp.appendChild(tag);
+ }
+};
 /* END FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY */
 
 })();
