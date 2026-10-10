@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-10T23:39:00+09:00",
+  "updated_at": "2026-10-11T05:48:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V42.2",
-  "game_commit": "db7b4a71ca9563ffc5c23b4b460b9040d902b476",
+  "implementation_version": "V43.0",
+  "game_commit": "9c69c691663e93f7b6f1798390d3c034e85ddbca",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -93,7 +93,18 @@
     "home care affection reward with daily cap and wood consumption for repairs",
     "persistent per-character free-text memory, input drafts and remembered food wishes",
     "Wikibooks-backed fried-egg recipe from one egg per serving, merchant egg purchase, group cooking and serving",
-    "wiki lookup of other named dishes with pending verification instead of invented recipes"
+    "wiki lookup of other named dishes with pending verification instead of invented recipes",
+    "V43 contextual greetings for departing, returning, welcome, farewell, first meeting, reunion and polite requests",
+    "V43 yes/no NPC speech invitations that execute walk follow, family dining or contact interactions",
+    "V43 walk-follower NPC restores previous command and companion status after outing",
+    "V43 outdoor well construction with wood and stone cost, daily camp-water generation and manual drawing",
+    "V43 building repositioning by tap or drag with placement preview, collision validation and family-only ownership checks",
+    "V43 resident priest at Common House with indoor/outdoor work and 3-in-1 minister/healer/librarian functions",
+    "V43 weddings funerals and village festivals linked to existing ceremonies without duplicate priest weddings",
+    "V43 medicine purchase and consumable healing, disease and injury treatment and prevention for player and NPCs",
+    "V43 midwife requests and village birth attendance",
+    "V43 village history chronicle, book lending, resident counts and ceremony recording",
+    "V43 priest reconstruction after async map generation and direct save-slot reload"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -130,7 +141,11 @@
     "V42.2 wiki search depends on client network/CORS and does not infer unverified recipes; only prechecked egg recipe auto-unlocks",
     "V42.2 hug and kiss use position/facing and transient UI feedback rather than dedicated skeletal/sprite animation",
     "V42.2 bookcase leisure is an initial interaction, not yet an integration with the fully paginated library reader",
-    "V42.2 GitHub code statically compiles but physical iPhone and multiplayer behavior are not yet tested"
+    "V42.2 GitHub code statically compiles but physical iPhone and multiplayer behavior are not yet tested",
+    "V43 full iPhone and desktop end-to-end playtest for greetings, proposals, walking, water, buildings, priest interactions and saved games remains pending",
+    "V43 priest visual reuses the Riku sprite until dedicated character sprites and common-house workstation furnishings are made",
+    "V43 medical/groundwater simulations are simplified game mechanics without infection modeling or hydrologic limits",
+    "V43 building repositioning has not yet been tested with multiplayer concurrency or all legacy player-owned structures"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -228,7 +243,13 @@
     "integrate bookshelf with the complete readable-books catalogue and seated page-turning animations",
     "add verified recipe parsers and ingredient ontology for Wikibooks dishes beyond fried eggs",
     "test V42.2 interactions on iPhone, including input, affection animation, seated furniture and meal completion",
-    "test V42.2 recipe availability/egg accounting when games are saved and loaded"
+    "test V42.2 recipe availability/egg accounting when games are saved and loaded",
+    "run V43 saved-game smoke test for priest spawning after initial asset loading and after manual V19 slot load",
+    "run V43 iPhone dialogue invitation acceptance and walk follow stop plus family dinner and hug tests",
+    "run V43 real-device well placement, water replenishment, building drag and permission validation",
+    "test all V43 priest ceremony, medical, midwife and library workflows including multiple game days",
+    "create dedicated priest sprites and common-house altar, clinic area and library furniture",
+    "extend disease and wellness simulation and water quality beyond current simplified status model"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -291,11 +312,11 @@
   },
   "version_switch": {
     "current": "latest",
-    "current_version": "V42.2",
+    "current_version": "V43.0",
     "versions": [
       {
         "id": "latest",
-        "label": "最新版（V42.2）",
+        "label": "最新版（V43.0）",
         "path": "frontier-world/index.html",
         "save_namespace": "frontier_world_save_v19_"
       },
