@@ -9919,7 +9919,7 @@ function fw43InvitationKind(line){
  const t=line.replace(/\s+/g,'');
  if(/(ハグして|抱きしめて|ぎゅっとして|ぎゅーして|抱きしめてもいい|ハグしてもいい)/.test(t))return 'hug';
  if(/(キスして|キスしてもいい)/.test(t))return 'kiss';
- if(/(散歩|お出かけ|一緒に歩|外を歩|外に行こう)/.test(t)&&/(行こう|行かない|いこう|しよう|行きたい|歩こう|歩かない|出かけたい)/.test(t))return 'walk';
+ if(/(散歩|お出かけ|一緒に歩|外を歩|外に行こう)/.test(t)&&/(行こう|行かない|いこう|しよう|行きたい|歩こう|歩かない|出かけたい|出かけよう|散歩したい)/.test(t))return 'walk';
  if(/(ご飯にしよう|食事にしよう|一緒にご飯|一緒に食べ|食卓に|ごはんにしよう)/.test(t))return 'meal';
  return null;
 }
@@ -10223,13 +10223,25 @@ updateNPC=function(n,dt){
  if(n.household34&&(!indoors||n.household34.buildingId!==targetHouse.id)){fw34ExitNpc(n,false);}
  const entrance=fw10Entrance(targetHouse);
  if(indoors){
-  if(n.inside20===targetHouse.id&&n.household34){n.status='⛪ コモンハウスで勤務・休息';return;}
+  if(n.inside20===targetHouse.id&&n.household34){
+   const night=state.hour>=20||state.hour<7;
+   n.command=night?'homeRest':'homeWait';
+   if(n.household34.kind==='sleep'&&n.st>=98)n.command='homeWait';
+   if(n.household34.kind==='wait')n.command='homeWait';
+   fw34NpcIndoorTick(n,n.household34,dt);fw34SyncResident(n);
+   n.status=night?'💤 コモンハウスで就寝':'📚 コモンハウスで本を管理';return;
+  }
   const dist=Math.hypot(n.x-entrance.x,n.y-entrance.y);
   if(dist>1.0){fw17NpcMove(n,entrance.x,entrance.y,dt,'🏠 コモンハウスへ帰宅');return;}
-  if(typeof fw34EnterNpc==='function')fw34EnterNpc(n,targetHouse,state.hour>=20||state.hour<7?'sleep':'leisure','schedule');
+  if(typeof fw34EnterNpc==='function'){
+   const night=state.hour>=20||state.hour<7;
+   n.command=night?'homeRest':'homeWait';
+   fw34EnterNpc(n,targetHouse,night?'sleep':'wait','command');
+  }
   n.status='📚 共同施設で活動';return;
  }
  if(n.inside20){if(n.household34)fw34ExitNpc(n,false);else n.inside20=null;}
+ n.command='priestDuty43';
  const goal={x:entrance.x+(pending?0.3:1.1),y:entrance.y+.7};
  if(Math.hypot(n.x-goal.x,n.y-goal.y)>.25)fw17NpcMove(n,goal.x,goal.y,dt,tag);
  else {n.status=tag;n.st=clamp(n.st+dt*.12,0,100);}
@@ -10260,15 +10272,24 @@ function fw43PriestWedding(){
  const spouse=state.npcs.find(function(n){return n.alive!==false&&n.id!=='priest43'&&
   (n.relationship==='lover'||n.relationship==='family');});
  if(!spouse){fw43PriestSay('まずお二人が恋人として信頼を育むところから始めましょう。');return;}
- if(spouse.relationship==='lover'){
-  if(spouse.friend<95){fw43PriestSay('結婚には、お互いの信頼がもう少し必要です。');return;}
-  fw8AdvanceRelationship(spouse,'family');
- }
- if(state.ceremonies.some(function(c){return c.type==='wedding'&&c.spouseId43===spouse.id;})){
+ const exists=state.ceremonies.find(function(c){return c.type==='wedding'&&(c.spouseId43===spouse.id||String(c.title||'').includes(spouse.name));});
+ if(exists&&exists.officiant==='priest43'){
   fw43PriestSay('すでに婚礼を祝福しています。末長くお幸せに。');return;
  }
- fw10StartCeremony('wedding',spouse.name+'との結婚式','司祭エリアスが誓いを見届け、村人が二人を祝福した。');
- const c=state.ceremonies[state.ceremonies.length-1];if(c){c.spouseId43=spouse.id;c.officiant='priest43';}
+ let latest=null;
+ if(spouse.relationship==='lover'){
+  if(spouse.friend<95){fw43PriestSay('結婚には、お互いの信頼がもう少し必要です。');return;}
+  const before=state.ceremonies.length;
+  fw8AdvanceRelationship(spouse,'family');
+  if(state.ceremonies.length>before)latest=state.ceremonies[state.ceremonies.length-1];
+ }
+ if(!latest){
+  if(exists){latest=exists;}else{
+   fw10StartCeremony('wedding',spouse.name+'との結婚式','司祭エリアスが誓いを見届け、村人が二人を祝福した。');
+   latest=state.ceremonies[state.ceremonies.length-1];
+  }
+ }
+ if(latest){latest.spouseId43=spouse.id;latest.officiant='priest43';latest.desc='司祭エリアスが誓いを見届け、村人が二人を祝福した。';}
  fw43RecordEvent('wedding',spouse.name+'の結婚式を司祭が執行');
  fw43PriestSay('お二人の誓いを祝福します。これからも互いを大切に。');
 }
@@ -10419,6 +10440,29 @@ update=function(dt){
  }
  if(p.illness43){p.st=clamp((Number(p.st)||0)-dt*.025,0,100);}
  return r;
+};
+
+// A direct invitation makes the same yes/no walking flow available without waiting for an NPC random line.
+const fw43PrevProactiveMenu=fw42Menu;
+fw42Menu=function(){
+ fw43PrevProactiveMenu();
+ const d=state.dialog,n=d&&d.speaker;
+ if(d&&n&&d.fw42Menu==='conversation'&&n.id!=='priest43'&&n.id!=='merchant'){
+  $('#dialogReplies').insertAdjacentHTML('beforeend',fw42HtmlButton('fw43:invitewalk','🚶 一緒に散歩しない？'));
+ }
+};
+const fw43PrevProactiveReply=handleDialogAction;
+handleDialogAction=function(k){
+ if(k==='fw43:invitewalk'){
+  const n=state.dialog&&state.dialog.speaker;if(!n)return;
+  fw422Confirm('一緒に散歩へ出かける？',function(){
+   if(fw43StartWalk(n)){typeLine('うん！ ついていくね。');fw422Reward(n,1,1,'散歩へ出発');}
+   else typeLine('今は手が離せないみたい。また誘ってね。');
+   if(state.dialog){state.dialog.fw42Menu='conversation';fw42Menu();}
+  });
+  return;
+ }
+ return fw43PrevProactiveReply(k);
 };
 /* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
 
