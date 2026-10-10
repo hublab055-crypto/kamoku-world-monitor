@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-10T08:35:00+09:00",
+  "updated_at": "2026-10-10T09:24:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V39.7",
-  "game_commit": "b6eceab31d15bf97458b518f48ee2eeea57eeabb",
+  "implementation_version": "V39.8",
+  "game_commit": "d64e7cd7a7dfc97b219a0ce7c2094d3a852d5850",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -64,7 +64,8 @@
     "non-family evening leisure remains outdoors to preserve player interaction",
     "controlled-character console logging for HUD messages, commands and silent dining actions",
     "cross-script bridge exposing live game state and commerce hooks to debug/online-market code",
-    "debug console game-time/actor access fixed across script boundary with household log deduplication"
+    "debug console game-time/actor access fixed across script boundary with household log deduplication",
+    "controlled-player cleaning target locking and 3-hour hysteresis preventing table-bed ping-pong"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
