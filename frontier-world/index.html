@@ -9522,9 +9522,9 @@ fw42Menu=function(){
 function fw422ShowInput(kind){
  const d=state.dialog,n=d&&d.speaker;if(!n)return;
  d.inputKind422=kind;
- typeLine(kind==='food'?'何が食べたい？ 好きな料理を教えて。':'何でも話して。ちゃんと覚えておくね。');
+ typeLine(kind==='food'?(n.wantedFood422?'何が食べたい？ 前は「'+n.wantedFood422+'」って言ってたね。今日も同じ？':'何が食べたい？ 好きな料理を教えて。'):'何でも話して。ちゃんと覚えておくね。');
  $('#dialogReplies').innerHTML='<div style="display:grid;gap:8px;min-width:0"><input id="fw422ChatValue" maxlength="120" autocomplete="off" style="width:100%;min-height:46px;box-sizing:border-box;border-radius:10px;border:1px solid #777;background:#202226;color:white;padding:10px" placeholder="'+(kind==='food'?'例：目玉焼き':'自由に入力')+'"><button data-fw422-submit type="button" class="smallBtn">送る</button></div>'+fw42HtmlButton('fw422:back','↩ 会話に戻る');
- const input=document.getElementById('fw422ChatValue');if(input){input.focus();input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();fw422SubmitInput();}});}
+ const input=document.getElementById('fw422ChatValue');if(input){input.value=(n.inputDraft422&&n.inputDraft422[kind])||'';input.focus();input.addEventListener('input',function(){n.inputDraft422=n.inputDraft422||{};n.inputDraft422[kind]=input.value.slice(0,120);});input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();fw422SubmitInput();}});}
 }
 function fw422WikiSearch(dish){
  // The wiki search is advisory; only a verified built-in recipe is auto-registered.
@@ -9543,12 +9543,13 @@ function fw422SubmitInput(){
  const text=String(input.value||'').trim();if(!text)return;
  const food=kind==='food';
  fw422Remember(n,food?'wanted_food':'free_text',text);
+ if(n.inputDraft422)n.inputDraft422[kind]='';
  if(food){
   const dish=/目玉焼き|めだまやき|fried\s*egg/i.test(text)?'目玉焼き':text.slice(0,50);
   state.recipeRequests422.push({day:state.day,npc:n.id,dish:dish,wikiStatus:dish==='目玉焼き'?'verified':'pending'});
   while(state.recipeRequests422.length>30)state.recipeRequests422.shift();
   if(dish==='目玉焼き'){
-   fw422RegisterEggRecipe();
+   fw422RegisterEggRecipe();fw422WikiSearch(dish);
    typeLine('目玉焼きが食べたい！ 覚えておいてくれたんだね。📚 Wikibooksの1人前「卵1個」のレシピを登録したよ。');
    msg('📖 レシピ追加：目玉焼き（1人前：卵1個）');
   }else{
@@ -9647,6 +9648,7 @@ $('#panelBody').addEventListener('click',function(e){
  state.chest.crafted=state.chest.crafted||[];
  for(let i=0;i<count;i++)state.chest.crafted.push({rid:'fried_egg',name:'目玉焼き',icon:'🍳',cat:'food',quality:1,value:13,qty:1});
  state.player.st=clamp(state.player.st-count*1.5,0,100);
+ fw34AddDirt(fw34CurrentHome(),'kitchen',count*3);
  msg('🍳 目玉焼き '+count+'人前ができた。卵'+count+'個消費。食卓へ配膳してね。');
  fw28OpenDiningMenu();
 },true);
@@ -9821,6 +9823,8 @@ fw39FinishFamilyMeal=function(m){
  }
  return fw422PrevMealEnd(m);
 };
+
+// Do not make personal preference forms transient: the draft is stored on the NPC and restored when reopened.
 /* END FRONTIER_V42_2_LIFE_AND_CONVERSATION */
 
 
