@@ -9440,6 +9440,390 @@ update=function(dt){
 };
 /* END FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY */
 
+
+/* FRONTIER_V42_2_LIFE_AND_CONVERSATION */
+const FW422_EGG_SOURCE='https://ja.wikibooks.org/wiki/%E6%96%99%E7%90%86%E6%9C%AC/%E7%9B%AE%E7%8E%89%E7%84%BC%E3%81%8D';
+const FW422_RECIPE={name:'目玉焼き',icon:'🍳',cat:'food',skill:'cooking',cost:{egg:1},value:13,servings:1,source:FW422_EGG_SOURCE,notes:'1人前：卵1個。油小さじ1と塩・こしょう少々は常備調味料として省略'};
+function fw422Ensure(){
+ state.player.conversationMemory=state.player.conversationMemory||{};
+ state.recipeRequests422=state.recipeRequests422||[];
+ state.player.inv.egg=Number(state.player.inv.egg)||0;
+ state.chest.egg=Number(state.chest.egg)||0;
+}
+function fw422Esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fw422RegisterEggRecipe(){
+ fw422Ensure();
+ FW8_RECIPES.fried_egg=Object.assign({},FW422_RECIPE);
+ state.recipesKnown=Array.isArray(state.recipesKnown)?state.recipesKnown:[];
+ if(!state.recipesKnown.includes('fried_egg'))state.recipesKnown.push('fried_egg');
+ return FW8_RECIPES.fried_egg;
+}
+function fw422Remember(n,topic,value){
+ fw422Ensure();
+ const arr=state.player.conversationMemory[n.id]||(state.player.conversationMemory[n.id]=[]);
+ arr.push({day:state.day,topic:topic,text:String(value).slice(0,120),relation:n.relationship||'acquaintance'});
+ while(arr.length>40)arr.shift();
+ if(topic==='wanted_food')n.wantedFood422=String(value).slice(0,60);
+}
+function fw422HeartFly(n,amount,label){
+ if(amount<=0)return;
+ const tag=Array.from(document.querySelectorAll('#speaker .friendTag')).find(function(x){return /\/200/.test(x.textContent);});
+ const target=tag?tag.getBoundingClientRect():document.getElementById('speaker').getBoundingClientRect();
+ let x=target.left-55,y=target.bottom+65;
+ const it=state.interior;
+ if(it&&n){
+  const q=fw35IndoorPoint(n)||it.pos,scale=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*scale)/2;
+  const rect=canvas.getBoundingClientRect();
+  x=rect.left+(ox+q.x*scale)/W*rect.width;
+  y=rect.top+(80+q.y*scale)/H*rect.height;
+ }else if(n){
+  const p=worldToScreen(n.x,n.y),rect=canvas.getBoundingClientRect();
+  x=rect.left+(p.x+TILE/2)/W*rect.width;y=rect.top+p.y/H*rect.height;
+ }
+ const el=document.createElement('div');
+ el.setAttribute('aria-hidden','true');el.textContent=(label||'💕')+' +'+amount;
+ Object.assign(el.style,{position:'fixed',left:x+'px',top:y+'px',zIndex:'99999',pointerEvents:'none',fontWeight:'bold',fontSize:'23px',color:'#ff83b1',textShadow:'0 1px 5px #442',transition:'transform .82s ease-in,opacity .82s ease-in',transform:'translate(-50%,-50%)',opacity:'1'});
+ document.body.appendChild(el);
+ const tx=target.left+Math.min(45,target.width/2),ty=target.top+target.height/2;
+ setTimeout(function(){el.style.transform='translate('+(tx-x-10)+'px,'+(ty-y-12)+'px) scale(.55)';el.style.opacity='0.1';},240);
+ setTimeout(function(){el.remove();},1250);
+}
+function fw422Reward(n,amount,friend,reason){
+ if(!n)return;
+ if(friend)n.friend=clamp((Number(n.friend)||0)+friend,0,100);
+ const before=fw18EnsureHeart(n);fw18HeartGain(n,amount);
+ const gain=fw18EnsureHeart(n)-before;
+ if(gain)fw422HeartFly(n,gain,'💕');
+ if(reason&&typeof fw37Log==='function')fw37Log('dialog',reason+' 友好+'+(friend||0)+' / 親密+'+gain,n);
+ if(state.dialog&&state.dialog.speaker===n)renderDialogReplies();
+}
+let fw422Pending=null;
+function fw422Confirm(prompt,yes){
+ const d=state.dialog;if(!d)return;
+ fw422Pending={speaker:d.speaker,yes:yes};
+ typeLine(prompt);
+ $('#dialogReplies').innerHTML=fw42HtmlButton('fw422:yes','はい')+fw42HtmlButton('fw422:no','いいえ');
+}
+const fw422PrevMenu=fw42Menu;
+fw42Menu=function(){
+ fw422PrevMenu();
+ const d=state.dialog,n=d&&d.speaker,r=$('#dialogReplies');if(!d||!n||!r||n.isChild)return;
+ if(d.fw42Menu==='conversation'){
+  r.insertAdjacentHTML('beforeend',
+   fw42HtmlButton('fw422:thanks','🙏 ありがとう')+
+   fw42HtmlButton('fw422:sorry','🙇 ごめん')+
+   fw42HtmlButton('fw422:askfood','🍳 何が食べたい？')+
+   fw42HtmlButton('fw422:free','✍️ 自由に話す')+
+   (['lover','family'].includes(n.relationship)?fw42HtmlButton('fw422:hug','🤗 ハグ')+fw42HtmlButton('fw422:kiss','😘 キス'):'')+
+   (n.relationship==='family'?fw42HtmlButton('fw422:mealcall','📣 家族を食卓に呼ぶ')+fw42HtmlButton('fw422:mealstart','🍽️ みんなで食事する'):'')
+  );
+ }
+};
+function fw422ShowInput(kind){
+ const d=state.dialog,n=d&&d.speaker;if(!n)return;
+ d.inputKind422=kind;
+ typeLine(kind==='food'?'何が食べたい？ 好きな料理を教えて。':'何でも話して。ちゃんと覚えておくね。');
+ $('#dialogReplies').innerHTML='<div style="display:grid;gap:8px;min-width:0"><input id="fw422ChatValue" maxlength="120" autocomplete="off" style="width:100%;min-height:46px;box-sizing:border-box;border-radius:10px;border:1px solid #777;background:#202226;color:white;padding:10px" placeholder="'+(kind==='food'?'例：目玉焼き':'自由に入力')+'"><button data-fw422-submit type="button" class="smallBtn">送る</button></div>'+fw42HtmlButton('fw422:back','↩ 会話に戻る');
+ const input=document.getElementById('fw422ChatValue');if(input){input.focus();input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();fw422SubmitInput();}});}
+}
+function fw422WikiSearch(dish){
+ // The wiki search is advisory; only a verified built-in recipe is auto-registered.
+ const q=encodeURIComponent('intitle:'+dish);
+ fetch('https://ja.wikibooks.org/w/api.php?action=query&list=search&srsearch='+q+'&srlimit=5&format=json&origin=*')
+ .then(function(r){if(!r.ok)throw Error('wiki status '+r.status);return r.json();})
+ .then(function(data){
+  const hits=(data.query&&data.query.search)||[],first=hits.find(function(h){return /料理本\//.test(h.title);});
+  if(first){state.recipeRequests422=state.recipeRequests422||[];const request=state.recipeRequests422.slice().reverse().find(function(x){return x.dish===dish;});if(request){request.wikiTitle=first.title;request.wikiUrl='https://ja.wikibooks.org/wiki/'+encodeURIComponent(first.title);request.wikiStatus='found';}}
+  else if(typeof fw37Log==='function')fw37Log('dialog','Wikibooksでレシピ一致なし: '+dish,null);
+ }).catch(function(e){if(typeof fw37Log==='function')fw37Log('dialog','Wikibooks検索失敗: '+dish+' / '+e.message,null,'warn');});
+}
+function fw422SubmitInput(){
+ const n=state.dialog&&state.dialog.speaker,input=document.getElementById('fw422ChatValue'),kind=state.dialog&&state.dialog.inputKind422;
+ if(!n||!input)return;
+ const text=String(input.value||'').trim();if(!text)return;
+ const food=kind==='food';
+ fw422Remember(n,food?'wanted_food':'free_text',text);
+ if(food){
+  const dish=/目玉焼き|めだまやき|fried\s*egg/i.test(text)?'目玉焼き':text.slice(0,50);
+  state.recipeRequests422.push({day:state.day,npc:n.id,dish:dish,wikiStatus:dish==='目玉焼き'?'verified':'pending'});
+  while(state.recipeRequests422.length>30)state.recipeRequests422.shift();
+  if(dish==='目玉焼き'){
+   fw422RegisterEggRecipe();
+   typeLine('目玉焼きが食べたい！ 覚えておいてくれたんだね。📚 Wikibooksの1人前「卵1個」のレシピを登録したよ。');
+   msg('📖 レシピ追加：目玉焼き（1人前：卵1個）');
+  }else{
+   typeLine('「'+dish+'」が食べたいんだね。覚えたよ。Wikibooksで候補を探すけれど、材料を確認するまではレシピを作らないね。');
+   fw422WikiSearch(dish);
+  }
+  fw422Reward(n,2,1,'好きな料理を記憶');
+ }else{
+  typeLine('うん、聞いたよ。「'+text.slice(0,60)+'」って言ってたね。次にも覚えておく。');
+  fw422Reward(n,1,1,'自由入力会話を記憶');
+ }
+ state.dialog.inputKind422=null;
+ state.dialog.fw42Menu='conversation';
+ const r=$('#dialogReplies');r.innerHTML=fw42HtmlButton('fw422:back','↩ 会話に戻る');
+}
+const fw422PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const d=state.dialog,n=d&&d.speaker;
+ if(typeof k==='string'&&k.startsWith('fw422:')&&n){
+  const v=k.slice(6);
+  if(v==='yes'||v==='no'){
+   const pending=fw422Pending;fw422Pending=null;
+   if(v==='yes'&&pending&&pending.speaker===n)pending.yes();
+   else{typeLine('わかった。またいつでも話そう。');d.fw42Menu='conversation';fw42Menu();}
+   return;
+  }
+  if(v==='back'){d.fw42Menu='conversation';fw42Menu();return;}
+  if(v==='thanks'||v==='sorry'){
+   const day=state.day,field=v==='thanks'?'thanked422':'apologized422',count=n[field]===day;
+   if(!count){
+    n[field]=day;fw422Reward(n,v==='thanks'?2:1,v==='thanks'?2:1,v==='thanks'?'ありがとう':'ごめん');
+   }
+   typeLine(v==='thanks'?'こちらこそ、ありがとう。そう言ってくれると嬉しいな。':'大丈夫。ちゃんと話してくれて嬉しい。これからも仲良くしようね。');
+   d.fw42Menu='conversation';fw42Menu();return;
+  }
+  if(v==='askfood'){fw422ShowInput('food');return;}
+  if(v==='free'){fw422ShowInput('free');return;}
+  if(v==='hug'||v==='kiss'){
+   if(!['lover','family'].includes(n.relationship)){typeLine('もう少しお互いを知ってからにしよう。');return;}
+   fw422Confirm(v==='hug'?'抱きしめてもいい？':'キスしてもいい？',function(){fw422StartAffection(n,v);});return;
+  }
+  if(v==='mealcall'||v==='mealstart'){
+   fw422Confirm(v==='mealcall'?'家族を食卓に呼ぶ？':'家族がそろったら一緒に食事を始める？',function(){
+    const ok=v==='mealcall'?fw39CallFamily(false):fw39StartFamilyMeal();
+    typeLine(ok?'みんなで食卓を囲もう！':'家の食卓や配膳を確認してね。');
+    d.fw42Menu='conversation';fw42Menu();
+   });return;
+  }
+ }
+ return fw422PrevHandleDialog(k);
+};
+$('#dialogReplies').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw422-submit]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();fw422SubmitInput();
+},true);
+// Existing save snapshots preserve conversationMemory, recipe requests, NPC wishes and custom furniture.
+fw422Ensure();
+const fw422PrevLoadGame=fw10LoadGame;
+fw10LoadGame=function(){const r=fw422PrevLoadGame.apply(this,arguments);fw422Ensure();if(state.recipesKnown&&state.recipesKnown.includes('fried_egg'))fw422RegisterEggRecipe();return r;};
+// Recipe table stays available even after reload; unlocking still requires an NPC food wish.
+FW8_RECIPES.fried_egg=Object.assign({},FW422_RECIPE);
+const fw422PrevCostText=fw8CostText;
+fw8CostText=function(cost){return Object.keys(cost).map(function(k){return ({egg:'卵'}[k]||({wood:'木',stone:'石',food:'食料',water:'水',fiber:'繊維'}[k])||k)+' '+cost[k];}).join(' / ');};
+const fw422PrevShop=openShop;
+openShop=function(mode){
+ const r=fw422PrevShop.apply(this,arguments);
+ if(mode==='buy'&&$('#panelBody')){
+  $('#panelBody').insertAdjacentHTML('beforeend','<div class="tileCard"><b>🥚 卵（1個 4G）</b>　所持 '+(state.player.inv.egg||0)+'個　<button class="smallBtn" type="button" data-fw422-egg-buy>買う</button></div>');
+ }
+ return r;
+};
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw422-egg-buy]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if((state.player.coins||0)<4){msg('💰 卵を買うには4G必要。');return;}
+ state.player.coins-=4;state.player.inv.egg=(state.player.inv.egg||0)+1;
+ msg('🥚 卵を1個購入（4G）');openShop('buy');
+},true);
+const fw422PrevDiningMenu=fw28OpenDiningMenu;
+fw28OpenDiningMenu=function(){
+ fw422PrevDiningMenu();
+ if(!state.recipesKnown.includes('fried_egg'))return;
+ const r=$('#panelBody');if(!r)return;
+ const total=(state.player.inv.egg||0)+(state.chest.egg||0);
+ r.insertAdjacentHTML('beforeend','<div class="tileCard"><b>🍳 目玉焼き</b>　Wikibooks参考 / 卵1個・1人前<br>卵：'+total+'個<br><button class="smallBtn" data-fw422-egg-cook="1">1人前を調理</button> <button class="smallBtn" data-fw422-egg-cook="family">家族の人数分を調理</button></div>');
+};
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw422-egg-cook]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const q=b.dataset.fw422EggCook;
+ const meal=state.familyMeal39;
+ const count=q==='family'?((meal&&!meal.finished?meal.participantIds.length:fw39EligibleFamily(fw39DiningBuilding()).length)+1):1;
+ const cost={egg:count};
+ if(!fw8HaveCost(cost)){msg('🥚 目玉焼き'+count+'人前には卵が'+count+'個必要。');return;}
+ fw8ConsumeCost(cost);
+ state.chest.crafted=state.chest.crafted||[];
+ for(let i=0;i<count;i++)state.chest.crafted.push({rid:'fried_egg',name:'目玉焼き',icon:'🍳',cat:'food',quality:1,value:13,qty:1});
+ state.player.st=clamp(state.player.st-count*1.5,0,100);
+ msg('🍳 目玉焼き '+count+'人前ができた。卵'+count+'個消費。食卓へ配膳してね。');
+ fw28OpenDiningMenu();
+},true);
+// Furniture: chairs already exist in legacy furnishing; allow additional chairs and bookcases.
+const fw422PrevFurnitureMenu=fw19OpenFurnitureMenu;
+fw19OpenFurnitureMenu=function(){
+ fw422PrevFurnitureMenu();
+ const r=$('#panelBody'),it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});if(!r||!b)return;
+ const arr=fw25EnsureLegacyFurniture(b,it.roomW,it.roomH),chairs=arr.filter(function(x){return x.type==='chair';}).length,book=arr.some(function(x){return x.type==='bookcase';});
+ r.insertAdjacentHTML('beforeend','<div class="grid3"><div class="tileCard"><b>🪑 椅子</b><br>木2 / 設置'+chairs+'脚<br><button type="button" class="smallBtn" data-fw422-place="chair">1脚増やす</button></div><div class="tileCard"><b>📚 本棚</b><br>木4<br><button type="button" class="smallBtn" data-fw422-place="bookcase" '+(book?'disabled':'')+'>'+(book?'設置済み':'設置する')+'</button></div></div>');
+};
+$('#panelBody').addEventListener('click',function(e){
+ const btn=e.target.closest('[data-fw422-place]');if(!btn)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const type=btn.dataset.fw422Place,it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});if(!b)return;
+ const a=fw25EnsureLegacyFurniture(b,it.roomW,it.roomH),chairs=a.filter(function(x){return x.type==='chair';}).length;
+ if(type==='bookcase'&&a.some(function(x){return x.type===type;})){msg('本棚は設置済み。');return;}
+ if(type==='chair'&&chairs>=6){msg('🪑 椅子は6脚まで。');return;}
+ const cost={wood:type==='chair'?2:4};
+ if(!fw19PayCost(cost)){msg('🪵 木材が足りない。');return;}
+ const pos=type==='chair'?[
+  {x:it.roomW/2-1.65,y:it.roomH/2-.15},
+  {x:it.roomW/2+.55,y:it.roomH/2-1.25},
+  {x:it.roomW/2-1.65,y:it.roomH/2-1.25},
+  {x:it.roomW/2+.6,y:it.roomH/2+1.05},
+  {x:it.roomW/2-1.6,y:it.roomH/2+1.05}
+ ][Math.min(4,chairs-1)]:{x:.7,y:1.1};
+ a.push({type:type,x:clamp(pos.x,.6,it.roomW-1.1),y:clamp(pos.y,.6,it.roomH-1.2),cleanliness34:92,condition422:92});
+ msg(type==='chair'?'🪑 椅子を1脚追加した。':'📚 本棚を設置した。');
+ fw19OpenFurnitureMenu();
+},true);
+const fw422PrevDrawFurniture=fw25DrawLegacyFurniture;
+fw25DrawLegacyFurniture=function(b,ox,oy,scale,rw,rh){
+ fw422PrevDrawFurniture(b,ox,oy,scale,rw,rh);
+ fw25EnsureLegacyFurniture(b,rw,rh).filter(function(x){return x.type==='bookcase';}).forEach(function(f){
+  const x=ox+f.x*scale,y=oy+f.y*scale;
+  ctx.save();ctx.fillStyle='#69402a';ctx.fillRect(x,y,scale*.85,scale*1.25);
+  ctx.fillStyle='#c49656';ctx.fillRect(x+3,y+scale*.4,scale*.78,3);ctx.fillRect(x+3,y+scale*.83,scale*.78,3);
+  ctx.font=Math.round(scale*.52)+'px system-ui';ctx.textAlign='center';ctx.fillText('📚',x+scale*.42,y+scale*.7);ctx.restore();
+ });
+};
+const fw422PrevCleanTargets=fw34CleanTargets;
+fw34CleanTargets=function(b){
+ const out=fw422PrevCleanTargets(b);
+ if(!b||b.type==='shop')return out;
+ const s=fw34RoomSize(b),legacy=fw25EnsureLegacyFurniture(b,s.w,s.h);
+ legacy.forEach(function(f,i){
+  if(!['chair','bookcase','chest','table','fireplace'].includes(f.type))return;
+  fw34EnsureCleanObject(f);
+  out.push({obj:f,type:f.type,name:({chair:'椅子',bookcase:'本棚',chest:'収納',table:'木の食卓',fireplace:'暖炉'})[f.type]+' '+(i+1),x:f.x+.42,y:f.y+.48});
+ });
+ return out;
+};
+function fw422FurnitureNear(range){
+ const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});if(!b)return null;
+ let best=null,bd=range||1.24;
+ fw34CleanTargets(b).forEach(function(t){const d=Math.hypot(it.pos.x-t.x,it.pos.y-t.y);if(d<bd){bd=d;best={target:t,building:b,dist:d};}});
+ return best;
+}
+function fw422RewardHouse(action){
+ const day=state.day,b=state.interior&&state.buildings.find(function(x){return x.id===state.interior.buildingId;});if(!b)return;
+ state.houseRewards422=state.houseRewards422||{};
+ const key=day+':'+b.id,used=state.houseRewards422[key]||0;
+ if(used>=2)return;
+ const spouse=state.npcs.find(function(n){return n.relationship==='family'&&fw12SharedHome(n)&&fw12SharedHome(n).id===b.id;});
+ if(spouse){fw422Reward(spouse,1,0,action);state.houseRewards422[key]=used+1;}
+ const keys=Object.keys(state.houseRewards422);if(keys.length>50)delete state.houseRewards422[keys[0]];
+}
+function fw422CleanRepair(kind){
+ if(!state.interior){msg('🏠 家の家具の近くで使って。');return true;}
+ const near=fw422FurnitureNear(1.35);if(!near){msg('家具にもう少し近づいて操作して。');return true;}
+ const f=near.target.obj;
+ if(kind==='clean'){
+  fw34EnsureCleanObject(f);
+  if(f.cleanliness34>=99){msg('✨ '+near.target.name+'はきれいだよ。');return true;}
+  f.cleanliness34=clamp(f.cleanliness34+30,0,100);
+  state.player.st=clamp(state.player.st-2,0,100);fw422RewardHouse('家具を掃除');
+  msg('🧹 '+near.target.name+'を掃除した。清潔度 '+Math.round(f.cleanliness34)+'%');return true;
+ }
+ if(f.condition422==null)f.condition422=85;
+ if(f.condition422>=99){msg('🔧 '+near.target.name+'は修理不要だよ。');return true;}
+ if((state.player.inv.wood||0)+(state.chest.wood||0)<1){msg('🪵 修理には木材1が必要。');return true;}
+ fw19PayCost({wood:1});f.condition422=clamp(f.condition422+35,0,100);
+ state.player.st=clamp(state.player.st-3,0,100);fw422RewardHouse('家具を修理');
+ msg('🔧 '+near.target.name+'を修理した。耐久 '+Math.round(f.condition422)+'%');return true;
+}
+commands.cleanFurniture={icon:'🧹',label:'家具を掃除'};
+commands.repairFurniture={icon:'🔧',label:'家具を修理'};
+const fw422PrevRunCommand=runCommand;
+runCommand=function(k){
+ if(k==='cleanFurniture')return fw422CleanRepair('clean');
+ if(k==='repairFurniture')return fw422CleanRepair('repair');
+ return fw422PrevRunCommand.apply(this,arguments);
+};
+let fw422Leisure=null;
+const fw422PrevAction=action;
+action=function(){
+ const near=fw422FurnitureNear(1.2);
+ if(near&&['chair','bookcase'].includes(near.target.type)){
+  if(fw422Leisure){fw422Leisure=null;msg('☕ 余暇を終えた。');return;}
+  fw422Leisure={type:near.target.type,left:12,x:near.target.x,y:near.target.y};
+  state.interior.pos.x=near.target.x;state.interior.pos.y=near.target.y;
+  state.player.status=near.target.type==='chair'?'🪑 着席して余暇':'📚 本棚で読書';
+  msg(near.target.type==='chair'?'🪑 椅子に座って休憩を始めた。':'📚 本棚から本を選んで読み始めた。');return;
+ }
+ return fw422PrevAction.apply(this,arguments);
+};
+let fw422Affection=null;
+function fw422StartAffection(n,kind){
+ const day=state.day,used=n.affection422&&n.affection422.day===day?n.affection422.count:0;
+ if(used>=4){typeLine('今日はいっぱい仲良くしたね。また明日ね。');return;}
+ fw422Affection={npcId:n.id,kind:kind,phase:'approach',left:0};
+ if(state.dialog)state.dialog.pause42Until=Date.now()+4000;
+ typeLine('ちょっとこっちへ来て。');
+}
+function fw422AffectionTick(dt){
+ const a=fw422Affection;if(!a)return;
+ const n=state.npcs.find(function(x){return x.id===a.npcId;});
+ if(!n){fw422Affection=null;return;}
+ const it=state.interior,q=it?fw35IndoorPoint(n):null;
+ if(a.phase==='approach'){
+  if(it&&!q){msg('🤗 同じ部屋にいるときにしよう。');fw422Affection=null;return;}
+  const p=it?it.pos:state.player,target=q||n;
+  const dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy);
+  if(d>(a.kind==='hug'?.53:.48)){
+   if(it)fw21MoveInteriorPoint(p,state.player,target,dt,1.4);
+   else fw19MoveActor(state.player,n.x,n.y,dt,1.65);
+   state.player.status='💕 '+n.name+'に近づく';
+   return;
+  }
+  setDirFromVector(state.player,dx,dy);setDirFromVector(n,-dx,-dy);
+  a.phase='together';a.left=1.3;state.player.status=a.kind==='hug'?'🤗 ハグ':'😘 キス';
+ }else{
+  a.left-=dt;
+  if(a.left<=0){
+   n.affection422=n.affection422&&n.affection422.day===state.day?n.affection422:{day:state.day,count:0};
+   n.affection422.count++;
+   const inc=a.kind==='hug'?2:3;
+   fw422Reward(n,inc,1,a.kind==='hug'?'ハグ':'キス');
+   typeLine(a.kind==='hug'?'ぎゅっと抱きしめた。……もう少しこのままでいたいな。':'そっとキスを交わした。……ふふ、嬉しい。');
+   msg((a.kind==='hug'?'🤗 ':'😘 ')+n.name+'と気持ちを伝え合った。💕+'+inc);
+   fw422Affection=null;
+  }
+ }
+}
+const fw422PrevNpc=updateNPC;
+updateNPC=function(n,dt){if(fw422Affection&&n.id===fw422Affection.npcId)return;return fw422PrevNpc(n,dt);};
+const fw422PrevInterior=fw10UpdateInterior;
+fw10UpdateInterior=function(dt,jx,jy){
+ if(fw422Leisure){
+  if(Math.hypot(jx,jy)>.08||(state.interior&&state.interior.tap)){fw422Leisure=null;}
+  else {fw422Leisure.left-=dt;state.player.st=clamp(state.player.st+dt*.75,0,100);state.player.happiness=clamp((state.player.happiness||80)+dt*.1,0,100);state.player.stress42=clamp((state.player.stress42||20)-dt*.32,0,100);if(fw422Leisure.left<=0)fw422Leisure=null;return;}
+ }
+ if(fw422Affection)return fw422PrevInterior(dt,0,0);
+ return fw422PrevInterior(dt,jx,jy);
+};
+const fw422PrevUpdate=update;
+update=function(dt){
+ const r=fw422PrevUpdate(dt);
+ if(fw422Affection&&!state.sleepFade20)fw422AffectionTick(dt);
+ if(!state.interior)fw422Leisure=null;
+ return r;
+};
+const fw422PrevMealEnd=fw39FinishFamilyMeal;
+fw39FinishFamilyMeal=function(m){
+ if(m&&!m.finished){
+  m.participantIds.forEach(function(id){
+   const n=state.npcs.find(function(x){return x.id===id;});
+   if(n){fw422Reward(n,2,1,'家族で食事');}
+  });
+  (state.family.children||[]).forEach(function(c){if(c.isChild)c.bond=clamp((Number(c.bond)||0)+1,0,100);});
+ }
+ return fw422PrevMealEnd(m);
+};
+/* END FRONTIER_V42_2_LIFE_AND_CONVERSATION */
+
+
 })();
 </script>
 
