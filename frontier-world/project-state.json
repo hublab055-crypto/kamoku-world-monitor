@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-10T14:30:00+09:00",
+  "updated_at": "2026-10-10T22:37:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V42.0",
-  "game_commit": "c505a4d3f87fbd3c1dd0fc04abc2e27810b69392",
+  "implementation_version": "V42.1",
+  "game_commit": "6815b9cded1bb83d5e572415f1b5a6a07ae3b5b0",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -78,7 +78,11 @@
     "spouse love dialogue, nighttime bed interaction at heart 200 and reset to heart 100",
     "five-second night sleep fade, condition-weighted pregnancy with delayed announcement",
     "pregnancy fatigue and mood icons, 300-game-day births, random sex and player naming/renaming",
-    "dynamic stress42 responsive to hunger, stamina, hygiene and household cleanliness"
+    "dynamic stress42 responsive to hunger, stamina, hygiene and household cleanliness",
+    "V42.1 runtime scope fix moving V42 social and family mechanics into game core IIFE",
+    "version selection from settings with latest, pinned V42, pinned V41",
+    "fixed V41 and V42 HTML archives with separated local save namespaces and one-time V42 initial save copy",
+    "cache-busting refresh action for latest HTML build"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -110,7 +114,8 @@
     "V38 online market currently lists only Frontier Trading Company",
     "V42 angry/tired pregnancy expressions use emoji overlays; dedicated facial sprite variants not yet integrated",
     "V42 social-family flow passed JavaScript syntax checks but still requires live mobile/desktop E2E testing",
-    "V42 gestation is 300 game days; older pregnancy records preserve their previously scheduled due days"
+    "V42 gestation is 300 game days; older pregnancy records preserve their previously scheduled due days",
+    "GitHub Pages client-side operation of V42.1 social menus and version switching still requires iPhone/desktop manual verification"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -200,7 +205,10 @@
     "test V42 conversation categories, daily greeting accuracy and social reward cap on iPhone",
     "test V42 couple bed transition, fade, hidden pregnancy, reveal, birth and editable naming with saves",
     "integrate emotional face sprite variants into portraits",
-    "load dialogue-pack.json at runtime and migrate embedded V42 dialogue"
+    "load dialogue-pack.json at runtime and migrate embedded V42 dialogue",
+    "verify latest / V42 fixed / V41 fixed switches in settings after GitHub Pages deployment",
+    "verify V42.1 NPC dialogue menus and nighttime spouse event on iPhone browser",
+    "verify V42 save copy and V41 isolated saves do not overwrite latest save"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -260,5 +268,33 @@
       "creator_suite_image_editor_link"
     ],
     "shared_market": "planned_requires_server_moderation"
+  },
+  "version_switch": {
+    "current": "latest",
+    "current_version": "V42.1",
+    "versions": [
+      {
+        "id": "latest",
+        "label": "最新版（V42.1）",
+        "path": "frontier-world/index.html",
+        "save_namespace": "frontier_world_save_v19_"
+      },
+      {
+        "id": "v42",
+        "label": "V42.0固定（修正版）",
+        "path": "frontier-world/v42.html",
+        "save_namespace": "frontier_world_save_v42_v19_",
+        "initial_copy_from_latest": true
+      },
+      {
+        "id": "v41",
+        "label": "V41.0固定",
+        "path": "frontier-world/v41.html",
+        "save_namespace": "frontier_world_save_v41_v19_",
+        "starts_fresh": true
+      }
+    ],
+    "settings_selector": "fwVersionSelect",
+    "cache_refresh_button": "fwVersionRefresh"
   }
 }
