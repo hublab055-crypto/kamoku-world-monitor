@@ -10587,6 +10587,15 @@ fw19NormalizeAfterLoad=function(){
  state.villageChronicle43=Array.isArray(state.villageChronicle43)?state.villageChronicle43:[];
  return r;
 };
+
+// Preserve an NPC's outstanding yes/no invitation when another dialogue renderer refreshes.
+const fw43PreviousProposalRender=renderDialogReplies;
+renderDialogReplies=function(){
+ const r=fw43PreviousProposalRender.apply(this,arguments);
+ const n=state.dialog&&state.dialog.speaker;
+ if(n&&fw43Proposal&&fw43Proposal.speakerId===n.id&&!fw422Pending)fw43ShowProposal(n,fw43Proposal.kind);
+ return r;
+};
 /* END FRONTIER_V43_HOSPITAL_AND_MOBILE_BUILD_UI */
 /* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
 
