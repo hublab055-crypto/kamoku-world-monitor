@@ -9511,6 +9511,280 @@ root.addEventListener('click',function(e){
  else if(a==='ipo')fw38Ipo(Number(b.dataset.q||0));else if(a==='place')fw38Place();else if(a==='cancel')fw38Cancel(Number(b.dataset.id||0));
 },true);
 
+
+/* FRONTIER_V41_BOOKS_AUTHORING
+ * Data-driven readable books + first-read learning + local authoring/printing foundation.
+ * Shared UGC marketplace/moderation remains a later server-side phase.
+ */
+const FW41_BOOKS_URL='data/books.json';
+let fw41BooksReady=null;
+let fw41ReaderState={id:null,page:0,user:false};
+
+function fw41E(v){
+ return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+ });
+}
+function fw41EnsureState(){
+ state.player.bookRead=state.player.bookRead||{};
+ state.player.bookProgress=state.player.bookProgress||{};
+ state.player.knowledge=state.player.knowledge||{};
+ state.player.authoredBooks=Array.isArray(state.player.authoredBooks)?state.player.authoredBooks:[];
+ state.player.postedAds=Array.isArray(state.player.postedAds)?state.player.postedAds:[];
+}
+fw41EnsureState();
+
+function fw41MergeBookRecords(records){
+ if(!Array.isArray(records))return;
+ records.forEach(function(src){
+  if(!src||!src.id)return;
+  const prev=FW18_BOOKS[src.id]||{};
+  FW18_BOOKS[src.id]=Object.assign({},prev,src);
+  if(!Array.isArray(FW18_BOOKS[src.id].recipes))FW18_BOOKS[src.id].recipes=[];
+  if(!Number.isFinite(Number(FW18_BOOKS[src.id].buy)))FW18_BOOKS[src.id].buy=25;
+  if(!Number.isFinite(Number(FW18_BOOKS[src.id].sell)))FW18_BOOKS[src.id].sell=Math.max(1,Math.floor(Number(FW18_BOOKS[src.id].buy)*.4));
+ });
+}
+function fw41LoadBooks(){
+ if(fw41BooksReady)return fw41BooksReady;
+ fw41BooksReady=fetch(FW41_BOOKS_URL,{cache:'no-store'}).then(function(r){
+  if(!r.ok)throw new Error('books '+r.status);
+  return r.json();
+ }).then(function(data){
+  fw41MergeBookRecords(data&&data.records);
+  return true;
+ }).catch(function(e){
+  if(typeof fw37Log==='function')fw37Log('system','書籍カタログ読込失敗: '+(e&&e.message?e.message:e),state.player,'warn');
+  return false;
+ });
+ return fw41BooksReady;
+}
+fw41LoadBooks();
+
+function fw41Pages(book){
+ if(!book)return ['本文がありません。'];
+ if(Array.isArray(book.pages)&&book.pages.length)return book.pages.map(String);
+ const text=String(book.body||book.text||book.summary||'本文がありません。');
+ const paras=text.split(/\n\s*\n/).filter(Boolean);
+ if(paras.length>1)return paras;
+ const out=[];for(let i=0;i<text.length;i+=420)out.push(text.slice(i,i+420));
+ return out.length?out:['本文がありません。'];
+}
+function fw41OwnedCount(id){return Number(state.player.recipeBooks&&state.player.recipeBooks[id]||0);}
+function fw41IsRead(id){fw41EnsureState();return !!state.player.bookRead[id];}
+function fw41BookEffectText(book){
+ const bits=[];
+ const rs=Array.isArray(book&&book.recipes)?book.recipes:[];
+ if(rs.length)bits.push('レシピ '+rs.length+'件');
+ const sx=book&&book.skillXp||{};const sk=Object.keys(sx);
+ if(sk.length)bits.push('技能 '+sk.map(function(k){return k+' +'+Number(sx[k]);}).join(' / '));
+ const kn=book&&book.knowledge||{};const kk=Object.keys(kn);
+ if(kk.length)bits.push('知識 '+kk.map(function(k){return k+' +'+Number(kn[k]);}).join(' / '));
+ return bits.join(' ・ ')||'世界観・読み物';
+}
+function fw41EnsureReader(){
+ let o=document.getElementById('fw41Reader');
+ if(o)return o;
+ const style=document.createElement('style');
+ style.textContent=
+  '#fw41Reader,#fw41Studio{position:fixed;inset:0;z-index:180;background:#090b0deF;display:flex;align-items:center;justify-content:center;padding:14px}'+
+  '#fw41Reader.hidden,#fw41Studio.hidden{display:none}'+
+  '.fw41Sheet{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#f2ead7;color:#2b251d;border:1px solid #8b775a;border-radius:14px;padding:18px;box-shadow:0 20px 80px #000b}'+
+  '.fw41Sheet button{color:#f5f5f5}.fw41BookTitle{font:800 24px/1.3 serif;margin-bottom:3px}.fw41Meta{font:12px/1.5 system-ui;color:#685d4e;margin-bottom:14px}'+
+  '.fw41Page{white-space:pre-wrap;font:17px/1.95 "Yu Mincho","Hiragino Mincho ProN",serif;min-height:230px;padding:14px 5px;border-top:1px solid #b9aa90;border-bottom:1px solid #b9aa90}'+
+  '.fw41Nav{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:12px}.fw41Nav button{min-width:82px}'+
+  '.fw41StudioSheet{width:min(820px,97vw);max-height:94vh;overflow:auto;background:#1d1f21;color:#f5f5f5;border:1px solid #555;border-radius:14px;padding:14px}'+
+  '.fw41StudioSheet textarea,.fw41StudioSheet input,.fw41StudioSheet select{width:100%;background:#131619;color:#fff;border:1px solid #555;border-radius:8px;padding:8px;margin:3px 0 8px;font:inherit}'+
+  '.fw41StudioSheet textarea{min-height:180px;resize:vertical}.fw41Works{display:grid;gap:8px;margin-top:10px}.fw41Work{border:1px solid #444;border-radius:10px;padding:9px;background:#25282b}';
+ document.head.appendChild(style);
+ o=document.createElement('div');o.id='fw41Reader';o.className='hidden';
+ o.innerHTML='<div class="fw41Sheet"><div id="fw41ReaderBody"></div></div>';
+ document.body.appendChild(o);
+ const s=document.createElement('div');s.id='fw41Studio';s.className='hidden';
+ s.innerHTML='<div class="fw41StudioSheet"><div id="fw41StudioBody"></div></div>';
+ document.body.appendChild(s);
+ return o;
+}
+function fw41OpenReader(id){
+ fw41EnsureState();fw41EnsureReader();
+ const book=FW18_BOOKS[id];
+ if(!book){msg('📕 書籍データが見つからない。');return;}
+ const pages=fw41Pages(book);
+ const saved=Number(state.player.bookProgress[id]||0);
+ fw41ReaderState={id:id,page:Math.max(0,Math.min(pages.length-1,saved)),user:false};
+ document.getElementById('fw41Reader').classList.remove('hidden');
+ fw41RenderReader();
+}
+function fw41OpenUserBook(id){
+ fw41EnsureState();fw41EnsureReader();
+ const b=state.player.authoredBooks.find(function(x){return x.id===id;});
+ if(!b)return;
+ fw41ReaderState={id:id,page:0,user:true};
+ document.getElementById('fw41Reader').classList.remove('hidden');
+ fw41RenderReader();
+}
+function fw41CurrentBook(){
+ if(fw41ReaderState.user)return state.player.authoredBooks.find(function(x){return x.id===fw41ReaderState.id;})||null;
+ return FW18_BOOKS[fw41ReaderState.id]||null;
+}
+function fw41RenderReader(){
+ const book=fw41CurrentBook();if(!book)return;
+ const pages=fw41Pages(book),p=Math.max(0,Math.min(pages.length-1,fw41ReaderState.page));fw41ReaderState.page=p;
+ if(!fw41ReaderState.user)state.player.bookProgress[fw41ReaderState.id]=p;
+ const read=!fw41ReaderState.user&&fw41IsRead(fw41ReaderState.id);
+ const author=book.author||state.player.name||'不詳';
+ const body=document.getElementById('fw41ReaderBody');
+ body.innerHTML=
+  '<div style="display:flex;justify-content:space-between;gap:8px"><div><div class="fw41BookTitle">'+fw41E(book.icon||'📖')+' '+fw41E(book.name||book.title||'無題')+'</div>'+
+  '<div class="fw41Meta">著者 '+fw41E(author)+' / '+fw41E(book.category||book.type||'書籍')+(read?' / ✅ 読了済み':'')+'</div></div>'+
+  '<button data-fw41-reader="close" style="min-width:48px">✕</button></div>'+
+  '<div class="fw41Page">'+fw41E(pages[p])+'</div>'+
+  '<div class="fw41Nav"><button data-fw41-reader="prev" '+(p<=0?'disabled':'')+'>← 前頁</button>'+
+  '<span>'+(p+1)+' / '+pages.length+'</span>'+
+  (p<pages.length-1?'<button data-fw41-reader="next">次頁 →</button>':
+   (fw41ReaderState.user?'<button data-fw41-reader="close">閉じる</button>':'<button data-fw41-reader="finish">'+(read?'✅ 読了':'✅ 読了して覚える')+'</button>'))+
+  '</div>'+
+  (!fw41ReaderState.user?'<div class="fw41Meta" style="margin-top:10px">読了効果: '+fw41E(fw41BookEffectText(book))+'　※習得効果は初回読了時のみ</div>':'');
+}
+function fw41FinishBook(id){
+ fw41EnsureState();const b=FW18_BOOKS[id];if(!b)return;
+ if(!fw41IsRead(id)){
+  const learned=[];
+  (Array.isArray(b.recipes)?b.recipes:[]).forEach(function(rid){
+   if(FW8_RECIPES[rid]&&!state.recipesKnown.includes(rid)){state.recipesKnown.push(rid);learned.push(FW8_RECIPES[rid].name);}
+  });
+  Object.keys(b.skillXp||{}).forEach(function(k){
+   state.player.skills[k]=Number(state.player.skills[k]||0)+Number(b.skillXp[k]||0);
+  });
+  Object.keys(b.knowledge||{}).forEach(function(k){
+   state.player.knowledge[k]=Number(state.player.knowledge[k]||0)+Number(b.knowledge[k]||0);
+  });
+  state.player.bookRead[id]={day:state.day,hour:state.hour};
+  state.player.happiness=clamp(Number(state.player.happiness||80)+1,0,100);
+  const parts=[];
+  if(learned.length)parts.push('レシピ: '+learned.join(' / '));
+  if(Object.keys(b.skillXp||{}).length)parts.push('技能経験');
+  if(Object.keys(b.knowledge||{}).length)parts.push('知識');
+  msg('📚 読了'+(parts.length?' — '+parts.join('・'):''));
+  if(typeof fw37Log==='function')fw37Log('action','読了: '+(b.name||id)+(parts.length?' / '+parts.join('・'):''),state.player);
+ }else msg('📚 「'+(b.name||id)+'」を読み返した。');
+ fw41RenderReader();
+}
+
+/* Replace destructive V18 read behavior: reading no longer consumes the physical book. */
+fw18ReadBook=function(id){
+ const b=FW18_BOOKS[id];
+ if(!b||(fw41OwnedCount(id)<=0)){msg('📕 その本を持っていない。');return;}
+ if(!b.pages&&fw41BooksReady){
+  fw41BooksReady.then(function(){fw41OpenReader(id);});
+  return;
+ }
+ fw41OpenReader(id);
+};
+
+function fw41TypeLabel(t){
+ return {book:'本',diary:'日記',guide:'ガイド',advertisement:'広告',story:'物語'}[t]||'作品';
+}
+function fw41NewId(){return 'ugc_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);}
+function fw41OpenStudio(){
+ fw41EnsureState();fw41EnsureReader();
+ document.getElementById('fw41Studio').classList.remove('hidden');
+ fw41RenderStudio();
+}
+function fw41RenderStudio(){
+ fw41EnsureState();const box=document.getElementById('fw41StudioBody');if(!box)return;
+ const works=state.player.authoredBooks.map(function(w){
+  const value=Math.max(3,Math.min(120,Math.floor(String(w.body||'').length/100)+5));
+  return '<div class="fw41Work"><b>'+fw41E(fw41TypeLabel(w.type))+'「'+fw41E(w.title||'無題')+'」</b>　'+(w.posted?'📌掲示中 ':'')+
+   '<span class="note">製本 '+Number(w.copies||0)+'部 / NPC買取目安 '+value+'コイン</span><br>'+
+   '<button class="smallBtn" data-fw41="readUser" data-id="'+fw41E(w.id)+'">📖 読む</button> '+
+   '<button class="smallBtn" data-fw41="print" data-id="'+fw41E(w.id)+'">🖨️ 印刷・製本 1部（5コイン）</button> '+
+   '<button class="smallBtn" data-fw41="sell" data-id="'+fw41E(w.id)+'" '+((w.copies||0)<=0?'disabled':'')+'>🪙 NPCへ1部販売</button> '+
+   (w.type==='advertisement'?'<button class="smallBtn" data-fw41="postAd" data-id="'+fw41E(w.id)+'">📣 '+(w.posted?'掲示を外す':'掲示する')+'</button> ':'')+
+   '</div>';
+ }).join('');
+ box.innerHTML=
+  '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">✍️ 執筆・出版 β</h2><button data-fw41="closeStudio" style="min-width:48px">✕</button></div>'+
+  '<div class="note">本・日記・ガイド・物語・広告を作成できます。現在の印刷/販売はローカルゲーム内機能。共通UGCマーケットと★レビューはサーバー審査基盤と合わせて次段階で接続します。</div>'+
+  '<label>種類<select id="fw41Type"><option value="book">本</option><option value="diary">日記</option><option value="guide">ガイド</option><option value="story">物語</option><option value="advertisement">広告</option></select></label>'+
+  '<label>題名<input id="fw41Title" maxlength="80" placeholder="作品タイトル"></label>'+
+  '<label>本文<textarea id="fw41Text" maxlength="20000" placeholder="ここに本文を書く…"></textarea></label>'+
+  '<button class="smallBtn" data-fw41="saveDraft">💾 原稿を保存</button> '+
+  '<button class="smallBtn" data-fw41="openEditor">🎨 写真・ペイント用 Creator Suite</button>'+
+  '<h3>自分の作品</h3><div class="fw41Works">'+(works||'<div class="tileCard">まだ作品はありません。</div>')+'</div>'+
+  '<div class="note">共通マーケット公開時は、第三者著作物・画像・肖像・商標等の権利確認、通報、審査、監査ログを必須にする予定です。</div>';
+}
+function fw41SaveDraft(){
+ const type=document.getElementById('fw41Type').value;
+ const title=String(document.getElementById('fw41Title').value||'').trim();
+ const body=String(document.getElementById('fw41Text').value||'').trim();
+ if(!title||!body){msg('✍️ 題名と本文を入力して。');return;}
+ const rec={id:fw41NewId(),type:type,title:title,name:title,author:state.player.name||'YOU',body:body,copies:0,posted:false,createdDay:state.day};
+ state.player.authoredBooks.unshift(rec);
+ msg('✍️ 原稿「'+title+'」を保存した。');fw41RenderStudio();
+}
+function fw41Print(id){
+ const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w)return;
+ if(Number(state.player.coins||0)<5){msg('🖨️ 印刷・製本には5コイン必要。');return;}
+ state.player.coins-=5;w.copies=Number(w.copies||0)+1;
+ msg('📚 「'+w.title+'」を1部製本した。');fw41RenderStudio();
+}
+function fw41Sell(id){
+ const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w||Number(w.copies||0)<=0)return;
+ const value=Math.max(3,Math.min(120,Math.floor(String(w.body||'').length/100)+5));
+ w.copies--;state.player.coins=Number(state.player.coins||0)+value;w.sold=Number(w.sold||0)+1;
+ msg('🪙 「'+w.title+'」をNPCへ '+value+'コインで販売した。');fw41RenderStudio();
+}
+function fw41PostAd(id){
+ const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w||w.type!=='advertisement')return;
+ w.posted=!w.posted;
+ state.player.postedAds=state.player.authoredBooks.filter(function(x){return x.type==='advertisement'&&x.posted;}).map(function(x){return x.id;});
+ msg(w.posted?'📣 広告を掲示登録した。':'📣 広告の掲示を外した。');fw41RenderStudio();
+}
+
+const fw41PrevInventory=openInventory;
+openInventory=function(){
+ fw41PrevInventory();
+ const body=document.getElementById('panelBody');if(!body)return;
+ if(!body.querySelector('[data-fw41="studio"]')){
+  const readCount=Object.keys(state.player.bookRead||{}).length;
+  body.insertAdjacentHTML('beforeend',
+   '<h3>読書・創作</h3><button class="smallBtn" data-fw41="studio">✍️ 執筆・出版</button> '+
+   '<span class="note">読了 '+readCount+'冊 / 自作品 '+state.player.authoredBooks.length+'点</span>');
+ }
+};
+
+document.addEventListener('click',function(e){
+ const rr=e.target.closest('[data-fw41-reader]');
+ if(rr){
+  e.preventDefault();e.stopPropagation();
+  const a=rr.dataset.fw41Reader,book=fw41CurrentBook(),pages=fw41Pages(book);
+  if(a==='close'){document.getElementById('fw41Reader').classList.add('hidden');return;}
+  if(a==='prev'){fw41ReaderState.page=Math.max(0,fw41ReaderState.page-1);fw41RenderReader();return;}
+  if(a==='next'){fw41ReaderState.page=Math.min(pages.length-1,fw41ReaderState.page+1);fw41RenderReader();return;}
+  if(a==='finish'){fw41FinishBook(fw41ReaderState.id);return;}
+ }
+ const b=e.target.closest('[data-fw41]');if(!b)return;
+ e.preventDefault();e.stopPropagation();
+ const a=b.dataset.fw41,id=b.dataset.id;
+ if(a==='studio')fw41OpenStudio();
+ else if(a==='closeStudio')document.getElementById('fw41Studio').classList.add('hidden');
+ else if(a==='saveDraft')fw41SaveDraft();
+ else if(a==='readUser')fw41OpenUserBook(id);
+ else if(a==='print')fw41Print(id);
+ else if(a==='sell')fw41Sell(id);
+ else if(a==='postAd')fw41PostAd(id);
+ else if(a==='openEditor')window.open('editor/','_blank','noopener');
+},true);
+
+const fw41PrevLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ const ok=fw41PrevLoad.apply(this,arguments);
+ fw41EnsureState();fw41LoadBooks();
+ return ok;
+};
+
+
 })();
 </script>
 </body>
