@@ -10104,6 +10104,27 @@ renderDialogReplies=function(){
   sp.appendChild(tag);
  }
 };
+
+// Children can be renamed later through their own conversation menu.
+const fw42PrevRenderChildName=renderDialogReplies;
+renderDialogReplies=function(){
+ fw42PrevRenderChildName();
+ const n=state.dialog&&state.dialog.speaker,r=$('#dialogReplies');if(!n||!n.isChild||!r)return;
+ if(!r.querySelector('[data-reply^="fw42:rename:"]')){
+  const idx=(state.family.children||[]).indexOf(n);
+  if(idx>=0)r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw42:rename:'+idx,'✏️ 名前を変更'));
+ }
+};
+const fw42PrevHandleChildName=handleDialogAction;
+handleDialogAction=function(k){
+ if(typeof k==='string'&&k.indexOf('fw42:rename:')===0){
+  const idx=Number(k.split(':')[2]);
+  if(Number.isInteger(idx)&&idx>=0&&state.family.children[idx]){
+   state.family.pendingBabyName42=idx;fw42OpenNaming();return;
+  }
+ }
+ return fw42PrevHandleChildName(k);
+};
 /* END FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY */
 
 })();
