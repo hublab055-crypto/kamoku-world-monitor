@@ -2,7 +2,7 @@
 
 ## FW-2026-10-11-001 — V43 生活挨拶・井戸・公共サービス
 
-対象コミット: `9c69c691663e93f7b6f1798390d3c034e85ddbca`
+対象コミット: `da8ef86efad2ab9e13c9f49f7b11df8fc65f49c2`
 
 ### 静的検証
 - 3本のinline scriptをそれぞれ JavaScript `new Function` で構文検証。
