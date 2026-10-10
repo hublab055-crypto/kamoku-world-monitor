@@ -2,11 +2,29 @@
 
 更新日: 2026-10-10 JST  
 対象: `frontier-world/index.html`  
-実装系列: Frontier V42.0
-基準コミット: `c505a4d3f87fbd3c1dd0fc04abc2e27810b69392`
+実装系列: Frontier V42.1
+基準コミット: `6815b9cded1bb83d5e572415f1b5a6a07ae3b5b0`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
+
+## V42.1 — 会話動作修正・バージョン切替（2026-10-10）
+
+実装コミット: `6815b9cded1bb83d5e572415f1b5a6a07ae3b5b0`
+
+- V42.0の会話・家族処理は当初、デバッグ/市場専用の別スクリプト内に誤配置されていた。`renderDialogReplies` などゲーム本体の非公開変数を参照できず、会話UIが使えなかった。
+- V42.1では `FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY` ブロックをゲーム本体IIFEに移動し、既存の `fw42PrevUpdate` との重複識別子も解消した。
+- 3つのスクリプトが個別のJavaScript構文検査に合格。実ブラウザ/iPhoneでの手動プレイ試験は引き続き必要。
+- 設定の「🧩 ゲームバージョン」から最新（`index.html`）、V42.0固定（`v42.html`）、V41.0固定（`v41.html`）へ画面遷移できる。
+- 最新版は従来セーブを継続。V42固定版は初回だけ従来セーブを別キーへコピー、V41固定版は別キーで新規開始。旧版から最新の保存データを上書きしない。
+- 「🔄 最新版を再読込」ボタンはクエリパラメータを更新して最新版へ移動し、通常の古いHTMLキャッシュを回避しやすくする。
+
+関連URL:
+- 最新: https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/
+- V42固定: https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/v42.html
+- V41固定: https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/v41.html
+
+注意: GitHubへの反映と静的構文・ファイル配置の確認は実施したが、GitHub Pages配信の実ブラウザ動作確認は未実施。
 
 ## V42 — 会話・挨拶・家族イベント（2026-10-10）
 
