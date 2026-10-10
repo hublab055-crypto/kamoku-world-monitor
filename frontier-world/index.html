@@ -10748,7 +10748,7 @@ function fw44WellStand(actor,well){
  return pts[0];
 }
 function fw44WellEligible(actor){
- if(!actor||state.gameOver||state.interior)return false;
+ if(!actor||state.gameOver||(actor===state.player&&state.interior))return false;
  const a=actor.autoSchedule;if(!a||!a.enabled)return false;
  if((actor.inv&&actor.inv.water||0)>=8||(Number(actor.st)||0)<3)return false;
  const w=fw44NearestWell(actor);if(!w)return false;
@@ -10808,6 +10808,15 @@ function fw44GuardPatrol(n,dt){
  if(Math.hypot(n.x-watch.x,n.y-watch.y)>.18){watch.x=n.x;watch.y=n.y;watch.t=0;}
  if(watch.t>3.5){
   n.guardPatrol24=(index+1)%points.length;n._nav19=null;n.guardWatch44=null;
+  // Restore a legacy guard left inside an impassable building after pathfinding fails.
+  if(blocked(n.x,n.y)){
+   let rescue=null,dist=999;
+   for(let r=1;r<=5;r++)for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++){
+    const px=Math.floor(n.x)+dx+.5,py=Math.floor(n.y)+dy+.5,d=Math.hypot(px-n.x,py-n.y);
+    if(!blocked(px,py)&&d<dist){rescue={x:px,y:py};dist=d;}
+   }
+   if(rescue){n.x=rescue.x;n.y=rescue.y;}
+  }
   n.status='🛡️ 障害物を迂回・次の巡回地点';
   if(typeof fw37Log==='function')fw37Log('actor','衛兵が巡回中に停滞したため地点を再選択',n,'warn');
   return true;
@@ -10822,7 +10831,13 @@ updateNPC=function(n,dt){
  // The currently controlled actor never runs an NPC automation.
  if(n!==state.player&&!n.controlled&&!state.gameOver&&n.autoSchedule&&n.autoSchedule.enabled&&
    fw44ActorOptions().some(function(q){return q.actor===n;})){
-  if(n.inside20||n.household34)return fw44PreviousNpcUpdate(n,dt);
+  if(n.household34){
+   const a=fw44NormalizeActor(n);
+   const first=(a.slots||[]).find(function(k){return k&&k!=='none';});
+   if(['wellWater','water','wood','stone','food','transport','patrol'].includes(first))fw34ExitNpc(n,false);
+   else return fw44PreviousNpcUpdate(n,dt);
+  }
+  if(n.inside20)return fw44PreviousNpcUpdate(n,dt);
   fw44NormalizeActor(n);
   return fw17UpdateFormerPlayer(n,dt);
  }
@@ -11580,7 +11595,7 @@ fw10LoadGame=function(){
  if(!sel||!apply)return;
  const filename=window.location.pathname.split('/').pop().toLowerCase();
  const active=filename==='v41.html'?'v41':filename==='v42.html'?'v42':'latest';
- const labels={latest:'最新版（V43.0）',v42:'V42.0 固定',v41:'V41.0 固定'};
+ const labels={latest:'最新版（V44.0）',v42:'V42.0 固定',v41:'V41.0 固定'};
  const paths={latest:'./',v42:'./v42.html',v41:'./v41.html'};
  sel.value=active;
  if(current)current.textContent=labels[active];
