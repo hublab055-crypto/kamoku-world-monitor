@@ -10111,16 +10111,53 @@ function fw43MoveBuilding(b,x,y){
  return true;
 }
 const fw43WorldCanvas=$('#world');
+function fw43CanvasTile(e){
+ const bounds=fw43WorldCanvas.getBoundingClientRect();
+ const sx=(e.clientX-bounds.left)/bounds.width*W,sy=(e.clientY-bounds.top)/bounds.height*H,cam=camera();
+ return {x:Math.floor(cam.x+sx/TILE),y:Math.floor(cam.y+sy/TILE)};
+}
 fw43WorldCanvas.addEventListener('pointerdown',function(e){
  if(!fw43BuildMode||state.interior)return;
  e.preventDefault();e.stopImmediatePropagation();
- const bounds=fw43WorldCanvas.getBoundingClientRect();
- const sx=(e.clientX-bounds.left)/bounds.width*W,sy=(e.clientY-bounds.top)/bounds.height*H;
- const cam=camera(),x=Math.floor(cam.x+sx/TILE),y=Math.floor(cam.y+sy/TILE);
- const mode=fw43BuildMode;
- const ok=mode.kind==='well'?fw43PlaceWell(x,y):fw43MoveBuilding(state.buildings.find(function(b){return b.id===mode.buildingId;}),x,y);
+ const p=fw43CanvasTile(e),mode=fw43BuildMode;
+ if(mode.kind==='move'){
+  const b=state.buildings.find(function(x){return x.id===mode.buildingId;}),w=fw43WorldSize(b);
+  if(b&&p.x>=b.x&&p.x<b.x+w&&p.y>=b.y&&p.y<b.y+w){
+   mode.dragging=true;mode.pointerId=e.pointerId;mode.preview43={x:b.x,y:b.y};
+   try{fw43WorldCanvas.setPointerCapture(e.pointerId);}catch(_){}
+   return;
+  }
+ }
+ const ok=mode.kind==='well'?fw43PlaceWell(p.x,p.y):fw43MoveBuilding(state.buildings.find(function(b){return b.id===mode.buildingId;}),p.x,p.y);
  if(ok)fw43BuildMode=null;
 },true);
+fw43WorldCanvas.addEventListener('pointermove',function(e){
+ const mode=fw43BuildMode;if(!mode||!mode.dragging||mode.pointerId!==e.pointerId)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const p=fw43CanvasTile(e);mode.preview43=p;
+},true);
+fw43WorldCanvas.addEventListener('pointerup',function(e){
+ const mode=fw43BuildMode;if(!mode||!mode.dragging||mode.pointerId!==e.pointerId)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const p=mode.preview43||fw43CanvasTile(e);
+ mode.dragging=false;mode.pointerId=null;
+ const b=state.buildings.find(function(q){return q.id===mode.buildingId;});
+ if(fw43MoveBuilding(b,p.x,p.y))fw43BuildMode=null;
+},true);
+fw43WorldCanvas.addEventListener('pointercancel',function(e){
+ if(fw43BuildMode&&fw43BuildMode.dragging){fw43BuildMode.dragging=false;fw43BuildMode.pointerId=null;fw43BuildMode.preview43=null;}
+},true);
+const fw43DrawMovePreview=draw;
+draw=function(){
+ const r=fw43DrawMovePreview.apply(this,arguments);
+ if(!fw43BuildMode||!fw43BuildMode.preview43||state.interior)return r;
+ const b=state.buildings.find(function(q){return q.id===fw43BuildMode.buildingId;});if(!b)return r;
+ const p=fw43BuildMode.preview43,w=fw43WorldSize(b),s=worldToScreen(p.x,p.y);
+ ctx.save();ctx.fillStyle=fw43CanPlace(b,p.x,p.y)?'rgba(92,220,140,.25)':'rgba(255,86,75,.25)';
+ ctx.strokeStyle=fw43CanPlace(b,p.x,p.y)?'#65de93':'#ff675d';ctx.lineWidth=4;
+ ctx.fillRect(s.x,s.y,w*TILE,w*TILE);ctx.strokeRect(s.x,s.y,w*TILE,w*TILE);ctx.restore();
+ return r;
+};
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&fw43BuildMode){fw43BuildMode=null;msg('🏗️ 建物の配置を中止した。');}});
 const fw43PrevBuildDraw=drawBuilding;
 drawBuilding=function(b){
