@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-10T22:37:00+09:00",
+  "updated_at": "2026-10-10T23:39:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V42.1",
-  "game_commit": "6815b9cded1bb83d5e572415f1b5a6a07ae3b5b0",
+  "implementation_version": "V42.2",
+  "game_commit": "db7b4a71ca9563ffc5c23b4b460b9040d902b476",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -82,7 +82,18 @@
     "V42.1 runtime scope fix moving V42 social and family mechanics into game core IIFE",
     "version selection from settings with latest, pinned V42, pinned V41",
     "fixed V41 and V42 HTML archives with separated local save namespaces and one-time V42 initial save copy",
-    "cache-busting refresh action for latest HTML build"
+    "cache-busting refresh action for latest HTML build",
+    "V42.2 apology and gratitude NPC replies with per-day bounded friendship and affection gains",
+    "yes/no confirmation on hugs, kisses and family meals",
+    "approach-and-face romance interactions with transient heart-to-dialog-meter animation",
+    "daily-limited 2-3 point affection rewards for hugs and kisses",
+    "existing family dining gathering, seating, shared meal start and completion affection rewards",
+    "placeable extra chairs and bookshelf, with seated or bookcase leisure using action button",
+    "new selectable cleaning and repair commands with per-furniture cleanliness/durability and daily wear",
+    "home care affection reward with daily cap and wood consumption for repairs",
+    "persistent per-character free-text memory, input drafts and remembered food wishes",
+    "Wikibooks-backed fried-egg recipe from one egg per serving, merchant egg purchase, group cooking and serving",
+    "wiki lookup of other named dishes with pending verification instead of invented recipes"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -115,7 +126,11 @@
     "V42 angry/tired pregnancy expressions use emoji overlays; dedicated facial sprite variants not yet integrated",
     "V42 social-family flow passed JavaScript syntax checks but still requires live mobile/desktop E2E testing",
     "V42 gestation is 300 game days; older pregnancy records preserve their previously scheduled due days",
-    "GitHub Pages client-side operation of V42.1 social menus and version switching still requires iPhone/desktop manual verification"
+    "GitHub Pages client-side operation of V42.1 social menus and version switching still requires iPhone/desktop manual verification",
+    "V42.2 wiki search depends on client network/CORS and does not infer unverified recipes; only prechecked egg recipe auto-unlocks",
+    "V42.2 hug and kiss use position/facing and transient UI feedback rather than dedicated skeletal/sprite animation",
+    "V42.2 bookcase leisure is an initial interaction, not yet an integration with the fully paginated library reader",
+    "V42.2 GitHub code statically compiles but physical iPhone and multiplayer behavior are not yet tested"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -208,7 +223,12 @@
     "load dialogue-pack.json at runtime and migrate embedded V42 dialogue",
     "verify latest / V42 fixed / V41 fixed switches in settings after GitHub Pages deployment",
     "verify V42.1 NPC dialogue menus and nighttime spouse event on iPhone browser",
-    "verify V42 save copy and V41 isolated saves do not overwrite latest save"
+    "verify V42 save copy and V41 isolated saves do not overwrite latest save",
+    "add true sprite-based hug and kiss animation frames for individual characters",
+    "integrate bookshelf with the complete readable-books catalogue and seated page-turning animations",
+    "add verified recipe parsers and ingredient ontology for Wikibooks dishes beyond fried eggs",
+    "test V42.2 interactions on iPhone, including input, affection animation, seated furniture and meal completion",
+    "test V42.2 recipe availability/egg accounting when games are saved and loaded"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -271,11 +291,11 @@
   },
   "version_switch": {
     "current": "latest",
-    "current_version": "V42.1",
+    "current_version": "V42.2",
     "versions": [
       {
         "id": "latest",
-        "label": "最新版（V42.1）",
+        "label": "最新版（V42.2）",
         "path": "frontier-world/index.html",
         "save_namespace": "frontier_world_save_v19_"
       },
