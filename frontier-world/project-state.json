@@ -6,7 +6,7 @@
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
   "implementation_version": "V43.0",
-  "game_commit": "9c69c691663e93f7b6f1798390d3c034e85ddbca",
+  "game_commit": "da8ef86efad2ab9e13c9f49f7b11df8fc65f49c2",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -104,7 +104,8 @@
     "V43 medicine purchase and consumable healing, disease and injury treatment and prevention for player and NPCs",
     "V43 midwife requests and village birth attendance",
     "V43 village history chronicle, book lending, resident counts and ceremony recording",
-    "V43 priest reconstruction after async map generation and direct save-slot reload"
+    "V43 priest reconstruction after async map generation and direct save-slot reload",
+    "V43 fix preventing repeated walk invitations and clearing stale yes/no state on dialogue close"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
