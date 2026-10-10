@@ -10142,7 +10142,7 @@ fw43WorldCanvas.addEventListener('pointerup',function(e){
  const p=mode.preview43||fw43CanvasTile(e);
  mode.dragging=false;mode.pointerId=null;
  const b=state.buildings.find(function(q){return q.id===mode.buildingId;});
- if(fw43MoveBuilding(b,p.x,p.y))fw43BuildMode=null;
+ if(fw43MoveBuilding(b,p.x,p.y)){fw43BuildMode=null;fw43CancelConstructionBtn.style.display='none';}
 },true);
 fw43WorldCanvas.addEventListener('pointercancel',function(e){
  if(fw43BuildMode&&fw43BuildMode.dragging){fw43BuildMode.dragging=false;fw43BuildMode.pointerId=null;fw43BuildMode.preview43=null;}
@@ -11310,7 +11310,7 @@ fw10LoadGame=function(){
  if(!sel||!apply)return;
  const filename=window.location.pathname.split('/').pop().toLowerCase();
  const active=filename==='v41.html'?'v41':filename==='v42.html'?'v42':'latest';
- const labels={latest:'最新版（V42.2）',v42:'V42.0 固定',v41:'V41.0 固定'};
+ const labels={latest:'最新版（V43.0）',v42:'V42.0 固定',v41:'V41.0 固定'};
  const paths={latest:'./',v42:'./v42.html',v41:'./v41.html'};
  sel.value=active;
  if(current)current.textContent=labels[active];
