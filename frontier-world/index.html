@@ -9785,6 +9785,295 @@ fw10LoadGame=function(){
 };
 
 
+
+/* FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY */
+const FW42_TOPICS=[
+ {id:'work',label:'🛠️ 仕事',lines:['今日はどんな仕事を進めようか？','一緒に作業すると、思ったより早く終わるね。','道具の手入れも忘れずにね。']},
+ {id:'home',label:'🏠 暮らし',lines:['家の中が落ち着くと、気持ちも軽くなるね。','温かいご飯をみんなで囲みたいな。','部屋をもう少し居心地よくしたいね。']},
+ {id:'nature',label:'🌿 自然',lines:['今日は風の匂いが違う気がする。','川辺を歩くと、頭がすっきりするよ。','季節が変わると景色も変わるね。']},
+ {id:'future',label:'🌅 これから',lines:['この村が十年後どうなっているのか楽しみ。','いつか大きな家を建てられたらいいね。','二人で決めたことを少しずつ叶えたい。']},
+ {id:'adventure',label:'🗺️ 冒険',lines:['まだ知らない場所を見つけたいね。','次の探索は少し多めに食料を持とう。','遠くまで行っても帰る場所があるのはいいね。']},
+ {id:'affection',label:'💕 二人のこと',lines:['会えるだけで嬉しい日もあるんだよ。','今日は少しだけ手をつないでいたいな。','何でもない日が、あなたといると特別になる。','おかえり。抱きしめてもいい？','寝る前にもう少し声を聞かせて。','あなたが隣にいると安心して眠れる。','喧嘩した日でも、ちゃんと仲直りしたいね。','朝、いちばんに顔を見ると嬉しい。','たまには二人で散歩に出かけようよ。','この家で年を重ねていけたらいいな。','今日は私から甘えてもいい？','ずっと一緒に笑っていたいね。']},
+ {id:'children',label:'👶 家族と子ども',lines:['子どもが安心して暮らせる村にしよう。','小さな成長を一緒に見守りたいね。','家族の思い出をもっと増やしていきたいな。']}
+];
+const FW42_GREETINGS=[['morning','☀️ おはよう'],['day','🌤️ こんにちは'],['evening','🌙 こんばんは'],['sleep','💤 おやすみ']];
+function fw42Range(v){return clamp(Number(v==null?75:v),0,100);}
+function fw42TopicWant(n){
+ const rel=n.relationship||'acquaintance';
+ const options=(rel==='family'||rel==='lover')?['affection','home','children','future','nature']:n.role==='guard'?['work','adventure','future','nature']:n.role==='merchant'?['work','future','adventure','home']:n.id==='riku'?['work','future','nature','adventure']:['nature','home','work','future'];
+ const seed=(String(n.id||'npc').split('').reduce(function(a,c){return a+c.charCodeAt(0);},0)+Number(state.day||0));
+ return options[seed%options.length];
+}
+function fw42HtmlButton(k,t){return '<button data-reply="'+k+'" type="button">'+t+'</button>';}
+function fw42RawButtons(){
+ const n=getDialogSpeaker(),r=$('#dialogReplies');if(!n||!r)return [];
+ return Array.from(r.querySelectorAll('button[data-reply]')).map(function(b){return {key:b.getAttribute('data-reply'),html:b.outerHTML};});
+}
+function fw42Menu(){
+ const d=state.dialog,n=d&&d.speaker,r=$('#dialogReplies');if(!d||!n||!r||n.isChild)return;
+ const raw=d.fw42Raw||[],menu=d.fw42Menu||'main';
+ const by=function(keys){return raw.filter(function(b){return keys.includes(b.key);}).map(function(b){return b.html;}).join('');};
+ const exclude=['hello','work','life','gift','relFriend','relLover','relFamily','familyFuture','chatContinue','familyStory'];
+ if(menu==='main'){
+  r.innerHTML=fw42HtmlButton('fw42:request','🙏 おねがい')+
+   fw42HtmlButton('fw42:conversation','💬 会話')+
+   fw42HtmlButton('fw42:greeting','👋 あいさつ')+
+   fw42HtmlButton('gift','🎁 プレゼント')+
+   fw42HtmlButton('fw42:relation','🤝 関係変更');
+ }else if(menu==='request'){
+  r.innerHTML='<div class="note">仕事・制作・採集・雇用契約の依頼</div>'+
+   by(raw.filter(function(b){return !exclude.includes(b.key);}).map(function(b){return b.key;}))+
+   fw42HtmlButton('fw42:main','↩ 戻る');
+ }else if(menu==='conversation'){
+  const wanted=fw42TopicWant(n),topic=FW42_TOPICS.find(function(q){return q.id===wanted;});
+  r.innerHTML='<div class="note">'+n.name+'が今話したい話題：'+(topic?topic.label:'暮らし')+'</div>'+
+   FW42_TOPICS.filter(function(t){return t.id!=='affection'||['lover','family'].includes(n.relationship);}).map(function(t){return fw42HtmlButton('fw42:topic:'+t.id,(wanted===t.id?'✨ ':'')+t.label);}).join('')+
+   by(['work','life','familyStory','chatContinue'])+
+   fw42HtmlButton('fw42:main','↩ 戻る');
+ }else if(menu==='greeting'){
+  r.innerHTML='<div class="note">時間に合う挨拶を選ぼう。</div>'+
+   FW42_GREETINGS.map(function(g){return fw42HtmlButton('fw42:greet:'+g[0],g[1]);}).join('')+
+   fw42HtmlButton('fw42:main','↩ 戻る');
+ }else if(menu==='relation'){
+  const rel=n.relationship||'acquaintance',friend=Math.round(n.friend||0);
+  r.innerHTML='<div class="note">現在：'+fw8RelLabel(n)+' / 友好 '+friend+'。相手の気持ちと信頼が必要です。</div>'+
+   (!n.companion&&n.id!=='merchant'?fw42HtmlButton('fw42:relation:companion','🤝 仲間になる（友好50）'):'')+
+   (rel==='acquaintance'||rel==='companion'?fw42HtmlButton('fw42:relation:friend','😊 友人になる（友好55）'):'')+
+   (rel==='friend'?fw42HtmlButton('fw42:relation:lover','💕 恋人になる（友好80）'):'')+
+   (rel==='lover'?fw42HtmlButton('fw42:relation:family','💒 家族になる（友好95）'):'')+
+   (rel==='family'?'<div class="note">❤️ 親密度 '+Math.round(fw18EnsureHeart(n))+'/200。200になると夜の就寝時に二人の時間が生まれます。</div>':'')+
+   fw42HtmlButton('fw42:main','↩ 戻る');
+ }
+}
+const fw42PrevRenderDialog=renderDialogReplies;
+renderDialogReplies=function(){
+ fw42PrevRenderDialog();
+ const d=state.dialog,n=d&&d.speaker;if(!n||n.isChild||d.exchange||d.story21)return;
+ d.fw42Raw=fw42RawButtons();fw42Menu();
+ if(n.relationship==='family'&&fw42Pregnancy(n)&&fw42Pregnancy(n).revealed){
+  const p=fw42Pregnancy(n),sp=$('#speaker');
+  if(sp)sp.insertAdjacentHTML('beforeend','<span class="friendTag"> / 🤰 あと約'+Math.max(0,p.dueDay-state.day)+'日</span>');
+ }
+};
+function fw42Pause(n){
+ const d=state.dialog;if(!d||d.speaker!==n)return;
+ d.pause42Until=Date.now()+5000;tap=null;joy.x=joy.y=0;
+ if(state.interior)state.interior.tap=null;
+ fw42Face(n);
+}
+function fw42Paused(){return !!(state.dialog&&state.dialog.speaker&&Date.now()<(state.dialog.pause42Until||0));}
+function fw42Face(n){
+ if(!n||n.isChild)return;
+ const it=state.interior,q=it?fw35IndoorPoint(n):null;
+ const p=q?it.pos:state.player,t=q||n;
+ setDirFromVector(state.player,t.x-p.x,t.y-p.y);
+ setDirFromVector(n,p.x-t.x,p.y-t.y);
+ if(it&&q){
+  const f=(it.followers20||[]).find(function(x){return x.id===n.id;});
+  if(f)f.dir=n.dir;
+  if(n.household34)n.household34.dir=n.dir;
+ }
+}
+const fw42PrevMovePlayer=movePlayer;
+movePlayer=function(dx,dy,dt){if(fw42Paused())return;return fw42PrevMovePlayer(dx,dy,dt);};
+const fw42PrevIndoorUpdate=fw10UpdateInterior;
+fw10UpdateInterior=function(dt,jx,jy){
+ if(!fw42Paused())return fw42PrevIndoorUpdate(dt,jx,jy);
+ const it=state.interior,n=state.dialog.speaker;if(!it)return;
+ const h=n.household34,f=(it.followers20||[]).find(function(x){return x.id===n.id;});
+ const oldH=h?{x:h.x,y:h.y}:null,oldF=f?{x:f.x,y:f.y}:null;
+ it.tap=null;const result=fw42PrevIndoorUpdate(dt,0,0);
+ if(h&&oldH){h.x=oldH.x;h.y=oldH.y;}
+ if(f&&oldF){f.x=oldF.x;f.y=oldF.y;}
+ fw42Face(n);return result;
+};
+const fw42PrevTalk=talk;
+talk=function(){
+ const ret=fw42PrevTalk.apply(this,arguments);
+ if(state.dialog&&state.dialog.speaker){fw42Pause(state.dialog.speaker);fw42RevealOnTalk(state.dialog.speaker);}
+ return ret;
+};
+const fw42PrevNpcDialog=fw21OpenNpcDialog;
+fw21OpenNpcDialog=function(n,reason){
+ if(reason==='pregnancy42'&&n&&!state.dialog){
+  state.dialog={speaker:n,initiatedByNpc:true};
+  $('#dialogPanel').classList.remove('hidden');refreshFace();renderDialogReplies();
+  fw42RevealOnTalk(n);fw42Pause(n);return true;
+ }
+ const ret=fw42PrevNpcDialog(n,reason);
+ if(ret&&state.dialog&&state.dialog.speaker)fw42Pause(state.dialog.speaker);
+ return ret;
+};
+function fw42SpeakTopic(n,id){
+ const t=FW42_TOPICS.find(function(x){return x.id===id;});if(!t)return;
+ const desired=fw42TopicWant(n),match=desired===id,day=state.day;
+ const count=n.socialTopics42&&n.socialTopics42.day===day?n.socialTopics42.count:0;
+ const gain=count<3?(match?3:1):0;
+ n.socialTopics42={day:day,count:count+1};
+ n.friend=clamp((Number(n.friend)||0)+gain,0,100);
+ fw18HeartGain(n,count<3?(match?6:2):0);
+ n.stress42=clamp((n.stress42==null?20:n.stress42)-(match?3:1),0,100);
+ const lines=t.lines,p=fw42Pregnancy(n);
+ let line=lines[Math.floor(Math.random()*lines.length)];
+ if(p&&!p.revealed&&state.day-p.startDay>=25&&Math.random()<.45){
+  line=['ごめんね、今日は少し疲れやすくて。','ちょっとしたことが気になってしまうの。','今日は静かに過ごしたい気分かも。'][Math.floor(Math.random()*3)];
+ }
+ typeLine((match?'😊 '+n.name+'が嬉しそうに話し始めた。「':'💬 「')+line+'」'+(gain?' ♥+'+gain:''));
+ fw42Pause(n);fw42Menu();
+}
+function fw42Greeting(n,key){
+ const h=Number(state.hour||0),correct=h>=5&&h<11?'morning':h>=11&&h<18?'day':'evening';
+ const valid=key===correct||(key==='sleep'&&(h>=20||h<4));
+ const once=!!(n.greeting42&&n.greeting42.day===state.day);
+ if(!once){
+  n.friend=clamp((Number(n.friend)||0)+(valid?2:-1),0,100);
+  fw18HeartGain(n,valid?3:-2);
+  n.greeting42={day:state.day,key:key};
+ }
+ const lines=valid?
+  ['おはよう。今日も良い日にしよう。','こんにちは。顔を見られて嬉しいよ。','こんばんは。今日もお疲れさま。','おやすみ。明日も一緒に頑張ろうね。']:
+  ['あれ、今はその時間じゃないよ？','ふふ、時間を間違えてない？'];
+ typeLine(lines[valid?FW42_GREETINGS.findIndex(function(x){return x[0]===key;}):Math.floor(Math.random()*2)]+(once?'（今日はもう挨拶済み）':''));
+ fw42Pause(n);fw42Menu();
+}
+const fw42PrevHandleDialog=handleDialogAction;
+handleDialogAction=function(k){
+ const d=state.dialog,n=d&&d.speaker;
+ if(!n||typeof k!=='string')return fw42PrevHandleDialog(k);
+ if(k.indexOf('fw42:')===0){
+  const a=k.split(':');
+  if(a[1]==='main'||['request','conversation','greeting','relation'].includes(a[1])&&a.length===2){d.fw42Menu=a[1];fw42Menu();fw42Pause(n);return;}
+  if(a[1]==='topic'){fw42SpeakTopic(n,a[2]);return;}
+  if(a[1]==='greet'){fw42Greeting(n,a[2]);return;}
+  if(a[1]==='relation'){
+   if(a[2]==='companion'&&n.id!=='merchant')fw42PrevHandleDialog('recruit');
+   else if(['friend','lover','family'].includes(a[2]))fw8AdvanceRelationship(n,a[2]);
+   d.fw42Menu='relation';renderDialogReplies();fw42Pause(n);return;
+  }
+ }
+ if(k==='familyFuture'){typeLine('親密度が200/200になったら、夜に家のベッドで一緒に休もう。');fw42Pause(n);return;}
+ d.fw42Menu='main';const r=fw42PrevHandleDialog(k);fw42Pause(n);return r;
+};
+function fw42Pregnancy(n){
+ return n&&!n.isChild&&(state.family.pregnancies||[]).find(function(p){return p.parent===n.id;})||null;
+}
+function fw42RevealOnTalk(n){
+ const p=fw42Pregnancy(n);if(!p||p.revealed||state.day<p.announceDay)return;
+ p.revealed=true;n.pendingTalk21=null;
+ typeLine('ねえ、伝えたいことがあるの。……赤ちゃんができたみたい。これから一緒に迎える準備をしようね。');
+ msg('🎉 '+n.name+'から嬉しい報告があった。');
+ if(typeof fw37Log==='function')fw37Log('family','妊娠の報告 / Day '+state.day,n);
+ renderDialogReplies();
+}
+const fw42PrevRelLine=fw12RelLine;
+fw12RelLine=function(n,key){
+ const p=fw42Pregnancy(n);
+ if(p&&!p.revealed&&state.day-p.startDay>=25&&Math.random()<.3)return ['何だろう、今日はやけに眠いな。','ごめん、少しだけ一人で休ませて。','今日はちょっと気が立ってるかも。'][Math.floor(Math.random()*3)];
+ if(n&&n.relationship==='family'&&['intro','hello','life'].includes(key)&&Math.random()<.65){
+  return FW42_TOPICS.find(function(t){return t.id==='affection';}).lines[Math.floor(Math.random()*12)];
+ }
+ return fw42PrevRelLine(n,key);
+};
+function fw42CoupleNight(){
+ const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});
+ if(!b||!isNight())return;
+ const beds=fw12EnsureBeds(b);
+ if(!beds.length)return;
+ const n=state.npcs.find(function(x){return x.alive!==false&&x.relationship==='family'&&!x.controlled&&fw12SharedHome(x)&&fw12SharedHome(x).id===b.id&&(x.inside20===b.id||(x.household34&&x.household34.buildingId===b.id))});
+ if(!n||fw18EnsureHeart(n)<200||state.day-(n.heartDay||-999)<3)return;
+ const bed=beds[Math.floor(Math.random()*beds.length)];
+ it.pos.x=clamp(bed.x+.45,.6,it.roomW-.6);it.pos.y=clamp(bed.y+.35,.6,it.roomH-.7);
+ if(n.household34&&n.household34.buildingId===b.id){n.household34.x=clamp(bed.x+.85,.6,it.roomW-.6);n.household34.y=it.pos.y;}
+ const f=(it.followers20||[]).find(function(x){return x.id===n.id;});
+ if(f){f.x=clamp(bed.x+.85,.6,it.roomW-.6);f.y=it.pos.y;}
+ n.heartMeter=100;n.heartDay=state.day;
+ const recent=fw42Pregnancy(n);
+ if(!recent&&(state.family.children||[]).length<4){
+  const hunger=(fw42Range(state.player.hunger)+fw42Range(n.hunger))/200;
+  const stamina=(fw42Range(state.player.st)+fw42Range(n.st))/200;
+  const hygiene=(fw42Range(state.player.hygiene)+fw42Range(n.hygiene))/200;
+  const home=fw34HomeCleanliness(b)/100;
+  const stress=(fw42Range(state.player.stress42==null?20:state.player.stress42)+fw42Range(n.stress42==null?20:n.stress42))/200;
+  const chance=clamp(.18*(.4+.6*hunger)*(.45+.55*stamina)*(.45+.55*hygiene)*(.4+.6*home)*(1-.75*stress),.015,.28);
+  if(Math.random()<chance){
+   state.family.pregnancies.push({parent:n.id,startDay:state.day,dueDay:state.day+300,gender:null,revealed:false,announceDay:state.day+55+Math.floor(Math.random()*30),version42:true});
+   if(typeof fw37Log==='function')fw37Log('family','非公開の家族イベント開始 / Day '+state.day,n);
+  }
+ }
+ msg('❤️ '+n.name+'と二人で寄り添って眠りについた。');
+ if(typeof fw37Log==='function')fw37Log('family','二人の時間：親密度200→100',n);
+}
+const fw42PrevSleepFade=fw20BeginSleepFade;
+fw20BeginSleepFade=function(){
+ if(!state.sleepFade20)fw42CoupleNight();
+ const ret=fw42PrevSleepFade.apply(this,arguments);
+ if(state.sleepFade20)state.sleepFade20.duration=Math.max(5,state.sleepFade20.duration||0);
+ return ret;
+};
+const fw42PrevUpdateNPC=updateNPC;
+updateNPC=function(n,dt){
+ if(fw42Paused()&&state.dialog.speaker===n){fw42Face(n);return;}
+ const ret=fw42PrevUpdateNPC(n,dt);
+ const p=fw42Pregnancy(n);
+ if(p&&state.day-p.startDay>=25){
+  n.st=clamp((n.st==null?100:n.st)-dt*(p.revealed?.045:.07),0,100);
+  if(!p.revealed&&Math.random()<dt*.008)n.status='😮‍💨 少し疲れやすい';
+ }
+ return ret;
+};
+const fw42PrevPregnancyTick=fw12PregnancyTick;
+fw12PregnancyTick=function(){
+ const f=state.family,before=f.children.length;
+ (f.pregnancies||[]).forEach(function(p){
+  if(p.version42&&state.day>=p.dueDay&&p.gender==null)p.gender=Math.random()<.5?'boy':'girl';
+ });
+ fw42PrevPregnancyTick();
+ if(f.children.length>before){
+  f.pendingBabyName42=f.children.length-1;
+  msg('👶 赤ちゃんが生まれた！ 名前を決めよう。');
+ }
+};
+function fw42OpenNaming(){
+ const f=state.family,idx=f.pendingBabyName42,c=f.children&&f.children[idx];if(!c)return;
+ f.pendingBabyName42=null;
+ $('#panel').classList.remove('hidden');
+ $('#panelTitle').textContent='👶 生まれた子の名前';
+ $('#panelBody').innerHTML='<div class="tileCard">'+(c.gender==='boy'?'男の子':'女の子')+'が家族に加わりました。<div class="note">名前はあとでも変更できます。</div><input id="fw42BabyName" maxlength="24" style="width:100%;padding:10px;margin:10px 0;background:#202226;color:white;border:1px solid #777;border-radius:8px" placeholder="名前" /><button class="smallBtn" data-fw42-save-name="'+idx+'">名前を決める</button></div>';
+}
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw42-save-name]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const c=state.family.children[Number(b.dataset.fw42SaveName)],input=document.getElementById('fw42BabyName');
+ if(!c||!input)return;const name=String(input.value||'').trim().slice(0,24);
+ if(!name){msg('⚠️ 名前を入力してください。');return;}
+ c.name=name;$('#panel').classList.add('hidden');msg('👶 '+name+'と名付けた。');
+ if(typeof fw37Log==='function')fw37Log('family','命名：'+name,c);
+},true);
+const fw42PrevUpdate=update;
+update=function(dt){
+ const ret=fw42PrevUpdate(dt);
+ if(state.sleepFade20||state.gameOver)return ret;
+ if(state.family.pendingBabyName42!=null&&(!state.dialog)&&$('#panel').classList.contains('hidden'))fw42OpenNaming();
+ if(state.dialog&&state.dialog.speaker)fw42Face(state.dialog.speaker);
+ if(state.family.pregnancies){
+  state.family.pregnancies.forEach(function(p){
+   const n=state.npcs.find(function(x){return x.id===p.parent;});
+   if(!n||p.revealed||state.day<p.announceDay)return;
+   if(!state.dialog&&!n.pendingTalk21)n.pendingTalk21='pregnancy42';
+  });
+ }
+ return ret;
+};
+const fw42PrevSaveLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ const ok=fw42PrevSaveLoad.apply(this,arguments);
+ state.family.pregnancies=state.family.pregnancies||[];
+ if(state.family.gestationDays<300)state.family.gestationDays=300;
+ return ok;
+};
+state.family.gestationDays=300;
+/* END FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY */
+
 })();
 </script>
 </body>
