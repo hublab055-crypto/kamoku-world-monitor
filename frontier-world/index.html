@@ -9468,7 +9468,8 @@ function fw422Remember(n,topic,value){
 function fw422HeartFly(n,amount,label){
  if(amount<=0)return;
  const tag=Array.from(document.querySelectorAll('#speaker .friendTag')).find(function(x){return /\/200/.test(x.textContent);});
- const target=tag?tag.getBoundingClientRect():document.getElementById('speaker').getBoundingClientRect();
+ const hidden=$('#dialogPanel').classList.contains('hidden');
+ const target=hidden?{left:26,top:110,width:60,height:40,bottom:150}:(tag?tag.getBoundingClientRect():document.getElementById('speaker').getBoundingClientRect());
  let x=target.left-55,y=target.bottom+65;
  const it=state.interior;
  if(it&&n){
@@ -9825,6 +9826,45 @@ fw39FinishFamilyMeal=function(m){
 };
 
 // Do not make personal preference forms transient: the draft is stored on the NPC and restored when reopened.
+
+// Visible pantry quantity and traceable Wikibooks source for a saved recipe.
+const fw422PrevInventory=openInventory;
+openInventory=function(){
+ const r=fw422PrevInventory.apply(this,arguments);
+ const body=$('#panelBody'),title=$('#panelTitle');
+ if(body&&title&&/持ち物|インベントリ|倉庫/.test(title.textContent)&&!body.querySelector('[data-fw422-eggs-inventory]')){
+  body.insertAdjacentHTML('beforeend','<div class="tileCard" data-fw422-eggs-inventory>🥚 卵　所持 '+(state.player.inv.egg||0)+'個 / 倉庫 '+(state.chest.egg||0)+'個</div>');
+ }
+ return r;
+};
+const fw422PrevEggDining=fw28OpenDiningMenu;
+fw28OpenDiningMenu=function(){
+ const ret=fw422PrevEggDining.apply(this,arguments);
+ if(state.recipesKnown&&state.recipesKnown.includes('fried_egg')&&$('#panelBody')&&!$('#panelBody').querySelector('[data-fw422-wiki-ref]')){
+  $('#panelBody').insertAdjacentHTML('beforeend','<div class="note" data-fw422-wiki-ref>📖 <a href="'+FW422_EGG_SOURCE+'" target="_blank" rel="noopener noreferrer">Wikibooks：目玉焼き（1人前の材料）</a><br>実物は油小さじ1・塩・こしょう少々も使用。ゲーム内では常備調味料として省略しています。</div>');
+ }
+ return ret;
+};
+// Durability falls slowly with game days, so repairing furniture remains meaningful.
+const fw422PrevUpdateWear=update;
+update=function(dt){
+ const ret=fw422PrevUpdateWear(dt);
+ if(state.lastFurnitureWear422===state.day)return ret;
+ const elapsed=Math.min(14,Math.max(0,state.day-(state.lastFurnitureWear422==null?state.day:state.lastFurnitureWear422)));
+ state.lastFurnitureWear422=state.day;
+ if(elapsed){
+  state.buildings.forEach(function(b){
+   if(b.type==='shop')return;
+   const targets=fw34CleanTargets(b);
+   targets.forEach(function(t){
+    const f=t.obj;
+    if(f.condition422==null)f.condition422=90;
+    f.condition422=clamp(f.condition422-elapsed*.65,15,100);
+   });
+  });
+ }
+ return ret;
+};
 /* END FRONTIER_V42_2_LIFE_AND_CONVERSATION */
 
 
