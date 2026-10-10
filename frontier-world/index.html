@@ -10501,6 +10501,78 @@ handleDialogAction=function(k){
  }
  return fw43PrevProactiveReply(k);
 };
+
+/* FRONTIER_V43_HOSPITAL_AND_MOBILE_BUILD_UI */
+const fw43CancelConstructionBtn=document.createElement('button');
+fw43CancelConstructionBtn.id='fw43CancelConstruction';fw43CancelConstructionBtn.type='button';
+fw43CancelConstructionBtn.textContent='✕ 配置をやめる';
+Object.assign(fw43CancelConstructionBtn.style,{
+ display:'none',position:'absolute',top:'68px',right:'10px',zIndex:'40',
+ background:'#272b31e8',border:'1px solid #aaa',borderRadius:'15px',padding:'8px 12px',minHeight:'40px'
+});
+$('.stage').appendChild(fw43CancelConstructionBtn);
+function fw43CancelConstruction(){
+ fw43BuildMode=null;fw43CancelConstructionBtn.style.display='none';msg('🏗️ 建物の配置を中止した。');
+}
+fw43CancelConstructionBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fw43CancelConstruction();});
+const fw43PreviousSelectConstruction=fw43SelectConstruction;
+fw43SelectConstruction=function(kind,id){
+ fw43PreviousSelectConstruction(kind,id);
+ fw43CancelConstructionBtn.style.display=fw43BuildMode?'block':'none';
+};
+function fw43ConstructionModeDisplay(){fw43CancelConstructionBtn.style.display=fw43BuildMode?'block':'none';}
+fw43WorldCanvas.addEventListener('pointerup',fw43ConstructionModeDisplay,false);
+fw43WorldCanvas.addEventListener('pointerdown',fw43ConstructionModeDisplay,false);
+document.addEventListener('keydown',fw43ConstructionModeDisplay,false);
+// Services for NPC health as well as the controlled character.
+const fw43PriorPriestMenuPatients=fw43PriestMenu;
+fw43PriestMenu=function(){
+ fw43PriorPriestMenuPatients();
+ $('#dialogReplies').insertAdjacentHTML('beforeend',fw42HtmlButton('fw43:priest:patients','🩺 村人の診察'));
+};
+function fw43PriestPatients(){
+ const patients=state.npcs.filter(function(n){return n.id!=='priest43'&&n.alive!==false&&(n.hp<100||n.illness43);});
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='🩺 村の診療所';
+ $('#panelBody').innerHTML=patients.length?patients.map(function(n){
+  return '<div class="tileCard"><b>'+fw422Esc(n.name)+'</b>　HP '+Math.round(n.hp||0)+'/100'+
+   (n.illness43?' / 🤒 '+fw422Esc(n.illness43.name||'体調不良'):'')+
+   '<br><button class="smallBtn" data-fw43-heal-npc="'+fw422Esc(n.id)+'">10Gで治療</button></div>';
+ }).join(''):'<div class="tileCard">現在、治療が必要な村人はいません。</div>';
+}
+const fw43PriorPatientReply=handleDialogAction;
+handleDialogAction=function(k){
+ if(k==='fw43:priest:patients'){fw43PriestPatients();return;}
+ return fw43PriorPatientReply(k);
+};
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw43-heal-npc]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const n=state.npcs.find(function(x){return x.id===b.dataset.fw43HealNpc;});
+ if(!n||n.alive===false||n.id==='priest43')return;
+ if((state.player.coins||0)<10){msg('💰 治療費10Gが必要です。');return;}
+ state.player.coins-=10;n.hp=clamp((Number(n.hp)||0)+40,0,100);n.st=clamp((Number(n.st)||0)+10,0,100);n.illness43=null;
+ msg('🩺 '+n.name+'を治療した。HP+40、体調が回復した。');
+ fw43RecordEvent('health',n.name+'が司祭の治療を受けた');
+ fw43PriestPatients();
+},true);
+const fw43PriorNPCIllness=updateNPC;
+updateNPC=function(n,dt){
+ const r=fw43PriorNPCIllness(n,dt);
+ if(n&&n.illness43&&n.alive!==false)n.st=clamp((Number(n.st)||0)-dt*.025,0,100);
+ return r;
+};
+const fw43PriorAllHealth=update;
+update=function(dt){
+ const r=fw43PriorAllHealth(dt);
+ if(state.lastNpcHealthDay43===state.day)return r;
+ state.lastNpcHealthDay43=state.day;
+ state.npcs.forEach(function(n){
+  if(!n||n.id==='priest43'||n.alive===false||n.illness43||Number(n.hygiene==null?75:n.hygiene)>=25)return;
+  if(Math.random()<.05)n.illness43={name:'発熱',day:state.day};
+ });
+ return r;
+};
+/* END FRONTIER_V43_HOSPITAL_AND_MOBILE_BUILD_UI */
 /* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
 
 
