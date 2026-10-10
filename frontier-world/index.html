@@ -9960,7 +9960,7 @@ function fw43StopWalk(n){
 }
 function fw43AcceptProposal(n,kind){
  if(kind==='walk'){
-  if(fw43StartWalk(n)){typeLine('うん！ 一緒に歩こう。ついていくね。');fw422Reward(n,1,1,'散歩に誘う');}
+  if(fw43StartWalk(n)){typeLine('うん！ ついていくね。');fw422Reward(n,1,1,'散歩に誘う');}
   else typeLine('ごめんね。今は動けないけれど、また誘って。');
  }else if(kind==='meal'){
   const ok=fw39CallFamily(false);
@@ -10595,6 +10595,13 @@ renderDialogReplies=function(){
  const n=state.dialog&&state.dialog.speaker;
  if(n&&fw43Proposal&&fw43Proposal.speakerId===n.id&&!fw422Pending)fw43ShowProposal(n,fw43Proposal.kind);
  return r;
+};
+
+// Closing an interrupted confirmation must not suppress future contextual invitations.
+const fw43PreviousCloseConfirm=closeDialog;
+closeDialog=function(){
+ fw422Pending=null;fw43Proposal=null;
+ return fw43PreviousCloseConfirm.apply(this,arguments);
 };
 /* END FRONTIER_V43_HOSPITAL_AND_MOBILE_BUILD_UI */
 /* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
