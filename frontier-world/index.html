@@ -10125,6 +10125,25 @@ handleDialogAction=function(k){
  }
  return fw42PrevHandleChildName(k);
 };
+
+// Fatigue, hunger and hygiene produce dynamic stress; pleasant downtime reduces it.
+function fw42UpdateStress(actor,dt,homeClean){
+ if(!actor)return;
+ const stamina=fw42Range(actor.st),hunger=fw42Range(actor.hunger),hygiene=fw42Range(actor.hygiene);
+ const burden=(stamina<35?1:0)+(hunger<35?1:0)+(hygiene<45?1:0)+(homeClean<50?1:0);
+ const val=actor.stress42==null?20:Number(actor.stress42);
+ actor.stress42=clamp(val+dt*(burden?burden*.027:-.008),0,100);
+}
+const fw42PrevUpdateStress=update;
+update=function(dt){
+ const ret=fw42PrevUpdateStress(dt);
+ if(state.sleepFade20||state.gameOver)return ret;
+ const home=state.buildings.find(function(b){return b.id==='player';});
+ const clean=home?fw34HomeCleanliness(home):70;
+ fw42UpdateStress(state.player,dt,clean);
+ state.npcs.forEach(function(n){if(n.alive!==false)fw42UpdateStress(n,dt,clean);});
+ return ret;
+};
 /* END FRONTIER_V42_SOCIAL_CONVERSATION_FAMILY */
 
 })();
