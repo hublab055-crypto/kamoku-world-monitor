@@ -10168,6 +10168,261 @@ update=function(dt){
 /* END FRONTIER_V43_WELL_AND_OWNED_BUILDING_MOVE */
 
 
+
+/* FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
+function fw43CommonHouse(){return state.buildings.find(function(b){return b.id==='house1';})||null;}
+function fw43EnsurePriest(){
+ const house=fw43CommonHouse();if(!house)return null;
+ house.access='public';house.commonHouse43=true;
+ let p=state.npcs.find(function(n){return n.id==='priest43';});
+ if(!p){
+  const e=fw10Entrance(house);
+  p={id:'priest43',name:'司祭エリアス',x:e.x+1,y:e.y+.3,tx:e.x+1,ty:e.y+.3,dir:'front',
+   portrait:'riku',sprite:'riku',hp:100,st:92,hunger:86,friend:25,loyalty:65,timer:1,
+   role:'priest',homeId:house.id,relationship:'acquaintance',companion:false,alive:true,
+   status:'⛪ コモンハウス',skills:{medicine:3,reading:4,counsel:3},
+   dialog:{
+    intro:['ようこそ、コモンハウスへ。祈りと医療、本の管理もしています。','お困りですか？ 司祭としても治療士としても力になります。'],
+    hello:['平安がありますように。','体調はどうですか？ 無理をせず休息も大切に。'],
+    life:['村の歩みを歴史帳に記しています。','生まれた命も、亡くなった命も、大切に覚えておきたいものです。'],
+    work:['結婚式や葬儀、祝祭を執り行います。','治療や薬の販売、書籍の貸し出しも担当しています。']
+   }};
+  state.npcs.push(p);
+  if(typeof fw8EnsureNpc==='function')fw8EnsureNpc(p);
+  if(typeof fw9EnsureNpc==='function')fw9EnsureNpc(p);
+  if(typeof fw10EnsureNpc==='function')fw10EnsureNpc(p);
+  if(typeof fw19EnsureSchedule==='function')fw19EnsureSchedule(p);
+ }
+ p.homeId=house.id;p.role='priest';p.alive=p.alive!==false;
+ if(p.hp==null)p.hp=100;
+ return p;
+}
+fw43EnsurePriest();
+const fw43PrevLoadPriest=fw10LoadGame;
+fw10LoadGame=function(){
+ const ret=fw43PrevLoadPriest.apply(this,arguments);
+ fw43EnsurePriest();
+ state.villageChronicle43=Array.isArray(state.villageChronicle43)?state.villageChronicle43:[];
+ return ret;
+};
+const fw43PrevNPCPriest=updateNPC;
+updateNPC=function(n,dt){
+ if(!n||n.id!=='priest43')return fw43PrevNPCPriest(n,dt);
+ if(n.alive===false)return;
+ const house=fw43CommonHouse();if(!house)return;
+ const pending=state.family&&state.family.pregnancies&&state.family.pregnancies.find(function(p){
+  return state.midwifeAppointment43&&state.midwifeAppointment43===p.parent&&
+   p.revealed&&p.dueDay-state.day<=7&&p.dueDay-state.day>=0;
+ });
+ let targetHouse=house,indoors=(state.hour>=20||state.hour<7||state.hour>=12&&state.hour<14),tag='⛪ 司祭・治療士・司書';
+ if(pending){
+  const mother=state.npcs.find(function(x){return x.id===pending.parent;});
+  const candidate=mother&&fw12SharedHome(mother);
+  if(candidate){targetHouse=candidate;indoors=false;tag='🤱 出産の立ち会いへ移動';}
+ }
+ if(n.household34&&(!indoors||n.household34.buildingId!==targetHouse.id)){fw34ExitNpc(n,false);}
+ const entrance=fw10Entrance(targetHouse);
+ if(indoors){
+  if(n.inside20===targetHouse.id&&n.household34){n.status='⛪ コモンハウスで勤務・休息';return;}
+  const dist=Math.hypot(n.x-entrance.x,n.y-entrance.y);
+  if(dist>1.0){fw17NpcMove(n,entrance.x,entrance.y,dt,'🏠 コモンハウスへ帰宅');return;}
+  if(typeof fw34EnterNpc==='function')fw34EnterNpc(n,targetHouse,state.hour>=20||state.hour<7?'sleep':'leisure','schedule');
+  n.status='📚 共同施設で活動';return;
+ }
+ if(n.inside20){if(n.household34)fw34ExitNpc(n,false);else n.inside20=null;}
+ const goal={x:entrance.x+(pending?0.3:1.1),y:entrance.y+.7};
+ if(Math.hypot(n.x-goal.x,n.y-goal.y)>.25)fw17NpcMove(n,goal.x,goal.y,dt,tag);
+ else {n.status=tag;n.st=clamp(n.st+dt*.12,0,100);}
+};
+const fw43PrevPriestMenu=fw42Menu;
+fw42Menu=function(){
+ fw43PrevPriestMenu();
+ const d=state.dialog,n=d&&d.speaker;
+ if(!n||n.id!=='priest43'||d.fw42Menu!=='main')return;
+ $('#dialogReplies').insertAdjacentHTML('beforeend',
+  fw42HtmlButton('fw43:priest:menu','⛪ 司祭・治療士・司書'));
+};
+function fw43PriestMenu(){
+ $('#dialogReplies').innerHTML=
+ '<div class="note" style="width:100%">コモンハウスの相談窓口</div>'+
+ fw42HtmlButton('fw43:priest:wedding','💒 結婚式')+
+ fw42HtmlButton('fw43:priest:funeral','🕯️ 葬儀・追悼')+
+ fw42HtmlButton('fw43:priest:festival','🎉 村の祭り')+
+ fw42HtmlButton('fw43:priest:heal','🩺 怪我・病気の治療 10G')+
+ fw42HtmlButton('fw43:priest:prevent','🧼 病気の予防 6G')+
+ fw42HtmlButton('fw43:priest:medicine','💊 薬を買う 12G')+
+ fw42HtmlButton('fw43:priest:midwife','🤱 出産の立ち会いを依頼')+
+ fw42HtmlButton('fw43:priest:library','📚 図書室・村の歴史')+
+ fw42HtmlButton('fw42:main','↩ 戻る');
+}
+function fw43PriestSay(txt){typeLine(txt);fw43PriestMenu();}
+function fw43PriestWedding(){
+ const spouse=state.npcs.find(function(n){return n.alive!==false&&n.id!=='priest43'&&
+  (n.relationship==='lover'||n.relationship==='family');});
+ if(!spouse){fw43PriestSay('まずお二人が恋人として信頼を育むところから始めましょう。');return;}
+ if(spouse.relationship==='lover'){
+  if(spouse.friend<95){fw43PriestSay('結婚には、お互いの信頼がもう少し必要です。');return;}
+  fw8AdvanceRelationship(spouse,'family');
+ }
+ if(state.ceremonies.some(function(c){return c.type==='wedding'&&c.spouseId43===spouse.id;})){
+  fw43PriestSay('すでに婚礼を祝福しています。末長くお幸せに。');return;
+ }
+ fw10StartCeremony('wedding',spouse.name+'との結婚式','司祭エリアスが誓いを見届け、村人が二人を祝福した。');
+ const c=state.ceremonies[state.ceremonies.length-1];if(c){c.spouseId43=spouse.id;c.officiant='priest43';}
+ fw43RecordEvent('wedding',spouse.name+'の結婚式を司祭が執行');
+ fw43PriestSay('お二人の誓いを祝福します。これからも互いを大切に。');
+}
+function fw43PriestFuneral(){
+ const graves=state.graves||[],g=graves.slice().reverse().find(function(x){return !x.rite43;});
+ if(!g){fw43PriestSay('新たに葬儀を行う方はいません。亡くなった方々の思い出を大切にしましょう。');return;}
+ g.rite43=true;
+ const name=String(g.name||g.owner||'村人');
+ fw10StartCeremony('funeral',name+'の葬儀','司祭が祈りを捧げ、村の人々が別れを告げた。');
+ const c=state.ceremonies[state.ceremonies.length-1];if(c)c.officiant='priest43';
+ fw43RecordEvent('funeral',name+'の葬儀');
+ fw43PriestSay('故人の足跡を村の歴史帳に残します。');
+}
+function fw43PriestFestival(){
+ if(state.lastFestival43!=null&&state.day-state.lastFestival43<7){fw43PriestSay('お祭りは7日ごとに開催できます。もう少し準備しましょう。');return;}
+ if((state.camp.food||0)<3){fw43PriestSay('お祭りには村の食料備蓄が3必要です。');return;}
+ state.camp.food-=3;state.lastFestival43=state.day;
+ fw10StartCeremony('festival','村の収穫と平和の祭り','司祭の祝詞とともに村人が食卓を囲み、互いの無事を祝った。');
+ state.player.happiness=clamp((state.player.happiness||80)+6,0,100);
+ state.npcs.forEach(function(n){n.happiness=clamp((n.happiness||75)+5,0,100);});
+ const c=state.ceremonies[state.ceremonies.length-1];if(c)c.officiant='priest43';
+ fw43RecordEvent('festival','村の祭りを司祭が開催');
+ fw43PriestSay('祭りを始めましょう。収穫に感謝し、明日への力にしましょう。');
+}
+function fw43PriestHeal(){
+ const p=state.player;
+ if(p.hp>=100&&!p.illness43){fw43PriestSay('今のところ健康そうです。無理せずお過ごしください。');return;}
+ if((p.coins||0)<10){fw43PriestSay('治療費10Gが必要です。');return;}
+ p.coins-=10;p.hp=clamp((Number(p.hp)||0)+40,0,100);
+ p.illness43=null;p.st=clamp((Number(p.st)||0)+12,0,100);
+ fw43PriestSay('手当てをしました。体を休めて回復に努めてください。HPが40回復しました。');
+ if(typeof fw37Log==='function')fw37Log('health','司祭による治療（10G）',p);
+}
+function fw43PriestPrevent(){
+ if((state.player.coins||0)<6){fw43PriestSay('予防ケアには6G必要です。');return;}
+ state.player.coins-=6;
+ state.player.protectedUntil43=Math.max(state.player.protectedUntil43||0,state.day+7);
+ state.player.hygiene=clamp((state.player.hygiene||70)+15,0,100);
+ fw43PriestSay('清潔な生活と休息を心がけましょう。今後7日間は病気にかかりにくくなります。');
+}
+function fw43PriestMedicine(){
+ if((state.player.coins||0)<12){fw43PriestSay('薬代は12Gです。');return;}
+ state.player.coins-=12;
+ state.player.items=state.player.items||[];
+ state.player.items.push({rid:'medicine43',name:'薬草の薬',icon:'💊',cat:'medicine',quality:1,qty:1,value:12});
+ fw43PriestSay('薬草の薬をお渡しします。インベントリから使用するとHPを回復し、病気を治せます。');
+}
+function fw43PriestMidwife(){
+ const expect=(state.family.pregnancies||[]).find(function(p){return p.revealed&&p.dueDay>state.day;});
+ if(!expect){fw43PriestSay('まだ出産を控えている方はいません。報告があれば支度をしましょう。');return;}
+ state.midwifeAppointment43=expect.parent;
+ fw43PriestSay('出産が近づいたらお宅に向かい、立ち会います。無理をせず備えましょう。');
+}
+function fw43RecordEvent(type,detail){
+ state.villageChronicle43=Array.isArray(state.villageChronicle43)?state.villageChronicle43:[];
+ state.villageChronicle43.push({day:state.day,type:type,text:String(detail).slice(0,140)});
+ if(state.villageChronicle43.length>300)state.villageChronicle43.shift();
+}
+function fw43PriestLibrary(){
+ const books=typeof FW18_BOOKS!=='undefined'?Object.keys(FW18_BOOKS):[];
+ const journal=Array.isArray(state.villageChronicle43)?state.villageChronicle43:[];
+ $('#panel').classList.remove('hidden');$('#panelTitle').textContent='📚 コモンハウス図書室・村史';
+ const log=journal.slice(-24).reverse().map(function(e){return '<div class="tileCard">Day '+e.day+'｜'+fw422Esc(e.text)+'</div>';}).join('');
+ $('#panelBody').innerHTML=
+ '<div class="tileCard"><b>📖 蔵書 '+books.length+'冊</b> / 村の記録 '+journal.length+'件<br>'+
+ '<button class="smallBtn" data-fw43-library="borrow">📖 書籍を1冊借りる</button> '+
+ '<button class="smallBtn" data-fw43-library="refresh">🖋️ 村の近況を記録</button>'+
+ '<div class="note">借りられるのは1日1冊。図書室の記録はゲームのセーブデータに保存されます。</div></div>'+
+ '<h3>村の歴史</h3>'+(log||'<div class="tileCard">まだ記録がありません。</div>');
+}
+$('#panelBody').addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw43-library]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(b.dataset.fw43Library==='borrow'){
+  if(state.borrowDay43===state.day){msg('📚 本の貸し出しは1日1冊までです。');return;}
+  const ids=typeof FW18_BOOKS!=='undefined'?Object.keys(FW18_BOOKS):[];
+  if(!ids.length){msg('📚 まだ貸せる本がありません。');return;}
+  const id=ids[Math.floor(Math.random()*ids.length)];
+  if(typeof fw18GiveBook==='function'){fw18GiveBook(id,'library');state.borrowDay43=state.day;msg('📖 図書室から本を1冊借りた。');}
+ }else{
+  fw43RecordEvent('chronicle','人口'+(state.npcs.filter(function(n){return n.alive!==false;}).length+1)+'人、建物'+state.buildings.length+'棟、水備蓄'+(state.camp.water||0));
+  msg('🖋️ 村の近況を歴史帳に記録した。');
+ }
+ fw43PriestLibrary();
+},true);
+const fw43PreviousPriestReply=handleDialogAction;
+handleDialogAction=function(k){
+ if(typeof k==='string'&&k.startsWith('fw43:priest:')){
+  const action=k.split(':')[2];
+  if(action==='menu'){fw43PriestMenu();return;}
+  const fn={
+   wedding:fw43PriestWedding,funeral:fw43PriestFuneral,festival:fw43PriestFestival,
+   heal:fw43PriestHeal,prevent:fw43PriestPrevent,medicine:fw43PriestMedicine,
+   midwife:fw43PriestMidwife,library:fw43PriestLibrary
+  }[action];
+  if(fn)fn();return;
+ }
+ return fw43PreviousPriestReply(k);
+};
+const fw43PrevMedicineInventory=openInventory;
+openInventory=function(){
+ const r=fw43PrevMedicineInventory.apply(this,arguments);
+ const meds=(state.player.items||[]).map(function(m,i){return {m:m,i:i};}).filter(function(x){return x.m.rid==='medicine43';});
+ if(meds.length&&$('#panelBody'))$('#panelBody').insertAdjacentHTML('beforeend','<div class="tileCard"><b>💊 医薬品</b><br>'+
+ meds.map(function(x){return '薬草の薬 <button class="smallBtn" data-fw43-use-medicine="'+x.i+'">使用する</button>';}).join('<br>')+'</div>');
+ return r;
+};
+$('#panelBody').addEventListener('click',function(e){
+ const btn=e.target.closest('[data-fw43-use-medicine]');if(!btn)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const idx=Number(btn.dataset.fw43UseMedicine),it=state.player.items[idx];
+ if(!it||it.rid!=='medicine43')return;
+ state.player.items.splice(idx,1);
+ state.player.hp=clamp((Number(state.player.hp)||0)+30,0,100);
+ state.player.illness43=null;state.player.st=clamp((Number(state.player.st)||0)+8,0,100);
+ msg('💊 薬草の薬を使用。HP+30、病気を治療した。');openInventory();
+},true);
+const fw43PrevBirth=fw12PregnancyTick;
+fw12PregnancyTick=function(){
+ const before=(state.family.children||[]).length;
+ const result=fw43PrevBirth.apply(this,arguments);
+ const newborn=(state.family.children||[]).slice(before);
+ newborn.forEach(function(c){
+  if(state.midwifeAppointment43===c.parent){
+   c.attendedBy43='priest43';state.midwifeAppointment43=null;
+   fw10StartCeremony('birth',c.name+'の誕生','司祭エリアスが出産に立ち会い、母子の無事を見守った。');
+   fw43RecordEvent('birth',c.name+'が誕生、司祭が出産に立ち会った');
+  }else fw43RecordEvent('birth',c.name+'が誕生した');
+ });
+ return result;
+};
+const fw43PrevPriestTick=update;
+update=function(dt){
+ const r=fw43PrevPriestTick(dt);
+ const p=state.player;
+ if(!p||p.hp<=0)return r;
+ if(state.lastHealthDay43!==state.day){
+  state.lastHealthDay43=state.day;
+  if(!p.illness43&&(p.hygiene||75)<25&&(p.protectedUntil43||0)<state.day&&Math.random()<.08){
+   p.illness43={name:'発熱',day:state.day};
+   msg('🤒 体調を崩した。司祭の治療所へ行くか、薬を使おう。');
+   fw43RecordEvent('illness','村人が体調を崩した');
+  }
+  if(state.lastChronicleDay43!==state.day){
+   state.lastChronicleDay43=state.day;
+   fw43RecordEvent('day','人口'+(state.npcs.filter(function(n){return n.alive!==false;}).length+1)+'人、建物'+state.buildings.length+'棟、食料'+(state.camp.food||0)+'、水'+(state.camp.water||0));
+  }
+ }
+ if(p.illness43){p.st=clamp((Number(p.st)||0)-dt*.025,0,100);}
+ return r;
+};
+/* END FRONTIER_V43_PRIEST_HEALER_LIBRARIAN */
+
+
 })();
 </script>
 
