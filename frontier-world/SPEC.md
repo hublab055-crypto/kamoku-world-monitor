@@ -3,12 +3,14 @@
 更新日: 2026-10-10 JST  
 対象: `frontier-world/index.html`  
 実装系列: Frontier V47.0
-基準コミット: `b3f52c712484d302f149ff71250e7ab4c4f02747`
+基準コミット: `f1dedad4abf8d53c4e44ea828c783f4f0f112c33`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
 
 ## V47.0 — 司祭の学校・夢のミニゲーム（2026-10-11）
+
+更新補足：学齢期の子どもがベビーベッド状態から移行できない場合の解除処理、ミニゲームのpointermove連続判定を修正。修正コミット `f1dedad4abf8d53c4e44ea828c783f4f0f112c33`。
 
 ゲーム実装コミット: \`b3f52c712484d302f149ff71250e7ab4c4f02747\`
 
