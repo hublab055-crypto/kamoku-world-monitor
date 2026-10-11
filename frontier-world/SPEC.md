@@ -3,14 +3,14 @@
 更新日: 2026-10-10 JST  
 対象: `frontier-world/index.html`  
 実装系列: Frontier V46.0
-基準コミット: `6a5730a8b8a11f56df69b7fbc7bc0dac26a7f389`
+基準コミット: `67e62c4333bd6cb3a7ef88b7cc1c8a99309a017a`
 
 > このファイルを Frontier World の設計・実装状態の **Single Source of Truth** とする。  
 > 別チャットで作業を始める時は、最初に `SPEC.md`、`COLLAB.md`、`project-state.json` を読み、GitHub の `frontier-world/index.html` の最新コミットも確認する。
 
 ## V46.0 — 1回の自動行動数量を指定（2026-10-11）
 
-実装コミット: `6a5730a8b8a11f56df69b7fbc7bc0dac26a7f389`
+実装コミット: `67e62c4333bd6cb3a7ef88b7cc1c8a99309a017a`
 
 - V44の操作可能キャラ別8スロット、V45の「変数を比較（＜・≦・＝・≧・＞・≠）」と組み合わせて「条件」と「1回の実行数量」を独立して設定。
 - 料理、完成料理のShop販売、配膳に1〜50個の「実行数量」欄。キャラクター/スロットごとに保存。
