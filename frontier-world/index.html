@@ -11113,19 +11113,13 @@ $('#panelBody').addEventListener('click',function(e){
  chair.rotation45=((Number(chair.rotation45)||0)+1)%4;
  fw19OpenFurnitureMenu();
 },true);
-// Plate icons must be drawn *within the current movable table*, not over nearby chairs.
-const fw45OldPlateDraw=fw25DrawLegacyFurniture;
-fw25DrawLegacyFurniture=function(b,ox,oy,scale,rw,rh){
- fw45OldPlateDraw(b,ox,oy,scale,rw,rh);
- const meal=fw28EnsureDining(b),t=fw28TablePos(b,rw,rh);
- if(!t||!meal.served.length)return;
- const cx=ox+(t.x+.61)*scale,cy=oy+(t.y+.31)*scale;
- ctx.save();ctx.font=Math.max(10,Math.round(scale*.20))+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
- for(let i=0;i<Math.min(3,meal.served.length);i++){
-  ctx.fillText('🍽️',cx+(i-1)*scale*.22,cy+(i%2)*scale*.15);
- }
- ctx.restore();
+// The table amenity was incorrectly rendered with the chair emoji.
+const fw45OldDrawAmenity=fw19DrawAmenity;
+fw19DrawAmenity=function(type,px,py,scale){
+ if(type==='table'){drawAsset('table',px,py,scale*1.3,scale*.90,1);return;}
+ return fw45OldDrawAmenity(type,px,py,scale);
 };
+// The existing V28 drawing places each dish at fw28TablePos; now this is a real table asset.
 // Meal starts when everyone reaches chairs; leave them seated for 5-10 seconds.
 const fw45OldBeginMeal=fw39BeginEating;
 fw39BeginEating=function(m){
@@ -11145,9 +11139,10 @@ fw39NpcMealTick=function(n,h,b,dt){
 };
 const fw45OldFinishMeal=fw39FinishFamilyMeal;
 fw39FinishFamilyMeal=function(m){
- if(m&&!m.finished&&m.eating&&performance.now()-(m.startedAt||0)<(m.duration45||6)*1000)return;
+ if(!m||m.finished)return fw45OldFinishMeal(m);
+ if(m.eating&&performance.now()-(m.startedAt||0)<(m.duration45||6)*1000)return;
  const done=fw45OldFinishMeal(m);
- if(m&&m.finished){msg('🍽️ ごちそうさま！ またみんなで食べようね。');state.player.status='🍽️ ごちそうさま！';}
+ if(m.finished){msg('🍽️ ごちそうさま！ またみんなで食べようね。');state.player.status='🍽️ ごちそうさま！';}
  return done;
 };
 // While walking with a close friend/partner, holding hands is a voluntary toggle.
