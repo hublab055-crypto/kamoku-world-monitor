@@ -11234,6 +11234,178 @@ state.npcs.forEach(function(n){if(n.autoSchedule)fw45NormalizeRules(n);});
 /* END FRONTIER_V45_CONDITIONS_FARM_DINING_WALK */
 
 
+
+/* FRONTIER_V46_QUANTITY_BATCH_ACTIONS */
+const FW46_QUANTITY_ACTIONS={cook:{label:'🍳 料理を作る',defaultQty:5},sellPrepared:{label:'💰 完成料理をShopに売る',defaultQty:3},serveMeal:{label:'🍽️ 食卓に配膳する',defaultQty:2}};
+function fw46IsQuantity(k){return Object.prototype.hasOwnProperty.call(FW46_QUANTITY_ACTIONS,k);}
+function fw46Count(c,k){
+ const def=(FW46_QUANTITY_ACTIONS[k]||{}).defaultQty||1;
+ return clamp(Math.round(Number(c&&c.quantity46)||def),1,50);
+}
+function fw46EnsureQuantities(actor){
+ if(!actor||!actor.autoSchedule)return;
+ const a=actor.autoSchedule;
+ (a.slots||[]).forEach(function(k,i){
+  if(!fw46IsQuantity(k))return;
+  const c=a.slotConditions[i]||(a.slotConditions[i]={type:'always',value:0});
+  if(!Number.isFinite(Number(c.quantity46))||Number(c.quantity46)<1)c.quantity46=FW46_QUANTITY_ACTIONS[k].defaultQty;
+ });
+}
+function fw46Batch(actor,c){
+ const a=actor&&actor.autoSchedule;if(!a||!c)return null;
+ const index=a.slotConditions.indexOf(c);
+ const b=a.batch46;
+ return b&&index===b.slot&&a.slots[index]===b.kind?b:null;
+}
+function fw46StartBatch(actor,k){
+ if(!fw46IsQuantity(k)||!actor||!actor.autoSchedule)return null;
+ const a=actor.autoSchedule,i=a.activeSlot,c=a.slotConditions[i];
+ if(!Number.isInteger(i)||i<0||!c||a.slots[i]!==k)return null;
+ let b=fw46Batch(actor,c);
+ if(b&&b.done<b.goal)return b;
+ if(b&&performance.now()<(b.coolUntil||0))return null;
+ const newBatch={slot:i,kind:k,goal:fw46Count(c,k),done:0,createdAt:performance.now(),coolUntil:0};
+ a.batch46=newBatch;return newBatch;
+}
+function fw46Completed(actor,kind,count){
+ const a=actor&&actor.autoSchedule,b=a&&a.batch46;
+ if(!b||b.kind!==kind||b.done>=b.goal||!(count>0))return;
+ b.done=clamp(b.done+count,0,b.goal);
+ if(b.done>=b.goal){
+  b.coolUntil=performance.now()+3300;
+  a.activeSlot=-1;a.latchedSlot=-1;
+  const unit=kind==='cook'?'作った':kind==='sellPrepared'?'売った':'配膳した';
+  msg('✅ '+actor.name+'：'+FW46_QUANTITY_ACTIONS[kind].label+' '+b.done+'個 '+unit);
+  if(typeof fw37Log==='function')fw37Log('action','数量指定 完了 '+kind+' '+b.done+'/'+b.goal,actor);
+ }
+}
+const fw46PreviousMetricTest=fw45TestMetric;
+fw45TestMetric=function(actor,c){
+ const actual=fw46PreviousMetricTest(actor,c),b=fw46Batch(actor,c);
+ if(!b)return actual;
+ if(b.done<b.goal)return true; // A started 5-item job must finish even after inventory crosses the threshold.
+ if(performance.now()<(b.coolUntil||0))return false;
+ return actual; // Re-arm after the short gap only if the variable still satisfies the condition.
+};
+const fw46PreviousPlayerCan=fw14CanAction;
+fw14CanAction=function(k){
+ if(fw46IsQuantity(k)){
+  const a=state.player.autoSchedule,b=a&&a.batch46;
+  if(b&&b.kind===k&&b.slot===a.activeSlot&&b.done>=b.goal&&performance.now()<(b.coolUntil||0))return false;
+ }
+ return fw46PreviousPlayerCan(k);
+};
+const fw46PreviousNpcCan=fw17NpcCan;
+fw17NpcCan=function(n,k,a){
+ if(fw46IsQuantity(k)){
+  const b=a&&a.batch46;
+  if(b&&b.kind===k&&b.slot===a.activeSlot&&b.done>=b.goal&&performance.now()<(b.coolUntil||0))return false;
+ }
+ return fw46PreviousNpcCan(n,k,a);
+};
+const fw46PrevAutoMenu=fw44AutoMenu;
+fw44AutoMenu=function(){
+ fw46PrevAutoMenu();
+ const entry=fw44CurrentActorEntry(),a=entry.actor.autoSchedule;
+ fw46EnsureQuantities(entry.actor);
+ $('#panelBody').querySelectorAll('[data-fw44-slot]').forEach(function(sel){
+  const i=Number(sel.dataset.fw44Slot),k=a.slots[i],c=a.slotConditions[i];
+  if(!fw46IsQuantity(k))return;
+  const quantity=fw46Count(c,k),card=sel.closest('.tileCard');
+  const selected=sel.options[sel.selectedIndex];
+  if(selected)selected.textContent=FW46_QUANTITY_ACTIONS[k].label.replace('作る','').replace('売る','').replace('配膳する','')+' '+quantity+'個 '+(k==='cook'?'作る':k==='sellPrepared'?'売る':'配膳する');
+  if(card&&!card.querySelector('[data-fw46-quantity]')){
+   const label=document.createElement('label');label.className='settingsRow';
+   label.innerHTML='<span>実行数量</span><input type="number" inputmode="numeric" min="1" max="50" step="1" style="width:100%;min-width:0" data-fw46-quantity="'+i+'" value="'+quantity+'" aria-label="1回の実行数量">';
+   const notes=card.querySelector('.note');card.insertBefore(label,notes||null);
+   const hint=document.createElement('div');hint.className='note';hint.textContent='条件を満たしたら '+quantity+'個ずつ実行（上限50個）。条件値とは独立です。';
+   card.appendChild(hint);
+  }
+ });
+};
+fw11OpenThinkMenu=fw44AutoMenu;
+$('#panelBody').addEventListener('change',function(e){
+ const input=e.target.closest('[data-fw46-quantity]');if(!input)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor),i=Number(input.dataset.fw46Quantity);
+ if(!Number.isInteger(i)||i<0||i>=a.slots.length||!fw46IsQuantity(a.slots[i]))return;
+ const quantity=clamp(Math.round(Number(input.value)||1),1,50);
+ a.slotConditions[i].quantity46=quantity;
+ if(a.batch46&&a.batch46.slot===i)a.batch46=null;
+ a.activeSlot=-1;a.latchedSlot=-1;
+ msg('🤖 '+entry.actor.name+' 優先'+(i+1)+' '+quantity+'個ずつ実行');
+ fw44AutoMenu();
+},true);
+const fw46PrevPresetMenu=fw44AutoMenu;
+fw44AutoMenu=function(){
+ fw46PrevPresetMenu();
+ const intro=$('#panelBody').querySelector('.tileCard');
+ if(intro){
+  const p=intro.querySelector('[data-fw45-preset]');
+  if(p)p.textContent='🍳 例：料理5個・販売3個・配膳2皿';
+ }
+};
+fw11OpenThinkMenu=fw44AutoMenu;
+$('#panelBody').addEventListener('click',function(e){
+ if(!e.target.closest('[data-fw45-preset]'))return;
+ // V45's preset handler runs in the same capture phase, later; adjust quantities after it.
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ if(a.slotConditions[0])a.slotConditions[0].quantity46=3;
+ if(a.slotConditions[1])a.slotConditions[1].quantity46=5;
+ if(a.slotConditions[2])a.slotConditions[2].quantity46=2;
+ a.batch46=null;
+},true);
+const fw46PreviousPlayerRun=fw14RunAction;
+fw14RunAction=function(k,dt){
+ fw46StartBatch(state.player,k);
+ return fw46PreviousPlayerRun(k,dt);
+};
+let fw46ActingNPC=null;
+const fw46PreviousNpcRun=fw17NpcRun;
+fw17NpcRun=function(n,k,dt,a){
+ fw46StartBatch(n,k);
+ const former=fw46ActingNPC;fw46ActingNPC=n;
+ try{return fw46PreviousNpcRun(n,k,dt,a);}finally{fw46ActingNPC=former;}
+};
+const fw46PreviousPlayerCook=fw27CookOne;
+fw27CookOne=function(){
+ const success=fw46PreviousPlayerCook.apply(this,arguments);
+ if(success)fw46Completed(state.player,'cook',1);
+ return success;
+};
+const fw46PreviousNpcMake=fw9NpcMake;
+fw9NpcMake=function(n,id){
+ const recipe=FW8_RECIPES[id],result=fw46PreviousNpcMake.apply(this,arguments);
+ if(recipe&&recipe.cat==='food')fw46Completed(n,'cook',1);
+ return result;
+};
+const fw46PreviousSell=fw45SellTick;
+fw45SellTick=function(actor,dt){
+ const before=Number(state.player.coins)||0;
+ const result=fw46PreviousSell.apply(this,arguments);
+ if((Number(state.player.coins)||0)>before)fw46Completed(actor,'sellPrepared',1);
+ return result;
+};
+const fw46PreviousServe=fw28ServeOne;
+fw28ServeOne=function(){
+ const result=fw46PreviousServe.apply(this,arguments);
+ if(result){
+  const target=fw46ActingNPC||(state.player.autoSchedule&&state.player.autoSchedule.indoorTask27==='serveMeal'?state.player:null);
+  if(target)fw46Completed(target,'serveMeal',1);
+ }
+ return result;
+};
+const fw46PreviousLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ const result=fw46PreviousLoad.apply(this,arguments);
+ fw46EnsureQuantities(state.player);
+ state.npcs.forEach(function(n){fw46EnsureQuantities(n);});
+ return result;
+};
+fw46EnsureQuantities(state.player);
+state.npcs.forEach(function(n){fw46EnsureQuantities(n);});
+/* END FRONTIER_V46_QUANTITY_BATCH_ACTIONS */
+
 })();
 </script>
 
