@@ -5639,7 +5639,7 @@ function fw25EnsureLegacyFurniture(b,rw,rh){
 function fw25DrawLegacyFurniture(b,ox,oy,scale,rw,rh){
  fw25EnsureLegacyFurniture(b,rw,rh).forEach(function(f){
   const map={chest:['chest',.95,.95],table:['table',1.3,.9],chair:['chair',.7,.85],fireplace:['fireplace',.95,.95]},m=map[f.type];if(!m)return;
-  drawAsset(m[0],ox+scale*f.x,oy+scale*f.y,scale*m[1],scale*m[2],1);
+  if(f.type==='chair'&&f.rotation45){const cx=ox+scale*(f.x+.35),cy=oy+scale*(f.y+.425);ctx.save();ctx.translate(cx,cy);ctx.rotate((f.rotation45%4)*Math.PI/2);drawAsset('chair',-scale*.35,-scale*.425,scale*.7,scale*.85,1);ctx.restore();}else drawAsset(m[0],ox+scale*f.x,oy+scale*f.y,scale*m[1],scale*m[2],1);
  });
 }
 const fw25PrevHitFurniture=fw24HitFurniture;
@@ -10128,7 +10128,7 @@ fw43WorldCanvas.addEventListener('pointerdown',function(e){
    return;
   }
  }
- const ok=mode.kind==='well'?fw43PlaceWell(p.x,p.y):fw43MoveBuilding(state.buildings.find(function(b){return b.id===mode.buildingId;}),p.x,p.y);
+ const ok=mode.kind==='well'?fw43PlaceWell(p.x,p.y):mode.kind==='field'?fw45PlaceField(p.x,p.y):fw43MoveBuilding(state.buildings.find(function(b){return b.id===mode.buildingId;}),p.x,p.y);
  if(ok)fw43BuildMode=null;
 },true);
 fw43WorldCanvas.addEventListener('pointermove',function(e){
@@ -10859,6 +10859,384 @@ fw44NormalizeActor(state.player);
 // Existing NPCs keep their existing ON/OFF state; no accidental bulk activation.
 state.npcs.forEach(function(n){if(n.autoSchedule)fw44NormalizeActor(n);});
 /* END FRONTIER_V44_EIGHT_SLOTS_PER_ACTOR_WELL_AND_GUARD_PATH */
+
+
+
+/* FRONTIER_V45_CONDITIONS_FARM_DINING_WALK */
+FW15_CONDITIONS.metric={label:'変数を比較',numeric:false};
+const FW45_METRICS={
+ served:{label:'🍽️ 配膳済みの皿',max:999},
+ prepared:{label:'🍳 完成料理の個数',max:999},
+ dirty:{label:'🧽 使用済みの皿',max:999},
+ egg:{label:'🥚 所持卵',max:999},
+ invFood:{label:'🍎 本人の食料',max:999},
+ invWater:{label:'💧 本人の水',max:999},
+ invWood:{label:'🪵 本人の木材',max:999},
+ invStone:{label:'🪨 本人の石材',max:999},
+ campFood:{label:'🏘️ 共通備蓄の食料',max:9999},
+ campWater:{label:'🏘️ 共通備蓄の水',max:9999},
+ campWood:{label:'🏘️ 共通備蓄の木材',max:9999},
+ campStone:{label:'🏘️ 共通備蓄の石材',max:9999},
+ stamina:{label:'⚡ 本人のスタミナ',max:100},
+ hunger:{label:'🍎 本人の満腹度',max:100},
+ hp:{label:'❤️ 本人のHP',max:100},
+ homeClean:{label:'🧹 自宅の清潔度',max:100},
+ coins:{label:'💰 プレイヤー所持金',max:99999},
+ fields:{label:'🌱 畑のマス数',max:999},
+ wells:{label:'⛲ 井戸の数',max:99},
+ day:{label:'🌅 経過日数',max:999999},
+ hour:{label:'🕒 現在時刻',max:24}
+};
+const FW45_OPERATORS=[['<','＜'],['<=','≦'],['=','＝'],['>=','≧'],['>','＞'],['!=','≠']];
+function fw45HomeFor(actor){
+ return actor===state.player?fw28HomeBuilding():fw27NpcHome(actor);
+}
+function fw45PreparedCount(){
+ return (state.player.items||[]).reduce(function(a,x){return a+(x.cat==='food'?(Number(x.qty)||1):0);},0)+
+  (state.chest.crafted||[]).reduce(function(a,x){return a+(x.cat==='food'?(Number(x.qty)||1):0);},0);
+}
+function fw45Metric(actor,key){
+ actor=actor||state.player;
+ const b=fw45HomeFor(actor),d=b?fw28EnsureDining(b):{served:[],dirty:0},inv=actor.inv||{},camp=state.camp||{};
+ const map={
+  served:d.served.length,prepared:fw45PreparedCount(),dirty:Number(d.dirty)||0,
+  egg:Number(inv.egg)||0,invFood:Number(inv.food)||0,invWater:Number(inv.water)||0,
+  invWood:Number(inv.wood)||0,invStone:Number(inv.stone)||0,
+  campFood:Number(camp.food)||0,campWater:Number(camp.water)||0,
+  campWood:Number(camp.wood)||0,campStone:Number(camp.stone)||0,
+  stamina:Number(actor.st)||0,hunger:Number(actor.hunger)||0,hp:Number(actor.hp)||0,
+  homeClean:b?Math.round(fw34HomeCleanliness(b)):0,coins:Number(state.player.coins)||0,
+  fields:(state.customFields||[]).length,wells:state.buildings.filter(function(x){return x.type==='well';}).length,
+  day:Number(state.day)||0,hour:Number(state.hour)||0
+ };
+ return Object.prototype.hasOwnProperty.call(map,key)?map[key]:null;
+}
+function fw45TestMetric(actor,c){
+ if(!c||!FW45_METRICS[c.metric])return false;
+ const left=fw45Metric(actor,c.metric),right=Number(c.value);
+ if(left==null||!Number.isFinite(right))return false;
+ switch(c.operator||'<='){
+  case '<':return left<right;
+  case '<=':return left<=right;
+  case '=':return left===right;
+  case '>=':return left>=right;
+  case '>':return left>right;
+  case '!=':return left!==right;
+  default:return false;
+ }
+}
+const fw45PrevPlayerCondition=fw15ConditionPass;
+fw15ConditionPass=function(c){return c&&c.type==='metric'?fw45TestMetric(state.player,c):fw45PrevPlayerCondition(c);};
+const fw45PrevNpcCondition=fw17NpcCondition;
+fw17NpcCondition=function(n,c){return c&&c.type==='metric'?fw45TestMetric(n,c):fw45PrevNpcCondition(n,c);};
+const fw45PrevCondText=fw15CondText;
+fw15CondText=function(c){
+ if(c&&c.type==='metric'){
+  const t=FW45_METRICS[c.metric]||FW45_METRICS.served;
+  return t.label+' '+(FW45_OPERATORS.find(function(x){return x[0]===(c.operator||'<=');})||['<=','≦'])[1]+' '+c.value+
+    '（現在 '+fw45Metric(fw44CurrentActorEntry().actor,c.metric||'served')+'）';
+ }
+ return fw45PrevCondText(c);
+};
+// Migrate unsafe legacy "always serve" rules once; never replace an explicitly configured threshold.
+function fw45NormalizeRules(actor){
+ if(!actor||!actor.autoSchedule)return;
+ const a=fw44NormalizeActor(actor);
+ a.slotConditions.forEach(function(c,i){
+  if(a.slots[i]==='serveMeal'&&(!c||c.type==='always')&&!c?.userSet45)
+   a.slotConditions[i]={type:'metric',metric:'served',operator:'<=',value:2,userSet45:false};
+  if(c&&c.type==='metric'){
+   if(!FW45_METRICS[c.metric])c.metric='served';
+   if(!FW45_OPERATORS.some(function(x){return x[0]===c.operator;}))c.operator='<=';
+   if(!Number.isFinite(Number(c.value)))c.value=2;
+  }
+ });
+}
+const fw45OldAutoMenu=fw44AutoMenu;
+fw44AutoMenu=function(){
+ const entry=fw44CurrentActorEntry();fw45NormalizeRules(entry.actor);
+ fw45OldAutoMenu();
+ $('#panelBody').querySelectorAll('[data-fw44-cond]').forEach(function(select){
+  const i=Number(select.dataset.fw44Cond),c=entry.actor.autoSchedule.slotConditions[i];
+  if(!c||c.type!=='metric')return;
+  let html='<div class="note">変数と比較演算子を選択</div>'+
+   '<select data-fw45-metric="'+i+'" aria-label="比較する変数">'+
+   Object.entries(FW45_METRICS).map(function(k){return '<option value="'+k[0]+'" '+(c.metric===k[0]?'selected':'')+'>'+k[1].label+'</option>';}).join('')+'</select>'+
+   '<select data-fw45-operator="'+i+'" aria-label="不等号">'+
+   FW45_OPERATORS.map(function(k){return '<option value="'+fw422Esc(k[0])+'" '+(c.operator===k[0]?'selected':'')+'>'+k[1]+'</option>';}).join('')+'</select>'+
+   '<label class="settingsRow"><span>比較値</span><input data-fw45-value="'+i+'" inputmode="numeric" type="number" min="0" max="'+(FW45_METRICS[c.metric]?.max||999)+'" style="width:100%;min-width:0" value="'+Number(c.value||0)+'"></label>';
+  select.insertAdjacentHTML('afterend',html);
+ });
+ const intro=$('#panelBody').querySelector('.tileCard');
+ if(intro)intro.insertAdjacentHTML('beforeend',
+  '<button class="smallBtn" data-fw45-preset type="button">🍳 料理・配膳・販売の例を設定</button>'+
+  '<div class="note">例：完成料理＞5 → 売る ／ 完成料理＜2 → 作る ／ 配膳皿≦2 → 配膳。現在選択中のキャラだけ変更します。</div>');
+};
+fw11OpenThinkMenu=fw44AutoMenu;
+$('#panelBody').addEventListener('change',function(e){
+ const el=e.target;if(!el||!el.matches('[data-fw45-metric],[data-fw45-operator],[data-fw45-value]'))return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ const i=Number(el.dataset.fw45Metric??el.dataset.fw45Operator??el.dataset.fw45Value);
+ if(!Number.isInteger(i)||i<0||i>=a.slots.length)return;
+ const c=a.slotConditions[i];if(!c||c.type!=='metric')return;
+ if(el.hasAttribute('data-fw45-metric'))c.metric=el.value;
+ if(el.hasAttribute('data-fw45-operator'))c.operator=el.value;
+ if(el.hasAttribute('data-fw45-value'))c.value=clamp(Number(el.value)||0,0,FW45_METRICS[c.metric]?.max||999);
+ c.userSet45=true;a.latchedSlot=-1;a.activeSlot=-1;
+ fw44AutoMenu();
+},true);
+$('#panelBody').addEventListener('click',function(e){
+ const el=e.target.closest('[data-fw45-preset]');if(!el)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ const rules=[['sellPrepared','prepared','>',5],['cook','prepared','<',2],['serveMeal','served','<=',2]];
+ for(let i=0;i<rules.length;i++){const k=rules[i];a.slots[i]=k[0];a.slotConditions[i]={type:'metric',metric:k[1],operator:k[2],value:k[3],userSet45:true};}
+ a.latchedSlot=-1;a.activeSlot=-1;a.target=null;
+ msg('🍳 '+entry.actor.name+'の優先1〜3に販売・調理・配膳ルールを設定した。');
+ fw44AutoMenu();
+},true);
+Object.assign(FW11_PRIORITY,{
+ sellPrepared:{icon:'💰',label:'完成料理をShopに売る',desc:'完成料理を店舗に運び、1つずつ販売する'}
+});
+const fw45PrevAutoMenuKeys=fw44AutoMenu;
+// Inject the new action into the V44 dropdown (the V44 list is static).
+fw44AutoMenu=function(){
+ fw45PrevAutoMenuKeys();
+ $('#panelBody').querySelectorAll('[data-fw44-slot]').forEach(function(sel){
+  if(sel.querySelector('[value="sellPrepared"]'))return;
+  const option=document.createElement('option');option.value='sellPrepared';option.textContent='💰 完成料理をShopに売る';sel.appendChild(option);
+  const entry=fw44CurrentActorEntry(),i=Number(sel.dataset.fw44Slot);
+  if(entry.actor.autoSchedule.slots[i]==='sellPrepared')sel.value='sellPrepared';
+ });
+};
+fw11OpenThinkMenu=fw44AutoMenu;
+function fw45Shop(){return state.buildings.find(function(b){return b.type==='shop';})||null;}
+function fw45PreparedItem(){
+ return (state.chest.crafted||[]).find(function(x){return x.cat==='food';})||
+  (state.player.items||[]).find(function(x){return x.cat==='food';})||null;
+}
+function fw45CanSell(actor){
+ return !!(fw45PreparedItem()&&fw45Shop()&&actor&&actor.alive!==false);
+}
+function fw45SellTick(actor,dt){
+ const shop=fw45Shop(),item=fw45PreparedItem();if(!shop||!item)return false;
+ const g=fw10Entrance(shop),dist=Math.hypot(actor.x-g.x,actor.y-g.y);
+ if(dist>1.25){
+  if(actor===state.player)fw10AutoMove(g.x,g.y,dt);
+  else fw17NpcMove(actor,g.x,g.y,dt,'💰 Shopへ完成料理を運搬');
+  actor.status='📦 Shopへ料理を運ぶ';return true;
+ }
+ actor.sellClock45=(actor.sellClock45||0)+dt;
+ if(actor.sellClock45<2.8){actor.status='💰 商人と取引中';return true;}
+ actor.sellClock45=0;
+ const bins=[state.chest.crafted||[],state.player.items||[]];
+ for(const bin of bins){
+  const i=bin.findIndex(function(x){return x===item;});
+  if(i>=0){
+   if((Number(item.qty)||1)>1)item.qty--;
+   else bin.splice(i,1);
+   break;
+  }
+ }
+ const gained=Math.max(1,Math.floor((Number(item.value)||10)*.65));
+ state.player.coins=(Number(state.player.coins)||0)+gained;
+ actor.status='💰 料理を販売 +'+gained+'G';
+ msg('💰 '+actor.name+'がShopへ '+item.name+' を売った：+'+gained+'G（残り '+fw45PreparedCount()+'）');
+ if(typeof fw37Log==='function')fw37Log('commerce','完成料理販売 '+item.name+' +'+gained+'G',actor);
+ return true;
+}
+const fw45OldPlayerCan=fw14CanAction,fw45OldNpcCan=fw17NpcCan;
+fw14CanAction=function(k){
+ if(k==='sellPrepared')return fw45CanSell(state.player);
+ if(k==='serveMeal'&&fw45Metric(state.player,'served')>=3)return false;
+ return fw45OldPlayerCan(k);
+};
+fw17NpcCan=function(n,k,a){
+ if(k==='sellPrepared')return fw45CanSell(n);
+ if(k==='serveMeal'&&fw45Metric(n,'served')>=3)return false;
+ return fw45OldNpcCan(n,k,a);
+};
+const fw45OldPlayerRun=fw14RunAction,fw45OldNpcRun=fw17NpcRun;
+fw14RunAction=function(k,dt){return k==='sellPrepared'?fw45SellTick(state.player,dt):fw45OldPlayerRun(k,dt);};
+fw17NpcRun=function(n,k,dt,a){return k==='sellPrepared'?fw45SellTick(n,dt):fw45OldNpcRun(n,k,dt,a);};
+// Support "build a field" in the existing outdoor build workflow and its tap placement.
+const FW45_FIELD_COST={wood:3,stone:1};
+const fw45OldOutdoorMenu=fw43OutdoorConstruction;
+fw43OutdoorConstruction=function(){
+ fw45OldOutdoorMenu();
+ const panel=$('#panelBody');if(!panel)return;
+ panel.insertAdjacentHTML('afterbegin','<div class="tileCard"><b>🌾 畑を増設</b><br>木材3・石材1で3×3マスの畑を作る（9区画）。<br>'+
+  '<button class="smallBtn" type="button" data-fw45-field>🌱 畑の場所を決める</button></div>');
+};
+$('#panelBody').addEventListener('click',function(e){
+ const el=e.target.closest('[data-fw45-field]');if(!el)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(!fw43BuildAfford(FW45_FIELD_COST)){msg('🌱 畑には木材3と石材1が必要。');return;}
+ fw43BuildMode={kind:'field'};$('#panel').classList.add('hidden');tap=null;joy.x=joy.y=0;
+ msg('🌱 畑の左上をマップでタップして設置。3×3の平坦な土地が必要です。');
+},true);
+function fw45PlaceField(x,y){
+ if(x<3||y<3||x+3>=MAP-3||y+3>=MAP-3)return false;
+ const positions=[];
+ for(let dy=0;dy<3;dy++)for(let dx=0;dx<3;dx++){
+  const xx=x+dx,yy=y+dy;
+  if(blocked(xx+.5,yy+.5)||state.tiles[yy]?.[xx]?.ground==='road'||
+    state.customFields.some(function(f){return Math.hypot(f.x-xx-.5,f.y-yy-.5)<.8;})){
+   msg('⚠️ 障害物、道路、既存の畑があるため設置できません。');return false;
+  }
+  positions.push({x:xx+.5,y:yy+.5,seeded:false,growth:0,moisture:15,watered:false,fertilized:false,weeds:0,ownerId:state.player.id});
+ }
+ if(!fw43BuildPay(FW45_FIELD_COST)){msg('🌾 木材3・石材1が不足しています。');return false;}
+ state.customFields.push(...positions);
+ msg('🌾 3×3の畑を建設した！ 畑9区画追加。');
+ if(typeof fw37Log==='function')fw37Log('construction','畑9区画を新設 '+x+','+y,state.player);
+ return true;
+}
+// Rotate chairs in their furnished room; the angle survives the existing save system.
+const fw45OldFurnitureMenu=fw19OpenFurnitureMenu;
+fw19OpenFurnitureMenu=function(){
+ fw45OldFurnitureMenu();
+ const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});
+ if(!b)return;
+ const chairs=fw25EnsureLegacyFurniture(b,it.roomW,it.roomH).filter(function(x){return x.type==='chair';});
+ $('#panelBody').insertAdjacentHTML('beforeend','<div class="tileCard"><b>🪑 椅子の向き</b><br>'+
+ chairs.map(function(c,i){return '<button class="smallBtn" type="button" data-fw45-chair="'+i+'">↻ 椅子'+(i+1)+'：'+['正面','右向き','背面','左向き'][c.rotation45||0]+'</button> ';}).join('')+
+ '</div>');
+};
+$('#panelBody').addEventListener('click',function(e){
+ const el=e.target.closest('[data-fw45-chair]');if(!el)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});if(!b)return;
+ const chairs=fw25EnsureLegacyFurniture(b,it.roomW,it.roomH).filter(function(x){return x.type==='chair';}),chair=chairs[Number(el.dataset.fw45Chair)];
+ if(!chair)return;
+ chair.rotation45=((Number(chair.rotation45)||0)+1)%4;
+ fw19OpenFurnitureMenu();
+},true);
+// Plate icons must be drawn *within the current movable table*, not over nearby chairs.
+const fw45OldPlateDraw=fw25DrawLegacyFurniture;
+fw25DrawLegacyFurniture=function(b,ox,oy,scale,rw,rh){
+ fw45OldPlateDraw(b,ox,oy,scale,rw,rh);
+ const meal=fw28EnsureDining(b),t=fw28TablePos(b,rw,rh);
+ if(!t||!meal.served.length)return;
+ const cx=ox+(t.x+.61)*scale,cy=oy+(t.y+.31)*scale;
+ ctx.save();ctx.font=Math.max(10,Math.round(scale*.20))+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+ for(let i=0;i<Math.min(3,meal.served.length);i++){
+  ctx.fillText('🍽️',cx+(i-1)*scale*.22,cy+(i%2)*scale*.15);
+ }
+ ctx.restore();
+};
+// Meal starts when everyone reaches chairs; leave them seated for 5-10 seconds.
+const fw45OldBeginMeal=fw39BeginEating;
+fw39BeginEating=function(m){
+ if(!m||m.eating)return false;
+ const started=fw45OldBeginMeal(m);
+ if(started){m.duration45=5+Math.random()*5;m.startedAt=performance.now();state.player.status='😋 みんなで食事中';}
+ return started;
+};
+const fw45OldNpcMeal=fw39NpcMealTick;
+fw39NpcMealTick=function(n,h,b,dt){
+ const m=fw39MealStateFor(b),prior=n.meal39Id;
+ const result=fw45OldNpcMeal(n,h,b,dt);
+ if(m&&m.eating&&n.meal39Id===m.id&&prior!==m.id){
+  h.mealRest39=Math.max(h.mealRest39||0,m.duration45||6);
+ }
+ return result;
+};
+const fw45OldFinishMeal=fw39FinishFamilyMeal;
+fw39FinishFamilyMeal=function(m){
+ if(m&&!m.finished&&m.eating&&performance.now()-(m.startedAt||0)<(m.duration45||6)*1000)return;
+ const done=fw45OldFinishMeal(m);
+ if(m&&m.finished){msg('🍽️ ごちそうさま！ またみんなで食べようね。');state.player.status='🍽️ ごちそうさま！';}
+ return done;
+};
+// While walking with a close friend/partner, holding hands is a voluntary toggle.
+const fw45OldWalkMenu=fw42Menu;
+fw42Menu=function(){
+ fw45OldWalkMenu();
+ const d=state.dialog,n=d&&d.speaker,r=$('#dialogReplies');
+ if(!n||!r||!n.walkPrevious43||d.fw42Menu!=='conversation')return;
+ r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw45:hold',n.holdingHands45?'🤝 手を離す':'🤝 手をつなぐ')+
+  fw42HtmlButton('fw45:where','🌳 行きたいところある？'));
+};
+function fw45WalkDestination(n){
+ const choices=[
+  ['森の入口',{x:37,y:36}],['川辺',{x:65,y:59}],['村の広場',{x:47,y:51}],
+  ['畑の近く',{x:62,y:55}],['井戸のそば',null]
+ ];
+ let pick=choices[(state.day+String(n.id).length)%choices.length];
+ if(pick[1]==null){
+  const w=state.buildings.find(function(b){return b.type==='well';});
+  pick=w?['井戸のそば',{x:w.x-1,y:w.y+1}]:choices[2];
+ }
+ const point=pick[1];return {name:pick[0],x:point.x,y:point.y};
+}
+const fw45OldReply=handleDialogAction;
+handleDialogAction=function(k){
+ const d=state.dialog,n=d&&d.speaker;
+ if(n&&k==='fw45:hold'){
+  if(!n.walkPrevious43){typeLine('まずは一緒に散歩しよう。');return;}
+  n.holdingHands45=!n.holdingHands45;
+  typeLine(n.holdingHands45?'うん。手をつないで歩こう。温かいね。':'うん。また手をつなごうね。');
+  if(n.holdingHands45)fw422Reward(n,1,1,'散歩中に手をつなぐ');
+  d.fw42Menu='conversation';fw42Menu();return;
+ }
+ if(n&&k==='fw45:where'){
+  if(!n.walkPrevious43){typeLine('一緒に散歩しながら話そうよ。');return;}
+  n.walkDestination45=fw45WalkDestination(n);
+  typeLine('今日は'+n.walkDestination45.name+'に行ってみたいな。一緒に行こう？');
+  d.fw42Menu='conversation';fw42Menu();return;
+ }
+ return fw45OldReply(k);
+};
+const fw45OldStopWalk=fw43StopWalk;
+fw43StopWalk=function(n){
+ if(n){n.holdingHands45=false;n.walkDestination45=null;}
+ return fw45OldStopWalk(n);
+};
+const fw45OldNpcTick=updateNPC;
+updateNPC=function(n,dt){
+ const r=fw45OldNpcTick(n,dt);
+ if(n&&n.walkPrevious43&&!n.inside20&&!state.interior&&n.alive!==false){
+  if(n.holdingHands45&&Math.hypot(n.x-state.player.x,n.y-state.player.y)<2.2){
+   const side=state.player.dir==='left'?1:-1;
+   const g={x:state.player.x+side*.55,y:state.player.y+.18};
+   if(!blocked(g.x,g.y))fw19MoveActor(n,g.x,g.y,dt,1.12);
+   n.status='🤝 手をつないで散歩';
+  }
+  const dest=n.walkDestination45;
+  if(dest&&!dest.arrived&&Math.hypot(state.player.x-dest.x,state.player.y-dest.y)<1.7){
+   dest.arrived=true;n.status='🌳 '+dest.name+'に到着';
+   msg('💕 '+n.name+'「'+dest.name+'に来られて嬉しいな！」');
+  }
+ }
+ return r;
+};
+const fw45OldDraw=draw;
+draw=function(){
+ const result=fw45OldDraw.apply(this,arguments);
+ if(state.interior)return result;
+ state.npcs.forEach(function(n){
+  if(!n.holdingHands45||!n.walkPrevious43||n.alive===false)return;
+  if(Math.hypot(n.x-state.player.x,n.y-state.player.y)>1.5)return;
+  const p=worldToScreen(state.player.x,state.player.y),q=worldToScreen(n.x,n.y);
+  ctx.save();ctx.strokeStyle='#ffb4ce';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(p.x+TILE*.5,p.y+TILE*.55);ctx.lineTo(q.x+TILE*.5,q.y+TILE*.55);ctx.stroke();
+  ctx.font='17px system-ui';ctx.textAlign='center';ctx.fillText('🤝',(p.x+q.x+TILE)/2,(p.y+q.y)/2+10);
+  ctx.restore();
+ });
+ return result;
+};
+const fw45OldLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ const r=fw45OldLoad.apply(this,arguments);
+ fw45NormalizeRules(state.player);
+ state.npcs.forEach(function(n){if(n.autoSchedule)fw45NormalizeRules(n);});
+ return r;
+};
+fw45NormalizeRules(state.player);
+state.npcs.forEach(function(n){if(n.autoSchedule)fw45NormalizeRules(n);});
+/* END FRONTIER_V45_CONDITIONS_FARM_DINING_WALK */
 
 
 })();
