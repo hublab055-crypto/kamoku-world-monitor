@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>フロンティアワールド｜フル画質テスト</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101923;color:#eef8fa;font-family:system-ui,-apple-system,sans-serif}
+main{max-width:1040px;margin:auto;padding:16px 13px 45px}h1{font-size:clamp(21px,5vw,30px);margin:0 0 7px}
+p{font-size:12px;line-height:1.6;color:#b7ccd7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.panel{background:#1b2d3a;border:1px solid #406072;border-radius:15px;padding:12px;min-width:0}
+h2{font-size:16px;margin:4px 0 12px}.stage{height:360px;background:linear-gradient(#84b5ac 0 75%,#abbc92 75%);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#walking{height:100%;max-width:100%;object-fit:contain}.dialog{height:280px;background:#173d4c;border:2px solid #7bc5b9;border-radius:12px;display:flex;align-items:flex-end;overflow:hidden}
+.facebox{width:50%;align-self:stretch;display:flex;align-items:flex-end;position:relative}
+#portrait{width:100%;height:auto;max-height:100%;object-fit:contain;object-position:bottom}
+.facebox.guide:after{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #00fff0aa}
+.say{align-self:center;padding:10px;font-size:13px;line-height:1.7;flex:1}.say b{color:#88e5d3;display:block;font-size:16px;margin-bottom:8px}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0}button,select{border:1px solid #4d758a;background:#284758;color:white;border-radius:9px;padding:9px 11px;font-size:13px}
+button.active{background:#087f7b;border-color:#8af2de}.status,.note{font-size:12px;color:#a6d9d4}.thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:9px}
+.thumbs button{min-width:0;padding:3px;min-height:105px;background:#29404b}.thumbs button.active{border:2px solid #8af2de}.thumbs canvas{max-width:100%;height:98px}
+fieldset{border:0;padding:0;margin:0}.box{background:#142732;border:1px solid #385767;border-radius:10px;padding:10px;margin-top:12px;font-size:12px;line-height:1.7;color:#bdd6d9}
+a{color:#8beade}@media(max-width:700px){.grid{grid-template-columns:1fr}.stage{height:330px}.dialog{height:250px}}
+</style></head><body><main>
+<h1>フロンティアワールド｜フル画質テスト</h1>
+<p>軽量版より大きく鮮明な素材で、4方向歩行と顔のズレを確認できます。Safariで画像は自動読み込みされます。</p>
+<p class="status" id="status">フル解像度の素材を読み込み中…</p>
+<div class="grid">
+<section class="panel"><h2>4方向の歩行アニメーション</h2>
+<div class="stage"><canvas id="walking" width="320" height="360"></canvas></div>
+<div class="controls"><select id="direction"><option value="0">正面</option><option value="1">左</option><option value="2">右</option><option value="3">背面</option></select>
+<button id="play">一時停止</button><button id="step">1コマ</button><label>速度 <input id="speed" type="range" min="2" max="12" value="6"></label><span id="speedlabel">6 fps</span></div>
+<p id="walkinfo" class="note">正面｜再生中</p>
+<div id="thumbs" class="thumbs"></div>
+<p>全16コマ。足元位置が揃っているか確認するため、白い基準線を表示しています。</p></section>
+<section class="panel"><h2>セリフ用ウィンドウ・顔ズレ確認</h2>
+<div class="dialog"><div id="facebox" class="facebox"><canvas id="portrait" width="400" height="416"></canvas></div>
+<div class="say"><b>Mio（テスト）</b><span id="speech">今日は何をしようか？</span></div></div>
+<div id="expressions" class="controls"></div>
+<div class="controls"><button id="conversation" class="active">会話デモ</button><button id="blink" class="active">瞬き ON</button><button id="talk" class="active">口パク ON</button><button id="guide">中心線 OFF</button></div>
+<div id="faceinfo" class="box">全表情の外枠と顔の位置を固定。眉・目・口の差分のみ切り替えます。</div>
+<p>表情ボタンを押すと、その状態で停止します。「会話デモ」で自動瞬き・口パクに戻ります。</p>
+</section></div><p><a href="inline.html">軽量版に戻る</a> ｜フル版は歩行256×324px×16、表情400×416px×9の無劣化WebP素材です。</p>
+<script>
+(function(){
+const $=s=>document.getElementById(s),names=['通常','瞬き','口閉','口半開','口開','喜び','怒り','悲しみ','笑顔'];
+const sentences=['今日は何をしようか？','……','うん。','そうだね。','いっしょに行こう！','やった！','もう！','悲しいな……','楽しいね！'];
+const dirNames=['正面','左','右','背面'];let walk=null,face=null,row=0,frame=0,playing=true,fps=6,expression=0,automatic=true,blink=true,talk=true;
+let last=0,clock=0,elapsed=0,nextBlink=2500,blinkEnd=0,displayFace=-1;
+const wc=$('walking').getContext('2d'),fc=$('portrait').getContext('2d');
+function drawWalk(){
+if(!walk)return;const c=wc.canvas;wc.clearRect(0,0,320,360);wc.drawImage(walk,frame*256,row*324,256,324,32,24,256,324);
+wc.fillStyle='#ffffffad';wc.fillRect(0,345,320,1);
+$('walkinfo').textContent=dirNames[row]+'｜'+(playing?'歩行再生':'停止')+'｜コマ '+(frame+1)+'/4';
+[...$('thumbs').children].forEach((b,i)=>b.classList.toggle('active',i===frame))}
+function thumbs(){const el=$('thumbs');el.replaceChildren();if(!walk)return;
+for(let i=0;i<4;i++){const b=document.createElement('button'),c=document.createElement('canvas');c.width=128;c.height=162;
+c.getContext('2d').drawImage(walk,i*256,row*324,256,324,0,0,128,162);b.appendChild(c);b.onclick=()=>{playing=false;frame=i;$('play').textContent='再生';drawWalk()};el.appendChild(b)}
+drawWalk()}
+function drawFace(){
+if(!face)return;let k=expression;
+if(automatic){k=talk?[2,3,4,3][Math.floor(elapsed/180)%4]:0;if(blink&&elapsed<blinkEnd)k=1}
+if(k===displayFace)return;displayFace=k;fc.clearRect(0,0,400,416);fc.drawImage(face,(k%3)*400,Math.floor(k/3)*416,400,416,0,0,400,416);
+$('faceinfo').textContent='表示: '+names[k]+' ／ 表示領域400×416px、頭部中心X=200pxを固定。髪・輪郭・服は共通です。'}
+for(let i=0;i<9;i++){const b=document.createElement('button');b.textContent=names[i];if(i===0)b.className='active';
+b.onclick=()=>{expression=i;automatic=false;$('conversation').classList.remove('active');$('speech').textContent=sentences[i];
+[...$('expressions').children].forEach((x,j)=>x.classList.toggle('active',j===i));displayFace=-1;drawFace()};$('expressions').appendChild(b)}
+$('direction').onchange=e=>{row=Number(e.target.value);frame=0;thumbs()};
+$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'一時停止':'再生';drawWalk()};
+$('step').onclick=()=>{playing=false;frame=(frame+1)%4;$('play').textContent='再生';drawWalk()};
+$('speed').oninput=e=>{fps=Number(e.target.value);$('speedlabel').textContent=fps+' fps'};
+$('conversation').onclick=()=>{automatic=true;expression=0;$('speech').textContent=sentences[0];$('conversation').classList.add('active');
+[...$('expressions').children].forEach((x,j)=>x.classList.toggle('active',j===0));displayFace=-1;drawFace()};
+$('blink').onclick=()=>{blink=!blink;$('blink').textContent='瞬き '+(blink?'ON':'OFF');$('blink').classList.toggle('active',blink);displayFace=-1;drawFace()};
+$('talk').onclick=()=>{talk=!talk;$('talk').textContent='口パク '+(talk?'ON':'OFF');$('talk').classList.toggle('active',talk);displayFace=-1;drawFace()};
+$('guide').onclick=()=>{const state=$('facebox').classList.toggle('guide');$('guide').textContent='中心線 '+(state?'ON':'OFF');$('guide').classList.toggle('active',state)};
+async function get(src){const i=new Image();i.src=src;await i.decode();return i}
+function tick(t){if(!last)last=t;const dt=Math.min(100,t-last);last=t;elapsed+=dt;
+if(playing){clock+=dt;if(clock>=1000/fps){clock-=1000/fps;frame=(frame+1)%4;drawWalk()}}
+if(blink&&elapsed>nextBlink){blinkEnd=elapsed+130;nextBlink=elapsed+2600+Math.random()*1400}
+drawFace();requestAnimationFrame(tick)}
+Promise.all([get('full-walk.webp'),get('full-face.webp')]).then(([w,f])=>{
+if(w.width!==1024||w.height!==1296||f.width!==1200||f.height!==1248)throw Error('画像サイズが不正です');
+walk=w;face=f;$('status').textContent='✓ フル画質の読み込み完了';thumbs();drawFace();requestAnimationFrame(tick)
+}).catch(err=>$('status').textContent='画像が読み込めません: '+err.message);
+})();
+</script></main></body></html>
