@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-11T19:37:00+09:00",
+  "updated_at": "2026-10-12T07:05:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V47.0",
-  "game_commit": "f1dedad4abf8d53c4e44ea828c783f4f0f112c33",
+  "implementation_version": "V48.0",
+  "game_commit": "b040f01abee0de8541528a7a2130e5e892a14648",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -122,7 +122,11 @@
     "V45 hold hands and destination chats while following for a walk",
     "V46 per-actor per-slot quantities of 1-50 for cooking, selling prepared meals and serving dishes",
     "V46 separate conditional threshold and execution quantity UI, plus default quantity preset 5 cook / 3 sell / 2 serve",
-    "V46 batch continuation after threshold crossing, action completion counting and short repeat interval"
+    "V46 batch continuation after threshold crossing, action completion counting and short repeat interval",
+    "V48 priest pregnancy examination based on saved pregnancies with early discovery, due-date announcement and village log",
+    "V48 spouse/lover escort request linked to existing follow commands for the priest wedding",
+    "V48 officiated wedding with nearby companion, village guests lined up, priest blessing, vows, kiss, fireworks and ceremony record",
+    "V48 wedding cancellation before vows, duplicate officiated ceremony prevention and NPC position restoration"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -170,7 +174,10 @@
     "V45 code passed syntax checks, but iPhone/PC interactive E2E validation of game automation, fields, furniture, family meals and walking remains pending",
     "V45 Shop prepared food sale is a simplified owner-credit flow, no dynamic merchant inventory or pricing",
     "V45 hand-holding still uses positional proximity, line overlay and icon, not bespoke jointed animation",
-    "V46 quantity batches passed static JavaScript syntax validation but end-to-end iPhone playtests remain outstanding"
+    "V46 quantity batches passed static JavaScript syntax validation but end-to-end iPhone playtests remain outstanding",
+    "V48 wedding village audience is temporarily repositioned rather than arriving through pathfinding; limited to 12 outdoor NPCs",
+    "V48 wedding visuals use Canvas pictograms and fireworks instead of dedicated wedding sprites / kiss animation",
+    "V48 examination and wedding static JavaScript syntax verified, but iPhone/desktop live E2E, old saves and interrupted/reload sequences are not yet tested"
   ],
   "collaboration": {
     "gameplay_owner": [
