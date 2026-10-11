@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-11T09:00:00+09:00",
+  "updated_at": "2026-10-11T12:06:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V44.0",
-  "game_commit": "27a53e6edc644e8cbed00abea3a14df9efe4530b",
+  "implementation_version": "V45.0",
+  "game_commit": "bdb90ed759ae16058232b4fd35991aeddda2d3b0",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -111,7 +111,15 @@
     "non-controlled family and controllable companions running their configured autonomous priorities",
     "wellWater action for NPC and player autonomous schedules with path approach, +2 water and capped capacity",
     "NPC well fetching persists while player is indoors",
-    "guard route moved off Common House with obstacle-aware pathfinding and 3.5 second watchdog"
+    "guard route moved off Common House with obstacle-aware pathfinding and 3.5 second watchdog",
+    "V45 selectable 6-way comparison operators and 20+ numeric metrics in all 8 NPC/player auto slots",
+    "V45 per-actor meal preparation, plated-dish and stock conditional presets",
+    "V45 safe maximum-three-dish auto serving and legacy always-serve migration",
+    "V45 automatically sell actual prepared food inventory to Shop and credit proceeds",
+    "V45 build 3x3 nine-plot farm for wood and stone from outdoor build menu",
+    "V45 movable chair direction quarter-turn editing, dining table art fixes",
+    "V45 timed five-to-ten-second seated family meals with finale",
+    "V45 hold hands and destination chats while following for a walk"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -155,7 +163,10 @@
     "V43 building repositioning has not yet been tested with multiplayer concurrency or all legacy player-owned structures",
     "V44.0 NPC autonomy and guard path corrections passed static syntax checks but require live browser end-to-end validation",
     "V44.0 NPC auto action eligibility is limited to characters in fw19ScheduleActors and commands supported by existing NPC runner",
-    "V44.0 wellWater uses a per-actor cooldown and water carrying target of eight units"
+    "V44.0 wellWater uses a per-actor cooldown and water carrying target of eight units",
+    "V45 code passed syntax checks, but iPhone/PC interactive E2E validation of game automation, fields, furniture, family meals and walking remains pending",
+    "V45 Shop prepared food sale is a simplified owner-credit flow, no dynamic merchant inventory or pricing",
+    "V45 hand-holding still uses positional proximity, line overlay and icon, not bespoke jointed animation"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -263,7 +274,12 @@
     "test V44.0 all eight default slots and legacy 3-to-8 slot migration without losing prior conditions",
     "test V44.0 switching auto settings among player, Mio, Riku and controlled/former-player characters",
     "test V44.0 well gathering followed by transport to camp for a non-controlled NPC, including player indoors",
-    "test guard Common House blockage and recovery through multiple day/night patrol cycles on mobile"
+    "test guard Common House blockage and recovery through multiple day/night patrol cycles on mobile",
+    "live-test V45 metric dropdown, operator choice and old-save numeric comparator persistence for Mio",
+    "verify Mio defaults cap plates at three after previous 11 plate reproduction",
+    "test completed dishes above five sold to Shop and below two cooked by NPC, checking actual materials and inventory",
+    "test 3x3 field construction collision checks, chair rotation, table plate placement and save/load",
+    "test family dining 5-10 second seated wait and handholding movement on mobile"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -326,11 +342,11 @@
   },
   "version_switch": {
     "current": "latest",
-    "current_version": "V44.0",
+    "current_version": "V45.0",
     "versions": [
       {
         "id": "latest",
-        "label": "最新版（V44.0）",
+        "label": "最新版（V45.0）",
         "path": "frontier-world/index.html",
         "save_namespace": "frontier_world_save_v19_"
       },
