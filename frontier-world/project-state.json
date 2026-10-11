@@ -5,8 +5,8 @@
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V45.0",
-  "game_commit": "bdb90ed759ae16058232b4fd35991aeddda2d3b0",
+  "implementation_version": "V46.0",
+  "game_commit": "6a5730a8b8a11f56df69b7fbc7bc0dac26a7f389",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -119,7 +119,10 @@
     "V45 build 3x3 nine-plot farm for wood and stone from outdoor build menu",
     "V45 movable chair direction quarter-turn editing, dining table art fixes",
     "V45 timed five-to-ten-second seated family meals with finale",
-    "V45 hold hands and destination chats while following for a walk"
+    "V45 hold hands and destination chats while following for a walk",
+    "V46 per-actor per-slot quantities of 1-50 for cooking, selling prepared meals and serving dishes",
+    "V46 separate conditional threshold and execution quantity UI, plus default quantity preset 5 cook / 3 sell / 2 serve",
+    "V46 batch continuation after threshold crossing, action completion counting and short repeat interval"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -166,7 +169,8 @@
     "V44.0 wellWater uses a per-actor cooldown and water carrying target of eight units",
     "V45 code passed syntax checks, but iPhone/PC interactive E2E validation of game automation, fields, furniture, family meals and walking remains pending",
     "V45 Shop prepared food sale is a simplified owner-credit flow, no dynamic merchant inventory or pricing",
-    "V45 hand-holding still uses positional proximity, line overlay and icon, not bespoke jointed animation"
+    "V45 hand-holding still uses positional proximity, line overlay and icon, not bespoke jointed animation",
+    "V46 quantity batches passed static JavaScript syntax validation but end-to-end iPhone playtests remain outstanding"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -279,7 +283,10 @@
     "verify Mio defaults cap plates at three after previous 11 plate reproduction",
     "test completed dishes above five sold to Shop and below two cooked by NPC, checking actual materials and inventory",
     "test 3x3 field construction collision checks, chair rotation, table plate placement and save/load",
-    "test family dining 5-10 second seated wait and handholding movement on mobile"
+    "test family dining 5-10 second seated wait and handholding movement on mobile",
+    "test V46 cook exactly five meals and sell three prepared meals per batch on iPhone",
+    "test V46 quantities and condition comparisons persist after save/load for each controllable NPC",
+    "test V46 NPC cooking finished inside home counts toward the correct batch and does not create unwanted servings"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -342,11 +349,11 @@
   },
   "version_switch": {
     "current": "latest",
-    "current_version": "V45.0",
+    "current_version": "V46.0",
     "versions": [
       {
         "id": "latest",
-        "label": "最新版（V45.0）",
+        "label": "最新版（V46.0）",
         "path": "frontier-world/index.html",
         "save_namespace": "frontier_world_save_v19_"
       },
