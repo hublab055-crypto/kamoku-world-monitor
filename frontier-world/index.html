@@ -11397,6 +11397,344 @@ fw46EnsureQuantities(state.player);
 state.npcs.forEach(function(n){fw46EnsureQuantities(n);});
 /* END FRONTIER_V46_QUANTITY_BATCH_ACTIONS */
 
+
+
+/* FRONTIER_V47_PRIEST_SCHOOL_AND_DREAM_GAMES */
+const FW47_SUBJECTS={reading:'📖 読み書き',math:'🔢 計算',history:'🏛️ 村の歴史',nature:'🌱 自然と暮らし'};
+function fw47EnsureSchool(c){
+ if(!c.education47)c.education47={reading:0,math:0,history:0,nature:0,days:0,lastDay:-1};
+ if(c.enrolled47==null)c.enrolled47=true;
+ return c.education47;
+}
+function fw47SchoolChildren(){
+ return (state.family.children||[]).filter(function(c){return fw10ChildStage(c)==='youth';});
+}
+function fw47SchoolTick(){
+ const priest=state.npcs.find(function(n){return n.id==='priest43'&&n.alive!==false;});
+ const house=typeof fw43CommonHouse==='function'&&fw43CommonHouse();
+ if(!priest||!house)return;
+ const children=fw47SchoolChildren();
+ children.forEach(fw47EnsureSchool);
+ const hr=Number(state.hour)||0;
+ const classTime=hr>=9&&hr<12||hr>=14&&hr<16;
+ if(classTime&&children.some(function(c){return c.enrolled47;})){
+  if(!priest.inside20&&Math.hypot(priest.x-fw10Entrance(house).x,priest.y-fw10Entrance(house).y)<3)
+   priest.status='🏫 子どもの授業';
+  children.forEach(function(c){
+   const e=fw47EnsureSchool(c);
+   if(!c.enrolled47||e.lastDay===state.day)return;
+   e.lastDay=state.day;e.days++;
+   const subject=Object.keys(FW47_SUBJECTS)[(state.day+e.days)%4];
+   const gain=3+Math.floor((priest.skills&&priest.skills.reading||0)/3);
+   e[subject]=clamp((Number(e[subject])||0)+gain,0,100);
+   c.bond=clamp((Number(c.bond)||0)+.25,0,100);
+   c.schoolToday47=subject;
+   if(typeof fw43RecordEvent==='function')fw43RecordEvent('education',c.name+'が'+FW47_SUBJECTS[subject]+'を学習した');
+   if(typeof window.fw37Log==='function')window.fw37Log('education','司祭の授業：'+c.name+' '+FW47_SUBJECTS[subject]+' +'+gain,priest);
+  });
+ }
+}
+const fw47PrevChildPosition=fw10ChildPos;
+fw10ChildPos=function(c,i){
+ const hr=Number(state.hour)||0,house=typeof fw43CommonHouse==='function'&&fw43CommonHouse();
+ if(house&&fw10ChildStage(c)==='youth'&&fw47EnsureSchool(c)&&c.enrolled47&&!c.controlled&&
+    (hr>=9&&hr<12||hr>=14&&hr<16)&&!c.heldBy&&!c.sleepingInCrib){
+  const e=fw10Entrance(house);
+  return {x:e.x+((i%3)-1)*.68,y:e.y+.42+Math.floor(i/3)*.55};
+ }
+ return fw47PrevChildPosition(c,i);
+};
+const fw47PrevPriestMenu=fw43PriestMenu;
+fw43PriestMenu=function(){
+ fw47PrevPriestMenu();
+ const r=$('#dialogReplies');
+ if(r&&!r.querySelector('[data-reply="fw47:school"]'))
+  r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw47:school','🏫 子どもの学校・授業'));
+};
+function fw47SchoolMenu(){
+ const r=$('#dialogReplies');if(!r)return;
+ const children=fw47SchoolChildren();
+ let body='<div class="note" style="width:100%">司祭エリアスの授業：9〜12時、14〜16時 / 読み書き・計算・歴史・自然</div>';
+ if(!children.length)body+='<div class="note" style="width:100%">学齢期の子どもはいません。成長すると授業に参加できます。</div>';
+ children.forEach(function(c,i){
+  const edu=fw47EnsureSchool(c);
+  const ix=state.family.children.indexOf(c);
+  body+='<div class="tileCard" style="width:100%"><b>'+fw422Esc(c.name)+'</b>｜登校 '+edu.days+'日<br>'+
+  Object.keys(FW47_SUBJECTS).map(function(k){return FW47_SUBJECTS[k]+' '+Math.round(edu[k]||0)+'/100';}).join(' / ')+
+  '<br>'+fw42HtmlButton('fw47:school:toggle:'+ix,c.enrolled47?'✅ 通学する（停止）':'⏸️ 通学停止中（再開）')+'</div>';
+ });
+ r.innerHTML=body+fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
+}
+const fw47PrevPriestReply=handleDialogAction;
+handleDialogAction=function(k){
+ if(typeof k==='string'&&k.startsWith('fw47:school')){
+  if(k==='fw47:school'){fw47SchoolMenu();return;}
+  const index=Number(k.split(':')[3]),c=state.family.children[index];
+  if(k.split(':')[2]==='toggle'&&c&&fw10ChildStage(c)==='youth'){
+   fw47EnsureSchool(c);c.enrolled47=!c.enrolled47;
+   msg((c.enrolled47?'🏫 授業を再開：':'🏠 授業を休止：')+c.name);
+   fw47SchoolMenu();
+  }
+  return;
+ }
+ return fw47PrevPriestReply(k);
+};
+const fw47PrevSchoolUpdate=update;
+update=function(dt){const r=fw47PrevSchoolUpdate(dt);if(!state.gameOver&&!state.sleepFade20)fw47SchoolTick();return r;};
+(state.family.children||[]).forEach(function(c){if(fw10ChildStage(c)==='youth')fw47EnsureSchool(c);});
+const fw47PrevSchoolLoad=fw10LoadGame;
+fw10LoadGame=function(){
+ const r=fw47PrevSchoolLoad.apply(this,arguments);
+ (state.family.children||[]).forEach(function(c){if(fw10ChildStage(c)==='youth')fw47EnsureSchool(c);});
+ return r;
+};
+
+let fw47Dream=null;
+const FW47_W=640,FW47_H=380;
+function fw47Spouse(){
+ const it=state.interior,b=it&&state.buildings.find(function(x){return x.id===it.buildingId;});
+ if(!b||!isNight()||!fw12EnsureBeds(b).length)return null;
+ return state.npcs.find(function(n){
+  return n.alive!==false&&n.relationship==='family'&&!n.controlled&&
+   fw12SharedHome(n)&&fw12SharedHome(n).id===b.id&&fw18EnsureHeart(n)>=200&&
+   (n.inside20===b.id||n.household34&&n.household34.buildingId===b.id)&&
+   state.day-(n.heartDay||-999)>=3;
+ })||null;
+}
+function fw47DreamMarkup(){
+ return '<div id="fw47DreamOverlay" role="dialog" aria-modal="true" aria-label="夢の中のミニゲーム" style="position:fixed;inset:0;z-index:12000;background:rgba(3,8,18,.96);color:#fff;display:flex;justify-content:center;align-items:center;padding:12px;overflow-y:auto">'+
+ '<div style="width:min(100%,720px);max-height:96vh;overflow-y:auto;background:#172336;border:1px solid #56677e;border-radius:18px;padding:16px;box-shadow:0 8px 40px #000a">'+
+ '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 id="fw47DreamTitle" style="margin:3px 0 12px">🌙 二人の時間</h3>'+
+ '<button type="button" data-fw47="cancel" aria-label="中止" style="min-width:45px;min-height:42px">×</button></div>'+
+ '<div id="fw47DreamInfo" style="font-size:15px;line-height:1.5;margin-bottom:10px"></div>'+
+ '<canvas id="fw47DreamCanvas" width="640" height="380" style="display:none;width:100%;max-width:640px;background:#112235;border-radius:12px;touch-action:none"></canvas>'+
+ '<div id="fw47DreamButtons" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px"></div>'+
+ '</div></div>';
+}
+function fw47DreamButton(action,label){return '<button type="button" data-fw47="'+action+'" style="min-height:48px;padding:8px 13px;border-radius:12px">'+label+'</button>';}
+function fw47SetUi(title,info,buttons,canvasVisible){
+ const m=fw47Dream.el;
+ m.querySelector('#fw47DreamTitle').textContent=title;
+ m.querySelector('#fw47DreamInfo').textContent=info;
+ m.querySelector('#fw47DreamButtons').innerHTML=buttons;
+ m.querySelector('#fw47DreamCanvas').style.display=canvasVisible?'block':'none';
+}
+function fw47OpenDream(spouse){
+ const el=document.createElement('div');el.innerHTML=fw47DreamMarkup();
+ const overlay=el.firstElementChild;document.body.appendChild(overlay);
+ fw47Dream={spouseId:spouse.id,el:overlay,mode:'choose',score:0,stats:null,clock:0,lastFrame:0,raf:0};
+ overlay.addEventListener('click',fw47DreamClick);
+ const canvas=overlay.querySelector('canvas');
+ canvas.addEventListener('pointerdown',fw47Pointer);
+ canvas.addEventListener('pointermove',function(e){if(fw47Dream&&fw47Dream.pointerActive)fw47Pointer(e);});
+ canvas.addEventListener('pointerup',function(){if(fw47Dream)fw47Dream.pointerActive=false;});
+ fw47SetUi('🌙 夢の中の二人の時間','どの夢を見よう？ 遊ばずにスキップしても通常の就寝イベントは進みます。',
+  fw47DreamButton('chase','🏃 60秒の鬼ごっこ')+
+  fw47DreamButton('rhythm','🫧 4列シャボン玉リズム')+
+  fw47DreamButton('archery','🏹 弓で的当て')+
+  fw47DreamButton('skip','⏭️ 選ばずにスキップ'),false);
+ tap=null;joy.x=joy.y=0;if(state.interior)state.interior.tap=null;
+}
+function fw47Rand(min,max){return min+Math.random()*(max-min);}
+function fw47Bound(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function fw47InitGame(mode){
+ const d=fw47Dream;if(!d)return;
+ d.mode=mode;d.clock=0;d.lastFrame=0;d.pointerActive=false;d.stats={hits:0,shots:0,misses:0,score:0};
+ if(mode==='chase'){
+  d.dad={x:115,y:245,tx:115,ty:245};d.mom={x:170,y:230};
+  d.child={x:480,y:140};d.duration=60;
+  const child=(state.family.children||[]).find(function(c){return fw10ChildStage(c)!=='adult';});
+  const line='「パパ、ママこっちだよ！つかまえて！」 '+(child?child.name+'と':'夢の子どもと')+'二人で60秒間の鬼ごっこ。マップをタップして移動！';
+  fw47SetUi('🏃 夢の鬼ごっこ',line,fw47DreamButton('endEarly','⏭️ 終了して結果へ'),true);
+ }else if(mode==='rhythm'){
+  d.duration=30;d.notes=[];
+  for(let i=0;i<36;i++)d.notes.push({lane:Math.floor(Math.random()*4),due:2+i*.72,done:false});
+  fw47SetUi('🫧 シャボン玉リズム','泡が下の光る帯に重なるタイミングで、4つの列をタップ！ キーボード1〜4にも対応。',
+   [1,2,3,4].map(function(i){return fw47DreamButton('lane'+(i-1),'🫧 '+i);}).join('')+fw47DreamButton('endEarly','⏭️ 終了'),true);
+ }else{
+  d.duration=40;d.shotsMax=12;d.target={x:fw47Rand(125,515),y:fw47Rand(105,275)};d.aim={x:320,y:190};
+  fw47SetUi('🏹 夢の的当て','的の中心をタップして矢を放とう。全部で12射、40秒以内。',fw47DreamButton('endEarly','⏭️ 終了'),true);
+ }
+ d.ctx=d.el.querySelector('canvas').getContext('2d');
+ d.raf=requestAnimationFrame(fw47DreamFrame);
+}
+function fw47CanvasCoords(e){
+ const canvas=fw47Dream.el.querySelector('canvas'),r=canvas.getBoundingClientRect();
+ return {x:fw47Bound((e.clientX-r.left)/r.width*FW47_W,0,FW47_W),
+         y:fw47Bound((e.clientY-r.top)/r.height*FW47_H,0,FW47_H)};
+}
+function fw47Pointer(e){
+ const d=fw47Dream;if(!d||d.mode==='choose'||d.mode==='result')return;
+ e.preventDefault();d.pointerActive=true;
+ const p=fw47CanvasCoords(e);
+ if(d.mode==='chase'){d.dad.tx=p.x;d.dad.ty=p.y;}
+ else if(d.mode==='rhythm'){fw47HitBubble(Math.floor(p.x/(FW47_W/4)));}
+ else if(d.mode==='archery'){d.aim=p;fw47Shoot(p);}
+}
+function fw47Approach(p,q,speed,dt){
+ const dx=q.x-p.x,dy=q.y-p.y,dist=Math.hypot(dx,dy)||1,step=Math.min(dist,speed*dt);
+ p.x=fw47Bound(p.x+dx/dist*step,20,FW47_W-20);
+ p.y=fw47Bound(p.y+dy/dist*step,25,FW47_H-20);
+}
+function fw47ChaseUpdate(d,dt){
+ fw47Approach(d.dad,{x:d.dad.tx,y:d.dad.ty},160,dt);
+ fw47Approach(d.mom,d.child,87,dt);
+ const child=d.child;
+ const a=Math.hypot(child.x-d.dad.x,child.y-d.dad.y),b=Math.hypot(child.x-d.mom.x,child.y-d.mom.y);
+ const threat=a<b?d.dad:d.mom;
+ const dx=child.x-threat.x,dy=child.y-threat.y,length=Math.hypot(dx,dy)||1;
+ child.x=fw47Bound(child.x+dx/length*110*dt,30,FW47_W-30);
+ child.y=fw47Bound(child.y+dy/length*110*dt,32,FW47_H-30);
+ if(a<27||b<27){
+  d.stats.hits++;
+  child.x=fw47Rand(90,550);child.y=fw47Rand(75,305);
+  d.mom.x=fw47Bound(d.mom.x+fw47Rand(-45,45),30,610);
+  d.mom.y=fw47Bound(d.mom.y+fw47Rand(-45,45),30,350);
+ }
+}
+function fw47HitBubble(lane){
+ const d=fw47Dream;if(!d||d.mode!=='rhythm'||lane<0||lane>3)return;
+ let best=null,bestDelta=1e9;
+ d.notes.forEach(function(n){const delta=Math.abs(n.due-d.clock);if(!n.done&&n.lane===lane&&delta<bestDelta){best=n;bestDelta=delta;}});
+ if(best&&bestDelta<=.35){
+  best.done=true;d.stats.hits++;d.stats.score+=bestDelta<=.14?100:60;
+ }else d.stats.misses++;
+}
+function fw47Shoot(p){
+ const d=fw47Dream;if(!d||d.mode!=='archery')return;
+ const distance=Math.hypot(p.x-d.target.x,p.y-d.target.y),value=distance<14?10:distance<30?8:distance<46?5:distance<68?2:0;
+ d.stats.score+=value;d.stats.shots++;if(value)d.stats.hits++;else d.stats.misses++;
+ d.target={x:fw47Rand(110,530),y:fw47Rand(105,295)};
+ if(d.stats.shots>=d.shotsMax)fw47FinishDream();
+}
+function fw47DrawBackdrop(ctx){
+ ctx.fillStyle='#315c3a';ctx.fillRect(0,0,FW47_W,FW47_H);
+ ctx.fillStyle='#527756';for(let x=0;x<FW47_W;x+=32)for(let y=0;y<FW47_H;y+=32)ctx.fillRect(x+1,y+1,30,30);
+ ctx.fillStyle='#c09f74';ctx.fillRect(0,165,FW47_W,35);ctx.fillRect(300,0,36,FW47_H);
+ ctx.font='22px system-ui';['🌳','🌲','🏡','🌳','🌲'].forEach(function(t,i){ctx.fillText(t,40+i*128,50+(i%2)*268);});
+}
+function fw47DrawDream(d){
+ const ctx=d.ctx;ctx.clearRect(0,0,FW47_W,FW47_H);
+ if(d.mode==='chase'){
+  fw47DrawBackdrop(ctx);
+  [[d.dad,'👨'],[d.mom,'👩'],[d.child,'🧒']].forEach(function(a){
+   ctx.font='32px system-ui';ctx.textAlign='center';ctx.fillText(a[1],a[0].x,a[0].y);
+  });
+  ctx.fillStyle='rgba(0,0,0,.70)';ctx.fillRect(0,0,FW47_W,32);
+  ctx.fillStyle='#fff';ctx.font='19px system-ui';ctx.textAlign='left';
+  ctx.fillText('残り '+Math.ceil(d.duration-d.clock)+'秒  捕まえた '+d.stats.hits+'回',14,24);
+ }else if(d.mode==='rhythm'){
+  ctx.fillStyle='#122944';ctx.fillRect(0,0,FW47_W,FW47_H);
+  for(let lane=0;lane<4;lane++){ctx.fillStyle=lane%2?'#15334a':'#1b4059';ctx.fillRect(lane*160,0,160,FW47_H);
+   ctx.strokeStyle='#668399';ctx.beginPath();ctx.moveTo(lane*160,0);ctx.lineTo(lane*160,FW47_H);ctx.stroke();}
+  ctx.fillStyle='rgba(245,220,130,.42)';ctx.fillRect(0,302,FW47_W,34);
+  d.notes.forEach(function(n){if(n.done)return;const y=318+(d.clock-n.due)*160;if(y<0||y>FW47_H+20)return;
+   const x=n.lane*160+80;ctx.beginPath();ctx.fillStyle='#b2ecf9';ctx.arc(x,y,25,0,Math.PI*2);ctx.fill();
+   ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();});
+  ctx.fillStyle='#fff';ctx.textAlign='left';ctx.font='19px system-ui';
+  ctx.fillText('残り '+Math.ceil(d.duration-d.clock)+'秒　成功 '+d.stats.hits+'回',12,25);
+ }else if(d.mode==='archery'){
+  ctx.fillStyle='#6385aa';ctx.fillRect(0,0,FW47_W,FW47_H);ctx.fillStyle='#4e7540';ctx.fillRect(0,310,FW47_W,70);
+  for(const [radius,color] of [[70,'#f5f0d9'],[54,'#202a35'],[40,'#3d9ddd'],[28,'#d64541'],[14,'#ecc44c']]){
+   ctx.beginPath();ctx.fillStyle=color;ctx.arc(d.target.x,d.target.y,radius,0,Math.PI*2);ctx.fill();}
+  ctx.strokeStyle='#f5f2d9';ctx.lineWidth=2;ctx.beginPath();
+  ctx.moveTo(d.aim.x-15,d.aim.y);ctx.lineTo(d.aim.x+15,d.aim.y);
+  ctx.moveTo(d.aim.x,d.aim.y-15);ctx.lineTo(d.aim.x,d.aim.y+15);ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='20px system-ui';ctx.fillText('得点 '+d.stats.score+'　残り '+(d.shotsMax-d.stats.shots)+'射 / '+Math.ceil(d.duration-d.clock)+'秒',15,27);
+ }
+}
+function fw47DreamFrame(timestamp){
+ const d=fw47Dream;if(!d||!['chase','rhythm','archery'].includes(d.mode))return;
+ const dt=d.lastFrame?Math.min(.05,(timestamp-d.lastFrame)/1000):0;
+ d.lastFrame=timestamp;d.clock+=dt;
+ if(d.mode==='chase')fw47ChaseUpdate(d,dt);
+ if(d.mode==='rhythm')d.notes.forEach(function(n){if(!n.done&&d.clock>n.due+.42){n.done=true;d.stats.misses++;}});
+ fw47DrawDream(d);
+ if(d.clock>=d.duration){fw47FinishDream();return;}
+ d.raf=requestAnimationFrame(fw47DreamFrame);
+}
+function fw47FinishDream(){
+ const d=fw47Dream;if(!d||d.mode==='result')return;
+ const m=d.mode;cancelAnimationFrame(d.raf);
+ const stats=d.stats||{hits:0,score:0,shots:0};
+ let score=0;
+ if(m==='chase')score=fw47Bound(stats.hits*15,0,100);
+ else if(m==='rhythm')score=fw47Bound(Math.round(stats.score/(36*100)*100),0,100);
+ else if(m==='archery')score=fw47Bound(Math.round(stats.score/120*100),0,100);
+ d.score=Math.round(score);d.completedMode=m;d.mode='result';
+ const rank=score>=85?'大成功':score>=55?'成功':score>=25?'もう少し':'参加できた';
+ fw47SetUi('✨ 夢の結果：'+rank,'スコア '+d.score+'/100。二人の親密度、幸福度、ストレス、技能に結果を反映します。',
+  fw47DreamButton('sleep','🌙 二人で眠って朝へ')+fw47DreamButton('retry','🔄 別の夢を選ぶ'),false);
+}
+function fw47ApplyResult(d){
+ const spouse=state.npcs.find(function(n){return n.id===d.spouseId;});
+ if(!spouse)return;
+ const score=d.mode==='result'?d.score:0;
+ const bonus=score>=85?8:score>=55?5:score>=25?2:0;
+ const morale=Math.floor(score/20);
+ state.player.happiness=clamp((Number(state.player.happiness)||70)+morale,0,100);
+ spouse.happiness=clamp((Number(spouse.happiness)||70)+morale,0,100);
+ state.player.stress42=clamp((Number(state.player.stress42)||20)-morale,0,100);
+ spouse.stress42=clamp((Number(spouse.stress42)||20)-morale,0,100);
+ if(d.completedMode==='archery')state.player.skills.bow=(Number(state.player.skills.bow)||0)+Math.round(score/25)*.1;
+ if(d.completedMode==='rhythm')state.player.skills.music47=(Number(state.player.skills.music47)||0)+Math.round(score/25)*.1;
+ if(d.completedMode==='chase')state.player.skills.agility47=(Number(state.player.skills.agility47)||0)+Math.round(score/25)*.1;
+ state.spouseDream47=state.spouseDream47||[];
+ state.spouseDream47.push({day:state.day,partnerId:spouse.id,game:d.completedMode||'skip',score:score,bonus:bonus});
+ if(state.spouseDream47.length>40)state.spouseDream47.shift();
+ if(typeof window.fw37Log==='function')window.fw37Log('family','二人の夢：'+(d.completedMode||'skip')+' スコア'+score+'/100',spouse);
+ return {spouse:spouse,bonus:bonus};
+}
+const fw47BeforeSleep=fw20BeginSleepFade;
+function fw47FinalizeSleep(){
+ const d=fw47Dream;if(!d)return;
+ cancelAnimationFrame(d.raf);d.el.remove();fw47Dream=null;
+ const reward=fw47ApplyResult(d);
+ fw47BeforeSleep();
+ if(reward&&reward.bonus>0&&state.sleepFade20){
+  fw18HeartGain(reward.spouse,reward.bonus);
+  msg('💕 夢の成績で親密度 +'+reward.bonus+'。ゆっくり眠りについた。');
+ }
+}
+function fw47CancelDream(){
+ if(!fw47Dream)return;
+ cancelAnimationFrame(fw47Dream.raf);
+ fw47Dream.el.remove();fw47Dream=null;
+ msg('🌙 夢の選択を中止した。眠るときにまた選べる。');
+}
+function fw47DreamClick(e){
+ const btn=e.target.closest('[data-fw47]');if(!btn||!fw47Dream)return;
+ const action=btn.dataset.fw47,d=fw47Dream;
+ if(action==='cancel'){fw47CancelDream();return;}
+ if(action==='skip'){d.completedMode='skip';d.score=0;fw47FinalizeSleep();return;}
+ if(action==='chase'||action==='rhythm'||action==='archery'){fw47InitGame(action);return;}
+ if(action==='endEarly'){fw47FinishDream();return;}
+ if(action==='sleep'){fw47FinalizeSleep();return;}
+ if(action==='retry'){d.mode='choose';fw47SetUi('🌙 別の夢を選ぶ','好きなミニゲームを選んでね。',
+   fw47DreamButton('chase','🏃 鬼ごっこ')+fw47DreamButton('rhythm','🫧 リズム')+
+   fw47DreamButton('archery','🏹 弓の的当て')+fw47DreamButton('skip','⏭️ スキップ'),false);return;}
+ if(action.startsWith('lane'))fw47HitBubble(Number(action.slice(4)));
+}
+const fw47Keydown=function(e){
+ if(!fw47Dream||fw47Dream.mode!=='rhythm')return;
+ const k={'1':0,'2':1,'3':2,'4':3,a:0,s:1,d:2,f:3}[String(e.key).toLowerCase()];
+ if(k!=null){e.preventDefault();fw47HitBubble(k);}
+};
+document.addEventListener('keydown',fw47Keydown);
+fw20BeginSleepFade=function(){
+ if(fw47Dream||state.sleepFade20)return;
+ const spouse=fw47Spouse();
+ if(spouse){fw47OpenDream(spouse);return;}
+ return fw47BeforeSleep.apply(this,arguments);
+};
+const fw47PrevGameUpdate=update;
+update=function(dt){
+ if(fw47Dream)return;
+ return fw47PrevGameUpdate(dt);
+};
+/* END FRONTIER_V47_PRIEST_SCHOOL_AND_DREAM_GAMES */
+
+
 })();
 </script>
 
