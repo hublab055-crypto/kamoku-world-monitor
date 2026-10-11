@@ -11734,6 +11734,254 @@ update=function(dt){
 };
 /* END FRONTIER_V47_PRIEST_SCHOOL_AND_DREAM_GAMES */
 
+/* FRONTIER_V48_PRIEST_PREGNANCY_EXAM_AND_WEDDING */
+const fw48PreviousPriestMenu=fw43PriestMenu;
+fw43PriestMenu=function(){
+ fw48PreviousPriestMenu();
+ const r=$('#dialogReplies');
+ if(r&&!r.querySelector('[data-reply="fw48:exam"]'))
+  r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw48:exam','🤰 子どもがいるか診察'));
+};
+const fw48PreviousConversationMenu=fw42Menu;
+fw42Menu=function(){
+ fw48PreviousConversationMenu();
+ const d=state.dialog,n=d&&d.speaker,r=$('#dialogReplies');
+ if(d&&n&&r&&d.fw42Menu==='conversation'&&['lover','family'].includes(n.relationship)&&
+   !r.querySelector('[data-reply="fw48:escort"]'))
+  r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw48:escort','💒 司祭のところへ付いてきて'));
+};
+function fw48ExamMenu(){
+ const targets=state.npcs.filter(function(n){
+  return n.alive!==false&&!n.isChild&&n.id!=='priest43'&&['lover','family'].includes(n.relationship);
+ });
+ if(!targets.length){fw43PriestSay('診察を希望する家族・お相手を教えてください。今は該当する方がいません。');return;}
+ $('#dialogReplies').innerHTML='<div class="note" style="width:100%">妊娠の診察を受ける方を選んでください（ゲーム内の妊娠記録を確認します）。</div>'+
+ targets.map(function(n){return fw42HtmlButton('fw48:exam:'+n.id,'🩺 '+fw422Esc(n.name)+'を診察');}).join('')+
+ fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
+}
+function fw48ExamPerson(id){
+ const n=state.npcs.find(function(x){return x.id===id&&x.alive!==false&&!x.isChild&&['lover','family'].includes(x.relationship);});
+ if(!n){fw43PriestSay('診察する方が確認できません。');return;}
+ const p=(state.family.pregnancies||[]).find(function(x){return x.parent===n.id&&Number(x.dueDay)>state.day;});
+ if(!p){
+  fw43PriestSay('🩺 '+n.name+'さんを診察しました。今のところ、赤ちゃんを授かっているという記録は確認できません。日を改めて相談してください。');
+  return;
+ }
+ const wasRevealed=!!p.revealed;
+ p.revealed=true;p.examined48=state.day;
+ n.pendingTalk21=null;
+ const remaining=Math.max(0,Math.ceil(Number(p.dueDay)-state.day));
+ fw43RecordEvent('prenatal',n.name+'の妊娠を司祭が診察・確認');
+ if(typeof window.fw37Log==='function')window.fw37Log('family',n.name+'の妊娠を司祭が確認（出産まで約'+remaining+'ゲーム日）',n);
+ fw43PriestSay('🤰 '+n.name+'さん、おめでとうございます。赤ちゃんを授かっています。出産予定は約'+remaining+
+ 'ゲーム日後です。無理をせず休養を。'+(wasRevealed?'引き続き':'出産の立ち会いも')+'ご相談ください。');
+}
+function fw48WeddingCandidates(){
+ return state.npcs.filter(function(n){
+  return n.id!=='priest43'&&n.alive!==false&&!n.controlled&&
+   ['lover','family'].includes(n.relationship)&&
+   !!(n.walkPrevious43||n.command==='follow'||n.companion)&&!n.inside20&&
+   Math.hypot(n.x-state.player.x,n.y-state.player.y)<=3.5;
+ }).sort(function(a,b){return Math.hypot(a.x-state.player.x,a.y-state.player.y)-Math.hypot(b.x-state.player.x,b.y-state.player.y);});
+}
+function fw48ExistingWedding(n){
+ return (state.ceremonies||[]).find(function(c){
+  return c.type==='wedding'&&(c.spouseId43===n.id||String(c.title||'').includes(n.name));
+ })||null;
+}
+let fw48Wedding=null;
+function fw48RequestWedding(){
+ const house=fw43CommonHouse(),priest=state.npcs.find(function(n){return n.id==='priest43'&&n.alive!==false;});
+ if(!house||!priest){fw43PriestSay('司祭とコモンハウスの準備ができていません。');return;}
+ if(state.interior){fw43PriestSay('結婚式はコモンハウス前の広場で行います。お二人で外に出てからお声がけください。');return;}
+ if(!(state.hour>=7&&state.hour<12||state.hour>=14&&state.hour<19)||priest.inside20){
+  fw43PriestSay('結婚式は司祭が広場にいる朝7〜12時、午後14〜19時に執り行います。');return;
+ }
+ const entrance=fw10Entrance(house);
+ if(Math.hypot(state.player.x-entrance.x,state.player.y-entrance.y)>5.5){
+  fw43PriestSay('結婚式はコモンハウスの前で行います。玄関前でお二人そろってお越しください。');return;
+ }
+ const spouse=fw48WeddingCandidates().find(function(n){return Math.hypot(n.x-entrance.x,n.y-entrance.y)<5.5;});
+ if(!spouse){fw43PriestSay('お相手と一緒に来てください。相手との会話で「司祭のところへ付いてきて」を選び、二人で玄関前にお越しください。');return;}
+ if(spouse.relationship==='lover'&&Number(spouse.friend)<95){
+  fw43PriestSay('結婚にはお互いの信頼が必要です。友好度95以上になったら、改めてお越しください。');return;
+ }
+ const previous=fw48ExistingWedding(spouse);
+ if(previous&&previous.officiant==='priest43'){
+  fw43PriestSay('お二人の結婚式はすでに執り行われました。村の歴史帳にも記されています。');return;
+ }
+ fw422Confirm(spouse.name+'さんと一緒に、村人たちに見守られて結婚式を挙げますか？',function(){
+  fw48BeginWedding(spouse,priest,house);
+ });
+}
+function fw48BeginWedding(spouse,priest,house){
+ if(fw48Wedding||!spouse||spouse.alive===false)return;
+ const door=fw10Entrance(house);
+ const guests=state.npcs.filter(function(n){
+  return n.alive!==false&&!n.controlled&&!n.inside20&&n.id!=='priest43'&&n.id!==spouse.id;
+ }).slice(0,12);
+ const actors=[priest,spouse].concat(guests);
+ const original=actors.map(function(n){return {n:n,x:n.x,y:n.y,tx:n.tx,ty:n.ty,dir:n.dir,status:n.status,command:n.command};});
+ const playerPos={x:state.player.x,y:state.player.y,dir:state.player.dir};
+ const positions=[{n:priest,x:door.x,y:door.y-.1},{n:spouse,x:door.x+.45,y:door.y+1.1}];
+ guests.forEach(function(n,i){
+  const side=i%2===0?-1:1;
+  const row=Math.floor(i/2);
+  positions.push({n:n,x:door.x+side*(1.65+Math.floor(row/3)*.85),y:door.y+1.2+(row%3)*.85});
+ });
+ positions.forEach(function(v){
+  v.n.x=v.n.tx=v.x;v.n.y=v.n.ty=v.y;v.n.dir=v.n===priest?'front':v.n===spouse?'back':v.x<door.x?'right':'left';
+  v.n.status=v.n===priest?'⛪ 祝詞':v.n===spouse?'💒 新郎新婦':'💐 結婚式に参列';
+ });
+ state.player.x=door.x-.45;state.player.y=door.y+1.1;state.player.dir='back';
+ tap=null;joy.x=joy.y=0;
+ closeDialog();
+ const overlay=document.createElement('div');
+ overlay.id='fw48WeddingOverlay';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');
+ overlay.setAttribute('aria-label','結婚式');
+ overlay.style.cssText='position:fixed;inset:0;z-index:12020;background:rgba(7,12,25,.73);color:#fff;display:flex;align-items:center;justify-content:center;padding:12px;overflow-y:auto';
+ overlay.innerHTML='<div style="max-width:700px;width:100%;box-sizing:border-box;background:linear-gradient(155deg,#27283f,#3c2640);border:2px solid #e6cc95;border-radius:18px;padding:15px;text-align:center;box-shadow:0 10px 44px #000b">'+
+ '<div style="font-size:22px;font-weight:700">💒 村の結婚式</div>'+
+ '<div id="fw48WeddingSubtitle" style="font-size:14px;margin:8px 0;min-height:38px" aria-live="polite"></div>'+
+ '<canvas id="fw48WeddingCanvas" width="620" height="285" style="display:block;width:100%;background:#132236;border-radius:12px"></canvas>'+
+ '<div id="fw48WeddingGuests" style="font-size:12px;opacity:.85;margin:9px 0;line-height:1.5"></div>'+
+ '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button type="button" data-fw48-wedding="next" style="min-height:44px;padding:8px 20px">次へ ▶</button>'+
+ '<button type="button" data-fw48-wedding="cancel" style="min-height:44px;padding:8px 20px">挙式を中止</button></div></div>';
+ document.body.appendChild(overlay);
+ fw48Wedding={spouse:spouse,priest:priest,guests:guests,original:original,playerPos:playerPos,
+  stage:0,elapsed:0,done:false,overlay:overlay,lastFrame:0,raf:0};
+ overlay.querySelector('#fw48WeddingGuests').textContent='参列：'+(guests.length?guests.map(function(n){return n.name;}).join('、'):'村の仲間たち');
+ overlay.addEventListener('click',function(e){
+  const b=e.target.closest('[data-fw48-wedding]');if(!b||!fw48Wedding)return;
+  if(b.dataset.fw48Wedding==='cancel'){if(fw48Wedding.done)fw48EndWedding();else fw48EndWedding(true);}
+  else fw48AdvanceWedding();
+ });
+ fw48WeddingStage();
+ fw48Wedding.raf=requestAnimationFrame(fw48WeddingFrame);
+}
+function fw48WeddingStage(){
+ const w=fw48Wedding;if(!w)return;w.elapsed=0;
+ const captions=[
+  '村人たちがコモンハウス前に集まり、通路の両側に整列しました。',
+  '司祭エリアス「喜びの日に集う皆さんに祝福を。二人が互いを尊び、共に歩む日々に幸いがあるよう祈ります。」',
+  '司祭エリアス「喜びも悲しみも分かち合い、共に生きていくことを誓いますか？」',
+  '二人は向き合い、誓いのキスを交わします。村人たちから歓声が上がりました！',
+  '🎆 祝福の花火が夜空を彩ります。司祭「ここに二人の婚礼を結びます。末永くお幸せに！」'
+ ];
+ w.overlay.querySelector('#fw48WeddingSubtitle').textContent=captions[w.stage];
+ const advance=w.overlay.querySelector('[data-fw48-wedding="next"]'),cancel=w.overlay.querySelector('[data-fw48-wedding="cancel"]');
+ advance.textContent=w.stage===2?'💍 誓います':w.stage===4?'閉式する':'次へ ▶';
+ cancel.style.display=w.done?'none':'inline-block';
+}
+function fw48CommitWedding(){
+ const w=fw48Wedding;if(!w||w.done)return;
+ w.done=true;
+ const n=w.spouse,old=fw48ExistingWedding(n);
+ let record=old;
+ if(n.relationship==='lover'){
+  const before=state.ceremonies.length;
+  fw8AdvanceRelationship(n,'family');
+  if(state.ceremonies.length>before)record=state.ceremonies[state.ceremonies.length-1];
+ }
+ if(!record){
+  fw10StartCeremony('wedding',n.name+'との結婚式','司祭エリアスが祝詞をあげ、村人が整列し、誓いのキスと花火で祝った。');
+  record=state.ceremonies[state.ceremonies.length-1];
+ }
+ if(record){
+  record.spouseId43=n.id;record.officiant='priest43';record.day=state.day;record.guests48=w.guests.map(function(g){return g.id;});
+  record.desc='司祭の祝詞、村人の整列、誓いのキス、祝福の花火による挙式';
+ }
+ state.ceremony=null;
+ n.happiness=clamp((Number(n.happiness)||75)+9,0,100);
+ state.player.happiness=clamp((Number(state.player.happiness)||75)+9,0,100);
+ if(typeof fw18HeartGain==='function')fw18HeartGain(n,5);
+ fw43RecordEvent('wedding',n.name+'と正式な結婚式を挙げた（司祭・参列者'+w.guests.length+'人・花火）');
+ if(typeof window.fw37Log==='function')window.fw37Log('family','💒 '+n.name+'との挙式完了。祝詞・キス・花火',n);
+ msg('💒 '+n.name+'と結婚式を挙げた！');
+}
+function fw48AdvanceWedding(){
+ const w=fw48Wedding;if(!w)return;
+ if(w.stage===4){fw48EndWedding();return;}
+ if(w.stage===2)fw48CommitWedding();
+ w.stage++;fw48WeddingStage();
+}
+function fw48EndWedding(cancelled){
+ const w=fw48Wedding;if(!w)return;
+ if(w.raf)cancelAnimationFrame(w.raf);
+ w.original.forEach(function(v){
+  if(!v.n||v.n.alive===false)return;
+  v.n.x=v.x;v.n.y=v.y;v.n.tx=v.tx;v.n.ty=v.ty;v.n.dir=v.dir;v.n.status=v.status;v.n.command=v.command;
+ });
+ state.player.x=w.playerPos.x;state.player.y=w.playerPos.y;state.player.dir=w.playerPos.dir;
+ if(w.done&&w.spouse.walkPrevious43)fw43StopWalk(w.spouse);
+ w.overlay.remove();fw48Wedding=null;
+ if(cancelled)msg('💒 結婚式を中止しました。関係・婚礼履歴は変更していません。');
+ else msg('🎆 結婚式が閉式しました。おめでとう！');
+}
+function fw48WeddingFrame(timestamp){
+ const w=fw48Wedding;if(!w)return;
+ const dt=w.lastFrame?Math.min(.08,(timestamp-w.lastFrame)/1000):0;
+ w.lastFrame=timestamp;w.elapsed+=dt;
+ const cvs=w.overlay.querySelector('#fw48WeddingCanvas'),g=cvs.getContext('2d'),t=timestamp*.001;
+ g.clearRect(0,0,620,285);
+ const sky=g.createLinearGradient(0,0,0,285);
+ sky.addColorStop(0,w.stage===4?'#10102c':'#244b66');sky.addColorStop(1,'#477151');
+ g.fillStyle=sky;g.fillRect(0,0,620,285);
+ g.fillStyle='#73885f';g.fillRect(0,170,620,115);
+ g.fillStyle='#bcb197';g.beginPath();g.moveTo(255,285);g.lineTo(276,130);g.lineTo(344,130);g.lineTo(365,285);g.fill();
+ g.fillStyle='#f0d6a0';g.fillRect(248,80,124,84);
+ g.fillStyle='#69536b';g.beginPath();g.moveTo(235,83);g.lineTo(310,30);g.lineTo(385,83);g.fill();
+ g.textAlign='center';g.font='13px system-ui';g.fillStyle='#f9f1d5';g.fillText('⛪ コモンハウス',310,105);
+ g.font='22px system-ui';g.fillText('⛪',310,147);
+ w.guests.forEach(function(n,i){
+  const side=i%2===0?-1:1,row=Math.floor(i/2),x=310+side*(102+Math.floor(row/3)*70),y=183+(row%3)*30;
+  g.fillStyle=i%3===0?'#b9c7f2':i%3===1?'#f3d6ac':'#c2e0c1';
+  g.beginPath();g.arc(x,y,10,0,2*Math.PI);g.fill();
+  g.font='10px system-ui';g.fillStyle='#fff';g.fillText(n.name.slice(0,8),x,y+21);
+ });
+ g.font='24px system-ui';g.fillStyle='#fff';
+ const kissing=w.stage>=3;
+ g.fillText('🧑',kissing?294:282,236);
+ g.fillText('👩',kissing?322:338,236);
+ if(kissing){g.font='20px system-ui';g.fillText('❤️',310,207);}
+ if(w.stage===4){
+  for(let b=0;b<4;b++){
+   const x=75+b*160,y=52+(b%2)*34,phase=(t*.7+b*.27)%1;
+   for(let i=0;i<22;i++){
+    const a=2*Math.PI*i/22,rad=4+phase*66,fade=1-phase;
+    g.fillStyle='hsla('+((b*73+i*7)%360)+',100%,72%,'+fade+')';
+    g.beginPath();g.arc(x+Math.cos(a)*rad,y+Math.sin(a)*rad,2.9*(1-phase*.5),0,2*Math.PI);g.fill();
+   }
+  }
+ }
+ if(w.stage!==2&&w.elapsed>(w.stage===4?6:4.5)){fw48AdvanceWedding();}
+ if(fw48Wedding===w)w.raf=requestAnimationFrame(fw48WeddingFrame);
+}
+const fw48PrevPriestReply=handleDialogAction;
+handleDialogAction=function(k){
+ if(typeof k==='string'&&k.startsWith('fw48:')){
+  if(k==='fw48:exam'){fw48ExamMenu();return;}
+  if(k.startsWith('fw48:exam:')){fw48ExamPerson(k.slice('fw48:exam:'.length));return;}
+  if(k==='fw48:escort'){
+   const n=state.dialog&&state.dialog.speaker;
+   if(!n||!['lover','family'].includes(n.relationship))return;
+   fw422Confirm('司祭のところまで、一緒について来てもらいますか？',function(){
+    if(fw43StartWalk(n))typeLine('もちろん。一緒に司祭のところへ行こう！');
+    else typeLine('今は同行できないみたい。');
+    if(state.dialog){state.dialog.fw42Menu='conversation';fw42Menu();}
+   });
+   return;
+  }
+ }
+ if(k==='fw43:priest:wedding'){fw48RequestWedding();return;}
+ return fw48PrevPriestReply(k);
+};
+const fw48PreviousWeddingUpdate=update;
+update=function(dt){if(fw48Wedding)return;return fw48PreviousWeddingUpdate(dt);};
+/* END FRONTIER_V48_PRIEST_PREGNANCY_EXAM_AND_WEDDING */
+
+
+
 
 })();
 </script>
