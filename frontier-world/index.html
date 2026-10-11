@@ -11414,7 +11414,7 @@ function fw47SchoolTick(){
  const house=typeof fw43CommonHouse==='function'&&fw43CommonHouse();
  if(!priest||!house)return;
  const children=fw47SchoolChildren();
- children.forEach(fw47EnsureSchool);
+ children.forEach(function(c){fw47EnsureSchool(c);if(c.enrolled47&&c.sleepingInCrib&&fw10ChildStage(c)==='youth'&&!c.heldBy){c.sleepingInCrib=false;c.cribBuildingId=null;}});
  const hr=Number(state.hour)||0;
  const classTime=hr>=9&&hr<12||hr>=14&&hr<16;
  if(classTime&&children.some(function(c){return c.enrolled47;})){
@@ -11526,7 +11526,7 @@ function fw47OpenDream(spouse){
  overlay.addEventListener('click',fw47DreamClick);
  const canvas=overlay.querySelector('canvas');
  canvas.addEventListener('pointerdown',fw47Pointer);
- canvas.addEventListener('pointermove',function(e){if(fw47Dream&&fw47Dream.pointerActive)fw47Pointer(e);});
+ canvas.addEventListener('pointermove',function(e){if(!fw47Dream)return;if(fw47Dream.mode==='chase'&&fw47Dream.pointerActive)fw47Pointer(e);else if(fw47Dream.mode==='archery')fw47Dream.aim=fw47CanvasCoords(e);});
  canvas.addEventListener('pointerup',function(){if(fw47Dream)fw47Dream.pointerActive=false;});
  fw47SetUi('🌙 夢の中の二人の時間','どの夢を見よう？ 遊ばずにスキップしても通常の就寝イベントは進みます。',
   fw47DreamButton('chase','🏃 60秒の鬼ごっこ')+
