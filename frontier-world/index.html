@@ -10991,7 +10991,7 @@ $('#panelBody').addEventListener('click',function(e){
  e.preventDefault();e.stopImmediatePropagation();
  const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
  const rules=[['sellPrepared','prepared','>',5],['cook','prepared','<',2],['serveMeal','served','<=',2]];
- for(let i=0;i<rules.length;i++){const k=rules[i];a.slots[i]=k[0];a.slotConditions[i]={type:'metric',metric:k[1],operator:k[2],value:k[3],userSet45:true};}
+ for(let i=0;i<rules.length;i++){const k=rules[i];a.slots[i]=k[0];a.slotConditions[i]={type:'metric',metric:k[1],operator:k[2],value:k[3],userSet45:true,quantity46:({sellPrepared:3,cook:5,serveMeal:2})[k[0]]||1};}
  a.latchedSlot=-1;a.activeSlot=-1;a.target=null;
  msg('🍳 '+entry.actor.name+'の優先1〜3に販売・調理・配膳ルールを設定した。');
  fw44AutoMenu();
@@ -11346,15 +11346,6 @@ fw44AutoMenu=function(){
  }
 };
 fw11OpenThinkMenu=fw44AutoMenu;
-$('#panelBody').addEventListener('click',function(e){
- if(!e.target.closest('[data-fw45-preset]'))return;
- // V45's preset handler runs in the same capture phase, later; adjust quantities after it.
- const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
- if(a.slotConditions[0])a.slotConditions[0].quantity46=3;
- if(a.slotConditions[1])a.slotConditions[1].quantity46=5;
- if(a.slotConditions[2])a.slotConditions[2].quantity46=2;
- a.batch46=null;
-},true);
 const fw46PreviousPlayerRun=fw14RunAction;
 fw14RunAction=function(k,dt){
  fw46StartBatch(state.player,k);
