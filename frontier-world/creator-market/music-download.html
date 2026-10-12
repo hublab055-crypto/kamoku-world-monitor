@@ -27,7 +27,12 @@ code{overflow-wrap:anywhere}.downloadNow{background:#377e59!important;border-col
 <div id="library"></div></section>
 <section id="saveSection" class="hidden">
 <h2>⬇️ 保存するファイル</h2>
-<div id="saveDetails"></div><a id="saveLink" class="btn downloadNow" href="#">このファイルを端末に保存</a>
+<div id="saveDetails"></div>
+<div class="row">
+ <a id="saveLink" class="btn downloadNow" href="#">このファイルを端末に保存</a>
+ <button type="button" id="addToGameBgm">🎶 ゲームBGMに登録</button>
+</div>
+<p id="bgmImportStatus" class="muted small" role="status"></p>
 <p class="muted small">iPhone/iPadではタップ後、Safariのダウンロード一覧や共有メニューの「ファイルに保存」を確認してください。ダウンロード開始後に保存が完了したかどうかまではサーバーで検知しません。</p>
 </section>
 <section id="historySection" class="hidden"><h2>🎫 自分のライセンス発行履歴</h2><div id="history"></div><h2>🎼 自分が権利者の作品：発行件数</h2><div id="rightsStats"></div></section>
@@ -40,6 +45,7 @@ code{overflow-wrap:anywhere}.downloadNow{background:#377e59!important;border-col
 <section><h2>追跡できる情報と限界</h2>
 <p class="muted small">サーバーには購入契約、権利者への印税精算、ファイル発行ID、形式、発行日時、生成したファイルのSHA-256が残ります。これによって正規に発行したファイルか照合できます。ただしファイルの複製・書き換え・ライセンス情報の除去を完全に防ぐDRMではありません。第三者への無断再配布は許可されません。</p>
 </section></main>
+<script src="../organ/bgm-import-library.js"></script>
 <script type="module">
 import {buildLicensedMusicFile,sha256Hex,licenseReceiptFromFile} from './music-export.js';
 const SUPABASE_URL='https://htwcscrllohavtbejhjr.supabase.co';
@@ -49,7 +55,7 @@ const db=createClient(SUPABASE_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRef
 const el=id=>document.getElementById(id);
 const app={session:null,works:[],purchases:[],splits:[],downloads:[],stats:[],pending:false};
 const requestedWork=new URLSearchParams(location.search).get('work');
-let objectUrl=null;
+let objectUrl=null,preparedFile=null,preparedWork=null;
 function node(type,value){const x=document.createElement(type);if(value!=null)x.textContent=String(value);return x;}
 function setStatus(message,error=false){el('status').textContent=message;el('status').className=error?'error':'success';}
 function action(label,callback){const b=node('button',label);b.type='button';b.addEventListener('click',callback);return b;}
@@ -105,7 +111,7 @@ async function load(){
  app.session=s.data.session;
  if(previousUser&&previousUser!==app.session?.user?.id){
   if(objectUrl)URL.revokeObjectURL(objectUrl);
-  objectUrl=null;
+  objectUrl=null;preparedFile=null;preparedWork=null;
   el('saveSection').classList.add('hidden');
   el('saveLink').removeAttribute('href');
  }
@@ -139,6 +145,7 @@ async function prepareDownload(work,format){
   });
   if(bound.error)throw bound.error;
   if(objectUrl)URL.revokeObjectURL(objectUrl);
+  preparedFile=file;preparedWork=work;
   objectUrl=URL.createObjectURL(file.blob);
   const save=el('saveLink');save.href=objectUrl;save.download=file.filename;
   el('saveDetails').replaceChildren(
@@ -147,11 +154,26 @@ async function prepareDownload(work,format){
    node('p','SHA-256：'+digest)
   );
   el('saveSection').classList.remove('hidden');
+  el('bgmImportStatus').textContent='同じ端末のゲームBGMに、そのまま登録することもできます。';
   setStatus('✅ ライセンス付きファイルの準備完了。「このファイルを端末に保存」をタップしてください。');
   await load();
  }catch(e){setStatus('書き出しに失敗：'+e.message,true);}
  finally{app.pending=false;el('licensedSection').querySelectorAll('button').forEach(b=>b.disabled=false);}
 }
+el('addToGameBgm').addEventListener('click',async()=>{
+ const button=el('addToGameBgm'),label=el('bgmImportStatus');
+ if(!preparedFile||!preparedWork){label.textContent='最初にWAV・MIDI・楽譜のいずれかを準備してください。';return;}
+ const library=window.FW_BGM_IMPORT;
+ if(!library){label.textContent='BGM保存機能が読み込めません。ページを更新してください。';return;}
+ button.disabled=true;
+ try{
+  const result=await library.putBlob(preparedFile.blob,preparedFile.filename,preparedWork.title);
+  library.activate(result.id);
+  label.textContent='✅ 「'+result.title+'」を端末のゲームBGMへ登録しました。ゲームへ戻り、「🎶 BGM」→ ▶ 再生を押してください。';
+  setStatus('🎶 ダウンロード曲をゲームBGMに設定しました。保存ファイルの再購入・追加印税は発生しません。');
+ }catch(e){label.textContent='⚠️ BGM登録できません: '+String(e?.message||e);}
+ finally{button.disabled=false;}
+});
 async function verify(){
  const button=el('verify');button.disabled=true;
  try{
