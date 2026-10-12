@@ -5,7 +5,7 @@
 (function(global){
 'use strict';
 function install(host){
- const INST=global.FW_INSTRUMENTS,lib=global.FW_AUDIO_LIBRARY;
+ const INST=global.FW_INSTRUMENTS,lib=global.FW_AUDIO_LIBRARY,importLib=global.FW_BGM_IMPORT;
  if(!INST)throw Error('楽器音源がありません。');
  const DEMO={id:'priest-demo',title:'朝の祈り',author:'司祭エリアス',bpm:88,instrument:'organ',notes:[
  {pitch:60,start:0,duration:1},{pitch:64,start:1,duration:1},{pitch:67,start:2,duration:2},
@@ -27,7 +27,7 @@ function install(host){
   return state.bgm49;
  };
  const persist=()=>{try{const p=prefs();localStorage.setItem('fw_frontier_bgm_v1',JSON.stringify({trackId:p.trackId,volume:p.volume,loop:p.loop}));}catch(e){}};
- let onlineScores=[];
+ let onlineScores=[],importedList=[],importedScores=[];
  let savedFileUrl=null,downloading=false;
  const scores=()=>{
   const originals=[DEMO,...(Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[])];
@@ -39,7 +39,7 @@ function install(host){
   const state=host.getState();
   const fromGame=state.priestOrgan49&&Array.isArray(state.priestOrgan49.scores)?state.priestOrgan49.scores:[];
   const seen=new Set();
-  return [...originals,...fromGame,...saved,...onlineScores].map(s=>s&&String(s.id||'').startsWith('online:')?s:(valid?valid(s):s)).filter(s=>{
+  return [...originals,...fromGame,...saved,...onlineScores,...importedScores].map(s=>s&&(/^(online|import):/.test(String(s.id||'')))?s:(valid?valid(s):s)).filter(s=>{
    if(!s||!Array.isArray(s.notes)||!s.notes.length||seen.has(s.id))return false;
    seen.add(s.id);return true;
   });
@@ -63,6 +63,14 @@ function install(host){
  const visitVillages=el('button','smallBtn','🏡 他の村のBGM');
  [buyMusic,publishMusic,visitVillages].forEach(b=>{b.type='button';b.style.cssText='font-size:12px;padding:8px;';commerce.append(b);});
  panel.appendChild(commerce);
+ const importRow=el('div');importRow.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;';
+ const importBtn=el('button','smallBtn','📂 端末から曲を追加');
+ const forgetBtn=el('button','smallBtn','🗑️ 読み込んだ曲を削除');
+ [importBtn,forgetBtn].forEach(b=>{b.type='button';b.style.cssText='font-size:12px;padding:8px;';importRow.appendChild(b);});
+ const importInput=el('input');importInput.type='file';importInput.accept='.wav,.mid,.midi,.musicxml,.xml,.mp3,.m4a,.aac,.ogg,.webm,audio/*';importInput.style.display='none';
+ panel.append(importRow,importInput);
+ const importedNote=el('p','','ダウンロードしたWAV・MIDI・MusicXMLを取り込めます。端末内にのみ保存し、再課金しません。');
+ importedNote.style.cssText='margin:4px 0 8px;font-size:11px;line-height:1.5;color:#b5dcd2;';panel.appendChild(importedNote);
  const dl=el('div');dl.id='fwBgm49DirectDownload';
  dl.style.cssText='display:none;margin:9px 0;padding:10px;border:1px solid #9cbab3;background:#10292c;border-radius:10px;';
  const dlHeading=el('b','','💾 この曲を保存'),dlMessage=el('p','','WAV・MIDI・楽譜を選んでください。');
@@ -122,17 +130,30 @@ function install(host){
    status('🎙️ 「'+x.title+'」準備完了。▶ 再生でBGMを開始できます。');
   }catch(e){status('録音データを読み込めませんでした。');}
  }
+ async function prepareImportedAudio(id){
+  cleanupAudioUrl();
+  if(!importLib){status('ダウンロード曲の保存機能が見つかりません。');return;}
+  const expected=id;status('端末に保存したBGMを準備しています…');
+  try{
+   const track=await importLib.get(id.slice(7));
+   if(pick.value!==expected||!track||track.kind!=='audio'||!track.blob)return;
+   audioUrl=URL.createObjectURL(track.blob);audio.src=audioUrl;
+   audio.loop=!!prefs().loop;audio.volume=prefs().volume/100;preparedId=expected;
+   status('📂 '+track.title+' の音声を準備しました。▶ 再生してください。');
+  }catch(e){status('端末のBGMを読み込めませんでした: '+String(e?.message||e));}
+ }
  function fill(){
   const selected=prefs().trackId;
   pick.replaceChildren();
   const createOption=(id,t)=>{const o=el('option');o.value=id;o.textContent=t;pick.appendChild(o);};
   scores().forEach(s=>createOption(s.id,'🎼 '+s.title+' / '+INST.label(s.instrument)));
   voiceList.forEach(s=>createOption('voice:'+s.id,'🎙️ '+s.title));
+  importedList.filter(x=>x.kind==='audio').forEach(x=>createOption('import:'+x.id,'📂 '+x.title+' / 保存済み音声'));
   if([...pick.options].some(o=>o.value===selected))pick.value=selected;
   else{pick.value='priest-demo';prefs().trackId='priest-demo';persist();}
-  if(pick.value.startsWith('voice:')){
-   if(preparedId!==pick.value)prepareVoice(pick.value);
-   else if(!playing)status('録音データは準備できています。▶ 再生を押してください。');
+  if(pick.value.startsWith('voice:')||isImportedAudio(pick.value)){
+   if(preparedId!==pick.value)(pick.value.startsWith('voice:')?prepareVoice:prepareImportedAudio)(pick.value);
+   else if(!playing)status('音声は準備できています。▶ 再生を押してください。');
   }else{if(audioUrl)cleanupAudioUrl();if(!playing)status('曲を選び、▶ 再生を押してください。');}
  }
  async function loadOnlineScores(){
@@ -161,8 +182,22 @@ function install(host){
    onlineScores=items.filter(Boolean);
   }catch(err){status('オンライン曲の取得に失敗: '+String(err?.message||err||'通信状態を確認してください').slice(0,150));}
  }
+ function isImportedAudio(id){return id.startsWith('import:')&&importedList.some(x=>x.id===id.slice(7)&&x.kind==='audio');}
+ async function loadImported(){
+  importedList=[];importedScores=[];
+  if(!importLib)return;
+  try{
+   importedList=await importLib.list();
+   const tracks=await Promise.all(importedList.filter(x=>x.kind==='score').map(x=>importLib.get(x.id)));
+   importedScores=tracks.filter(x=>x&&x.score&&Array.isArray(x.score.notes)).map(x=>({
+    ...x.score,id:'import:'+x.id,title:'📂 '+x.title,
+    instrument:'organ'
+   }));
+  }catch(e){status('端末BGMの読み込みに失敗しました: '+String(e?.message||e));}
+ }
  async function refresh(){
   if(lib){try{voiceList=await lib.list();}catch(e){voiceList=[];}}
+  await loadImported();
   await loadOnlineScores();
   fill();
  }
@@ -194,11 +229,14 @@ function install(host){
   const selected=pick.value;
   if(!selected){status('曲を選択してください。');return;}
   prefs().trackId=selected;persist();
-  if(selected.startsWith('voice:')){
-   if(preparedId!==selected){prepareVoice(selected);status('録音データを準備しています。準備完了後にもう一度▶を押してください。');return;}
+  if(selected.startsWith('voice:')||isImportedAudio(selected)){
+   if(preparedId!==selected){
+    (selected.startsWith('voice:')?prepareVoice:prepareImportedAudio)(selected);
+    status('音声を準備中です。完了後にもう一度▶を押してください。');return;
+   }
    audio.loop=!!prefs().loop;audio.volume=prefs().volume/100;
    const result=audio.play();if(result&&typeof result.catch==='function')result.catch(()=>{status('録音の再生を開始できませんでした。もう一度▶を押してください。');playing=false;updateLabel();});
-   playing=true;updateLabel();status('🎙️ 録音した音声をBGMで再生中');return;
+   playing=true;updateLabel();status('🎵 音声をBGMで再生中');return;
   }
   const song=scores().find(s=>s.id===selected);
   if(!song){status('楽譜が見つかりません。曲一覧を更新してください。');return;}
@@ -207,8 +245,26 @@ function install(host){
  pick.addEventListener('change',()=>{
   clearSavedFile();dl.style.display='none';
   stop();prefs().trackId=pick.value;persist();
-  if(pick.value.startsWith('voice:'))prepareVoice(pick.value);else{cleanupAudioUrl();status('▶ 再生でBGMを開始できます。');}
+  if(pick.value.startsWith('voice:')||isImportedAudio(pick.value))(pick.value.startsWith('voice:')?prepareVoice:prepareImportedAudio)(pick.value);else{cleanupAudioUrl();status('▶ 再生でBGMを開始できます。');}
  });
+ importBtn.onclick=()=>{if(!importLib){status('この環境では曲の取り込み機能が利用できません。');return;}importInput.click();};
+ importInput.addEventListener('change',async()=>{
+  const file=importInput.files&&importInput.files[0];if(!file||!importLib)return;
+  importBtn.disabled=true;status('📂 '+file.name+' を端末のBGMライブラリに保存しています…');
+  try{
+   const info=await importLib.putFile(file);
+   prefs().trackId='import:'+info.id;persist();
+   stop();await refresh();
+   status('✅ 「'+info.title+'」をBGMに設定しました。▶ 再生を押してください。'+(info.licenseId?' ライセンスIDを保持しています。':''));
+  }catch(e){status('⚠️ 曲を読み込めません: '+String(e?.message||e));}
+  finally{importBtn.disabled=false;importInput.value='';}
+ });
+ forgetBtn.onclick=async()=>{
+  const id=pick.value;if(!id.startsWith('import:')){status('端末から読み込んだ曲を選んでから削除してください。');return;}
+  if(!global.confirm('この端末のBGM一覧から削除しますか？ダウンロードフォルダの元ファイルは消えません。'))return;
+  try{stop();cleanupAudioUrl();await importLib.remove(id.slice(7));prefs().trackId='priest-demo';persist();await refresh();status('端末のBGM一覧から削除しました。');}
+  catch(e){status('削除できません: '+String(e?.message||e));}
+ };
  slider.addEventListener('input',()=>{prefs().volume=Number(slider.value);updateVolume();persist();});
  loop.addEventListener('change',()=>{prefs().loop=loop.checked;audio.loop=loop.checked;persist();});
  function selectedMusicId(){return pick.value.startsWith('online:')?pick.value.slice(7):null;}
@@ -301,12 +357,27 @@ function install(host){
   panel.style.display=panel.style.display==='none'?'block':'none';
   if(panel.style.display==='block')refresh();
  };
- function sync(){
-  stop();const p=prefs();loop.checked=!!p.loop;updateVolume();refresh();
+ function applyPendingImport(){
+  if(!importLib)return false;
+  try{
+   const raw=localStorage.getItem(importLib.latestKey);
+   if(!raw)return false;
+   const incoming=JSON.parse(raw);localStorage.removeItem(importLib.latestKey);
+   if(!incoming.id||!/^[a-zA-Z0-9_-]+$/.test(incoming.id))return false;
+   prefs().trackId='import:'+incoming.id;persist();return true;
+  }catch(e){return false;}
  }
+ function sync(){
+  stop();const p=prefs();applyPendingImport();loop.checked=!!p.loop;updateVolume();refresh();
+ }
+ global.addEventListener('storage',e=>{
+  if(importLib&&e.key===importLib.latestKey&&e.newValue){
+   stop();applyPendingImport();refresh().then(()=>status('📂 端末に保存した曲をBGMに設定しました。▶ 再生で開始してください。'));
+  }
+ });
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
  global.addEventListener('pagehide',()=>{stop();cleanupAudioUrl();clearSavedFile();});
- loop.checked=!!prefs().loop;updateVolume();refresh();
+ applyPendingImport();loop.checked=!!prefs().loop;updateVolume();refresh();
  return {stop,play,refresh,sync,get playing(){return playing;}};
 }
 global.FW_GAME_BGM49={install};
