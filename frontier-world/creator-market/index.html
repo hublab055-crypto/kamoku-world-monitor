@@ -64,6 +64,9 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 <label><input id="rights" type="checkbox" required> 私がこの作品を創作し、販売する権利を持っています。</label>
 <button type="submit" id="submit">審査に提出する</button>
 </form></section>
+<section id="localDraftSection"><div class="flex"><h2>📓 ゲーム内で書いた自分の原稿</h2><button id="reloadDrafts" type="button" class="secondary">原稿を再読み込み</button></div>
+<p class="muted">ゲーム本体で保存した作品を、この端末からそのまま閲覧できます。ここにはまだ販売していない下書きも表示されます。原稿は自動出品されず、公開には別途ログイン・権利確認・審査が必要です。</p>
+<div id="localDrafts">ゲーム内の原稿を確認しています。</div></section>
 <section id="mine" class="hidden"><h2>📦 出品した作品</h2><div id="mineList"></div><h2>💰 印税の受取記録</h2><div id="ledger"></div></section>
 <section id="owned" class="hidden"><h2>📖 購入した作品</h2><p><a class="btn secondary" href="music-download.html">💿 購入済みの楽曲をWAV・MIDI・楽譜で保存する</a></p><div id="ownedList"></div></section>
 <section><h2>運用ルール</h2><p class="muted">例：作品100Gの購入が成立すると、制作者のオンラインβ口座へ80G、共用マーケット運営会計へ20Gを同じ取引で記録します。二重購入は課金しません。著作権切れの青空文庫作品は無料図書室で閲覧でき、作者に印税は発生しません。</p><p class="muted">作品内容は購入前には閲覧できません。出品は審査待ちです。違反作品は通報と管理者による非公開対応の対象です。</p></section>
@@ -117,24 +120,72 @@ async function viewWork(work){
  const result=await db.from('fw_creator_payloads').select('content').eq('work_id',work.id).single();
  if(result.error)throw result.error;renderContent(work,result.data.content);
 }
+function getLocalDrafts(){
+ try{
+  const raw=localStorage.getItem('frontier_world_save_v10');
+  if(!raw)return [];
+  const saved=JSON.parse(raw);
+  const works=saved&&saved.state&&saved.state.player&&saved.state.player.authoredBooks;
+  return Array.isArray(works)?works.filter(x=>x&&typeof x==='object'&&typeof x.body==='string'):[];
+ }catch(e){message('ゲーム原稿の読み込みに失敗しました：'+e.message,true);return [];}
+}
+function renderLocalDrafts(){
+ const root=el('localDrafts');root.replaceChildren();
+ const works=getLocalDrafts();
+ if(!works.length){root.append(node('p','保存済みのゲーム内原稿がありません。ゲーム画面の「✍️ 執筆・出版」で原稿を保存してください。','muted'));return;}
+ root.append(node('p','この端末のセーブにある原稿：'+works.length+'点','tags'));
+ works.forEach(w=>{
+  const title=String(w.title||w.name||'無題');
+  const preview={kind:'book',title:title,description:String(w.type||'ゲーム内原稿'),price_g:0};
+  const actions=[btn('📖 読む',()=>renderContent(preview,{text:w.body}))];
+  actions.push(btn('✍️ 出品フォームにコピー',()=>{
+   if(!state.session){message('出品するにはGitHubログインしてください。原稿の閲覧はログイン不要です。',true);return;}
+   if([...w.body].length<20||[...w.body].length>20000){message('マーケットへの投稿は本文20〜20,000文字が必要です。',true);return;}
+   el('kind').value='book';el('kind').dispatchEvent(new Event('change'));
+   el('title').value=title.slice(0,120);el('description').value='ゲーム内で執筆した作品';
+   el('bookText').value=w.body;
+   el('create').scrollIntoView({behavior:'smooth',block:'start'});
+   message('原稿を入力しました。内容・権利・価格を確認してから審査に提出してください。');
+  }));
+  const c=card(preview,actions);
+  c.append(node('small','✏️ 原稿 '+[...w.body].length+'文字 ／ 製本 '+Number(w.copies||0)+'部','tags'));
+  root.append(c);
+ });
+}
 async function load(){
- const s=await db.auth.getSession();state.session=s.data.session;
- const logged=!!state.session;el('login').classList.toggle('hidden',logged);el('logout').classList.toggle('hidden',!logged);
+ renderLocalDrafts();
+ const sessionResult=await db.auth.getSession();
+ if(sessionResult.error)throw sessionResult.error;
+ state.session=sessionResult.data.session;
+ const logged=!!state.session;
+ el('login').classList.toggle('hidden',logged);
+ el('logout').classList.toggle('hidden',!logged);
  ['create','mine','owned','collabSection'].forEach(k=>el(k).classList.toggle('hidden',!logged));
- if(!logged){el('who').textContent='GitHubログインすると出品・購入できます。';el('balance').textContent='';el('list').textContent='ログインしてください。';return;}
+ if(!logged){
+  state.works=[];state.mine=[];state.purchases=[];state.ledger=[];state.wallet=null;
+  el('who').textContent='GitHubログインすると出品・購入できます。';
+  el('balance').textContent='';
+  el('list').textContent='ログインしてください。';
+  return;
+ }
  const uid=state.session.user.id;
  el('who').textContent=state.session.user.user_metadata?.user_name||state.session.user.email||'ログイン中';
  el('myId').textContent='あなたのユーザーID：'+uid;
- const reg=await db.rpc('fw_market_register');if(reg.error)throw reg.error;
+ const errors=[];
+ const reg=await db.rpc('fw_market_register');
+ if(reg.error)errors.push('口座登録: '+reg.error.message);
  const calls=await Promise.all([
   db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').eq('status','active').order('created_at',{ascending:false}).limit(120),
-  db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').eq('creator_id',uid).order('created_at',{ascending:false}).limit(60),
+  db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').eq('creator_id',uid).order('created_at',{ascending:false}).limit(120),
   db.from('fw_creator_purchases').select('id,work_id,price_g,royalty_g,created_at').eq('buyer_id',uid).order('created_at',{ascending:false}),
   db.from('fw_creator_royalty_ledger').select('purchase_id,work_id,amount_g,created_at').eq('creator_id',uid).order('created_at',{ascending:false}).limit(100),
-  db.from('fw_market_accounts').select('cash_balance,cash_reserved').eq('user_id',uid).single()
+  db.from('fw_market_accounts').select('cash_balance,cash_reserved').eq('user_id',uid).maybeSingle()
  ]);
- calls.forEach(c=>{if(c.error)throw c.error;});
- [state.works,state.mine,state.purchases,state.ledger,state.wallet]=calls.map(x=>x.data);
+ const requiredFields=['works','mine','purchases','ledger','wallet'];
+ calls.forEach((c,i)=>{
+  if(c.error)errors.push(requiredFields[i]+': '+c.error.message);
+  state[requiredFields[i]]=c.error?(i===4?null:[]):(c.data||(i===4?null:[]));
+ });
  const more=await Promise.all([
   db.from('fw_creator_splits').select('work_id,collaborator_id,contribution_role,share_bps,accepted_at,invited_at').limit(100),
   db.from('fw_creator_library_donations').select('work_id,donated_at').limit(200),
@@ -143,11 +194,16 @@ async function load(){
   db.rpc('fw_creator_my_income'),
   db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').order('created_at',{ascending:false}).limit(200)
  ]);
- more.forEach(c=>{if(c.error)throw c.error;});
- [state.splits,state.donations,state.rankings,state.npcSales,state.income,state.visibleWorks]=more.map(c=>c.data||[]);
- el('balance').textContent='オンライン残高 '+state.wallet.cash_balance+'G / 利用可能 '+(state.wallet.cash_balance-state.wallet.cash_reserved)+'G';
+ ['splits','donations','rankings','npcSales','income','visibleWorks'].forEach((k,i)=>{
+  if(more[i].error)errors.push(k+': '+more[i].error.message);
+  state[k]=Array.isArray(more[i].data)?more[i].data:[];
+ });
+ const wallet=state.wallet;
+ el('balance').textContent=wallet?'オンライン残高 '+wallet.cash_balance+'G / 利用可能 '+(wallet.cash_balance-wallet.cash_reserved)+'G':'オンライン残高を取得できません';
  render();
+ if(errors.length)message('一部のデータ取得に失敗しました。自分の原稿・作品の閲覧は引き続き利用できます。詳細: '+errors.join(' / '),true);
 }
+
 function render(){
  const list=el('list');list.replaceChildren();
  if(!state.works.length)list.append(node('p','現在公開中の作品はありません。出品申請が審査・承認されるとここに表示されます。','muted'));
@@ -172,7 +228,7 @@ function render(){
  else {const sum=state.income.reduce((n,e)=>n+Number(e.amount_g),0);led.append(node('b','最新'+state.income.length+'件の印税合計：'+sum+'G'));state.income.slice(0,35).forEach(e=>led.append(node('p','🪙 +'+e.amount_g+'G（'+(e.source==='npc'?'NPC':e.source==='village_seller'?'村での紹介販売':'ユーザー')+'購入） '+new Date(e.created_at).toLocaleString('ja-JP'),'muted')));}
  const ownedList=el('ownedList');ownedList.replaceChildren();
  if(!state.purchases.length)ownedList.append(node('p','購入した作品はありません。','muted'));
- state.purchases.forEach(p=>{const w=state.works.find(w=>w.id===p.work_id)||state.mine.find(w=>w.id===p.work_id);
+ state.purchases.forEach(p=>{const w=state.works.find(w=>w.id===p.work_id)||state.mine.find(w=>w.id===p.work_id)||state.visibleWorks.find(w=>w.id===p.work_id);
   if(w)ownedList.append(card(w,[btn('📖 開く',()=>viewWork(w).catch(e=>message(e.message,true)))]));
  });
  renderCommunity();
@@ -272,6 +328,9 @@ el('postForm').addEventListener('submit',async(e)=>{
 el('login').addEventListener('click',async()=>{const x=await db.auth.signInWithOAuth({provider:'github',options:{redirectTo:location.origin+location.pathname}});if(x.error)message(x.error.message,true);});
 el('logout').addEventListener('click',async()=>{await db.auth.signOut();await load();});
 el('refresh').addEventListener('click',()=>load().catch(e=>message(e.message,true)));
+el('reloadDrafts').addEventListener('click',renderLocalDrafts);
+window.addEventListener('storage',e=>{if(e.key==='frontier_world_save_v10')renderLocalDrafts();});
+renderLocalDrafts();
 el('viewerClose').addEventListener('click',()=>el('viewer').classList.add('hidden'));
 load().catch(e=>message('マーケット接続失敗: '+e.message,true));
 </script></body></html>
