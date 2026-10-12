@@ -203,7 +203,7 @@ function install(host){
   }
  }
  mergeFromLocal();
- return {getStore,remember,collect,choose,scheduled,play,stop,onCeremony,render,sendToOrgan,attachFrameSync};
+ return {getStore,remember,mergeFromLocal,collect,choose,scheduled,play,stop,onCeremony,render,sendToOrgan,attachFrameSync};
 }
 global.FW_PriestMusic49={install,safeScore};
 })(window);
