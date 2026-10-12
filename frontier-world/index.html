@@ -13102,7 +13102,7 @@ function fw41RenderReader(){
  const body=document.getElementById('fw41ReaderBody');
  body.innerHTML=
   '<div style="display:flex;justify-content:space-between;gap:8px"><div><div class="fw41BookTitle">'+fw41E(book.icon||'📖')+' '+fw41E(book.name||book.title||'無題')+'</div>'+
-  '<div class="fw41Meta">著者 '+fw41E(author)+' / '+fw41E(book.category||book.type||'書籍')+(read?' / ✅ 読了済み':'')+'</div></div>'+
+  '<div class="fw41Meta">著者 '+fw41E(author)+' / '+fw41E(book.category||book.type||'書籍')+(read?' / ✅ 読了済み':'')+(book.readingMode==='full'?' / 全文':'')+(typeof book.sourceUrl==='string'&&/^https:\/\/www\.aozora\.gr\.jp\/cards\/\d{6}\/card\d+\.html$/.test(book.sourceUrl)?' / <a href="'+fw41E(book.sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="color:#315c82">青空文庫・作品カード</a>':'')+'</div></div>'+
   '<button data-fw41-reader="close" style="min-width:48px">✕</button></div>'+
   '<div class="fw41Page">'+fw41E(pages[p])+'</div>'+
   '<div class="fw41Nav"><button data-fw41-reader="prev" '+(p<=0?'disabled':'')+'>← 前頁</button>'+
@@ -13248,7 +13248,7 @@ document.addEventListener('click',function(e){
  * The common-house library and interactive bookcases can open the shared book reader.
  * Initially only the iroha poem is available for direct on-site reading.
  */
-const FW491_LIBRARY_BOOK_IDS=['iroha_uta'];
+function fw491LibraryBookIds(){return Object.keys(FW18_BOOKS).filter(function(id){return FW18_BOOKS[id]&&FW18_BOOKS[id].library===true;});}
 const fw491OriginalPriestLibrary=fw43PriestLibrary;
 
 function fw491RenderLibraryShelf(){
@@ -13257,20 +13257,21 @@ function fw491RenderLibraryShelf(){
   if(!body||!title||title.textContent!=='📚 コモンハウス図書室・村史')return;
   const previous=document.getElementById('fw491LibraryShelf');
   if(previous)previous.remove();
-  const available=FW491_LIBRARY_BOOK_IDS.map(function(id){
+  const available=fw491LibraryBookIds().map(function(id){
     const b=FW18_BOOKS[id];
     if(!b)return '';
     const pages=fw41Pages(b);
     const finished=fw41IsRead(id);
     const progress=state.player.bookProgress&&state.player.bookProgress[id]||0;
-    return '<div class="tileCard"><b>'+fw41E(b.icon||'📖')+' '+fw41E(b.name||id)+'</b> '+
+    return '<div class="tileCard" data-fw491-book-item="1" data-fw491-match="'+fw41E([b.name,b.author,b.category,b.summary].join(' ').toLowerCase())+'"><b>'+fw41E(b.icon||'📖')+' '+fw41E(b.name||id)+'</b> '+
       (finished?'<span class="note">✅ 読了済み</span>':'')+
       '<div class="note">'+fw41E(b.summary||'')+' / '+pages.length+'ページ'+(progress>0?' / 途中から再開':'')+'</div>'+
       '<button class="smallBtn" type="button" data-fw491-read="'+fw41E(id)+'">📖 '+(progress>0?'続きを読む':'開いて読む')+'</button></div>';
   }).filter(Boolean).join('');
   const section=document.createElement('section');
   section.id='fw491LibraryShelf';
-  section.innerHTML='<h3>📚 図書室の本棚・閲覧</h3>'+
+  section.innerHTML='<h3>📚 図書室の本棚・閲覧（'+fw491LibraryBookIds().length+'冊）</h3>'+ 
+   '<label class="note">書籍検索 <input id="fw491ShelfSearch" type="search" placeholder="題名・著者・ジャンル" style="width:100%;margin:5px 0;padding:9px;background:#151a1d;border:1px solid #65727a;border-radius:8px;color:#fff"></label>'+
    '<div class="note">読みたい本を選ぶとページを開きます。閲覧は無料で貸出制限はありません。</div>'+
    (available||'<div class="tileCard">📖 蔵書を読み込み中…</div>');
   body.insertBefore(section,body.firstChild);
@@ -13283,12 +13284,17 @@ fw43PriestLibrary=function(){
   });
 };
 
+document.getElementById('panelBody').addEventListener('input',function(e){
+ const input=e.target.closest('#fw491ShelfSearch');if(!input)return;
+ const q=String(input.value||'').trim().toLowerCase();
+ document.querySelectorAll('#fw491LibraryShelf [data-fw491-book-item]').forEach(function(card){card.style.display=String(card.dataset.fw491Match||'').includes(q)?'':'none';});
+});
 document.getElementById('panelBody').addEventListener('click',function(e){
   const btn=e.target.closest('[data-fw491-read]');
   if(!btn)return;
   e.preventDefault();e.stopImmediatePropagation();
   const id=btn.dataset.fw491Read;
-  if(!FW491_LIBRARY_BOOK_IDS.includes(id))return;
+  if(!fw491LibraryBookIds().includes(id))return;
   fw41LoadBooks().then(function(){
     if(FW18_BOOKS[id])fw41OpenReader(id);
     else msg('📚 書籍を読み込めませんでした。通信状態を確認して再読み込みしてください。');
