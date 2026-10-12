@@ -11,11 +11,12 @@
 <div class="row"><button id="record" class="primary">⏺ 録音開始</button><button id="recordStop">⏹ 録音終了</button><label><input type="checkbox" id="step"> 手入力モード</label><label>音価 <select id="duration"><option value=".5">8分</option><option value="1" selected>4分</option><option value="2">2分</option><option value="4">全音符</option></select></label></div>
 <div class="row"><button id="play">▶ 演奏を再生</button><button id="stop">■ 停止</button><button id="undo">↩ 1音戻す</button><button id="clear">消去</button><span id="count" class="badge">0音</span></div><div id="status" role="status" aria-live="polite"></div></section>
 <section class="card"><h2>🎼 楽譜 (ト音記号・4/4)</h2><canvas id="sheet" width="900" height="220"></canvas><div class="row"><button id="redraw">♩ 楽譜化</button><button id="save" class="primary">📜 司祭に保管</button><button id="export">⬇ MIDI書き出し</button><button id="png">🖼 楽譜PNG保存</button></div></section>
-<section class="card"><h2>⛪ 司祭の楽譜庫</h2><p>「朝の祈り」は最初から登録された試演曲。あなたの曲はこのブラウザ内に保管されます。</p><div class="row"><button id="priest" class="primary">🎵 司祭の演奏を聴く</button><button id="openDemo">📖 司祭の楽譜を開く</button></div><div id="library"></div></section>
-</main><script>
+<section class="card"><h2>⛪ 司祭の楽譜庫</h2><p>「朝の祈り」に加え、著作権保護期間が満了した古い旋律を使った練習譜5曲を収録。現代編曲譜や既存録音は使用していません。自作曲はこのブラウザ内に保管されます。</p><div class="row"><button id="priest" class="primary">🎵 司祭の演奏を聴く</button><button id="openDemo">📖 司祭の楽譜を開く</button></div><div id="library"></div><p>他の公開楽譜を探す：<a href="https://www.mutopiaproject.org/" target="_blank" rel="noopener noreferrer">Mutopia Project</a> ／ <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>。利用時は個々の楽譜に記載された権利・ライセンスを確認してください。</p></section>
+</main><script src="./public-domain-catalog.js"></script><script>
 (function(){
 'use strict';
 const $=s=>document.getElementById(s), KEY='fw_frontier_organ_scores_v1', PPQ=480;
+const PD=Array.isArray(window.FW_ORGAN_PD)?window.FW_ORGAN_PD:[];
 const DEMO={id:'priest-demo',title:'朝の祈り',author:'司祭エリアス',bpm:88,notes:[
 {pitch:60,start:0,duration:1},{pitch:64,start:1,duration:1},{pitch:67,start:2,duration:2},
 {pitch:65,start:4,duration:1},{pitch:64,start:5,duration:1},{pitch:62,start:6,duration:2},
@@ -174,7 +175,9 @@ function vlq(n){n=Math.max(0,Math.floor(n));const b=[n&127];while(n>>=7)b.unshif
 function midi(s){const us=Math.round(60000000/s.bpm),events=[{t:0,k:0,b:[255,81,3,(us>>16)&255,(us>>8)&255,us&255]},{t:0,k:1,b:[0xc0,19]}];validated(s.notes).forEach(n=>{const a=Math.round(n.start*PPQ),b=a+Math.max(1,Math.round(n.duration*PPQ));events.push({t:a,k:3,b:[0x90,n.pitch,90]},{t:b,k:2,b:[0x80,n.pitch,0]});});events.sort((a,b)=>a.t-b.t||a.k-b.k);let track=[],prev=0;events.forEach(e=>{track.push(...vlq(e.t-prev),...e.b);prev=e.t;});track.push(0,255,47,0);const L=track.length;return new Uint8Array([77,84,104,100,0,0,0,6,0,0,0,1,1,224,77,84,114,107,(L>>>24)&255,(L>>>16)&255,(L>>>8)&255,L&255,...track]);}
 function download(b,name){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);}
 function stem(s){return String(s||'organ').replace(/[\\/:*?"<>|]/g,'_').slice(0,50);}
-function library(){const root=$('library');root.replaceChildren();[DEMO,...archive()].forEach(s=>{const row=document.createElement('div');row.className='piece';const name=document.createElement('strong');name.textContent='🎼 '+s.title;row.appendChild(name);const meta=document.createElement('small');meta.textContent=s.author+' / '+s.bpm+'BPM / '+s.notes.length+'音';row.appendChild(meta);
+function library(){const root=$('library');root.replaceChildren();[DEMO,...PD,...archive()].forEach(s=>{const row=document.createElement('div');row.className='piece';const name=document.createElement('strong');name.textContent='🎼 '+s.title;row.appendChild(name);const meta=document.createElement('small');meta.textContent=s.author+' / '+s.bpm+'BPM / '+s.notes.length+'音';row.appendChild(meta);
+const pd=PD.find(item=>item.id===s.id);
+if(pd){const rights=document.createElement('small');rights.textContent='📜 '+pd.rights+' / '+pd.detail;row.appendChild(rights);const a=document.createElement('a');a.href=pd.source;a.target='_blank';a.rel='noopener noreferrer';a.textContent='出典・権利情報を確認 ↗';row.appendChild(a);row.appendChild(document.createElement('br'));}
 function btn(label,fn){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',fn);row.appendChild(b);row.appendChild(document.createTextNode(' '));}btn('📖 開く',()=>load(s));btn('▶ 聴く',()=>play(s));if(s.id!==DEMO.id)btn('🗑 削除',()=>{if(confirm('削除しますか？')){writeArchive(archive().filter(x=>x.id!==s.id));library();}});root.appendChild(row);});}
 $('record').onclick=()=>{stop();Array.from(holds.keys()).forEach(release);recording=true;notes=[];stepAt=0;recAt=performance.now();$('record').disabled=true;draw();info('⏺ 録音中です。');};
 $('recordStop').onclick=()=>{if(!recording)return;Array.from(holds.keys()).forEach(release);recording=false;$('record').disabled=false;stepAt=Math.max(0,...notes.map(n=>n.start+n.duration));draw();info('⏹ 録音終了。楽譜を保存できます。');};
@@ -185,7 +188,7 @@ $('redraw').onclick=()=>{draw();info('楽譜を更新しました。');};
 $('save').onclick=()=>{const s=current();if(!s.notes.length){info('録音か手入力で音符を作ってください。');return;}s.id='song_'+Date.now().toString(36);s.created=new Date().toISOString();if(writeArchive([s,...archive()].slice(0,80))){library();info('📜 '+s.title+' を司祭の楽譜庫に保存しました。');}};
 $('export').onclick=()=>{const s=current();if(!s.notes.length){info('まず音符を入力してください。');return;}download(new Blob([midi(s)],{type:'audio/midi'}),stem(s.title)+'.mid');info('標準MIDIファイルを保存しました。');};
 $('png').onclick=()=>{draw();$('sheet').toBlob(b=>{if(b)download(b,stem($('title').value)+'_score.png');},'image/png');};
-$('priest').onclick=()=>{const scores=archive();play(scores.length?scores[Math.floor(Math.random()*scores.length)]:DEMO);};
+$('priest').onclick=()=>{const scores=[...PD,...archive()];play(scores.length?scores[Math.floor(Math.random()*scores.length)]:DEMO);};
 $('openDemo').onclick=()=>load(DEMO);
 ['title','bpm','quant'].forEach(id=>$(id).addEventListener('input',draw));
 window.addEventListener('pagehide',stop);makeKeys();draw();library();if(new URLSearchParams(location.search).get('priest')==='1')info('⛪ 司祭エリアス「この楽譜は私が大切に保管します。」');
