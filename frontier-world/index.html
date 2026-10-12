@@ -12946,7 +12946,7 @@ const fw48NPCOriginal=updateNPC;
 updateNPC=function(n,dt){
  const r=fw48NPCOriginal.apply(this,arguments);
  if(n&&n.id==='priest43'){
-  n.organPlaying48=!!(fw48OrganFurniture()&&fw48OrganFurniture().placed&&n.inside20==='house1'&&state.hour>=12.35&&state.hour<13.45);
+  n.organPlaying48=!!(fw48OrganFurniture()&&fw48OrganFurniture().placed&&n.inside20==='house1'&&state.hour>=(12+35/60)&&state.hour<(13+45/60));
   if(n.organPlaying48){n.status='🎹 コモンハウスでオルガン演奏';if(n.household34){n.household34.x=2.2;n.household34.y=2.3;n.household34.dir='back';if(typeof fw34SyncResident==='function')fw34SyncResident(n);}}
  }
  return r;
