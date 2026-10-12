@@ -12254,6 +12254,259 @@ if(window.FW_PriestMusic49){
 }
 
 
+
+/* FRONTIER_V50_LIFELONG_EDUCATION_AND_EXAMS
+ * V47 child education remains the source of truth; adults use the same progress.
+ * Exam session is transient. Progress, certificates and attendance stay in state.
+ */
+const FW50_SUBJECTS=['reading','math','history','nature'];
+const FW50_TITLES=['初級','中級','上級'];
+let fw50ExamSession=null;
+
+function fw50Learners(){
+ const people=[{key:'p',actor:state.player,label:'操作キャラクター'}];
+ (state.family.children||[]).forEach(function(c,i){
+  if(fw10ChildStage(c)!=='baby')people.push({key:'c'+i,actor:c,label:fw10ChildStage(c)==='youth'?'子ども':'成人した子'});
+ });
+ (state.npcs||[]).forEach(function(n,i){
+  if(n&&n.alive!==false&&n.id!=='priest43')people.push({key:'n'+i,actor:n,label:'大人'});
+ });
+ return people.filter(function(p){return p.actor;});
+}
+function fw50FindLearner(key){return fw50Learners().find(function(p){return p.key===key;})||null;}
+function fw50Ensure(actor){
+ const e=fw47EnsureSchool(actor);
+ FW50_SUBJECTS.forEach(function(k){e[k]=clamp(Number(e[k])||0,0,100);});
+ if(!e.certs50||typeof e.certs50!=='object')e.certs50={reading:0,math:0};
+ if(!e.scores50||typeof e.scores50!=='object')e.scores50={};
+ if(!Number.isFinite(Number(e.lastStudy50)))e.lastStudy50=-1;
+ if(!Number.isFinite(Number(e.studyDays50)))e.studyDays50=0;
+ if(actor.autoStudy50==null)actor.autoStudy50=false;
+ return e;
+}
+function fw50Teacher(){
+ return (state.npcs||[]).find(function(n){return n&&n.id==='priest43'&&n.alive!==false;});
+}
+function fw50Record(actor,detail){
+ if(typeof fw43RecordEvent==='function')fw43RecordEvent('education',actor.name+'：'+detail);
+ if(typeof window.fw37Log==='function')window.fw37Log('education',actor.name+'：'+detail,actor);
+}
+function fw50Study(actor,subject,automatic){
+ if(!FW50_SUBJECTS.includes(subject)||!fw50Teacher())return false;
+ const edu=fw50Ensure(actor);
+ if(edu.lastStudy50===state.day)return false;
+ if(actor===state.player&&(Number(actor.st)||0)<3)return false;
+ const teacher=fw50Teacher();
+ const gain=5+Math.min(4,Math.floor(Number(teacher.skills&&teacher.skills.reading||0)/3));
+ edu[subject]=clamp(edu[subject]+gain,0,100);
+ edu.lastStudy50=state.day;
+ edu.studyDays50++;
+ if(actor===state.player)actor.st=clamp((Number(actor.st)||0)-3,0,100);
+ fw50Record(actor,FW47_SUBJECTS[subject]+'を'+(automatic?'自主学習':'授業')+' +'+gain);
+ return true;
+}
+function fw50SchoolMenu(){
+ const r=$('#dialogReplies');if(!r)return;
+ const people=fw50Learners();
+ let html='<div class="note" style="width:100%">📚 学び直し教室：子どもも大人も参加できます。1人1日1回の学習。読み書き・算数は筆記試験で資格を獲得。</div>';
+ if(!fw50Teacher())html+='<div class="note">司祭エリアスが不在のため、いまは授業と試験ができません。</div>';
+ people.forEach(function(p){
+  const e=fw50Ensure(p.actor);
+  html+='<div class="tileCard" style="width:100%"><b>'+fw422Esc(p.actor.name||p.key)+'</b>（'+p.label+'）　学習 '+e.studyDays50+'日'+
+   '<div class="note">読み書き '+Math.round(e.reading)+' / 算数 '+Math.round(e.math)+
+   ' / 歴史 '+Math.round(e.history)+' / 自然 '+Math.round(e.nature)+'</div>'+
+   '<div class="note">試験：国語 '+(FW50_TITLES[(e.certs50.reading||0)-1]||'未取得')+
+   ' / 算数 '+(FW50_TITLES[(e.certs50.math||0)-1]||'未取得')+'</div>'+
+   fw42HtmlButton('fw50:person:'+p.key,'📖 授業・テスト')+'</div>';
+ });
+ r.innerHTML=html+fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
+}
+function fw50PersonMenu(key){
+ const p=fw50FindLearner(key),r=$('#dialogReplies');if(!r)return;
+ if(!p){fw50SchoolMenu();return;}
+ const e=fw50Ensure(p.actor),child=p.key.startsWith('c')&&fw10ChildStage(p.actor)==='youth';
+ let html='<div class="note" style="width:100%"><b>'+fw422Esc(p.actor.name||p.key)+'</b>　今日は'+
+  (e.lastStudy50===state.day?'学習済み':'まだ学習できます')+'。試験は繰り返し受験できます。</div>';
+ FW50_SUBJECTS.forEach(function(s){
+  html+='<div class="tileCard" style="width:100%">'+FW47_SUBJECTS[s]+'：'+Math.round(e[s])+'/100 '+
+   fw42HtmlButton('fw50:study:'+key+':'+s,'✏️ 学ぶ');
+  if(s==='reading'||s==='math'){
+   const grade=Math.min(3,Math.max(0,Number(e.certs50[s])||0));
+   const needed=[0,35,70][grade];
+   if(grade<3)html+=fw42HtmlButton('fw50:exam:'+key+':'+s,'📝 '+FW50_TITLES[grade]+'テスト'+(e[s]<needed?'（習熟度'+needed+'から）':''));
+   else html+=' <span class="note">🏅 上級合格</span>';
+  }
+  html+='</div>';
+ });
+ if(!child)html+=fw42HtmlButton('fw50:auto:'+key,p.actor.autoStudy50?'✅ 夜の自主学習を停止':'🌙 毎晩自習をON');
+ html+='<div class="note">大人の自習は夜18〜22時に1日1回。試験は5問中4問以上正解で合格。初級0・中級35・上級70から受験可能。</div>'+
+  fw42HtmlButton('fw50:school','↩ 学習者一覧');
+ r.innerHTML=html;
+}
+const FW50_READING_QUESTIONS=[
+ [
+  {prompt:'「山」の読みを選ぼう',correct:'やま',choices:['やま','かわ','そら','はな']},
+  {prompt:'「木」の読みを選ぼう',correct:'き',choices:['き','ひ','み','て']},
+  {prompt:'「そら」と読む漢字は？',correct:'空',choices:['空','雨','海','森']},
+  {prompt:'「かわ」を漢字で書こう',correct:'川',type:'text'},
+  {prompt:'「はな」を漢字で書こう',correct:'花',type:'text'}
+ ],
+ [
+  {prompt:'「市場」の読みを選ぼう',correct:'いちば',choices:['いちば','しじょう','いちもん','いば']},
+  {prompt:'「本棚」の読みを選ぼう',correct:'ほんだな',choices:['ほんだな','もとだな','ほんばこ','ほんたな']},
+  {prompt:'「図書」の読みを選ぼう',correct:'としょ',choices:['としょ','ずがき','としょう','ずしょ']},
+  {prompt:'「とけい」を漢字で書こう',correct:'時計',type:'text'},
+  {prompt:'「てがみ」を漢字で書こう',correct:'手紙',type:'text'}
+ ],
+ [
+  {prompt:'「契約」の読みを選ぼう',correct:'けいやく',choices:['けいやく','きやく','けいよく','けつやく']},
+  {prompt:'「収穫」の読みを選ぼう',correct:'しゅうかく',choices:['しゅうかく','しゅかく','しゅうこう','しゅうがく']},
+  {prompt:'「衛生」の読みを選ぼう',correct:'えいせい',choices:['えいせい','えせい','えいしょう','えいせ']},
+  {prompt:'「しげん」を漢字で書こう',correct:'資源',type:'text'},
+  {prompt:'「ぼうえき」を漢字で書こう',correct:'貿易',type:'text'}
+ ]
+];
+function fw50MathQuestion(prompt,correct){
+ const n=Number(correct);
+ const values=[n,n+1,n+2,Math.max(0,n-2),n+4].filter(function(v,i,a){return a.indexOf(v)===i;});
+ for(let i=values.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[values[i],values[j]]=[values[j],values[i]];}
+ return {prompt:prompt,correct:String(n),choices:values.slice(0,4).map(String)};
+}
+function fw50Questions(subject,grade){
+ if(subject==='reading'){
+  return FW50_READING_QUESTIONS[grade].map(function(q){
+   const copy={prompt:q.prompt,correct:q.correct,type:q.type||'choice',choices:q.choices?q.choices.slice():[]};
+   if(copy.choices.length)for(let i=copy.choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[copy.choices[i],copy.choices[j]]=[copy.choices[j],copy.choices[i]];}
+   return copy;
+  });
+ }
+ if(grade===0)return [
+  fw50MathQuestion('3 + 4 = ?',7),fw50MathQuestion('9 - 6 = ?',3),
+  fw50MathQuestion('8 + 7 = ?',15),fw50MathQuestion('15 - 8 = ?',7),
+  fw50MathQuestion('6 + 5 = ?',11)
+ ];
+ if(grade===1)return [
+  fw50MathQuestion('6 × 7 = ?',42),fw50MathQuestion('36 ÷ 4 = ?',9),
+  fw50MathQuestion('12 × 3 = ?',36),fw50MathQuestion('81 ÷ 9 = ?',9),
+  fw50MathQuestion('25 × 4 = ?',100)
+ ];
+ return [
+  fw50MathQuestion('商品12個を1個8Gで売ると売上は？',96),
+  fw50MathQuestion('120Gの品を3個買うと代金は？',360),
+  fw50MathQuestion('300Gの売上から経費180Gを引くと利益は？',120),
+  fw50MathQuestion('30個の在庫から12個売り、8個補充すると残りは？',26),
+  fw50MathQuestion('原価90Gの品を120Gで売ると利益は？',30)
+ ];
+}
+function fw50ExamOpen(key,subject){
+ const p=fw50FindLearner(key);if(!p||!['reading','math'].includes(subject)||!fw50Teacher())return;
+ const edu=fw50Ensure(p.actor),grade=Math.min(3,Math.max(0,Number(edu.certs50[subject])||0));
+ if(grade>=3){fw50PersonMenu(key);return;}
+ const threshold=[0,35,70][grade];
+ if(edu[subject]<threshold){msg('📚 '+FW50_TITLES[grade]+'試験には習熟度'+threshold+'が必要です。');fw50PersonMenu(key);return;}
+ fw50ExamSession={key:key,subject:subject,grade:grade,index:0,score:0,questions:fw50Questions(subject,grade)};
+ fw50ExamRender();
+}
+function fw50ExamRender(){
+ const r=$('#dialogReplies'),exam=fw50ExamSession;if(!r||!exam)return;
+ const q=exam.questions[exam.index];
+ if(!q){fw50ExamFinish();return;}
+ let html='<div class="tileCard" style="width:100%"><b>📝 '+(exam.subject==='reading'?'読み書き':'算数')+
+  ' '+FW50_TITLES[exam.grade]+'テスト　'+(exam.index+1)+'/5問</b><div style="margin:10px 0;font-size:1.15em">'+fw422Esc(q.prompt)+'</div>';
+ if(q.type==='text'){
+  html+='<label class="note" for="fw50AnswerInput">答えを入力（漢字・ひらがな）</label>'+
+   '<input id="fw50AnswerInput" autocomplete="off" inputmode="text" style="width:100%;font-size:18px;padding:8px;margin:6px 0" maxlength="20">'+
+   fw42HtmlButton('fw50:write','✅ 解答する');
+ }else q.choices.forEach(function(choice,i){html+=fw42HtmlButton('fw50:answer:'+i,fw422Esc(choice));});
+ html+='</div>'+fw42HtmlButton('fw50:cancel','✖ 試験をやめる');
+ r.innerHTML=html;
+}
+function fw50Answer(value){
+ const exam=fw50ExamSession;if(!exam)return;
+ const q=exam.questions[exam.index];
+ if(!q)return;
+ const normalized=function(v){return String(v==null?'':v).trim().replace(/\s+/g,'').normalize('NFKC');};
+ const correct=normalized(value)===normalized(q.correct);
+ if(correct)exam.score++;
+ exam.index++;
+ if(exam.index>=exam.questions.length)fw50ExamFinish();
+ else {fw50ExamRender();msg((correct?'✅ 正解！':'✏️ 正解は '+q.correct)+'　次の問題へ。');}
+}
+function fw50ExamFinish(){
+ const exam=fw50ExamSession;if(!exam)return;
+ fw50ExamSession=null;
+ const p=fw50FindLearner(exam.key),r=$('#dialogReplies');if(!p||!r)return;
+ const e=fw50Ensure(p.actor),pass=exam.score>=4,subject=exam.subject;
+ const grade=exam.grade+1,prev=Math.max(0,Number(e.certs50[subject])||0);
+ e.scores50[subject]={day:state.day,score:exam.score,total:5,grade:grade,passed:pass};
+ if(pass&&grade>prev){
+  e.certs50[subject]=grade;
+  p.actor.skills=p.actor.skills||{};
+  p.actor.skills[subject]=Math.max(Number(p.actor.skills[subject])||0,grade*2);
+  if(subject==='math'&&p.actor.role==='merchant')
+   p.actor.skills.trade=(Number(p.actor.skills.trade)||0)+.5;
+  fw50Record(p.actor,FW47_SUBJECTS[subject]+' '+FW50_TITLES[exam.grade]+'試験に合格');
+ }
+ r.innerHTML='<div class="tileCard" style="width:100%"><b>'+(pass?'🏅 合格！':'📘 今回はもう少し')+'</b><br>'+
+  fw422Esc(p.actor.name||exam.key)+' / '+FW47_SUBJECTS[subject]+' '+FW50_TITLES[exam.grade]+'<br>'+
+  '正解 '+exam.score+' / 5問'+(pass?'<br>資格を記録し、関連スキルが上がりました。':'<br>復習してまた挑戦できます。')+'</div>'+
+  fw42HtmlButton('fw50:person:'+exam.key,'↩ 学習状況へ')+
+  fw42HtmlButton('fw50:school','↩ 全員の成績');
+ msg((pass?'🏅 合格！ ':'📘 惜しい！ ')+exam.score+' / 5問');
+}
+const fw50OldPriestMenu=fw43PriestMenu;
+fw43PriestMenu=function(){
+ const out=fw50OldPriestMenu.apply(this,arguments),r=$('#dialogReplies');
+ if(r&&!r.querySelector('[data-reply="fw50:school"]'))
+  r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw50:school','✏️ 大人と子どもの学習・試験'));
+ return out;
+};
+const fw50OldDialogAction=handleDialogAction;
+handleDialogAction=function(key){
+ if(typeof key==='string'&&key.startsWith('fw50:')){
+  const a=key.split(':'),cmd=a[1],person=a[2],subj=a[3];
+  if(cmd==='school'){fw50SchoolMenu();return;}
+  if(cmd==='person'){fw50PersonMenu(person);return;}
+  if(cmd==='study'){
+   const p=fw50FindLearner(person);
+   if(p){if(fw50Study(p.actor,subj,false))msg('📚 '+p.actor.name+'が学習しました。');
+    else msg('📚 今日は学習済み、または司祭不在・体力不足です。');fw50PersonMenu(person);}
+   return;
+  }
+  if(cmd==='auto'){
+   const p=fw50FindLearner(person);
+   if(p){p.actor.autoStudy50=!p.actor.autoStudy50;fw50PersonMenu(person);}return;
+  }
+  if(cmd==='exam'){fw50ExamOpen(person,subj);return;}
+  if(cmd==='cancel'){const old=fw50ExamSession;fw50ExamSession=null;if(old)fw50PersonMenu(old.key);else fw50SchoolMenu();return;}
+  if(cmd==='answer'){const s=fw50ExamSession,q=s&&s.questions[s.index];if(q&&q.choices[Number(person)]!=null)fw50Answer(q.choices[Number(person)]);return;}
+  if(cmd==='write'){const input=document.getElementById('fw50AnswerInput');if(input)fw50Answer(input.value);return;}
+  return;
+ }
+ return fw50OldDialogAction.apply(this,arguments);
+};
+document.getElementById('dialogReplies').addEventListener('keydown',function(e){
+ if(e.key==='Enter'&&e.target&&e.target.id==='fw50AnswerInput'){e.preventDefault();fw50Answer(e.target.value);}
+});
+let fw50LastAutoDay=-1;
+const fw50OldUpdate=update;
+update=function(dt){
+ const result=fw50OldUpdate.apply(this,arguments);
+ if(!state.gameOver&&fw50Teacher()&&state.hour>=18&&state.hour<22&&fw50LastAutoDay!==state.day){
+  fw50LastAutoDay=state.day;
+  fw50Learners().forEach(function(p){
+   const child=p.key.startsWith('c')&&fw10ChildStage(p.actor)==='youth';
+   if(child||!p.actor.autoStudy50)return;
+   const e=fw50Ensure(p.actor);
+   if(e.lastStudy50===state.day)return;
+   fw50Study(p.actor,FW50_SUBJECTS[(state.day+e.studyDays50)%FW50_SUBJECTS.length],true);
+  });
+ }
+ return result;
+};
+/* END FRONTIER_V50_LIFELONG_EDUCATION_AND_EXAMS */
+
+
 /* FW48.4: Explicit bridge for legacy extension script.
  * Game-core action/dialog/save callbacks are lexical to this IIFE; expose
  * live accessors so library/read extensions wrap the same functions actually
