@@ -103,8 +103,18 @@ function release(c,voice,at){
  }catch(e){}
  voice.nodes.forEach(o=>{try{o.stop(t+releaseSeconds+.08)}catch(e){}});
 }
+function kill(c,voice){
+ if(!c||!voice)return;
+ voice.ended=true;
+ try{
+  const t=c.currentTime,g=voice.group.gain;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(.0001,t);
+  voice.nodes.forEach(o=>{try{o.stop(t+.001)}catch(e){}});
+ }catch(e){}
+}
 global.FW_INSTRUMENTS={
- presets,get,percussion,midiPitch,start,release,
+ presets,get,percussion,midiPitch,start,release,kill,
  channel:id=>percussion(id)?9:0,
  program:id=>get(id).gm,
  label:id=>get(id).label
