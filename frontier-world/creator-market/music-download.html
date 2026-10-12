@@ -48,6 +48,7 @@ const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supaba
 const db=createClient(SUPABASE_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
 const el=id=>document.getElementById(id);
 const app={session:null,works:[],purchases:[],splits:[],downloads:[],stats:[],pending:false};
+const requestedWork=new URLSearchParams(location.search).get('work');
 let objectUrl=null;
 function node(type,value){const x=document.createElement(type);if(value!=null)x.textContent=String(value);return x;}
 function setStatus(message,error=false){el('status').textContent=message;el('status').className=error?'error':'success';}
@@ -66,8 +67,14 @@ function render(){
   app.splits.some(s=>s.work_id===w.id&&s.collaborator_id===uid&&!!s.accepted_at)
  ));
  if(!music.length)library.append(node('p','保存できる楽曲はまだありません。作品マーケットで楽曲を購入するか、楽曲を出品してください。'));
+ music.sort((x,y)=>(y.id===requestedWork?1:0)-(x.id===requestedWork?1:0));
+ if(music.some(w=>w.id===requestedWork)){
+  const selected=music.find(w=>w.id===requestedWork);
+  el('library').prepend(node('p','🎶 選んだBGM「'+selected.title+'」を端末に保存できます。'));
+ }
  for(const w of music){
   const box=node('div');box.className='work';
+  if(w.id===requestedWork){box.style.borderColor='#9aeeac';box.style.background='#2b4a40';}
   box.append(node('div',w.title),'制作物から合成して書き出します。');
   for(const [label,format] of [['💿 WAVレコード','wav'],['🎹 MIDIデータ','midi'],['🎼 MusicXML楽譜','musicxml']]){
    box.append(action(label,()=>prepareDownload(w,format)));
