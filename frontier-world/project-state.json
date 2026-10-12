@@ -138,7 +138,10 @@
     "co-creator invitation, acceptance and atomic proportional royalty payout",
     "authenticated creator book donations linked from the library",
     "treasury-funded daily NPC artwork purchase beta and transparent sales leaderboards",
-    "audited WAV MIDI MusicXML music downloads with receipt IDs, fingerprints and paid-purchase entitlement checks"
+    "audited WAV MIDI MusicXML music downloads with receipt IDs, fingerprints and paid-purchase entitlement checks",
+    "online-owned music selection in game BGM player",
+    "public village BGM discovery and eight-note authorized previews",
+    "village sales paying 10% seller, 70% music rightsholders and 20% marketplace in one transaction"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -319,7 +322,10 @@
     "test funded NPC sale and 1-sale-per-Japan-day scheduler with funded treasury without issuing new G",
     "validate paid creator splits and receipt issue/download/hash verification with two authorized GitHub accounts on iOS Safari",
     "add captured audio recording upload/mastering and real MIDI organ asset importer",
-    "use private server-generated digital signatures to authenticate canonical licensed media without trusting client-side hashes"
+    "use private server-generated digital signatures to authenticate canonical licensed media without trusting client-side hashes",
+    "connect real multiplayer village avatar travel, automatically expose owner-selected BGM and prompt visiting players to buy/save music",
+    "run iOS Safari two-user acceptance test of village track playback, 100G purchase, split royalties and WAV/MIDI/MusicXML license download",
+    "support real mastered audio recordings/record press workflow and rights consent for composition/master/performers"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -491,6 +497,24 @@
     "verify_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/creator-market/music-download.html",
     "server_signatures": false,
     "drm": false,
-    "end_to_end_test": "pending Safari and two authenticated accounts"
+    "end_to_end_test": "pending Safari and two authenticated accounts",
+    "village_bgm_publication": true,
+    "village_bgm_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/creator-market/village-bgm.html",
+    "visitor_preview_limit_notes": 8,
+    "village_bgm_creator_consent": true,
+    "village_purchase_distribution": {
+      "seller_pct": 10,
+      "rights_pct": 70,
+      "market_pct": 20
+    },
+    "direct_purchase_distribution": {
+      "rights_pct": 80,
+      "market_pct": 20
+    },
+    "producer_contribution_role": true,
+    "no_repeat_download_charge": true,
+    "purchase_pins_expected_song_and_price": true,
+    "test": "temporary 100G transaction validated buyer900 seller10 composer35 producer35 market20, rolled back",
+    "caveat": "village visit is currently an online music portal, not remote multiplayer avatar visit"
   }
 }
