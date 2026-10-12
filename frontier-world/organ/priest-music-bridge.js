@@ -5,20 +5,21 @@
 (function(global){
 'use strict';
 const KEY='fw_frontier_priest_scores_v1';
-const DEMO={id:'priest-demo',title:'朝の祈り',author:'司祭エリアス',bpm:88,notes:[
+const DEMO={id:'priest-demo',title:'朝の祈り',author:'司祭エリアス',bpm:88,instrument:'organ',notes:[
  {pitch:60,start:0,duration:1},{pitch:64,start:1,duration:1},{pitch:67,start:2,duration:2},
  {pitch:65,start:4,duration:1},{pitch:64,start:5,duration:1},{pitch:62,start:6,duration:2},
  {pitch:60,start:8,duration:1},{pitch:62,start:9,duration:1},{pitch:64,start:10,duration:1},
  {pitch:67,start:11,duration:1},{pitch:65,start:12,duration:2},{pitch:60,start:14,duration:2}
 ]};
 const PD=Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[];
+const INST=global.FW_INSTRUMENTS;
 function safeScore(s){
  if(!s||typeof s!=='object')return null;
  const title=String(s.title||'').trim().slice(0,60),id=String(s.id||'').slice(0,90);
  if(!title||!id||!Array.isArray(s.notes))return null;
  const notes=s.notes.slice(0,512).filter(n=>n&&Number.isFinite(n.pitch)&&n.pitch>=60&&n.pitch<=84&&Number.isFinite(n.start)&&n.start>=0&&n.start<2000&&Number.isFinite(n.duration)&&n.duration>0&&n.duration<=100).map(n=>({pitch:Math.round(n.pitch),start:n.start,duration:n.duration}));
  if(!notes.length)return null;
- return {id,title,author:String(s.author||'プレイヤー').slice(0,50),bpm:Math.max(40,Math.min(220,Math.round(Number(s.bpm)||100))),notes};
+ return {id,title,author:String(s.author||'プレイヤー').slice(0,50),bpm:Math.max(40,Math.min(220,Math.round(Number(s.bpm)||100))),instrument:INST?INST.get(s.instrument).id:'organ',notes};
 }
 function savedLocal(){
  try{
@@ -113,49 +114,47 @@ function install(host){
   remember(picked);
   if(typeof host.recordChronicle==='function')host.recordChronicle('music','司祭が楽譜「'+picked.title+'」を収集');
  }
+
+ let playingGeneration=0;
  function stop(){
+  playingGeneration++;
   playTimers.forEach(t=>clearTimeout(t));playTimers=[];
-  const now=audio?audio.currentTime:0;
-  activeVoices.forEach(v=>{
-   try{v.g.gain.cancelScheduledValues(now);v.g.gain.setTargetAtTime(.0001,now,.03);v.os.forEach(o=>o.stop(now+.15));}catch(e){}
-  });
+  if(INST&&audio)activeVoices.forEach(v=>INST.kill(audio,v));
   activeVoices=[];
  }
- function play(score,announce){
-  const s=safeScore(score);
-  if(!s)return false;
+ function play(score,announce,ceremony){
+  const s=safeScore(score);if(!s)return false;
   stop();
   try{
    const Audio=global.AudioContext||global.webkitAudioContext;
-   if(!Audio){notify('🔇 このブラウザは音楽再生に対応していません。');return false;}
+   if(!Audio||!INST){notify('🔇 このブラウザでは楽器の音声再生を開始できません。');return false;}
    audio=audio||new Audio();
    if(audio.state==='suspended')audio.resume().catch(()=>{});
-   // Schedule audio with the AudioContext clock rather than numerous note-on
-   // timeouts; important for Safari background throttle and polyphony.
-   const origin=audio.currentTime+.05,seconds=60/s.bpm;
-   s.notes.forEach(n=>{
-    const st=origin+n.start*seconds,et=origin+(n.start+n.duration)*seconds;
-    const g=audio.createGain();
-    const amplitude=.095/Math.max(1,Math.sqrt(s.notes.length/20));
-    g.gain.setValueAtTime(.0001,st);
-    g.gain.exponentialRampToValueAtTime(Math.max(.001,amplitude),st+.024);
-    g.gain.setTargetAtTime(.0001,et,.035);
-    g.connect(audio.destination);
-    const os=[1,2,4].map((mul,i)=>{
-     const o=audio.createOscillator(),level=audio.createGain();
-     o.type=i===0?'triangle':'sine';
-     o.frequency.value=440*Math.pow(2,(n.pitch-69)/12)*mul;
-     level.gain.value=[.67,.23,.10][i];
-     o.connect(level);level.connect(g);
-     o.start(st);o.stop(et+.24);return o;
+   const generation=playingGeneration,seconds=60/s.bpm,beats=Math.max(...s.notes.map(n=>n.start+n.duration));
+   const loopRequested=!ceremony&&getStore().loop===true;
+   const cycle=()=>{
+    if(playingGeneration!==generation)return;
+    playTimers=[];
+    if(activeVoices.length){activeVoices.forEach(v=>INST.kill(audio,v));activeVoices=[];}
+    const origin=audio.currentTime+.045;
+    s.notes.forEach(n=>{
+     const start=origin+n.start*seconds,end=origin+(n.start+n.duration)*seconds;
+     const v=INST.start(audio,n.pitch,s.instrument,start,.75);
+     if(!v)return;
+     activeVoices.push(v);
+     INST.release(audio,v,end);
     });
-    activeVoices.push({g,os});
-   });
-   const end=Math.max(...s.notes.map(n=>n.start+n.duration))*seconds;
-   playTimers.push(setTimeout(()=>{activeVoices=[];playTimers=[];},(end+.5)*1000));
-   if(announce)notify('🎹 司祭エリアスが「'+s.title+'」を演奏中');
+    const duration=Math.max(.25,beats*seconds);
+    playTimers.push(setTimeout(()=>{
+     if(playingGeneration!==generation)return;
+     if(!ceremony&&getStore().loop===true){cycle();return;}
+     activeVoices=[];playTimers=[];
+    },Math.ceil((duration+.14)*1000)));
+   };
+   cycle();
+   if(announce)notify('🎶 '+INST.label(s.instrument)+'で「'+s.title+'」演奏中'+(loopRequested?' 🔁':''));
    return true;
-  }catch(e){stop();notify('🔇 音声の再生に失敗しました。もう一度「▶ 演奏」を押してください。');return false;}
+  }catch(e){stop();notify('🔇 再生に失敗しました。「▶ 演奏」を押して再試行してください。');return false;}
  }
  function onCeremony(type){
   if(type!=='wedding'&&type!=='festival')return;
@@ -170,7 +169,7 @@ function install(host){
    if(entry&&entry.type===type){entry.musicTitle49=s.title;entry.musicId49=s.id;entry.musician49=performer?performer.id:'priest43';}
   }
   getState().ceremonyMusic49={type,title:s.title,day:getState().day,performerId:performer?performer.id:'priest43'};
-  play(s,false); // User-initiated ceremonies may unlock audio; simulation cannot force mobile autoplay.
+  play(s,false,true); // Ceremonies play once; the user may separately repeat rehearsal.
   notify('🎶 '+(type==='wedding'?'結婚式':'村祭り')+'：'+(performer?performer.name:'司祭エリアス')+'が「'+s.title+'」を演奏（音が出ない場合は演奏ボタンを押してください）');
  }
  function render(){
@@ -182,6 +181,10 @@ function install(host){
   lead.textContent='覚えた曲 '+songs.length+'曲。昼12:35〜13:45はコモンハウスで練習します。行事の曲は曲ごとに設定できます。';root.appendChild(lead);
   function button(parent,label,fn){const b=document.createElement('button');b.className='smallBtn';b.type='button';b.textContent=label;b.addEventListener('click',fn);parent.appendChild(b);parent.appendChild(document.createTextNode(' '));}
   const tools=document.createElement('div');tools.className='tileCard';
+  const repeat=document.createElement('label');
+  const loopToggle=document.createElement('input');loopToggle.type='checkbox';loopToggle.checked=st.loop===true;
+  loopToggle.addEventListener('change',()=>{st.loop=loopToggle.checked;notify(st.loop?'🔁 司祭の演奏を繰り返します。':'🔁 繰り返しを解除しました。');});
+  repeat.appendChild(loopToggle);repeat.appendChild(document.createTextNode(' 🔁 演奏を繰り返す'));tools.appendChild(repeat);tools.appendChild(document.createElement('br'));
   button(tools,'🔎 楽譜を探してもらう（1日1回）',()=>{collect();render();});
   button(tools,'🎹 オルガン・作曲・楽譜庫',()=>host.openOrgan(true));
   button(tools,'■ 演奏を停止',stop);
@@ -203,7 +206,7 @@ function install(host){
   songs.forEach(s=>{
    const row=document.createElement('div');row.className='tileCard';
    const name=document.createElement('b');name.textContent='🎼 '+s.title;row.appendChild(name);row.appendChild(document.createElement('br'));
-   const meta=document.createElement('span');meta.className='note';meta.textContent=s.author+' / '+s.notes.length+'音';
+   const meta=document.createElement('span');meta.className='note';meta.textContent=s.author+' / '+s.notes.length+'音 / '+(INST?INST.label(s.instrument):'オルガン');
    row.appendChild(meta);row.appendChild(document.createElement('br'));
    button(row,'▶ 演奏',()=>play(s,true));
    if(chosen)button(row,'🎓 選択した村人に教える',()=>{const npc=getState().npcs.find(n=>n.id===chosen.value);teachNpc(npc,s);render();});
