@@ -38,6 +38,11 @@ function noiseBuffer(c){
 function start(c,pitch,id,at,velocity){
  if(!c)return null;
  const inst=get(id),kind=inst.kind,t=Math.max(c.currentTime,Number(at)||c.currentTime),f=440*Math.pow(2,(pitch-69)/12),v=Math.max(.05,Math.min(1,Number(velocity)||.7));
+ const hit=kind==='drums'?midiPitch(inst.id,pitch):0;
+ const drumHit=hit===35||hit===36?'kick':
+  hit===38||hit===40?'snare':
+  hit===42||hit===44||hit===46?'hat':
+  [49,51,52,55,57,59].includes(hit)?'cymbal':'tom';
  const group=c.createGain();group.gain.setValueAtTime(.0001,t);group.connect(c.destination);
  const voice={group,nodes:[],pitch,kind,ended:false,time:t};
  const parts={
@@ -55,9 +60,9 @@ function start(c,pitch,id,at,velocity){
  }[kind];
  const attack=kind==='bow'?.16:kind==='brass'?.075:kind==='sax'?.075:
   kind==='flute'?.055:kind==='shakuhachi'?.09:.009;
- const peak=(percussion(inst.id)?.25:.15)*v;
+ const peak=(kind==='drums'&&['hat','cymbal'].includes(drumHit)?.045:percussion(inst.id)?.25:.15)*v;
  group.gain.exponentialRampToValueAtTime(Math.max(.0002,peak),t+attack);
- const decays={pluck:.75,lute:.48,taiko:.54,tabla:.37,drums:.33};
+ const decays={pluck:.75,lute:.48,taiko:.54,tabla:.37,drums:drumHit==='hat'?.10:drumHit==='cymbal'?.7:drumHit==='kick'?.38:.25};
  if(decays[kind]){
   group.gain.setTargetAtTime(.0001,t+attack,decays[kind]/5);
  }
@@ -66,7 +71,8 @@ function start(c,pitch,id,at,velocity){
   o.type=wave;o.frequency.setValueAtTime(f*mul,t);
   if(kind==='taiko'||kind==='tabla'||kind==='drums'){
    const root=kind==='taiko'?Math.max(60,Math.min(165,f*.38)):
-    kind==='tabla'?Math.max(135,Math.min(340,f*.8)):Math.max(70,Math.min(275,f*.47));
+    kind==='tabla'?Math.max(130,Math.min(350,(midiPitch(inst.id,pitch)%2?220:145)*(f/440)**.12)):
+     drumHit==='kick'?76:drumHit==='snare'?195:drumHit==='hat'?720:drumHit==='cymbal'?510:Math.max(92,Math.min(260,f*.38));
    o.frequency.setValueAtTime(root*mul*1.5,t);
    o.frequency.exponentialRampToValueAtTime(root*mul,t+.11);
   }
@@ -78,12 +84,12 @@ function start(c,pitch,id,at,velocity){
  });
  if(['taiko','tabla','drums','shakuhachi','flute','sax'].includes(kind)){
   const n=c.createBufferSource(),filter=c.createBiquadFilter(),ng=c.createGain();
-  n.buffer=noiseBuffer(c);filter.type='bandpass';
-  filter.frequency.value=kind==='taiko'?500:kind==='tabla'?850:kind==='drums'?1800:kind==='sax'?1650:2450;
+  n.buffer=noiseBuffer(c);filter.type=(kind==='drums'&&(drumHit==='hat'||drumHit==='cymbal'))?'highpass':'bandpass';
+  filter.frequency.value=kind==='taiko'?500:kind==='tabla'?850:kind==='drums'?(drumHit==='hat'?5100:drumHit==='cymbal'?3300:drumHit==='snare'?1900:600):kind==='sax'?1650:2450;
   filter.Q.value=kind==='drums'?.7:1.3;
-  const level=kind==='drums'?.15:kind==='taiko'?.12:kind==='tabla'?.10:kind==='shakuhachi'?.047:.019;
+  const level=kind==='drums'?(drumHit==='hat'?.30:drumHit==='cymbal'?.23:drumHit==='snare'?.21:drumHit==='kick'?.045:.08):kind==='taiko'?.12:kind==='tabla'?.10:kind==='shakuhachi'?.047:.019;
   ng.gain.setValueAtTime(Math.max(.0001,level*v),t);
-  ng.gain.setTargetAtTime(.0001,t+(percussion(inst.id)?0:.15),percussion(inst.id)?.065:.16);
+  ng.gain.setTargetAtTime(.0001,t+(percussion(inst.id)?0:.15),kind==='drums'?(drumHit==='cymbal'?.15:drumHit==='hat'?.021:.055):percussion(inst.id)?.065:.16);
   n.connect(filter);filter.connect(ng);ng.connect(c.destination);
   n.start(t);n.stop(t+.34);voice.nodes.push(n);
  }
