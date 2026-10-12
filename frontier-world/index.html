@@ -13198,10 +13198,29 @@ function fw41E(v){
 function fw41EnsureState(){
  state.player.bookRead=state.player.bookRead||{};
  state.player.bookProgress=state.player.bookProgress||{};
+ state.player.bookReadPages=state.player.bookReadPages||{};
  state.player.knowledge=state.player.knowledge||{};
  state.player.authoredBooks=Array.isArray(state.player.authoredBooks)?state.player.authoredBooks:[];
  state.player.postedAds=Array.isArray(state.player.postedAds)?state.player.postedAds:[];
+ state.player.inv=state.player.inv||{};
+ ['paper','parchment','ink','soot','hide'].forEach(function(k){
+  state.player.inv[k]=Math.max(0,Number(state.player.inv[k])||0);
+ });
 }
+/* Publication actions save the same V10 snapshot used by the game, silently.
+   Draft text stays local to this browser and is never uploaded automatically. */
+function fw41Persist(){
+ try{
+  const snapshot=JSON.parse(JSON.stringify(state,function(k,v){
+   if(k==='dialog'||k==='training'||k==='crafting')return null;
+   if(k==='task'&&v&&typeof v==='object')return null;
+   return v;
+  }));
+  localStorage.setItem('frontier_world_save_v10',JSON.stringify({version:10,savedAt:Date.now(),state:snapshot}));
+  return true;
+ }catch(e){msg('⚠️ 原稿の自動保存に失敗：'+e.message);return false;}
+}
+
 fw41EnsureState();
 
 function fw41MergeBookRecords(records){
@@ -13297,10 +13316,25 @@ function fw41CurrentBook(){
  if(fw41ReaderState.user)return state.player.authoredBooks.find(function(x){return x.id===fw41ReaderState.id;})||null;
  return FW18_BOOKS[fw41ReaderState.id]||null;
 }
+/* Reading gain follows unique pages, not repeated clicks or time spent idle.
+   Apply to the same education47.reading value used by the priest's exams. */
+function fw41ReadPractice(book,page,pages){
+ if(fw41ReaderState.user||!fw41ReaderState.id)return;
+ const id=fw41ReaderState.id,seen=state.player.bookReadPages[id]||{};
+ if(seen[page])return;
+ const characters=String(pages[page]||'').replace(/\s/g,'').length;
+ if(!characters)return;
+ seen[page]=true;state.player.bookReadPages[id]=seen;
+ const edu=state.player.education47||(state.player.education47={reading:0,math:0,english:0,science:0,history:0,nature:0,days:0,lastDay:-1});
+ const before=Number(edu.reading)||0;
+ const gain=Math.min(1.5,characters/420)*Math.max(.2,(100-before)/100);
+ edu.reading=Math.min(100,Math.round((before+gain)*100)/100);
+ fw41Persist();
+}
 function fw41RenderReader(){
  const book=fw41CurrentBook();if(!book)return;
  const pages=fw41Pages(book),p=Math.max(0,Math.min(pages.length-1,fw41ReaderState.page));fw41ReaderState.page=p;
- if(!fw41ReaderState.user)state.player.bookProgress[fw41ReaderState.id]=p;
+ if(!fw41ReaderState.user){state.player.bookProgress[fw41ReaderState.id]=p;fw41ReadPractice(book,p,pages);}
  const read=!fw41ReaderState.user&&fw41IsRead(fw41ReaderState.id);
  const author=book.author||state.player.name||'不詳';
  const body=document.getElementById('fw41ReaderBody');
@@ -13314,7 +13348,7 @@ function fw41RenderReader(){
   (p<pages.length-1?'<button data-fw41-reader="next">次頁 →</button>':
    (fw41ReaderState.user?'<button data-fw41-reader="close">閉じる</button>':'<button data-fw41-reader="finish">'+(read?'✅ 読了':'✅ 読了して覚える')+'</button>'))+
   '</div>'+
-  (!fw41ReaderState.user?'<div class="fw41Meta" style="margin-top:10px">読了効果: '+fw41E(fw41BookEffectText(book))+'　※習得効果は初回読了時のみ</div>':'');
+  (!fw41ReaderState.user?'<div class="fw41Meta" style="margin-top:10px">📖 読書で識字力UP：'+(state.player.education47?Math.round(Number(state.player.education47.reading)||0):0)+'/100 ／ 同じページからの経験値は一度だけ。<br>読了効果: '+fw41E(fw41BookEffectText(book))+'　※習得効果は初回読了時のみ</div>':'');
 }
 function fw41FinishBook(id){
  fw41EnsureState();const b=FW18_BOOKS[id];if(!b)return;
@@ -13361,53 +13395,121 @@ function fw41OpenStudio(){
  document.getElementById('fw41Studio').classList.remove('hidden');
  fw41RenderStudio();
 }
+function fw41PrintCost(w){
+ const pages=Math.max(1,Math.ceil(String(w.body||'').length/420));
+ return {pages:pages,ink:Math.ceil(pages/2)};
+}
+function fw41MaterialSummary(){
+ const inv=state.player.inv;
+ const labels={fiber:'草の繊維',wood:'木材',water:'水',hide:'獣皮',paper:'紙',parchment:'羊皮紙',soot:'煤',ink:'インク'};
+ return Object.keys(labels).map(function(k){return labels[k]+' '+Number(inv[k]||0);}).join(' ／ ');
+}
+function fw41EditBook(id){
+ const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w)return;
+ document.getElementById('fw41EditId').value=w.id;
+ document.getElementById('fw41Type').value=w.type||'book';
+ document.getElementById('fw41Title').value=w.title||'';
+ document.getElementById('fw41Text').value=w.body||'';
+ document.getElementById('fw41DraftSave').textContent='💾 この原稿を更新';
+ document.getElementById('fw41Title').focus();
+}
 function fw41RenderStudio(){
  fw41EnsureState();const box=document.getElementById('fw41StudioBody');if(!box)return;
  const works=state.player.authoredBooks.map(function(w){
   const value=Math.max(3,Math.min(120,Math.floor(String(w.body||'').length/100)+5));
+  const cost=fw41PrintCost(w);
   return '<div class="fw41Work"><b>'+fw41E(fw41TypeLabel(w.type))+'「'+fw41E(w.title||'無題')+'」</b>　'+(w.posted?'📌掲示中 ':'')+
-   '<span class="note">製本 '+Number(w.copies||0)+'部 / NPC買取目安 '+value+'コイン</span><br>'+
-   '<button class="smallBtn" data-fw41="readUser" data-id="'+fw41E(w.id)+'">📖 読む</button> '+
-   '<button class="smallBtn" data-fw41="print" data-id="'+fw41E(w.id)+'">🖨️ 印刷・製本 1部（5コイン）</button> '+
+   '<span class="note">'+String(w.body||'').length+'文字 / '+cost.pages+'頁 / 製本 '+Number(w.copies||0)+'部 / NPC買取目安 '+value+'コイン</span><br>'+
+   '<button class="smallBtn" data-fw41="readUser" data-id="'+fw41E(w.id)+'">📖 自分で読む</button> '+
+   '<button class="smallBtn" data-fw41="edit" data-id="'+fw41E(w.id)+'">✏️ 原稿を編集</button> '+
+   '<button class="smallBtn" data-fw41="print" data-id="'+fw41E(w.id)+'">📚 製本（紙/羊皮紙 '+cost.pages+'・インク '+cost.ink+'）</button> '+
    '<button class="smallBtn" data-fw41="sell" data-id="'+fw41E(w.id)+'" '+((w.copies||0)<=0?'disabled':'')+'>🪙 NPCへ1部販売</button> '+
    (w.type==='advertisement'?'<button class="smallBtn" data-fw41="postAd" data-id="'+fw41E(w.id)+'">📣 '+(w.posted?'掲示を外す':'掲示する')+'</button> ':'')+
    '</div>';
  }).join('');
  box.innerHTML=
-  '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">✍️ 執筆・出版 β</h2><button data-fw41="closeStudio" style="min-width:48px">✕</button></div>'+
-  '<div class="note">本・日記・ガイド・物語・広告を作成できます。現在の印刷/販売はローカルゲーム内機能。共通UGCマーケットと★レビューはサーバー審査基盤と合わせて次段階で接続します。</div>'+
+  '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">✍️ 執筆・出版と製紙</h2><button data-fw41="closeStudio" style="min-width:48px">✕</button></div>'+
+  '<p class="note">原稿は自分の作品一覧から無料で閲覧できます。公開市場への投稿は別途GitHubログインと審査が必要です。原稿の変更・製本はこの端末のセーブへ自動保存します。</p>'+
+  '<section style="border:1px solid #555;padding:10px;border-radius:8px"><h3>🧻 紙とインクの工房</h3>'+
+  '<p class="note">'+fw41E(fw41MaterialSummary())+'</p>'+
+  '<button class="smallBtn" data-fw41="makeGrassPaper">🌿 草の繊維2＋水1 → 紙4</button> '+
+  '<button class="smallBtn" data-fw41="makeWoodPaper">🪵 木材1＋水2 → 紙6</button> '+
+  '<button class="smallBtn" data-fw41="buyHide">🐏 獣皮を購入 12コイン</button> '+
+  '<button class="smallBtn" data-fw41="makeParchment">📜 獣皮1＋水1 → 羊皮紙3</button> '+
+  '<button class="smallBtn" data-fw41="makeSoot">🔥 木材1 → 煤2</button> '+
+  '<button class="smallBtn" data-fw41="makeInk">🖋️ 煤1＋水1 → インク4</button>'+
+  '<p class="note">草はフィールドの🌿から繊維を採集。羊皮紙は皮革系の紙です（動物由来）。動物からの獣皮採取は今後の狩猟拡張まで商人購入で代用。</p></section>'+
+  '<input type="hidden" id="fw41EditId" value="">'+
   '<label>種類<select id="fw41Type"><option value="book">本</option><option value="diary">日記</option><option value="guide">ガイド</option><option value="story">物語</option><option value="advertisement">広告</option></select></label>'+
   '<label>題名<input id="fw41Title" maxlength="80" placeholder="作品タイトル"></label>'+
   '<label>本文<textarea id="fw41Text" maxlength="20000" placeholder="ここに本文を書く…"></textarea></label>'+
-  '<button class="smallBtn" data-fw41="saveDraft">💾 原稿を保存</button> '+
-  '<button class="smallBtn" data-fw41="openEditor">🎨 写真・ペイント用 Creator Suite</button>'+
-  '<h3>自分の作品</h3><div class="fw41Works">'+(works||'<div class="tileCard">まだ作品はありません。</div>')+'</div>'+
-  '<div class="note">共通マーケット公開時は、第三者著作物・画像・肖像・商標等の権利確認、通報、審査、監査ログを必須にする予定です。</div>';
+  '<button class="smallBtn" id="fw41DraftSave" data-fw41="saveDraft">💾 原稿を保存</button> '+
+  '<button class="smallBtn" data-fw41="openEditor">🎨 画像エディタ</button>'+
+  '<h3>📖 自分の作品 ('+state.player.authoredBooks.length+')</h3><div class="fw41Works">'+
+  (works||'<div class="tileCard">まだ作品がありません。原稿を保存するとここに表示されます。</div>')+'</div>';
 }
+
 function fw41SaveDraft(){
  const type=document.getElementById('fw41Type').value;
  const title=String(document.getElementById('fw41Title').value||'').trim();
  const body=String(document.getElementById('fw41Text').value||'').trim();
+ const editId=document.getElementById('fw41EditId').value;
  if(!title||!body){msg('✍️ 題名と本文を入力して。');return;}
- const rec={id:fw41NewId(),type:type,title:title,name:title,author:state.player.name||'YOU',body:body,copies:0,posted:false,createdDay:state.day};
- state.player.authoredBooks.unshift(rec);
- msg('✍️ 原稿「'+title+'」を保存した。');fw41RenderStudio();
+ const existing=state.player.authoredBooks.find(function(x){return x.id===editId;});
+ if(existing){
+  Object.assign(existing,{type:type,title:title,name:title,body:body});
+ }else{
+  state.player.authoredBooks.unshift({id:fw41NewId(),type:type,title:title,name:title,author:state.player.name||'YOU',body:body,copies:0,posted:false,createdDay:state.day});
+ }
+ fw41Persist();
+ msg('✍️ 原稿「'+title+'」を保存した。');
+ fw41RenderStudio();
+}
+function fw41CraftMaterial(kind){
+ const recipes={
+  makeGrassPaper:{cost:{fiber:2,water:1},out:'paper',qty:4,label:'草紙'},
+  makeWoodPaper:{cost:{wood:1,water:2},out:'paper',qty:6,label:'木紙'},
+  makeParchment:{cost:{hide:1,water:1},out:'parchment',qty:3,label:'羊皮紙'},
+  makeSoot:{cost:{wood:1},out:'soot',qty:2,label:'煤'},
+  makeInk:{cost:{soot:1,water:1},out:'ink',qty:4,label:'インク'}
+ };
+ const inv=state.player.inv;
+ if(kind==='buyHide'){
+  if(Number(state.player.coins||0)<12){msg('🐏 獣皮は12コイン必要。');return;}
+  state.player.coins-=12;inv.hide=(inv.hide||0)+1;fw41Persist();
+  msg('🐏 商人から獣皮を1枚購入した。');fw41RenderStudio();return;
+ }
+ const r=recipes[kind];if(!r)return;
+ const missing=Object.keys(r.cost).filter(function(k){return Number(inv[k]||0)<r.cost[k];});
+ if(missing.length){msg('📚 素材が足りない：'+missing.join('、'));return;}
+ Object.keys(r.cost).forEach(function(k){inv[k]-=r.cost[k];});
+ inv[r.out]=(inv[r.out]||0)+r.qty;
+ if(Number(state.player.st||0)>1)state.player.st=Math.max(1,state.player.st-1);
+ fw41Persist();msg('✅ '+r.label+' ×'+r.qty+' を製作した。');fw41RenderStudio();
 }
 function fw41Print(id){
  const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w)return;
- if(Number(state.player.coins||0)<5){msg('🖨️ 印刷・製本には5コイン必要。');return;}
- state.player.coins-=5;w.copies=Number(w.copies||0)+1;
- msg('📚 「'+w.title+'」を1部製本した。');fw41RenderStudio();
+ const inv=state.player.inv,cost=fw41PrintCost(w);
+ const paper=Math.min(cost.pages,Number(inv.paper||0));
+ const parchment=cost.pages-paper;
+ if(Number(inv.parchment||0)<parchment||Number(inv.ink||0)<cost.ink){
+  msg('📚 製本素材不足：紙/羊皮紙 合計'+cost.pages+'枚・インク'+cost.ink+'が必要。');return;
+ }
+ inv.paper-=paper;inv.parchment-=parchment;inv.ink-=cost.ink;
+ w.copies=Number(w.copies||0)+1;fw41Persist();
+ msg('📚 「'+w.title+'」を1部製本した。紙'+paper+'枚＋羊皮紙'+parchment+'枚、インク'+cost.ink+'使用。');
+ fw41RenderStudio();
 }
+
 function fw41Sell(id){
  const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w||Number(w.copies||0)<=0)return;
  const value=Math.max(3,Math.min(120,Math.floor(String(w.body||'').length/100)+5));
- w.copies--;state.player.coins=Number(state.player.coins||0)+value;w.sold=Number(w.sold||0)+1;
+ w.copies--;state.player.coins=Number(state.player.coins||0)+value;w.sold=Number(w.sold||0)+1;fw41Persist();
  msg('🪙 「'+w.title+'」をNPCへ '+value+'コインで販売した。');fw41RenderStudio();
 }
 function fw41PostAd(id){
  const w=state.player.authoredBooks.find(function(x){return x.id===id;});if(!w||w.type!=='advertisement')return;
- w.posted=!w.posted;
+ w.posted=!w.posted;fw41Persist();
  state.player.postedAds=state.player.authoredBooks.filter(function(x){return x.type==='advertisement'&&x.posted;}).map(function(x){return x.id;});
  msg(w.posted?'📣 広告を掲示登録した。':'📣 広告の掲示を外した。');fw41RenderStudio();
 }
@@ -13442,6 +13544,8 @@ document.addEventListener('click',function(e){
  else if(a==='closeStudio')document.getElementById('fw41Studio').classList.add('hidden');
  else if(a==='saveDraft')fw41SaveDraft();
  else if(a==='readUser')fw41OpenUserBook(id);
+ else if(a==='edit')fw41EditBook(id);
+ else if(['makeGrassPaper','makeWoodPaper','buyHide','makeParchment','makeSoot','makeInk'].includes(a))fw41CraftMaterial(a);
  else if(a==='print')fw41Print(id);
  else if(a==='sell')fw41Sell(id);
  else if(a==='postAd')fw41PostAd(id);
