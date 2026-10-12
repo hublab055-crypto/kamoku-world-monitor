@@ -64,6 +64,7 @@ async function readVillage(owner){
  $('buy').disabled=!state.session||owned||buyer===owner;
  $('buy').textContent=!state.session?'🔒 購入にはログインが必要':owned?'✅ 購入・制作済み':buyer===owner?'自分の村は購入不要':'🪙 '+r.data.price_g+'Gで購入';
  $('savePurchased').hidden=!owned;
+ $('savePurchased').href='music-download.html?work='+encodeURIComponent(r.data.work_id);
  $('selected').scrollIntoView({behavior:'smooth',block:'start'});
  history.replaceState(null,'',urlFor(owner));
 }
@@ -138,6 +139,7 @@ $('buy').addEventListener('click',async()=>{
   say('✅ 購入成立：'+r.data.price_g+'G。販売者 '+(r.data.seller_g||0)+'G / 権利者 '+(r.data.creators_g||0)+'G / 運営 '+(r.data.market_g||0)+'G を精算しました。');
   await load();
   $('savePurchased').hidden=false;
+  $('savePurchased').href='music-download.html?work='+encodeURIComponent(p.work_id);
  }catch(e){say('購入できませんでした：'+e.message,true);btn.disabled=false;}
 });
 $('preview').addEventListener('click',async()=>{
