@@ -43,7 +43,7 @@ function selectedInstrument(){return INST.get($('instrument').value).id;}
 function updateInstrumentInfo(){
  const i=INST.get($('instrument').value);
  $('instrumentHint').textContent=i.description+' / MIDI '+(INST.channel(i.id)===9?'打楽器ch10':String(i.gm+1));
- $('keyGuide').textContent=i.id==='drums'?'🥁 ドラム：C4=キック、D#4=スネア、F#4=ハイハット、C#5=シンバル。鍵盤を押して各打楽器を鳴らせます。':
+ $('keyGuide').textContent=i.id==='drums'?'🥁 ドラム：C4=キック、D#4=スネア、G4=ハイハット、D5=シンバル。鍵盤を押して各打楽器を鳴らせます。':
  i.id==='tabla'?'🪘 タブラ：C4=高音ボンゴ、C#4=低音ボンゴ、D4=コンガ系。MIDIは近いGM打楽器音へ対応させます。':
  '2オクターブ C4〜C6。PCでは A W S E D F T G Y H U J K キーでも演奏可能。複数の鍵盤を同時に押せます。';
 }
