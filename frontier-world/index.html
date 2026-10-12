@@ -12277,7 +12277,8 @@ if(window.FW_PriestMusic49){
 /* FRONTIER_V48_6_GAME_BGM — consent-based music and microphone audio BGM. */
 if(window.FW_GAME_BGM49){
  const fw48Bgm=window.FW_GAME_BGM49.install({
-  getState:()=>state,root:document.querySelector('.stage'),notify:msg
+  getState:()=>state,root:document.querySelector('.stage'),notify:msg,
+  getOnlineClient:()=>fw38Client()
  });
  const fw48BgmPreviousLoad=fw10LoadGame;
  fw10LoadGame=function(){
