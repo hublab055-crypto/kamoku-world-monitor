@@ -72,11 +72,33 @@ function install(host){
  function choose(day){
   const list=available();return list.length?list[(Math.max(0,Math.floor(Number(day)||0)))%list.length]:DEMO;
  }
+ function teachNpc(npc,s){
+  const song=safeScore(s);
+  if(!npc||!song||npc.alive===false||npc.id==='priest43')return;
+  if(!available().some(v=>v.id===song.id)){notify('まず司祭に曲を教えてください。');return;}
+  npc.music49=npc.music49||{learned:[],skill:0};
+  if(!Array.isArray(npc.music49.learned))npc.music49.learned=[];
+  if(!npc.music49.learned.includes(song.id)){
+   npc.music49.learned.push(song.id);
+   npc.music49.learned=npc.music49.learned.slice(-24);
+   npc.music49.skill=Math.min(100,(Number(npc.music49.skill)||0)+5);
+  }
+  npc.status='🎼 「'+song.title+'」を習得';
+  notify('🎓 '+npc.name+'が「'+song.title+'」を覚えた。');
+ }
  function scheduled(n){
-  if(!n||n.id!=='priest43'||!n.organPlaying48)return;
-  const song=choose(getState().day);
-  n.organPiece49=song.title;
-  n.status='🎼 「'+song.title+'」をオルガンで練習中';
+  if(!n||n.alive===false)return;
+  if(n.id==='priest43'&&n.organPlaying48){
+   const song=choose(getState().day);
+   n.organPiece49=song.title;
+   n.status='🎼 「'+song.title+'」をオルガンで練習中';
+  }
+  const scene=getState().ceremony;
+  if(scene&&scene.timer>0&&getState().ceremonyMusic49&&
+     getState().ceremonyMusic49.day===getState().day&&
+     getState().ceremonyMusic49.performerId===n.id){
+   n.status='🎶 「'+getState().ceremonyMusic49.title+'」を演奏中';
+  }
  }
  function collect(){
   const state=getState(),st=getStore();
@@ -137,14 +159,16 @@ function install(host){
   const st=getStore(),songs=available();
   const requested=type==='wedding'?st.weddingId:st.festivalId;
   const s=songs.find(x=>x.id===requested)||songs[0]||DEMO;
+  const players=getState().npcs.filter(n=>n.alive!==false&&n.id!=='priest43'&&n.music49&&Array.isArray(n.music49.learned)&&n.music49.learned.includes(s.id));
+  const performer=players.length?players[Math.floor((Number(getState().day)||0)%players.length)]:null;
   const record=getState().ceremonies;
   if(Array.isArray(record)&&record.length){
    const entry=record[record.length-1];
-   if(entry&&entry.type===type){entry.musicTitle49=s.title;entry.musicId49=s.id;entry.musician49='priest43';}
+   if(entry&&entry.type===type){entry.musicTitle49=s.title;entry.musicId49=s.id;entry.musician49=performer?performer.id:'priest43';}
   }
-  getState().ceremonyMusic49={type,title:s.title,day:getState().day};
+  getState().ceremonyMusic49={type,title:s.title,day:getState().day,performerId:performer?performer.id:'priest43'};
   play(s,false); // User-initiated ceremonies may unlock audio; simulation cannot force mobile autoplay.
-  notify('🎶 '+(type==='wedding'?'結婚式':'村祭り')+'の曲：'+s.title+'（音が出ない場合は演奏ボタンを押してください）');
+  notify('🎶 '+(type==='wedding'?'結婚式':'村祭り')+'：'+(performer?performer.name:'司祭エリアス')+'が「'+s.title+'」を演奏（音が出ない場合は演奏ボタンを押してください）');
  }
  function render(){
   const st=getStore(),songs=available();
@@ -159,12 +183,27 @@ function install(host){
   button(tools,'🎹 オルガン・作曲・楽譜庫',()=>host.openOrgan(true));
   button(tools,'■ 演奏を停止',stop);
   root.appendChild(tools);
+  const learners=getState().npcs.filter(n=>n.alive!==false&&n.id!=='priest43');
+  let chosen=null;
+  if(learners.length){
+   const box=document.createElement('div');box.className='tileCard';
+   const note=document.createElement('div');note.textContent='🎓 村人に演奏を教える（司祭が覚えた曲のみ）';box.appendChild(note);
+   const select=document.createElement('select');select.setAttribute('aria-label','楽曲を教えるNPC');
+   learners.forEach(n=>{
+    const o=document.createElement('option');o.value=n.id;o.textContent=n.name+'（'+(n.music49&&Array.isArray(n.music49.learned)?n.music49.learned.length:0)+'曲習得）';select.appendChild(o);
+   });
+   select.value=getStore().studentId&&learners.some(n=>n.id===getStore().studentId)?getStore().studentId:learners[0].id;
+   chosen=select;
+   select.addEventListener('change',()=>getStore().studentId=select.value);
+   box.appendChild(select);root.appendChild(box);
+  }
   songs.forEach(s=>{
    const row=document.createElement('div');row.className='tileCard';
    const name=document.createElement('b');name.textContent='🎼 '+s.title;row.appendChild(name);row.appendChild(document.createElement('br'));
    const meta=document.createElement('span');meta.className='note';meta.textContent=s.author+' / '+s.notes.length+'音';
    row.appendChild(meta);row.appendChild(document.createElement('br'));
    button(row,'▶ 演奏',()=>play(s,true));
+   if(chosen)button(row,'🎓 選択した村人に教える',()=>{const npc=getState().npcs.find(n=>n.id===chosen.value);teachNpc(npc,s);render();});
    button(row,'💒 婚礼曲に指定',()=>{st.weddingId=s.id;notify('💒 結婚式の曲を「'+s.title+'」に指定した。');render();});
    button(row,'🎉 祭り曲に指定',()=>{st.festivalId=s.id;notify('🎉 村祭りの曲を「'+s.title+'」に指定した。');render();});
    const badge=document.createElement('div');badge.className='note';
@@ -203,7 +242,7 @@ function install(host){
   }
  }
  mergeFromLocal();
- return {getStore,remember,mergeFromLocal,collect,choose,scheduled,play,stop,onCeremony,render,sendToOrgan,attachFrameSync};
+ return {getStore,remember,mergeFromLocal,teachNpc,collect,choose,scheduled,play,stop,onCeremony,render,sendToOrgan,attachFrameSync};
 }
 global.FW_PriestMusic49={install,safeScore};
 })(window);
