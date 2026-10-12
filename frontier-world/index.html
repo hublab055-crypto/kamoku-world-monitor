@@ -11435,7 +11435,7 @@ function fw47SchoolTick(){
    if(!c.enrolled47||e.lastDay===state.day)return;
    e.lastDay=state.day;e.days++;
    const subject=Object.keys(FW47_SUBJECTS)[(state.day+e.days)%4];
-   const gain=3+Math.floor((priest.skills&&priest.skills.reading||0)/3);
+   const gain=3+Math.floor((priest.skills&&priest.skills.reading||0)/3)+Math.min(3,Math.floor(fw51EnsureChildIntellect(c)/30));
    e[subject]=clamp((Number(e[subject])||0)+gain,0,100);
    c.bond=clamp((Number(c.bond)||0)+.25,0,100);
    c.schoolToday47=subject;
@@ -12438,7 +12438,8 @@ function fw50Study(actor,subject,automatic){
  if(edu.lastStudy50===state.day)return false;
  if(actor===state.player&&(Number(actor.st)||0)<3)return false;
  const teacher=fw50Teacher();
- const gain=5+Math.min(4,Math.floor(Number(teacher.skills&&teacher.skills.reading||0)/3));
+ const gain=5+Math.min(4,Math.floor(Number(teacher.skills&&teacher.skills.reading||0)/3))+
+  ((state.family.children||[]).includes(actor)?Math.min(2,Math.floor(fw51EnsureChildIntellect(actor)/40)):0);
  edu[subject]=clamp(edu[subject]+gain,0,100);
  edu.lastStudy50=state.day;
  edu.studyDays50++;
@@ -12484,7 +12485,7 @@ function fw50PersonMenu(key){
   html+='</div>';
  });
  if(!child)html+=fw42HtmlButton('fw50:auto:'+key,p.actor.autoStudy50?'✅ 夜の自主学習を停止':'🌙 毎晩自習をON');
- html+='<div class="note">大人の自習は夜18〜22時に1日1回。試験は5問中4問以上正解で合格。初級0・中級35・上級70から受験可能。</div>'+
+ html+='<div class="note">大人の自習は夜18〜22時に1日1回。試験は国語・算数・英語・理科が5問中4問以上正解で合格。初級0・中級35・上級70から受験可能。</div>'+
   fw42HtmlButton('fw50:school','↩ 学習者一覧');
  r.innerHTML=html;
 }
@@ -13550,7 +13551,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
  if(!sel||!apply)return;
  const filename=window.location.pathname.split('/').pop().toLowerCase();
  const active=filename==='v41.html'?'v41':filename==='v42.html'?'v42':'latest';
- const labels={latest:'最新版（V50.0）',v42:'V42.0 固定',v41:'V41.0 固定'};
+ const labels={latest:'最新版（V51.0）',v42:'V42.0 固定',v41:'V41.0 固定'};
  const paths={latest:'./',v42:'./v42.html',v41:'./v41.html'};
  sel.value=active;
  if(current)current.textContent=labels[active];
