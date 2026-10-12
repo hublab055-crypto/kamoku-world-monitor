@@ -12252,6 +12252,21 @@ if(window.FW_PriestMusic49){
  });
 }
 
+
+/* FW48.4: Explicit bridge for legacy extension script.
+ * Game-core action/dialog/save callbacks are lexical to this IIFE; expose
+ * live accessors so library/read extensions wrap the same functions actually
+ * used by the game loop rather than disconnected local copies. */
+Object.defineProperties(window.__fwFrontierBridge,{
+ FW18_BOOKS:{get:function(){return FW18_BOOKS;}},
+ fw422FurnitureNear:{get:function(){return fw422FurnitureNear;}},
+ fw18ReadBook:{get:function(){return fw18ReadBook;},set:function(v){fw18ReadBook=v;}},
+ openInventory:{get:function(){return openInventory;},set:function(v){openInventory=v;}},
+ fw43PriestLibrary:{get:function(){return fw43PriestLibrary;},set:function(v){fw43PriestLibrary=v;}},
+ action:{get:function(){return action;},set:function(v){action=v;}},
+ fw10LoadGame:{get:function(){return fw10LoadGame;},set:function(v){fw10LoadGame=v;}}
+});
+
 })();
 </script>
 
@@ -12268,6 +12283,18 @@ var state=fwBridge.state||{day:0,hour:0,player:null,npcs:[],family:{children:[]}
 var root=fwBridge.root||document.body;
 var $=fwBridge.query||function(sel){return document.querySelector(sel);};
 var msg=fwBridge.message||function(t){try{var el=document.getElementById('message');if(el)el.textContent=String(t);}catch(e){}};
+
+/* Access core data and live functions explicitly instead of referencing
+ * undefined symbols across <script> IIFE scopes. Commit wrapped callbacks
+ * back to fwBridge once the extension is initialized. */
+var FW18_BOOKS=fwBridge.FW18_BOOKS||{};
+var fw422FurnitureNear=fwBridge.fw422FurnitureNear||function(){return null;};
+var fw18ReadBook=fwBridge.fw18ReadBook||function(){};
+var openInventory=fwBridge.openInventory||function(){};
+var fw43PriestLibrary=fwBridge.fw43PriestLibrary||function(){};
+var action=fwBridge.action||function(){};
+var fw10LoadGame=fwBridge.fw10LoadGame||function(){};
+
 
 var FW37_KEY='frontier_world_console_v37',FW37_MAX=800;
 var fw37Store={seq:0,entries:[]},fw37SaveTimer=null,fw37RenderTimer=null;
@@ -13038,6 +13065,14 @@ fw10LoadGame=function(){
 
 
 
+
+
+/* FW48.4: Publish the extension wrappers to the real game-core functions. */
+fwBridge.fw18ReadBook=fw18ReadBook;
+fwBridge.openInventory=openInventory;
+fwBridge.fw43PriestLibrary=fw43PriestLibrary;
+fwBridge.action=action;
+fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
