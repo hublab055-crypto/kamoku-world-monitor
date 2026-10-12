@@ -100,7 +100,7 @@ function xmlScore(bytes,title){
  if(notes.length>400||notes.some(n=>n.start+n.duration>1000))throw Error('楽譜は音符400個・1000拍まで対応しています。');
  const importedTitle=str(child(parsed.documentElement,'work')||parsed.documentElement,'work-title')||
    str(parsed.documentElement,'movement-title')||title;
- return {title:importedTitle.slice(0,90),bpm:120,instrument:'organ',notes};
+ return {title:importedTitle.slice(0,90),bpm:/FW-DL:[0-9a-f-]{36}/i.test(xml)?188:120,instrument:'organ',notes};
 }
 function nameFrom(file,title){return String(title||file.name||'ダウンロード曲').replace(/\.[^.]+$/,'').trim().slice(0,90)||'ダウンロード曲';}
 function licenseInfo(bytes){
