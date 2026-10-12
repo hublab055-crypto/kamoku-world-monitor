@@ -134,7 +134,7 @@ $('buy').addEventListener('click',async()=>{
  const btn=$('buy');btn.disabled=true;
  const key=crypto.randomUUID();
  try{
-  const r=await db.rpc('fw_creator_buy_village_bgm',{p_seller_id:state.current,p_request_id:key});
+  const r=await db.rpc('fw_creator_buy_village_bgm',{p_seller_id:state.current,p_request_id:key,p_expected_work_id:p.work_id,p_expected_price_g:p.price_g});
   if(r.error)throw r.error;
   say('✅ 購入成立：'+r.data.price_g+'G。販売者 '+(r.data.seller_g||0)+'G / 権利者 '+(r.data.creators_g||0)+'G / 運営 '+(r.data.market_g||0)+'G を精算しました。');
   await load();
