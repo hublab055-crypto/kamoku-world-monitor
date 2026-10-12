@@ -28,6 +28,7 @@ function install(host){
  };
  const persist=()=>{try{const p=prefs();localStorage.setItem('fw_frontier_bgm_v1',JSON.stringify({trackId:p.trackId,volume:p.volume,loop:p.loop}));}catch(e){}};
  let onlineScores=[];
+ let savedFileUrl=null,downloading=false;
  const scores=()=>{
   const originals=[DEMO,...(Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[])];
   let saved=[];
@@ -62,6 +63,16 @@ function install(host){
  const visitVillages=el('button','smallBtn','🏡 他の村のBGM');
  [buyMusic,publishMusic,visitVillages].forEach(b=>{b.type='button';b.style.cssText='font-size:12px;padding:8px;';commerce.append(b);});
  panel.appendChild(commerce);
+ const dl=el('div');dl.id='fwBgm49DirectDownload';
+ dl.style.cssText='display:none;margin:9px 0;padding:10px;border:1px solid #9cbab3;background:#10292c;border-radius:10px;';
+ const dlHeading=el('b','','💾 この曲を保存'),dlMessage=el('p','','WAV・MIDI・楽譜を選んでください。');
+ dlMessage.style.cssText='font-size:12px;line-height:1.6;overflow-wrap:anywhere;';
+ const formatRow=el('div');formatRow.style.cssText='display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;';
+ const wav=el('button','smallBtn','💿 WAV音声'),midi=el('button','smallBtn','🎹 MIDI'),xml=el('button','smallBtn','🎼 楽譜');
+ [wav,midi,xml].forEach(b=>{b.type='button';b.style.cssText='font-size:12px;padding:8px;';formatRow.appendChild(b);});
+ const saveFile=el('a','','⬇️ ファイルを端末に保存');
+ saveFile.style.cssText='display:none;margin-top:8px;padding:10px;background:#206646;border:1px solid #a4c6af;border-radius:8px;color:white;text-decoration:none;font-size:13px;';
+ dl.append(dlHeading,formatRow,dlMessage,saveFile);panel.appendChild(dl);
  const shareLink=el('a','','🔗 公開した村のBGMページを開く');
  shareLink.target='_blank';shareLink.rel='noopener noreferrer';shareLink.style.cssText='display:none;color:#bff4d6;font-size:12px;margin:6px 0;text-decoration:underline;';
  panel.appendChild(shareLink);
@@ -90,6 +101,11 @@ function install(host){
   voices=[];audio.pause();
   try{audio.currentTime=0;}catch(e){}
   playing=false;updateLabel();
+ }
+ function clearSavedFile(){
+  if(savedFileUrl)URL.revokeObjectURL(savedFileUrl);
+  savedFileUrl=null;saveFile.style.display='none';
+  saveFile.removeAttribute('href');saveFile.removeAttribute('download');
  }
  function cleanupAudioUrl(){
   audio.pause();audio.removeAttribute('src');audio.load();if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null;}
@@ -189,17 +205,77 @@ function install(host){
   if(playScore(song)){playing=true;updateLabel();status('🎼 「'+song.title+'」をBGMとして再生中');}
  }
  pick.addEventListener('change',()=>{
+  clearSavedFile();dl.style.display='none';
   stop();prefs().trackId=pick.value;persist();
   if(pick.value.startsWith('voice:'))prepareVoice(pick.value);else{cleanupAudioUrl();status('▶ 再生でBGMを開始できます。');}
  });
  slider.addEventListener('input',()=>{prefs().volume=Number(slider.value);updateVolume();persist();});
  loop.addEventListener('change',()=>{prefs().loop=loop.checked;audio.loop=loop.checked;persist();});
  function selectedMusicId(){return pick.value.startsWith('online:')?pick.value.slice(7):null;}
+ async function prepareDirectFile(format){
+  if(downloading)return;
+  downloading=true;[wav,midi,xml].forEach(b=>b.disabled=true);
+  clearSavedFile();dlMessage.textContent='保存ファイルを準備しています…';
+  try{
+   const selected=pick.value;
+   if(!selected)throw Error('先にBGMを選択してください。');
+   let file;
+   if(selected.startsWith('voice:')){
+    if(format!=='wav')throw Error('録音音声はMIDI・楽譜に変換できません。WAV音声を選んでください。');
+    const recorded=lib&&await lib.get(selected.slice(6));
+    if(!recorded?.blob)throw Error('録音データが見つかりません。');
+    const mime=String(recorded.blob.type||'').toLowerCase();
+    const ext=mime.includes('wav')?'wav':mime.includes('mp4')?'m4a':mime.includes('ogg')?'ogg':mime.includes('mpeg')?'mp3':'webm';
+    file={blob:recorded.blob,filename:'BGM_録音.'+ext};
+    dlMessage.textContent='自分の録音データを無料で保存します。ファイル形式: '+ext.toUpperCase();
+   }else{
+    const converter=await import(new URL('creator-market/music-export.js',document.baseURI).href);
+    if(selected.startsWith('online:')){
+     if(!host.getOnlineClient)throw Error('オンラインマーケットへの接続が未設定です。');
+     const db=await host.getOnlineClient();
+     const ss=await db.auth.getSession();
+     if(ss.error)throw ss.error;
+     if(!ss.data?.session)throw Error('マーケットからGitHubログインしてください。');
+     const id=selected.slice(7);
+     const work=await db.from('fw_creator_works').select('id,title,kind,status').eq('id',id).single();
+     if(work.error)throw work.error;
+     const issued=await db.rpc('fw_creator_issue_music_download',{p_work_id:id,p_format:format});
+     if(issued.error)throw issued.error;
+     const payload=await db.from('fw_creator_payloads').select('content').eq('work_id',id).single();
+     if(payload.error)throw payload.error;
+     file=converter.buildLicensedMusicFile(work.data,payload.data.content,issued.data);
+     const digest=await converter.sha256Hex(file.bytes);
+     const recorded=await db.rpc('fw_creator_prepare_music_download',{
+      p_receipt_id:issued.data.receipt_id,p_sha256_hex:digest,p_file_size:file.bytes.length
+     });
+     if(recorded.error)throw recorded.error;
+     dlMessage.textContent='✅ 購入・制作権利を確認しました。再保存0G／発行ID: '+issued.data.receipt_id;
+    }else{
+     const score=scores().find(x=>x.id===selected);
+     if(!score)throw Error('選択曲の楽譜データを読み込めませんでした。');
+     file=converter.buildLocalBgmFile(score,format);
+     dlMessage.textContent='✅ 端末内の曲を保存できます。追加料金0G（オンライン印税決済の対象外）。';
+    }
+   }
+   savedFileUrl=URL.createObjectURL(file.blob);
+   saveFile.href=savedFileUrl;saveFile.download=file.filename;saveFile.style.display='inline-block';
+   dlMessage.append(document.createTextNode(' 下の「端末に保存」を押してください。'));
+  }catch(e){dlMessage.textContent='⚠️ 保存できませんでした: '+(e?.message||String(e));}
+  finally{downloading=false;[wav,midi,xml].forEach(b=>b.disabled=false);}
+ }
  buyMusic.onclick=()=>{
-  const id=selectedMusicId();
-  if(!id){status('💿 保存には共用マーケットで購入した楽曲を選んでください。');return;}
-  global.open('creator-market/music-download.html?work='+encodeURIComponent(id),'_blank','noopener');
+  const opening=dl.style.display==='none';
+  dl.style.display=opening?'block':'none';
+  clearSavedFile();
+  if(opening){
+   dlHeading.textContent='💾 '+(pick.selectedOptions[0]?.textContent||'選択中のBGM')+'を保存';
+   dlMessage.textContent=pick.value.startsWith('online:')?'購入・制作権利を確認して保存します（再保存0G）。':
+    pick.value.startsWith('voice:')?'自分の録音音声は無料で保存できます。':'選択中のBGMをWAV、MIDI、MusicXMLで無料保存できます。';
+  }
  };
+ wav.onclick=()=>prepareDirectFile('wav');
+ midi.onclick=()=>prepareDirectFile('midi');
+ xml.onclick=()=>prepareDirectFile('musicxml');
  publishMusic.onclick=async()=>{
   const id=selectedMusicId();
   if(!id){status('🌍 共用マーケットの購入済み/自作楽曲をBGMに選んでください。');return;}
@@ -228,7 +304,7 @@ function install(host){
   stop();const p=prefs();loop.checked=!!p.loop;updateVolume();refresh();
  }
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
- global.addEventListener('pagehide',()=>{stop();cleanupAudioUrl();});
+ global.addEventListener('pagehide',()=>{stop();cleanupAudioUrl();clearSavedFile();});
  loop.checked=!!prefs().loop;updateVolume();refresh();
  return {stop,play,refresh,sync,get playing(){return playing;}};
 }
