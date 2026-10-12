@@ -13216,6 +13216,7 @@ openInventory=function(){
   const readCount=Object.keys(state.player.bookRead||{}).length;
   body.insertAdjacentHTML('beforeend',
    '<h3>読書・創作</h3><button class="smallBtn" data-fw41="studio">✍️ 執筆・出版</button> '+
+    '<a class="smallBtn" href="creator-market/" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;padding:9px 12px;text-decoration:none;color:#fff">🌐 本・楽曲・イラスト市場</a> '+
    '<span class="note">読了 '+readCount+'冊 / 自作品 '+state.player.authoredBooks.length+'点</span>');
  }
 };
