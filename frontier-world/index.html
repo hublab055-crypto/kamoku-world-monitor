@@ -12773,6 +12773,69 @@ document.addEventListener('click',function(e){
  else if(a==='openEditor')window.open('editor/','_blank','noopener');
 },true);
 
+
+/* FRONTIER_V49_1_IROHA_LIBRARY_READING
+ * The common-house library and interactive bookcases can open the shared book reader.
+ * Initially only the iroha poem is available for direct on-site reading.
+ */
+const FW491_LIBRARY_BOOK_IDS=['iroha_uta'];
+const fw491OriginalPriestLibrary=fw43PriestLibrary;
+
+function fw491RenderLibraryShelf(){
+  const body=document.getElementById('panelBody');
+  const title=document.getElementById('panelTitle');
+  if(!body||!title||title.textContent!=='📚 コモンハウス図書室・村史')return;
+  const previous=document.getElementById('fw491LibraryShelf');
+  if(previous)previous.remove();
+  const available=FW491_LIBRARY_BOOK_IDS.map(function(id){
+    const b=FW18_BOOKS[id];
+    if(!b)return '';
+    const pages=fw41Pages(b);
+    const finished=fw41IsRead(id);
+    const progress=state.player.bookProgress&&state.player.bookProgress[id]||0;
+    return '<div class="tileCard"><b>'+fw41E(b.icon||'📖')+' '+fw41E(b.name||id)+'</b> '+
+      (finished?'<span class="note">✅ 読了済み</span>':'')+
+      '<div class="note">'+fw41E(b.summary||'')+' / '+pages.length+'ページ'+(progress>0?' / 途中から再開':'')+'</div>'+
+      '<button class="smallBtn" type="button" data-fw491-read="'+fw41E(id)+'">📖 '+(progress>0?'続きを読む':'開いて読む')+'</button></div>';
+  }).filter(Boolean).join('');
+  const section=document.createElement('section');
+  section.id='fw491LibraryShelf';
+  section.innerHTML='<h3>📚 図書室の本棚・閲覧</h3>'+
+   '<div class="note">読みたい本を選ぶとページを開きます。閲覧は無料で貸出制限はありません。</div>'+
+   (available||'<div class="tileCard">📖 蔵書を読み込み中…</div>');
+  body.insertBefore(section,body.firstChild);
+}
+fw43PriestLibrary=function(){
+  fw491OriginalPriestLibrary.apply(this,arguments);
+  fw491RenderLibraryShelf();
+  fw41LoadBooks().then(function(){
+    fw491RenderLibraryShelf();
+  });
+};
+
+document.getElementById('panelBody').addEventListener('click',function(e){
+  const btn=e.target.closest('[data-fw491-read]');
+  if(!btn)return;
+  e.preventDefault();e.stopImmediatePropagation();
+  const id=btn.dataset.fw491Read;
+  if(!FW491_LIBRARY_BOOK_IDS.includes(id))return;
+  fw41LoadBooks().then(function(){
+    if(FW18_BOOKS[id])fw41OpenReader(id);
+    else msg('📚 書籍を読み込めませんでした。通信状態を確認して再読み込みしてください。');
+  });
+},true);
+
+const fw491PreviousAction=action;
+action=function(){
+  const nearby=state.interior?fw422FurnitureNear(1.2):null;
+  if(nearby&&nearby.target.type==='bookcase'){
+    state.player.status='📚 本棚から本を選択';
+    fw43PriestLibrary();
+    return;
+  }
+  return fw491PreviousAction.apply(this,arguments);
+};
+
 const fw41PrevLoad=fw10LoadGame;
 fw10LoadGame=function(){
  const ok=fw41PrevLoad.apply(this,arguments);
