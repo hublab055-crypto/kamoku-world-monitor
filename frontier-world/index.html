@@ -11409,9 +11409,10 @@ state.npcs.forEach(function(n){fw46EnsureQuantities(n);});
 
 
 /* FRONTIER_V47_PRIEST_SCHOOL_AND_DREAM_GAMES */
-const FW47_SUBJECTS={reading:'📖 読み書き',math:'🔢 計算',history:'🏛️ 村の歴史',nature:'🌱 自然と暮らし'};
+const FW47_SUBJECTS={reading:'📖 読み書き',math:'🔢 計算',english:'🇬🇧 英語',science:'🔬 理科',history:'🏛️ 村の歴史',nature:'🌱 自然と暮らし'};
 function fw47EnsureSchool(c){
- if(!c.education47)c.education47={reading:0,math:0,history:0,nature:0,days:0,lastDay:-1};
+ if(!c.education47)c.education47={reading:0,math:0,english:0,science:0,history:0,nature:0,days:0,lastDay:-1};
+ ['english','science'].forEach(function(k){if(!Number.isFinite(Number(c.education47[k])))c.education47[k]=0;});
  if(c.enrolled47==null)c.enrolled47=true;
  return c.education47;
 }
@@ -11463,13 +11464,14 @@ fw43PriestMenu=function(){
 function fw47SchoolMenu(){
  const r=$('#dialogReplies');if(!r)return;
  const children=fw47SchoolChildren();
- let body='<div class="note" style="width:100%">司祭エリアスの授業：9〜12時、14〜16時 / 読み書き・計算・歴史・自然</div>';
+ let body='<div class="note" style="width:100%">司祭エリアスの授業：9〜12時、14〜16時 / 読み書き・算数・英語・理科・歴史・自然</div>';
  if(!children.length)body+='<div class="note" style="width:100%">学齢期の子どもはいません。成長すると授業に参加できます。</div>';
  children.forEach(function(c,i){
   const edu=fw47EnsureSchool(c);
   const ix=state.family.children.indexOf(c);
   body+='<div class="tileCard" style="width:100%"><b>'+fw422Esc(c.name)+'</b>｜登校 '+edu.days+'日<br>'+
   Object.keys(FW47_SUBJECTS).map(function(k){return FW47_SUBJECTS[k]+' '+Math.round(edu[k]||0)+'/100';}).join(' / ')+
+  '<br>🧠 知力 '+Math.round(fw51EnsureChildIntellect(c))+'/100'+
   '<br>'+fw42HtmlButton('fw47:school:toggle:'+ix,c.enrolled47?'✅ 通学する（停止）':'⏸️ 通学停止中（再開）')+'</div>';
  });
  r.innerHTML=body+fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
@@ -12279,7 +12281,7 @@ if(window.FW_GAME_BGM49){
  * V47 child education remains the source of truth; adults use the same progress.
  * Exam session is transient. Progress, certificates and attendance stay in state.
  */
-const FW50_SUBJECTS=['reading','math','history','nature'];
+const FW50_SUBJECTS=['reading','math','english','science','history','nature'];
 const FW50_TITLES=['初級','中級','上級'];
 let fw50ExamSession=null;
 
@@ -12297,7 +12299,7 @@ function fw50FindLearner(key){return fw50Learners().find(function(p){return p.ke
 function fw50Ensure(actor){
  const e=fw47EnsureSchool(actor);
  FW50_SUBJECTS.forEach(function(k){e[k]=clamp(Number(e[k])||0,0,100);});
- if(!e.certs50||typeof e.certs50!=='object')e.certs50={reading:0,math:0};
+ if(!e.certs50||typeof e.certs50!=='object')e.certs50={reading:0,math:0,english:0,science:0};
  if(!e.scores50||typeof e.scores50!=='object')e.scores50={};
  if(!Number.isFinite(Number(e.lastStudy50)))e.lastStudy50=-1;
  if(!Number.isFinite(Number(e.studyDays50)))e.studyDays50=0;
@@ -12334,9 +12336,13 @@ function fw50SchoolMenu(){
   const e=fw50Ensure(p.actor);
   html+='<div class="tileCard" style="width:100%"><b>'+fw422Esc(p.actor.name||p.key)+'</b>（'+p.label+'）　学習 '+e.studyDays50+'日'+
    '<div class="note">読み書き '+Math.round(e.reading)+' / 算数 '+Math.round(e.math)+
+   ' / 英語 '+Math.round(e.english)+' / 理科 '+Math.round(e.science)+
    ' / 歴史 '+Math.round(e.history)+' / 自然 '+Math.round(e.nature)+'</div>'+
    '<div class="note">試験：国語 '+(FW50_TITLES[(e.certs50.reading||0)-1]||'未取得')+
-   ' / 算数 '+(FW50_TITLES[(e.certs50.math||0)-1]||'未取得')+'</div>'+
+   ' / 算数 '+(FW50_TITLES[(e.certs50.math||0)-1]||'未取得')+
+   ' / 英語 '+(FW50_TITLES[(e.certs50.english||0)-1]||'未取得')+
+   ' / 理科 '+(FW50_TITLES[(e.certs50.science||0)-1]||'未取得')+
+   (p.key.startsWith('c')?' / 🧠知力 '+Math.round(fw51EnsureChildIntellect(p.actor))+'/100':'')+'</div>'+
    fw42HtmlButton('fw50:person:'+p.key,'📖 授業・テスト')+'</div>';
  });
  r.innerHTML=html+fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
@@ -12350,7 +12356,7 @@ function fw50PersonMenu(key){
  FW50_SUBJECTS.forEach(function(s){
   html+='<div class="tileCard" style="width:100%">'+FW47_SUBJECTS[s]+'：'+Math.round(e[s])+'/100 '+
    fw42HtmlButton('fw50:study:'+key+':'+s,'✏️ 学ぶ');
-  if(s==='reading'||s==='math'){
+  if(['reading','math','english','science'].includes(s)){
    const grade=Math.min(3,Math.max(0,Number(e.certs50[s])||0));
    const needed=[0,35,70][grade];
    if(grade<3)html+=fw42HtmlButton('fw50:exam:'+key+':'+s,'📝 '+FW50_TITLES[grade]+'テスト'+(e[s]<needed?'（習熟度'+needed+'から）':''));
@@ -12392,7 +12398,62 @@ function fw50MathQuestion(prompt,correct){
  for(let i=values.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[values[i],values[j]]=[values[j],values[i]];}
  return {prompt:prompt,correct:String(n),choices:values.slice(0,4).map(String)};
 }
+const FW51_EXAM_BANK={
+ english:[
+  [
+   ['「水」を英語で？','water','book','sun','tree'],
+   ['「本」を英語で？','book','dog','star','fish'],
+   ['「赤い」を英語で？','red','blue','green','white'],
+   ['「猫」を英語で？','cat','cow','bird','horse'],
+   ['「ありがとう」を英語で？','thank you','goodbye','hello','sorry']
+  ],
+  [
+   ['I ___ a student. に入る語は？','am','is','are','be'],
+   ['「昨日」を英語で？','yesterday','tomorrow','today','tonight'],
+   ['She ___ apples. に入る語は？','likes','like','liking','liked'],
+   ['「図書館」を英語で？','library','hospital','market','garden'],
+   ['What time is it? の意味は？','何時ですか？','何歳ですか？','どこですか？','いくつありますか？']
+  ],
+  [
+   ['If it rains, I ___ stay home.','will','am','have','does'],
+   ['「環境」を英語で？','environment','equipment','employment','enjoyment'],
+   ['He has ___ the letter.','written','write','wrote','writing'],
+   ['「比較する」を英語で？','compare','complete','compose','complain'],
+   ['The book was ___ by her.','written','wrote','writing','writes']
+  ]
+ ],
+ science:[
+  [
+   ['植物の成長に必要な光は？','日光','月光だけ','街灯だけ','稲妻'],
+   ['氷が溶けると何になる？','水','石','空気','土'],
+   ['磁石に引きつけられやすいものは？','鉄','木','紙','ガラス'],
+   ['空気中に多く含まれる気体は？','窒素','酸素','二酸化炭素','水素'],
+   ['地球の表面を主に照らす恒星は？','太陽','月','火星','金星']
+  ],
+  [
+   ['水が沸騰する温度は通常何℃？（1気圧）','100℃','0℃','40℃','200℃'],
+   ['音が真空中で伝わる？','伝わらない','水中より速い','光と同じ速さ','いつも伝わる'],
+   ['豆電球を点灯させるには？','回路をつなぐ','電池を離す','導線を切る','磁石を置くだけ'],
+   ['葉で主に行われる働きは？','光合成','消化','発酵','蒸留'],
+   ['地球の自転で生じる主な現象は？','昼と夜','季節のすべて','月の満ち欠け','潮の満ち引きだけ']
+  ],
+  [
+   ['物体に働く力の単位は？','N（ニュートン）','kg（キログラム）','W（ワット）','Pa（パスカル）'],
+   ['電流の単位は？','A（アンペア）','V（ボルト）','Ω（オーム）','J（ジュール）'],
+   ['水の化学式は？','H₂O','CO₂','O₂','NaCl'],
+   ['遺伝情報を担う主な物質は？','DNA','デンプン','脂肪','セルロース'],
+   ['光合成で主に取り込む気体は？','二酸化炭素','窒素','酸素','ヘリウム']
+  ]
+ ]
+};
 function fw50Questions(subject,grade){
+ if(subject==='english'||subject==='science'){
+  return FW51_EXAM_BANK[subject][grade].map(function(q){
+   const copy={prompt:q[0],correct:q[1],type:'choice',choices:q.slice(1)};
+   for(let i=copy.choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[copy.choices[i],copy.choices[j]]=[copy.choices[j],copy.choices[i]];}
+   return copy;
+  });
+ }
  if(subject==='reading'){
   return FW50_READING_QUESTIONS[grade].map(function(q){
    const copy={prompt:q.prompt,correct:q.correct,type:q.type||'choice',choices:q.choices?q.choices.slice():[]};
@@ -12419,7 +12480,7 @@ function fw50Questions(subject,grade){
  ];
 }
 function fw50ExamOpen(key,subject){
- const p=fw50FindLearner(key);if(!p||!['reading','math'].includes(subject)||!fw50Teacher())return;
+ const p=fw50FindLearner(key);if(!p||!['reading','math','english','science'].includes(subject)||!fw50Teacher())return;
  const edu=fw50Ensure(p.actor),grade=Math.min(3,Math.max(0,Number(edu.certs50[subject])||0));
  if(grade>=3){fw50PersonMenu(key);return;}
  const threshold=[0,35,70][grade];
@@ -12431,7 +12492,7 @@ function fw50ExamRender(){
  const r=$('#dialogReplies'),exam=fw50ExamSession;if(!r||!exam)return;
  const q=exam.questions[exam.index];
  if(!q){fw50ExamFinish();return;}
- let html='<div class="tileCard" style="width:100%"><b>📝 '+(exam.subject==='reading'?'読み書き':'算数')+
+ let html='<div class="tileCard" style="width:100%"><b>📝 '+(FW47_SUBJECTS[exam.subject]||exam.subject)+
   ' '+FW50_TITLES[exam.grade]+'テスト　'+(exam.index+1)+'/5問</b><div style="margin:10px 0;font-size:1.15em">'+fw422Esc(q.prompt)+'</div>';
  if(q.type==='text'){
   html+='<label class="note" for="fw50AnswerInput">答えを入力（漢字・ひらがな）</label>'+
@@ -12463,6 +12524,7 @@ function fw50ExamFinish(){
   e.certs50[subject]=grade;
   p.actor.skills=p.actor.skills||{};
   p.actor.skills[subject]=Math.max(Number(p.actor.skills[subject])||0,grade*2);
+  if(['reading','math','english','science'].includes(subject)&&p.key.startsWith('c'))fw51BoostChildIntellect(p.actor,2,subject);
   if(subject==='math'&&p.actor.role==='merchant')
    p.actor.skills.trade=(Number(p.actor.skills.trade)||0)+.5;
   fw50Record(p.actor,FW47_SUBJECTS[subject]+' '+FW50_TITLES[exam.grade]+'試験に合格');
