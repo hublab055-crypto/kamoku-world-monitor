@@ -134,7 +134,10 @@
     "select and read library books through common-house priest and indoor bookcase with saved reading progress",
     "10-title searchable public-domain library with nine full-text Aozora works and credits",
     "library of 20 public-domain works with full-page reading",
-    "authenticated original-creative-work store for books, songs and illustrations with 80-percent royalty server settlement"
+    "authenticated original-creative-work store for books, songs and illustrations with 80-percent royalty server settlement",
+    "co-creator invitation, acceptance and atomic proportional royalty payout",
+    "authenticated creator book donations linked from the library",
+    "treasury-funded daily NPC artwork purchase beta and transparent sales leaderboards"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -309,7 +312,10 @@
     "E2E test 2 logged-in creator-market users purchasing a moderated original work and verifying server-side debit/royalty/treasury totals",
     "implement creator moderation dashboard with rights verification and abuse management",
     "integrate organ MIDI exports and local illustration editor files into creator market",
-    "secure, auditable online-beta-to-in-game-G bridge without duplicate payouts"
+    "secure, auditable online-beta-to-in-game-G bridge without duplicate payouts",
+    "verify 2 GitHub-logged-in users can accept a collaboration invitation and receive exact royalty split on a paid purchase",
+    "verify public library donation and revocation behavior in iPhone Safari",
+    "test funded NPC sale and 1-sale-per-Japan-day scheduler with funded treasury without issuing new G"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -456,6 +462,18 @@
     "rights": "original_only",
     "economy_bridge": "not implemented",
     "auth": "supabase_github",
-    "security": "RLS + security-definer private RPC + unique orders"
+    "security": "RLS + security-definer private RPC + unique orders",
+    "phase": "collaboration_donations_funded_npc_rankings",
+    "max_collaborators": 4,
+    "original_minimum_royalty_share": 0.1,
+    "royalty_pool": 0.8,
+    "npc_cron": "15 10 * * * UTC (19:15 JST)",
+    "npc_daily_limit": 1,
+    "npc_treasury_max_spend_fraction": 0.2,
+    "donation": "approved single-author books only; no reversible donation",
+    "rankings": true,
+    "npc_in_world_behavior": false,
+    "verified": "schema/permissions/static syntax",
+    "integration_test": "pending real authenticated multi-user flow"
   }
 }
