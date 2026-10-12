@@ -27,7 +27,7 @@ function install(host){
   return state.bgm49;
  };
  const persist=()=>{try{const p=prefs();localStorage.setItem('fw_frontier_bgm_v1',JSON.stringify({trackId:p.trackId,volume:p.volume,loop:p.loop}));}catch(e){}};
- let onlineScores=[],importedList=[],importedScores=[];
+ let onlineScores=[],importedList=[],importedScores=[],pendingImportId=null;
  let savedFileUrl=null,downloading=false;
  const scores=()=>{
   const originals=[DEMO,...(Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[])];
@@ -244,7 +244,7 @@ function install(host){
  }
  pick.addEventListener('change',()=>{
   clearSavedFile();dl.style.display='none';
-  stop();prefs().trackId=pick.value;persist();
+  stop();pendingImportId=null;prefs().trackId=pick.value;persist();
   if(pick.value.startsWith('voice:')||isImportedAudio(pick.value))(pick.value.startsWith('voice:')?prepareVoice:prepareImportedAudio)(pick.value);else{cleanupAudioUrl();status('▶ 再生でBGMを開始できます。');}
  });
  importBtn.onclick=()=>{if(!importLib){status('この環境では曲の取り込み機能が利用できません。');return;}importInput.click();};
@@ -253,7 +253,7 @@ function install(host){
   importBtn.disabled=true;status('📂 '+file.name+' を端末のBGMライブラリに保存しています…');
   try{
    const info=await importLib.putFile(file);
-   prefs().trackId='import:'+info.id;persist();
+   pendingImportId=null;prefs().trackId='import:'+info.id;persist();
    stop();await refresh();
    status('✅ 「'+info.title+'」をBGMに設定しました。▶ 再生を押してください。'+(info.licenseId?' ライセンスIDを保持しています。':''));
   }catch(e){status('⚠️ 曲を読み込めません: '+String(e?.message||e));}
@@ -364,11 +364,13 @@ function install(host){
    if(!raw)return false;
    const incoming=JSON.parse(raw);localStorage.removeItem(importLib.latestKey);
    if(!incoming.id||!/^[a-zA-Z0-9_-]+$/.test(incoming.id))return false;
-   prefs().trackId='import:'+incoming.id;persist();return true;
+   pendingImportId='import:'+incoming.id;prefs().trackId=pendingImportId;persist();return true;
   }catch(e){return false;}
  }
  function sync(){
-  stop();const p=prefs();applyPendingImport();loop.checked=!!p.loop;updateVolume();refresh();
+  stop();const p=prefs();applyPendingImport();
+  if(pendingImportId){p.trackId=pendingImportId;persist();pendingImportId=null;}
+  loop.checked=!!p.loop;updateVolume();refresh();
  }
  global.addEventListener('storage',e=>{
   if(importLib&&e.key===importLib.latestKey&&e.newValue){
