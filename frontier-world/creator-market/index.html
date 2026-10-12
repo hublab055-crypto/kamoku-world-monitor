@@ -57,7 +57,9 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 <label>紹介文<input id="description" maxlength="500" placeholder="作品の説明"></label>
 <label>価格（オンラインβ G）<input id="price" type="number" min="1" max="100000" value="100" required></label>
 <div id="bookInput"><label>本文（20〜20,000文字）<textarea id="bookText" placeholder="自分で書いた作品を入力"></textarea></label></div>
-<div id="musicInput" class="hidden"><label>旋律（半角スペースで区切る、例: C4 D4 E4 F4 G4）<textarea id="musicNotes" placeholder="C4 D4 E4 G4 G4 E4"></textarea></label><small>現在は単音の簡易試聴に対応。MIDIファイルのアップロードは後続機能です。</small></div>
+<div id="musicInput" class="hidden"><label>旋律（半角スペースで区切る、例: C4 D4 E4 F4 G4）<textarea id="musicNotes" placeholder="C4 D4 E4 G4 G4 E4"></textarea></label><small>現在は単音の簡易試聴に対応。MIDIファイルのアップロードは後続機能です。</small>
+<label><input id="allowVillagePreview" type="checkbox" checked> 村での宣伝用に冒頭8音を試聴公開し、購入者が村のBGMに設定することを許可します。</label>
+</div>
 <div id="imageInput" class="hidden"><label>オリジナル画像（PNG / JPEG）<input id="imageFile" type="file" accept="image/png,image/jpeg"></label><small>640px以下に縮小してデータ化します。大きなファイルは選べません。</small></div>
 <label><input id="rights" type="checkbox" required> 私がこの作品を創作し、販売する権利を持っています。</label>
 <button type="submit" id="submit">審査に提出する</button>
@@ -260,7 +262,7 @@ el('postForm').addEventListener('submit',async(e)=>{
   if(!Number.isInteger(price)||price<1||price>100000)throw Error('価格は1〜100000Gの整数です。');
   let content;
   if(kind==='book')content={text:el('bookText').value};
-  else if(kind==='music'){const names=el('musicNotes').value.trim().split(/\s+/).filter(Boolean);if(!names.length||names.length>400)throw Error('音符は1〜400個にしてください。');content={notes:names.map(s=>({name:s,pitch:noteToMidi(s),duration:.3}))};}
+  else if(kind==='music'){const names=el('musicNotes').value.trim().split(/\s+/).filter(Boolean);if(!names.length||names.length>400)throw Error('音符は1〜400個にしてください。');content={notes:names.map(s=>({name:s,pitch:noteToMidi(s),duration:.3})),village_preview_allowed:!!el('allowVillagePreview').checked};}
   else content=await encodeImage(el('imageFile').files[0]);
   const result=await db.rpc('fw_creator_submit_work',{p_kind:kind,p_title:title,p_description:description,p_price_g:price,p_content:content,p_original_confirmed:true});
   if(result.error)throw result.error;
