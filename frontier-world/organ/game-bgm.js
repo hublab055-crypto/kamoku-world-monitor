@@ -159,7 +159,7 @@ function install(host){
     return {id:'online:'+w.id,title:'🌐 '+w.title,author:'共用マーケット',instrument:'organ',bpm:188,notes};
    }));
    onlineScores=items.filter(Boolean);
-  }catch(err){status('オンライン曲の取得に失敗しました。ログイン状況を確認してください。');}
+  }catch(err){status('オンライン曲の取得に失敗: '+String(err?.message||err||'通信状態を確認してください').slice(0,150));}
  }
  async function refresh(){
   if(lib){try{voiceList=await lib.list();}catch(e){voiceList=[];}}
@@ -257,6 +257,7 @@ function install(host){
      dlMessage.textContent='✅ 端末内の曲を保存できます。追加料金0G（オンライン印税決済の対象外）。';
     }
    }
+   if(pick.value!==selected)throw Error('保存中に曲の選択が変わりました。もう一度選んでください。');
    savedFileUrl=URL.createObjectURL(file.blob);
    saveFile.href=savedFileUrl;saveFile.download=file.filename;saveFile.style.display='inline-block';
    dlMessage.append(document.createTextNode(' 下の「端末に保存」を押してください。'));
