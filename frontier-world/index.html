@@ -12352,7 +12352,7 @@ const FW50_READING_QUESTIONS=[
   {prompt:'「はな」を漢字で書こう',correct:'花',type:'text'}
  ],
  [
-  {prompt:'「市場」の読みを選ぼう',correct:'いちば',choices:['いちば','しじょう','いちもん','いば']},
+  {prompt:'「宿屋」の読みを選ぼう',correct:'やどや',choices:['やどや','しゅくや','じゅくや','しゅうや']},
   {prompt:'「本棚」の読みを選ぼう',correct:'ほんだな',choices:['ほんだな','もとだな','ほんばこ','ほんたな']},
   {prompt:'「図書」の読みを選ぼう',correct:'としょ',choices:['としょ','ずがき','としょう','ずしょ']},
   {prompt:'「とけい」を漢字で書こう',correct:'時計',type:'text'},
@@ -12368,7 +12368,7 @@ const FW50_READING_QUESTIONS=[
 ];
 function fw50MathQuestion(prompt,correct){
  const n=Number(correct);
- const values=[n,n+1,n+2,Math.max(0,n-2),n+4].filter(function(v,i,a){return a.indexOf(v)===i;});
+ const values=[n,n+1,n+2,Math.max(0,n-2)].filter(function(v,i,a){return a.indexOf(v)===i;});
  for(let i=values.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[values[i],values[j]]=[values[j],values[i]];}
  return {prompt:prompt,correct:String(n),choices:values.slice(0,4).map(String)};
 }
