@@ -131,7 +131,8 @@
     "V49 sixth qualifying attempt guaranteed after five unsuccessful attempts, with per-spouse counters saved and reset on success",
     "V49 priest family planning consultation with heart level, cooldown, household capacity, next-chance estimate and advice",
     "Iroha poem book with 3 readable pages in the live book catalog",
-    "select and read library books through common-house priest and indoor bookcase with saved reading progress"
+    "select and read library books through common-house priest and indoor bookcase with saved reading progress",
+    "10-title searchable public-domain library with nine full-text Aozora works and credits"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -301,7 +302,8 @@
     "test V46 cook exactly five meals and sell three prepared meals per batch on iPhone",
     "test V46 quantities and condition comparisons persist after save/load for each controllable NPC",
     "test V46 NPC cooking finished inside home counts toward the correct batch and does not create unwanted servings",
-    "test iroha library direct reading, booklet pagination and bookcase interaction on iPhone Safari and PC"
+    "test iroha library direct reading, booklet pagination and bookcase interaction on iPhone Safari and PC",
+    "test library selection, full-text page turning, read completion, saved progress and search on Safari"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -341,7 +343,21 @@
       "knowledge",
       "read_progress",
       "read_completion"
-    ]
+    ],
+    "library_books": [
+      "iroha_uta",
+      "aozora_kumono_ito",
+      "aozora_rashomon",
+      "aozora_chumon",
+      "aozora_yamanashi",
+      "aozora_amenimo",
+      "aozora_gongitsune",
+      "aozora_lemon",
+      "aozora_amedama",
+      "aozora_satonoharu"
+    ],
+    "library_book_count": 10,
+    "public_domain_source": "Aozora Bunko copyright-expired original works; each record links its official card"
   },
   "user_publishing": {
     "status": "local_beta",
@@ -402,6 +418,11 @@
       "indoor_bookcase_action"
     ],
     "reading_ui": "existing V41 reader",
-    "live_browser_test": "pending"
+    "live_browser_test": "pending",
+    "book_count": 10,
+    "search": true,
+    "full_text_public_domain": true,
+    "source_links": true,
+    "feature_id": "FW-2026-10-12-LIB-001"
   }
 }
