@@ -325,7 +325,9 @@
     "use private server-generated digital signatures to authenticate canonical licensed media without trusting client-side hashes",
     "connect real multiplayer village avatar travel, automatically expose owner-selected BGM and prompt visiting players to buy/save music",
     "run iOS Safari two-user acceptance test of village track playback, 100G purchase, split royalties and WAV/MIDI/MusicXML license download",
-    "support real mastered audio recordings/record press workflow and rights consent for composition/master/performers"
+    "support real mastered audio recordings/record press workflow and rights consent for composition/master/performers",
+    "Test BGM modal download on iPhone Safari for local song and recording",
+    "Test owned market BGM direct download within the game modal with authenticated buyer and supplier settlement"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -515,6 +517,17 @@
     "no_repeat_download_charge": true,
     "purchase_pins_expected_song_and_price": true,
     "test": "temporary 100G transaction validated buyer900 seller10 composer35 producer35 market20, rolled back",
-    "caveat": "village visit is currently an online music portal, not remote multiplayer avatar visit"
+    "caveat": "village visit is currently an online music portal, not remote multiplayer avatar visit",
+    "direct_in_game_bgm_download": true,
+    "game_bgm_download_formats": [
+      "wav",
+      "midi",
+      "musicxml"
+    ],
+    "on_device_score_conversion": true,
+    "owned_recordings_export_native_format": true,
+    "market_score_license_flow": "issue -> render -> sha256 -> register -> tap download",
+    "last_change": "FW-2026-10-12-CREATOR-005",
+    "ios_safari_real_device_test": "pending"
   }
 }
