@@ -53,7 +53,7 @@ function install(host){
  panel.style.cssText='position:fixed;bottom:12px;right:12px;z-index:15910;width:min(360px,calc(100vw - 24px));max-height:72vh;overflow:auto;background:#172c32;color:#f7f4e2;border:1px solid #99ada9;box-shadow:0 7px 45px #000b;padding:14px;border-radius:14px;display:none;font:14px system-ui;';
  const title=el('strong','','🎶 ゲームBGM');title.style.fontSize='17px';panel.appendChild(title);
  const close=el('button','smallBtn','✕');close.type='button';close.style.cssText='float:right;';close.onclick=()=>{panel.style.display='none';};panel.appendChild(close);
- const intro=el('p','','曲と録音データから選択できます。再生には▶を押してください。iPhoneでは自動再生しません。');intro.style.cssText='font-size:12px;line-height:1.5;';panel.appendChild(intro);
+ const intro=el('p','','曲・録音・端末にダウンロードした楽曲から選べます。再生には▶を押してください。iPhoneでは自動再生しません。');intro.style.cssText='font-size:12px;line-height:1.5;';panel.appendChild(intro);
  const pick=el('select');pick.id='fwBgm49Select';pick.setAttribute('aria-label','BGMの曲を選択');
  pick.style.cssText='width:100%;padding:9px;margin:7px 0;background:#17323b;color:white;border:1px solid #a0b9bd;border-radius:8px;font:inherit;';
  panel.appendChild(pick);
@@ -267,7 +267,16 @@ function install(host){
  };
  slider.addEventListener('input',()=>{prefs().volume=Number(slider.value);updateVolume();persist();});
  loop.addEventListener('change',()=>{prefs().loop=loop.checked;audio.loop=loop.checked;persist();});
- function selectedMusicId(){return pick.value.startsWith('online:')?pick.value.slice(7):null;}
+ function selectedMusicId(){
+  if(pick.value.startsWith('online:'))return pick.value.slice(7);
+  if(pick.value.startsWith('import:')){
+   const track=importedList.find(x=>x.id===pick.value.slice(7));
+   // Only licensed files with a market work ID can be submitted;
+   // the server independently validates the account's purchase/license and preview consent.
+   return track?.licenseId&&track?.workId?track.workId:null;
+  }
+  return null;
+ }
  async function prepareDirectFile(format){
   if(downloading)return;
   downloading=true;[wav,midi,xml].forEach(b=>b.disabled=true);
@@ -335,7 +344,7 @@ function install(host){
  xml.onclick=()=>prepareDirectFile('musicxml');
  publishMusic.onclick=async()=>{
   const id=selectedMusicId();
-  if(!id){status('🌍 共用マーケットの購入済み/自作楽曲をBGMに選んでください。');return;}
+  if(!id){status('🌍 村で公開するには、購入・制作権利があるオンライン曲か、発行ID付きのダウンロード曲を選んでください。');return;}
   try{
    if(!host.getOnlineClient)throw Error('オンライン市場に接続できません。');
    const db=await host.getOnlineClient();
