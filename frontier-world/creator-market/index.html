@@ -32,6 +32,22 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 <section><div class="flex"><div id="who">ログインすると販売・購入・印税確認ができます。</div><div id="balance"></div></div><small class="muted">通貨は共用マーケットのオンラインβ Gです。現時点でゲーム内Gとは別口座。実際の現金ではありません。</small></section>
 <section id="store"><div class="flex"><h2>🛍️ 公開作品</h2><button id="refresh" class="secondary">更新</button></div>
 <div id="list">ログインして作品を表示してください。</div></section>
+<section><h2>🏆 作品人気ランキング</h2><p class="muted">実際に成立した購入件数と、運営予算から購入したNPC件数を区別します。ランキングは決済サーバー上の実績で集計。</p><div id="rankList">ログイン後に表示します。</div><h2>🏘️ 最近のNPCによる購入</h2><div id="npcList">まだ購入記録はありません。</div></section>
+<section><h2>📚 みんなの寄贈図書館</h2><p class="muted">公開済みのオリジナル書籍を著者が寄贈すると、ログインした利用者は無料で閲覧できます。寄贈後の取消しは現在できません。</p><div id="donationList">寄贈図書はまだありません。</div></section>
+<section id="collabSection" class="hidden">
+<h2>🤝 共同制作・印税分配</h2>
+<p class="muted">招待する相手のユーザーIDが必要です。相手が参加を承認するまで作品は公開審査を通過できません。ここで指定する比率は<strong>制作者印税80%の中での割合</strong>です。招待者本人には最低10%を残します。</p>
+<div class="flex"><span id="myId" class="tags"></span><button id="copyId" type="button" class="secondary">自分のIDをコピー</button></div>
+<form id="inviteForm">
+<label>出品済みの審査待ち作品<select id="inviteWork"></select></label>
+<label>共同制作者のユーザーID<input id="inviteUid" placeholder="相手のUUID" required></label>
+<label>役割<select id="inviteRole"><option value="coauthor">共同著者</option><option value="composer">共同作曲者</option><option value="performer">演奏者</option><option value="illustrator">イラストレーター</option><option value="editor">編集者</option></select></label>
+<label>印税分配率（印税80%のうち、相手に何%配分するか）<input id="invitePercent" type="number" min="1" max="90" value="20" required></label>
+<button type="submit">共同制作者を招待</button>
+</form>
+<h2>📨 届いた招待</h2><div id="invitesList"></div>
+<h2>🤲 自分の作品の共同制作者</h2><div id="splitsList"></div>
+</section>
 <section id="create" class="hidden">
 <h2>✍️🎼🎨 自分の作品を出品</h2>
 <p class="muted">オリジナル作品のみ受け付けます。第三者の文章・楽譜・イラスト・写真を無断で出品しないでください。出品は審査待ちになり、承認後に公開されます。</p>
@@ -56,7 +72,8 @@ const SUPABASE_URL='https://htwcscrllohavtbejhjr.supabase.co';
 const PUBLIC_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
 const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm');
 const db=createClient(SUPABASE_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
-const el=id=>document.getElementById(id),state={session:null,works:[],mine:[],purchases:[],ledger:[],wallet:null};
+const el=id=>document.getElementById(id),state={session:null,works:[],mine:[],purchases:[],ledger:[],wallet:null,
+ splits:[],donations:[],rankings:[],npcSales:[],income:[],visibleWorks:[]};
 function message(text,error=false){el('message').textContent=text;el('message').className=error?'error':'success';}
 function node(tag,txt,cls){const d=document.createElement(tag);if(txt!=null)d.textContent=String(txt);if(cls)d.className=cls;return d;}
 function btn(text,fn){const b=node('button',text);b.type='button';b.addEventListener('click',fn);return b;}
@@ -101,10 +118,11 @@ async function viewWork(work){
 async function load(){
  const s=await db.auth.getSession();state.session=s.data.session;
  const logged=!!state.session;el('login').classList.toggle('hidden',logged);el('logout').classList.toggle('hidden',!logged);
- ['create','mine','owned'].forEach(k=>el(k).classList.toggle('hidden',!logged));
+ ['create','mine','owned','collabSection'].forEach(k=>el(k).classList.toggle('hidden',!logged));
  if(!logged){el('who').textContent='GitHubログインすると出品・購入できます。';el('balance').textContent='';el('list').textContent='ログインしてください。';return;}
  const uid=state.session.user.id;
  el('who').textContent=state.session.user.user_metadata?.user_name||state.session.user.email||'ログイン中';
+ el('myId').textContent='あなたのユーザーID：'+uid;
  const reg=await db.rpc('fw_market_register');if(reg.error)throw reg.error;
  const calls=await Promise.all([
   db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').eq('status','active').order('created_at',{ascending:false}).limit(120),
@@ -115,6 +133,16 @@ async function load(){
  ]);
  calls.forEach(c=>{if(c.error)throw c.error;});
  [state.works,state.mine,state.purchases,state.ledger,state.wallet]=calls.map(x=>x.data);
+ const more=await Promise.all([
+  db.from('fw_creator_splits').select('work_id,collaborator_id,contribution_role,share_bps,accepted_at,invited_at').limit(100),
+  db.from('fw_creator_library_donations').select('work_id,donated_at').limit(200),
+  db.rpc('fw_creator_rankings'),
+  db.from('fw_creator_npc_sales').select('work_id,npc_label,price_g,royalty_g,created_at').order('created_at',{ascending:false}).limit(12),
+  db.rpc('fw_creator_my_income'),
+  db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').order('created_at',{ascending:false}).limit(200)
+ ]);
+ more.forEach(c=>{if(c.error)throw c.error;});
+ [state.splits,state.donations,state.rankings,state.npcSales,state.income,state.visibleWorks]=more.map(c=>c.data||[]);
  el('balance').textContent='オンライン残高 '+state.wallet.cash_balance+'G / 利用可能 '+(state.wallet.cash_balance-state.wallet.cash_reserved)+'G';
  render();
 }
@@ -124,23 +152,87 @@ function render(){
  state.works.forEach(w=>{
   const owned=state.purchases.some(p=>p.work_id===w.id),mine=state.session.user.id===w.creator_id;
   const buttons=[];
-  if(owned||mine)buttons.push(btn('📖 開く',()=>viewWork(w).catch(e=>message(e.message,true))));
+  const donated=state.donations.some(d=>d.work_id===w.id);
+  if(owned||mine||donated)buttons.push(btn(donated?'📚 無料で読む':'📖 開く',()=>viewWork(w).catch(e=>message(e.message,true))));
   else buttons.push(btn('🪙 '+w.price_g+'Gで購入',()=>buyWork(w)));
   if(!mine)buttons.push(btn('通報',()=>reportWork(w)));
   list.appendChild(card(w,buttons));
  });
  const mine=el('mineList');mine.replaceChildren();
  if(!state.mine.length)mine.append(node('p','出品した作品はまだありません。','muted'));
- state.mine.forEach(w=>{const c=card(w,[btn('プレビュー',()=>viewWork(w).catch(e=>message(e.message,true)))]);c.append(node('small','審査状況: '+({pending:'審査待ち',active:'公開中',rejected:'掲載不可',suspended:'非公開'}[w.status]||w.status),'tags'));mine.append(c);});
+ state.mine.forEach(w=>{
+  const actions=[btn('プレビュー',()=>viewWork(w).catch(e=>message(e.message,true)))];
+  if(w.kind==='book'&&w.status==='active'&&!state.donations.some(d=>d.work_id===w.id))
+   actions.push(btn('📚 図書館に寄贈',()=>donateWork(w)));
+  const c=card(w,actions);c.append(node('small','審査状況: '+({pending:'審査待ち',active:'公開中',rejected:'掲載不可',suspended:'非公開'}[w.status]||w.status),'tags'));mine.append(c);});
  const led=el('ledger');led.replaceChildren();
- if(!state.ledger.length)led.append(node('p','まだ印税収入はありません。','muted'));
- else {const sum=state.ledger.reduce((n,e)=>n+Number(e.amount_g),0);led.append(node('b','累計印税：'+sum+'G'));state.ledger.slice(0,30).forEach(e=>led.append(node('p','🪙 +'+e.amount_g+'G　'+new Date(e.created_at).toLocaleString('ja-JP'),'muted')));}
+ if(!state.income.length)led.append(node('p','まだ印税収入はありません。','muted'));
+ else {const sum=state.income.reduce((n,e)=>n+Number(e.amount_g),0);led.append(node('b','最新'+state.income.length+'件の印税合計：'+sum+'G'));state.income.slice(0,35).forEach(e=>led.append(node('p','🪙 +'+e.amount_g+'G（'+(e.source==='npc'?'NPC':'ユーザー')+'購入） '+new Date(e.created_at).toLocaleString('ja-JP'),'muted')));}
  const ownedList=el('ownedList');ownedList.replaceChildren();
  if(!state.purchases.length)ownedList.append(node('p','購入した作品はありません。','muted'));
  state.purchases.forEach(p=>{const w=state.works.find(w=>w.id===p.work_id)||state.mine.find(w=>w.id===p.work_id);
   if(w)ownedList.append(card(w,[btn('📖 開く',()=>viewWork(w).catch(e=>message(e.message,true)))]));
  });
+ renderCommunity();
 }
+function renderCommunity(){
+ const uid=state.session.user.id;
+ const rank=el('rankList');rank.replaceChildren();
+ if(!state.rankings.length)rank.append(node('p','売買ランキングは審査済み作品が公開されると表示されます。','muted'));
+ state.rankings.slice(0,20).forEach((r,i)=>rank.append(node('div',(i+1)+'位  '+r.title+' / 👤'+r.human_sales+'件・🏘️NPC '+r.npc_sales+'件・合計'+r.gross_g+'G','work')));
+ const npc=el('npcList');npc.replaceChildren();
+ if(!state.npcSales.length)npc.append(node('p','まだNPC購入はありません。売上で積み立てられた運営予算が必要です。','muted'));
+ state.npcSales.forEach(n=>{const work=state.visibleWorks.find(w=>w.id===n.work_id);npc.append(node('div',n.npc_label+' が「'+(work?.title||'作品')+'」を購入／印税'+n.royalty_g+'G / '+new Date(n.created_at).toLocaleString('ja-JP'),'muted'));});
+ const lib=el('donationList');lib.replaceChildren();
+ if(!state.donations.length)lib.append(node('p','寄贈されたオリジナル書籍はまだありません。','muted'));
+ state.donations.forEach(d=>{const w=state.visibleWorks.find(w=>w.id===d.work_id);if(w)lib.append(card(w,[btn('📖 無料で読む',()=>viewWork(w).catch(e=>message(e.message,true)))]));});
+ const select=el('inviteWork');const previous=select.value;select.replaceChildren();
+ const pending=state.mine.filter(w=>w.status==='pending');
+ pending.forEach(w=>{const o=node('option',w.title);o.value=w.id;select.append(o);});
+ if(pending.some(w=>w.id===previous))select.value=previous;
+ el('inviteForm').querySelector('button[type="submit"]').disabled=!pending.length;
+ const invites=el('invitesList');invites.replaceChildren();
+ const incoming=state.splits.filter(x=>x.collaborator_id===uid);
+ if(!incoming.length)invites.append(node('p','招待はありません。','muted'));
+ incoming.forEach(x=>{
+  const w=state.visibleWorks.find(y=>y.id===x.work_id);
+  const d=node('div',null,'work');d.append(node('b',(w?.title||'作品')+' / 印税の'+(x.share_bps/100)+'%'));
+  if(x.accepted_at)d.append(node('p','✅ 参加済み','success'));
+  else {d.append(btn('✅ 参加を承諾',()=>respondInvitation(x.work_id,true)),btn('辞退',()=>respondInvitation(x.work_id,false)));}
+  invites.append(d);
+ });
+ const splits=el('splitsList');splits.replaceChildren();
+ const ownSplits=state.splits.filter(x=>state.mine.some(w=>w.id===x.work_id));
+ if(!ownSplits.length)splits.append(node('p','共同制作者は未登録です。','muted'));
+ ownSplits.forEach(x=>{
+  const w=state.mine.find(y=>y.id===x.work_id);
+  splits.append(node('p',(w?.title||'作品')+' / '+x.contribution_role+' '+(x.share_bps/100)+'% / '+(x.accepted_at?'承諾済み':'承諾待ち'),'muted'));
+ });
+}
+async function donateWork(w){
+ if(!confirm('「'+w.title+'」を図書館に無償寄贈しますか？\n寄贈後は全ユーザーが無料で閲覧でき、今後の販売印税は発生しません。取消しはできません。'))return;
+ const r=await db.rpc('fw_creator_donate_book',{p_work_id:w.id});
+ if(r.error){message('寄贈できません：'+r.error.message,true);return;}
+ message('📚 '+w.title+'を図書館へ寄贈しました。');await load();
+}
+async function respondInvitation(workId,accept){
+ const r=await db.rpc('fw_creator_respond_invitation',{p_work_id:workId,p_accept:accept});
+ if(r.error){message('招待処理に失敗：'+r.error.message,true);return;}
+ message(accept?'共同制作の招待を承諾しました。':'共同制作の招待を辞退しました。');await load();
+}
+el('inviteForm').addEventListener('submit',async e=>{
+ e.preventDefault();const workId=el('inviteWork').value,otherId=el('inviteUid').value.trim();
+ const percent=Number(el('invitePercent').value);
+ if(!/^[0-9a-f-]{36}$/i.test(otherId)||!Number.isInteger(percent)||percent<1||percent>90){message('ユーザーIDまたは比率が不正です。',true);return;}
+ const r=await db.rpc('fw_creator_invite_collaborator',{p_work_id:workId,p_collaborator_id:otherId,p_role:el('inviteRole').value,p_share_bps:percent*100});
+ if(r.error){message('招待できません：'+r.error.message,true);return;}
+ message('招待を送信しました。相手の承諾が必要です。');el('inviteUid').value='';await load();
+});
+el('copyId').addEventListener('click',async ()=>{
+ const id=state.session?.user?.id;if(!id)return;
+ try{await navigator.clipboard.writeText(id);message('自分のユーザーIDをコピーしました。');}
+ catch(e){message('コピーできませんでした。IDを画面から選択してください。',true);}
+});
 async function buyWork(w){
  if(!confirm('作品「'+w.title+'」を'+w.price_g+'Gで購入しますか？\n制作者へ80%の印税が支払われます。'))return;
  const requestId=crypto.randomUUID();
