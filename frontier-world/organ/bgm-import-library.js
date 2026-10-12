@@ -103,15 +103,17 @@ function xmlScore(bytes,title){
  return {title:importedTitle.slice(0,90),bpm:120,instrument:'organ',notes};
 }
 function nameFrom(file,title){return String(title||file.name||'ダウンロード曲').replace(/\.[^.]+$/,'').trim().slice(0,90)||'ダウンロード曲';}
-function licenseId(bytes){
+function licenseInfo(bytes){
  const view=bytes.length<30000?bytes:new Uint8Array([...bytes.slice(0,5000),...bytes.slice(-18000)]);
  const text=new TextDecoder('latin1').decode(view);
- return (text.match(/FW-DL:([0-9a-f-]{36})/i)||[])[1]||null;
+ const id=(text.match(/FW-DL:([0-9a-f-]{36})/i)||[])[1]||null;
+ const workId=id?(text.match(/WORK:([0-9a-f-]{36})/i)||[])[1]||null:null;
+ return {licenseId:id,workId};
 }
 function makeRecord(file,bytes,title){
  const magic=String.fromCharCode(...bytes.slice(0,4)),ext=String(file.name||'').split('.').pop().toLowerCase();
  let score=null,kind='',mime='';
- const label=nameFrom(file,title),license=licenseId(bytes);
+ const label=nameFrom(file,title),license=licenseInfo(bytes);
  if(magic==='MThd'){score=midiScore(bytes,label);kind='score';mime='audio/midi';}
  else if(ext==='musicxml'||ext==='xml'){score=xmlScore(bytes,label);kind='score';mime='application/vnd.recordare.musicxml+xml';}
  else if(magic==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WAVE'){kind='audio';mime='audio/wav';}
@@ -119,14 +121,14 @@ function makeRecord(file,bytes,title){
   kind='audio';mime=({mp3:'audio/mpeg',m4a:'audio/mp4',aac:'audio/aac',ogg:'audio/ogg',webm:'audio/webm'})[ext];
  }else throw Error('対応形式はWAV・MIDI・MusicXML・MP3・M4A・OGG・WebMです。');
  return {id:'bgmf_'+(global.crypto?.randomUUID?.()||Date.now().toString(36)+'_'+Math.random().toString(36).slice(2)),title:score?.title||label,
-  kind,mime,blob:new Blob([bytes],{type:mime}),score,licenseId:license,created:new Date().toISOString(),size:bytes.length};
+  kind,mime,blob:new Blob([bytes],{type:mime}),score,licenseId:license.licenseId,workId:license.workId,created:new Date().toISOString(),size:bytes.length};
 }
 async function putFile(file,title){
  if(!(file instanceof Blob)||file.size<1||file.size>LIMIT)throw Error('楽曲は1件16MB以内にしてください。');
  const bytes=new Uint8Array(await read(file)),entry=makeRecord(file,bytes,title);
  const previous=await list();if(previous.length>=MAX)throw Error('端末のBGM保存数は40曲までです。不要な曲を削除してください。');
  const db=await open();const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(entry);await wait(tx);
- return {id:entry.id,title:entry.title,kind:entry.kind,licenseId:entry.licenseId,size:entry.size};
+ return {id:entry.id,title:entry.title,kind:entry.kind,licenseId:entry.licenseId,workId:entry.workId,size:entry.size};
 }
 async function putBlob(blob,filename,title){
  const f=new File([blob],filename,{type:blob.type||'application/octet-stream'});
@@ -136,7 +138,7 @@ async function list(){
  const db=await open();
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAll();
-  req.onsuccess=()=>resolve((req.result||[]).map(({id,title,kind,mime,licenseId,size,created})=>({id,title,kind,mime,licenseId,size,created})).sort((a,b)=>b.created.localeCompare(a.created)));
+  req.onsuccess=()=>resolve((req.result||[]).map(({id,title,kind,mime,licenseId,workId,size,created})=>({id,title,kind,mime,licenseId,size,created})).sort((a,b)=>b.created.localeCompare(a.created)));
   req.onerror=()=>reject(req.error||Error('BGM曲一覧を読み込めませんでした。'));
  });
 }
