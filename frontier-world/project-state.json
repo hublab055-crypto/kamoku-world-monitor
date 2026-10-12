@@ -132,7 +132,9 @@
     "V49 priest family planning consultation with heart level, cooldown, household capacity, next-chance estimate and advice",
     "Iroha poem book with 3 readable pages in the live book catalog",
     "select and read library books through common-house priest and indoor bookcase with saved reading progress",
-    "10-title searchable public-domain library with nine full-text Aozora works and credits"
+    "10-title searchable public-domain library with nine full-text Aozora works and credits",
+    "library of 20 public-domain works with full-page reading",
+    "authenticated original-creative-work store for books, songs and illustrations with 80-percent royalty server settlement"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -303,7 +305,11 @@
     "test V46 quantities and condition comparisons persist after save/load for each controllable NPC",
     "test V46 NPC cooking finished inside home counts toward the correct batch and does not create unwanted servings",
     "test iroha library direct reading, booklet pagination and bookcase interaction on iPhone Safari and PC",
-    "test library selection, full-text page turning, read completion, saved progress and search on Safari"
+    "test library selection, full-text page turning, read completion, saved progress and search on Safari",
+    "E2E test 2 logged-in creator-market users purchasing a moderated original work and verifying server-side debit/royalty/treasury totals",
+    "implement creator moderation dashboard with rights verification and abuse management",
+    "integrate organ MIDI exports and local illustration editor files into creator market",
+    "secure, auditable online-beta-to-in-game-G bridge without duplicate payouts"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -354,9 +360,19 @@
       "aozora_gongitsune",
       "aozora_lemon",
       "aozora_amedama",
-      "aozora_satonoharu"
+      "aozora_satonoharu",
+      "aozora_000879_42",
+      "aozora_000879_170",
+      "aozora_000879_24453",
+      "aozora_000879_169",
+      "aozora_000081_1925",
+      "aozora_000081_466",
+      "aozora_000081_464",
+      "aozora_000121_637",
+      "aozora_000121_43403",
+      "aozora_000074_427"
     ],
-    "library_book_count": 10,
+    "library_book_count": 20,
     "public_domain_source": "Aozora Bunko copyright-expired original works; each record links its official card"
   },
   "user_publishing": {
@@ -424,5 +440,22 @@
     "full_text_public_domain": true,
     "source_links": true,
     "feature_id": "FW-2026-10-12-LIB-001"
+  },
+  "creator_market": {
+    "status": "server_beta_review_gated",
+    "url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/creator-market/",
+    "kinds": [
+      "book",
+      "music",
+      "illustration"
+    ],
+    "settlement": "fw_market_accounts online beta G",
+    "royalty_rate": 0.8,
+    "platform_rate": 0.2,
+    "moderation": "admin_sql_only",
+    "rights": "original_only",
+    "economy_bridge": "not implemented",
+    "auth": "supabase_github",
+    "security": "RLS + security-definer private RPC + unique orders"
   }
 }
