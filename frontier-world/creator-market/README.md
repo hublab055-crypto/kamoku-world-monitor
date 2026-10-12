@@ -63,7 +63,7 @@ select fw_creator_private.moderate_work('00000000-0000-0000-0000-000000000000'::
 
 ## V2: 共同印税・寄贈・NPC・ランキング（2026-10-12）
 
-実装DB migration: \`fw_creator_collaborators_donations_npc_rankings_v2\` / \`fw_creator_avoid_rls_recursion_consent_guard_v2\` / \`fw_creator_donations_revoke_when_unpublished_v2\`。
+実装DB migration: `fw_creator_collaborators_donations_npc_rankings_v2` / `fw_creator_avoid_rls_recursion_consent_guard_v2` / `fw_creator_donations_revoke_when_unpublished_v2`。
 
 ### 共同制作
 
@@ -86,26 +86,26 @@ select fw_creator_private.moderate_work('00000000-0000-0000-0000-000000000000'::
 
 ### NPCによる購入（サーバーの架空需要）
 
-- Postgres pg_cron: \`frontier-creator-npc-daily\` / \`15 10 * * *\` GMT = 毎日19:15 JSTに実行。
+- Postgres pg_cron: `frontier-creator-npc-daily` / `15 10 * * *` GMT = 毎日19:15 JSTに実行。
 - 1日最大1件。購入対象は「公開済み・寄贈されていない・過去14日以内にNPC購入されていない」作品のうち1件。
-- 運営会計 \`fw_creator_treasury\` の**当日残高20%を超える印税支出は禁止**。初期残高0Gのため、実際のユーザー売買がない間はNPC購入は成立しない。架空通貨の無からの生成をしない。
+- 運営会計 `fw_creator_treasury` の**当日残高20%を超える印税支出は禁止**。初期残高0Gのため、実際のユーザー売買がない間はNPC購入は成立しない。架空通貨の無からの生成をしない。
 - NPC支出額は販売価格×80%。元から運営会計にあるGから共同制作者へ移転する。会計上の20%のマージンはNPC購入によって新たに発生しない。
 - NPCの人物名は「司書」「吟遊詩人」「旅の画家」「旅商人」「村人」の例示ラベル。実際にゲーム世界のNPCキャラがアイテムを受領・所持する機能はまだない。
 - NPC購入実行権はDB管理者/cronのみ。一般ユーザーのRPCからは実行できない。
-- \`fw_creator_npc_sales\` と \`fw_creator_npc_ledger\` で購入/印税を追跡。
+- `fw_creator_npc_sales` と `fw_creator_npc_ledger` で購入/印税を追跡。
 
 ### 人気ランキングと履歴
 
-- \`fw_creator_rankings()\`: 作品別に実ユーザー販売数・NPC購入数・販売総額・寄贈フラグを集計。順位は人間購入を重視し、同数なら総売上等で比較。
-- \`fw_creator_my_income()\`: 実購入およびNPC購入からの制作者の受取額を、本人の認証IDで絞って返す。
+- `fw_creator_rankings()`: 作品別に実ユーザー販売数・NPC購入数・販売総額・寄贈フラグを集計。順位は人間購入を重視し、同数なら総売上等で比較。
+- `fw_creator_my_income()`: 実購入およびNPC購入からの制作者の受取額を、本人の認証IDで絞って返す。
 - 購入者リストや他人の未公開作品本文、他者の私的印税台帳は外部へ返さない。
 
 ### セキュリティ/動作検査（V2）
 
-- 共同制作の追加・承諾・寄贈の未ログインRPCは \`login required\` として拒否。
+- 共同制作の追加・承諾・寄贈の未ログインRPCは `login required` として拒否。
 - 一般ログイン利用者に管理者審査権・NPC決済実行権・共同制作者割合UPDATE権なし。
 - 寄贈非公開時のRLSを修正。全表RLS適用済み。
-- cron設定（GMT）と1日1回実行設定を確認、作品0件の状態のNPC決済は \`no_public_works\` を返した。
+- cron設定（GMT）と1日1回実行設定を確認、作品0件の状態のNPC決済は `no_public_works` を返した。
 - UI JavaScript構文を検査。GitHubリポジトリにコードと仕様をコミットした。
 - **未完了**：実ユーザー2名での招待と承諾、実売買と分配金入金、招待→審査→購入→寄贈のブラウザ通しテスト、NPCの予算あり時の1日1回試験。
 - 原作者の本人確認や著作権紛争の審査運用・利用規約は別途必要。換金可能な通貨の印税制度ではない。
