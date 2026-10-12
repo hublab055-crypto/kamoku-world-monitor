@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Frontier World | 作品マーケット</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,"Hiragino Sans",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:#131b23;color:#f4f1e9}
+header,main,footer{max-width:980px;margin:auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{font-size:1.55rem;margin:0}h2{font-size:1.12rem;margin:0 0 10px}
+a{color:#b9dbff}nav{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn{background:#29475c;color:#fff;border:1px solid #67859e;border-radius:9px;padding:10px 14px;font:inherit;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}.secondary{background:#23303d}
+section,.work{border:1px solid #456072;border-radius:12px;background:#1e2b35;padding:15px;margin-bottom:16px}
+.work{margin:8px 0;background:#23343f}
+label{display:block;margin:9px 0;font-size:.93rem}
+input,textarea,select{font:inherit;width:100%;padding:10px;background:#101a22;color:#fff;border:1px solid #647e8d;border-radius:8px}
+textarea{min-height:140px}input[type="checkbox"]{width:auto}
+p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{color:#ffb3a8}
+.flex{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.tags{font-size:.82rem;color:#b9d4e5}.hidden{display:none}
+#viewer{position:fixed;inset:0;background:#05090bdc;display:flex;align-items:center;justify-content:center;padding:12px;z-index:20}
+#viewer.hidden{display:none}.paper{width:min(760px,100%);max-height:92vh;overflow:auto;background:#f6ecdc;color:#282725;padding:18px;border-radius:12px}
+.paper pre{font:1.02rem/1.8 "Yu Mincho",serif;white-space:pre-wrap;overflow-wrap:anywhere}
+.paper button{color:#fff}.paper img{display:block;max-width:100%;max-height:66vh;margin:auto}
+#message{min-height:26px;margin:0 0 12px}#balance{font-variant-numeric:tabular-nums}
+@media(max-width:550px){header,main{padding:10px}button{padding:9px}h1{font-size:1.3rem}}
+</style></head><body>
+<header><div><h1>📚🎼🎨 作品マーケット β</h1><div class="muted">Frontier World — 創作作品の売買と80%印税</div></div>
+<nav><a class="btn secondary" href="../">ゲームに戻る</a><button id="login">GitHubでログイン</button><button id="logout" class="secondary hidden">ログアウト</button></nav></header>
+<main>
+<div id="message" role="status" aria-live="polite"></div>
+<section><div class="flex"><div id="who">ログインすると販売・購入・印税確認ができます。</div><div id="balance"></div></div><small class="muted">通貨は共用マーケットのオンラインβ Gです。現時点でゲーム内Gとは別口座。実際の現金ではありません。</small></section>
+<section id="store"><div class="flex"><h2>🛍️ 公開作品</h2><button id="refresh" class="secondary">更新</button></div>
+<div id="list">ログインして作品を表示してください。</div></section>
+<section id="create" class="hidden">
+<h2>✍️🎼🎨 自分の作品を出品</h2>
+<p class="muted">オリジナル作品のみ受け付けます。第三者の文章・楽譜・イラスト・写真を無断で出品しないでください。出品は審査待ちになり、承認後に公開されます。</p>
+<form id="postForm">
+<label>種類<select id="kind"><option value="book">📚 書籍</option><option value="music">🎼 楽曲（音符列）</option><option value="illustration">🎨 イラスト（画像）</option></select></label>
+<label>作品名<input id="title" required maxlength="120" placeholder="作品のタイトル"></label>
+<label>紹介文<input id="description" maxlength="500" placeholder="作品の説明"></label>
+<label>価格（オンラインβ G）<input id="price" type="number" min="1" max="100000" value="100" required></label>
+<div id="bookInput"><label>本文（20〜20,000文字）<textarea id="bookText" placeholder="自分で書いた作品を入力"></textarea></label></div>
+<div id="musicInput" class="hidden"><label>旋律（半角スペースで区切る、例: C4 D4 E4 F4 G4）<textarea id="musicNotes" placeholder="C4 D4 E4 G4 G4 E4"></textarea></label><small>現在は単音の簡易試聴に対応。MIDIファイルのアップロードは後続機能です。</small></div>
+<div id="imageInput" class="hidden"><label>オリジナル画像（PNG / JPEG）<input id="imageFile" type="file" accept="image/png,image/jpeg"></label><small>640px以下に縮小してデータ化します。大きなファイルは選べません。</small></div>
+<label><input id="rights" type="checkbox" required> 私がこの作品を創作し、販売する権利を持っています。</label>
+<button type="submit" id="submit">審査に提出する</button>
+</form></section>
+<section id="mine" class="hidden"><h2>📦 出品した作品</h2><div id="mineList"></div><h2>💰 印税の受取記録</h2><div id="ledger"></div></section>
+<section id="owned" class="hidden"><h2>📖 購入した作品</h2><div id="ownedList"></div></section>
+<section><h2>運用ルール</h2><p class="muted">例：作品100Gの購入が成立すると、制作者のオンラインβ口座へ80G、共用マーケット運営会計へ20Gを同じ取引で記録します。二重購入は課金しません。著作権切れの青空文庫作品は無料図書室で閲覧でき、作者に印税は発生しません。</p><p class="muted">作品内容は購入前には閲覧できません。出品は審査待ちです。違反作品は通報と管理者による非公開対応の対象です。</p></section>
+</main>
+<div id="viewer" class="hidden" role="dialog" aria-modal="true" aria-label="購入した作品"><div class="paper"><div class="flex"><h2 id="viewerTitle"></h2><button id="viewerClose">閉じる ✕</button></div><div id="viewerBody"></div></div></div>
+<script type="module">
+const SUPABASE_URL='https://htwcscrllohavtbejhjr.supabase.co';
+const PUBLIC_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
+const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm');
+const db=createClient(SUPABASE_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
+const el=id=>document.getElementById(id),state={session:null,works:[],mine:[],purchases:[],ledger:[],wallet:null};
+function message(text,error=false){el('message').textContent=text;el('message').className=error?'error':'success';}
+function node(tag,txt,cls){const d=document.createElement(tag);if(txt!=null)d.textContent=String(txt);if(cls)d.className=cls;return d;}
+function btn(text,fn){const b=node('button',text);b.type='button';b.addEventListener('click',fn);return b;}
+function card(item,actions=[]){const d=node('article',null,'work'),head=node('div',null,'flex');head.append(node('b',item.kind==='book'?'📚 '+item.title:item.kind==='music'?'🎼 '+item.title:'🎨 '+item.title),node('small',item.price_g+'G / 印税80%','tags'));d.append(head,node('p',item.description||'紹介文なし','muted'));const a=node('div',null,'flex');actions.forEach(x=>a.appendChild(x));d.appendChild(a);return d;}
+function noteToMidi(s){const m=String(s).match(/^([A-G])([#b]?)([2-7])$/i);if(!m)throw Error('無効な音符: '+s);const base={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1].toUpperCase()];return (Number(m[3])+1)*12+base+(m[2]==='#'?1:m[2]==='b'?-1:0);}
+async function encodeImage(file){
+ if(!file||!['image/png','image/jpeg'].includes(file.type))throw Error('PNG/JPEG画像を選択してください。');
+ if(file.size>6*1024*1024)throw Error('画像は6MB以下にしてください。');
+ const bitmap=await createImageBitmap(file),ratio=Math.min(1,640/Math.max(bitmap.width,bitmap.height));
+ const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+ canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
+ const data=canvas.toDataURL('image/jpeg',0.72);
+ if(data.length>180000)throw Error('画像が大きすぎます。より小さな画像を選んでください。');return {data_url:data};
+}
+function renderContent(work,payload){
+ const box=el('viewerBody');box.replaceChildren();
+ if(work.kind==='book'){box.append(node('pre',payload.text||'本文がありません')); }
+ else if(work.kind==='illustration'){
+  const data=String(payload.data_url||'');if(!/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(data))throw Error('無効な画像');
+  const image=node('img');image.src=data;image.alt=work.title;box.append(image);
+ }else if(work.kind==='music'){
+  const notes=Array.isArray(payload.notes)?payload.notes:[];box.append(node('p','メロディー：'+notes.map(n=>n.name||'?').join(' ')));
+  box.append(btn('▶ 試聴する',()=>playNotes(notes)));
+ }
+ el('viewerTitle').textContent=work.title;el('viewer').classList.remove('hidden');
+}
+let audioCtx=null;
+async function playNotes(notes){
+ const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio){message('このブラウザでは音を再生できません。',true);return;}
+ audioCtx=audioCtx||new Audio();await audioCtx.resume();const start=audioCtx.currentTime+0.05;
+ notes.slice(0,400).forEach((n,i)=>{const pitch=Number(n.pitch);if(!Number.isFinite(pitch)||pitch<24||pitch>108)return;
+  const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();const tm=start+i*0.32;
+  osc.frequency.value=440*Math.pow(2,(pitch-69)/12);osc.type='sine';osc.connect(gain);gain.connect(audioCtx.destination);
+  gain.gain.setValueAtTime(.0001,tm);gain.gain.exponentialRampToValueAtTime(.13,tm+.03);gain.gain.exponentialRampToValueAtTime(.0001,tm+.29);
+  osc.start(tm);osc.stop(tm+.31);
+ });
+}
+async function viewWork(work){
+ const result=await db.from('fw_creator_payloads').select('content').eq('work_id',work.id).single();
+ if(result.error)throw result.error;renderContent(work,result.data.content);
+}
+async function load(){
+ const s=await db.auth.getSession();state.session=s.data.session;
+ const logged=!!state.session;el('login').classList.toggle('hidden',logged);el('logout').classList.toggle('hidden',!logged);
+ ['create','mine','owned'].forEach(k=>el(k).classList.toggle('hidden',!logged));
+ if(!logged){el('who').textContent='GitHubログインすると出品・購入できます。';el('balance').textContent='';el('list').textContent='ログインしてください。';return;}
+ const uid=state.session.user.id;
+ el('who').textContent=state.session.user.user_metadata?.user_name||state.session.user.email||'ログイン中';
+ const reg=await db.rpc('fw_market_register');if(reg.error)throw reg.error;
+ const calls=await Promise.all([
+  db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').eq('status','active').order('created_at',{ascending:false}).limit(120),
+  db.from('fw_creator_works').select('id,creator_id,kind,title,description,price_g,royalty_bps,status,created_at').eq('creator_id',uid).order('created_at',{ascending:false}).limit(60),
+  db.from('fw_creator_purchases').select('id,work_id,price_g,royalty_g,created_at').eq('buyer_id',uid).order('created_at',{ascending:false}),
+  db.from('fw_creator_royalty_ledger').select('purchase_id,work_id,amount_g,created_at').eq('creator_id',uid).order('created_at',{ascending:false}).limit(100),
+  db.from('fw_market_accounts').select('cash_balance,cash_reserved').eq('user_id',uid).single()
+ ]);
+ calls.forEach(c=>{if(c.error)throw c.error;});
+ [state.works,state.mine,state.purchases,state.ledger,state.wallet]=calls.map(x=>x.data);
+ el('balance').textContent='オンライン残高 '+state.wallet.cash_balance+'G / 利用可能 '+(state.wallet.cash_balance-state.wallet.cash_reserved)+'G';
+ render();
+}
+function render(){
+ const list=el('list');list.replaceChildren();
+ if(!state.works.length)list.append(node('p','現在公開中の作品はありません。出品申請が審査・承認されるとここに表示されます。','muted'));
+ state.works.forEach(w=>{
+  const owned=state.purchases.some(p=>p.work_id===w.id),mine=state.session.user.id===w.creator_id;
+  const buttons=[];
+  if(owned||mine)buttons.push(btn('📖 開く',()=>viewWork(w).catch(e=>message(e.message,true))));
+  else buttons.push(btn('🪙 '+w.price_g+'Gで購入',()=>buyWork(w)));
+  if(!mine)buttons.push(btn('通報',()=>reportWork(w)));
+  list.appendChild(card(w,buttons));
+ });
+ const mine=el('mineList');mine.replaceChildren();
+ if(!state.mine.length)mine.append(node('p','出品した作品はまだありません。','muted'));
+ state.mine.forEach(w=>{const c=card(w,[btn('プレビュー',()=>viewWork(w).catch(e=>message(e.message,true)))]);c.append(node('small','審査状況: '+({pending:'審査待ち',active:'公開中',rejected:'掲載不可',suspended:'非公開'}[w.status]||w.status),'tags'));mine.append(c);});
+ const led=el('ledger');led.replaceChildren();
+ if(!state.ledger.length)led.append(node('p','まだ印税収入はありません。','muted'));
+ else {const sum=state.ledger.reduce((n,e)=>n+Number(e.amount_g),0);led.append(node('b','累計印税：'+sum+'G'));state.ledger.slice(0,30).forEach(e=>led.append(node('p','🪙 +'+e.amount_g+'G　'+new Date(e.created_at).toLocaleString('ja-JP'),'muted')));}
+ const ownedList=el('ownedList');ownedList.replaceChildren();
+ if(!state.purchases.length)ownedList.append(node('p','購入した作品はありません。','muted'));
+ state.purchases.forEach(p=>{const w=state.works.find(w=>w.id===p.work_id)||state.mine.find(w=>w.id===p.work_id);
+  if(w)ownedList.append(card(w,[btn('📖 開く',()=>viewWork(w).catch(e=>message(e.message,true)))]));
+ });
+}
+async function buyWork(w){
+ if(!confirm('作品「'+w.title+'」を'+w.price_g+'Gで購入しますか？\n制作者へ80%の印税が支払われます。'))return;
+ const requestId=crypto.randomUUID();
+ try{
+  const r=await db.rpc('fw_creator_purchase_work',{p_work_id:w.id,p_request_id:requestId});if(r.error)throw r.error;
+  message('購入完了：'+w.title+' ／ 制作者印税 +'+r.data.royalty_g+'G');await load();
+ }catch(e){message('購入できませんでした：'+e.message,true);}
+}
+async function reportWork(w){
+ const reason=prompt('通報理由を入力してください（6文字以上）');if(!reason)return;
+ const r=await db.from('fw_creator_reports').insert({work_id:w.id,reporter_id:state.session.user.id,reason:reason.trim()});
+ message(r.error?'通報に失敗しました：'+r.error.message:'通報を受け付けました。',!!r.error);
+}
+el('kind').addEventListener('change',()=>{
+ const kind=el('kind').value;
+ el('bookInput').classList.toggle('hidden',kind!=='book');
+ el('musicInput').classList.toggle('hidden',kind!=='music');
+ el('imageInput').classList.toggle('hidden',kind!=='illustration');
+});
+el('postForm').addEventListener('submit',async(e)=>{
+ e.preventDefault();const submit=el('submit');submit.disabled=true;
+ try{
+  const kind=el('kind').value,title=el('title').value.trim(),description=el('description').value.trim(),price=Number(el('price').value);
+  if(!el('rights').checked)throw Error('著作権を確認してください。');
+  if(!Number.isInteger(price)||price<1||price>100000)throw Error('価格は1〜100000Gの整数です。');
+  let content;
+  if(kind==='book')content={text:el('bookText').value};
+  else if(kind==='music'){const names=el('musicNotes').value.trim().split(/\s+/).filter(Boolean);if(!names.length||names.length>400)throw Error('音符は1〜400個にしてください。');content={notes:names.map(s=>({name:s,pitch:noteToMidi(s),duration:.3}))};}
+  else content=await encodeImage(el('imageFile').files[0]);
+  const result=await db.rpc('fw_creator_submit_work',{p_kind:kind,p_title:title,p_description:description,p_price_g:price,p_content:content,p_original_confirmed:true});
+  if(result.error)throw result.error;
+  el('postForm').reset();el('kind').dispatchEvent(new Event('change'));message('出品を審査待ちに登録しました。承認後に購入できます。');await load();
+ }catch(err){message('出品できません：'+err.message,true);}finally{submit.disabled=false;}
+});
+el('login').addEventListener('click',async()=>{const x=await db.auth.signInWithOAuth({provider:'github',options:{redirectTo:location.origin+location.pathname}});if(x.error)message(x.error.message,true);});
+el('logout').addEventListener('click',async()=>{await db.auth.signOut();await load();});
+el('refresh').addEventListener('click',()=>load().catch(e=>message(e.message,true)));
+el('viewerClose').addEventListener('click',()=>el('viewer').classList.add('hidden'));
+load().catch(e=>message('マーケット接続失敗: '+e.message,true));
+</script></body></html>
