@@ -94,7 +94,14 @@ function render(){
 }
 async function load(){
  const s=await db.auth.getSession();if(s.error)throw s.error;
+ const previousUser=app.session?.user?.id||null;
  app.session=s.data.session;
+ if(previousUser&&previousUser!==app.session?.user?.id){
+  if(objectUrl)URL.revokeObjectURL(objectUrl);
+  objectUrl=null;
+  el('saveSection').classList.add('hidden');
+  el('saveLink').removeAttribute('href');
+ }
  if(!app.session){render();return;}
  const uid=app.session.user.id;
  const results=await Promise.all([
