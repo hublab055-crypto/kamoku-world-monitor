@@ -12,7 +12,16 @@
 <div class="row"><button id="play">▶ 演奏を再生</button><label><input type="checkbox" id="loop"> 🔁 繰り返し再生</label><button id="stop">■ 停止</button><button id="undo">↩ 1音戻す</button><button id="clear">消去</button><span id="count" class="badge">0音</span></div><div id="status" role="status" aria-live="polite"></div></section>
 <section class="card"><h2>🎼 楽譜 (ト音記号・4/4)</h2><canvas id="sheet" width="900" height="220"></canvas><div class="row"><button id="redraw">♩ 楽譜化</button><button id="save" class="primary">📜 司祭に保管</button><button id="export">⬇ MIDI書き出し</button><button id="png">🖼 楽譜PNG保存</button></div></section>
 <section class="card"><h2>⛪ 司祭の楽譜庫</h2><p>「朝の祈り」に加え、著作権保護期間が満了した古い旋律を使った練習譜を収録。現代編曲譜や既存録音は使用していません。自作曲はこのブラウザ内に保管されます。</p><div class="row"><button id="priest" class="primary">🎵 司祭の演奏を聴く</button><button id="openDemo">📖 司祭の楽譜を開く</button></div><div id="library"></div><p>他の公開楽譜を探す：<a href="https://www.mutopiaproject.org/" target="_blank" rel="noopener noreferrer">Mutopia Project</a> ／ <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>。利用時は個々の楽譜に記載された権利・ライセンスを確認してください。</p></section>
-</main><script src="./public-domain-catalog.js"></script><script src="./instrument-engine.js"></script><script>
+<section class="card"><h2>🎤 マイク録音・音声ライブラリ</h2>
+<p>声、歌、実際の楽器演奏などを録音できます。マイクは「録音開始」を押したときだけ使用します。録音は端末内で処理され、サーバーには送信しません。</p>
+<div class="row"><label>録音名 <input id="micTitle" type="text" value="村の演奏" maxlength="60"></label>
+<button id="micStart" class="primary">🔴 マイク録音開始</button><button id="micStop">⏹ 録音終了</button></div>
+<audio id="micPreview" controls preload="none" style="width:100%;margin:8px 0" aria-label="マイク録音の確認再生"></audio>
+<div class="row"><button id="micSave">💾 音声ライブラリへ保存（BGMに使用）</button><button id="micDownload">⬇ 音声ファイル保存</button></div>
+<p id="micStatus" role="status" aria-live="polite"></p>
+<p>最長3分・1件12MBまで。保存先はこの端末のブラウザです。録音からMIDI楽譜への自動変換はまだありません。</p>
+</section>
+</main><script src="./audio-library.js"></script><script src="./public-domain-catalog.js"></script><script src="./instrument-engine.js"></script><script>
 (function(){
 'use strict';
 const $=s=>document.getElementById(s), KEY='fw_frontier_organ_scores_v1', PRIEST_KEY='fw_frontier_priest_scores_v1', PPQ=480;
@@ -283,4 +292,4 @@ try{$('loop').checked=localStorage.getItem('fw_frontier_organ_loop_v1')==='1';}c
 $('loop').addEventListener('change',()=>{try{localStorage.setItem('fw_frontier_organ_loop_v1',$('loop').checked?'1':'0');}catch(e){}});
 window.addEventListener('pagehide',stop);makeKeys();draw();library();if(new URLSearchParams(location.search).get('priest')==='1')info('⛪ 司祭エリアス「この楽譜は私が大切に保管します。」');
 })();
-</script></body></html>
+</script><script src="./mic-recorder.js"></script></body></html>
