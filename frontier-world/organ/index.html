@@ -4,32 +4,34 @@
 :root{color-scheme:dark}*{box-sizing:border-box}body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;color:#f7f2dd;background:linear-gradient(150deg,#344c56,#111c23 65%);margin:0}main{max-width:1050px;margin:0 auto;padding:12px 12px 70px}h1{font-size:clamp(22px,5vw,34px);margin:8px 0}h2{font-size:18px;color:#ebca8b;margin:0 0 10px}p{line-height:1.55;color:#bbcdd0;font-size:13px}a{color:#93e0df}.card{border:1px solid #5b7880;background:#1d2c34;border-radius:16px;padding:13px;margin-top:12px}.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}button,input,select{font:inherit}button{background:#364b56;border:1px solid #819599;color:#fff;border-radius:10px;min-height:42px;padding:7px 12px;cursor:pointer}.primary{background:#e1c287;color:#1f282b;font-weight:800;border-color:#ffe0a4}button:disabled{opacity:.45}input:not([type=checkbox]),select{border:1px solid #779198;border-radius:8px;background:#101e26;color:white;padding:8px;min-height:40px}input[type=number]{width:80px}input[type=text]{width:200px;max-width:100%}label{display:inline-flex;align-items:center;gap:6px}#keys{height:clamp(145px,26vw,220px);display:flex;position:relative;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:contain;background:#29190f;border:12px solid #876038;border-radius:12px;padding:2px 0 5px;box-shadow:0 12px 30px #0007}.key{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;padding:0;border:1px solid #777;min-height:0;border-radius:0 0 5px 5px}.white{flex:1;background:linear-gradient(#fff,#dacdb1);color:#413b30;position:relative}.black{position:absolute;top:2px;height:63%;width:4%;background:linear-gradient(#161616,#373737);border-color:#151515;z-index:2;box-shadow:2px 4px 3px #0007}.key.active{background:#81c6b4}.key.white::after{content:attr(data-note-label);position:absolute;bottom:7px;left:0;right:0;text-align:center;font-size:11px;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}#sheet{width:100%;height:auto;background:#f9f2df;border-radius:8px;display:block}.piece{border:1px solid #678087;border-radius:10px;padding:10px;margin:8px 0}.piece strong{display:block}.piece small{color:#bbccd1;display:block;margin:4px 0}.piece button{min-height:34px;font-size:12px}.badge{background:#2b5359;border-radius:18px;padding:6px 10px;font-size:12px}#status{min-height:22px;color:#b2e7cc;font-size:13px}
 </style></head><body><main>
 <a href="../">← フロンティアワールド</a><h1>🎹 コモンハウスのオルガン</h1><p>タッチ鍵盤で演奏、録音で楽譜を作成。MIDIファイルを書き出せます。司祭エリアスは曲を覚え、結婚式や村祭りで演奏できます。「⛪ 司祭に教える」で習得させてください。音が出ない場合は最初に鍵盤をタッチしてください。</p>
-<section class="card"><h2>オルガン · 鍵盤</h2>
-<div class="row"><label>曲名 <input id="title" type="text" value="新しい旋律" maxlength="60"></label><label>テンポ <input id="bpm" type="number" value="100" min="40" max="220">BPM</label><label>量子化 <select id="quant"><option value=".25">16分</option><option value=".5" selected>8分</option><option value="1">4分</option></select></label></div>
+<section class="card"><h2>🎹 音楽工房 · 演奏</h2>
+<div class="row"><label>楽器 <select id="instrument" aria-label="演奏する楽器"></select></label><span class="badge" id="instrumentHint">合成音</span></div><div class="row"><label>曲名 <input id="title" type="text" value="新しい旋律" maxlength="60"></label><label>テンポ <input id="bpm" type="number" value="100" min="40" max="220">BPM</label><label>量子化 <select id="quant"><option value=".25">16分</option><option value=".5" selected>8分</option><option value="1">4分</option></select></label></div>
 <div id="keys" aria-label="2オクターブのオルガン"></div>
 <p>2オクターブ C4〜C6。PCでは A W S E D F T G Y H U J K キーでも演奏可能。複数の鍵盤を同時に押せます。</p>
 <div class="row"><button id="record" class="primary">⏺ 録音開始</button><button id="recordStop">⏹ 録音終了</button><label><input type="checkbox" id="step"> 手入力モード</label><label>音価 <select id="duration"><option value=".5">8分</option><option value="1" selected>4分</option><option value="2">2分</option><option value="4">全音符</option></select></label></div>
-<div class="row"><button id="play">▶ 演奏を再生</button><button id="stop">■ 停止</button><button id="undo">↩ 1音戻す</button><button id="clear">消去</button><span id="count" class="badge">0音</span></div><div id="status" role="status" aria-live="polite"></div></section>
+<div class="row"><button id="play">▶ 演奏を再生</button><label><input type="checkbox" id="loop"> 🔁 繰り返し再生</label><button id="stop">■ 停止</button><button id="undo">↩ 1音戻す</button><button id="clear">消去</button><span id="count" class="badge">0音</span></div><div id="status" role="status" aria-live="polite"></div></section>
 <section class="card"><h2>🎼 楽譜 (ト音記号・4/4)</h2><canvas id="sheet" width="900" height="220"></canvas><div class="row"><button id="redraw">♩ 楽譜化</button><button id="save" class="primary">📜 司祭に保管</button><button id="export">⬇ MIDI書き出し</button><button id="png">🖼 楽譜PNG保存</button></div></section>
-<section class="card"><h2>⛪ 司祭の楽譜庫</h2><p>「朝の祈り」に加え、著作権保護期間が満了した古い旋律を使った練習譜5曲を収録。現代編曲譜や既存録音は使用していません。自作曲はこのブラウザ内に保管されます。</p><div class="row"><button id="priest" class="primary">🎵 司祭の演奏を聴く</button><button id="openDemo">📖 司祭の楽譜を開く</button></div><div id="library"></div><p>他の公開楽譜を探す：<a href="https://www.mutopiaproject.org/" target="_blank" rel="noopener noreferrer">Mutopia Project</a> ／ <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>。利用時は個々の楽譜に記載された権利・ライセンスを確認してください。</p></section>
-</main><script src="./public-domain-catalog.js"></script><script>
+<section class="card"><h2>⛪ 司祭の楽譜庫</h2><p>「朝の祈り」に加え、著作権保護期間が満了した古い旋律を使った練習譜を収録。現代編曲譜や既存録音は使用していません。自作曲はこのブラウザ内に保管されます。</p><div class="row"><button id="priest" class="primary">🎵 司祭の演奏を聴く</button><button id="openDemo">📖 司祭の楽譜を開く</button></div><div id="library"></div><p>他の公開楽譜を探す：<a href="https://www.mutopiaproject.org/" target="_blank" rel="noopener noreferrer">Mutopia Project</a> ／ <a href="https://imslp.org/" target="_blank" rel="noopener noreferrer">IMSLP</a>。利用時は個々の楽譜に記載された権利・ライセンスを確認してください。</p></section>
+</main><script src="./public-domain-catalog.js"></script><script src="./instrument-engine.js"></script><script>
 (function(){
 'use strict';
 const $=s=>document.getElementById(s), KEY='fw_frontier_organ_scores_v1', PRIEST_KEY='fw_frontier_priest_scores_v1', PPQ=480;
 const PD=Array.isArray(window.FW_ORGAN_PD)?window.FW_ORGAN_PD:[];
-const DEMO={id:'priest-demo',title:'朝の祈り',author:'司祭エリアス',bpm:88,notes:[
+const INST=window.FW_INSTRUMENTS;
+if(!INST)throw Error('楽器音源の読み込みに失敗しました。再読込してください。');
+const DEMO={id:'priest-demo',title:'朝の祈り',author:'司祭エリアス',bpm:88,instrument:'organ',notes:[
 {pitch:60,start:0,duration:1},{pitch:64,start:1,duration:1},{pitch:67,start:2,duration:2},
 {pitch:65,start:4,duration:1},{pitch:64,start:5,duration:1},{pitch:62,start:6,duration:2},
 {pitch:60,start:8,duration:1},{pitch:62,start:9,duration:1},{pitch:64,start:10,duration:1},
 {pitch:67,start:11,duration:1},{pitch:65,start:12,duration:2},{pitch:60,start:14,duration:2}]};
 let notes=[],stepAt=0,recording=false,recAt=0,context=null;
-const voices=new Map(),holds=new Map(),timers=[];
+const voices=new Map(),holds=new Map(),timers=[];let playbackToken=0;
 const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const keymap={a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72};
 function info(s){$('status').textContent=s;}
 function tempo(){return Math.min(220,Math.max(40,Number($('bpm').value)||100));}
 function validated(raw){return (Array.isArray(raw)?raw:[]).slice(0,512).filter(n=>Number.isFinite(n.pitch)&&n.pitch>=0&&n.pitch<=127&&Number.isFinite(n.start)&&n.start>=0&&n.start<2000&&Number.isFinite(n.duration)&&n.duration>0).map(n=>({pitch:Math.round(n.pitch),start:n.start,duration:Math.min(100,n.duration)}));}
-function archive(){try{const r=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(r)?r.slice(0,80).map(s=>Object.assign({},s,{notes:validated(s.notes)})).filter(s=>s.title&&s.notes.length):[];}catch(e){return [];}}
+function archive(){try{const r=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(r)?r.slice(0,80).map(s=>Object.assign({},s,{instrument:INST.get(s.instrument).id,notes:validated(s.notes)})).filter(s=>s.title&&s.notes.length):[];}catch(e){return [];}}
 function writeArchive(arr){try{localStorage.setItem(KEY,JSON.stringify(arr));return true;}catch(e){info('保存できません。ブラウザの保存領域を確認してください。');return false;}}
 function initAudio(){try{if(!context){const A=window.AudioContext||window.webkitAudioContext;if(!A){info('Web Audio非対応のブラウザです。');return null;}context=new A();}if(context.state==='suspended')context.resume();return context;}catch(e){info('音声を開始できません。');return null;}}
 /* FW48.1: Mobile touch guard, per-input voices and guaranteed note-off. */
@@ -37,32 +39,21 @@ function refreshKey(p){
  const el=document.querySelector('[data-pitch="'+p+'"]');
  if(el)el.classList.toggle('active',Array.from(voices.values()).some(v=>v.pitch===p));
 }
+function selectedInstrument(){return INST.get($('instrument').value).id;}
+function updateInstrumentInfo(){
+ const i=INST.get($('instrument').value);
+ $('instrumentHint').textContent=i.description+' / MIDI '+(INST.channel(i.id)===9?'打楽器ch10':String(i.gm+1));
+}
 function soundOn(p,id){
  const c=initAudio();if(!c)return;
  if(voices.has(id))soundOff(id);
- const t=c.currentTime,g=c.createGain();
- g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.13,t+.025);g.connect(c.destination);
- const os=[];
- [1,2,4].forEach((mul,i)=>{
-  const o=c.createOscillator(),level=c.createGain();
-  o.type=i===0?'triangle':'sine';o.frequency.value=440*Math.pow(2,(p-69)/12)*mul;
-  level.gain.value=[.67,.23,.10][i];o.connect(level);level.connect(g);o.start();os.push(o);
- });
- voices.set(id,{pitch:p,g,os});
+ const handle=INST.start(c,p,selectedInstrument(),c.currentTime,.8);
+ if(handle)voices.set(id,{pitch:p,handle});
  refreshKey(p);
 }
 function soundOff(id){
  const v=voices.get(id);if(!v)return;
- voices.delete(id);
- try{
-  const t=context.currentTime;
-  v.g.gain.cancelScheduledValues(t);
-  v.g.gain.setTargetAtTime(.0001,t,.045);
-  v.os.forEach(o=>{try{o.stop(t+.30);}catch(e){}});
- }catch(e){
-  v.os.forEach(o=>{try{o.stop();}catch(err){}});
- }
- refreshKey(v.pitch);
+ voices.delete(id);INST.release(context,v.handle,context.currentTime);refreshKey(v.pitch);
 }
 function press(p,id){
  if(holds.has(id))return;
@@ -167,12 +158,69 @@ for(let r=0;r<rows;r++){const y0=57+r*152;g.strokeStyle='#746955';for(let line=0
 arr.slice(r*13,(r+1)*13).forEach((n,j)=>{const x=120+j*56,y=pitchY(n.pitch,y0);g.strokeStyle='#504b41';for(let t=y0+55;t<=y+3;t+=11){g.beginPath();g.moveTo(x-12,t);g.lineTo(x+12,t);g.stroke();}for(let t=y0-11;t>=y-3;t-=11){g.beginPath();g.moveTo(x-12,t);g.lineTo(x+12,t);g.stroke();}
 g.save();g.translate(x,y);g.rotate(-.3);g.beginPath();g.ellipse(0,0,8,5.4,0,0,Math.PI*2);g.fillStyle=n.duration>=2?'#f9f2df':'#292725';g.fill();g.lineWidth=2;g.strokeStyle='#292725';g.stroke();g.restore();if(n.duration<4){g.lineWidth=1.5;g.beginPath();g.moveTo(x+8,y);g.lineTo(x+8,y-31);g.stroke();if(n.duration<1){g.beginPath();g.moveTo(x+8,y-31);g.quadraticCurveTo(x+24,y-27,x+20,y-17);g.stroke();}}g.fillStyle='#746955';g.font='11px sans-serif';g.textAlign='center';g.fillText(names[n.pitch%12]+(Math.floor(n.pitch/12)-1),x,y0+78);g.textAlign='left';});}
 $('count').textContent=arr.length+'音 / '+(arr.length?Math.max(...arr.map(n=>n.start+n.duration)).toFixed(1):'0')+'拍';}
-function stop(){while(timers.length)clearTimeout(timers.pop());releaseAll(false);}
-function play(s){const seq=validated(s.notes);if(!seq.length){info('音符がありません。');return;}stop();initAudio();const ms=60000/(s.bpm||tempo());seq.forEach((n,i)=>{const id='play:'+i;timers.push(setTimeout(()=>soundOn(n.pitch,id),n.start*ms));timers.push(setTimeout(()=>soundOff(id),(n.start+n.duration)*ms));});timers.push(setTimeout(()=>{stop();info('演奏が終わりました。');},Math.max(...seq.map(n=>n.start+n.duration))*ms+330));info('🎵 '+s.title+' 演奏中');}
-function current(){return {title:($('title').value||'無題').trim(),author:'プレイヤー',bpm:tempo(),notes:scoreNotes()};}
-function load(s){stop();notes=validated(s.notes);$('title').value=s.title;$('bpm').value=s.bpm||100;stepAt=Math.max(0,...notes.map(n=>n.start+n.duration));draw();info('「'+s.title+'」を開きました。');}
+function stop(){
+ playbackToken++;
+ while(timers.length)clearTimeout(timers.pop());
+ releaseAll(false);
+}
+function play(s){
+ const seq=validated(s.notes);
+ if(!seq.length){info('音符がありません。');return;}
+ stop();
+ const c=initAudio();if(!c)return;
+ const instrument=selectedInstrument(),token=playbackToken;
+ const ms=60000/(Math.max(40,Math.min(220,Number(s.bpm)||tempo())));
+ const endMs=Math.max(...seq.map(n=>n.start+n.duration))*ms;
+ let repeats=0;
+ function cycle(){
+  if(playbackToken!==token)return;
+  timers.length=0;
+  seq.forEach((n,i)=>{
+   const voiceId='play:'+token+':'+repeats+':'+i;
+   timers.push(setTimeout(()=>{
+    if(playbackToken!==token)return;
+    const c=initAudio();if(!c)return;
+    const handle=INST.start(c,n.pitch,instrument,c.currentTime,.8);
+    if(handle){voices.set(voiceId,{pitch:n.pitch,handle});refreshKey(n.pitch);}
+   },Math.round(n.start*ms)));
+   timers.push(setTimeout(()=>{
+    if(playbackToken===token)soundOff(voiceId);
+   },Math.round((n.start+n.duration)*ms)));
+  });
+  timers.push(setTimeout(()=>{
+   if(playbackToken!==token)return;
+   if($('loop').checked){
+    repeats++;info('🔁 「'+s.title+'」 '+(repeats+1)+'回目 / '+INST.label(instrument));
+    cycle();
+   }else{stop();info('演奏が終わりました。');}
+  },Math.ceil(endMs)+70));
+ }
+ cycle();
+ info('🎵 「'+s.title+'」演奏中 / '+INST.label(instrument)+($('loop').checked?' 🔁':''));
+}
+function current(){return {title:($('title').value||'無題').trim(),author:'プレイヤー',bpm:tempo(),instrument:selectedInstrument(),notes:scoreNotes()};}
+function load(s){
+ stop();notes=validated(s.notes);$('title').value=s.title;$('bpm').value=s.bpm||100;
+ $('instrument').value=INST.get(s.instrument).id;updateInstrumentInfo();
+ stepAt=Math.max(0,...notes.map(n=>n.start+n.duration));draw();info('「'+s.title+'」を開きました。');
+}
 function vlq(n){n=Math.max(0,Math.floor(n));const b=[n&127];while(n>>=7)b.unshift((n&127)|128);return b;}
-function midi(s){const us=Math.round(60000000/s.bpm),events=[{t:0,k:0,b:[255,81,3,(us>>16)&255,(us>>8)&255,us&255]},{t:0,k:1,b:[0xc0,19]}];validated(s.notes).forEach(n=>{const a=Math.round(n.start*PPQ),b=a+Math.max(1,Math.round(n.duration*PPQ));events.push({t:a,k:3,b:[0x90,n.pitch,90]},{t:b,k:2,b:[0x80,n.pitch,0]});});events.sort((a,b)=>a.t-b.t||a.k-b.k);let track=[],prev=0;events.forEach(e=>{track.push(...vlq(e.t-prev),...e.b);prev=e.t;});track.push(0,255,47,0);const L=track.length;return new Uint8Array([77,84,104,100,0,0,0,6,0,0,0,1,1,224,77,84,114,107,(L>>>24)&255,(L>>>16)&255,(L>>>8)&255,L&255,...track]);}
+function midi(s){
+ const ins=INST.get(s.instrument),ch=INST.channel(ins.id),program=INST.program(ins.id);
+ const on=0x90|ch,off=0x80|ch;
+ const us=Math.round(60000000/(Math.max(40,Math.min(220,Number(s.bpm)||100))));
+ const events=[{t:0,k:0,b:[255,81,3,(us>>16)&255,(us>>8)&255,us&255]}];
+ if(ch!==9)events.push({t:0,k:1,b:[0xc0|ch,program]});
+ validated(s.notes).forEach(n=>{
+  const a=Math.round(n.start*PPQ),b=a+Math.max(1,Math.round(n.duration*PPQ));
+  const pitch=INST.midiPitch(ins.id,n.pitch);
+  events.push({t:a,k:3,b:[on,pitch,90]},{t:b,k:2,b:[off,pitch,0]});
+ });
+ events.sort((a,b)=>a.t-b.t||a.k-b.k);
+ let track=[],prev=0;events.forEach(e=>{track.push(...vlq(e.t-prev),...e.b);prev=e.t;});
+ track.push(0,255,47,0);
+ const L=track.length;return new Uint8Array([77,84,104,100,0,0,0,6,0,0,0,1,1,224,77,84,114,107,(L>>>24)&255,(L>>>16)&255,(L>>>8)&255,L&255,...track]);
+}
 function download(b,name){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);}
 function stem(s){return String(s||'organ').replace(/[\\/:*?"<>|]/g,'_').slice(0,50);}
 
@@ -180,7 +228,7 @@ function stem(s){return String(s||'organ').replace(/[\\/:*?"<>|]/g,'_').slice(0,
 function priestKnown(){
  try{
   const list=JSON.parse(localStorage.getItem(PRIEST_KEY)||'[]');
-  return Array.isArray(list)?list.slice(0,24).filter(s=>s&&typeof s.id==='string'&&Array.isArray(s.notes)).map(s=>Object.assign({},s,{notes:validated(s.notes)})):[];
+  return Array.isArray(list)?list.slice(0,24).filter(s=>s&&typeof s.id==='string'&&Array.isArray(s.notes)).map(s=>Object.assign({},s,{instrument:INST.get(s.instrument).id,notes:validated(s.notes)})):[];
  }catch(e){return [];}
 }
 function teachPriest(raw){
@@ -210,7 +258,7 @@ window.addEventListener('message',function(e){
  library();
 });
 
-function library(){const root=$('library');root.replaceChildren();[DEMO,...PD,...archive()].forEach(s=>{const row=document.createElement('div');row.className='piece';const name=document.createElement('strong');name.textContent='🎼 '+s.title;row.appendChild(name);const meta=document.createElement('small');meta.textContent=s.author+' / '+s.bpm+'BPM / '+s.notes.length+'音'+(s.id==='priest-demo'||priestKnown().some(x=>x.id===s.id)?' / ⛪ 司祭が習得済み':'');row.appendChild(meta);
+function library(){const root=$('library');root.replaceChildren();[DEMO,...PD,...archive()].forEach(s=>{const row=document.createElement('div');row.className='piece';const name=document.createElement('strong');name.textContent='🎼 '+s.title;row.appendChild(name);const meta=document.createElement('small');meta.textContent=s.author+' / '+s.bpm+'BPM / '+s.notes.length+'音 / '+INST.label(s.instrument)+(s.id==='priest-demo'||priestKnown().some(x=>x.id===s.id)?' / ⛪ 司祭が習得済み':'');row.appendChild(meta);
 const pd=PD.find(item=>item.id===s.id);
 if(pd){const rights=document.createElement('small');rights.textContent='📜 '+pd.rights+' / '+pd.detail;row.appendChild(rights);const a=document.createElement('a');a.href=pd.source;a.target='_blank';a.rel='noopener noreferrer';a.textContent='出典・権利情報を確認 ↗';row.appendChild(a);row.appendChild(document.createElement('br'));}
 function btn(label,fn){const b=document.createElement('button');b.textContent=label;b.addEventListener('click',fn);row.appendChild(b);row.appendChild(document.createTextNode(' '));}btn('📖 開く',()=>load(s));btn('▶ 聴く',()=>play(s));if(s.id!==DEMO.id)btn('⛪ 司祭に教える',()=>teachPriest(s));if(s.id!==DEMO.id&&!pd)btn('🗑 削除',()=>{if(confirm('削除しますか？')){writeArchive(archive().filter(x=>x.id!==s.id));library();}});root.appendChild(row);});}
@@ -226,6 +274,10 @@ $('png').onclick=()=>{draw();$('sheet').toBlob(b=>{if(b)download(b,stem($('title
 $('priest').onclick=()=>{const scores=[...PD,...archive()];play(scores.length?scores[Math.floor(Math.random()*scores.length)]:DEMO);};
 $('openDemo').onclick=()=>load(DEMO);
 ['title','bpm','quant'].forEach(id=>$(id).addEventListener('input',draw));
+INST.presets.forEach(i=>{const op=document.createElement('option');op.value=i.id;op.textContent=i.label;$('instrument').appendChild(op);});
+$('instrument').value='organ';$('instrument').addEventListener('change',()=>{stop();updateInstrumentInfo();});updateInstrumentInfo();
+try{$('loop').checked=localStorage.getItem('fw_frontier_organ_loop_v1')==='1';}catch(e){}
+$('loop').addEventListener('change',()=>{try{localStorage.setItem('fw_frontier_organ_loop_v1',$('loop').checked?'1':'0');}catch(e){}});
 window.addEventListener('pagehide',stop);makeKeys();draw();library();if(new URLSearchParams(location.search).get('priest')==='1')info('⛪ 司祭エリアス「この楽譜は私が大切に保管します。」');
 })();
 </script></body></html>
