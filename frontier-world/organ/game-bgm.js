@@ -104,7 +104,10 @@ function install(host){
   voiceList.forEach(s=>createOption('voice:'+s.id,'🎙️ '+s.title));
   if([...pick.options].some(o=>o.value===selected))pick.value=selected;
   else{pick.value='priest-demo';prefs().trackId='priest-demo';persist();}
-  if(pick.value.startsWith('voice:'))prepareVoice(pick.value);else{cleanupAudioUrl();status('曲を選び、▶ 再生を押してください。');}
+  if(pick.value.startsWith('voice:')){
+   if(preparedId!==pick.value)prepareVoice(pick.value);
+   else if(!playing)status('録音データは準備できています。▶ 再生を押してください。');
+  }else{if(audioUrl)cleanupAudioUrl();if(!playing)status('曲を選び、▶ 再生を押してください。');}
  }
  async function refresh(){
   if(lib){try{voiceList=await lib.list();}catch(e){voiceList=[];}}
