@@ -137,7 +137,8 @@
     "authenticated original-creative-work store for books, songs and illustrations with 80-percent royalty server settlement",
     "co-creator invitation, acceptance and atomic proportional royalty payout",
     "authenticated creator book donations linked from the library",
-    "treasury-funded daily NPC artwork purchase beta and transparent sales leaderboards"
+    "treasury-funded daily NPC artwork purchase beta and transparent sales leaderboards",
+    "audited WAV MIDI MusicXML music downloads with receipt IDs, fingerprints and paid-purchase entitlement checks"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -315,7 +316,10 @@
     "secure, auditable online-beta-to-in-game-G bridge without duplicate payouts",
     "verify 2 GitHub-logged-in users can accept a collaboration invitation and receive exact royalty split on a paid purchase",
     "verify public library donation and revocation behavior in iPhone Safari",
-    "test funded NPC sale and 1-sale-per-Japan-day scheduler with funded treasury without issuing new G"
+    "test funded NPC sale and 1-sale-per-Japan-day scheduler with funded treasury without issuing new G",
+    "validate paid creator splits and receipt issue/download/hash verification with two authorized GitHub accounts on iOS Safari",
+    "add captured audio recording upload/mastering and real MIDI organ asset importer",
+    "use private server-generated digital signatures to authenticate canonical licensed media without trusting client-side hashes"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -473,7 +477,20 @@
     "donation": "approved single-author books only; no reversible donation",
     "rankings": true,
     "npc_in_world_behavior": false,
-    "verified": "schema/permissions/static syntax",
-    "integration_test": "pending real authenticated multi-user flow"
+    "verified": "client JS syntax + WAV/MIDI container lengths + license watermark extraction + DB permissions",
+    "integration_test": "pending real authenticated multi-user flow",
+    "licensed_music_downloads": true,
+    "downloadable_music_formats": [
+      "wav_synthesized_record",
+      "midi",
+      "musicxml"
+    ],
+    "license_receipts": "server-issued UUID linked to purchase and owner",
+    "receipt_sha256": "client-exported byte fingerprint, finalized once",
+    "direct_paid_download": "purchase first, then unlimited zero-extra-coin file issuance",
+    "verify_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/creator-market/music-download.html",
+    "server_signatures": false,
+    "drm": false,
+    "end_to_end_test": "pending Safari and two authenticated accounts"
   }
 }
