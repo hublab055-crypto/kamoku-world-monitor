@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "kind": "items",
-  "version": "2026-10-07",
+  "version": "2026-10-13",
   "status": "authoring_source_not_runtime_loaded",
   "records": [
     {
@@ -278,6 +278,81 @@
         "lighting"
       ],
       "notes": "室内照明用"
+    },
+    {
+      "id": "paper",
+      "name": "紙",
+      "category": "material",
+      "icon": "📄",
+      "weight": 0.05,
+      "basePrice": 2,
+      "stackMax": 200,
+      "tags": [
+        "processed",
+        "writing",
+        "publishing"
+      ],
+      "notes": "草繊維または木材から作る紙。書籍製本時にページ数分を消費"
+    },
+    {
+      "id": "parchment",
+      "name": "羊皮紙",
+      "category": "material",
+      "icon": "📜",
+      "weight": 0.12,
+      "basePrice": 5,
+      "stackMax": 200,
+      "tags": [
+        "processed",
+        "animal",
+        "writing",
+        "publishing"
+      ],
+      "notes": "獣皮をなめして作る書写素材。通常の紙の代わりに製本可能"
+    },
+    {
+      "id": "soot",
+      "name": "煤",
+      "category": "material",
+      "icon": "🔥",
+      "weight": 0.05,
+      "basePrice": 2,
+      "stackMax": 200,
+      "tags": [
+        "processed",
+        "inkmaking"
+      ],
+      "notes": "木材を燃焼して生産するインク材料"
+    },
+    {
+      "id": "ink",
+      "name": "インク",
+      "category": "material",
+      "icon": "🖋️",
+      "weight": 0.06,
+      "basePrice": 3,
+      "stackMax": 200,
+      "tags": [
+        "processed",
+        "writing",
+        "publishing"
+      ],
+      "notes": "煤と水から作る。書籍製本時に2ページあたり1個消費"
+    },
+    {
+      "id": "hide",
+      "name": "獣皮",
+      "category": "material",
+      "icon": "🐏",
+      "weight": 1,
+      "basePrice": 12,
+      "stackMax": 99,
+      "tags": [
+        "animal",
+        "raw",
+        "tanning"
+      ],
+      "notes": "羊皮紙の材料。狩猟からの回収は未連携のため商人購入で代用"
     }
   ]
 }
