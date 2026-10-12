@@ -13355,7 +13355,8 @@ function fw491RenderLibraryShelf(){
   section.id='fw491LibraryShelf';
   section.innerHTML='<h3>📚 図書室の本棚・閲覧（'+fw491LibraryBookIds().length+'冊）</h3>'+ 
    '<label class="note">書籍検索 <input id="fw491ShelfSearch" type="search" placeholder="題名・著者・ジャンル" style="width:100%;margin:5px 0;padding:9px;background:#151a1d;border:1px solid #65727a;border-radius:8px;color:#fff"></label>'+
-   '<div class="note">読みたい本を選ぶとページを開きます。閲覧は無料で貸出制限はありません。</div>'+
+   '<div class="note">読みたい本を選ぶとページを開きます。閲覧は無料で貸出制限はありません。</div>'+ 
+   '<div class="tileCard">🌐 <b>みんなの寄贈図書館</b><br>作家が寄贈したオリジナル作品を無料で読めます。<br><a class="smallBtn" href="creator-market/" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:7px 12px;margin-top:6px;color:white;text-decoration:none">寄贈作品を探す</a></div>'+
    (available||'<div class="tileCard">📖 蔵書を読み込み中…</div>');
   body.insertBefore(section,body.firstChild);
 }
