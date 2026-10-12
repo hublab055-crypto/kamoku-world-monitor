@@ -141,7 +141,9 @@
     "audited WAV MIDI MusicXML music downloads with receipt IDs, fingerprints and paid-purchase entitlement checks",
     "online-owned music selection in game BGM player",
     "public village BGM discovery and eight-note authorized previews",
-    "village sales paying 10% seller, 70% music rightsholders and 20% marketplace in one transaction"
+    "village sales paying 10% seller, 70% music rightsholders and 20% marketplace in one transaction",
+    "import saved song files as offline local game BGM with IndexedDB and file picker",
+    "direct creator-market licensed song registration into game's BGM selection"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -327,7 +329,9 @@
     "run iOS Safari two-user acceptance test of village track playback, 100G purchase, split royalties and WAV/MIDI/MusicXML license download",
     "support real mastered audio recordings/record press workflow and rights consent for composition/master/performers",
     "Test BGM modal download on iPhone Safari for local song and recording",
-    "Test owned market BGM direct download within the game modal with authenticated buyer and supplier settlement"
+    "Test owned market BGM direct download within the game modal with authenticated buyer and supplier settlement",
+    "iPhone Safari test file picker WAV/MIDI/MusicXML import playback, persistence across game save reload and site refresh",
+    "test direct download-page-to-game cross-tab BGM activation, licensed village preview sharing"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -529,5 +533,29 @@
     "market_score_license_flow": "issue -> render -> sha256 -> register -> tap download",
     "last_change": "FW-2026-10-12-CREATOR-005",
     "ios_safari_real_device_test": "pending"
+  },
+  "bgm_download_import": {
+    "status": "implemented_static_verified",
+    "game_bgm_panel": [
+      "📂 端末から曲を追加",
+      "🗑️ 読み込んだ曲を削除"
+    ],
+    "direct_market_download_to_bgm": true,
+    "formats": [
+      "WAV",
+      "MIDI",
+      "MusicXML",
+      "MP3",
+      "M4A",
+      "AAC",
+      "OGG",
+      "WebM"
+    ],
+    "storage": "on-device IndexedDB fw_frontier_bgm_import_v1",
+    "max_track_bytes": 16777216,
+    "max_tracks": 40,
+    "listen_without_online_payment": true,
+    "village_publication": "only market-backed licensed work with public-preview opt-in; server verifies entitlement",
+    "test_status": "MIDI and WAV byte-level + JS syntax complete; Safari E2E pending"
   }
 }
