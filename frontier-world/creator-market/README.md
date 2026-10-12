@@ -226,3 +226,14 @@ V4補足：共同制作者の役割に、音源製作者 `producer` に加えて
 - **検証**: `organ/game-bgm.js`/ `creator-market/music-export.js` JavaScript構文検査合格。デモ「村の演奏」3音からWAV、MIDI、MusicXMLを生成。RIFFサイズとMIDIトラックサイズの整合・ローカル曲への偽ライセンス発行防止を確認。実機のiPhone Safariでのファイル保存/印税経路のE2E試験は未実施。
 - 従来の共用村BGM販売用`creator-market/village-bgm.html`と、ライセンス管理画面`creator-market/music-download.html`も維持する。
 
+
+## V3.2 — 購入・ダウンロードした楽曲をゲームBGMとして使う（2026-10-12）
+
+- フロンティアワールドのBGMパネルから **「📂 端末から曲を追加」** を選択し、WAV/MIDI/MusicXMLを読み込む。選択した曲はBGMドロップダウンへ`📂`付きで表示。音声は音声プレーヤー、MIDI/MusicXMLは`FW_INSTRUMENTS`で演奏。
+- `creator-market/music-download.html` の正規楽曲ダウンロード作成後に、保存リンク横の **「🎶 ゲームBGMに登録」** を押すと、同じ端末のIndexedDBへ直接追加する。ゲームを開いている別タブにも選曲更新を通知する。
+- `organ/bgm-import-library.js`がIndexedDB `fw_frontier_bgm_import_v1` を管理。書込みはユーザーの操作時だけ、ファイルはサーバーへアップロードしない。1曲16MB、最大40件。削除は端末側ライブラリからのみ行い、ダウンロードした元ファイルは削除しない。
+- 許諾を受けて取得した音楽を再生・登録する際には**0Gの追加決済**。元の購入に対する売上80%の印税精算は別のマーケット取引で記録済み。
+- 自分の村のBGMとしてオンライン公開するには市場の正式な作品IDと購入/著作権利、権利者の試聴許可が必要。保存ファイル内部のライセンスと作品IDがある場合だけ公開候補とし、DB側が再度権利を検査する。任意の音声ファイルを公開アップロードしない。
+- ブラウザ内データ消去・プライベートモードでは端末内BGMが消える可能性がある。自動再生禁止に従い▶ボタンを押す。
+- 静的JS構文検査とWAV/MIDIライセンスID抽出・MIDIインポート試験を実施。MusicXMLの実機読み込み、iOS Safari/PCでのUI E2E確認はこれから。
+
