@@ -26,7 +26,7 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 @media(max-width:550px){header,main{padding:10px}button{padding:9px}h1{font-size:1.3rem}}
 </style></head><body>
 <header><div><h1>📚🎼🎨 作品マーケット β</h1><div class="muted">Frontier World — 創作作品の売買と80%印税</div></div>
-<nav><a class="btn secondary" href="../">ゲームに戻る</a><button id="login">GitHubでログイン</button><button id="logout" class="secondary hidden">ログアウト</button></nav></header>
+<nav><a class="btn secondary" href="../">ゲームに戻る</a><a class="btn secondary" href="music-download.html">💿 購入曲を保存</a><button id="login">GitHubでログイン</button><button id="logout" class="secondary hidden">ログアウト</button></nav></header>
 <main>
 <div id="message" role="status" aria-live="polite"></div>
 <section><div class="flex"><div id="who">ログインすると販売・購入・印税確認ができます。</div><div id="balance"></div></div><small class="muted">通貨は共用マーケットのオンラインβ Gです。現時点でゲーム内Gとは別口座。実際の現金ではありません。</small></section>
@@ -63,7 +63,7 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 <button type="submit" id="submit">審査に提出する</button>
 </form></section>
 <section id="mine" class="hidden"><h2>📦 出品した作品</h2><div id="mineList"></div><h2>💰 印税の受取記録</h2><div id="ledger"></div></section>
-<section id="owned" class="hidden"><h2>📖 購入した作品</h2><div id="ownedList"></div></section>
+<section id="owned" class="hidden"><h2>📖 購入した作品</h2><p><a class="btn secondary" href="music-download.html">💿 購入済みの楽曲をWAV・MIDI・楽譜で保存する</a></p><div id="ownedList"></div></section>
 <section><h2>運用ルール</h2><p class="muted">例：作品100Gの購入が成立すると、制作者のオンラインβ口座へ80G、共用マーケット運営会計へ20Gを同じ取引で記録します。二重購入は課金しません。著作権切れの青空文庫作品は無料図書室で閲覧でき、作者に印税は発生しません。</p><p class="muted">作品内容は購入前には閲覧できません。出品は審査待ちです。違反作品は通報と管理者による非公開対応の対象です。</p></section>
 </main>
 <div id="viewer" class="hidden" role="dialog" aria-modal="true" aria-label="購入した作品"><div class="paper"><div class="flex"><h2 id="viewerTitle"></h2><button id="viewerClose">閉じる ✕</button></div><div id="viewerBody"></div></div></div>
