@@ -65,7 +65,7 @@ function render(){
   w.creator_id===uid||app.purchases.some(p=>p.work_id===w.id)||
   app.splits.some(s=>s.work_id===w.id&&s.collaborator_id===uid&&!!s.accepted_at)
  ));
- if(!music.length){library.append(node('p','保存できる楽曲はまだありません。作品マーケットで楽曲を購入するか、楽曲を出品してください。'));return;}
+ if(!music.length)library.append(node('p','保存できる楽曲はまだありません。作品マーケットで楽曲を購入するか、楽曲を出品してください。'));
  for(const w of music){
   const box=node('div');box.className='work';
   box.append(node('div',w.title),'制作物から合成して書き出します。');
