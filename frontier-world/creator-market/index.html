@@ -26,7 +26,7 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 @media(max-width:550px){header,main{padding:10px}button{padding:9px}h1{font-size:1.3rem}}
 </style></head><body>
 <header><div><h1>📚🎼🎨 作品マーケット β</h1><div class="muted">Frontier World — 創作作品の売買と80%印税</div></div>
-<nav><a class="btn secondary" href="../">ゲームに戻る</a><a class="btn secondary" href="music-download.html">💿 購入曲を保存</a><button id="login">GitHubでログイン</button><button id="logout" class="secondary hidden">ログアウト</button></nav></header>
+<nav><a class="btn secondary" href="../">ゲームに戻る</a><a class="btn secondary" href="music-download.html">💿 購入曲を保存</a><a class="btn secondary" href="village-bgm.html">🏡 村のBGM市場</a><button id="login">GitHubでログイン</button><button id="logout" class="secondary hidden">ログアウト</button></nav></header>
 <main>
 <div id="message" role="status" aria-live="polite"></div>
 <section><div class="flex"><div id="who">ログインすると販売・購入・印税確認ができます。</div><div id="balance"></div></div><small class="muted">通貨は共用マーケットのオンラインβ Gです。現時点でゲーム内Gとは別口座。実際の現金ではありません。</small></section>
@@ -41,7 +41,7 @@ p,small{line-height:1.65}.muted{color:#b4c6d2}.success{color:#9ae5ae}.error{colo
 <form id="inviteForm">
 <label>出品済みの審査待ち作品<select id="inviteWork"></select></label>
 <label>共同制作者のユーザーID<input id="inviteUid" placeholder="相手のUUID" required></label>
-<label>役割<select id="inviteRole"><option value="coauthor">共同著者</option><option value="composer">共同作曲者</option><option value="performer">演奏者</option><option value="illustrator">イラストレーター</option><option value="editor">編集者</option></select></label>
+<label>役割<select id="inviteRole"><option value="coauthor">共同著者</option><option value="composer">共同作曲者</option><option value="performer">演奏者</option><option value="producer">音源製作者</option><option value="illustrator">イラストレーター</option><option value="editor">編集者</option></select></label>
 <label>印税分配率（印税80%のうち、相手に何%配分するか）<input id="invitePercent" type="number" min="1" max="90" value="20" required></label>
 <button type="submit">共同制作者を招待</button>
 </form>
@@ -167,7 +167,7 @@ function render(){
   const c=card(w,actions);c.append(node('small','審査状況: '+({pending:'審査待ち',active:'公開中',rejected:'掲載不可',suspended:'非公開'}[w.status]||w.status),'tags'));mine.append(c);});
  const led=el('ledger');led.replaceChildren();
  if(!state.income.length)led.append(node('p','まだ印税収入はありません。','muted'));
- else {const sum=state.income.reduce((n,e)=>n+Number(e.amount_g),0);led.append(node('b','最新'+state.income.length+'件の印税合計：'+sum+'G'));state.income.slice(0,35).forEach(e=>led.append(node('p','🪙 +'+e.amount_g+'G（'+(e.source==='npc'?'NPC':'ユーザー')+'購入） '+new Date(e.created_at).toLocaleString('ja-JP'),'muted')));}
+ else {const sum=state.income.reduce((n,e)=>n+Number(e.amount_g),0);led.append(node('b','最新'+state.income.length+'件の印税合計：'+sum+'G'));state.income.slice(0,35).forEach(e=>led.append(node('p','🪙 +'+e.amount_g+'G（'+(e.source==='npc'?'NPC':e.source==='village_seller'?'村での紹介販売':'ユーザー')+'購入） '+new Date(e.created_at).toLocaleString('ja-JP'),'muted')));}
  const ownedList=el('ownedList');ownedList.replaceChildren();
  if(!state.purchases.length)ownedList.append(node('p','購入した作品はありません。','muted'));
  state.purchases.forEach(p=>{const w=state.works.find(w=>w.id===p.work_id)||state.mine.find(w=>w.id===p.work_id);
