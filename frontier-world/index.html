@@ -12101,6 +12101,8 @@ function fw50ClearDreamBoost(){fw50PendingDream=null;}
 })();
 </script>
 
+<script src="organ/public-domain-catalog.js"></script>
+<script src="organ/priest-music-bridge.js"></script>
 <script>
 /* FRONTIER_V37_CONSOLE_LOGS */
 (function(){
@@ -12981,6 +12983,59 @@ document.addEventListener('click',function(e){
  }else{ o.placed=false;msg('📦 オルガンを収納した。'); }
  openInventory();
 },true);
+
+/* FRONTIER_V48_3_PRIEST_MUSIC_CEREMONY */
+if(window.FW_PriestMusic49){
+ const fw49PriestMusic=window.FW_PriestMusic49.install({
+  getState:()=>state,
+  notify:msg,
+  getOverlay:()=>fw48Overlay,
+  openOrgan:priest=>fw48OrganOpen(priest),
+  recordChronicle:(type,detail)=>fw43RecordEvent(type,detail)
+ });
+ fw49PriestMusic.getStore();
+ const fw49PriorLoad=fw10LoadGame;
+ fw10LoadGame=function(){
+  const ret=fw49PriorLoad.apply(this,arguments);
+  fw49PriestMusic.stop();
+  fw49PriestMusic.mergeFromLocal();
+  return ret;
+ };
+ const fw49PriorPriestMenu=fw43PriestMenu;
+ fw43PriestMenu=function(){
+  const result=fw49PriorPriestMenu.apply(this,arguments);
+  const target=document.getElementById('dialogReplies');
+  if(target&&!target.querySelector('[data-reply="fw49:music"]'))
+   target.insertAdjacentHTML('beforeend',fw42HtmlButton('fw49:music','🎶 司祭の音楽室・演奏を依頼'));
+  return result;
+ };
+ const fw49PriorDialog=handleDialogAction;
+ handleDialogAction=function(key){
+  if(key==='fw49:music'){fw49PriestMusic.render();return;}
+  return fw49PriorDialog.apply(this,arguments);
+ };
+ const fw49PriorCeremony=fw10StartCeremony;
+ fw10StartCeremony=function(type){
+  const result=fw49PriorCeremony.apply(this,arguments);
+  fw49PriestMusic.onCeremony(type);
+  return result;
+ };
+ const fw49PriorNpc=updateNPC;
+ updateNPC=function(n,dt){
+  const result=fw49PriorNpc.apply(this,arguments);
+  fw49PriestMusic.scheduled(n);
+  return result;
+ };
+ const fw49PriorOrganOpen=fw48OrganOpen;
+ fw48OrganOpen=function(priest){
+  const result=fw49PriorOrganOpen.apply(this,arguments);
+  fw49PriestMusic.attachFrameSync();
+  return result;
+ };
+ document.addEventListener('visibilitychange',function(){
+  if(document.hidden)fw49PriestMusic.stop();
+ });
+}
 
 })();
 </script>
