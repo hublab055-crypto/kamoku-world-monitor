@@ -129,7 +129,9 @@
     "V48 wedding cancellation before vows, duplicate officiated ceremony prevention and NPC position restoration",
     "V49 conception chance recalculated with improved health/home/stress-weighted baseline and 10 percentage point boost for each unsuccessful night",
     "V49 sixth qualifying attempt guaranteed after five unsuccessful attempts, with per-spouse counters saved and reset on success",
-    "V49 priest family planning consultation with heart level, cooldown, household capacity, next-chance estimate and advice"
+    "V49 priest family planning consultation with heart level, cooldown, household capacity, next-chance estimate and advice",
+    "Iroha poem book with 3 readable pages in the live book catalog",
+    "select and read library books through common-house priest and indoor bookcase with saved reading progress"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -298,7 +300,8 @@
     "test family dining 5-10 second seated wait and handholding movement on mobile",
     "test V46 cook exactly five meals and sell three prepared meals per batch on iPhone",
     "test V46 quantities and condition comparisons persist after save/load for each controllable NPC",
-    "test V46 NPC cooking finished inside home counts toward the correct batch and does not create unwanted servings"
+    "test V46 NPC cooking finished inside home counts toward the correct batch and does not create unwanted servings",
+    "test iroha library direct reading, booklet pagination and bookcase interaction on iPhone Safari and PC"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -386,5 +389,19 @@
     ],
     "settings_selector": "fwVersionSelect",
     "cache_refresh_button": "fwVersionRefresh"
+  },
+  "library_reading": {
+    "feature_version": "V49.1 add-on",
+    "game_commit": "d433820cae5e852dff5b2cf7547c9d8010ba9bf5",
+    "initial_books": [
+      "iroha_uta"
+    ],
+    "location": "common_house",
+    "access": [
+      "priest_library_menu",
+      "indoor_bookcase_action"
+    ],
+    "reading_ui": "existing V41 reader",
+    "live_browser_test": "pending"
   }
 }
