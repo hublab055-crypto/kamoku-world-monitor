@@ -9282,14 +9282,11 @@ function fw42CoupleNight(){
  if(f){f.x=clamp(bed.x+.85,.6,it.roomW-.6);f.y=it.pos.y;}
  n.heartMeter=100;n.heartDay=state.day;
  const recent=fw42Pregnancy(n);
- if(!recent&&(state.family.children||[]).length<4){
-  const hunger=(fw42Range(state.player.hunger)+fw42Range(n.hunger))/200;
-  const stamina=(fw42Range(state.player.st)+fw42Range(n.st))/200;
-  const hygiene=(fw42Range(state.player.hygiene)+fw42Range(n.hygiene))/200;
-  const home=fw34HomeCleanliness(b)/100;
-  const stress=(fw42Range(state.player.stress42==null?20:state.player.stress42)+fw42Range(n.stress42==null?20:n.stress42))/200;
-  const chance=clamp(.18*(.4+.6*hunger)*(.45+.55*stamina)*(.45+.55*hygiene)*(.4+.6*home)*(1-.75*stress),.015,.28);
-  if(Math.random()<chance){
+ if(!recent&&(state.family.children||[]).length+(state.family.pregnancies||[]).length<4){
+  const chance=fw49ConceptionChance(n,b);
+  const success=Math.random()<chance;
+  fw49TrackAttempt(n,chance,success);
+  if(success){
    state.family.pregnancies.push({parent:n.id,startDay:state.day,dueDay:state.day+300,gender:null,revealed:false,announceDay:state.day+55+Math.floor(Math.random()*30),version42:true});
    if(typeof fw37Log==='function')fw37Log('family','非公開の家族イベント開始 / Day '+state.day,n);
   }
@@ -11979,6 +11976,89 @@ handleDialogAction=function(k){
 const fw48PreviousWeddingUpdate=update;
 update=function(dt){if(fw48Wedding)return;return fw48PreviousWeddingUpdate(dt);};
 /* END FRONTIER_V48_PRIEST_PREGNANCY_EXAM_AND_WEDDING */
+
+/* FRONTIER_V49_FAMILY_PLANNING_BALANCE */
+function fw49Planning(n){
+ if(!n.familyPlanning49||typeof n.familyPlanning49!=='object')n.familyPlanning49={attempts:0,failed:0,lastAttemptDay:-1,lastChance:0};
+ const f=n.familyPlanning49;
+ f.attempts=Math.max(0,Math.floor(Number(f.attempts)||0));
+ f.failed=Math.max(0,Math.floor(Number(f.failed)||0));
+ return f;
+}
+function fw49ConceptionChance(n,homeBuilding){
+ const f=fw49Planning(n);
+ if(f.failed>=5)return 1;
+ const norm=function(v){return fw42Range(v)/100;};
+ const hunger=(norm(state.player.hunger)+norm(n.hunger))/2;
+ const stamina=(norm(state.player.st)+norm(n.st))/2;
+ const hygiene=(norm(state.player.hygiene)+norm(n.hygiene))/2;
+ const cleanliness=clamp(fw34HomeCleanliness(homeBuilding)/100,0,1);
+ const stress=(norm(state.player.stress42==null?20:state.player.stress42)+norm(n.stress42==null?20:n.stress42))/2;
+ const base=clamp(.34*(.55+.45*hunger)*(.55+.45*stamina)*(.55+.45*hygiene)*
+  (.50+.50*cleanliness)*(1-.60*stress),.06,.40);
+ return clamp(base+Math.min(5,f.failed)*.10,.06,1);
+}
+function fw49TrackAttempt(n,chance,success){
+ const f=fw49Planning(n);
+ if(f.lastAttemptDay===state.day)return;
+ f.attempts++;
+ f.lastAttemptDay=state.day;
+ f.lastChance=Math.round(chance*1000)/10;
+ f.lastSuccess=!!success;
+ if(success)f.failed=0;
+ else f.failed=Math.min(5,f.failed+1);
+ if(typeof window.fw37Log==='function')window.fw37Log(
+  'family','二人の時間：家族イベント判定実施 '+(success?'成立':'見送り')+'（'+
+  f.lastChance+'%、連続未成立'+f.failed+'回）',n);
+}
+const fw49PrevPriestMenu=fw43PriestMenu;
+fw43PriestMenu=function(){
+ fw49PrevPriestMenu();
+ const r=$('#dialogReplies');
+ if(r&&!r.querySelector('[data-reply="fw49:planning"]'))
+  r.insertAdjacentHTML('beforeend',fw42HtmlButton('fw49:planning','👶 家族づくり相談'));
+};
+function fw49PlanningMenu(){
+ const n=state.npcs.filter(function(x){return x.alive!==false&&!x.controlled&&!x.isChild&&
+  x.id!=='priest43'&&x.relationship==='family';});
+ if(!n.length){fw43PriestSay('家族として共に暮らすお相手と、一度お越しください。');return;}
+ $('#dialogReplies').innerHTML='<div class="note" style="width:100%">結婚したお二人の生活習慣と、夜に二人の時間を過ごす条件を確認します。妊娠の有無は別の「診察」で確認できます。</div>'+
+  n.map(function(x){return fw42HtmlButton('fw49:planning:'+x.id,'💞 '+fw422Esc(x.name)+'との家族づくり');}).join('')+
+  fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
+}
+function fw49PlanningDetails(id){
+ const n=state.npcs.find(function(x){return x.id===id&&x.alive!==false&&x.relationship==='family';});
+ if(!n){fw49PlanningMenu();return;}
+ const parentHome=fw12SharedHome(n),home=parentHome||state.buildings.find(function(x){return x.id==='player';});
+ const f=fw49Planning(n),childCount=(state.family.children||[]).length+(state.family.pregnancies||[]).length;
+ const heart=Math.round(fw18EnsureHeart(n));
+ const cooldown=Math.max(0,3-(state.day-Number(n.heartDay==null?-999:n.heartDay)));
+ const chance=home?Math.round(fw49ConceptionChance(n,home)*100):0;
+ const ready=!!home&&heart>=200&&cooldown===0&&childCount<4;
+ const status=[
+  '親密度 '+heart+'/200'+(heart>=200?' ✅':'（あと'+(200-heart)+'）'),
+  '次に二人の時間を過ごせるまで '+cooldown+'ゲーム日',
+  '家族の子ども・妊娠記録 '+childCount+'/4'+(childCount>=4?'（上限）':''),
+  '連続して授からなかった回数 '+f.failed+'回',
+  '次回の成立確率（現在の生活状態での目安） '+chance+'%'
+ ].join(' / ');
+ const help=ready?'夜に一緒の家でベッドを使えば、家族イベントを試せます。':
+  '親密度200、3ゲーム日の間隔、同じ家での夜の就寝、家族枠の空きが必要です。';
+ const text='👶 '+n.name+'さんとの相談です。\n'+status+'\n'+help+
+  '\n元気・食事・清潔・家の清掃・ストレス対策を整えましょう。5回続けて実らなければ、次の正式な機会は必ず成立するゲーム内救済があります。'+
+  '\n赤ちゃんを授かっているかどうかは「子どもがいるか診察」で確認できます。';
+ typeLine(text);
+ $('#dialogReplies').innerHTML=fw42HtmlButton('fw49:planning','↩ 相手を選び直す')+
+  fw42HtmlButton('fw43:priest:menu','↩ 司祭メニュー');
+}
+const fw49PrevDialogAction=handleDialogAction;
+handleDialogAction=function(k){
+ if(k==='fw49:planning'){fw49PlanningMenu();return;}
+ if(typeof k==='string'&&k.startsWith('fw49:planning:')){fw49PlanningDetails(k.slice('fw49:planning:'.length));return;}
+ return fw49PrevDialogAction(k);
+};
+/* END FRONTIER_V49_FAMILY_PLANNING_BALANCE */
+
 
 
 
