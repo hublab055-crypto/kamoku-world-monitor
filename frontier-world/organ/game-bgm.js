@@ -62,6 +62,9 @@ function install(host){
  const visitVillages=el('button','smallBtn','🏡 他の村のBGM');
  [buyMusic,publishMusic,visitVillages].forEach(b=>{b.type='button';b.style.cssText='font-size:12px;padding:8px;';commerce.append(b);});
  panel.appendChild(commerce);
+ const shareLink=el('a','','🔗 公開した村のBGMページを開く');
+ shareLink.target='_blank';shareLink.rel='noopener noreferrer';shareLink.style.cssText='display:none;color:#bff4d6;font-size:12px;margin:6px 0;text-decoration:underline;';
+ panel.appendChild(shareLink);
  const buttons=el('div');buttons.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;';
  const playBtn=el('button','smallBtn','▶ 再生'),stopBtn=el('button','smallBtn','■ 停止'),reloadBtn=el('button','smallBtn','⟳ 曲更新');
  [playBtn,stopBtn,reloadBtn].forEach(b=>{b.type='button';b.style.cssText='padding:9px;';buttons.appendChild(b);});panel.appendChild(buttons);
@@ -212,7 +215,7 @@ function install(host){
    if(r.error)throw r.error;
    const share='creator-market/village-bgm.html?village='+encodeURIComponent(auth.data.session.user.id);
    status('🌍 BGMを村に公開しました。訪問者は村の音楽を試聴・購入できます。');
-   global.open(share,'_blank','noopener');
+   shareLink.href=share;shareLink.style.display='inline-block';
   }catch(e){status('BGM公開に失敗: '+(e.message||e));}
  };
  visitVillages.onclick=()=>global.open('creator-market/village-bgm.html','_blank','noopener');
