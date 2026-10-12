@@ -7,7 +7,7 @@
 <section class="card"><h2>🎹 音楽工房 · 演奏</h2>
 <div class="row"><label>楽器 <select id="instrument" aria-label="演奏する楽器"></select></label><span class="badge" id="instrumentHint">合成音</span></div><div class="row"><label>曲名 <input id="title" type="text" value="新しい旋律" maxlength="60"></label><label>テンポ <input id="bpm" type="number" value="100" min="40" max="220">BPM</label><label>量子化 <select id="quant"><option value=".25">16分</option><option value=".5" selected>8分</option><option value="1">4分</option></select></label></div>
 <div id="keys" aria-label="2オクターブのオルガン"></div>
-<p>2オクターブ C4〜C6。PCでは A W S E D F T G Y H U J K キーでも演奏可能。複数の鍵盤を同時に押せます。</p>
+<p id="keyGuide">2オクターブ C4〜C6。PCでは A W S E D F T G Y H U J K キーでも演奏可能。複数の鍵盤を同時に押せます。</p>
 <div class="row"><button id="record" class="primary">⏺ 録音開始</button><button id="recordStop">⏹ 録音終了</button><label><input type="checkbox" id="step"> 手入力モード</label><label>音価 <select id="duration"><option value=".5">8分</option><option value="1" selected>4分</option><option value="2">2分</option><option value="4">全音符</option></select></label></div>
 <div class="row"><button id="play">▶ 演奏を再生</button><label><input type="checkbox" id="loop"> 🔁 繰り返し再生</label><button id="stop">■ 停止</button><button id="undo">↩ 1音戻す</button><button id="clear">消去</button><span id="count" class="badge">0音</span></div><div id="status" role="status" aria-live="polite"></div></section>
 <section class="card"><h2>🎼 楽譜 (ト音記号・4/4)</h2><canvas id="sheet" width="900" height="220"></canvas><div class="row"><button id="redraw">♩ 楽譜化</button><button id="save" class="primary">📜 司祭に保管</button><button id="export">⬇ MIDI書き出し</button><button id="png">🖼 楽譜PNG保存</button></div></section>
@@ -43,6 +43,9 @@ function selectedInstrument(){return INST.get($('instrument').value).id;}
 function updateInstrumentInfo(){
  const i=INST.get($('instrument').value);
  $('instrumentHint').textContent=i.description+' / MIDI '+(INST.channel(i.id)===9?'打楽器ch10':String(i.gm+1));
+ $('keyGuide').textContent=i.id==='drums'?'🥁 ドラム：C4=キック、D#4=スネア、F#4=ハイハット、C#5=シンバル。鍵盤を押して各打楽器を鳴らせます。':
+ i.id==='tabla'?'🪘 タブラ：C4=高音ボンゴ、C#4=低音ボンゴ、D4=コンガ系。MIDIは近いGM打楽器音へ対応させます。':
+ '2オクターブ C4〜C6。PCでは A W S E D F T G Y H U J K キーでも演奏可能。複数の鍵盤を同時に押せます。';
 }
 function soundOn(p,id){
  const c=initAudio();if(!c)return;
