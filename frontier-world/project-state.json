@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-12T07:05:00+09:00",
+  "updated_at": "2026-10-12T09:17:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V48.0",
-  "game_commit": "b040f01abee0de8541528a7a2130e5e892a14648",
+  "implementation_version": "V49.0",
+  "game_commit": "d3693c03cd94a8c562e99cfc7a2943edb412fe1b",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -126,7 +126,10 @@
     "V48 priest pregnancy examination based on saved pregnancies with early discovery, due-date announcement and village log",
     "V48 spouse/lover escort request linked to existing follow commands for the priest wedding",
     "V48 officiated wedding with nearby companion, village guests lined up, priest blessing, vows, kiss, fireworks and ceremony record",
-    "V48 wedding cancellation before vows, duplicate officiated ceremony prevention and NPC position restoration"
+    "V48 wedding cancellation before vows, duplicate officiated ceremony prevention and NPC position restoration",
+    "V49 conception chance recalculated with improved health/home/stress-weighted baseline and 10 percentage point boost for each unsuccessful night",
+    "V49 sixth qualifying attempt guaranteed after five unsuccessful attempts, with per-spouse counters saved and reset on success",
+    "V49 priest family planning consultation with heart level, cooldown, household capacity, next-chance estimate and advice"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -177,7 +180,9 @@
     "V46 quantity batches passed static JavaScript syntax validation but end-to-end iPhone playtests remain outstanding",
     "V48 wedding village audience is temporarily repositioned rather than arriving through pathfinding; limited to 12 outdoor NPCs",
     "V48 wedding visuals use Canvas pictograms and fireworks instead of dedicated wedding sprites / kiss animation",
-    "V48 examination and wedding static JavaScript syntax verified, but iPhone/desktop live E2E, old saves and interrupted/reload sequences are not yet tested"
+    "V48 examination and wedding static JavaScript syntax verified, but iPhone/desktop live E2E, old saves and interrupted/reload sequences are not yet tested",
+    "V49 existing save files lack historical unsuccessful conception counts, so guaranteed-attempt streaks begin with V49",
+    "V49 browser E2E testing of repeated couple nights, counselling, diagnosis and save/load is pending"
   ],
   "collaboration": {
     "gameplay_owner": [
