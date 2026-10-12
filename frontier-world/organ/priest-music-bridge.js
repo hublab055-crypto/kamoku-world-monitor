@@ -32,11 +32,14 @@ function writeLocal(scores){
 function install(host){
  const getState=host.getState,notify=host.notify;
  let audio=null,playTimers=[],activeVoices=[];
+ let lastValidatedStore=null; // Avoid revalidating a full song library every NPC frame.
  const getStore=()=>{
   const state=getState();
   if(!state.priestOrgan49||typeof state.priestOrgan49!=='object')
    state.priestOrgan49={learned:['priest-demo'],scores:[],weddingId:'priest-demo',festivalId:'priest-demo',lastCollectionDay:null};
   const x=state.priestOrgan49;
+  if(x===lastValidatedStore)return x;
+  lastValidatedStore=x;
   if(!Array.isArray(x.learned))x.learned=['priest-demo'];
   if(!Array.isArray(x.scores))x.scores=[];
   x.learned=x.learned.filter(id=>typeof id==='string'&&id.length<100).slice(0,25);
