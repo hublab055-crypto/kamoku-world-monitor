@@ -12952,6 +12952,36 @@ updateNPC=function(n,dt){
  return r;
 };
 
+
+/* FRONTIER_V48_ORGAN_FURNITURE_PLACEMENT */
+const fw48PreviousInventory=openInventory;
+openInventory=function(){
+ const r=fw48PreviousInventory.apply(this,arguments);
+ if(state.interior&&state.interior.buildingId==='house1'){
+  const o=fw48OrganFurniture(),body=document.getElementById('panelBody');
+  if(o&&body&&!body.querySelector('[data-fw48-furniture]')){
+   const box=document.createElement('div');box.className='tileCard';
+   box.innerHTML='<b>🎹 コモンハウスのオルガン（試験用家具）</b><p class="note">設置位置は現在立っている場所を基準に変更できます。</p>'+
+    '<button class="smallBtn" data-fw48-furniture="place">📍 ここへ設置する</button> '+
+    '<button class="smallBtn" data-fw48-furniture="remove">📦 収納する</button>';
+   body.appendChild(box);
+  }
+ }
+ return r;
+};
+document.addEventListener('click',function(e){
+ const b=e.target.closest('[data-fw48-furniture]');if(!b)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const it=state.interior,o=fw48OrganFurniture();
+ if(!it||it.buildingId!=='house1'||!o)return;
+ if(b.dataset.fw48Furniture==='place'){
+  o.x=clamp(it.pos.x-.9,.5,it.roomW-2.35);
+  o.y=clamp(it.pos.y-.65,.65,it.roomH-1.75);
+  o.placed=true;msg('🎹 オルガンをコモンハウスに設置した。');
+ }else{ o.placed=false;msg('📦 オルガンを収納した。'); }
+ openInventory();
+},true);
+
 })();
 </script>
 
