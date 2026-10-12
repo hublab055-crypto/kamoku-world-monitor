@@ -2180,21 +2180,27 @@ fw10CareChild=function(k){
 
 function fw12PregnancyFor(n){return state.family.pregnancies.find(function(p){return p.parent===n.id;})||null;}
 function fw12Heart(n){
- if(n.relationship!=='family')return;
+ if(!n||n.relationship!=='family')return;
  if(fw12PregnancyFor(n)){typeLine('今は赤ちゃんを迎える準備をしながら、ゆっくり過ごそう。');return;}
- if(state.day-(n.heartDay||-99)<3){typeLine('焦らず、二人の時間を大切にしよう。');return;}
- n.heartDay=state.day;
- const chance=.10+Math.random()*.15;
- const success=Math.random()<chance;
- if(success){
-  const gender=Math.random()<.5?'boy':'girl',due=state.day+(state.family.gestationDays||17);
-  state.family.pregnancies.push({parent:n.id,startDay:state.day,dueDay:due,gender:gender});
-  typeLine('二人で大切な時間を過ごした。これから少しずつ、家族の未来が動き始めるかもしれない。');
-  msg('❤️ 家族の未来に新しい予定ができた。');
- }else{
-  typeLine('二人でゆっくり過ごした。今夜はそれだけで十分幸せだね。');
-  msg('❤️ 二人の時間を過ごした。');
+ if((state.family.children||[]).length+(state.family.pregnancies||[]).length>=4){
+  typeLine('今は家族みんなの暮らしを大切にしよう。');return;
  }
+ if(state.day-(n.heartDay==null?-99:n.heartDay)<3){
+  typeLine('焦らず、二人の時間を大切にしよう。');return;
+ }
+ const home=fw12SharedHome(n)||state.buildings.find(function(b){return b.id==='player';});
+ if(!home){typeLine('まずは二人で落ち着いて暮らせる家を整えよう。');return;}
+ n.heartDay=state.day;
+ const chance=fw49ConceptionChance(n,home,0);
+ const success=Math.random()<chance;
+ fw49TrackAttempt(n,chance,success,0,'conversation');
+ if(success){
+  state.family.pregnancies.push({parent:n.id,startDay:state.day,dueDay:state.day+300,
+   gender:null,revealed:false,announceDay:state.day+55+Math.floor(Math.random()*30),version42:true});
+  if(typeof window.fw37Log==='function')window.fw37Log('family','非公開の家族イベント開始 / Day '+state.day,n);
+ }
+ typeLine('二人で大切な時間を過ごした。これからの日々も、一緒に歩んでいこう。');
+ msg('❤️ 二人の時間を過ごした。');
  renderDialogReplies();
 }
 function fw12PregnancyTick(){
@@ -9283,9 +9289,10 @@ function fw42CoupleNight(){
  n.heartMeter=100;n.heartDay=state.day;
  const recent=fw42Pregnancy(n);
  if(!recent&&(state.family.children||[]).length+(state.family.pregnancies||[]).length<4){
-  const chance=fw49ConceptionChance(n,b);
+  const dreamBoost=fw50ConsumeDreamBoost(n);
+  const chance=fw49ConceptionChance(n,b,dreamBoost.points);
   const success=Math.random()<chance;
-  fw49TrackAttempt(n,chance,success);
+  fw49TrackAttempt(n,chance,success,dreamBoost.points,dreamBoost.mode);
   if(success){
    state.family.pregnancies.push({parent:n.id,startDay:state.day,dueDay:state.day+300,gender:null,revealed:false,announceDay:state.day+55+Math.floor(Math.random()*30),version42:true});
    if(typeof fw37Log==='function')fw37Log('family','非公開の家族イベント開始 / Day '+state.day,n);
@@ -11660,12 +11667,14 @@ function fw47FinishDream(){
  else if(m==='archery')score=fw47Bound(Math.round(stats.score/120*100),0,100);
  d.score=Math.round(score);d.completedMode=m;d.mode='result';
  const rank=score>=85?'大成功':score>=55?'成功':score>=25?'もう少し':'参加できた';
- fw47SetUi('✨ 夢の結果：'+rank,'スコア '+d.score+'/100。二人の親密度、幸福度、ストレス、技能に結果を反映します。',
+ const conceiveBonus=fw50DreamBoostPoints(d);
+ fw47SetUi('✨ 夢の結果：'+rank,'スコア '+d.score+'/100。今夜の家族づくり成立確率 +'+conceiveBonus+'ポイント（判定可能な場合）。親密度、幸福度、技能にも結果を反映します。',
   fw47DreamButton('sleep','🌙 二人で眠って朝へ')+fw47DreamButton('retry','🔄 別の夢を選ぶ'),false);
 }
 function fw47ApplyResult(d){
  const spouse=state.npcs.find(function(n){return n.id===d.spouseId;});
  if(!spouse)return;
+ fw50SetDreamBoost(spouse,d);
  const score=d.mode==='result'?d.score:0;
  const bonus=score>=85?8:score>=55?5:score>=25?2:0;
  const morale=Math.floor(score/20);
@@ -11677,7 +11686,7 @@ function fw47ApplyResult(d){
  if(d.completedMode==='rhythm')state.player.skills.music47=(Number(state.player.skills.music47)||0)+Math.round(score/25)*.1;
  if(d.completedMode==='chase')state.player.skills.agility47=(Number(state.player.skills.agility47)||0)+Math.round(score/25)*.1;
  state.spouseDream47=state.spouseDream47||[];
- state.spouseDream47.push({day:state.day,partnerId:spouse.id,game:d.completedMode||'skip',score:score,bonus:bonus});
+ state.spouseDream47.push({day:state.day,partnerId:spouse.id,game:d.completedMode||'skip',score:score,bonus:bonus,conceptionBoost50:fw50DreamBoostPoints(d)});
  if(state.spouseDream47.length>40)state.spouseDream47.shift();
  if(typeof window.fw37Log==='function')window.fw37Log('family','二人の夢：'+(d.completedMode||'skip')+' スコア'+score+'/100',spouse);
  return {spouse:spouse,bonus:bonus};
@@ -11687,7 +11696,7 @@ function fw47FinalizeSleep(){
  const d=fw47Dream;if(!d)return;
  cancelAnimationFrame(d.raf);d.el.remove();fw47Dream=null;
  const reward=fw47ApplyResult(d);
- fw47BeforeSleep();
+ try{fw47BeforeSleep();}finally{fw50ClearDreamBoost();}
  if(reward&&reward.bonus>0&&state.sleepFade20){
   fw18HeartGain(reward.spouse,reward.bonus);
   msg('💕 夢の成績で親密度 +'+reward.bonus+'。ゆっくり眠りについた。');
@@ -11985,7 +11994,7 @@ function fw49Planning(n){
  f.failed=Math.max(0,Math.floor(Number(f.failed)||0));
  return f;
 }
-function fw49ConceptionChance(n,homeBuilding){
+function fw49ConceptionChance(n,homeBuilding,bonusPoints){
  const f=fw49Planning(n);
  if(f.failed>=5)return 1;
  const norm=function(v){return fw42Range(v)/100;};
@@ -11996,14 +12005,16 @@ function fw49ConceptionChance(n,homeBuilding){
  const stress=(norm(state.player.stress42==null?20:state.player.stress42)+norm(n.stress42==null?20:n.stress42))/2;
  const base=clamp(.34*(.55+.45*hunger)*(.55+.45*stamina)*(.55+.45*hygiene)*
   (.50+.50*cleanliness)*(1-.60*stress),.06,.40);
- return clamp(base+Math.min(5,f.failed)*.10,.06,1);
+ return clamp(base+Math.min(5,f.failed)*.10+clamp(Number(bonusPoints)||0,0,20)/100,.06,1);
 }
-function fw49TrackAttempt(n,chance,success){
+function fw49TrackAttempt(n,chance,success,bonusPoints,mode){
  const f=fw49Planning(n);
  if(f.lastAttemptDay===state.day)return;
  f.attempts++;
  f.lastAttemptDay=state.day;
  f.lastChance=Math.round(chance*1000)/10;
+ f.lastDreamBonus50=clamp(Number(bonusPoints)||0,0,20);
+ f.lastDreamGame50=String(mode||'none');
  f.lastSuccess=!!success;
  if(success)f.failed=0;
  else f.failed=Math.min(5,f.failed+1);
@@ -12040,7 +12051,8 @@ function fw49PlanningDetails(id){
   '次に二人の時間を過ごせるまで '+cooldown+'ゲーム日',
   '家族の子ども・妊娠記録 '+childCount+'/4'+(childCount>=4?'（上限）':''),
   '連続して授からなかった回数 '+f.failed+'回',
-  '次回の成立確率（現在の生活状態での目安） '+chance+'%'
+  '次回の成立確率（ミニゲーム加算前） '+chance+'%',
+  '前回のゲームによる加算 +'+(f.lastDreamBonus50||0)+'ポイント'
  ].join(' / ');
  const help=ready?'夜に一緒の家でベッドを使えば、家族イベントを試せます。':
   '親密度200、3ゲーム日の間隔、同じ家での夜の就寝、家族枠の空きが必要です。';
@@ -12058,6 +12070,29 @@ handleDialogAction=function(k){
  return fw49PrevDialogAction(k);
 };
 /* END FRONTIER_V49_FAMILY_PLANNING_BALANCE */
+
+/* FRONTIER_V50_DREAM_GAME_CONCEPTION_BOOST */
+let fw50PendingDream=null;
+function fw50DreamBoostPoints(d){
+ if(!d||!['chase','rhythm','archery'].includes(d.completedMode))return 0;
+ const score=clamp(Number(d.score)||0,0,100);
+ return score>=85?20:score>=55?12:score>=25?6:3;
+}
+function fw50SetDreamBoost(spouse,d){
+ const points=fw50DreamBoostPoints(d);
+ fw50PendingDream=points&&spouse?{id:spouse.id,day:state.day,points:points,mode:d.completedMode}:null;
+ if(points&&spouse&&typeof window.fw37Log==='function')
+  window.fw37Log('family','夢の遊びによる家族づくり確率 +'+points+'ポイント（'+d.completedMode+' / '+d.score+'点）',spouse);
+}
+function fw50ConsumeDreamBoost(n){
+ const active=fw50PendingDream;
+ fw50PendingDream=null;
+ if(!active||!n||active.id!==n.id||active.day!==state.day)return {points:0,mode:'none'};
+ return {points:active.points,mode:active.mode};
+}
+function fw50ClearDreamBoost(){fw50PendingDream=null;}
+/* END FRONTIER_V50_DREAM_GAME_CONCEPTION_BOOST */
+
 
 
 
