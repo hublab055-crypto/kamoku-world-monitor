@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Frontier World · オルガン工房</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;color:#f7f2dd;background:linear-gradient(150deg,#344c56,#111c23 65%);margin:0}main{max-width:1050px;margin:0 auto;padding:12px 12px 70px}h1{font-size:clamp(22px,5vw,34px);margin:8px 0}h2{font-size:18px;color:#ebca8b;margin:0 0 10px}p{line-height:1.55;color:#bbcdd0;font-size:13px}a{color:#93e0df}.card{border:1px solid #5b7880;background:#1d2c34;border-radius:16px;padding:13px;margin-top:12px}.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}button,input,select{font:inherit}button{background:#364b56;border:1px solid #819599;color:#fff;border-radius:10px;min-height:42px;padding:7px 12px;cursor:pointer}.primary{background:#e1c287;color:#1f282b;font-weight:800;border-color:#ffe0a4}button:disabled{opacity:.45}input:not([type=checkbox]),select{border:1px solid #779198;border-radius:8px;background:#101e26;color:white;padding:8px;min-height:40px}input[type=number]{width:80px}input[type=text]{width:200px;max-width:100%}label{display:inline-flex;align-items:center;gap:6px}#keys{height:clamp(145px,26vw,220px);display:flex;position:relative;touch-action:none;user-select:none;background:#29190f;border:12px solid #876038;border-radius:12px;padding:2px 0 5px;box-shadow:0 12px 30px #0007}.key{touch-action:none;padding:0;border:1px solid #777;min-height:0;border-radius:0 0 5px 5px}.white{flex:1;background:linear-gradient(#fff,#dacdb1);color:#413b30;position:relative}.black{position:absolute;top:2px;height:63%;width:4%;background:linear-gradient(#161616,#373737);border-color:#151515;z-index:2;box-shadow:2px 4px 3px #0007}.key.active{background:#81c6b4}.key span{position:absolute;bottom:7px;left:0;right:0;font-size:11px}#sheet{width:100%;height:auto;background:#f9f2df;border-radius:8px;display:block}.piece{border:1px solid #678087;border-radius:10px;padding:10px;margin:8px 0}.piece strong{display:block}.piece small{color:#bbccd1;display:block;margin:4px 0}.piece button{min-height:34px;font-size:12px}.badge{background:#2b5359;border-radius:18px;padding:6px 10px;font-size:12px}#status{min-height:22px;color:#b2e7cc;font-size:13px}
+:root{color-scheme:dark}*{box-sizing:border-box}body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;color:#f7f2dd;background:linear-gradient(150deg,#344c56,#111c23 65%);margin:0}main{max-width:1050px;margin:0 auto;padding:12px 12px 70px}h1{font-size:clamp(22px,5vw,34px);margin:8px 0}h2{font-size:18px;color:#ebca8b;margin:0 0 10px}p{line-height:1.55;color:#bbcdd0;font-size:13px}a{color:#93e0df}.card{border:1px solid #5b7880;background:#1d2c34;border-radius:16px;padding:13px;margin-top:12px}.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}button,input,select{font:inherit}button{background:#364b56;border:1px solid #819599;color:#fff;border-radius:10px;min-height:42px;padding:7px 12px;cursor:pointer}.primary{background:#e1c287;color:#1f282b;font-weight:800;border-color:#ffe0a4}button:disabled{opacity:.45}input:not([type=checkbox]),select{border:1px solid #779198;border-radius:8px;background:#101e26;color:white;padding:8px;min-height:40px}input[type=number]{width:80px}input[type=text]{width:200px;max-width:100%}label{display:inline-flex;align-items:center;gap:6px}#keys{height:clamp(145px,26vw,220px);display:flex;position:relative;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:contain;background:#29190f;border:12px solid #876038;border-radius:12px;padding:2px 0 5px;box-shadow:0 12px 30px #0007}.key{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;padding:0;border:1px solid #777;min-height:0;border-radius:0 0 5px 5px}.white{flex:1;background:linear-gradient(#fff,#dacdb1);color:#413b30;position:relative}.black{position:absolute;top:2px;height:63%;width:4%;background:linear-gradient(#161616,#373737);border-color:#151515;z-index:2;box-shadow:2px 4px 3px #0007}.key.active{background:#81c6b4}.key.white::after{content:attr(data-note-label);position:absolute;bottom:7px;left:0;right:0;text-align:center;font-size:11px;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}#sheet{width:100%;height:auto;background:#f9f2df;border-radius:8px;display:block}.piece{border:1px solid #678087;border-radius:10px;padding:10px;margin:8px 0}.piece strong{display:block}.piece small{color:#bbccd1;display:block;margin:4px 0}.piece button{min-height:34px;font-size:12px}.badge{background:#2b5359;border-radius:18px;padding:6px 10px;font-size:12px}#status{min-height:22px;color:#b2e7cc;font-size:13px}
 </style></head><body><main>
 <a href="../">← フロンティアワールド</a><h1>🎹 コモンハウスのオルガン</h1><p>タッチ鍵盤で演奏、録音で楽譜を作成。MIDIファイルを書き出せます。司祭エリアスは曲を保管し、演奏もします。音が出ない場合は最初に鍵盤をタッチしてください。</p>
 <section class="card"><h2>オルガン · 鍵盤</h2>
@@ -31,20 +31,134 @@ function validated(raw){return (Array.isArray(raw)?raw:[]).slice(0,512).filter(n
 function archive(){try{const r=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(r)?r.slice(0,80).map(s=>Object.assign({},s,{notes:validated(s.notes)})).filter(s=>s.title&&s.notes.length):[];}catch(e){return [];}}
 function writeArchive(arr){try{localStorage.setItem(KEY,JSON.stringify(arr));return true;}catch(e){info('保存できません。ブラウザの保存領域を確認してください。');return false;}}
 function initAudio(){try{if(!context){const A=window.AudioContext||window.webkitAudioContext;if(!A){info('Web Audio非対応のブラウザです。');return null;}context=new A();}if(context.state==='suspended')context.resume();return context;}catch(e){info('音声を開始できません。');return null;}}
-function soundOn(p){const c=initAudio();if(!c)return;soundOff(p);const t=c.currentTime,g=c.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.13,t+.025);g.connect(c.destination);const os=[];
-[1,2,4].forEach((mul,i)=>{const o=c.createOscillator(),level=c.createGain();o.type=i===0?'triangle':'sine';o.frequency.value=440*Math.pow(2,(p-69)/12)*mul;level.gain.value=[.67,.23,.10][i];o.connect(level);level.connect(g);o.start();os.push(o);});
-voices.set(p,{g,os});const el=document.querySelector('[data-pitch="'+p+'"]');if(el)el.classList.add('active');}
-function soundOff(p){const v=voices.get(p);if(!v)return;const t=context.currentTime;v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(.0001,t,.045);v.os.forEach(o=>{try{o.stop(t+.30);}catch(e){}});voices.delete(p);const el=document.querySelector('[data-pitch="'+p+'"]');if(el)el.classList.remove('active');}
-function press(p,id){if(holds.has(id))return;holds.set(id,{p,time:performance.now()});soundOn(p);}
-function release(id){const h=holds.get(id);if(!h)return;holds.delete(id);if(!Array.from(holds.values()).some(x=>x.p===h.p))soundOff(h.p);
-if(recording){const ms=60000/tempo(),start=Math.max(0,(h.time-recAt)/ms),duration=Math.max(.10,(performance.now()-h.time)/ms);if(notes.length<512)notes.push({pitch:h.p,start,duration});draw();}
-else if($('step').checked){const duration=Number($('duration').value)||1;if(notes.length<512)notes.push({pitch:h.p,start:stepAt,duration});stepAt+=duration;draw();}}
-function makeKeys(){const el=$('keys');let whites=0;for(let p=60;p<=84;p++){if(![1,3,6,8,10].includes(p%12)){const b=document.createElement('button');b.type='button';b.className='key white';b.dataset.pitch=p;b.setAttribute('aria-label',names[p%12]+(Math.floor(p/12)-1));if(p%12===0){const label=document.createElement('span');label.textContent='C'+(Math.floor(p/12)-1);b.appendChild(label);}el.appendChild(b);whites++;}}
-const total=whites;whites=0;for(let p=60;p<=84;p++){if([1,3,6,8,10].includes(p%12)){const b=document.createElement('button');b.type='button';b.className='key black';b.dataset.pitch=p;b.style.left='calc('+(100*whites/total).toFixed(4)+'% - 2%)';b.setAttribute('aria-label',names[p%12]+(Math.floor(p/12)-1));el.appendChild(b);}else whites++;}
-el.addEventListener('pointerdown',e=>{const b=e.target.closest('.key');if(!b)return;e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(x){}press(Number(b.dataset.pitch),'p'+e.pointerId);});
-['pointerup','pointercancel','lostpointercapture'].forEach(type=>el.addEventListener(type,e=>release('p'+e.pointerId)));
-document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.altKey||e.metaKey||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;const p=keymap[e.key.toLowerCase()];if(p==null)return;e.preventDefault();press(p,'k'+e.key.toLowerCase());});
-document.addEventListener('keyup',e=>release('k'+e.key.toLowerCase()));window.addEventListener('blur',()=>Array.from(holds.keys()).forEach(release));}
+/* FW48.1: Mobile touch guard, per-input voices and guaranteed note-off. */
+function refreshKey(p){
+ const el=document.querySelector('[data-pitch="'+p+'"]');
+ if(el)el.classList.toggle('active',Array.from(voices.values()).some(v=>v.pitch===p));
+}
+function soundOn(p,id){
+ const c=initAudio();if(!c)return;
+ if(voices.has(id))soundOff(id);
+ const t=c.currentTime,g=c.createGain();
+ g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.13,t+.025);g.connect(c.destination);
+ const os=[];
+ [1,2,4].forEach((mul,i)=>{
+  const o=c.createOscillator(),level=c.createGain();
+  o.type=i===0?'triangle':'sine';o.frequency.value=440*Math.pow(2,(p-69)/12)*mul;
+  level.gain.value=[.67,.23,.10][i];o.connect(level);level.connect(g);o.start();os.push(o);
+ });
+ voices.set(id,{pitch:p,g,os});
+ refreshKey(p);
+}
+function soundOff(id){
+ const v=voices.get(id);if(!v)return;
+ voices.delete(id);
+ try{
+  const t=context.currentTime;
+  v.g.gain.cancelScheduledValues(t);
+  v.g.gain.setTargetAtTime(.0001,t,.045);
+  v.os.forEach(o=>{try{o.stop(t+.30);}catch(e){}});
+ }catch(e){
+  v.os.forEach(o=>{try{o.stop();}catch(err){}});
+ }
+ refreshKey(v.pitch);
+}
+function press(p,id){
+ if(holds.has(id))return;
+ holds.set(id,{p,time:performance.now()});
+ soundOn(p,id);
+}
+function release(id,writeNote=true){
+ const h=holds.get(id);if(!h)return;
+ holds.delete(id);
+ soundOff(id);
+ if(!writeNote)return;
+ if(recording){
+  const ms=60000/tempo(),start=Math.max(0,(h.time-recAt)/ms),duration=Math.max(.10,(performance.now()-h.time)/ms);
+  if(notes.length<512)notes.push({pitch:h.p,start,duration});
+  draw();
+ }else if($('step').checked){
+  const duration=Number($('duration').value)||1;
+  if(notes.length<512)notes.push({pitch:h.p,start:stepAt,duration});
+  stepAt+=duration;draw();
+ }
+}
+function releaseAll(writeNote=false){
+ Array.from(holds.keys()).forEach(id=>release(id,writeNote));
+ Array.from(voices.keys()).forEach(soundOff);
+}
+function makeKeys(){
+ const el=$('keys');let whites=0;
+ for(let p=60;p<=84;p++){
+  if([1,3,6,8,10].includes(p%12))continue;
+  const b=document.createElement('button');
+  b.type='button';b.className='key white';b.dataset.pitch=p;
+  b.setAttribute('aria-label',names[p%12]+(Math.floor(p/12)-1));
+  // A CSS pseudo-element paints C4/C5/C6 without selectable text nodes.
+  if(p%12===0)b.dataset.noteLabel='C'+(Math.floor(p/12)-1);
+  el.appendChild(b);whites++;
+ }
+ const total=whites;whites=0;
+ for(let p=60;p<=84;p++){
+  if([1,3,6,8,10].includes(p%12)){
+   const b=document.createElement('button');
+   b.type='button';b.className='key black';b.dataset.pitch=p;
+   b.style.left='calc('+(100*whites/total).toFixed(4)+'% - 2%)';
+   b.setAttribute('aria-label',names[p%12]+(Math.floor(p/12)-1));
+   el.appendChild(b);
+  }else whites++;
+ }
+ // Prevent iOS text selection, magnifier and callout on prolonged touches.
+ ['contextmenu','selectstart','dragstart'].forEach(name=>
+  el.addEventListener(name,e=>e.preventDefault(),{passive:false}));
+ const touchSupported='ontouchstart' in window;
+ const touchToken=t=>'touch:'+t.identifier;
+ // iOS/Android touch input uses Touch Events because Safari sometimes loses
+ // pointerup when native long-press selection takes over.
+ if(touchSupported){
+  el.addEventListener('touchstart',e=>{
+   e.preventDefault();
+   Array.from(e.changedTouches).forEach(t=>{
+    const target=document.elementFromPoint(t.clientX,t.clientY);
+    const key=target&&target.closest('.key');
+    if(key&&el.contains(key))press(Number(key.dataset.pitch),touchToken(t));
+   });
+  },{passive:false});
+  el.addEventListener('touchmove',e=>{
+   e.preventDefault();
+   const rect=el.getBoundingClientRect();
+   Array.from(e.changedTouches).forEach(t=>{
+    const outside=t.clientX<rect.left||t.clientX>rect.right||t.clientY<rect.top||t.clientY>rect.bottom;
+    if(outside)release(touchToken(t));
+   });
+  },{passive:false});
+  const touchEnd=e=>Array.from(e.changedTouches).forEach(t=>release(touchToken(t)));
+  window.addEventListener('touchend',touchEnd,true);
+  window.addEventListener('touchcancel',touchEnd,true);
+ }
+ const pointerToken=e=>'pointer:'+e.pointerId;
+ el.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch'&&touchSupported)return;
+  const key=e.target.closest('.key');if(!key)return;
+  e.preventDefault();
+  try{key.setPointerCapture(e.pointerId);}catch(err){}
+  press(Number(key.dataset.pitch),pointerToken(e));
+ });
+ const pointerEnd=e=>release(pointerToken(e));
+ // Listen outside the keyboard too: dragging out must not sustain a note.
+ window.addEventListener('pointerup',pointerEnd,true);
+ window.addEventListener('pointercancel',pointerEnd,true);
+ el.addEventListener('lostpointercapture',pointerEnd);
+ document.addEventListener('keydown',e=>{
+  if(e.repeat||e.ctrlKey||e.altKey||e.metaKey||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
+  const p=keymap[e.key.toLowerCase()];if(p==null)return;
+  e.preventDefault();press(p,'keyboard:'+e.key.toLowerCase());
+ });
+ document.addEventListener('keyup',e=>release('keyboard:'+e.key.toLowerCase()));
+ window.addEventListener('blur',()=>releaseAll(false));
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
+ window.addEventListener('pagehide',()=>stop());
+}
 function scoreNotes(){const q=Number($('quant').value)||.5;return validated(notes).map(n=>({pitch:n.pitch,start:Math.round(n.start/q)*q,duration:Math.max(q,Math.round(n.duration/q)*q)})).sort((a,b)=>a.start-b.start||a.pitch-b.pitch);}
 function pitchY(p,y0){const diatonic=[0,0,1,1,2,3,3,4,4,5,5,6],steps=7*(Math.floor(p/12)-5)+diatonic[p%12];return y0+44-(steps-2)*5.5;}
 function draw(){const c=$('sheet'),g=c.getContext('2d'),arr=scoreNotes(),rows=Math.max(1,Math.ceil(arr.length/13));c.width=900;c.height=rows*152+45;g.fillStyle='#f9f2df';g.fillRect(0,0,c.width,c.height);g.font='bold 18px Georgia';g.fillStyle='#282622';g.fillText(($('title').value||'無題').slice(0,32),24,27);g.font='12px sans-serif';g.fillText('4/4  ♩='+tempo(),755,27);
@@ -52,8 +166,8 @@ for(let r=0;r<rows;r++){const y0=57+r*152;g.strokeStyle='#746955';for(let line=0
 arr.slice(r*13,(r+1)*13).forEach((n,j)=>{const x=120+j*56,y=pitchY(n.pitch,y0);g.strokeStyle='#504b41';for(let t=y0+55;t<=y+3;t+=11){g.beginPath();g.moveTo(x-12,t);g.lineTo(x+12,t);g.stroke();}for(let t=y0-11;t>=y-3;t-=11){g.beginPath();g.moveTo(x-12,t);g.lineTo(x+12,t);g.stroke();}
 g.save();g.translate(x,y);g.rotate(-.3);g.beginPath();g.ellipse(0,0,8,5.4,0,0,Math.PI*2);g.fillStyle=n.duration>=2?'#f9f2df':'#292725';g.fill();g.lineWidth=2;g.strokeStyle='#292725';g.stroke();g.restore();if(n.duration<4){g.lineWidth=1.5;g.beginPath();g.moveTo(x+8,y);g.lineTo(x+8,y-31);g.stroke();if(n.duration<1){g.beginPath();g.moveTo(x+8,y-31);g.quadraticCurveTo(x+24,y-27,x+20,y-17);g.stroke();}}g.fillStyle='#746955';g.font='11px sans-serif';g.textAlign='center';g.fillText(names[n.pitch%12]+(Math.floor(n.pitch/12)-1),x,y0+78);g.textAlign='left';});}
 $('count').textContent=arr.length+'音 / '+(arr.length?Math.max(...arr.map(n=>n.start+n.duration)).toFixed(1):'0')+'拍';}
-function stop(){while(timers.length)clearTimeout(timers.pop());Array.from(voices.keys()).forEach(soundOff);}
-function play(s){const seq=validated(s.notes);if(!seq.length){info('音符がありません。');return;}stop();initAudio();const ms=60000/(s.bpm||tempo());seq.forEach(n=>{timers.push(setTimeout(()=>soundOn(n.pitch),n.start*ms));timers.push(setTimeout(()=>soundOff(n.pitch),(n.start+n.duration)*ms));});timers.push(setTimeout(()=>{stop();info('演奏が終わりました。');},Math.max(...seq.map(n=>n.start+n.duration))*ms+330));info('🎵 '+s.title+' 演奏中');}
+function stop(){while(timers.length)clearTimeout(timers.pop());releaseAll(false);}
+function play(s){const seq=validated(s.notes);if(!seq.length){info('音符がありません。');return;}stop();initAudio();const ms=60000/(s.bpm||tempo());seq.forEach((n,i)=>{const id='play:'+i;timers.push(setTimeout(()=>soundOn(n.pitch,id),n.start*ms));timers.push(setTimeout(()=>soundOff(id),(n.start+n.duration)*ms));});timers.push(setTimeout(()=>{stop();info('演奏が終わりました。');},Math.max(...seq.map(n=>n.start+n.duration))*ms+330));info('🎵 '+s.title+' 演奏中');}
 function current(){return {title:($('title').value||'無題').trim(),author:'プレイヤー',bpm:tempo(),notes:scoreNotes()};}
 function load(s){stop();notes=validated(s.notes);$('title').value=s.title;$('bpm').value=s.bpm||100;stepAt=Math.max(0,...notes.map(n=>n.start+n.duration));draw();info('「'+s.title+'」を開きました。');}
 function vlq(n){n=Math.max(0,Math.floor(n));const b=[n&127];while(n>>=7)b.unshift((n&127)|128);return b;}
