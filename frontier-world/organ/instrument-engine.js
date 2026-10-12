@@ -35,7 +35,7 @@ function noiseBuffer(c){
  for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;
  buffers.set(c,b);return b;
 }
-function start(c,pitch,id,at,velocity){
+function start(c,pitch,id,at,velocity,destination){
  if(!c)return null;
  const inst=get(id),kind=inst.kind,t=Math.max(c.currentTime,Number(at)||c.currentTime),f=440*Math.pow(2,(pitch-69)/12),v=Math.max(.05,Math.min(1,Number(velocity)||.7));
  const hit=kind==='drums'?midiPitch(inst.id,pitch):0;
@@ -43,7 +43,7 @@ function start(c,pitch,id,at,velocity){
   hit===38||hit===40?'snare':
   hit===42||hit===44||hit===46?'hat':
   [49,51,52,55,57,59].includes(hit)?'cymbal':'tom';
- const group=c.createGain();group.gain.setValueAtTime(.0001,t);group.connect(c.destination);
+ const group=c.createGain();group.gain.setValueAtTime(.0001,t);group.connect(destination||c.destination);
  const voice={group,nodes:[],pitch,kind,ended:false,time:t};
  const parts={
   sustain:[[1,'triangle',.62],[2,'sine',.25],[4,'sine',.13]],
@@ -90,7 +90,7 @@ function start(c,pitch,id,at,velocity){
   const level=kind==='drums'?(drumHit==='hat'?.30:drumHit==='cymbal'?.23:drumHit==='snare'?.21:drumHit==='kick'?.045:.08):kind==='taiko'?.12:kind==='tabla'?.10:kind==='shakuhachi'?.047:.019;
   ng.gain.setValueAtTime(Math.max(.0001,level*v),t);
   ng.gain.setTargetAtTime(.0001,t+(percussion(inst.id)?0:.15),kind==='drums'?(drumHit==='cymbal'?.15:drumHit==='hat'?.021:.055):percussion(inst.id)?.065:.16);
-  n.connect(filter);filter.connect(ng);ng.connect(c.destination);
+  n.connect(filter);filter.connect(ng);ng.connect(destination||c.destination);
   n.start(t);n.stop(t+.34);voice.nodes.push(n);
  }
  return voice;
