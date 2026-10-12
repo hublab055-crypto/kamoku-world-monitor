@@ -27,6 +27,7 @@ function install(host){
   return state.bgm49;
  };
  const persist=()=>{try{const p=prefs();localStorage.setItem('fw_frontier_bgm_v1',JSON.stringify({trackId:p.trackId,volume:p.volume,loop:p.loop}));}catch(e){}};
+ let onlineScores=[];
  const scores=()=>{
   const originals=[DEMO,...(Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[])];
   let saved=[];
@@ -37,7 +38,7 @@ function install(host){
   const state=host.getState();
   const fromGame=state.priestOrgan49&&Array.isArray(state.priestOrgan49.scores)?state.priestOrgan49.scores:[];
   const seen=new Set();
-  return [...originals,...fromGame,...saved].map(s=>valid?valid(s):s).filter(s=>{
+  return [...originals,...fromGame,...saved,...onlineScores].map(s=>valid?valid(s):s).filter(s=>{
    if(!s||!Array.isArray(s.notes)||!s.notes.length||seen.has(s.id))return false;
    seen.add(s.id);return true;
   });
@@ -55,6 +56,12 @@ function install(host){
  const pick=el('select');pick.id='fwBgm49Select';pick.setAttribute('aria-label','BGMの曲を選択');
  pick.style.cssText='width:100%;padding:9px;margin:7px 0;background:#17323b;color:white;border:1px solid #a0b9bd;border-radius:8px;font:inherit;';
  panel.appendChild(pick);
+ const commerce=el('div');commerce.style.cssText='display:flex;flex-wrap:wrap;gap:5px;margin:6px 0;';
+ const buyMusic=el('button','smallBtn','💿 曲を保存');
+ const publishMusic=el('button','smallBtn','🌍 村のBGMに公開');
+ const visitVillages=el('button','smallBtn','🏡 他の村のBGM');
+ [buyMusic,publishMusic,visitVillages].forEach(b=>{b.type='button';b.style.cssText='font-size:12px;padding:8px;';commerce.append(b);});
+ panel.appendChild(commerce);
  const buttons=el('div');buttons.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;';
  const playBtn=el('button','smallBtn','▶ 再生'),stopBtn=el('button','smallBtn','■ 停止'),reloadBtn=el('button','smallBtn','⟳ 曲更新');
  [playBtn,stopBtn,reloadBtn].forEach(b=>{b.type='button';b.style.cssText='padding:9px;';buttons.appendChild(b);});panel.appendChild(buttons);
@@ -109,8 +116,35 @@ function install(host){
    else if(!playing)status('録音データは準備できています。▶ 再生を押してください。');
   }else{if(audioUrl)cleanupAudioUrl();if(!playing)status('曲を選び、▶ 再生を押してください。');}
  }
+ async function loadOnlineScores(){
+  onlineScores=[];
+  if(!host.getOnlineClient)return;
+  try{
+   const db=await host.getOnlineClient(),auth=await db.auth.getSession();
+   const user=auth.data?.session?.user?.id;if(!user)return;
+   const [works,purchases,splits]=await Promise.all([
+    db.from('fw_creator_works').select('id,title,creator_id').eq('kind','music').eq('status','active').limit(120),
+    db.from('fw_creator_purchases').select('work_id').eq('buyer_id',user).limit(100),
+    db.from('fw_creator_splits').select('work_id,collaborator_id,accepted_at').eq('collaborator_id',user).limit(100)
+   ]);
+   for(const x of [works,purchases,splits])if(x.error)throw x.error;
+   const owned=new Set((purchases.data||[]).map(p=>p.work_id));
+   const collabs=new Set((splits.data||[]).filter(p=>p.accepted_at).map(p=>p.work_id));
+   const list=(works.data||[]).filter(w=>w.creator_id===user||owned.has(w.id)||collabs.has(w.id)).slice(0,40);
+   const items=await Promise.all(list.map(async w=>{
+    const r=await db.from('fw_creator_payloads').select('content').eq('work_id',w.id).maybeSingle();
+    if(r.error||!Array.isArray(r.data?.content?.notes))return null;
+    const notes=r.data.content.notes.slice(0,400).map((n,i)=>({pitch:Number(n.pitch),start:i,duration:1}))
+     .filter(n=>Number.isInteger(n.pitch)&&n.pitch>=24&&n.pitch<=108);
+    if(!notes.length)return null;
+    return {id:'online:'+w.id,title:'🌐 '+w.title,author:'共用マーケット',instrument:'organ',bpm:188,notes};
+   }));
+   onlineScores=items.filter(Boolean);
+  }catch(err){status('オンライン曲の取得に失敗しました。ログイン状況を確認してください。');}
+ }
  async function refresh(){
   if(lib){try{voiceList=await lib.list();}catch(e){voiceList=[];}}
+  await loadOnlineScores();
   fill();
  }
  function playScore(s){
@@ -157,6 +191,31 @@ function install(host){
  });
  slider.addEventListener('input',()=>{prefs().volume=Number(slider.value);updateVolume();persist();});
  loop.addEventListener('change',()=>{prefs().loop=loop.checked;audio.loop=loop.checked;persist();});
+ function selectedMusicId(){return pick.value.startsWith('online:')?pick.value.slice(7):null;}
+ buyMusic.onclick=()=>{
+  const id=selectedMusicId();
+  if(!id){status('💿 保存には共用マーケットで購入した楽曲を選んでください。');return;}
+  global.open('creator-market/music-download.html?work='+encodeURIComponent(id),'_blank','noopener');
+ };
+ publishMusic.onclick=async()=>{
+  const id=selectedMusicId();
+  if(!id){status('🌍 共用マーケットの購入済み/自作楽曲をBGMに選んでください。');return;}
+  try{
+   if(!host.getOnlineClient)throw Error('オンライン市場に接続できません。');
+   const db=await host.getOnlineClient();
+   const auth=await db.auth.getSession();
+   if(!auth.data?.session)throw Error('先に共用マーケットからGitHubログインしてください。');
+   const name=global.prompt('公開する村の名前を入力してください（最大60文字）','音楽のある村');
+   if(name==null)return;
+   if(!name.trim()||name.trim().length>60)throw Error('村名は1〜60文字で入力してください。');
+   const r=await db.rpc('fw_creator_set_village_bgm',{p_work_id:id,p_village_name:name.trim()});
+   if(r.error)throw r.error;
+   const share='creator-market/village-bgm.html?village='+encodeURIComponent(auth.data.session.user.id);
+   status('🌍 BGMを村に公開しました。訪問者は村の音楽を試聴・購入できます。');
+   global.open(share,'_blank','noopener');
+  }catch(e){status('BGM公開に失敗: '+(e.message||e));}
+ };
+ visitVillages.onclick=()=>global.open('creator-market/village-bgm.html','_blank','noopener');
  playBtn.onclick=play;stopBtn.onclick=()=>{stop();status('BGMを停止しました。');};reloadBtn.onclick=refresh;
  trigger.onclick=()=>{
   panel.style.display=panel.style.display==='none'?'block':'none';
