@@ -12882,6 +12882,76 @@ fw10LoadGame=function(){
 
 
 
+
+/* FRONTIER_V48_COMMON_ORGAN */
+function fw48OrganFurniture(){
+ const house=state.buildings.find(b=>b.id==='house1');if(!house)return null;
+ if(!house.organ48||typeof house.organ48!=='object')house.organ48={placed:true,x:1.2,y:1.2};
+ return house.organ48;
+}
+fw48OrganFurniture();
+const fw48LoadOriginal=fw10LoadGame;
+fw10LoadGame=function(){const r=fw48LoadOriginal.apply(this,arguments);fw48OrganFurniture();return r;};
+let fw48Overlay=null;
+function fw48OrganClose(){if(fw48Overlay){fw48Overlay.remove();fw48Overlay=null;}}
+function fw48OrganOpen(priest){
+ const organ=fw48OrganFurniture();if(!organ||!organ.placed){msg('🎹 オルガンが設置されていません。');return;}
+ if(fw48Overlay)return;
+ const box=document.createElement('div');box.id='fw48OrganOverlay';box.setAttribute('role','dialog');box.setAttribute('aria-label','オルガンと楽譜工房');
+ box.style.cssText='position:fixed;inset:0;background:#07131af2;z-index:16000;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;';
+ const head=document.createElement('div');head.style.cssText='width:min(1050px,100%);display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:46px;';
+ head.innerHTML='<strong>🎹 コモンハウス — オルガン</strong><button type="button" data-fw48-close class="smallBtn">✕ 閉じる</button>';
+ const view=document.createElement('iframe');view.title='オルガン演奏とMIDI楽譜作成';view.src='organ/'+(priest?'?priest=1':'');view.setAttribute('allow','autoplay');
+ view.style.cssText='width:min(1050px,100%);height:calc(100vh - 74px);border:1px solid #677d80;border-radius:12px;background:#15262d;';
+ head.querySelector('[data-fw48-close]').onclick=fw48OrganClose;
+ box.appendChild(head);box.appendChild(view);document.body.appendChild(box);fw48Overlay=box;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&fw48Overlay){e.preventDefault();fw48OrganClose();}},true);
+const fw48Button=document.createElement('button');fw48Button.type='button';fw48Button.className='smallBtn';
+fw48Button.style.cssText='position:absolute;top:52px;left:8px;z-index:16;display:none;background:#513825;border:2px solid #d8b475;color:#fff6dd;';
+fw48Button.textContent='🎹 オルガンを弾く';fw48Button.onclick=()=>fw48OrganOpen(false);
+document.querySelector('.stage').appendChild(fw48Button);
+const fw48OriginalDraw=draw;
+draw=function(){
+ const r=fw48OriginalDraw.apply(this,arguments),it=state.interior,organ=fw48OrganFurniture();
+ fw48Button.style.display=it&&it.buildingId==='house1'&&organ&&organ.placed?'block':'none';
+ if(!it||it.buildingId!=='house1'||!organ||!organ.placed)return r;
+ const sx=Math.min((W-150)/it.roomW,(H-190)/it.roomH),ox=(W-it.roomW*sx)/2,oy=80;
+ const x=ox+organ.x*sx,y=oy+organ.y*sx,w=sx*1.8,h=sx*1.2;
+ fw48Button.disabled=Math.hypot(it.pos.x-(organ.x+.9),it.pos.y-(organ.y+.6))>2.7;
+ ctx.save();ctx.fillStyle='#4c2a17';ctx.fillRect(x-5,y-12,w+10,h+23);
+ ctx.fillStyle='#a17543';ctx.fillRect(x,y,w,h);ctx.fillStyle='#342119';ctx.fillRect(x+6,y+6,w-12,h*.4);
+ for(let k=0;k<15;k++){ctx.fillStyle='#f5ead1';ctx.fillRect(x+7+k*(w-14)/15,y+h*.5,(w-15)/15,h*.33);}
+ for(let k=0;k<10;k++){ctx.fillStyle='#302520';ctx.fillRect(x+13+k*(w-20)/10,y+h*.5,(w-20)/21,h*.2);}
+ ctx.textAlign='center';ctx.fillStyle='#fff2d3';ctx.font='bold 14px system-ui';ctx.fillText('🎹 オルガン',x+w/2,y-20);
+ const p=state.npcs.find(n=>n.id==='priest43');
+ if(p&&p.organPlaying48){ctx.font='22px system-ui';ctx.fillText('♪ ♫',x+w+15,y-8);}
+ ctx.restore();return r;
+};
+const fw48ActionOriginal=action;
+action=function(){
+ const it=state.interior,o=fw48OrganFurniture();
+ if(it&&it.buildingId==='house1'&&o&&o.placed&&Math.hypot(it.pos.x-(o.x+.9),it.pos.y-(o.y+.6))<2.7){fw48OrganOpen(false);return;}
+ return fw48ActionOriginal.apply(this,arguments);
+};
+const fw48PriestMenuOriginal=fw43PriestMenu;
+fw43PriestMenu=function(){
+ fw48PriestMenuOriginal.apply(this,arguments);
+ const el=document.getElementById('dialogReplies');
+ if(el&&!el.querySelector('[data-reply="fw48:organ"]'))el.insertAdjacentHTML('beforeend',fw42HtmlButton('fw48:organ','🎼 楽譜庫・オルガン演奏'));
+};
+const fw48DialogOriginal=handleDialogAction;
+handleDialogAction=function(key){if(key==='fw48:organ'){fw48OrganOpen(true);return;}return fw48DialogOriginal.apply(this,arguments);};
+const fw48NPCOriginal=updateNPC;
+updateNPC=function(n,dt){
+ const r=fw48NPCOriginal.apply(this,arguments);
+ if(n&&n.id==='priest43'){
+  n.organPlaying48=!!(fw48OrganFurniture()&&fw48OrganFurniture().placed&&n.inside20==='house1'&&state.hour>=12.35&&state.hour<13.45);
+  if(n.organPlaying48){n.status='🎹 コモンハウスでオルガン演奏';if(n.household34){n.household34.x=2.2;n.household34.y=2.3;n.household34.dir='back';if(typeof fw34SyncResident==='function')fw34SyncResident(n);}}
+ }
+ return r;
+};
+
 })();
 </script>
 
