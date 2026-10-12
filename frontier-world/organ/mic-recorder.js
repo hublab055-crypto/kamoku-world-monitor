@@ -81,6 +81,7 @@ function download(){
  link.href=url;link.download=safe+'.'+ext;document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
+global.FW_STOP_MIC=function(){if(recorder&&recorder.state!=='inactive')stop();else releaseMic();};
 btnStart.addEventListener('click',start);
 btnStop.addEventListener('click',stop);
 btnSave.addEventListener('click',save);
