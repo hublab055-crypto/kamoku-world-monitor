@@ -107,3 +107,90 @@ export function licenseReceiptFromFile(bytes){
  const text=new TextDecoder('latin1').decode(sample);
  return (text.match(/FW-DL:([0-9a-f-]{36})/i)||[])[1]||null;
 }
+
+
+// Save a LOCAL BGM score. It is intentionally NOT a purchased license,
+// and gets a provenance marker rather than an invented receipt ID.
+export function buildLocalBgmFile(score,format){
+ if(!score||!Array.isArray(score.notes)||!score.notes.length||score.notes.length>400)
+  throw Error('ダウンロードできる楽譜ではありません。');
+ if(!['wav','midi','musicxml'].includes(format))throw Error('ファイル形式が正しくありません。');
+ const bpm=Number(score.bpm)||100;
+ if(bpm<20||bpm>300)throw Error('テンポが対象外です。');
+ const notes=score.notes.map(n=>{
+  const pitch=Number(n.pitch),start=Number(n.start),duration=Number(n.duration);
+  if(!Number.isInteger(pitch)||pitch<24||pitch>108||
+   !Number.isFinite(start)||start<0||start>2000||
+   !Number.isFinite(duration)||duration<=0||duration>200)throw Error('楽譜データが正しくありません。');
+  return {pitch,start,duration};
+ }).sort((a,b)=>a.start-b.start||a.pitch-b.pitch);
+ const end=Math.max(...notes.map(n=>n.start+n.duration))*60/bpm;
+ if(end>135)throw Error('曲の長さが135秒を超えています。');
+ const title=String(score.title||'村のBGM').slice(0,110);
+ const marker='FW-LOCAL-SCORE;SOURCE:'+String(score.id||'local').replace(/[^a-z0-9_.-]/gi,'_').slice(0,90);
+ let bytes;
+ if(format==='wav'){
+  const rate=22050,samples=Math.ceil((end+0.12)*rate),pcm=new Uint8Array(samples*2);
+  const samplesF=new Float32Array(samples);
+  for(const n of notes){
+   const freq=440*Math.pow(2,(n.pitch-69)/12),start=Math.round(n.start*60/bpm*rate);
+   const duration=Math.round(n.duration*60/bpm*rate);
+   for(let i=0;i<duration&&start+i<samples;i++){
+    const t=i/rate;
+    const env=Math.min(1,i/(rate*0.015),Math.max(0,(duration-i)/(rate*0.045)));
+    samplesF[start+i]+=(Math.sin(2*Math.PI*freq*t)+0.16*Math.sin(4*Math.PI*freq*t))*env*0.18;
+   }
+  }
+  const view=new DataView(pcm.buffer);
+  for(let i=0;i<samples;i++)view.setInt16(i,Math.round(Math.max(-1,Math.min(1,samplesF[i]))*32767),true);
+  const wavfmt=concat(le16(1),le16(1),le32(rate),le32(rate*2),le16(2),le16(16));
+  const info=riffChunk('LIST',concat(ascii('INFO'),infoSub('INAM',title),infoSub('ICMT',marker)));
+  const body=concat(riffChunk('fmt ',wavfmt),riffChunk('data',pcm),info);
+  bytes=concat(ascii('RIFF'),le32(body.length+4),ascii('WAVE'),body);
+ }else if(format==='midi'){
+  const events=[];
+  for(const n of notes){
+   const on=Math.round(n.start*480),off=Math.round((n.start+n.duration)*480);
+   events.push({at:on,prio:1,bytes:new Uint8Array([0x90,n.pitch,84])});
+   events.push({at:off,prio:0,bytes:new Uint8Array([0x80,n.pitch,0])});
+  }
+  events.sort((a,b)=>a.at-b.at||a.prio-b.prio);
+  const tempo=Math.round(60000000/bpm);
+  const track=[meta(3,title),meta(1,marker),
+   new Uint8Array([0,0xFF,0x51,3,(tempo>>>16)&255,(tempo>>>8)&255,tempo&255]),
+   new Uint8Array([0,0xC0,0])];
+  let tick=0;
+  for(const ev of events){track.push(concat(vlen(ev.at-tick),ev.bytes));tick=ev.at;}
+  track.push(new Uint8Array([0,0xFF,0x2F,0]));
+  const data=concat(...track);
+  bytes=concat(ascii('MThd'),u32(6),u16(0),u16(1),u16(480),ascii('MTrk'),u32(data.length),data);
+ }else{
+  // Quantized score; pauses are explicit rests. Voice polyphony is flattened for MusicXML beta.
+  const segments=[];
+  let pos=0;
+  for(const n of notes){
+   const start=Math.round(n.start*480),dur=Math.max(1,Math.round(n.duration*480));
+   if(start>pos)segments.push('<note><rest/><duration>'+(start-pos)+'</duration></note>');
+   const map=['C','C','D','D','E','F','F','G','G','A','A','B'];
+   const accidental=[1,3,6,8,10].includes(n.pitch%12);
+   segments.push('<note><pitch><step>'+map[n.pitch%12]+'</step>'+
+     (accidental?'<alter>1</alter>':'')+'<octave>'+Math.floor(n.pitch/12-1)+'</octave></pitch>'+
+     '<duration>'+dur+'</duration></note>');
+   pos=Math.max(pos,start+dur);
+  }
+  bytes=ascii('<?xml version="1.0" encoding="utf-8"?>\n'+
+   '<score-partwise version="4.0"><work><work-title>'+escapeXml(title)+
+   '</work-title></work><movement-title>'+escapeXml(title)+
+   '</movement-title><identification><rights>'+escapeXml(marker)+
+   '; local download only; redistribution subject to copyright</rights></identification>'+
+   '<defaults/><part-list><score-part id="P1"><part-name>Village BGM</part-name></score-part></part-list>'+
+   '<part id="P1"><measure number="1"><attributes><divisions>480</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>'+
+   '<direction><direction-type><words>Tempo '+bpm+'</words></direction-type><sound tempo="'+bpm+'"/></direction>'+
+   segments.join('')+'</measure></part></score-partwise>');
+ }
+ const type={wav:'audio/wav',midi:'audio/midi',musicxml:'application/vnd.recordare.musicxml+xml'}[format];
+ const ext={wav:'wav',midi:'mid',musicxml:'musicxml'}[format];
+ const name=title.replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').slice(0,45)||'village-bgm';
+ return {blob:new Blob([bytes],{type}),bytes,filename:name+'_BGM.'+ext,format,
+  source:'local',royaltyPaid:false};
+}
