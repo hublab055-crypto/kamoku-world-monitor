@@ -12901,7 +12901,7 @@ function fw48OrganOpen(priest){
  box.style.cssText='position:fixed;inset:0;background:#07131af2;z-index:16000;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;';
  const head=document.createElement('div');head.style.cssText='width:min(1050px,100%);display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:46px;';
  head.innerHTML='<strong>🎹 コモンハウス — オルガン</strong><button type="button" data-fw48-close class="smallBtn">✕ 閉じる</button>';
- const view=document.createElement('iframe');view.title='オルガン演奏とMIDI楽譜作成';view.src='organ/'+(priest?'?priest=1':'');view.setAttribute('allow','autoplay');
+ const view=document.createElement('iframe');view.title='オルガン演奏とMIDI楽譜作成';view.src='organ/?fwfix=48.1'+(priest?'&priest=1':'');view.setAttribute('allow','autoplay');
  view.style.cssText='width:min(1050px,100%);height:calc(100vh - 74px);border:1px solid #677d80;border-radius:12px;background:#15262d;';
  head.querySelector('[data-fw48-close]').onclick=fw48OrganClose;
  box.appendChild(head);box.appendChild(view);document.body.appendChild(box);fw48Overlay=box;
