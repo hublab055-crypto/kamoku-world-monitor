@@ -42,7 +42,7 @@ function install(host){
    seen.add(s.id);return true;
   });
  };
- let ctx=null,bus=null,generation=0,timeout=null,voices=[],playing=false,voiceList=[],audioUrl=null,preparedId=null;
+ let ctx=null,bus=null,busConnected=false,generation=0,timeout=null,voices=[],playing=false,voiceList=[],audioUrl=null,preparedId=null;
  const trigger=el('button','smallBtn','🎶 BGM');
  trigger.type='button';
  trigger.style.cssText='position:absolute;bottom:9px;right:9px;z-index:18;background:#294e52;color:white;border:1px solid #b3c9b6;padding:6px 10px;border-radius:9px;font-size:13px;';
@@ -116,7 +116,7 @@ function install(host){
  function playScore(s){
   const Audio=global.AudioContext||global.webkitAudioContext;
   if(!Audio){status('ブラウザが音源に対応していません。');return false;}
-  ctx=ctx||new Audio();bus=bus||ctx.createGain();if(!bus.__fwBgmAttached){bus.connect(ctx.destination);bus.__fwBgmAttached=true;}
+  ctx=ctx||new Audio();bus=bus||ctx.createGain();if(!busConnected){bus.connect(ctx.destination);busConnected=true;}
   updateVolume();
   if(ctx.state==='suspended'){const p=ctx.resume();if(p&&typeof p.catch==='function')p.catch(()=>status('音声の許可が必要です。もう一度再生を押してください。'));}
   const token=generation,seconds=60/s.bpm,end=Math.max(...s.notes.map(n=>n.start+n.duration))*seconds;
