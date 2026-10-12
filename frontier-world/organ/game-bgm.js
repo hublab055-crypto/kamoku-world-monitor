@@ -38,7 +38,7 @@ function install(host){
   const state=host.getState();
   const fromGame=state.priestOrgan49&&Array.isArray(state.priestOrgan49.scores)?state.priestOrgan49.scores:[];
   const seen=new Set();
-  return [...originals,...fromGame,...saved,...onlineScores].map(s=>valid?valid(s):s).filter(s=>{
+  return [...originals,...fromGame,...saved,...onlineScores].map(s=>s&&String(s.id||'').startsWith('online:')?s:(valid?valid(s):s)).filter(s=>{
    if(!s||!Array.isArray(s.notes)||!s.notes.length||seen.has(s.id))return false;
    seen.add(s.id);return true;
   });
