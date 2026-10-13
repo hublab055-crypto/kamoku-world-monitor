@@ -10138,7 +10138,7 @@ fw43WorldCanvas.addEventListener('pointerdown',function(e){
    return;
   }
  }
- const ok=mode.kind==='well'?fw43PlaceWell(p.x,p.y):mode.kind==='field'?fw45PlaceField(p.x,p.y):fw43MoveBuilding(state.buildings.find(function(b){return b.id===mode.buildingId;}),p.x,p.y);
+ const ok=mode.kind==='well'?fw43PlaceWell(p.x,p.y):mode.kind==='field'?fw45PlaceField(p.x,p.y):(['paper_mill','printing_house'].includes(mode.kind)?window.__fwFrontierBridge.placePublicationFacility52(mode.kind,p.x,p.y):fw43MoveBuilding(state.buildings.find(function(b){return b.id===mode.buildingId;}),p.x,p.y));
  if(ok)fw43BuildMode=null;
 },true);
 fw43WorldCanvas.addEventListener('pointermove',function(e){
@@ -12722,7 +12722,17 @@ Object.defineProperties(window.__fwFrontierBridge,{
  openInventory:{get:function(){return openInventory;},set:function(v){openInventory=v;}},
  fw43PriestLibrary:{get:function(){return fw43PriestLibrary;},set:function(v){fw43PriestLibrary=v;}},
  action:{get:function(){return action;},set:function(v){action=v;}},
- fw10LoadGame:{get:function(){return fw10LoadGame;},set:function(v){fw10LoadGame=v;}}
+ fw10LoadGame:{get:function(){return fw10LoadGame;},set:function(v){fw10LoadGame=v;}},
+ fw43OutdoorConstruction:{get:function(){return fw43OutdoorConstruction;},set:function(v){fw43OutdoorConstruction=v;}},
+ updateNPC:{get:function(){return updateNPC;},set:function(v){updateNPC=v;}},
+ drawBuilding:{get:function(){return drawBuilding;},set:function(v){drawBuilding=v;}},
+ canPlacePublication52:{value:function(b,x,y){return fw43CanPlace(b,x,y);}},
+ buildAffordPublication52:{value:function(cost){return fw43BuildAfford(cost);}},
+ buildPayPublication52:{value:function(cost){return fw43BuildPay(cost);}},
+ startPublicationPlacement52:{value:function(kind){fw43BuildMode={kind:kind};$('#panel').classList.add('hidden');tap=null;joy.x=joy.y=0;}},
+ worldToScreen:{value:function(x,y){return worldToScreen(x,y);}},
+ getDrawingPublication52:{value:function(){return {ctx:ctx,tile:TILE};}},
+ moveNpcPublication52:{value:function(n,dt){return fw7MoveNpc(n,dt,.88);}}
 });
 
 })();
@@ -13646,6 +13656,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
+<script defer src="publishing-industry.js?v=52.0"></script>
 
 <script>
 /* FRONTIER_VERSION_SWITCHER_SHARED_V1 */
