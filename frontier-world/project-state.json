@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-12T09:17:00+09:00",
+  "updated_at": "2026-10-13T11:39:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V49.0",
-  "game_commit": "d3693c03cd94a8c562e99cfc7a2943edb412fe1b",
+  "implementation_version": "V52.1",
+  "game_commit": "c96e8feea1851dd0fd91335c26ab4a2eda846142",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -143,7 +143,8 @@
     "public village BGM discovery and eight-note authorized previews",
     "village sales paying 10% seller, 70% music rightsholders and 20% marketplace in one transaction",
     "import saved song files as offline local game BGM with IndexedDB and file picker",
-    "direct creator-market licensed song registration into game's BGM selection"
+    "direct creator-market licensed song registration into game's BGM selection",
+    "startup title menu (New Game / Continue / Settings) with five-slot and autosave selection, pause-safe boot and existing settings reuse"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -196,7 +197,8 @@
     "V48 wedding visuals use Canvas pictograms and fireworks instead of dedicated wedding sprites / kiss animation",
     "V48 examination and wedding static JavaScript syntax verified, but iPhone/desktop live E2E, old saves and interrupted/reload sequences are not yet tested",
     "V49 existing save files lack historical unsuccessful conception counts, so guaranteed-attempt streaks begin with V49",
-    "V49 browser E2E testing of repeated couple nights, counselling, diagnosis and save/load is pending"
+    "V49 browser E2E testing of repeated couple nights, counselling, diagnosis and save/load is pending",
+    "V52.1 startup title menu and save selection passed static syntax checks; touch navigation and save/load paths still require iPhone Safari browser E2E."
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -263,6 +265,7 @@
     }
   },
   "next_tasks": [
+    "Test V52.1 title screen on iPhone Safari: new game confirmation, Continue per-slot load and Settings close/back.",
     "design Supabase schema/RLS for shared UGC publishing marketplace, ratings, reviews and moderation",
     "connect Creator Suite image assets directly to authored book covers/pages and advertisements",
     "connect versioned item/tool/building/furniture catalogs to the game runtime and migrate hardcoded definitions",
