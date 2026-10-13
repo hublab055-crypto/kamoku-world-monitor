@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-13T12:18:00+09:00",
+  "updated_at": "2026-10-13T21:39:00+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V52.2",
-  "game_commit": "aed846f25d0ab47d6a0be54bafbfb7b6ed0b0b14",
+  "implementation_version": "V52.3",
+  "game_commit": "b9c78f61d603496f69b1dce5682bbb8f9813ea00",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -145,7 +145,8 @@
     "import saved song files as offline local game BGM with IndexedDB and file picker",
     "direct creator-market licensed song registration into game's BGM selection",
     "startup title menu (New Game / Continue / Settings) with five-slot and autosave selection, pause-safe boot and existing settings reuse",
-    "A/B/C selectable illustrated title themes, default C, persistent local-only selection and settings previews"
+    "A/B/C selectable illustrated title themes, default C, persistent local-only selection and settings previews",
+    "Title screen A/B/C rendered artwork: 800x600 AVIF files (generated A family kingdom, B starry village, C fantasy map), selectable previews, default C and persistent preference"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -200,7 +201,7 @@
     "V49 existing save files lack historical unsuccessful conception counts, so guaranteed-attempt streaks begin with V49",
     "V49 browser E2E testing of repeated couple nights, counselling, diagnosis and save/load is pending",
     "V52.1 startup title menu and save selection passed static syntax checks; touch navigation and save/load paths still require iPhone Safari browser E2E.",
-    "V52.2 title theme SVG previews/theme switching and localStorage persistence are syntax-checked, but iOS Safari and browser E2E remains untested"
+    "V52.3 image assets, hashes, and JS syntax verified via GitHub; live iPhone Safari visual/touch E2E and Pages deployment/caching verification pending"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -267,7 +268,7 @@
     }
   },
   "next_tasks": [
-    "Verify A/B/C title theme selection and return from settings on iPhone Safari; replace vector previews with final approved rendered art assets if desired",
+    "Verify rendered V52.3 A/B/C title artwork on iPhone Safari, including settings selection, persistence after refresh, C default, and fallback",
     "Test V52.1 title screen on iPhone Safari: new game confirmation, Continue per-slot load and Settings close/back.",
     "design Supabase schema/RLS for shared UGC publishing marketplace, ratings, reviews and moderation",
     "connect Creator Suite image assets directly to authored book covers/pages and advertisements",
