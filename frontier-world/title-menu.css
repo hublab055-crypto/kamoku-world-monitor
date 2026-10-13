@@ -16,3 +16,41 @@
 .fw-title-save small{display:block;color:#c8d0c4;line-height:1.7;margin-top:3px;font-size:12px}
 .fw-title-notice{min-height:20px;font-size:13px;line-height:1.6;color:#e9c888;margin:16px 0 0}
 #app.fw-title-settings-open #settingsPanel{display:block;position:fixed;z-index:1002;top:50%;left:50%;transform:translate(-50%,-50%);width:min(94vw,700px);max-height:80dvh;overflow:auto;margin:0;box-shadow:0 20px 70px #000c}
+
+/* FRONTIER_V52_2_TITLE_THEMES */
+.fw-title-scene{display:block;width:100%;height:clamp(145px,32dvh,310px);object-fit:cover;object-position:center 48%;border:1px solid #d4bc8559;border-radius:10px;box-shadow:0 3px 16px #0007;margin:5px 0 12px}
+#fwTitleMain .fw-title-kicker{margin:0 0 8px;font-size:11px}
+#fwTitleOverlay .fw-title-frame{width:min(100%,480px);padding:clamp(12px,3vw,22px) clamp(14px,4vw,25px) 19px}
+#fwTitleOverlay .fw-title-name{font-size:clamp(30px,6vw,43px);margin-bottom:12px}
+#fwTitleOverlay .fw-title-action{min-height:48px;font-size:clamp(17px,4vw,21px)}
+#fwTitleOverlay[data-fw-title-theme="a"]{background:linear-gradient(170deg,#5cb4e4,#173c63 70%,#0c2032)}
+#fwTitleOverlay[data-fw-title-theme="a"] .fw-title-frame{border-color:#dcb970;background:linear-gradient(#162d40ee,#101c2bee)}
+#fwTitleOverlay[data-fw-title-theme="a"] .fw-title-name{color:#fff0c8;text-shadow:0 3px 9px #081a3c,1px 1px #a66e3f}
+#fwTitleOverlay[data-fw-title-theme="b"]{background:radial-gradient(ellipse at 70% 30%,#4c388c,#101b47 70%,#080b24)}
+#fwTitleOverlay[data-fw-title-theme="b"] .fw-title-frame{border-color:#8ba7ff;background:linear-gradient(#131d46ed,#111329f5)}
+#fwTitleOverlay[data-fw-title-theme="b"] .fw-title-name{color:#edf0ff;text-shadow:0 0 17px #6d9afa}
+#fwTitleOverlay[data-fw-title-theme="b"] .fw-title-action[aria-current="true"]{background:#223c84;border-color:#93b9ff;color:#e5f5ff}
+#fwTitleOverlay[data-fw-title-theme="b"] .fw-title-action[aria-current="true"]:after{color:#92d2ff}
+#fwTitleOverlay[data-fw-title-theme="c"]{background:radial-gradient(ellipse at 50% 65%,#9e7950,#30251f 82%)}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-frame{border-color:#6b4025;background:linear-gradient(#dfc391,#bf9662);box-shadow:0 22px 65px #140e0dba,inset 0 0 0 4px #e6ce9b65}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-kicker{color:#59402b}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-name{color:#402818;text-shadow:0 1px #eed4a2}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-action{color:#3e281e;background:#e6c99a80;border:1px solid #81543477}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-action[aria-current="true"],#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-action:hover,#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-action:focus-visible{color:#fff1d8;background:#993e24;border-color:#6b2d18}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-action[aria-current="true"]:after{color:#ffeec5}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-save-heading{color:#432d1d}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-save{color:#47311f;background:#f0d3a7;border-color:#895a39}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-save small{color:#6d4931}
+#fwTitleOverlay[data-fw-title-theme="c"] .fw-title-notice{color:#793c1f}
+#fwTitleThemeCard{margin:10px 0;text-align:left}
+#fwTitleThemeCard h2{font-size:16px;line-height:1.4;margin:0 0 6px}
+#fwTitleThemeCard p{margin:4px 0 10px}
+.fw-theme-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fw-theme-option{border:2px solid #62636a;border-radius:10px;background:#22262b;overflow:hidden;display:flex;flex-direction:column;padding:7px;gap:5px;cursor:pointer;min-width:0;color:#f4f2ea}
+.fw-theme-option img{display:block;width:100%;height:clamp(75px,17vw,130px);object-fit:cover;object-position:center;background:#45434c;border-radius:5px}
+.fw-theme-option input{margin:3px 0 0;accent-color:#e5b96d;align-self:flex-start;min-height:18px;width:18px}
+.fw-theme-option strong{font-size:clamp(11px,2.8vw,14px);line-height:1.4}
+.fw-theme-option small{font-size:11px;color:#c9c7c1;line-height:1.4}
+.fw-theme-option.fw-theme-selected{border-color:#f3c578;background:#474032;box-shadow:0 0 0 1px #c69c58}
+.fw-theme-option:focus-within{outline:2px solid #f3c578;outline-offset:1px}
+@media(max-width:360px){.fw-theme-options{gap:5px}.fw-theme-option{padding:5px}.fw-theme-option img{height:67px}}
