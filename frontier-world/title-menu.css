@@ -1,0 +1,18 @@
+/* FRONTIER_V52_1_TITLE */
+#fwTitleOverlay[hidden],#fwTitleMain[hidden],#fwTitleSaves[hidden]{display:none!important}
+#fwTitleOverlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:calc(18px + env(safe-area-inset-top,0px)) 16px calc(18px + env(safe-area-inset-bottom,0px));background:radial-gradient(ellipse at 50% 80%,#304e3f,transparent 73%),linear-gradient(165deg,#102432,#0b141d);text-align:center;overflow:auto;isolation:isolate}
+#fwTitleOverlay:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(circle at 17% 15%,#e7ddc555 0 1px,transparent 2px),radial-gradient(circle at 79% 29%,#e7ddc555 0 1px,transparent 2px),linear-gradient(0deg,#0009,transparent 60%)}
+.fw-title-frame{width:min(100%,520px);max-height:86dvh;overflow:auto;border:1px solid #c7b58888;border-radius:18px;padding:clamp(28px,7vw,60px) clamp(18px,6vw,54px) 24px;background:linear-gradient(170deg,#162127ed,#10181deb);box-shadow:0 20px 65px #000b}
+.fw-title-kicker{font-size:12px;letter-spacing:.4em;color:#c6b892;margin:0 0 18px}
+.fw-title-name{font-family:Georgia,"Yu Mincho",serif;font-size:clamp(34px,8vw,58px);font-weight:700;letter-spacing:.075em;line-height:1.14;color:#f7edcc;text-shadow:0 3px 12px #000;margin:0 0 28px}
+.fw-title-actions{display:grid;gap:8px;max-width:330px;margin:0 auto}
+#fwTitleOverlay .fw-title-action{position:relative;width:100%;min-height:55px;padding:10px 44px;border:1px solid transparent;border-radius:8px;background:transparent;color:#eae9dc;cursor:pointer;font-size:clamp(19px,5vw,24px);font-weight:700;letter-spacing:.08em}
+#fwTitleOverlay .fw-title-action[aria-current="true"],#fwTitleOverlay .fw-title-action:hover,#fwTitleOverlay .fw-title-action:focus-visible{background:#b99d5530;color:#ffe9a7;border-color:#d5bf826a;outline:none}
+#fwTitleOverlay .fw-title-action[aria-current="true"]:after{content:"◀︎";position:absolute;right:16px;top:50%;transform:translateY(-50%);color:#f4d68e}
+.fw-title-save-heading{font-size:24px;color:#f7e9c6;margin:0 0 16px}
+.fw-title-save-list{display:grid;gap:8px;max-height:45dvh;overflow-y:auto;text-align:left;margin:0 0 16px}
+#fwTitleOverlay .fw-title-save{min-height:64px;width:100%;border-radius:10px;border:1px solid #b9af8955;background:#263633bf;text-align:left;padding:10px 12px;color:#fff;cursor:pointer}
+#fwTitleOverlay .fw-title-save:focus-visible,#fwTitleOverlay .fw-title-save:hover{outline:2px solid #ddc58f}
+.fw-title-save small{display:block;color:#c8d0c4;line-height:1.7;margin-top:3px;font-size:12px}
+.fw-title-notice{min-height:20px;font-size:13px;line-height:1.6;color:#e9c888;margin:16px 0 0}
+#app.fw-title-settings-open #settingsPanel{display:block;position:fixed;z-index:1002;top:50%;left:50%;transform:translate(-50%,-50%);width:min(94vw,700px);max-height:80dvh;overflow:auto;margin:0;box-shadow:0 20px 70px #000c}

@@ -70,9 +70,29 @@ select{width:100%;min-height:44px;background:#22262a;color:var(--text);border:1p
 }
 
 </style>
+<link rel="stylesheet" href="title-menu.css?v=52.1">
 </head>
 <body>
 <div id="app" tabindex="0">
+  <div id="fwTitleOverlay" role="dialog" aria-modal="true" aria-label="タイトル画面">
+    <div class="fw-title-frame">
+      <div id="fwTitleMain">
+        <p class="fw-title-kicker">タイトル</p>
+        <h1 class="fw-title-name">FRONTIER<br>WORLD</h1>
+        <nav class="fw-title-actions" aria-label="メインメニュー">
+          <button type="button" class="fw-title-action" data-fw-title-choice="new" aria-current="true">はじめから</button>
+          <button type="button" class="fw-title-action" data-fw-title-choice="continue" aria-current="false">つづける</button>
+          <button type="button" class="fw-title-action" data-fw-title-choice="settings" aria-current="false">設定</button>
+        </nav>
+      </div>
+      <div id="fwTitleSaves" hidden>
+        <h2 class="fw-title-save-heading">つづける</h2>
+        <div id="fwTitleSaveList" class="fw-title-save-list"></div>
+        <button type="button" class="fw-title-action" id="fwTitleBack">戻る</button>
+      </div>
+      <p id="fwTitleNotice" class="fw-title-notice" role="status" aria-live="polite"></p>
+    </div>
+  </div>
   <div class="game">
     <div class="stage">
       <canvas id="world" width="900" height="900" aria-label="ゲームマップ"></canvas>
@@ -6544,10 +6564,15 @@ root.addEventListener('keyup',e=>{
 
 let raf=0;
 function loop(t){
- const dt=Math.min(.04,(t-last)/1000);last=t;update(dt);draw();raf=requestAnimationFrame(loop);
+ const dt=Math.min(.04,(t-last)/1000);last=t;
+ // Stop time progression and autosaving until an explicit new/load choice.
+ const title=document.getElementById('fwTitleOverlay');
+ if(title&&!title.hidden){draw();raf=requestAnimationFrame(loop);return;}
+ update(dt);draw();raf=requestAnimationFrame(loop);
 }
 function start(){
  makeMap();renderButtons();refreshFace();msg('✅ 昼夜・採集・会話・売買・チェスト・NPC生活AIを更新しました。');
+ window.__fwTitleGameReady=true;window.dispatchEvent(new Event('fw-title-ready'));
  last=performance.now();raf=requestAnimationFrame(loop);
 }
 let ready=0;
@@ -13668,7 +13693,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
  if(!sel||!apply)return;
  const filename=window.location.pathname.split('/').pop().toLowerCase();
  const active=filename==='v41.html'?'v41':filename==='v42.html'?'v42':'latest';
- const labels={latest:'最新版（V52.0）',v42:'V42.0 固定',v41:'V41.0 固定'};
+ const labels={latest:'最新版（V52.1）',v42:'V42.0 固定',v41:'V41.0 固定'};
  const paths={latest:'./',v42:'./v42.html',v41:'./v41.html'};
  sel.value=active;
  if(current)current.textContent=labels[active];
@@ -13686,5 +13711,6 @@ fwBridge.fw10LoadGame=fw10LoadGame;
  if(refresh)refresh.addEventListener('click',function(){navigate('latest');});
 })();
 </script>
+<script defer src="title-menu.js?v=52.1"></script>
 </body>
 </html>
