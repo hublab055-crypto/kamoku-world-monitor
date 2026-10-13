@@ -146,7 +146,9 @@ select(0);
       <path d="M22 345Q75 328 117 341" fill="none" stroke="${c?'#80583d':'#a68a69'}" stroke-width="3"/>
       </svg>`;
   }
-  const urls=Object.fromEntries(themes.map(t=>[t.id,'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(makeArt(t.id))]));
+  // Official 800x600 rendered artwork; SVG only if AVIF fails to load.
+  const urls=Object.fromEntries(themes.map(t=>[t.id,'./title-art/title-'+t.id+'.avif?v=52.3']));
+  const fallbackUrls=Object.fromEntries(themes.map(t=>[t.id,'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(makeArt(t.id))]));
   const main=document.getElementById('fwTitleMain'),kicker=main&&main.querySelector('.fw-title-kicker');
   const scene=document.createElement('img');
   scene.className='fw-title-scene';scene.alt='';scene.decoding='async';
@@ -160,6 +162,7 @@ select(0);
   themes.forEach(function(t){
     const label=document.createElement('label');label.className='fw-theme-option';
     const img=document.createElement('img');img.src=urls[t.id];img.alt='';img.loading='lazy';
+    img.addEventListener('error',function(){if(img.src!==fallbackUrls[t.id])img.src=fallbackUrls[t.id];});
     const inp=document.createElement('input');inp.type='radio';inp.name='fw-title-theme';inp.value=t.id;
     const name=document.createElement('strong');name.textContent=t.name;
     const detail=document.createElement('small');detail.textContent=t.brief;
@@ -173,7 +176,9 @@ select(0);
   if(ver&&ver.parentElement===panel)panel.insertBefore(card,ver);else panel.append(card);
   function apply(id,save){
     if(!Object.hasOwn(urls,id))id='c';
-    overlay.dataset.fwTitleTheme=id;scene.src=urls[id];
+    overlay.dataset.fwTitleTheme=id;
+    scene.onerror=function(){if(scene.src!==fallbackUrls[id])scene.src=fallbackUrls[id];};
+    scene.src=urls[id];
     themes.forEach(function(t){
       const picked=t.id===id;
       radio[t.id].input.checked=picked;

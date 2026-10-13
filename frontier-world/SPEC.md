@@ -1,5 +1,15 @@
 # Frontier World — 最新仕様書
 
+## V52.3 — 採用タイトル背景の実画像化（2026-10-13）
+
+管理ID: `FW-2026-10-13-TITLE-ART-002`
+
+- 生成画像A「家族が見守る光の王国」、B「星空に浮かぶ幻想都市の灯火」、C「幻想世界の水彩地図」をそれぞれ800×600のAVIFに変換し、`frontier-world/title-art/title-a.avif`、`title-b.avif`、`title-c.avif` に配置。
+- 起動タイトルと設定内プレビューを旧SVGから本画像に変更。AVIF画像が読み込めないブラウザーでは従来のSVGへフォールバック。
+- 既定テーマC、A/B/C切り替え、`frontier_world_title_theme_v1`への設定保存、既存セーブ・ロード処理を維持。セーブ自体は変更しない。
+- JavaScript構文とGitHub上のAVIF blob SHA（元画像変換ファイルと一致）を確認。iPhone Safariでの目視・タッチ操作テストは未実施。
+
+
 ## V52.2 — A/B/Cタイトルデザイン選択（2026-10-13）
 
 管理ID: `FW-2026-10-13-THEME-001`

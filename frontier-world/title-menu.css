@@ -54,3 +54,7 @@
 .fw-theme-option.fw-theme-selected{border-color:#f3c578;background:#474032;box-shadow:0 0 0 1px #c69c58}
 .fw-theme-option:focus-within{outline:2px solid #f3c578;outline-offset:1px}
 @media(max-width:360px){.fw-theme-options{gap:5px}.fw-theme-option{padding:5px}.fw-theme-option img{height:67px}}
+
+/* FRONTIER_V52_3_RENDERED_TITLE_ART */
+.fw-title-scene{object-position:center 52%;background:#1b2025}
+.fw-theme-option img{object-fit:contain;background:linear-gradient(135deg,#211f24,#51483c)}
