@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "kind": "buildings",
-  "version": "2026-10-07",
+  "version": "2026-10-13",
   "status": "authoring_source_not_runtime_loaded",
   "records": [
     {
@@ -266,6 +266,52 @@
         "stock"
       ],
       "notes": "市場の基本売買拠点"
+    },
+    {
+      "id": "paper_mill",
+      "name": "製紙工房",
+      "type": "paper_mill",
+      "width": 2,
+      "height": 2,
+      "entranceX": 1,
+      "entranceY": 2,
+      "collision": true,
+      "indoor": false,
+      "capacity": 3,
+      "buildCost": {
+        "wood": 10,
+        "stone": 5
+      },
+      "facilities": [
+        "pulp_vat",
+        "drying_rack",
+        "ink_station",
+        "material_storage"
+      ],
+      "notes": "草の繊維・木材・水から紙を、木材の煤からインクを生産する。NPCの製紙担当作業が必要"
+    },
+    {
+      "id": "printing_house",
+      "name": "印刷所",
+      "type": "printing_house",
+      "width": 2,
+      "height": 2,
+      "entranceX": 1,
+      "entranceY": 2,
+      "collision": true,
+      "indoor": false,
+      "capacity": 3,
+      "buildCost": {
+        "wood": 14,
+        "stone": 8
+      },
+      "facilities": [
+        "writing_desk",
+        "printing_press",
+        "binding_table",
+        "sales_record"
+      ],
+      "notes": "NPCの執筆、紙・インクを使う製本、購入予算制限のある村内販売を行う"
     }
   ]
 }
