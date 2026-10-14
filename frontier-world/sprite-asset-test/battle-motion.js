@@ -99,13 +99,13 @@
       '<p class="note">画像を頭・胴体・腕4部位・脚4部位に分け、関節を動かす10分割の戦闘リグを追加しました。剣・斧・盾・弓と、従来の全身画像変形を比較できます。</p>'+
       '<canvas id="battleMotionCanvas" width="800" height="390" role="img" aria-label="既存キャラクターを使った戦闘モーションプレビュー"></canvas>'+
       '<div class="toolbar" id="battleActionButtons"></div>'+
-      '<div class="toolbar"><label for="battleRigMode">アニメ方式</label><select id="battleRigMode"><option value="rig">関節リグ（10分割）</option><option value="legacy">従来の全身変形</option></select><button type="button" id="battleRigGuides" aria-pressed="false">関節位置 OFF</button></div>'+
+      '<div class="toolbar"><label for="battleRigMode">アニメ方式</label><select id="battleRigMode"><option value="rig">関節リグ（10分割）</option><option value="legacy">従来の全身変形</option></select><button type="button" id="battleRigGuides" aria-pressed="false">関節位置 OFF</button><button type="button" id="battleExportPng">⬇️ この動作をPNGスプライト化</button></div>'+
       '<div class="toolbar"><label for="battleDirection">向き</label>'+
       '<select id="battleDirection"><option value="right">右</option><option value="left">左</option><option value="front">正面</option><option value="back">背面</option></select>'+
       '<label for="battleSpeed">再生速度</label><input id="battleSpeed" type="range" min="50" max="180" value="100" step="10"><output id="battleSpeedText">1.0倍</output>'+
       '<button type="button" id="battleReset">HPと演出をリセット</button></div>'+
       '<div class="info" aria-live="polite" id="battleMotionStatus">画像を読み込み中…</div>'+
-      '<p class="note">関節リグは既存画像を領域分割した暫定素材です。切り抜き位置はキャラごとに追加調整が必要です。ダメージ・HPはテスト専用で、ゲーム本編の戦闘判定・セーブには影響しません。</p>';
+      '<p class="note">関節リグは既存画像を領域分割した暫定素材です。PNG出力は前回選んだ動作の4方向×8コマ（各256×324px）、透明背景です。画像補正はキャラごとに追加調整が必要です。HPはテスト専用です。</p>';
     var before=Array.from(grid.children).find(function(child){
       var h=child.querySelector("h2");return h&&h.textContent.indexOf("調整モード")>=0;
     });
@@ -122,7 +122,7 @@
     var chars={},roster={},selected=character.value,poseType=null,elapsed=0,hitMarks={},enemyHp=100,heroHp=100;
     var hitTimer=0,heroFlash=0,lastTime=null,clock=0,loaded=false;
     var actionDuration=0;
-    var dir="right",rigGuides=false;
+    var dir="right",rigGuides=false,lastAction="slash";
     function refreshAdjustments(){
       try{
         var saved=JSON.parse(localStorage.getItem("frontierWorldSpriteAdjustmentsV1")||"{}");
@@ -148,7 +148,7 @@
     function play(id){
       if(!loaded){setStatus("画像の読み込みが完了していません");return}
       var a=ACTIONS.find(function(x){return x.id===id});if(!a)return;
-      poseType=id;elapsed=0;hitMarks={};hitTimer=0;heroFlash=0;
+      poseType=id;lastAction=id;elapsed=0;hitMarks={};hitTimer=0;heroFlash=0;
       actionDuration=a.duration;
       btns.querySelectorAll("button").forEach(function(btn){btn.classList.toggle("active",btn.dataset.action===id)});
       setStatus(a.label+"｜再生中｜方向: "+LABELS[dir]+"｜ゲームの当たり判定とは別のプレビュー");
@@ -167,6 +167,36 @@
     character.addEventListener("change",function(){
       selected=character.value;poseType=null;hitTimer=0;heroFlash=0;hitMarks={};btns.querySelectorAll("button").forEach(function(b){b.classList.remove("active")});
       setStatus((roster[selected]&&roster[selected].displayName||selected)+"でテストできます");draw();
+    });
+    document.getElementById("battleExportPng").addEventListener("click",function(){
+      if(!loaded||!window.FWBattleRig||!chars[selected]){
+        setStatus("PNG出力にはキャラ画像と関節リグの読み込みが必要です");return;
+      }
+      // Four rows front/left/right/back and eight temporal frames per row.
+      const grid=document.createElement("canvas");grid.width=8*256;grid.height=4*324;
+      const ox=grid.getContext("2d");
+      const equip=lastAction==="bow"?"bow":lastAction==="axe"?"axe":lastAction==="block"?"block":
+        ["slash","thrust","combo","victory"].includes(lastAction)?"sword":null;
+      ROWS.forEach(function(d,row){
+        const artDir=d==="left"?"right":d,srcRow=ROWS.indexOf(artDir);
+        for(let f=0;f<8;f++){
+          ox.save();ox.translate(f*256,row*324);
+          window.FWBattleRig.render(ox,chars[selected],[0,srcRow*324,256,324],128,314,256,324,{
+            action:lastAction,progress:f/7,mirror:d==="left",equipment:equip
+          });
+          ox.restore();
+        }
+      });
+      if(typeof grid.toBlob!=="function"){setStatus("PNG出力がブラウザーでサポートされていません");return}
+      grid.toBlob(function(blob){
+        if(!blob){setStatus("PNG画像を書き出せませんでした");return}
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url;a.download="frontier-battle-"+selected+"-"+lastAction+"-4dir-8f.png";
+        a.style.display="none";document.body.appendChild(a);a.click();a.remove();
+        setTimeout(function(){URL.revokeObjectURL(url)},10000);
+        setStatus("PNG生成完了: "+selected+" / "+lastAction+"｜2048×1296px、4方向×8コマ、透明背景");
+      },"image/png");
     });
     document.getElementById("battleReset").addEventListener("click",function(){
       heroHp=100;enemyHp=100;poseType=null;elapsed=0;hitTimer=0;heroFlash=0;hitMarks={};
