@@ -1,4 +1,4 @@
-/* FW52.7: Title intro with 14 chapter previews and 15 in-game theme scores.
+/* FW52.8: Title intro with 17 fictional civilization concepts and 18 in-game theme scores.
    Original synthesized sketches, not recordings or authentic historical performances.
    The catalog is shared with the game BGM selector; save state is not changed here. */
 (function(){
@@ -92,7 +92,7 @@ const scores={
 /* V52.6: original multisection cue book shared with the in-game music player.
    Each cue is a playable synthesized score. It is not an audio recording. */
 scores.empire={
- name:'帝国の進撃',bpm:102,meter:4,lead:'sawtooth',harmony:'triangle',bass:'sawtooth',mode:'imperial',
+ name:'黒曜帝国の進撃',bpm:102,meter:4,lead:'sawtooth',harmony:'triangle',bass:'sawtooth',mode:'imperial',
  bars:[
   {b:36,c:[48,55,60],m:[72,72,75,79]},
   {b:39,c:[51,58,63],m:[77,75,72,70]},
@@ -148,6 +148,33 @@ Object.assign(scores,{
   ]}
 });
 
+
+/* FW52.8 — fictional equivalents of the intercontinental straits, courtly metropolis
+   and independent woodland principalities. No actual sovereigns or historical states. */
+Object.assign(scores,{
+ anatolia:{name:'双海峡の星',bpm:104,meter:7,lead:'triangle',harmony:'sine',bass:'triangle',mode:'straits',
+  bars:[
+   {b:40,c:[52,56,59],m:[76,78,81,83,81,78,76]},
+   {b:43,c:[55,59,62],m:[79,81,83,86,83,81,79]},
+   {b:45,c:[57,60,64],m:[78,81,85,88,85,81,78]},
+   {b:40,c:[52,56,59],m:[81,79,78,76,74,76,78]}
+  ]},
+ 'flower-capital':{name:'花冠の謀略',bpm:132,meter:3,lead:'sine',harmony:'triangle',bass:'sine',mode:'waltz',
+  bars:[
+   {b:48,c:[60,64,67],m:[79,83,86]},
+   {b:45,c:[57,60,64],m:[81,79,76]},
+   {b:41,c:[53,57,60],m:[77,81,84]},
+   {b:43,c:[55,59,62],m:[83,81,79]}
+  ]},
+ 'iron-forest':{name:'鉄森の盟約',bpm:98,meter:4,lead:'sawtooth',harmony:'triangle',bass:'triangle',mode:'forge',
+  bars:[
+   {b:40,c:[52,55,59],m:[71,74,79,83]},
+   {b:43,c:[55,59,62],m:[74,79,83,86]},
+   {b:45,c:[57,60,64],m:[76,79,84,88]},
+   {b:40,c:[52,55,59],m:[83,79,74,71]}
+  ]}
+});
+
 const OST_META={
  frontier:{instrument:'lute',support:'flute',rhythm:'guitar',description:'村の朝、家族の絆、冒険の始まり'},
  grassland:{instrument:'trumpet',support:'lute',rhythm:'taiko',description:'騎馬の蹄音と広大な草原'},
@@ -163,9 +190,12 @@ const OST_META={
  malta:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'島の港と要塞を舞台にした航海の主題'},
  sparta:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'都市国家と重装歩兵の緊張を描くマーチ'},
  egypt:{instrument:'flute',support:'lute',rhythm:'tabla',description:'ナイルの水と星空を描くオリジナル曲'},
- empire:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'重い行軍と合唱を思わせる威圧的な帝国マーチ'}
+ anatolia:{instrument:'lute',support:'violin',rhythm:'tabla',description:'架空の双海峡帝都、諸文化の交差する海上交易路'},
+ 'flower-capital':{instrument:'violin',support:'flute',rhythm:'lute',description:'架空の花冠王都、舞踏会と宮廷の駆け引き'},
+ 'iron-forest':{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'架空の鉄森諸邦、工房と諸侯の力強い合奏'},
+ empire:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'史実にない黒曜帝国の梟雄が率いる覇道。太鼓と威圧的なマーチ'}
 };
-const chapterOrder=['frontier','grassland','vinland','samurai','oasis','maritime','tropical','mountain','celtic','maya','native-american','malta','sparta','egypt'];
+const chapterOrder=['frontier','grassland','vinland','samurai','oasis','maritime','tropical','mountain','celtic','maya','native-american','malta','sparta','egypt','anatolia','flower-capital','iron-forest'];
 function composeCue(id){
  const def=scores[id],meta=OST_META[id];
  if(!def||!meta)return null;
@@ -210,6 +240,24 @@ window.FW_CHAPTER_OST=Object.freeze({
  get:id=>composed[id]||null
 });
 Object.keys(composed).forEach(id=>{if(scores[id])scores[id].bars=composed[id].previewBars;});
+
+
+/* This rival power is pure fiction and does not correspond to any actual empire. */
+window.FW_FICTIONAL_EMPIRE=Object.freeze({
+ id:'obsidian-empire',
+ name:'黒曜帝国',
+ ruler:Object.freeze({
+  id:'vargadis',
+  name:'ヴァルガディス',
+  epithet:'灰冠の梟雄',
+  role:'一代で諸侯を屈服させた覇王。天才軍師を集める冷徹な組織者',
+  virtues:['大胆な作戦','人材登用','兵站改革'],
+  flaws:['疑心','過剰な野望','忠臣との対立']
+ }),
+ status:'story-design',
+ soundtrack:'ost:empire',
+ historicalCountry:null
+});
 
 const Audio=window.AudioContext||window.webkitAudioContext;
 let ac=null,mix=null,clock=null,track=null,currentTheme='title',entered=false;
@@ -272,6 +320,12 @@ function rhythm(def,t,beat,dest){
   tap(t+beat*2.5,dest,.045);
  }else if(mode==='nile'){
   lowDrum(t,dest,.052);tap(t+beat*1.5,dest,.018);tap(t+beat*4.5,dest,.015);
+ }else if(mode==='straits'){
+  lowDrum(t,dest,.08);tap(t+beat*2,dest,.03);lowDrum(t+beat*4,dest,.07);tap(t+beat*6,dest,.03);
+ }else if(mode==='waltz'){
+  lowDrum(t,dest,.045);tap(t+beat,dest,.014);tap(t+beat*2,dest,.014);
+ }else if(mode==='forge'){
+  lowDrum(t,dest,.12);tap(t+beat*.5,dest,.021);lowDrum(t+beat*2,dest,.09);tap(t+beat*3,dest,.03);
  }
 }
 function scheduleBar(active){
