@@ -7,6 +7,7 @@
   var ACTIONS = [
     {id:"slash", label:"⚔️ 斬撃", duration:820, damage:16},
     {id:"thrust",label:"🗡️ 突き", duration:740, damage:13},
+    {id:"axe",label:"🪓 斧振り下ろし", duration:990, damage:20},
     {id:"bow",label:"🏹 弓射撃", duration:1050, damage:11},
     {id:"combo",label:"⚡ 3連撃", duration:1520, damage:24},
     {id:"block",label:"🛡️ 防御", duration:1000, damage:0},
@@ -28,6 +29,10 @@
       q.dx=-24*shape(p,0,.24,.30,.44)+147*shape(p,.34,.57,.72,1);
       q.tilt=-.12*shape(p,.12,.33,.42,.52)+.18*shape(p,.45,.57,.75,1);
       q.weapon=-1.2*shape(p,.12,.37,.44,.50)+2.4*shape(p,.45,.60,.75,1);
+    }else if(type==="axe"){
+      q.dx=-27*shape(p,.09,.25,.31,.44)+110*shape(p,.42,.68,.80,1);
+      q.tilt=-.24*shape(p,.14,.38,.45,.53)+.27*shape(p,.57,.70,.79,1);
+      q.weapon=-1.3*shape(p,.15,.43,.51,.58)+2.75*shape(p,.59,.73,.79,.93);
     }else if(type==="thrust"){
       q.dx=-22*shape(p,0,.28,.31,.39)+170*shape(p,.36,.62,.77,1);
       q.tilt=-.10*shape(p,.10,.28,.34,.40)+.15*shape(p,.38,.57,.70,.90);
@@ -177,6 +182,7 @@
       var p=Math.min(1,elapsed/actionDuration);
       if(poseType==="slash"&&p>=.56)damage("slash",16);
       if(poseType==="thrust"&&p>=.62)damage("thrust",13);
+      if(poseType==="axe"&&p>=.70)damage("axe",20);
       if(poseType==="bow"&&p>=.78)damage("bow",11);
       if(poseType==="combo"){
         if(p>=.27)damage("combo1",7);
@@ -244,6 +250,12 @@
       ctx.beginPath();ctx.arc(x,y,88,-1.10,1.04);ctx.stroke();
       ctx.strokeStyle="rgba(255,255,255,.7)";ctx.lineWidth=3;ctx.stroke();ctx.restore();
     }
+    function axe(x,y,p){
+      ctx.save();ctx.translate(x+75+p.dx,y-151+p.dy);ctx.rotate(p.weapon||0);
+      ctx.lineWidth=8;ctx.lineCap="round";ctx.strokeStyle="#936f49";ctx.beginPath();ctx.moveTo(-15,15);ctx.lineTo(70,-76);ctx.stroke();
+      ctx.fillStyle="#c8d9dc";ctx.strokeStyle="#f0f6ee";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(61,-88);ctx.lineTo(88,-84);ctx.quadraticCurveTo(123,-57,103,-34);ctx.lineTo(76,-51);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+      if(Math.abs(p.weapon)>1.3)slashArc(x+p.dx+104,y-180,p.weapon);
+    }
     function bow(x,y,p,prog){
       var px=x+p.dx+53,py=y-147;
       ctx.save();ctx.strokeStyle="#b58b58";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(px+15,py-70);ctx.quadraticCurveTo(px+76,py-11,px+18,py+52);ctx.stroke();
@@ -285,6 +297,7 @@
       if(heroPose.ghost>0)actor(selected,255+32,317,dir,{dx:0,dy:0,tilt:0,scaleX:1,scaleY:1},0,.23*heroPose.ghost);
       actor(selected,255,317+idle,dir,heroPose,heroFlash,1);
       if(poseType==="bow")bow(255,317,heroPose,progress);
+      else if(poseType==="axe")axe(255,317,heroPose);
       else if(poseType!=="fall")sword(255,317,heroPose,enemyPose,poseType);
       if(poseType==="block")shield(255+heroPose.dx,317,heroPose.shield);
       if(counter){ctx.save();ctx.strokeStyle="#e9e2d1";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(510+enemyPose.dx,168);ctx.lineTo(462+enemyPose.dx,120);ctx.stroke();ctx.restore();}
