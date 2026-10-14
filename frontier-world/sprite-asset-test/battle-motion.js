@@ -91,7 +91,7 @@
   function boot(){
     var grid=document.querySelector(".grid");
     var character=document.getElementById("character");
-    if(!grid||!character||document.getElementById("battleMotionPreview"))return;
+    if(!grid||!character||!document.getElementById("walkCanvas")||document.getElementById("battleMotionPreview"))return;
     var section=make("section","pane full");
     section.id="battleMotionPreview";
     section.innerHTML =
