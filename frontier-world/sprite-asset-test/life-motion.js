@@ -65,7 +65,19 @@
   else if(id==='washDishes'){f=[158+7*v,212];r=[119,204];}
   else if(id==='laundry'){f=[158+8*v,212+2*Math.cos(4*Math.PI*t)];r=[121-6*v,206];}
   else {f=[169+3*v,212];r=[121,200+4*v];}
-  return {front:[f[0],f[1]+shift],rear:[r[0],r[1]+shift]};
+  // Project requested grips into each character's actual two-bone reach.
+  // This also prevents pop-through at the elbow when the short child rig animates.
+  const reachable=(side,point)=>{
+   const joints=profile.joints,shoulder=joints[side+'Shoulder'],elbow=joints[side+'Elbow'],hand=joints[side+'Hand'];
+   const l1=Math.hypot(elbow[0]-shoulder[0],elbow[1]-shoulder[1]);
+   const l2=Math.hypot(hand[0]-elbow[0],hand[1]-elbow[1]);
+   const dx=point[0]-shoulder[0],dy=point[1]-shoulder[1],d=Math.hypot(dx,dy);
+   if(d<.0001)return [shoulder[0],shoulder[1]+Math.abs(l1-l2)+.4];
+   const min=Math.abs(l1-l2)+.4,max=l1+l2-.4;
+   const length=Math.max(min,Math.min(max,d)),scale=length/d;
+   return [shoulder[0]+dx*scale,shoulder[1]+dy*scale];
+  };
+  return {front:reachable('front',[f[0],f[1]+shift]),rear:reachable('rear',[r[0],r[1]+shift])};
  }
  function ellipse(ctx,x,y,rx,ry,color){
   ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
