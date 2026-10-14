@@ -31,7 +31,13 @@ const chapterDefinitions=[
  {id:'oasis',name:'オアシス編',subtitle:'砂漠の交易王',description:'水を守り、隊商を率い、交易都市を繁栄させる物語。',symbol:'🌴',available:false},
  {id:'maritime',name:'海洋国家編',subtitle:'大海原の覇権',description:'港を育て、船を造り、島々と交易する海の物語。',symbol:'⚓',available:false},
  {id:'tropical',name:'トロピカル編',subtitle:'南海の楽園',description:'南の島の漁業や農業、自然と共生する島々の物語。',symbol:'🌺',available:false},
- {id:'mountain',name:'山岳編',subtitle:'天空の王国',description:'峠、鉱山、段々畑。山々の暮らしと独立を守る物語。',symbol:'⛰️',available:false}
+ {id:'mountain',name:'山岳編',subtitle:'天空の王国',description:'峠、鉱山、段々畑。山々の暮らしと独立を守る物語。',symbol:'⛰️',available:false},
+ {id:'celtic',name:'ケルト編',subtitle:'森と石の環',description:'森林、丘陵、氏族の集落、織物、鍛冶、交易。文化の異なる共同体を結ぶ物語。',symbol:'🍀',available:false},
+ {id:'maya',name:'マヤ編',subtitle:'星を読む都市',description:'トウモロコシ農業、石造都市、暦と天文観測。都市国家と神話をめぐる物語。',symbol:'🌞',available:false},
+ {id:'native-american',name:'ネイティブ・アメリカン編',subtitle:'大地に刻む道',description:'北米の多様な先住民文化に着想を得た構想。地域・共同体ごとの暮らしや言語の違いも描く。',symbol:'🌲',available:false},
+ {id:'malta',name:'マルタ編',subtitle:'地中海の要塞',description:'島の港、船団、石造要塞、騎士団、航路の守りと交易の物語。',symbol:'🏰',available:false},
+ {id:'sparta',name:'スパルタ編',subtitle:'盾とポリス',description:'都市国家、密集陣形、訓練、外交。社会制度の光と影も描く物語。',symbol:'🛡️',available:false},
+ {id:'egypt',name:'エジプト編',subtitle:'大河の王朝',description:'ナイルの氾濫と灌漑、書記、神殿、王朝。大河とともに生きる人々の物語。',symbol:'🏺',available:false}
 ];
 const chapters=document.createElement('section');
 chapters.id='fwTitleChapters';chapters.hidden=true;
@@ -41,7 +47,7 @@ main.insertAdjacentElement('afterend',chapters);
 const chapterGrid=chapters.querySelector('#fwTitleChapterList');
 const chapterDetail=chapters.querySelector('#fwTitleChapterDetail');
 const chapterStart=chapters.querySelector('#fwTitleChapterStart');
-const chapterTracks={frontier:'はじまりの村',grassland:'草原の覇者',vinland:'北海の旅路',samurai:'戦国の風',oasis:'砂漠の星',maritime:'大海原への出航',tropical:'南海の陽光',mountain:'天空の峰'};
+const chapterTracks={frontier:'はじまりの村',grassland:'草原の覇者',vinland:'北海の旅路',samurai:'戦国の風',oasis:'砂漠の星',maritime:'大海原への出航',tropical:'南海の陽光',mountain:'天空の峰',celtic:'森と石の環',maya:'星辰の暦', 'native-american':'風と大地の道',malta:'地中海の盾',sparta:'盾の誓い',egypt:'ナイルの夜明け'};
 const chapterButtons=new Map();
 let chosenChapter='frontier';
 chapterDefinitions.forEach(function(def){
