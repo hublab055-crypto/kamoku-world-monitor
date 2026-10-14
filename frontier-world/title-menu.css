@@ -83,3 +83,30 @@
 #fwTitleOverlay[data-fw-title-theme=c] .fw-chapter-option[aria-pressed=true]{background:#d3a36c}
 #fwTitleOverlay[data-fw-title-theme=c] .fw-chapter-status{color:#855225}
 @media(max-width:760px){#fwTitleOverlay .fw-chapters-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#fwTitleOverlay .fw-chapter-option{min-height:105px}#fwTitleOverlay[data-fw-title-theme] #fwTitleChapters{max-height:92dvh}}
+
+/* FW52.7: Fourteen origin stories: keep the selected story and action button visible
+   while the long list of origin cards scrolls on mobile. */
+#fwTitleOverlay[data-fw-title-theme] #fwTitleChapters{
+ display:flex;flex-direction:column;height:min(90dvh,750px);max-height:90dvh;overflow:hidden
+}
+#fwTitleOverlay #fwTitleChapters .fw-chapters-grid{
+ min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;
+ align-content:start;padding:4px 5px 8px 4px;scrollbar-width:thin
+}
+#fwTitleOverlay #fwTitleChapters .fw-chapters-lead{flex:0 0 auto}
+#fwTitleOverlay #fwTitleChapters .fw-chapters-title{flex:0 0 auto}
+#fwTitleOverlay #fwTitleChapters .fw-chapters-detail{flex:0 0 auto;min-height:63px}
+#fwTitleOverlay #fwTitleChapters .fw-chapters-actions{flex:0 0 auto;padding-top:3px}
+#fwTitleOverlay .fw-chapter-option strong{overflow-wrap:anywhere;word-break:normal}
+@media(min-width:761px) and (max-width:1050px){
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ #fwTitleOverlay[data-fw-title-theme] #fwTitleChapters{
+  height:calc(100dvh - 28px);max-height:calc(100dvh - 28px);padding:14px 12px
+ }
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-lead{margin-bottom:10px}
+ #fwTitleOverlay #fwTitleChapters .fw-chapter-option{min-height:99px}
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-detail{font-size:12px;min-height:69px;padding:9px 0}
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-actions button{min-height:42px;padding:9px 12px}
+}
