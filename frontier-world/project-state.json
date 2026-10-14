@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-14T14:26:28.713+09:00",
+  "updated_at": "2026-10-14T10:56:03.549Z",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V52.4+BM4",
-  "game_commit": "04d6a582e4fd5a23574b761eadf37320eeca21de",
+  "implementation_version": "V52.7-ST4+BM4",
+  "game_commit": "458c3cc7c769a6e6a099a149dde6819bddf7ce1c",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -152,7 +152,11 @@
     "live game visual-only sword/bow pose transforms, enemy hit/attack feedback and player recoil, without changing combat damage or saved state",
     "articulated 10-segment battle cutout rig with keyframed shoulder/elbow/hip/knee, sword/axe/bow/shield attachment, live sword/bow/hit renderer integration, and 4x8 transparent PNG sprite-sheet exporter",
     "character/direction-specific battle-rig calibration of 12 joints and 10 cutout parts, touch drag/edit, localStorage profiles, JSON import/export, and live game sprite mapping",
-    "visually reviewed original Mio and boy2 4x4 atlases, aligned separate pose preset joints and boy2-specific 10-part cutout polygons; 440 mock canvas draw calls passed"
+    "visually reviewed original Mio and boy2 4x4 atlases, aligned separate pose preset joints and boy2-specific 10-part cutout polygons; 440 mock canvas draw calls passed",
+    "start chapter selection displays 14 regions including Celtic, Maya, Native American, Malta, Sparta and Egypt; only frontier is playable",
+    "responsive long region selection scroll area with anchored chapter detail/start actions",
+    "14 original region theme previews switched on selection with shared title audio controls",
+    "15 original 16-bar synth score sketches (14 origin chapters plus imperial march) in game's selectable BGM catalog"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -169,7 +173,11 @@
     "UGC copyright/portrait/trademark declarations, automated risk checks, reports, moderation, appeals and audit logs",
     "wire preview-only thrust/axe/combo/block/dodge/fall/victory to game commands as applicable, then replace procedural full-body transformations with dedicated four-direction battle sprites",
     "calibrate segmented battle masks and joints for each character/direction and replace extracted walk-art limbs with individually drawn battle-ready hands/feet/clothing parts",
-    "visually calibrate the generated per-character rig templates on real iPhone/desktop imagery, refine cutout masks and verify left/right mirroring and exported PNG sprite sheets"
+    "visually calibrate the generated per-character rig templates on real iPhone/desktop imagery, refine cutout masks and verify left/right mirroring and exported PNG sprite sheets",
+    "actual starting maps, cultures, NPCs, resources, storylines and quests for 13 future world chapters",
+    "historically and culturally informed research for Celtic, Maya and distinct North American Indigenous cultures",
+    "mastered recordings, sampled instruments, orchestral arrangements and actual sung choruses for main themes",
+    "imperial march automatic triggering on in-world faction/army events"
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -214,7 +222,8 @@
     "V52.4 splash/logo and BGM are code-verified but not iOS Safari E2E-tested; trademark SVG and synthesized music are provisional pending the adopted original image/audio assets",
     "Battle motions in sprite-asset-test/full.html include 10 visual prototypes; live game only hooks current sword/bow/hit events through existing renderer, other actions await proper game command integration",
     "V52.4+BM3 cutout rig uses shared geometric masks over walk atlas and has not undergone real iPhone Safari visual testing; visible seams, costume cutout mismatch and weapon-hand misalignment may occur",
-    "BM4 battle-rig initial character/direction profiles are approximations; the cutout masks are shared, and Safari touch/UI/PNG exports have not had a real browser end-to-end test"
+    "BM4 battle-rig initial character/direction profiles are approximations; the cutout masks are shared, and Safari touch/UI/PNG exports have not had a real browser end-to-end test",
+    "V52.7 14-origin title preview and 15-score synthesized OST code validated with mock audio, but not yet iPhone Safari end-to-end verified; six added origins are previews, not playable worlds"
   ],
   "collaboration": {
     "gameplay_owner": [
