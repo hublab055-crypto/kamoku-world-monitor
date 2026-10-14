@@ -23,31 +23,35 @@ function allSaves(){return ['autosave',1,2,3,4,5].map(saved).filter(Boolean).sor
 function status(t){notice.textContent=t||'';}
 function select(i){selected=(i+buttons.length)%buttons.length;buttons.forEach(function(b,j){b.setAttribute('aria-current',j===selected?'true':'false');});}
 /* FRONTIER_START_CHAPTER_V1: choose an origin before New Game. Future regions are previews only. */
+/* Stable chapter IDs are retained across renaming for save compatibility. */
 const chapterDefinitions=[
- {id:'frontier',name:'開拓編',subtitle:'開拓の村から始まる物語',description:'家族や村人と暮らしながら、農業・建築・冒険を進める現在のフロンティアワールド。',symbol:'🏡',available:true},
- {id:'grassland',name:'草原編',subtitle:'草原の覇者',description:'遊牧、騎馬、部族連合。大草原を渡る暮らしと国家の物語。',symbol:'🐎',available:false},
- {id:'vinland',name:'ビンランド編',subtitle:'新天地への航海',description:'北方の海を越え、厳しい自然の中で集落を築く開拓の物語。',symbol:'⛵',available:false},
- {id:'samurai',name:'侍編',subtitle:'戦国の群雄',description:'城下町、武士、稲作、領地経営。争乱の時代を生きる物語。',symbol:'🏯',available:false},
- {id:'oasis',name:'オアシス編',subtitle:'砂漠の交易王',description:'水を守り、隊商を率い、交易都市を繁栄させる物語。',symbol:'🌴',available:false},
- {id:'maritime',name:'海洋国家編',subtitle:'大海原の覇権',description:'港を育て、船を造り、島々と交易する海の物語。',symbol:'⚓',available:false},
- {id:'tropical',name:'トロピカル編',subtitle:'南海の楽園',description:'南の島の漁業や農業、自然と共生する島々の物語。',symbol:'🌺',available:false},
- {id:'mountain',name:'山岳編',subtitle:'天空の王国',description:'峠、鉱山、段々畑。山々の暮らしと独立を守る物語。',symbol:'⛰️',available:false},
- {id:'celtic',name:'ケルト編',subtitle:'森と石の環',description:'森林、丘陵、氏族の集落、織物、鍛冶、交易。文化の異なる共同体を結ぶ物語。',symbol:'🍀',available:false},
- {id:'maya',name:'マヤ編',subtitle:'星を読む都市',description:'トウモロコシ農業、石造都市、暦と天文観測。都市国家と神話をめぐる物語。',symbol:'🌞',available:false},
- {id:'native-american',name:'ネイティブ・アメリカン編',subtitle:'大地に刻む道',description:'北米の多様な先住民文化に着想を得た構想。地域・共同体ごとの暮らしや言語の違いも描く。',symbol:'🌲',available:false},
- {id:'malta',name:'マルタ編',subtitle:'地中海の要塞',description:'島の港、船団、石造要塞、騎士団、航路の守りと交易の物語。',symbol:'🏰',available:false},
- {id:'sparta',name:'スパルタ編',subtitle:'盾とポリス',description:'都市国家、密集陣形、訓練、外交。社会制度の光と影も描く物語。',symbol:'🛡️',available:false},
- {id:'egypt',name:'エジプト編',subtitle:'大河の王朝',description:'ナイルの氾濫と灌漑、書記、神殿、王朝。大河とともに生きる人々の物語。',symbol:'🏺',available:false}
+ {id:'frontier',name:'開拓者編',subtitle:'はじまりの村',description:'暮らし・家族・開拓・交易から一人の人生が始まる。小さな村も世界史の一部となる。',symbol:'🏡',available:true,hero:'村を守る若き開拓者'},
+ {id:'grassland',name:'騎馬草原編',subtitle:'草原の覇者',description:'大草原を渡る遊牧民と騎馬連合。戦場に一人で突破口を開く豪傑が現れる。',symbol:'🐎',available:false,hero:'千騎を退ける騎馬将'},
+ {id:'vinland',name:'北海航路編',subtitle:'新天地への航海',description:'寒海を越えた探検と入植。水夫・入植者・交渉役の決断で集落の命運が変わる。',symbol:'⛵',available:false,hero:'嵐を読む航海長'},
+ {id:'samurai',name:'東方群雄編',subtitle:'戦国の群雄',description:'武家政権、城下町、農村、兵站。天才軍師と豪傑が群雄割拠を揺るがす。',symbol:'🏯',available:false,hero:'神算の軍師と槍の勇将'},
+ {id:'oasis',name:'砂海交易編',subtitle:'砂漠の交易王',description:'水と隊商を巡る都市連合の興亡。剣だけでなく交渉が戦局を決める。',symbol:'🌴',available:false,hero:'隊商を束ねる交渉の鬼才'},
+ {id:'maritime',name:'海商都市編',subtitle:'大海原の覇権',description:'船大工・商会・共和国・船団が覇を競う架空の港湾都市群。海軍と金融が絡み合う。',symbol:'⚓',available:false,hero:'艦隊を導く天才提督'},
+ {id:'tropical',name:'南洋島嶼編',subtitle:'南海の楽園',description:'島ごとの社会と交易、航海、農林漁業。群島を結ぶ人物が新しい時代を開く。',symbol:'🌺',available:false,hero:'潮流を読む若き船長'},
+ {id:'mountain',name:'山岳王国編',subtitle:'天空の王国',description:'険しい山道、鉱山、段々畑、要塞。少数で大軍を防ぐ戦略家が現れる。',symbol:'⛰️',available:false,hero:'山城不落の守将'},
+ {id:'celtic',name:'森の氏族編',subtitle:'森と石の環',description:'森・丘陵の多様な氏族国家。交易と誓約のなかで次世代の統率者が育つ。',symbol:'🍀',available:false,hero:'氏族をまとめる女傑'},
+ {id:'maya',name:'星暦都市編',subtitle:'星を読む都市',description:'天文、暦、農業を重んじる架空の石造都市文明。祭礼と科学が政治を動かす。',symbol:'🌞',available:false,hero:'星辰を解き明かす学匠'},
+ {id:'native-american',name:'大地の諸族編',subtitle:'大地に刻む道',description:'森・河川・草原の異なる共同体が共存する世界。風土と言葉、外交の違いを丁寧に描く。',symbol:'🌲',available:false,hero:'諸族をつなぐ調停者'},
+ {id:'malta',name:'海峡騎士団編',subtitle:'碧海の要塞',description:'要塞港と騎士団が交易路を守る。海を越える大軍に小さな島が立ち向かう。',symbol:'🏰',available:false,hero:'守備の常識を覆す城塞長'},
+ {id:'sparta',name:'盾槍都市編',subtitle:'盾と都市国家',description:'盾と槍の隊列、厳しい訓練、市民の政治。武勇と社会制度の両面を描く。',symbol:'🛡️',available:false,hero:'密集陣を率いる若き将'},
+ {id:'egypt',name:'大河王朝編',subtitle:'大河の王朝',description:'大河の灌漑、書記官、農村、神殿、王朝。治水の名宰相が飢饉を退ける。',symbol:'🏺',available:false,hero:'治水を変えた名宰相'},
+ {id:'anatolia',name:'双海峡帝都編',subtitle:'二つの大陸を結ぶ都',description:'大陸の間の都を巡り、軍政・交易・宗教・艦隊がせめぎ合う架空の多文化帝都。',symbol:'🕌',available:false,hero:'城壁を突破する天才軍師'},
+ {id:'flower-capital',name:'花冠王都編',subtitle:'宮廷と市民の都',description:'宮廷、芸術家、学者、市民、革命の気運が交錯する架空の大王都。',symbol:'👑',available:false,hero:'政争を見通す若き策士'},
+ {id:'iron-forest',name:'鉄森諸邦編',subtitle:'諸侯と工房の盟約',description:'深い森、鉱山、工房、印刷、自由都市。諸侯同盟と職人の知恵が国境を動かす。',symbol:'⚒️',available:false,hero:'鉄と戦略を操る発明家'}
 ];
 const chapters=document.createElement('section');
 chapters.id='fwTitleChapters';chapters.hidden=true;
-chapters.setAttribute('aria-label','はじめから：開始地域の選択');
-chapters.innerHTML='<h2 class="fw-chapters-title">どの物語から始めますか？</h2><p class="fw-chapters-lead">開始する地域を選んでください。カードを選ぶと、その地域のテーマBGMを試聴できます（音楽ON時）。</p><div id="fwTitleChapterList" class="fw-chapters-grid" role="group" aria-label="物語一覧"></div><div class="fw-chapters-detail" id="fwTitleChapterDetail" role="status" aria-live="polite"></div><div class="fw-chapters-actions"><button type="button" id="fwTitleChapterStart">この物語ではじめる</button><button type="button" id="fwTitleChapterBack">戻る</button></div>';
+chapters.setAttribute('aria-label','はじめから：架空文明の開始物語の選択');
+chapters.innerHTML='<h2 class="fw-chapters-title">どの文明の物語から始めますか？</h2><p class="fw-chapters-lead">架空世界の17の文明・社会モデルから選択。カードを選ぶと、その物語のBGMを試聴できます（音楽ON時）。</p><div id="fwTitleChapterList" class="fw-chapters-grid" role="group" aria-label="物語一覧"></div><div class="fw-chapters-detail" id="fwTitleChapterDetail" role="status" aria-live="polite"></div><div class="fw-chapters-actions"><button type="button" id="fwTitleChapterStart">この物語ではじめる</button><button type="button" id="fwTitleChapterBack">戻る</button></div>';
 main.insertAdjacentElement('afterend',chapters);
 const chapterGrid=chapters.querySelector('#fwTitleChapterList');
 const chapterDetail=chapters.querySelector('#fwTitleChapterDetail');
 const chapterStart=chapters.querySelector('#fwTitleChapterStart');
-const chapterTracks={frontier:'はじまりの村',grassland:'草原の覇者',vinland:'北海の旅路',samurai:'戦国の風',oasis:'砂漠の星',maritime:'大海原への出航',tropical:'南海の陽光',mountain:'天空の峰',celtic:'森と石の環',maya:'星辰の暦', 'native-american':'風と大地の道',malta:'地中海の盾',sparta:'盾の誓い',egypt:'ナイルの夜明け'};
+const chapterTracks={frontier:'はじまりの村',grassland:'草原の覇者',vinland:'北海の旅路',samurai:'戦国の風',oasis:'砂漠の星',maritime:'大海原への出航',tropical:'南海の陽光',mountain:'天空の峰',celtic:'森と石の環',maya:'星辰の暦','native-american':'風と大地の道',malta:'地中海の盾',sparta:'盾の誓い',egypt:'ナイルの夜明け',anatolia:'双海峡の星','flower-capital':'花冠の謀略','iron-forest':'鉄森の盟約'};
 const chapterButtons=new Map();
 let chosenChapter='frontier';
 chapterDefinitions.forEach(function(def){
@@ -67,7 +71,7 @@ function chooseChapter(id){
  const def=chapterDefinitions.find(function(c){return c.id===id;})||chapterDefinitions[0];
  chosenChapter=def.id;
  chapterButtons.forEach(function(button,key){button.setAttribute('aria-pressed',key===def.id?'true':'false');});
- chapterDetail.textContent=def.name+' — '+def.description+' ♪ '+chapterTracks[def.id]+'（テーマBGM）'+(def.available?'':' ※ この編はまだ制作中です。現在は始められません。');
+ chapterDetail.textContent=def.name+' — '+def.description+' ｜英雄像：'+def.hero+' ｜♪ '+chapterTracks[def.id]+'（テーマBGM）'+(def.available?'':' ※ この編はまだ制作中です。現在は始められません。');
  chapterStart.disabled=!def.available;
  chapterStart.textContent=def.available?'この物語ではじめる':'この物語は準備中';
  window.dispatchEvent(new CustomEvent('fw-title-chapter-selected',{detail:{id:def.id}}));
