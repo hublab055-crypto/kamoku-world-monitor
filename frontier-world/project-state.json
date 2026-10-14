@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-14T13:30:10.861+09:00",
+  "updated_at": "2026-10-14T14:23:18.428+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V52.4+BM3",
-  "game_commit": "4d265decef2b3a6b8bb28f92c7201ca5d653fc6a",
+  "implementation_version": "V52.4+BM4",
+  "game_commit": "04d6a582e4fd5a23574b761eadf37320eeca21de",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -150,7 +150,8 @@
     "startup trademark splash, full-bleed A/B/C artwork with interactive wooden signpost menu, user-gesture synthesized title BGM and persistent title audio settings",
     "staging sprite test battle-motion preview with ten actions (including axe), character/direction/speed selection and visual-only demo HP (not integrated into live game combat)",
     "live game visual-only sword/bow pose transforms, enemy hit/attack feedback and player recoil, without changing combat damage or saved state",
-    "articulated 10-segment battle cutout rig with keyframed shoulder/elbow/hip/knee, sword/axe/bow/shield attachment, live sword/bow/hit renderer integration, and 4x8 transparent PNG sprite-sheet exporter"
+    "articulated 10-segment battle cutout rig with keyframed shoulder/elbow/hip/knee, sword/axe/bow/shield attachment, live sword/bow/hit renderer integration, and 4x8 transparent PNG sprite-sheet exporter",
+    "character/direction-specific battle-rig calibration of 12 joints and 10 cutout parts, touch drag/edit, localStorage profiles, JSON import/export, and live game sprite mapping"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -166,7 +167,8 @@
     "server-authoritative shared UGC marketplace with listings, purchases, ratings and reviews",
     "UGC copyright/portrait/trademark declarations, automated risk checks, reports, moderation, appeals and audit logs",
     "wire preview-only thrust/axe/combo/block/dodge/fall/victory to game commands as applicable, then replace procedural full-body transformations with dedicated four-direction battle sprites",
-    "calibrate segmented battle masks and joints for each character/direction and replace extracted walk-art limbs with individually drawn battle-ready hands/feet/clothing parts"
+    "calibrate segmented battle masks and joints for each character/direction and replace extracted walk-art limbs with individually drawn battle-ready hands/feet/clothing parts",
+    "visually calibrate the generated per-character rig templates on real iPhone/desktop imagery, refine cutout masks and verify left/right mirroring and exported PNG sprite sheets"
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -210,7 +212,8 @@
     "V52.3 image assets, hashes, and JS syntax verified via GitHub; live iPhone Safari visual/touch E2E and Pages deployment/caching verification pending",
     "V52.4 splash/logo and BGM are code-verified but not iOS Safari E2E-tested; trademark SVG and synthesized music are provisional pending the adopted original image/audio assets",
     "Battle motions in sprite-asset-test/full.html include 10 visual prototypes; live game only hooks current sword/bow/hit events through existing renderer, other actions await proper game command integration",
-    "V52.4+BM3 cutout rig uses shared geometric masks over walk atlas and has not undergone real iPhone Safari visual testing; visible seams, costume cutout mismatch and weapon-hand misalignment may occur"
+    "V52.4+BM3 cutout rig uses shared geometric masks over walk atlas and has not undergone real iPhone Safari visual testing; visible seams, costume cutout mismatch and weapon-hand misalignment may occur",
+    "BM4 battle-rig initial character/direction profiles are approximations; the cutout masks are shared, and Safari touch/UI/PNG exports have not had a real browser end-to-end test"
   ],
   "collaboration": {
     "gameplay_owner": [
