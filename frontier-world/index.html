@@ -12793,7 +12793,8 @@ drawPerson=function(person,sprite){
      ctx.globalAlpha=alpha===undefined?1:alpha;
      const equipment=hit?null:kind==='bow'?'bow':kind==='axe'?'axe':'sword';
      const drawn=window.FWBattleRig.render(ctx,atlasImg,rect,dx+dw/2,dy+dh,dw,dh,{
-      action:kind,progress:progress,mirror:person.dir==='left',equipment:equipment
+      action:kind,progress:progress,mirror:person.dir==='left',equipment:equipment,
+      characterId:sprite==='mio'?'girl1':(person.id||sprite),direction:person.dir||'front'
      });
      if(drawn)return;
     }catch(error){console.warn('Battle rig render fallback',error);}
@@ -13798,7 +13799,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
-<script defer src="sprite-asset-test/battle-rig.js?v=52.4bm3"></script>
+<script defer src="sprite-asset-test/battle-rig.js?v=52.4bm4"></script>
 <script defer src="sprite-asset-test/battle-motion.js?v=52.4bm3"></script>
 <script defer src="publishing-industry.js?v=52.0"></script>
 
