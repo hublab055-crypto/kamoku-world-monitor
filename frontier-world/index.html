@@ -12778,6 +12778,34 @@ drawPerson=function(person,sprite){
  const kind=hit?'hit':(wa.kind==='bow'?'bow':wa.kind==='axe'?'axe':'slash');
  const duration=hit?ev.duration:kind==='bow'?420:430;
  const progress=Math.max(0,Math.min(1,1-((hit?ev.until:wa.until)-now)/duration));
+ /* FW_BATTLE_RIG_GAME_V1: replace only the combat sprite draw, retain bars/name and NPC overlays.
+  * The scoped drawAsset interception does not modify persistent player state.
+  */
+ if(window.FWBattleRig&&atlasImg&&atlasImg.complete&&atlasImg.naturalWidth>0&&sprite){
+  const srcKey=sprite+'_'+(person.dir==='left'?'right':person.dir||'front');
+  const rect=ATLAS[srcKey],expected=sprite+'_'+(person.dir||'front');
+  if(rect){
+   const previousDrawAsset=drawAsset,previousDrawWeapon=fw7DrawWeapon;
+   drawAsset=function(assetName,dx,dy,dw,dh,alpha){
+    if(assetName!==expected)return previousDrawAsset.apply(this,arguments);
+    ctx.save();
+    try{
+     ctx.globalAlpha=alpha===undefined?1:alpha;
+     const equipment=hit?null:kind==='bow'?'bow':kind==='axe'?'axe':'sword';
+     const drawn=window.FWBattleRig.render(ctx,atlasImg,rect,dx+dw/2,dy+dh,dw,dh,{
+      action:kind,progress:progress,mirror:person.dir==='left',equipment:equipment
+     });
+     if(drawn)return;
+    }catch(error){console.warn('Battle rig render fallback',error);}
+    finally{ctx.restore();}
+    return previousDrawAsset.apply(this,arguments);
+   };
+   // Old weapon stroke is intentionally suppressed only while the rig weapon is drawn.
+   fw7DrawWeapon=function(){};
+   try{return fwBMOriginalDrawPerson.apply(this,arguments);}
+   finally{drawAsset=previousDrawAsset;fw7DrawWeapon=previousDrawWeapon;}
+  }
+ }
  const pose=fwBMSample(kind,progress),loc=worldToScreen(person.x,person.y);
  const direction=fw8DirVec(person.dir||'front'),cx=loc.x+TILE/2,cy=loc.y+TILE/2;
  const shift=Math.max(-170,Math.min(170,Number(pose.dx)||0))*.055;
@@ -13770,7 +13798,8 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
-<script defer src="sprite-asset-test/battle-motion.js?v=52.4bm2"></script>
+<script defer src="sprite-asset-test/battle-rig.js?v=52.4bm3"></script>
+<script defer src="sprite-asset-test/battle-motion.js?v=52.4bm3"></script>
 <script defer src="publishing-industry.js?v=52.0"></script>
 
 <script>
