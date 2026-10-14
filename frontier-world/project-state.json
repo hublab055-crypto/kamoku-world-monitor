@@ -1,6 +1,6 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-14T14:23:18.428+09:00",
+  "updated_at": "2026-10-14T14:26:28.713+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
@@ -151,7 +151,8 @@
     "staging sprite test battle-motion preview with ten actions (including axe), character/direction/speed selection and visual-only demo HP (not integrated into live game combat)",
     "live game visual-only sword/bow pose transforms, enemy hit/attack feedback and player recoil, without changing combat damage or saved state",
     "articulated 10-segment battle cutout rig with keyframed shoulder/elbow/hip/knee, sword/axe/bow/shield attachment, live sword/bow/hit renderer integration, and 4x8 transparent PNG sprite-sheet exporter",
-    "character/direction-specific battle-rig calibration of 12 joints and 10 cutout parts, touch drag/edit, localStorage profiles, JSON import/export, and live game sprite mapping"
+    "character/direction-specific battle-rig calibration of 12 joints and 10 cutout parts, touch drag/edit, localStorage profiles, JSON import/export, and live game sprite mapping",
+    "visually reviewed original Mio and boy2 4x4 atlases, aligned separate pose preset joints and boy2-specific 10-part cutout polygons; 440 mock canvas draw calls passed"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
