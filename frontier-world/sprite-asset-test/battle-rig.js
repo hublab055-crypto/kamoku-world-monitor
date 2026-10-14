@@ -25,6 +25,23 @@
    frontUpper:[[144,128],[188,127],[209,165],[204,206],[170,206],[161,174]],
    frontLower:[[170,187],[212,187],[226,223],[218,248],[179,239],[169,220]]
  };
+
+ // Mask silhouettes calibrated against the original boy2 256x324 idle image.
+ // Existing girl1 CLIPS remain the fallback. These are visual defaults, not final authored sprites.
+ const CHARACTER_CLIPS={
+  boy2:{
+   head:[[49,20],[177,18],[213,51],[217,109],[203,154],[175,177],[89,179],[53,153],[40,105],[43,61]],
+   torso:[[86,163],[167,163],[190,186],[190,235],[175,271],[85,267],[66,226],[72,186]],
+   rearUpper:[[71,174],[104,169],[110,199],[100,231],[68,228],[65,205]],
+   rearLower:[[64,215],[102,213],[104,242],[90,262],[65,256],[58,239]],
+   frontUpper:[[161,174],[196,172],[209,202],[209,230],[175,237],[161,207]],
+   frontLower:[[168,215],[207,214],[211,244],[193,262],[165,251],[161,233]],
+   rearThigh:[[97,255],[129,253],[139,279],[127,293],[102,288],[92,271]],
+   rearShin:[[97,276],[130,278],[136,320],[97,322],[90,296]],
+   frontThigh:[[129,253],[165,252],[174,279],[166,291],[135,291],[122,274]],
+   frontShin:[[131,277],[172,277],[179,320],[130,322],[125,299]]
+  }
+ };
  const JOINTS={
   rearThigh:{hip:[108,224],knee:[108,267]},
   rearShin:{hip:[108,224],knee:[106,270]},
@@ -118,14 +135,29 @@
  const PART_NAMES=Object.keys(CLIPS);
  const PRESET_DELTAS={
   girl1:{
-   front:{frontShoulder:[-5,2],frontElbow:[-7,-3],frontHand:[-7,-5],rearShoulder:[4,2],rearElbow:[7,-3],rearHand:[7,-5]},
+   front:{frontShoulder:[-7,3],frontElbow:[-14,-4],frontHand:[-18,-13],rearShoulder:[3,5],rearElbow:[7,-5],rearHand:[14,-13],frontHip:[2,5],frontKnee:[-3,5],rearHip:[3,6],rearKnee:[2,3]},
    right:{frontShoulder:[-16,3],frontElbow:[-18,-3],frontHand:[-17,-4],rearShoulder:[15,3],rearElbow:[13,-2],rearHand:[13,-4]},
    back:{frontShoulder:[-2,1],frontElbow:[-4,-2],rearShoulder:[2,1],rearElbow:[4,-2]}
   },
   boy2:{
-   front:{neck:[0,-7],body:[0,-4],frontShoulder:[-8,-9],frontElbow:[-12,-11],frontHand:[-10,-13],rearShoulder:[7,-9],rearElbow:[10,-11],rearHand:[10,-13],frontHip:[-5,-10],frontKnee:[-5,-5],rearHip:[4,-10],rearKnee:[4,-5]},
-   right:{neck:[-3,-7],body:[-3,-4],frontShoulder:[-21,-9],frontElbow:[-23,-12],frontHand:[-23,-13],rearShoulder:[11,-9],rearElbow:[13,-11],rearHand:[13,-13],frontHip:[-9,-9],frontKnee:[-9,-4],rearHip:[-4,-9],rearKnee:[-4,-4]},
-   back:{neck:[0,-7],body:[0,-4],frontShoulder:[-7,-9],frontElbow:[-10,-11],rearShoulder:[6,-9],rearElbow:[9,-11],frontHip:[-5,-10],rearHip:[4,-10]}
+   front:{
+    neck:[0,42],body:[0,40],
+    frontShoulder:[-1,41],frontElbow:[-13,32],frontHand:[-20,21],
+    rearShoulder:[-2,43],rearElbow:[9,34],rearHand:[15,23],
+    frontHip:[1,44],frontKnee:[-5,23],rearHip:[0,43],rearKnee:[2,22]
+   },
+   right:{
+    neck:[-1,43],body:[-2,41],
+    frontShoulder:[-16,40],frontElbow:[-18,32],frontHand:[-20,24],
+    rearShoulder:[12,41],rearElbow:[13,31],rearHand:[14,23],
+    frontHip:[-8,42],frontKnee:[-8,22],rearHip:[-3,43],rearKnee:[-4,21]
+   },
+   back:{
+    neck:[0,41],body:[0,40],
+    frontShoulder:[-3,43],frontElbow:[-8,34],frontHand:[-12,23],
+    rearShoulder:[3,43],rearElbow:[8,34],rearHand:[12,23],
+    frontHip:[1,43],frontKnee:[-4,22],rearHip:[0,44],rearKnee:[3,22]
+   }
   }
  };
  const VALID_DIRECTIONS=["front","right","left","back"];
@@ -134,7 +166,7 @@
  function directionOf(dir){return VALID_DIRECTIONS.includes(dir)?dir:"front"}
  function basicProfile(id,dir){
   const actual=dir==="left"?"right":directionOf(dir);
-  const p={joints:copy(DEFAULT_JOINTS),parts:{}};
+  const p={profileKind:id==="boy2"?"boy2":id==="girl1"?"girl1":"default",joints:copy(DEFAULT_JOINTS),parts:{}};
   for(const part of PART_NAMES)p.parts[part]={x:0,y:0,scale:1};
   const shifts=PRESET_DELTAS[id]&&PRESET_DELTAS[id][actual]||{};
   for(const key of JOINT_NAMES){
@@ -241,7 +273,7 @@
   if(elbow){
    ctx.translate(elbow[0],elbow[1]);ctx.rotate(elbowAngle*RAD);ctx.translate(-elbow[0],-elbow[1]);
   }
-  polygon(ctx,CLIPS[part]);
+  polygon(ctx,(CHARACTER_CLIPS[profile.profileKind]||CLIPS)[part]||CLIPS[part]);
   ctx.drawImage(img,rect[0],rect[1],rect[2],rect[3],0,0,256,324);
   ctx.restore();
  }
