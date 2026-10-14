@@ -18,7 +18,7 @@
    '<div class="toolbar" id="fwLifeButtons"></div>'+
    '<div class="toolbar"><label for="fwLifeDirection">向き</label><select id="fwLifeDirection"><option value="front">正面</option><option value="left">左</option><option value="right">右</option><option value="back">背面</option></select>'+
    '<label for="fwLifeSpeed">速度</label><input type="range" min="40" max="200" value="100" step="10" id="fwLifeSpeed"><output id="fwLifeSpeedValue">1.0倍</output>'+
-   '<button type="button" id="fwLifePause">一時停止</button><button type="button" id="fwLifeRestart">頭から再生</button><button type="button" id="fwLifeGuides" aria-pressed="false">関節点 OFF</button>'+
+   '<button type="button" id="fwLifePause">一時停止</button><button type="button" id="fwLifeRestart">頭から再生</button><button type="button" id="fwLifeGuides" aria-pressed="false">関節点 OFF</button><button type="button" id="fwLifeGrips" aria-pressed="false">握り位置 OFF</button>'+
    '<button type="button" id="fwLifeExport">⬇️ 4方向×8コマ PNG</button></div>'+
    '<div class="info" aria-live="polite" id="fwLifeStatus">キャラクターの画像を読み込み中…</div>'+
    '<p class="note">四方向の左向きは右向き素材の鏡像です。椅子・風呂などはテスト背景に描画します。浴槽の演出は着衣スプライトを泡で覆う暫定表現です。実物のモーション素材は後から差し替え可能です。</p>';
@@ -27,7 +27,7 @@
   const style=el('style');style.textContent='#fwLifeCanvas{display:block;width:100%;height:auto;border:1px solid #52727e;border-radius:12px;background:#1d3238}#fwLifeButtons{gap:6px}#fwLifeButtons button{min-width:112px}#fwLifeButtons button.active{background:#0d807b;border-color:#92ded5}#fwLifeSpeed{max-width:125px}';document.head.append(style);
   const $=id=>document.getElementById(id),cv=$('fwLifeCanvas'),ctx=cv.getContext('2d');
   const direction=$('fwLifeDirection'),speed=$('fwLifeSpeed'),status=$('fwLifeStatus'),btns=$('fwLifeButtons');
-  let selected=mainChar.value,act='chop',dir='front',elapsed=0,last=null,paused=false,guides=false;
+  let selected=mainChar.value,act='chop',dir='front',elapsed=0,last=null,paused=false,guides=false,grips=false;
   let manifest=null,loaded={},pending=new Map(),error='';
   const actionInfo={};
   api.actions.forEach(a=>{
@@ -55,6 +55,7 @@
   $('fwLifePause').addEventListener('click',()=>{paused=!paused;$('fwLifePause').textContent=paused?'再生':'一時停止';draw()});
   $('fwLifeRestart').addEventListener('click',()=>{elapsed=0;paused=false;$('fwLifePause').textContent='一時停止';draw()});
   $('fwLifeGuides').addEventListener('click',()=>{guides=!guides;$('fwLifeGuides').textContent='関節点 '+(guides?'ON':'OFF');$('fwLifeGuides').setAttribute('aria-pressed',String(guides));draw()});
+  $('fwLifeGrips').addEventListener('click',()=>{grips=!grips;$('fwLifeGrips').textContent='握り位置 '+(grips?'ON':'OFF');$('fwLifeGrips').setAttribute('aria-pressed',String(grips));draw()});
   function scene(){
    const g=ctx.createLinearGradient(0,0,0,420);g.addColorStop(0,'#6e9b9f');g.addColorStop(.73,'#acc6ac');g.addColorStop(.74,'#a28e72');g.addColorStop(1,'#85765d');
    ctx.fillStyle=g;ctx.fillRect(0,0,800,420);
@@ -68,10 +69,17 @@
    const source=dir==='left'?'right':dir;
    const row=dirs.indexOf(source),p=progress();
    const ok=api.render(ctx,img,[0,row*324,256,324],400,366,244,309,{
-    action:act,progress:p,characterId:selected,direction:dir,mirror:dir==='left',environment:true,guides:guides
+    action:act,progress:p,characterId:selected,direction:dir,mirror:dir==='left',environment:true,guides:guides,gripGuides:grips
    });
    const label=actionInfo[act]&&actionInfo[act].label||act;
-   status.textContent=(manifest.characters[selected].displayName||selected)+'｜'+label+'｜'+dirNames[dir]+'｜'+(paused?'停止中':'繰り返し再生中')+'｜'+Math.round(p*100)+'%'+(!ok?'｜描画不可':'');
+   let gripText='';
+   if(grips&&window.FWBattleRig&&api.handTargets){
+    const rig=window.FWBattleRig,prof=rig.getProfile(selected,dir),pose=rig.sample(act,p);
+    const correction=rig.aimHands(pose,prof,api.handTargets(act,p,prof));
+    const error=Math.max(correction.front.reachError,correction.rear.reachError);
+    gripText='｜握り位置誤差 '+error.toFixed(2)+'px';
+   }
+   status.textContent=(manifest.characters[selected].displayName||selected)+'｜'+label+'｜'+dirNames[dir]+'｜'+(paused?'停止中':'繰り返し再生中')+'｜'+Math.round(p*100)+'%'+gripText+(!ok?'｜描画不可':'');
   }
   $('fwLifeExport').addEventListener('click',()=>{
    const img=loaded[selected];if(!img){status.textContent='画像を読み込んでから書き出してください';return;}
