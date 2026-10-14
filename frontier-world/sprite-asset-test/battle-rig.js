@@ -104,6 +104,116 @@
    k(.75,{torso:-7,frontUpper:-146,rearUpper:-133,bodyY:-23,weapon:-30}),k(1,{})
   ]
  };
+
+ // Character/direction-specific editable calibration. All coordinates use the original 256x324 atlas cell.
+ const STORE="frontierWorldBattleRigAdjustmentsV1";
+ const DEFAULT_JOINTS={
+  neck:[128,125],body:[128,222],
+  frontShoulder:[170,143],frontElbow:[193,189],frontHand:[207,226],
+  rearShoulder:[89,142],rearElbow:[70,189],rearHand:[63,225],
+  frontHip:[148,224],frontKnee:[156,270],
+  rearHip:[108,224],rearKnee:[106,270]
+ };
+ const JOINT_NAMES=Object.keys(DEFAULT_JOINTS);
+ const PART_NAMES=Object.keys(CLIPS);
+ const PRESET_DELTAS={
+  girl1:{
+   front:{frontShoulder:[-5,2],frontElbow:[-7,-3],frontHand:[-7,-5],rearShoulder:[4,2],rearElbow:[7,-3],rearHand:[7,-5]},
+   right:{frontShoulder:[-16,3],frontElbow:[-18,-3],frontHand:[-17,-4],rearShoulder:[15,3],rearElbow:[13,-2],rearHand:[13,-4]},
+   back:{frontShoulder:[-2,1],frontElbow:[-4,-2],rearShoulder:[2,1],rearElbow:[4,-2]}
+  },
+  boy2:{
+   front:{neck:[0,-7],body:[0,-4],frontShoulder:[-8,-9],frontElbow:[-12,-11],frontHand:[-10,-13],rearShoulder:[7,-9],rearElbow:[10,-11],rearHand:[10,-13],frontHip:[-5,-10],frontKnee:[-5,-5],rearHip:[4,-10],rearKnee:[4,-5]},
+   right:{neck:[-3,-7],body:[-3,-4],frontShoulder:[-21,-9],frontElbow:[-23,-12],frontHand:[-23,-13],rearShoulder:[11,-9],rearElbow:[13,-11],rearHand:[13,-13],frontHip:[-9,-9],frontKnee:[-9,-4],rearHip:[-4,-9],rearKnee:[-4,-4]},
+   back:{neck:[0,-7],body:[0,-4],frontShoulder:[-7,-9],frontElbow:[-10,-11],rearShoulder:[6,-9],rearElbow:[9,-11],frontHip:[-5,-10],rearHip:[4,-10]}
+  }
+ };
+ const VALID_DIRECTIONS=["front","right","left","back"];
+ const copy=o=>JSON.parse(JSON.stringify(o));
+ function positive(v,fallback){const n=Number(v);return Number.isFinite(n)?n:fallback}
+ function directionOf(dir){return VALID_DIRECTIONS.includes(dir)?dir:"front"}
+ function basicProfile(id,dir){
+  const actual=dir==="left"?"right":directionOf(dir);
+  const p={joints:copy(DEFAULT_JOINTS),parts:{}};
+  for(const part of PART_NAMES)p.parts[part]={x:0,y:0,scale:1};
+  const shifts=PRESET_DELTAS[id]&&PRESET_DELTAS[id][actual]||{};
+  for(const key of JOINT_NAMES){
+   const delta=shifts[key]||[0,0];
+   p.joints[key]=[p.joints[key][0]+delta[0],p.joints[key][1]+delta[1]];
+  }
+  return p;
+ }
+ function validated(id,dir,input){
+  const profile=basicProfile(id,dir),o=input&&typeof input==="object"?input:{};
+  for(const key of JOINT_NAMES){
+   const x=o.joints&&o.joints[key];
+   if(Array.isArray(x)&&x.length===2){
+    profile.joints[key]=[
+     Math.round(clamp(positive(x[0],profile.joints[key][0]),0,256)*10)/10,
+     Math.round(clamp(positive(x[1],profile.joints[key][1]),0,324)*10)/10
+    ];
+   }
+  }
+  for(const key of PART_NAMES){
+   const part=o.parts&&o.parts[key];if(!part)continue;
+   profile.parts[key]={
+    x:Math.round(clamp(positive(part.x,0),-48,48)*10)/10,
+    y:Math.round(clamp(positive(part.y,0),-48,48)*10)/10,
+    scale:Math.round(clamp(positive(part.scale,1),.65,1.45)*1000)/1000
+   };
+  }
+  return profile;
+ }
+ let edits={characters:{}},lastRead=-Infinity;
+ function loadEdits(){
+  const now=Date.now();if(now-lastRead<650)return;
+  lastRead=now;
+  try{
+   const data=JSON.parse(localStorage.getItem(STORE)||"{}");
+   if(data&&data.characters&&typeof data.characters==="object")edits={characters:data.characters};
+  }catch(error){edits={characters:{}}}
+ }
+ function getProfile(id,dir){
+  id=String(id||"default");dir=directionOf(dir);loadEdits();
+  const input=edits.characters[id]&&edits.characters[id][dir];
+  return validated(id,dir,input);
+ }
+ function saveEdits(){
+  try{localStorage.setItem(STORE,JSON.stringify({version:1,characters:edits.characters}));lastRead=Date.now();return true;}
+  catch(e){return false}
+ }
+ function setProfile(id,dir,p){
+  id=String(id||"default");if(id.length>80)throw Error("Invalid character id");
+  dir=directionOf(dir);loadEdits();
+  const next=validated(id,dir,p);
+  if(!edits.characters[id])edits.characters[id]={};
+  edits.characters[id][dir]=next;
+  return saveEdits();
+ }
+ function resetProfile(id,dir){
+  id=String(id||"default");dir=directionOf(dir);loadEdits();
+  if(edits.characters[id])delete edits.characters[id][dir];
+  saveEdits();return getProfile(id,dir);
+ }
+ function exportProfiles(){
+  loadEdits();return {version:1,characters:copy(edits.characters)};
+ }
+ function importProfiles(input){
+  if(!input||!input.characters||typeof input.characters!=="object"||Array.isArray(input.characters))throw Error("Invalid profile JSON");
+  const next={};let count=0;
+  for(const [id,dirs] of Object.entries(input.characters)){
+   if(!/^[\w-]{1,80}$/.test(id)||!dirs||typeof dirs!=="object")continue;
+   const chosen={};
+   for(const dir of VALID_DIRECTIONS){
+    if(dirs[dir]){chosen[dir]=validated(id,dir,dirs[dir]);count++}
+   }
+   if(Object.keys(chosen).length)next[id]=chosen;
+   if(count>200)throw Error("Too many character profiles");
+  }
+  edits={characters:next};saveEdits();
+  return count;
+ }
+
  function sample(action,time){
   const arr=TRACKS[action]||TRACKS.idle;
   const p=clamp(time);let a=arr[0],b=arr[arr.length-1];
@@ -120,8 +230,11 @@
   const x=pt[0]-pivot[0],y=pt[1]-pivot[1],co=Math.cos(angle),si=Math.sin(angle);
   return [pivot[0]+x*co-y*si,pivot[1]+x*si+y*co];
  }
- function drawPart(ctx,img,rect,part,pivot,angle,elbow,elbowAngle){
+ function drawPart(ctx,img,rect,part,pivot,angle,elbow,elbowAngle,profile){
+  const offset=profile.parts[part]||{x:0,y:0,scale:1};
   ctx.save();
+  ctx.translate(offset.x,offset.y);
+  ctx.translate(128,160);ctx.scale(offset.scale,offset.scale);ctx.translate(-128,-160);
   if(pivot){
    ctx.translate(pivot[0],pivot[1]);ctx.rotate(angle*RAD);ctx.translate(-pivot[0],-pivot[1]);
   }
@@ -132,13 +245,13 @@
   ctx.drawImage(img,rect[0],rect[1],rect[2],rect[3],0,0,256,324);
   ctx.restore();
  }
- function hand(p,front){
-  const part=front?'frontUpper':'rearUpper',j=JOINTS[part];
+ function hand(p,front,profile){
+  const j=profile.joints,elbow=front?j.frontElbow:j.rearElbow,shoulder=front?j.frontShoulder:j.rearShoulder;
   const upper=(p[front?'frontUpper':'rearUpper']||0)*RAD;
   const lower=(p[front?'frontLower':'rearLower']||0)*RAD;
-  const grip=front?[207,226]:[63,225];
-  const shifted=rot(grip,j.elbow,lower);
-  return rot(shifted,j.shoulder,upper);
+  const grip=front?j.frontHand:j.rearHand;
+  const shifted=rot(grip,elbow,lower);
+  return rot(shifted,shoulder,upper);
  }
  function equipment(ctx,kind,p,front,rear,progress){
   const hit=progress>.47&&progress<.74;
@@ -182,6 +295,8 @@
   if(img.complete===false||img.naturalWidth===0)return false;
   let p;
   try{p=sample(opts.action||"idle",opts.progress||0)}catch(e){return false}
+  const profile=opts.profile?validated(opts.characterId||"default",opts.direction||"front",opts.profile):
+    getProfile(opts.characterId||"default",opts.direction||"front");
   const mirror=!!opts.mirror,rotation=Number(opts.rotation)||0;
   const mode=opts.mode==="legacy"?"legacy":"cutout";
   ctx.save();
@@ -194,25 +309,25 @@
    }
    // Back -> front painter order. Each piece uses the unmodified source pixels
    // with a polygonal mask, not invented recoloring or a second copy of the body.
-   const r=JOINTS;
-   drawPart(ctx,img,rect,"rearShin",r.rearShin.hip,p.rearThigh,r.rearShin.knee,p.rearShin);
-   drawPart(ctx,img,rect,"rearThigh",r.rearThigh.hip,p.rearThigh);
-   drawPart(ctx,img,rect,"rearUpper",r.rearUpper.shoulder,p.rearUpper);
-   drawPart(ctx,img,rect,"rearLower",r.rearLower.shoulder,p.rearUpper,r.rearLower.elbow,p.rearLower);
-   ctx.save();ctx.translate(128,222);ctx.rotate((p.torso||0)*RAD);ctx.translate(-128,-222);
-   drawPart(ctx,img,rect,"torso");
-   drawPart(ctx,img,rect,"frontShin",r.frontShin.hip,p.frontThigh,r.frontShin.knee,p.frontShin);
-   drawPart(ctx,img,rect,"frontThigh",r.frontThigh.hip,p.frontThigh);
-   ctx.save();ctx.translate(128,128);ctx.rotate((p.head||0)*RAD);ctx.translate(-128,-128);
-   drawPart(ctx,img,rect,"head");ctx.restore();
-   drawPart(ctx,img,rect,"frontUpper",r.frontUpper.shoulder,p.frontUpper);
-   drawPart(ctx,img,rect,"frontLower",r.frontLower.shoulder,p.frontUpper,r.frontLower.elbow,p.frontLower);
+   const j=profile.joints;
+   // Rig uses per-character joints (not the generic default). Hip rotations carry the shin pivot.
+   drawPart(ctx,img,rect,"rearShin",j.rearHip,p.rearThigh,j.rearKnee,p.rearShin,profile);
+   drawPart(ctx,img,rect,"rearThigh",j.rearHip,p.rearThigh,null,null,profile);
+   drawPart(ctx,img,rect,"rearUpper",j.rearShoulder,p.rearUpper,null,null,profile);
+   drawPart(ctx,img,rect,"rearLower",j.rearShoulder,p.rearUpper,j.rearElbow,p.rearLower,profile);
+   ctx.save();ctx.translate(j.body[0],j.body[1]);ctx.rotate((p.torso||0)*RAD);ctx.translate(-j.body[0],-j.body[1]);
+   drawPart(ctx,img,rect,"torso",null,null,null,null,profile);
+   drawPart(ctx,img,rect,"frontShin",j.frontHip,p.frontThigh,j.frontKnee,p.frontShin,profile);
+   drawPart(ctx,img,rect,"frontThigh",j.frontHip,p.frontThigh,null,null,profile);
+   ctx.save();ctx.translate(j.neck[0],j.neck[1]);ctx.rotate((p.head||0)*RAD);ctx.translate(-j.neck[0],-j.neck[1]);
+   drawPart(ctx,img,rect,"head",null,null,null,null,profile);ctx.restore();
+   drawPart(ctx,img,rect,"frontUpper",j.frontShoulder,p.frontUpper,null,null,profile);
+   drawPart(ctx,img,rect,"frontLower",j.frontShoulder,p.frontUpper,j.frontElbow,p.frontLower,profile);
    ctx.restore();
-   const front=hand(p,true),rear=hand(p,false);
+   const front=hand(p,true,profile),rear=hand(p,false,profile);
    if(opts.equipment)equipment(ctx,opts.equipment,p,front,rear,opts.progress||0);
    if(opts.guides){
-    const points=[[128,129],[128,220],[r.frontUpper.shoulder[0],r.frontUpper.shoulder[1]],
-     front,[r.rearUpper.shoulder[0],r.rearUpper.shoulder[1]],rear,[148,224],[108,224]];
+    const points=Object.values(j).concat([front,rear]);
     ctx.save();ctx.fillStyle="#72f8e1";ctx.strokeStyle="#16313c";ctx.lineWidth=2;
     points.forEach(x=>{ctx.beginPath();ctx.arc(x[0],x[1],4,0,Math.PI*2);ctx.fill();ctx.stroke()});ctx.restore();
    }
@@ -220,7 +335,10 @@
   return true;
  }
  global.FWBattleRig=Object.freeze({
-  version:"1.0.0",actions:Object.freeze(Object.keys(TRACKS)),sample:sample,render:render,
-  profile:Object.freeze({sourceWidth:256,sourceHeight:324,partCount:Object.keys(CLIPS).length})
+  version:"1.1.0",actions:Object.freeze(Object.keys(TRACKS)),sample:sample,render:render,
+  getProfile:getProfile,setProfile:setProfile,resetProfile:resetProfile,
+  exportProfiles:exportProfiles,importProfiles:importProfiles,defaultProfile:basicProfile,
+  jointNames:Object.freeze(JOINT_NAMES),partNames:Object.freeze(PART_NAMES),
+  profile:Object.freeze({sourceWidth:256,sourceHeight:324,partCount:Object.keys(CLIPS).length,storageKey:STORE})
  });
 })(window);
