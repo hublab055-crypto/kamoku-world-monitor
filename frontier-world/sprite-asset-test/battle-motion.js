@@ -182,7 +182,7 @@
         for(let f=0;f<8;f++){
           ox.save();ox.translate(f*256,row*324);
           window.FWBattleRig.render(ox,chars[selected],[0,srcRow*324,256,324],128,314,256,324,{
-            action:lastAction,progress:f/7,mirror:d==="left",equipment:equip
+            action:lastAction,progress:f/7,mirror:d==="left",characterId:selected,direction:d,equipment:equip
           });
           ox.restore();
         }
@@ -266,7 +266,7 @@
         rigDrawn=window.FWBattleRig.render(ctx,img,[0,Math.max(0,sourceRow)*324,256,324],0,0,width,height,{
           action:anim&&anim.action||"idle",
           progress:anim&&anim.progress||0,
-          mirror:d==="left",
+          mirror:d==="left",characterId:id,direction:d,
           equipment:anim&&anim.equipment||null,
           guides:rigGuides&&id===selected
         });
