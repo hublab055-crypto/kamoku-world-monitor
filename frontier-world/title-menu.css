@@ -110,3 +110,27 @@
  #fwTitleOverlay #fwTitleChapters .fw-chapters-detail{font-size:12px;min-height:69px;padding:9px 0}
  #fwTitleOverlay #fwTitleChapters .fw-chapters-actions button{min-height:42px;padding:9px 12px}
 }
+
+/* FW52.8: Widen the *parent title frame* for the 17-concept chooser.
+   Older rules limited the 4-column grid to 480px, making cards unreadable. */
+#fwTitleOverlay .fw-title-frame:has(#fwTitleChapters:not([hidden])){
+ width:min(100%,960px);max-height:calc(100dvh - 44px);
+ overflow:hidden;padding:8px 12px
+}
+#fwTitleOverlay .fw-title-frame:has(#fwTitleChapters:not([hidden])) #fwTitleChapters{
+ width:100%;height:min(690px,calc(100dvh - 98px));
+ max-height:calc(100dvh - 98px);padding:14px
+}
+#fwTitleOverlay #fwTitleChapters .fw-chapters-detail{
+ min-height:0;max-height:128px;overflow-y:auto;overscroll-behavior:contain
+}
+@media(max-width:760px){
+ #fwTitleOverlay .fw-title-frame:has(#fwTitleChapters:not([hidden])){padding:5px}
+ #fwTitleOverlay .fw-title-frame:has(#fwTitleChapters:not([hidden])) #fwTitleChapters{padding:11px 10px}
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-detail{max-height:110px}
+}
+@media(max-height:575px){
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-detail{max-height:74px}
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-title{font-size:19px;margin-bottom:3px}
+ #fwTitleOverlay #fwTitleChapters .fw-chapters-lead{font-size:11px;margin-bottom:4px}
+}
