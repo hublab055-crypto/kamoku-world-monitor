@@ -35,7 +35,7 @@
     return promise;
   }
   function currentDuration(){
-    return api&&api.duration?action in (actionMap||{})?api.duration(action):1700:1700;
+    return api && api.duration && actionMap[action] ? api.duration(action) : 1700;
   }
   const actionMap=Object.create(null);
   function scene(){
