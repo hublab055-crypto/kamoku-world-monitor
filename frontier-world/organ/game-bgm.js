@@ -30,7 +30,8 @@ function install(host){
  let onlineScores=[],importedList=[],importedScores=[],pendingImportId=null;
  let savedFileUrl=null,downloading=false;
  const scores=()=>{
-  const originals=[DEMO,...(Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[])];
+  const official=Array.isArray(global.FW_CHAPTER_OST?.tracks)?global.FW_CHAPTER_OST.tracks:[];
+  const originals=[...official,DEMO,...(Array.isArray(global.FW_ORGAN_PD)?global.FW_ORGAN_PD:[])];
   let saved=[];
   try{
    const raw=JSON.parse(localStorage.getItem('fw_frontier_organ_scores_v1')||'[]');
@@ -39,7 +40,7 @@ function install(host){
   const state=host.getState();
   const fromGame=state.priestOrgan49&&Array.isArray(state.priestOrgan49.scores)?state.priestOrgan49.scores:[];
   const seen=new Set();
-  return [...originals,...fromGame,...saved,...onlineScores,...importedScores].map(s=>s&&(/^(online|import):/.test(String(s.id||'')))?s:(valid?valid(s):s)).filter(s=>{
+  return [...originals,...fromGame,...saved,...onlineScores,...importedScores].map(s=>official.includes(s)?s:(s&&(/^(online|import):/.test(String(s.id||'')))?s:(valid?valid(s):s))).filter(s=>{
    if(!s||!Array.isArray(s.notes)||!s.notes.length||seen.has(s.id))return false;
    seen.add(s.id);return true;
   });
@@ -213,7 +214,7 @@ function install(host){
    if(ctx)voices.forEach(v=>INST.kill(ctx,v));voices=[];
    const at=ctx.currentTime+.06;
    for(const n of s.notes){
-    const v=INST.start(ctx,n.pitch,s.instrument,at+n.start*seconds,.55,bus);
+    const v=INST.start(ctx,n.pitch,n.instrument||s.instrument,at+n.start*seconds,Number(n.velocity)||.55,bus);
     if(v){voices.push(v);INST.release(ctx,v,at+(n.start+n.duration)*seconds);}
    }
    timeout=setTimeout(()=>{
@@ -361,6 +362,14 @@ function install(host){
   }catch(e){status('BGM公開に失敗: '+(e.message||e));}
  };
  visitVillages.onclick=()=>global.open('creator-market/village-bgm.html','_blank','noopener');
+ global.addEventListener('fw-title-chapter-started',event=>{
+  const id=String(event?.detail?.id||'');
+  const theme=global.FW_CHAPTER_OST?.get?.(id);
+  if(!theme)return;
+  stop();prefs().trackId=theme.id;persist();
+  refresh().then(()=>status('🎼 '+theme.title+' を本編BGMに設定しました。▶ 再生で開始できます。'))
+   .catch(()=>status('テーマBGMの一覧更新に失敗しました。'));
+ });
  playBtn.onclick=play;stopBtn.onclick=()=>{stop();status('BGMを停止しました。');};reloadBtn.onclick=refresh;
  trigger.onclick=()=>{
   panel.style.display=panel.style.display==='none'?'block':'none';
