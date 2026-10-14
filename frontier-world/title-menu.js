@@ -122,6 +122,7 @@ function activate(slot){
  pending=null;root.classList.remove('fw-title-settings-open');
  if(settingsPanel)settingsPanel.classList.add('hidden');
  overlay.hidden=true;status('');root.focus({preventScroll:true});
+ if(slot===null)window.dispatchEvent(new CustomEvent('fw-title-chapter-started',{detail:{id:chosenChapter}}));
 }
 function showSettings(){
  if(!settingsPanel)return;
