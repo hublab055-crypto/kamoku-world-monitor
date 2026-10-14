@@ -20,6 +20,11 @@
   laundry:[k(0,{torso:12,frontUpper:32,frontLower:-30,rearUpper:15,rearLower:32}),k(.3,{torso:18,frontUpper:55,frontLower:-47,rearUpper:39,rearLower:26}),k(.6,{torso:13,frontUpper:15,frontLower:-28,rearUpper:21,rearLower:36}),k(1,{torso:12,frontUpper:32,frontLower:-30,rearUpper:15,rearLower:32})],
   bathe:[k(0,{frontUpper:30,frontLower:-28,rearUpper:18,rearLower:28,frontThigh:-64,frontShin:85,rearThigh:-65,rearShin:85,bodyY:40}),k(.25,{head:-7,frontUpper:-38,frontLower:-48,rearUpper:25,rearLower:25,frontThigh:-64,frontShin:85,rearThigh:-65,rearShin:85,bodyY:40}),k(.52,{head:4,frontUpper:18,frontLower:-33,rearUpper:-34,rearLower:20,frontThigh:-64,frontShin:85,rearThigh:-65,rearShin:85,bodyY:42}),k(.78,{head:-8,frontUpper:-42,frontLower:-49,rearUpper:16,rearLower:22,frontThigh:-64,frontShin:85,rearThigh:-65,rearShin:85,bodyY:40}),k(1,{frontUpper:30,frontLower:-28,rearUpper:18,rearLower:28,frontThigh:-64,frontShin:85,rearThigh:-65,rearShin:85,bodyY:40})]
  };
+ // Symmetric knees prevent both legs swinging to the same side while seated.
+ const seat={frontThigh:-43,frontShin:46,rearThigh:43,rearShin:-46};
+ for(const name of ['sit','read','write','eatUtensils'])
+  motions[name].forEach(frame=>Object.assign(frame.values,seat,{bodyY:23}));
+ motions.bathe.forEach(frame=>Object.assign(frame.values,{frontThigh:-27,frontShin:31,rearThigh:27,rearShin:-31}));
  const added=rig.registerTracks(motions);
  const ACTIONS=Object.freeze([
   {id:'chop',label:'🪓 木を切る',duration:1200},
@@ -36,22 +41,48 @@
  ]);
  const IDs=new Set(added);
  const RAD=Math.PI/180;
+ const ease=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+ const lerp=(a,b,t)=>a+(b-a)*t;
+ const chopKeys=[
+  [0,175,194,125,191],[.28,168,156,125,157],[.43,170,151,124,155],
+  [.65,190,210,133,194],[.84,186,209,131,194],[1,175,194,125,191]
+ ];
+ function handTargets(id,t,profile){
+  const v=Math.sin(2*Math.PI*t),shift=Math.max(-18,Math.min(20,(profile.joints.frontShoulder[1]-143)*.35));
+  let f,r;
+  if(id==='chop'){
+   let a=chopKeys[0],b=chopKeys.at(-1);
+   for(let i=0;i<chopKeys.length-1;i++)if(t<=chopKeys[i+1][0]){a=chopKeys[i];b=chopKeys[i+1];break;}
+   const m=ease((t-a[0])/(b[0]-a[0]));
+   f=[lerp(a[1],b[1],m),lerp(a[2],b[2],m)];r=[lerp(a[3],b[3],m),lerp(a[4],b[4],m)];
+  }else if(id==='sweep'){f=[174+v*8,209];r=[129+v*4,192];}
+  else if(id==='sit'){f=[173,210];r=[107,205];}
+  else if(id==='read'){f=[162+2*Math.sin(t*Math.PI),202];r=[111,204];}
+  else if(id==='write'){f=[160+4*v,212+2*Math.sin(4*Math.PI*t)];r=[104,208];}
+  else if(id==='eatHands'){f=[151,202-61*ease(Math.sin(t*Math.PI)**2)];r=[108,208];}
+  else if(id==='eatUtensils'){f=[153,200-48*ease(Math.sin(t*Math.PI)**2)];r=[109,205];}
+  else if(id==='washHands'){f=[157+7*v,212];r=[119-5*v,205];}
+  else if(id==='washDishes'){f=[158+7*v,212];r=[119,204];}
+  else if(id==='laundry'){f=[158+8*v,212+2*Math.cos(4*Math.PI*t)];r=[121-6*v,206];}
+  else {f=[169+3*v,212];r=[121,200+4*v];}
+  return {front:[f[0],f[1]+shift],rear:[r[0],r[1]+shift]};
+ }
  function ellipse(ctx,x,y,rx,ry,color){
   ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
  }
  function scenery(ctx,id){
   ctx.save();
-  if(['sit','read','write'].includes(id)){
-   ctx.fillStyle='#7c5435';ctx.fillRect(80,236,108,15);ctx.fillStyle='#59402d';
-   ctx.fillRect(92,248,12,65);ctx.fillRect(170,248,12,65);
-   ctx.fillStyle='#98704b';ctx.fillRect(75,193,20,51);
+  if(['sit','read','write','eatUtensils'].includes(id)){
+   ctx.fillStyle='#7c5435';ctx.fillRect(73,245,115,14);ctx.fillStyle='#59402d';
+   ctx.fillRect(82,259,13,56);ctx.fillRect(174,259,13,56);
+   ctx.fillStyle='#98704b';ctx.fillRect(73,196,18,54);
   }
   if(['write','eatUtensils','washDishes'].includes(id)){
-   ctx.fillStyle='#8f6545';ctx.fillRect(28,238,214,13);ctx.fillStyle='#5b3d2b';ctx.fillRect(40,250,12,62);ctx.fillRect(218,250,12,62);
+   ctx.fillStyle='#8f6545';ctx.fillRect(31,227,203,12);ctx.fillStyle='#5b3d2b';ctx.fillRect(40,239,12,74);ctx.fillRect(214,239,12,74);
   }
-  if(id==='chop'){ctx.fillStyle='#80532e';ctx.fillRect(168,273,74,37);ctx.fillStyle='#bc925d';ctx.fillRect(171,273,68,10);}
+  if(id==='chop'){ctx.fillStyle='#80532e';ctx.fillRect(176,271,64,39);ctx.fillStyle='#bc925d';ctx.fillRect(179,271,58,9);}
   if(['washHands','washDishes','laundry'].includes(id)){
-   ellipse(ctx,146,264,87,29,'#769fac');ellipse(ctx,146,256,75,19,'#c5e7e8');
+   ellipse(ctx,143,240,85,29,'#769fac');ellipse(ctx,143,234,76,18,'#c5e7e8');
   }
   if(id==='bathe'){ellipse(ctx,134,273,116,47,'#b9d7df');ellipse(ctx,134,265,111,34,'#81adb9');}
   ctx.restore();
@@ -100,16 +131,19 @@
   opts=opts||{};
   if(!IDs.has(opts.action))return false;
   const type=opts.action,t=Math.max(0,Math.min(1,Number(opts.progress)||0));
+  const profile=opts.profile||rig.getProfile(opts.characterId||'default',opts.direction||'front');
+  const targets=handTargets(type,t,profile);
   return rig.render(ctx,img,rect,x,y,w,h,{
    action:type,progress:t,characterId:opts.characterId||'default',
-   direction:opts.direction||'front',mirror:!!opts.mirror,profile:opts.profile,
+   direction:opts.direction||'front',mirror:!!opts.mirror,profile:profile,handTargets:targets,
    guides:!!opts.guides,mode:opts.mode,
    drawBehind:opts.environment?function(c){scenery(c,type)}:null,
    drawFront:function(c,p,front,rear){props(c,type,p,front,rear,t)}
   });
  }
  global.FWLifeMotion=Object.freeze({
-  version:'1.0.0',actions:ACTIONS.filter(a=>IDs.has(a.id)),render:render,
+  version:'1.1.0',actions:ACTIONS.filter(a=>IDs.has(a.id)),render:render,
+  handTargets:handTargets,
   has:function(id){return IDs.has(id)},
   duration:function(id){const a=ACTIONS.find(a=>a.id===id);return a?a.duration:1000}
  });
