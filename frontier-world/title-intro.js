@@ -1,6 +1,6 @@
-/* FW52.5: Title intro and 8 distinct chapter music previews (procedural Web Audio demos).
-   This file deliberately does not modify save state or in-game BGM.
-   Replace score definitions with mastered licensed audio in a future release. */
+/* FW52.7: Title intro with 14 chapter previews and 15 in-game theme scores.
+   Original synthesized sketches, not recordings or authentic historical performances.
+   The catalog is shared with the game BGM selector; save state is not changed here. */
 (function(){
 'use strict';
 const screen=document.getElementById('fwTitleOverlay');
@@ -100,6 +100,54 @@ scores.empire={
   {b:36,c:[48,55,60],m:[75,72,67,72]}
  ]
 };
+
+/* V52.7: Six additional fictional region themes inspired by distinct histories
+   and landscapes. Music is original, not presented as historical reconstruction. */
+Object.assign(scores,{
+ celtic:{name:'森と石の環',bpm:108,meter:6,lead:'triangle',harmony:'sine',bass:'triangle',mode:'circle',
+  bars:[
+   {b:45,c:[57,60,64],m:[69,72,76,79,76,72]},
+   {b:43,c:[55,59,62],m:[71,74,79,81,79,74]},
+   {b:41,c:[53,57,60],m:[72,77,81,84,81,77]},
+   {b:45,c:[57,60,64],m:[79,76,72,74,76,69]}
+  ]},
+ maya:{name:'星辰の暦',bpm:92,meter:5,lead:'sine',harmony:'triangle',bass:'triangle',mode:'observatory',
+  bars:[
+   {b:40,c:[52,55,59],m:[76,79,83,79,74]},
+   {b:43,c:[55,58,62],m:[79,82,86,82,77]},
+   {b:45,c:[57,60,64],m:[81,84,88,84,79]},
+   {b:40,c:[52,55,59],m:[83,79,76,74,76]}
+  ]},
+ 'native-american':{name:'風と大地の道',bpm:83,meter:4,lead:'sine',harmony:'triangle',bass:'sine',mode:'river',
+  bars:[
+   {b:41,c:[53,57,60],m:[72,76,null,79]},
+   {b:43,c:[55,59,62],m:[74,null,79,81]},
+   {b:45,c:[57,60,64],m:[76,81,null,84]},
+   {b:41,c:[53,57,60],m:[79,76,74,72]}
+  ]},
+ malta:{name:'地中海の盾',bpm:108,meter:6,lead:'sawtooth',harmony:'triangle',bass:'sine',mode:'harbor',
+  bars:[
+   {b:43,c:[55,59,62],m:[74,79,83,86,83,79]},
+   {b:40,c:[52,55,59],m:[76,79,83,88,83,79]},
+   {b:45,c:[57,60,64],m:[81,84,88,91,88,84]},
+   {b:43,c:[55,59,62],m:[86,83,79,76,74,79]}
+  ]},
+ sparta:{name:'盾の誓い',bpm:110,meter:4,lead:'square',harmony:'triangle',bass:'sawtooth',mode:'phalanx',
+  bars:[
+   {b:38,c:[50,53,57],m:[74,74,77,81]},
+   {b:41,c:[53,57,60],m:[79,77,74,72]},
+   {b:43,c:[55,58,62],m:[77,81,84,81]},
+   {b:38,c:[50,53,57],m:[79,77,74,74]}
+  ]},
+ egypt:{name:'ナイルの夜明け',bpm:88,meter:6,lead:'sine',harmony:'triangle',bass:'triangle',mode:'nile',
+  bars:[
+   {b:45,c:[57,60,64],m:[76,78,81,83,81,78]},
+   {b:41,c:[53,57,60],m:[74,76,79,81,79,76]},
+   {b:43,c:[55,59,62],m:[78,81,83,86,83,81]},
+   {b:45,c:[57,60,64],m:[81,78,76,74,76,78]}
+  ]}
+});
+
 const OST_META={
  frontier:{instrument:'lute',support:'flute',rhythm:'guitar',description:'村の朝、家族の絆、冒険の始まり'},
  grassland:{instrument:'trumpet',support:'lute',rhythm:'taiko',description:'騎馬の蹄音と広大な草原'},
@@ -109,9 +157,15 @@ const OST_META={
  maritime:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'帆船の出航、海原への憧れ'},
  tropical:{instrument:'flute',support:'guitar',rhythm:'tabla',description:'島々の陽光と躍る暮らし'},
  mountain:{instrument:'shakuhachi',support:'violin',rhythm:'taiko',description:'峰々の静寂と天空の荘厳'},
+ celtic:{instrument:'flute',support:'lute',rhythm:'guitar',description:'森と氏族をつなぐ物語のオリジナル幻想曲'},
+ maya:{instrument:'flute',support:'lute',rhythm:'tabla',description:'星と暦に着想を得た創作の都市主題'},
+ 'native-american':{instrument:'flute',support:'guitar',rhythm:'taiko',description:'多様な北米先住民の地域文化を尊重した創作の旅の主題'},
+ malta:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'島の港と要塞を舞台にした航海の主題'},
+ sparta:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'都市国家と重装歩兵の緊張を描くマーチ'},
+ egypt:{instrument:'flute',support:'lute',rhythm:'tabla',description:'ナイルの水と星空を描くオリジナル曲'},
  empire:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'重い行軍と合唱を思わせる威圧的な帝国マーチ'}
 };
-const chapterOrder=['frontier','grassland','vinland','samurai','oasis','maritime','tropical','mountain'];
+const chapterOrder=['frontier','grassland','vinland','samurai','oasis','maritime','tropical','mountain','celtic','maya','native-american','malta','sparta','egypt'];
 function composeCue(id){
  const def=scores[id],meta=OST_META[id];
  if(!def||!meta)return null;
@@ -205,6 +259,19 @@ function rhythm(def,t,beat,dest){
   for(let b=1;b<span;b+=1.5)tap(t+b*beat,dest,.028);
  }else if(mode==='echo'){
   lowDrum(t,dest,.035);
+ }else if(mode==='circle'){
+  lowDrum(t,dest,.063);tap(t+beat*2,dest,.025);tap(t+beat*4.5,dest,.018);
+ }else if(mode==='observatory'){
+  lowDrum(t,dest,.075);tap(t+beat*2,dest,.030);tap(t+beat*4,dest,.025);
+ }else if(mode==='river'){
+  lowDrum(t,dest,.034);tap(t+beat*2.5,dest,.013);
+ }else if(mode==='harbor'){
+  lowDrum(t,dest,.095);lowDrum(t+beat*3,dest,.087);tap(t+beat*5,dest,.028);
+ }else if(mode==='phalanx'){
+  for(let b=0;b<span;b++)lowDrum(t+beat*b,dest,b===0?.15:.08);
+  tap(t+beat*2.5,dest,.045);
+ }else if(mode==='nile'){
+  lowDrum(t,dest,.052);tap(t+beat*1.5,dest,.018);tap(t+beat*4.5,dest,.015);
  }
 }
 function scheduleBar(active){
