@@ -2508,7 +2508,7 @@ const fw13PrevMakeMap=makeMap;
 makeMap=function(){fw13PrevMakeMap();fw13SpawnWorldActors();};
 
 function fw13DrawActors(){
- state.enemies.forEach(function(e){if(!e.alive)return;const s=worldToScreen(e.x,e.y);ctx.save();ctx.font='26px system-ui';ctx.textAlign='center';ctx.fillText('👺',s.x+TILE/2,s.y+TILE*.72);bar(s.x+TILE/2,s.y+2,28,e.hp/e.maxHp*100,'#e35d62');ctx.fillStyle='#fff';ctx.font='8px system-ui';ctx.fillText(e.name,s.x+TILE/2,s.y+TILE+10);ctx.restore();});
+ state.enemies.forEach(function(e){if(!e.alive)return;const s=worldToScreen(e.x,e.y);ctx.save();ctx.font='26px system-ui';ctx.textAlign='center';fwBMEnemyVisual(e,s);bar(s.x+TILE/2,s.y+2,28,e.hp/e.maxHp*100,'#e35d62');ctx.fillStyle='#fff';ctx.font='8px system-ui';ctx.fillText(e.name,s.x+TILE/2,s.y+TILE+10);ctx.restore();});
  state.wildlife.forEach(function(w){if(!w.alive)return;const s=worldToScreen(w.x,w.y);ctx.save();ctx.font='25px system-ui';ctx.textAlign='center';ctx.fillText(w.kind==='deer'?'🦌':'🐇',s.x+TILE/2,s.y+TILE*.72);ctx.restore();});
 }
 function fw13UpdateEnemies(dt){
@@ -12738,6 +12738,93 @@ update=function(dt){
 /* END FRONTIER_V50_LIFELONG_EDUCATION_AND_EXAMS */
 
 
+/* FW_BATTLE_MOTION_RUNTIME_V1 -- screen feedback only. Never alters combat HP/damage rules. */
+const fwBMEvent = new WeakMap();
+function fwBMMark(actor,kind,ms){
+ if(actor&&typeof actor==='object')fwBMEvent.set(actor,{kind:kind,until:performance.now()+ms,duration:ms});
+}
+function fwBMSnapshot(){
+ return (state.enemies||[]).concat(state.wildlife||[]).map(function(e){return [e,e.hp];});
+}
+function fwBMFindDamage(snapshot){
+ snapshot.forEach(function(pair){
+  if(pair[0].alive&&Number(pair[0].hp)<Number(pair[1]))fwBMMark(pair[0],'hit',350);
+ });
+}
+function fwBMSample(kind,p){
+ const api=window.FWBattleMotion;
+ if(api&&typeof api.samplePose==='function')return api.samplePose(kind,p);
+ const a=Math.sin(Math.PI*Math.max(0,Math.min(1,p)));
+ return kind==='hit'?{dx:-65*a,dy:0,tilt:-.25*a}:
+  kind==='bow'?{dx:-9*a,dy:0,tilt:-.06*a}:{dx:125*a,dy:-4*a,tilt:.17*a};
+}
+function fwBMEnemyVisual(e,s){
+ const ev=fwBMEvent.get(e),now=performance.now();
+ if(!ev||ev.until<=now){ctx.fillText('👺',s.x+TILE/2,s.y+TILE*.72);return;}
+ const t=Math.max(0,Math.min(1,1-(ev.until-now)/ev.duration)),wave=Math.sin(Math.PI*t);
+ const hit=ev.kind==='hit',cx=s.x+TILE/2,cy=s.y+TILE*.72;
+ ctx.save();ctx.translate(cx+(hit?9:-7)*wave,cy);ctx.rotate((hit?.22:-.16)*wave);
+ ctx.fillText('👺',0,0);ctx.restore();
+ if(hit){ctx.save();ctx.strokeStyle='rgba(255,202,145,'+(1-t)*.9+')';
+ ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy-12,13+12*t,0,Math.PI*2);ctx.stroke();ctx.restore();}
+}
+const fwBMOriginalDrawPerson=drawPerson;
+drawPerson=function(person,sprite){
+ if(!person)return fwBMOriginalDrawPerson.apply(this,arguments);
+ const p=state.player&&person.id===state.player.id?state.player:person;
+ const now=performance.now(),ev=fwBMEvent.get(p),wa=p.weaponAnim;
+ const hit=!!(ev&&ev.until>now),attack=!!(wa&&wa.until>now);
+ if(!hit&&!attack)return fwBMOriginalDrawPerson.apply(this,arguments);
+ const kind=hit?'hit':(wa.kind==='bow'?'bow':wa.kind==='axe'?'axe':'slash');
+ const duration=hit?ev.duration:kind==='bow'?420:430;
+ const progress=Math.max(0,Math.min(1,1-((hit?ev.until:wa.until)-now)/duration));
+ const pose=fwBMSample(kind,progress),loc=worldToScreen(person.x,person.y);
+ const direction=fw8DirVec(person.dir||'front'),cx=loc.x+TILE/2,cy=loc.y+TILE/2;
+ const shift=Math.max(-170,Math.min(170,Number(pose.dx)||0))*.055;
+ ctx.save();ctx.translate(cx+direction.x*shift,cy+direction.y*shift+(Number(pose.dy)||0)*.045);
+ ctx.rotate((Number(pose.tilt)||0)*.62*(direction.x<0?-1:1));ctx.translate(-cx,-cy);
+ try{fwBMOriginalDrawPerson.apply(this,arguments);}finally{ctx.restore();}
+ if(!hit&&kind==='slash'&&progress>.37&&progress<.74){
+  const a=Math.atan2(direction.y,direction.x);
+  ctx.save();ctx.strokeStyle='rgba(188,240,255,.65)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(cx+direction.x*16,cy+direction.y*16,26,a-1,a+.9);ctx.stroke();ctx.restore();
+ }
+};
+const fwBMPreviousSword=fw8SwordAttack;
+fw8SwordAttack=function(){
+ const before=fwBMSnapshot(),result=fwBMPreviousSword.apply(this,arguments);
+ fwBMFindDamage(before);return result;
+};
+const fwBMPreviousProjectiles=fw8UpdateProjectiles;
+fw8UpdateProjectiles=function(dt){
+ const before=fwBMSnapshot(),result=fwBMPreviousProjectiles.apply(this,arguments);
+ fwBMFindDamage(before);return result;
+};
+const fwBMPreviousAutoFight=fw13AutoFight;
+fw13AutoFight=function(dt){
+ const before=fwBMSnapshot(),result=fwBMPreviousAutoFight.apply(this,arguments);
+ fwBMFindDamage(before);return result;
+};
+const fwBMPreviousAutoHunt=fw13AutoHunt;
+fw13AutoHunt=function(dt){
+ const before=fwBMSnapshot(),result=fwBMPreviousAutoHunt.apply(this,arguments);
+ fwBMFindDamage(before);return result;
+};
+const fwBMPreviousEnemyAttack=fw13UpdateEnemies;
+fw13UpdateEnemies=function(dt){
+ const oldHP=state.player.hp,result=fwBMPreviousEnemyAttack.apply(this,arguments);
+ if(state.player.hp<oldHP){
+  fwBMMark(state.player,'hit',340);
+  let closest=null,best=1.5;
+  (state.enemies||[]).forEach(function(e){
+   if(!e.alive)return;const d=Math.hypot(e.x-state.player.x,e.y-state.player.y);
+   if(d<best){best=d;closest=e;}
+  });
+  if(closest)fwBMMark(closest,'slash',410);
+ }
+ return result;
+};
+
 /* FW48.4: Explicit bridge for legacy extension script.
  * Game-core action/dialog/save callbacks are lexical to this IIFE; expose
  * live accessors so library/read extensions wrap the same functions actually
@@ -13683,6 +13770,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
+<script defer src="sprite-asset-test/battle-motion.js?v=52.4bm2"></script>
 <script defer src="publishing-industry.js?v=52.0"></script>
 
 <script>
