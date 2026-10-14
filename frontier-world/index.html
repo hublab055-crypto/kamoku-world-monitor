@@ -1346,7 +1346,7 @@ function fw10DrawInterior(){
  const p=it.pos,key=(state.player.sprite||'you')+'_'+state.player.dir,a=ATLAS[key];
  if(a){
   const sz=scale*.72,sx=ox+p.x*scale-sz/2,sy=oy+p.y*scale-sz*.68;
-  ctx.imageSmoothingEnabled=true;ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],sx,sy,sz,sz);
+  ctx.imageSmoothingEnabled=true;if(!fwLifeRenderIndoor(key,a,sx,sy,sz,sz))ctx.drawImage(atlasImg,a[0],a[1],a[2],a[3],sx,sy,sz,sz);
  }
  ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='12px system-ui';ctx.fillText(state.player.name||'YOU',ox+p.x*scale,oy+p.y*scale+scale*.45);
  drawHUD();
@@ -12854,6 +12854,115 @@ fw13UpdateEnemies=function(dt){
  return result;
 };
 
+
+/* FW52.5_LIFE_MOTION: visual-only, reusing the shared joint rig. */
+const fwLifeTimed=new WeakMap();
+function fwLifeMark(actor,kind,duration){
+ if(actor&&typeof actor==='object')fwLifeTimed.set(actor,{kind:kind,start:performance.now(),until:performance.now()+(duration||950)});
+}
+function fwLifeChoice(actor){
+ const now=performance.now(),api=window.FWLifeMotion;
+ if(!actor||!api)return null;
+ if(actor.weaponAnim&&actor.weaponAnim.until>now)return null;
+ const hit=fwBMEvent.get(actor);
+ if(hit&&hit.until>now)return null;
+ const timed=fwLifeTimed.get(actor);
+ if(timed&&timed.until>now&&api.has(timed.kind))return {kind:timed.kind,progress:Math.min(.999,(now-timed.start)/Math.max(1,timed.until-timed.start))};
+ const p=actor,status=String(p.status||'');
+ const indoor=!!(state.interior&&p===state.player)||(p.household34&&p.household34.buildingId);
+ let kind=null;
+ if(p===state.player&&state.interior){
+  const reader=document.getElementById('fw41Reader'),studio=document.getElementById('fw41Studio');
+  if(studio&&!studio.classList.contains('hidden'))kind='write';
+  else if(reader&&!reader.classList.contains('hidden'))kind='read';
+  else if(fw422Leisure)kind=fw422Leisure.type==='chair'?'sit':'read';
+ }
+ if(!kind&&/食器(を)?片付|食器洗|皿を片付|皿洗/.test(status)&&!/(へ|完了)/.test(status))kind='washDishes';
+ if(!kind&&/タライで水洗い|洗濯中/.test(status))kind='laundry';
+ if(!kind&&/入浴/.test(status)&&!/(へ|完了|準備)/.test(status))kind='bathe';
+ if(!kind&&/掃除/.test(status)&&!/(へ|完了|後に|次の)/.test(status))kind='sweep';
+ if(!kind&&/食事中|食べている|食べる中/.test(status))kind='eatUtensils';
+ if(!kind&&/読書|本棚で/.test(status))kind='read';
+ if(!kind&&/着席|椅子に座|食卓で家族を待/.test(status))kind='sit';
+ if(!kind&&/手洗い|手を洗う/.test(status))kind='washHands';
+ if(!kind&&/木材を採集|木を切|伐採/.test(status))kind='chop';
+ if(!kind||!api.has(kind))return null;
+ // Keep explicit work actions attached to their relevant household setting.
+ if(['sit','read','write','bathe','washHands','washDishes','laundry'].includes(kind)&&!indoor)return null;
+ const time=api.duration(kind);
+ return {kind:kind,progress:((now%time)+time)%time/time};
+}
+const fwLifePreviousAction=action;
+action=function(){
+ const source=!state.interior?nearestResource():null;
+ const wood=source&&source.gather==='wood'?(Number(state.player.inv.wood)||0):null;
+ const result=fwLifePreviousAction.apply(this,arguments);
+ if(wood!==null&&(Number(state.player.inv.wood)||0)>wood)fwLifeMark(state.player,'chop',1100);
+ return result;
+};
+const fwLifePreviousEat=fw18AutoEat;
+fw18AutoEat=function(){
+ const result=fwLifePreviousEat.apply(this,arguments);
+ if(result)fwLifeMark(state.player,'eatHands',1400);
+ return result;
+};
+const fwLifePreviousEatServed=fw28EatOne;
+fw28EatOne=function(){
+ const result=fwLifePreviousEatServed.apply(this,arguments);
+ if(result)fwLifeMark(state.player,'eatUtensils',1550);
+ return result;
+};
+const fwLifePreviousClearDishes=fw28ClearDishes;
+fw28ClearDishes=function(){
+ const result=fwLifePreviousClearDishes.apply(this,arguments);
+ if(result)fwLifeMark(state.player,'washDishes',1450);
+ return result;
+};
+const fwLifePreviousCommand=runCommand;
+runCommand=function(key){
+ const result=fwLifePreviousCommand.apply(this,arguments);
+ if(key==='cleanFurniture')fwLifeMark(state.player,'sweep',1300);
+ return result;
+};
+function fwLifeRig(ctx,actor,sprite,rect,x,y,w,h,choice,environment){
+ const api=window.FWLifeMotion;if(!api||!choice||!atlasImg||!atlasImg.complete||!atlasImg.naturalWidth)return false;
+ const d=actor.dir||'front',row=d==='left'?'right':d;
+ return api.render(ctx,atlasImg,rect,x,y,w,h,{
+  action:choice.kind,progress:choice.progress,mirror:d==='left',
+  characterId:sprite==='mio'?'girl1':(actor.id||sprite||'default'),
+  direction:d,environment:!!environment
+ });
+}
+const fwLifePreviousDrawPerson=drawPerson;
+drawPerson=function(person,sprite){
+ if(!person)return fwLifePreviousDrawPerson.apply(this,arguments);
+ const actor=(state.player&&person.id===state.player.id)?state.player:person;
+ const chosen=fwLifeChoice(actor);
+ if(!chosen||!sprite||!ATLAS[sprite+'_'+(person.dir==='left'?'right':person.dir||'front')])return fwLifePreviousDrawPerson.apply(this,arguments);
+ const expected=sprite+'_'+(person.dir||'front'),rect=ATLAS[sprite+'_'+(person.dir==='left'?'right':person.dir||'front')];
+ const previous=drawAsset;
+ drawAsset=function(assetName,dx,dy,dw,dh,alpha){
+  if(assetName!==expected)return previous.apply(this,arguments);
+  ctx.save();
+  try{
+   ctx.globalAlpha=alpha===undefined?1:alpha;
+   if(fwLifeRig(ctx,actor,sprite,rect,dx+dw/2,dy+dh,dw,dh,chosen,false))return;
+  }catch(e){console.warn('Daily-life motion fallback',e);}
+  finally{ctx.restore();}
+  return previous.apply(this,arguments);
+ };
+ try{return fwLifePreviousDrawPerson.apply(this,arguments);}
+ finally{drawAsset=previous;}
+};
+function fwLifeRenderIndoor(key,rect,x,y,w,h){
+ const actor=state.player,choice=fwLifeChoice(actor);
+ if(!choice||!rect)return false;
+ ctx.save();
+ try{return fwLifeRig(ctx,actor,actor.sprite||'you',rect,x+w/2,y+h,w,h,choice,false);}
+ catch(e){console.warn('Daily-life indoor fallback',e);return false}
+ finally{ctx.restore();}
+}
+
 /* FW48.4: Explicit bridge for legacy extension script.
  * Game-core action/dialog/save callbacks are lexical to this IIFE; expose
  * live accessors so library/read extensions wrap the same functions actually
@@ -13799,7 +13908,8 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
-<script defer src="sprite-asset-test/battle-rig.js?v=52.4bm4"></script>
+<script defer src="sprite-asset-test/battle-rig.js?v=52.5life1"></script>
+<script defer src="sprite-asset-test/life-motion.js?v=52.5life1"></script>
 <script defer src="sprite-asset-test/battle-motion.js?v=52.4bm3"></script>
 <script defer src="publishing-industry.js?v=52.0"></script>
 
