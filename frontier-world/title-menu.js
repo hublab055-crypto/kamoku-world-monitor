@@ -22,8 +22,64 @@ function saved(slot){
 function allSaves(){return ['autosave',1,2,3,4,5].map(saved).filter(Boolean).sort(function(a,b){return b.at-a.at;});}
 function status(t){notice.textContent=t||'';}
 function select(i){selected=(i+buttons.length)%buttons.length;buttons.forEach(function(b,j){b.setAttribute('aria-current',j===selected?'true':'false');});}
+/* FRONTIER_START_CHAPTER_V1: choose an origin before New Game. Future regions are previews only. */
+const chapterDefinitions=[
+ {id:'frontier',name:'開拓編',subtitle:'開拓の村から始まる物語',description:'家族や村人と暮らしながら、農業・建築・冒険を進める現在のフロンティアワールド。',symbol:'🏡',available:true},
+ {id:'grassland',name:'草原編',subtitle:'草原の覇者',description:'遊牧、騎馬、部族連合。大草原を渡る暮らしと国家の物語。',symbol:'🐎',available:false},
+ {id:'vinland',name:'ビンランド編',subtitle:'新天地への航海',description:'北方の海を越え、厳しい自然の中で集落を築く開拓の物語。',symbol:'⛵',available:false},
+ {id:'samurai',name:'侍編',subtitle:'戦国の群雄',description:'城下町、武士、稲作、領地経営。争乱の時代を生きる物語。',symbol:'🏯',available:false},
+ {id:'oasis',name:'オアシス編',subtitle:'砂漠の交易王',description:'水を守り、隊商を率い、交易都市を繁栄させる物語。',symbol:'🌴',available:false},
+ {id:'maritime',name:'海洋国家編',subtitle:'大海原の覇権',description:'港を育て、船を造り、島々と交易する海の物語。',symbol:'⚓',available:false},
+ {id:'tropical',name:'トロピカル編',subtitle:'南海の楽園',description:'南の島の漁業や農業、自然と共生する島々の物語。',symbol:'🌺',available:false},
+ {id:'mountain',name:'山岳編',subtitle:'天空の王国',description:'峠、鉱山、段々畑。山々の暮らしと独立を守る物語。',symbol:'⛰️',available:false}
+];
+const chapters=document.createElement('section');
+chapters.id='fwTitleChapters';chapters.hidden=true;
+chapters.setAttribute('aria-label','はじめから：開始地域の選択');
+chapters.innerHTML='<h2 class="fw-chapters-title">どの物語から始めますか？</h2><p class="fw-chapters-lead">開始する地域を選んでください。各編は同じ世界の異なる入り口です。</p><div id="fwTitleChapterList" class="fw-chapters-grid" role="group" aria-label="物語一覧"></div><div class="fw-chapters-detail" id="fwTitleChapterDetail" role="status" aria-live="polite"></div><div class="fw-chapters-actions"><button type="button" id="fwTitleChapterStart">この物語ではじめる</button><button type="button" id="fwTitleChapterBack">戻る</button></div>';
+main.insertAdjacentElement('afterend',chapters);
+const chapterGrid=chapters.querySelector('#fwTitleChapterList');
+const chapterDetail=chapters.querySelector('#fwTitleChapterDetail');
+const chapterStart=chapters.querySelector('#fwTitleChapterStart');
+const chapterButtons=new Map();
+let chosenChapter='frontier';
+chapterDefinitions.forEach(function(def){
+ const button=document.createElement('button');button.type='button';
+ button.className='fw-chapter-option'+(def.available?'':' fw-chapter-planned');
+ button.dataset.chapterId=def.id;button.setAttribute('aria-pressed','false');
+ const mark=document.createElement('span');mark.className='fw-chapter-symbol';mark.textContent=def.symbol;
+ const title=document.createElement('strong');title.textContent=def.name;
+ const sub=document.createElement('small');sub.textContent=def.subtitle;
+ const tag=document.createElement('span');tag.className='fw-chapter-status';
+ tag.textContent=def.available?'プレイ可能':'開発予定';
+ button.append(mark,title,sub,tag);
+ button.addEventListener('click',function(){chooseChapter(def.id);});
+ chapterGrid.appendChild(button);chapterButtons.set(def.id,button);
+});
+function chooseChapter(id){
+ const def=chapterDefinitions.find(function(c){return c.id===id;})||chapterDefinitions[0];
+ chosenChapter=def.id;
+ chapterButtons.forEach(function(button,key){button.setAttribute('aria-pressed',key===def.id?'true':'false');});
+ chapterDetail.textContent=def.name+' — '+def.description+(def.available?'':' ※ この編はまだ制作中です。現在は始められません。');
+ chapterStart.disabled=!def.available;
+ chapterStart.textContent=def.available?'この物語ではじめる':'この物語は準備中';
+ status('');
+}
+function showChapters(){
+ pending=null;main.hidden=true;saves.hidden=true;chapters.hidden=false;
+ root.classList.remove('fw-title-settings-open');status('');
+ chooseChapter(chosenChapter);
+ chapterButtons.get(chosenChapter).focus({preventScroll:true});
+}
+chapterStart.addEventListener('click',function(){
+ const def=chapterDefinitions.find(function(c){return c.id===chosenChapter;});
+ if(def&&def.available)activate(null);
+});
+chapters.querySelector('#fwTitleChapterBack').addEventListener('click',showMain);
+chooseChapter('frontier');
+
 function showMain(){
- pending=null;main.hidden=false;saves.hidden=true;root.classList.remove('fw-title-settings-open');
+ pending=null;main.hidden=false;saves.hidden=true;chapters.hidden=true;root.classList.remove('fw-title-settings-open');
  status('');select(selected);buttons[selected].focus({preventScroll:true});
 }
 function showSaves(){
@@ -39,18 +95,24 @@ function showSaves(){
     'Day '+String(entry.day==null?'?':entry.day)+' / '+String(entry.who)+' / '+date;
   b.append(name,detail);b.addEventListener('click',function(){activate(entry.slot);});list.appendChild(b);
  });
- status('');main.hidden=true;saves.hidden=false;
+ status('');main.hidden=true;chapters.hidden=true;saves.hidden=false;
  const first=list.querySelector('button');if(first)first.focus({preventScroll:true});
 }
 function activate(slot){
  if(!window.__fwTitleGameReady){pending=slot===null?'new':slot;status('ゲームを読み込んでいます…');return;}
  if(slot===null){
+  const def=chapterDefinitions.find(function(c){return c.id===chosenChapter;});
+  if(!def||!def.available){status('この地域編はまだ開発予定です。');return;}
   if(allSaves().length&&!window.confirm('新しい冒険を始めますか？\n既存の手動セーブは残りますが、オートセーブは新しい冒険で更新されます。'))return;
  }else{
   const bridge=window.__fwFrontierBridge;
   if(!bridge||typeof bridge.fw10LoadGame!=='function'||bridge.fw10LoadGame(slot)!==true){
    status('この保存データを読み込めませんでした。別のセーブを選んでください。');return;
   }
+ }
+ if(slot===null){
+  window.__fwStartingChapter=chosenChapter;
+  try{localStorage.setItem('frontier_world_start_chapter_v1',chosenChapter);}catch(_){}
  }
  pending=null;root.classList.remove('fw-title-settings-open');
  if(settingsPanel)settingsPanel.classList.add('hidden');
@@ -67,7 +129,7 @@ buttons.forEach(function(b,i){
  b.addEventListener('click',function(){
   select(i);
   const choice=b.dataset.fwTitleChoice;
-  if(choice==='new')activate(null);
+  if(choice==='new')showChapters();
   if(choice==='continue')showSaves();
   if(choice==='settings')showSettings();
  });
@@ -80,6 +142,10 @@ document.addEventListener('keydown',function(e){
  if(overlay.hidden)return;
  if(root.classList.contains('fw-title-settings-open')){
   if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();if(settingsClose)settingsClose.click();}
+  return;
+ }
+ if(!chapters.hidden){
+  if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();showMain();}
   return;
  }
  if(e.key==='Escape'&&!saves.hidden){e.preventDefault();e.stopImmediatePropagation();showMain();return;}
