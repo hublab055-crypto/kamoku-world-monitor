@@ -36,11 +36,12 @@ const chapterDefinitions=[
 const chapters=document.createElement('section');
 chapters.id='fwTitleChapters';chapters.hidden=true;
 chapters.setAttribute('aria-label','はじめから：開始地域の選択');
-chapters.innerHTML='<h2 class="fw-chapters-title">どの物語から始めますか？</h2><p class="fw-chapters-lead">開始する地域を選んでください。各編は同じ世界の異なる入り口です。</p><div id="fwTitleChapterList" class="fw-chapters-grid" role="group" aria-label="物語一覧"></div><div class="fw-chapters-detail" id="fwTitleChapterDetail" role="status" aria-live="polite"></div><div class="fw-chapters-actions"><button type="button" id="fwTitleChapterStart">この物語ではじめる</button><button type="button" id="fwTitleChapterBack">戻る</button></div>';
+chapters.innerHTML='<h2 class="fw-chapters-title">どの物語から始めますか？</h2><p class="fw-chapters-lead">開始する地域を選んでください。カードを選ぶと、その地域のテーマBGMを試聴できます（音楽ON時）。</p><div id="fwTitleChapterList" class="fw-chapters-grid" role="group" aria-label="物語一覧"></div><div class="fw-chapters-detail" id="fwTitleChapterDetail" role="status" aria-live="polite"></div><div class="fw-chapters-actions"><button type="button" id="fwTitleChapterStart">この物語ではじめる</button><button type="button" id="fwTitleChapterBack">戻る</button></div>';
 main.insertAdjacentElement('afterend',chapters);
 const chapterGrid=chapters.querySelector('#fwTitleChapterList');
 const chapterDetail=chapters.querySelector('#fwTitleChapterDetail');
 const chapterStart=chapters.querySelector('#fwTitleChapterStart');
+const chapterTracks={frontier:'はじまりの村',grassland:'草原の覇者',vinland:'北海の旅路',samurai:'戦国の風',oasis:'砂漠の星',maritime:'大海原への出航',tropical:'南海の陽光',mountain:'天空の峰'};
 const chapterButtons=new Map();
 let chosenChapter='frontier';
 chapterDefinitions.forEach(function(def){
@@ -60,15 +61,17 @@ function chooseChapter(id){
  const def=chapterDefinitions.find(function(c){return c.id===id;})||chapterDefinitions[0];
  chosenChapter=def.id;
  chapterButtons.forEach(function(button,key){button.setAttribute('aria-pressed',key===def.id?'true':'false');});
- chapterDetail.textContent=def.name+' — '+def.description+(def.available?'':' ※ この編はまだ制作中です。現在は始められません。');
+ chapterDetail.textContent=def.name+' — '+def.description+' ♪ '+chapterTracks[def.id]+'（テーマBGM）'+(def.available?'':' ※ この編はまだ制作中です。現在は始められません。');
  chapterStart.disabled=!def.available;
  chapterStart.textContent=def.available?'この物語ではじめる':'この物語は準備中';
+ window.dispatchEvent(new CustomEvent('fw-title-chapter-selected',{detail:{id:def.id}}));
  status('');
 }
 function showChapters(){
  pending=null;main.hidden=true;saves.hidden=true;chapters.hidden=false;
  root.classList.remove('fw-title-settings-open');status('');
  chooseChapter(chosenChapter);
+ window.dispatchEvent(new CustomEvent('fw-title-chapters-opened',{detail:{id:chosenChapter}}));
  chapterButtons.get(chosenChapter).focus({preventScroll:true});
 }
 chapterStart.addEventListener('click',function(){
@@ -80,6 +83,7 @@ chooseChapter('frontier');
 
 function showMain(){
  pending=null;main.hidden=false;saves.hidden=true;chapters.hidden=true;root.classList.remove('fw-title-settings-open');
+ window.dispatchEvent(new Event('fw-title-chapters-closed'));
  status('');select(selected);buttons[selected].focus({preventScroll:true});
 }
 function showSaves(){
@@ -96,6 +100,7 @@ function showSaves(){
   b.append(name,detail);b.addEventListener('click',function(){activate(entry.slot);});list.appendChild(b);
  });
  status('');main.hidden=true;chapters.hidden=true;saves.hidden=false;
+ window.dispatchEvent(new Event('fw-title-chapters-closed'));
  const first=list.querySelector('button');if(first)first.focus({preventScroll:true});
 }
 function activate(slot){
