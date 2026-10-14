@@ -1,6 +1,6 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-14T11:55:08.128+09:00",
+  "updated_at": "2026-10-14T11:56:48.545+09:00",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
@@ -148,7 +148,7 @@
     "A/B/C selectable illustrated title themes, default C, persistent local-only selection and settings previews",
     "Title screen A/B/C rendered artwork: 800x600 AVIF files (generated A family kingdom, B starry village, C fantasy map), selectable previews, default C and persistent preference",
     "startup trademark splash, full-bleed A/B/C artwork with interactive wooden signpost menu, user-gesture synthesized title BGM and persistent title audio settings",
-    "staging sprite test battle-motion preview with nine actions, character/direction/speed selection and visual-only demo HP (not integrated into live game combat)"
+    "staging sprite test battle-motion preview with ten actions (including axe), character/direction/speed selection and visual-only demo HP (not integrated into live game combat)"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
