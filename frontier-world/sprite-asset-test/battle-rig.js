@@ -339,6 +339,9 @@
   getProfile:getProfile,setProfile:setProfile,resetProfile:resetProfile,
   exportProfiles:exportProfiles,importProfiles:importProfiles,defaultProfile:basicProfile,
   jointNames:Object.freeze(JOINT_NAMES),partNames:Object.freeze(PART_NAMES),
+  partCenters:Object.freeze(Object.fromEntries(Object.entries(CLIPS).map(([id,vertices])=>[
+   id,[vertices.reduce((a,p)=>a+p[0],0)/vertices.length,vertices.reduce((a,p)=>a+p[1],0)/vertices.length]
+  ]))),
   profile:Object.freeze({sourceWidth:256,sourceHeight:324,partCount:Object.keys(CLIPS).length,storageKey:STORE})
  });
 })(window);
