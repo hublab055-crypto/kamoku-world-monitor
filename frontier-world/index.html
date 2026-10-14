@@ -70,10 +70,12 @@ select{width:100%;min-height:44px;background:#22262a;color:var(--text);border:1p
 }
 
 </style>
-<link rel="stylesheet" href="title-menu.css?v=52.3">
+<link rel="stylesheet" href="title-menu.css?v=52.4">
+<link rel="stylesheet" href="title-intro.css?v=52.4">
 </head>
 <body>
 <div id="app" tabindex="0">
+<div id="fwTrademarkSplash" role="dialog" aria-modal="true" aria-label="起動トレードマーク"><div class="fw-splash-logo"><img src="title-art/frontier-trademark.svg?v=52.4" alt="コンパスと家族の紋章"><h1>FRONTIER<br>WORLD</h1><p>ここから、あなたの世界がはじまる。</p><button id="fwSplashStart" type="button">タップして冒険の扉を開く ▶</button></div></div>
   <div id="fwTitleOverlay" role="dialog" aria-modal="true" aria-label="タイトル画面">
     <div class="fw-title-frame">
       <div id="fwTitleMain">
@@ -13693,7 +13695,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
  if(!sel||!apply)return;
  const filename=window.location.pathname.split('/').pop().toLowerCase();
  const active=filename==='v41.html'?'v41':filename==='v42.html'?'v42':'latest';
- const labels={latest:'最新版（V52.3）',v42:'V42.0 固定',v41:'V41.0 固定'};
+ const labels={latest:'最新版（V52.4）',v42:'V42.0 固定',v41:'V41.0 固定'};
  const paths={latest:'./',v42:'./v42.html',v41:'./v41.html'};
  sel.value=active;
  if(current)current.textContent=labels[active];
@@ -13711,6 +13713,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
  if(refresh)refresh.addEventListener('click',function(){navigate('latest');});
 })();
 </script>
-<script defer src="title-menu.js?v=52.3"></script>
+<script defer src="title-menu.js?v=52.4"></script>
+<script defer src="title-intro.js?v=52.4"></script>
 </body>
 </html>
