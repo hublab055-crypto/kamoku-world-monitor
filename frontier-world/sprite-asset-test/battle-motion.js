@@ -96,15 +96,16 @@
     section.id="battleMotionPreview";
     section.innerHTML =
       '<h2>⚔️ バトルモーション・プレビュー</h2>'+
-      '<p class="note">歩行画像を使った<strong>仮モーション</strong>です。斬撃・突き・射撃・防御・回避・被弾・戦闘不能・勝利を確認できます。専用の戦闘スプライトは未制作です。</p>'+
+      '<p class="note">画像を頭・胴体・腕4部位・脚4部位に分け、関節を動かす10分割の戦闘リグを追加しました。剣・斧・盾・弓と、従来の全身画像変形を比較できます。</p>'+
       '<canvas id="battleMotionCanvas" width="800" height="390" role="img" aria-label="既存キャラクターを使った戦闘モーションプレビュー"></canvas>'+
       '<div class="toolbar" id="battleActionButtons"></div>'+
+      '<div class="toolbar"><label for="battleRigMode">アニメ方式</label><select id="battleRigMode"><option value="rig">関節リグ（10分割）</option><option value="legacy">従来の全身変形</option></select><button type="button" id="battleRigGuides" aria-pressed="false">関節位置 OFF</button></div>'+
       '<div class="toolbar"><label for="battleDirection">向き</label>'+
       '<select id="battleDirection"><option value="right">右</option><option value="left">左</option><option value="front">正面</option><option value="back">背面</option></select>'+
       '<label for="battleSpeed">再生速度</label><input id="battleSpeed" type="range" min="50" max="180" value="100" step="10"><output id="battleSpeedText">1.0倍</output>'+
       '<button type="button" id="battleReset">HPと演出をリセット</button></div>'+
       '<div class="info" aria-live="polite" id="battleMotionStatus">画像を読み込み中…</div>'+
-      '<p class="note">ダメージ・HPは表示確認用の仮値で、本編の命中判定・ゲーム内HP・セーブには影響しません。モーションは同じキャラの移動補正値を参照します。</p>';
+      '<p class="note">関節リグは既存画像を領域分割した暫定素材です。切り抜き位置はキャラごとに追加調整が必要です。ダメージ・HPはテスト専用で、ゲーム本編の戦闘判定・セーブには影響しません。</p>';
     var before=Array.from(grid.children).find(function(child){
       var h=child.querySelector("h2");return h&&h.textContent.indexOf("調整モード")>=0;
     });
@@ -121,7 +122,7 @@
     var chars={},roster={},selected=character.value,poseType=null,elapsed=0,hitMarks={},enemyHp=100,heroHp=100;
     var hitTimer=0,heroFlash=0,lastTime=null,clock=0,loaded=false;
     var actionDuration=0;
-    var dir="right";
+    var dir="right",rigGuides=false;
     function refreshAdjustments(){
       try{
         var saved=JSON.parse(localStorage.getItem("frontierWorldSpriteAdjustmentsV1")||"{}");
@@ -160,6 +161,8 @@
       btns.appendChild(btn);
     });
     dirSel.addEventListener("change",function(){dir=dirSel.value;draw()});
+    document.getElementById("battleRigMode").addEventListener("change",function(){draw()});
+    document.getElementById("battleRigGuides").addEventListener("click",function(){rigGuides=!rigGuides;this.textContent="関節位置 "+(rigGuides?"ON":"OFF");this.setAttribute("aria-pressed",String(rigGuides));draw()});
     speed.addEventListener("input",function(){document.getElementById("battleSpeedText").textContent=(Number(speed.value)/100).toFixed(1)+"倍"});
     character.addEventListener("change",function(){
       selected=character.value;poseType=null;hitTimer=0;heroFlash=0;hitMarks={};btns.querySelectorAll("button").forEach(function(b){b.classList.remove("active")});
@@ -218,20 +221,32 @@
     function shadow(x,range){
       ctx.save();ctx.fillStyle="rgba(13,29,26,.45)";ctx.beginPath();ctx.ellipse(x,317,range||72,13,0,0,Math.PI*2);ctx.fill();ctx.restore();
     }
-    function actor(id,x,y,d,pose,flash,alpha){
-      var img=chars[id];if(!img)return;
-      var a=charAdjust(id,d);var frame=0, row=ROWS.indexOf(d);
+    function actor(id,x,y,d,pose,flash,alpha,anim){
+      var img=chars[id];if(!img)return false;
+      var a=charAdjust(id,d),row=ROWS.indexOf(d);
       var width=156*a.scale,height=220*a.scale;
-      var sx=frame*256,sy=Math.max(0,row)*324;
+      var useRig=document.getElementById("battleRigMode").value==="rig"&&!!window.FWBattleRig;
       ctx.save();ctx.globalAlpha=alpha===undefined?1:alpha;
       ctx.translate(x+pose.dx+a.x*.65,y+pose.dy+a.y*.65);
-      ctx.rotate(pose.tilt||0);ctx.scale(pose.scaleX||1,pose.scaleY||1);
-      ctx.drawImage(img,sx,sy,256,324,-width/2,-height,width,height);
+      ctx.rotate((pose.tilt||0)*(useRig?.28:1));ctx.scale(pose.scaleX||1,pose.scaleY||1);
+      var rigDrawn=false;
+      if(useRig){
+        var sourceDirection=d==="left"?"right":d;
+        var sourceRow=ROWS.indexOf(sourceDirection);
+        rigDrawn=window.FWBattleRig.render(ctx,img,[0,Math.max(0,sourceRow)*324,256,324],0,0,width,height,{
+          action:anim&&anim.action||"idle",
+          progress:anim&&anim.progress||0,
+          mirror:d==="left",
+          equipment:anim&&anim.equipment||null,
+          guides:rigGuides&&id===selected
+        });
+      }
+      if(!rigDrawn)ctx.drawImage(img,0,Math.max(0,row)*324,256,324,-width/2,-height,width,height);
       if(flash>0){
-        ctx.fillStyle="rgba(255,83,68,"+(flash/340*.36).toFixed(3)+")";
+        ctx.fillStyle="rgba(255,83,68,"+(flash/340*.18).toFixed(3)+")";
         ctx.fillRect(-width/2,-height,width,height);
       }
-      ctx.restore();
+      ctx.restore();return rigDrawn;
     }
     function sword(x,y,p,enemy,action){
       var ang=(p.weapon||0);ctx.save();ctx.translate(x+76+p.dx, y-150+p.dy);ctx.rotate(ang);
@@ -293,13 +308,22 @@
       var idle=Math.sin(clock/340)*1.5;
       shadow(255+heroPose.dx);
       shadow(545+enemyPose.dx);
-      actor(opponent,545,317,"left",enemyPose,hitTimer,1);
-      if(heroPose.ghost>0)actor(selected,255+32,317,dir,{dx:0,dy:0,tilt:0,scaleX:1,scaleY:1},0,.23*heroPose.ghost);
-      actor(selected,255,317+idle,dir,heroPose,heroFlash,1);
-      if(poseType==="bow")bow(255,317,heroPose,progress);
-      else if(poseType==="axe")axe(255,317,heroPose);
-      else if(poseType!=="fall")sword(255,317,heroPose,enemyPose,poseType);
-      if(poseType==="block")shield(255+heroPose.dx,317,heroPose.shield);
+      actor(opponent,545,317,"left",enemyPose,hitTimer,1,{action:"idle",equipment:"sword"});
+      if(heroPose.ghost>0)actor(selected,255+32,317,dir,{dx:0,dy:0,tilt:0,scaleX:1,scaleY:1},0,.23*heroPose.ghost,{action:"idle"});
+      var equip=poseType==="bow"?"bow":poseType==="axe"?"axe":poseType==="block"?"block":
+        ["slash","thrust","combo","victory"].includes(poseType)?"sword":null;
+      var isRig=actor(selected,255,317+idle,dir,heroPose,heroFlash,1,{action:poseType||"idle",progress:progress,equipment:equip});
+      if(isRig){
+        if(poseType==="bow"&&progress>.45&&progress<.87){
+          var flight=(progress-.45)/.42;
+          arrow(lerp(320+heroPose.dx,571,flight),lerp(176,170,flight));
+        }
+      }else{
+        if(poseType==="bow")bow(255,317,heroPose,progress);
+        else if(poseType==="axe")axe(255,317,heroPose);
+        else if(poseType!=="fall")sword(255,317,heroPose,enemyPose,poseType);
+        if(poseType==="block")shield(255+heroPose.dx,317,heroPose.shield);
+      }
       if(counter){ctx.save();ctx.strokeStyle="#e9e2d1";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(510+enemyPose.dx,168);ctx.lineTo(462+enemyPose.dx,120);ctx.stroke();ctx.restore();}
       if(poseType==="block"&&progress>.34&&progress<.56)effect(320,175,1,"#9df4fc");
       if(poseType==="dodge"&&progress>.33&&progress<.6)effect(330,196,.6,"#c6fff6");
