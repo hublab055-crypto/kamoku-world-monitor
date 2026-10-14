@@ -306,6 +306,41 @@
   const shifted=rot(grip,elbow,lower);
   return rot(shifted,shoulder,upper);
  }
+ // Solve shoulder and elbow rotations so the hand meets an intended prop grip.
+ // The source rig has different bone lengths for children and adults.
+ function solveHandTarget(p,profile,isFront,target){
+  if(!Array.isArray(target)||target.length!==2||!target.every(Number.isFinite))return null;
+  const j=profile.joints,side=isFront?"front":"rear";
+  const shoulder=j[side+"Shoulder"],elbow=j[side+"Elbow"],grip=j[side+"Hand"];
+  const u=[elbow[0]-shoulder[0],elbow[1]-shoulder[1]];
+  const v=[grip[0]-elbow[0],grip[1]-elbow[1]];
+  const l1=Math.hypot(...u),l2=Math.hypot(...v);
+  if(l1<2||l2<2)return null;
+  let dx=target[0]-shoulder[0],dy=target[1]-shoulder[1];
+  let distance=Math.hypot(dx,dy);
+  if(distance<.001){dx=0;dy=1;distance=1;}
+  const reachable=clamp(distance,Math.abs(l1-l2)+.01,l1+l2-.01);
+  const ux=dx/distance,uy=dy/distance;
+  const along=(l1*l1-l2*l2+reachable*reachable)/(2*reachable);
+  const across=Math.sqrt(Math.max(0,l1*l1-along*along));
+  // A stable elbow-side sign avoids an abrupt reversal between loop frames.
+  const sideSign=isFront?-1:1;
+  const ex=shoulder[0]+ux*along-sideSign*uy*across;
+  const ey=shoulder[1]+uy*along+sideSign*ux*across;
+  const end=[shoulder[0]+ux*reachable,shoulder[1]+uy*reachable];
+  const originalUpper=Math.atan2(u[1],u[0]);
+  const originalLower=Math.atan2(v[1],v[0]);
+  const upper=(Math.atan2(ey-shoulder[1],ex-shoulder[0])-originalUpper)/RAD;
+  const lower=(Math.atan2(end[1]-ey,end[0]-ex)-originalLower)/RAD-upper;
+  const normalized=n=>(n+540)%360-180;
+  p[side+"Upper"]=normalized(upper);
+  p[side+"Lower"]=normalized(lower);
+  return {target:target.slice(),achieved:hand(p,isFront,profile),reachError:Math.abs(distance-reachable)};
+ }
+ function aimHands(p,profile,targets){
+  if(!p||!profile||!targets)return {};
+  return {front:solveHandTarget(p,profile,true,targets.front),rear:solveHandTarget(p,profile,false,targets.rear)};
+ }
  function equipment(ctx,kind,p,front,rear,progress){
   const hit=progress>.47&&progress<.74;
   ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
@@ -350,6 +385,7 @@
   try{p=sample(opts.action||"idle",opts.progress||0)}catch(e){return false}
   const profile=opts.profile?validated(opts.characterId||"default",opts.direction||"front",opts.profile):
     getProfile(opts.characterId||"default",opts.direction||"front");
+  if(opts.handTargets)aimHands(p,profile,opts.handTargets);
   const mirror=!!opts.mirror,rotation=Number(opts.rotation)||0;
   const mode=opts.mode==="legacy"?"legacy":"cutout";
   ctx.save();
@@ -390,7 +426,8 @@
   return true;
  }
  global.FWBattleRig=Object.freeze({
-  version:"1.2.0",actions:Object.freeze(Object.keys(TRACKS)),registerTracks:registerTracks,sample:sample,render:render,
+  version:"1.3.0",actions:Object.freeze(Object.keys(TRACKS)),registerTracks:registerTracks,sample:sample,render:render,
+  aimHands:aimHands,handPosition:hand,
   getProfile:getProfile,setProfile:setProfile,resetProfile:resetProfile,
   exportProfiles:exportProfiles,importProfiles:importProfiles,defaultProfile:basicProfile,
   jointNames:Object.freeze(JOINT_NAMES),partNames:Object.freeze(PART_NAMES),
