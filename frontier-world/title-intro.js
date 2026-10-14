@@ -88,6 +88,75 @@ const scores={
    {b:43,c:[55,58,62],m:[82,null,79,74]}
   ]}
 };
+
+/* V52.6: original multisection cue book shared with the in-game music player.
+   Each cue is a playable synthesized score. It is not an audio recording. */
+scores.empire={
+ name:'帝国の進撃',bpm:102,meter:4,lead:'sawtooth',harmony:'triangle',bass:'sawtooth',mode:'imperial',
+ bars:[
+  {b:36,c:[48,55,60],m:[72,72,75,79]},
+  {b:39,c:[51,58,63],m:[77,75,72,70]},
+  {b:41,c:[53,57,60],m:[72,77,81,79]},
+  {b:36,c:[48,55,60],m:[75,72,67,72]}
+ ]
+};
+const OST_META={
+ frontier:{instrument:'lute',support:'flute',rhythm:'guitar',description:'村の朝、家族の絆、冒険の始まり'},
+ grassland:{instrument:'trumpet',support:'lute',rhythm:'taiko',description:'騎馬の蹄音と広大な草原'},
+ vinland:{instrument:'violin',support:'lute',rhythm:'taiko',description:'北海の波、船出と望郷'},
+ samurai:{instrument:'shakuhachi',support:'violin',rhythm:'taiko',description:'笛と太鼓で描く戦国の生き様'},
+ oasis:{instrument:'lute',support:'flute',rhythm:'tabla',description:'隊商の足音と夜空の星'},
+ maritime:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'帆船の出航、海原への憧れ'},
+ tropical:{instrument:'flute',support:'guitar',rhythm:'tabla',description:'島々の陽光と躍る暮らし'},
+ mountain:{instrument:'shakuhachi',support:'violin',rhythm:'taiko',description:'峰々の静寂と天空の荘厳'},
+ empire:{instrument:'trumpet',support:'violin',rhythm:'taiko',description:'重い行軍と合唱を思わせる威圧的な帝国マーチ'}
+};
+const chapterOrder=['frontier','grassland','vinland','samurai','oasis','maritime','tropical','mountain'];
+function composeCue(id){
+ const def=scores[id],meta=OST_META[id];
+ if(!def||!meta)return null;
+ const notes=[],bars=[],meter=def.meter;
+ function push(pitch,start,duration,instrument,velocity){
+  if(!Number.isFinite(pitch)||!Number.isFinite(start)||!Number.isFinite(duration))return;
+  if(pitch<26||pitch>100||duration<=0)return;
+  notes.push({pitch,start,duration,instrument,velocity});
+ }
+ for(let i=0;i<16;i++){
+  const original=def.bars[i%4],section=Math.floor(i/4);
+  const m=original.m.map((p,j)=>{
+   if(p==null)return null;
+   if(section===1&&j===2)return p+12<=92?p+12:p;
+   if(section===2&&j===0)return p-12>=60?p-12:p;
+   if(section===3&&j===3)return original.m[0];
+   return p;
+  });
+  const item={b:original.b,c:original.c.slice(),m};bars.push(item);
+  const origin=i*meter,unit=meter/m.length;
+  push(original.b,origin,meter*.90,'organ',.45);
+  if(section!==0 ||i%2===0){
+   push(original.c[0]+12,origin+meter*.02,meter*.82,meta.support,.24);
+   push(original.c[2]+12,origin+meter*.52,meter*.39,meta.support,.21);
+  }
+  m.forEach((pitch,j)=>{if(pitch!==null)push(pitch,origin+j*unit,unit*(section===2?.92:.72),meta.instrument,.65);});
+  const isPercussion=(meta.rhythm==='taiko'||meta.rhythm==='tabla');
+  push(isPercussion?60:67,origin,.25,meta.rhythm,.36);
+  if(section>=1)push(isPercussion?62:74,origin+meter*.50,.24,meta.rhythm,.25);
+  if(id==='empire'&&section>=2)push(60,origin+meter*.75,.25,'taiko',.37);
+ }
+ return {id:'ost:'+id,chapterId:id,title:def.name,author:'Frontier World オリジナル仮楽曲',
+  bpm:def.bpm,instrument:meta.instrument,description:meta.description,loop:true,
+  rights:'ゲーム内オリジナル作曲スケッチ（完成録音ではありません）',original:true,notes,previewBars:bars};
+}
+const composed=Object.freeze(Object.fromEntries(
+ [...chapterOrder,'empire'].map(id=>[id,composeCue(id)])
+));
+window.FW_CHAPTER_OST=Object.freeze({
+ tracks:Object.freeze([...chapterOrder,'empire'].map(id=>composed[id])),
+ chapters:Object.freeze(chapterOrder.slice()),
+ get:id=>composed[id]||null
+});
+Object.keys(composed).forEach(id=>{if(scores[id])scores[id].bars=composed[id].previewBars;});
+
 const Audio=window.AudioContext||window.webkitAudioContext;
 let ac=null,mix=null,clock=null,track=null,currentTheme='title',entered=false;
 function voice(p,start,duration,level,wave,target,cutoff,attack){
@@ -124,8 +193,9 @@ function rhythm(def,t,beat,dest){
   for(let b=0;b<span;b++){lowDrum(t+b*beat,dest,b%2===0?.12:.065);tap(t+(b+.55)*beat,dest,.028);}
  }else if(mode==='taiko'){
   lowDrum(t,dest,.15);lowDrum(t+beat*2,dest,.12);tap(t+beat*3,dest,.042);
- }else if(mode==='march'){
-  lowDrum(t,dest,.085);tap(t+beat*2,dest,.026);
+ }else if(mode==='march'||mode==='imperial'){
+  lowDrum(t,dest,mode==='imperial'?.18:.085);tap(t+beat*2,dest,mode==='imperial'?.06:.026);
+  if(mode==='imperial'){lowDrum(t+beat,dest,.11);lowDrum(t+beat*3,dest,.12);}
  }else if(mode==='caravan'){
   lowDrum(t,dest,.075);tap(t+beat*.75,dest,.025);tap(t+beat*2.5,dest,.027);
  }else if(mode==='wave'){
