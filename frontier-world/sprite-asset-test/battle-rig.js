@@ -246,6 +246,27 @@
   return count;
  }
 
+ function registerTracks(definitions){
+  if(!definitions||typeof definitions!=="object"||Array.isArray(definitions))return [];
+  const added=[];
+  for(const [id,frames] of Object.entries(definitions)){
+   if(!/^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(id)||Object.prototype.hasOwnProperty.call(TRACKS,id)||!Array.isArray(frames)||frames.length<2||frames.length>32)continue;
+   let previous=-1,valid=true;
+   const checked=frames.map(frame=>{
+    const t=Number(frame&&frame.t),values=frame&&frame.values;
+    if(!Number.isFinite(t)||t<0||t>1||t<=previous||!values||typeof values!=="object"){valid=false;return null;}
+    previous=t;
+    const out={};
+    for(const [key,value] of Object.entries(values)){
+     if(!KEYS.includes(key)||!Number.isFinite(value)||Math.abs(value)>200){valid=false;continue;}
+     out[key]=value;
+    }
+    return {t,values:out};
+   });
+   if(valid&&checked[0].t===0&&checked[checked.length-1].t===1){TRACKS[id]=checked;added.push(id);}
+  }
+  return added;
+ }
  function sample(action,time){
   const arr=TRACKS[action]||TRACKS.idle;
   const p=clamp(time);let a=arr[0],b=arr[arr.length-1];
@@ -339,6 +360,7 @@
     ctx.drawImage(img,rect[0],rect[1],rect[2],rect[3],0,0,256,324);
     return true;
    }
+   if(typeof opts.drawBehind==="function")opts.drawBehind(ctx,p,profile);
    // Back -> front painter order. Each piece uses the unmodified source pixels
    // with a polygonal mask, not invented recoloring or a second copy of the body.
    const j=profile.joints;
@@ -358,6 +380,7 @@
    ctx.restore();
    const front=hand(p,true,profile),rear=hand(p,false,profile);
    if(opts.equipment)equipment(ctx,opts.equipment,p,front,rear,opts.progress||0);
+   if(typeof opts.drawFront==="function")opts.drawFront(ctx,p,front,rear,profile);
    if(opts.guides){
     const points=Object.values(j).concat([front,rear]);
     ctx.save();ctx.fillStyle="#72f8e1";ctx.strokeStyle="#16313c";ctx.lineWidth=2;
@@ -367,7 +390,7 @@
   return true;
  }
  global.FWBattleRig=Object.freeze({
-  version:"1.1.0",actions:Object.freeze(Object.keys(TRACKS)),sample:sample,render:render,
+  version:"1.2.0",actions:Object.freeze(Object.keys(TRACKS)),registerTracks:registerTracks,sample:sample,render:render,
   getProfile:getProfile,setProfile:setProfile,resetProfile:resetProfile,
   exportProfiles:exportProfiles,importProfiles:importProfiles,defaultProfile:basicProfile,
   jointNames:Object.freeze(JOINT_NAMES),partNames:Object.freeze(PART_NAMES),
