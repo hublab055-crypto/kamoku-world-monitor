@@ -40,6 +40,7 @@ function buildUi(){
  const side=document.createElement('aside');side.id='fwStoryHint';side.hidden=true;side.setAttribute('aria-label','序章の操作ガイド');
  side.innerHTML='<div class="fw-story-top"><strong id="fwStoryCount"></strong><button id="fwStoryClose" type="button" aria-label="ガイドを閉じる">×</button></div><b id="fwStoryTask"></b><p id="fwStoryText"></p><div class="fw-story-actions"><button id="fwStoryRepeat" type="button">操作説明</button><button id="fwStorySkip" type="button">練習を終了</button></div>';
  document.body.appendChild(side);
+ const reopen=document.createElement('button');reopen.id='fwStoryReopen';reopen.type='button';reopen.hidden=true;reopen.textContent='📜 練習ガイド';reopen.addEventListener('click',function(){reopen.hidden=true;side.hidden=false;});document.body.appendChild(reopen);
  stage=root;hint=side;
  root.querySelector('#fwOpNext').addEventListener('click',advance);
  root.querySelector('#fwOpSkip').addEventListener('click',function(){
@@ -48,7 +49,7 @@ function buildUi(){
   finishCinematic();
  });
  root.querySelector('#fwOpName').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();advance();}});
- side.querySelector('#fwStoryClose').addEventListener('click',function(){side.hidden=true;});
+ side.querySelector('#fwStoryClose').addEventListener('click',function(){side.hidden=true;const opener=document.getElementById('fwStoryReopen');if(opener)opener.hidden=false;});
  side.querySelector('#fwStoryRepeat').addEventListener('click',function(){const st=story();if(!st)return;alert(lessons[st.lesson]&&lessons[st.lesson].body||'移動・会話・採集を試そう。');});
  side.querySelector('#fwStorySkip').addEventListener('click',function(){if(window.confirm('操作練習を終えて、通常の開拓生活を始めますか？'))finishTutorial(true);});
  document.addEventListener('keydown',function(e){
@@ -122,7 +123,7 @@ function showLesson(){
  const st=story();if(!st||st.phase!=='tutorial')return;
  buildUi();const entry=lessons[st.lesson];
  if(!entry){finishTutorial(false);return;}
- hint.hidden=false;
+ hint.hidden=false;const reopen=document.getElementById('fwStoryReopen');if(reopen)reopen.hidden=true;
  hint.querySelector('#fwStoryCount').textContent='リハビリ練習 '+(st.lesson+1)+' / '+lessons.length;
  hint.querySelector('#fwStoryTask').textContent=entry.title;
  hint.querySelector('#fwStoryText').textContent=entry.body;
@@ -138,7 +139,7 @@ function nextLesson(){
 function finishTutorial(skipped){
  const st=story();if(!st)return;
  st.phase='complete';st.completed=true;st.finishedAtDay=state()&&state().day;st.skipped=!!skipped;
- if(hint)hint.hidden=true;
+ if(hint)hint.hidden=true;const reopen=document.getElementById('fwStoryReopen');if(reopen)reopen.hidden=true;
  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
  note(skipped?'🌿 練習を終了。自由に村で暮らせるようになりました。':'🏡 序章「目覚め」完了！　ここからあなたの開拓生活が始まります。');
  window.dispatchEvent(new CustomEvent('fw-frontier-prologue-completed',{detail:{skipped:!!skipped}}));
@@ -147,7 +148,7 @@ function startPoll(){
  if(pollTimer)clearInterval(pollTimer);
  pollTimer=setInterval(function(){
   const s=state(),st=story();if(!s||!st||st.phase!=='tutorial')return;
-  if(hint&&hint.hidden)return; // Opening the guide again is supported via the button below.
+  // Progress detection continues even when the hint is temporarily minimized.
   const panel=document.getElementById('dialogPanel'),bag=document.getElementById('panel');
   if(st.lesson===0){
    if(!s.interior){nextLesson();return;}
@@ -168,7 +169,7 @@ function startPoll(){
 function resume(){
  const s=state();if(!s)return;
  const st=s[storyKey];
- if(stage)stage.hidden=true;if(hint)hint.hidden=true;
+ if(stage)stage.hidden=true;if(hint)hint.hidden=true;const reopen=document.getElementById('fwStoryReopen');if(reopen)reopen.hidden=true;
  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
  if(!st||st.completed||st.mode!=='scenario')return;
  if(st.phase==='cinematic'){sceneIndex=Math.max(2,Math.min(4,Number(st.scene)||2));renderScene();}
