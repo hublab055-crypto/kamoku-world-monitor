@@ -117,3 +117,9 @@
 ### 確認
 
 GitHub上の `full.html` 更新と、`manifest.json`・2キャラ分の歩行/表情画像の存在を確認済み。JavaScriptの構文確認は実施。実機Safariでの調整操作とGitHub Pagesへのデプロイ表示確認は未実施。
+
+## 2026-10-15: MON3 盗賊の部位別PNG仕様
+
+- [盗賊の部位別PNG・関節リグ仕様](../THIEF_PARTS_SPEC.md)、[画像割当JSON](../data/monster-rigs/thief.parts.json)、[ポーズ例](../data/monster-rigs/thief.pose-example.json)を追加。人型15関節、22部位×4方向=88枚のPNGを制作予定。
+- [monster-part-rig-runtime.js](./monster-part-rig-runtime.js) はPNG読み込み後に手・足・短剣等を関節支点で描画するための任意ユーティリティ。PNGは未制作、本編・既存MON2エディタには未接続。
+- 整合性・角度継承・描画順の単体テストを実施。
