@@ -19,7 +19,7 @@ var COLORS=["#ff607e","#edab4a","#e4c45b","#7fd07d","#5be0be","#4ca8de","#b2a0ed
 function $(id){return document.getElementById(id)}
 var stage=$("stage"),ctx=stage.getContext("2d"),timeline=$("timeline"),tl=timeline.getContext("2d");
 if(!ctx||!tl){$("status").textContent="Canvasが利用できません。";return}
-var state={monster:"thief",action:"idle",direction:"front",frame:0,count:4,selected:"head",playing:false,frameClock:0,showDots:true,onion:true,guide:true,autoSave:true};
+var state={monster:"thief",action:"idle",direction:"front",frame:0,count:4,selected:"head",playing:false,frameClock:0,showDots:true,onion:true,guide:true,autoSave:true,refEdit:false};
 var storageKey="frontierMonsterPoseEditorV1";
 var data={schemaVersion:1,poses:{},count:4}, undo=[],redo=[],refs={},db=null,imageUrl={};
 function clone(v){return JSON.parse(JSON.stringify(v))}
@@ -197,6 +197,21 @@ function drawPuppet(c,mon,p,dir,x,y,scale,showDots,selected){
  if(showDots)strokeSkeleton(c,mon,p,selected);
  c.restore();
 }
+function cropFrame(im){
+ var ac=state.action==="chase"?"walk":state.action;
+ var m={idle:[341,564],walk:[564,790],attack:[790,1015],hurt:[1015,1220],death:[1220,1445]};
+ var rows={front:[125,229],left:[281,385],right:[429,537],back:[583,693]};
+ var bounds=m[ac],row=rows[state.direction],f=Math.floor(state.frame*4/state.count);
+ var sx=bounds[0]+f*(bounds[1]-bounds[0])/4,sw=(bounds[1]-bounds[0])/4,sy=row[0],sh=row[1]-row[0];
+ return [sx*im.naturalWidth/1491,sy*im.naturalHeight/1055,sw*im.naturalWidth/1491,sh*im.naturalHeight/1055];
+}
+function drawRefArt(c,x,y,w,h,dots){
+ var im=refs[state.monster];if(!im)return;
+ c.save();c.fillStyle="#f8f0dc";c.fillRect(x-3,y-3,w+6,h+6);
+ var cr=cropFrame(im);c.drawImage(im,cr[0],cr[1],cr[2],cr[3],x,y,w,h);
+ if(dots){c.translate(x,y);c.scale(w/200,h/220);strokeSkeleton(c,state.monster,get(),state.selected)}
+ c.restore();
+}
 function drawReference(){
  ctx.save();ctx.fillStyle="#30373a";ctx.fillRect(0,0,230,570);
  ctx.fillStyle="#f5e6c9";ctx.font="bold 17px serif";ctx.textAlign="left";ctx.fillText("参考イラスト",17,31);
@@ -214,6 +229,7 @@ function drawReference(){
    ctx.fillStyle="#f4e8cb";ctx.fillRect(13,69,203,365);
    ctx.imageSmoothingEnabled=true;
    ctx.drawImage(im,sx,sy,sw,sh,20,113,190,282);
+   if(state.showDots&&!state.refEdit){ctx.save();ctx.translate(20,113);ctx.scale(190/200,282/220);strokeSkeleton(ctx,state.monster,get(),state.selected,.9);ctx.restore()};
    ctx.fillStyle="#d2c5a6";ctx.textAlign="center";ctx.fillText("参考シート / "+(f+1)+"コマ",116,419);
  }else{
    ctx.strokeStyle="#778083";ctx.setLineDash([7,6]);ctx.strokeRect(14,69,202,363);ctx.setLineDash([]);
@@ -235,11 +251,21 @@ function draw(){
  ctx.fillStyle="#6b6253";ctx.font="14px sans-serif";ctx.fillText(state.playing?"アニメーション再生中":"ドラッグで関節を指定 • 位置はコマごとに記録",253,54);
  if(state.guide){ctx.save();ctx.strokeStyle="#bfb39e";ctx.lineWidth=1;ctx.setLineDash([5,8]);for(var x=270;x<=980;x+=46) {ctx.beginPath();ctx.moveTo(x,66);ctx.lineTo(x,566);ctx.stroke()}for(var y=66;y<=565;y+=46){ctx.beginPath();ctx.moveTo(245,y);ctx.lineTo(995,y);ctx.stroke()}ctx.restore()}
  var p=get(),x=350,y=60,scale=2.1;
- if(state.onion&&state.frame>0){
-   var prev=pose(state.monster,state.action,state.direction,state.frame-1,state.count);
-   ctx.save();ctx.globalAlpha=.18;drawPuppet(ctx,state.monster,prev,state.direction,x,y,scale,false,"");ctx.restore();
+ if(state.refEdit&&refs[state.monster]){
+   ctx.save();ctx.fillStyle="#d4c3a6";ctx.fillRect(323,76,364,463);
+   drawRefArt(ctx,340,84,328,447,state.showDots);
+   ctx.fillStyle="#4e4336";ctx.font="bold 15px sans-serif";ctx.fillText("参考イラストの関節位置を直接指定",716,125);
+   ctx.font="12px sans-serif";ctx.fillText("イラストは変形しません",716,149);
+   ctx.fillText("右下: 仮リグの連動プレビュー",716,177);
+   drawPuppet(ctx,state.monster,p,state.direction,765,184,.95,false,"");
+   ctx.restore();
+ }else{
+   if(state.onion&&state.frame>0){
+     var prev=pose(state.monster,state.action,state.direction,state.frame-1,state.count);
+     ctx.save();ctx.globalAlpha=.18;drawPuppet(ctx,state.monster,prev,state.direction,x,y,scale,false,"");ctx.restore();
+   }
+   drawPuppet(ctx,state.monster,p,state.direction,x,y,scale,state.showDots,state.selected);
  }
- drawPuppet(ctx,state.monster,p,state.direction,x,y,scale,state.showDots,state.selected);
  ctx.save();ctx.strokeStyle="#8a806e";ctx.strokeRect(955,78,29,35);ctx.fillStyle="#49443c";ctx.font="12px sans-serif";ctx.textAlign="center";ctx.fillText("↑",970,101);
  ctx.fillStyle="#484842";ctx.textAlign="left";ctx.fillText("関節数: "+joints().length,802,514);ctx.fillText("保存済み: "+Object.keys(data.poses).length+"コマ",802,537);ctx.restore();
  drawTimeline();
@@ -259,10 +285,11 @@ function drawTimeline(){
 }
 var dragging=null;
 function coords(e){var r=stage.getBoundingClientRect();return [(e.clientX-r.left)*1000/r.width,(e.clientY-r.top)*570/r.height]}
-function point(e){var xy=coords(e);return [(xy[0]-350)/2.1,(xy[1]-60)/2.1]}
+function point(e){var xy=coords(e);return state.refEdit&&refs[state.monster]?[(xy[0]-340)*200/328,(xy[1]-84)*220/447]:[(xy[0]-350)/2.1,(xy[1]-60)/2.1]}
 function selectJoint(k){state.selected=k;updateInspector();draw()}
 stage.addEventListener("pointerdown",function(e){
  if(state.playing)stopPlay();
+ var px=coords(e);if(state.refEdit&&refs[state.monster]&&(px[0]<335||px[0]>673||px[1]<80||px[1]>534))return;
  var pt=point(e),p=get(),chosen="",dist=Infinity;
  joints().forEach(function(j){var k=j[0],d=Math.hypot(p[k][0]-pt[0],p[k][1]-pt[1]);if(d<dist){dist=d;chosen=k}});
  if(dist>18)return;
@@ -295,8 +322,8 @@ function change(){
  stopPlay();updateInspector();draw();loadRef(state.monster);show("編集中: "+title()+"。色付きの関節点を動かしてください。");
 }
 ["monster","action","direction","frameCount"].forEach(function(id){$(id).addEventListener("change",change)});
-["joints","onion","guide","autoSave"].forEach(function(id){
- $(id).addEventListener("change",function(){var map={joints:"showDots",onion:"onion",guide:"guide",autoSave:"autoSave"};state[map[id]]=this.checked;draw()});
+["joints","onion","guide","autoSave","refEdit"].forEach(function(id){
+ $(id).addEventListener("change",function(){var map={joints:"showDots",onion:"onion",guide:"guide",autoSave:"autoSave",refEdit:"refEdit"};state[map[id]]=this.checked;draw()});
 });
 timeline.addEventListener("pointerdown",function(e){
  var rect=timeline.getBoundingClientRect(),px=(e.clientX-rect.left)*1000/rect.width;
@@ -376,7 +403,7 @@ function assignImage(mon,blob){
  if(imageUrl[mon])URL.revokeObjectURL(imageUrl[mon]);
  var url=URL.createObjectURL(blob),im=new Image();
  imageUrl[mon]=url;
- im.onload=function(){refs[mon]=im;draw();if(state.monster===mon)$("imageStatus").textContent=MONS[mon]+"の参考画像を表示中（"+im.naturalWidth+"×"+im.naturalHeight+"px）"};
+ im.onload=function(){refs[mon]=im;if(state.monster===mon){state.refEdit=true;$("refEdit").checked=true}draw();if(state.monster===mon)$("imageStatus").textContent=MONS[mon]+"の参考画像を表示中（"+im.naturalWidth+"×"+im.naturalHeight+"px）"};
  im.onerror=function(){if(state.monster===mon)$("imageStatus").textContent="画像の読み込みに失敗しました"};
  im.src=url;
 }
@@ -396,7 +423,7 @@ $("imageFile").addEventListener("change",function(){
  try{if(db)db.transaction("sheets","readwrite").objectStore("sheets").put(f,m)}catch(e){show("参考画像の永続保存には失敗しました。現在のページでは使用できます。",true)}
  this.value="";
 });
-$("clearImage").onclick=function(){var m=state.monster;delete refs[m];if(imageUrl[m])URL.revokeObjectURL(imageUrl[m]);delete imageUrl[m];try{if(db)db.transaction("sheets","readwrite").objectStore("sheets").delete(m)}catch(e){}$("imageStatus").textContent="参考画像を解除しました。";draw()};
+$("clearImage").onclick=function(){var m=state.monster;delete refs[m];if(imageUrl[m])URL.revokeObjectURL(imageUrl[m]);delete imageUrl[m];state.refEdit=false;$("refEdit").checked=false;try{if(db)db.transaction("sheets","readwrite").objectStore("sheets").delete(m)}catch(e){}$("imageStatus").textContent="参考画像を解除しました。";draw()};
 try{
  var existing=JSON.parse(localStorage.getItem(storageKey)||"null");
  if(existing&&existing.schemaVersion===1&&existing.poses&&typeof existing.poses==="object"){
