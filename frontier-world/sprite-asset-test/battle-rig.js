@@ -346,9 +346,10 @@
    const extremity=type==="arm"?j[side+"Hand"]:[bend[0],Math.min(324,bend[1]+43)];
    const second=rot(bend,hip,r(upper));
    const third=rot(rot(extremity,bend,r(lower)),hip,r(upper));
-   return {base:type==="arm"?transformed(hip):hip.slice(),
-    middle:type==="arm"?transformed(second):second,
-    end:type==="arm"?transformed(third):third};
+   const step=type==="leg"?(p[side+"Step"]||0):0;
+   return {base:type==="arm"?transformed(hip):[hip[0]+step,hip[1]],
+    middle:type==="arm"?transformed(second):[second[0]+step,second[1]],
+    end:type==="arm"?transformed(third):[third[0]+step,third[1]]};
   };
   const fArm=limb("front","arm"),bArm=limb("rear","arm");
   const fLeg=limb("front","leg"),bLeg=limb("rear","leg");
@@ -363,16 +364,18 @@
  function drawV2(ctx,img,rect,p,profile,parts){
   const j=profile.joints;
   const draw=(id,pivot,a,second,b)=>drawPart(ctx,img,rect,id,pivot,a,second,b,profile,parts);
+  ctx.save();ctx.translate(p.rearStep||0,0);
   draw("rearShin",j.rearHip,p.rearThigh,j.rearKnee,p.rearShin);
-  draw("rearThigh",j.rearHip,p.rearThigh);
+  draw("rearThigh",j.rearHip,p.rearThigh);ctx.restore();
   ctx.save();
   ctx.translate(...j.body);ctx.rotate((p.torso||0)*RAD);ctx.translate(-j.body[0],-j.body[1]);
   draw("rearUpper",j.rearShoulder,p.rearUpper);
   draw("rearLower",j.rearShoulder,p.rearUpper,j.rearElbow,p.rearLower);
   draw("torso");
   ctx.restore();
+  ctx.save();ctx.translate(p.frontStep||0,0);
   draw("frontShin",j.frontHip,p.frontThigh,j.frontKnee,p.frontShin);
-  draw("frontThigh",j.frontHip,p.frontThigh);
+  draw("frontThigh",j.frontHip,p.frontThigh);ctx.restore();
   ctx.save();
   ctx.translate(...j.body);ctx.rotate((p.torso||0)*RAD);ctx.translate(-j.body[0],-j.body[1]);
   ctx.save();ctx.translate(...j.neck);ctx.rotate((p.head||0)*RAD);
