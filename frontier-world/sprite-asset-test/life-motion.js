@@ -103,7 +103,7 @@
   ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
   const hand=front||[180,210],w=Math.sin(t*Math.PI*2);
   if(id==='chop'||id==='sweep'){
-   ctx.translate(hand[0],hand[1]);ctx.rotate(id==='chop'?-0.12+2.52*ease((t-.43)/.26)*(1-ease((t-.83)/.17)):w*.08);
+   ctx.translate(hand[0],hand[1]);ctx.rotate((id==='chop'?-0.12+2.52*ease((t-.43)/.26)*(1-ease((t-.83)/.17)):w*.08)+(pose.weapon||0)*RAD);
    ctx.strokeStyle='#98683b';ctx.lineWidth=id==='chop'?9:6;
    ctx.beginPath();ctx.moveTo(0,12);ctx.lineTo(id==='chop'?5:8,id==='chop'?-72:76);ctx.stroke();
    if(id==='chop'){
