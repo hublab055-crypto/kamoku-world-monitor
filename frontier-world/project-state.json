@@ -1,12 +1,12 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-14T10:56:03.549Z",
+  "updated_at": "2026-10-15T00:55:23.210Z",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V52.7-ST4+BM4",
-  "game_commit": "458c3cc7c769a6e6a099a149dde6819bddf7ce1c",
+  "implementation_version": "V52.7-ST4+BM4+BFR2",
+  "game_commit": "9757eb334ff07af2b3c1b4d7914b02b96d2607ed",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
   "dialogue_path": "frontier-world/data/dialogue-pack.json",
@@ -156,7 +156,8 @@
     "start chapter selection displays 14 regions including Celtic, Maya, Native American, Malta, Sparta and Egypt; only frontier is playable",
     "responsive long region selection scroll area with anchored chapter detail/start actions",
     "14 original region theme previews switched on selection with shared title audio controls",
-    "15 original 16-bar synth score sketches (14 origin chapters plus imperial march) in game's selectable BGM catalog"
+    "15 original 16-bar synth score sketches (14 origin chapters plus imperial march) in game's selectable BGM catalog",
+    "Battle Frame Rig V2: 18 newly drawn Canvas vector combat parts, 17 separately keyable joint/position controls per frame, 10 attacks, 2-48 frame editing, JSON/PNG export and live combat rendering integration"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -177,7 +178,8 @@
     "actual starting maps, cultures, NPCs, resources, storylines and quests for 13 future world chapters",
     "historically and culturally informed research for Celtic, Maya and distinct North American Indigenous cultures",
     "mastered recordings, sampled instruments, orchestral arrangements and actual sung choruses for main themes",
-    "imperial march automatic triggering on in-world faction/army events"
+    "imperial march automatic triggering on in-world faction/army events",
+    "Replace BFR2 prototype vector body parts with final per-character illustrated transparent limb images, improve weapon grip and 4-direction art, and test on actual Safari/touch."
   ],
   "known_issues": [
     "index.html is very large and prone to merge/regression risk",
@@ -223,7 +225,8 @@
     "Battle motions in sprite-asset-test/full.html include 10 visual prototypes; live game only hooks current sword/bow/hit events through existing renderer, other actions await proper game command integration",
     "V52.4+BM3 cutout rig uses shared geometric masks over walk atlas and has not undergone real iPhone Safari visual testing; visible seams, costume cutout mismatch and weapon-hand misalignment may occur",
     "BM4 battle-rig initial character/direction profiles are approximations; the cutout masks are shared, and Safari touch/UI/PNG exports have not had a real browser end-to-end test",
-    "V52.7 14-origin title preview and 15-score synthesized OST code validated with mock audio, but not yet iPhone Safari end-to-end verified; six added origins are previews, not playable worlds"
+    "V52.7 14-origin title preview and 15-score synthesized OST code validated with mock audio, but not yet iPhone Safari end-to-end verified; six added origins are previews, not playable worlds",
+    "BFR2 SVG-like Canvas vector sprites differ from existing pixel art and have not had actual iPhone Safari visual/editor/PNG export end-to-end tests; existing pose editor and new vector battle editor maintain separate stores."
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -361,7 +364,8 @@
     "Test BGM modal download on iPhone Safari for local song and recording",
     "Test owned market BGM direct download within the game modal with authenticated buyer and supplier settlement",
     "iPhone Safari test file picker WAV/MIDI/MusicXML import playback, persistence across game save reload and site refresh",
-    "test direct download-page-to-game cross-tab BGM activation, licensed village preview sharing"
+    "test direct download-page-to-game cross-tab BGM activation, licensed village preview sharing",
+    "Visual QA of independent vector battle parts and per-frame joint controls, with screenshot-based corrections and high-fidelity final art."
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
