@@ -85,3 +85,9 @@ rotation = atan2(poseVector.y, poseVector.x) - atan2(restVector.y, restVector.x)
 **仕様とパーツ参照先の定義まで**。88枚の完成PNGは今後のアート制作工程。参照先が存在しないままゲーム本編がアクセスすることは避ける。現行MON2は関節の位置調整と仮ベクター描画まで実装済みで、切り抜いた原画のパーツが動く状態ではない。
 
 参考: [モンスター構想](./MONSTERS.md)｜[MON2エディタ](./sprite-asset-test/monster-rig.html)
+
+### 関連データ（MON3）
+
+- [22パーツ×4方向の画像パス・支点JSON](./data/monster-rigs/thief.parts.json)
+- [関節エディタ形式のポーズJSON例](./data/monster-rigs/thief.pose-example.json)
+- [将来のPNG描画用ジョイント変換関数](./sprite-asset-test/monster-part-rig-runtime.js) — テスト済みだが本編/既存エディタへ未接続
