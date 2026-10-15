@@ -18,6 +18,16 @@ var GEL=[
 var COLORS=["#ff607e","#edab4a","#e4c45b","#7fd07d","#5be0be","#4ca8de","#b2a0ed","#ff87d3"];
 function $(id){return document.getElementById(id)}
 var stage=$("stage"),ctx=stage.getContext("2d"),timeline=$("timeline"),tl=timeline.getContext("2d");
+function applyZoom(){
+ var viewport=$("canvasViewport"),z=Number($("zoom").value)||1;
+ stage.style.width=(Math.max(250,viewport.clientWidth||1000)*z)+"px";
+}
+$("zoom").addEventListener("change",applyZoom);
+$("scrollLeft").onclick=function(){$("canvasViewport").scrollLeft-=Math.max(180,$("canvasViewport").clientWidth*.75)};
+$("scrollRight").onclick=function(){$("canvasViewport").scrollLeft+=Math.max(180,$("canvasViewport").clientWidth*.75)};
+if(typeof window!=="undefined"&&typeof window.addEventListener==="function")window.addEventListener("resize",applyZoom);
+if(typeof window!=="undefined"&&window.innerWidth&&window.innerWidth<720)$("zoom").value="2";
+applyZoom();
 if(!ctx||!tl){$("status").textContent="Canvasが利用できません。";return}
 var state={monster:"thief",action:"idle",direction:"front",frame:0,count:4,selected:"head",playing:false,frameClock:0,showDots:true,onion:true,guide:true,autoSave:true,refEdit:false};
 var storageKey="frontierMonsterPoseEditorV1";
@@ -403,7 +413,7 @@ function assignImage(mon,blob){
  if(imageUrl[mon])URL.revokeObjectURL(imageUrl[mon]);
  var url=URL.createObjectURL(blob),im=new Image();
  imageUrl[mon]=url;
- im.onload=function(){refs[mon]=im;if(state.monster===mon){state.refEdit=true;$("refEdit").checked=true}draw();if(state.monster===mon)$("imageStatus").textContent=MONS[mon]+"の参考画像を表示中（"+im.naturalWidth+"×"+im.naturalHeight+"px）"};
+ im.onload=function(){refs[mon]=im;if(state.monster===mon){state.refEdit=true;$("refEdit").checked=true;var port=$("canvasViewport");port.scrollLeft=Math.max(0,(port.scrollWidth-port.clientWidth)*.6)}draw();if(state.monster===mon)$("imageStatus").textContent=MONS[mon]+"の参考画像を表示中（"+im.naturalWidth+"×"+im.naturalHeight+"px）"};
  im.onerror=function(){if(state.monster===mon)$("imageStatus").textContent="画像の読み込みに失敗しました"};
  im.src=url;
 }
