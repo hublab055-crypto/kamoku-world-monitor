@@ -243,7 +243,8 @@
    const row=document.createElement("label");row.className="poseRow";
    const name=document.createElement("span");name.textContent=KEY_LABELS[key]||key;
    const slider=document.createElement("input");slider.id="pose_"+key;slider.type="range";
-   slider.min=key==="bodyY"?-80:-180;slider.max=key==="bodyY"?100:180;slider.step="1";slider.value="0";
+   slider.min=key==="bodyY"?-80:key.endsWith("Step")?-60:-180;
+   slider.max=key==="bodyY"?100:key.endsWith("Step")?60:180;slider.step="1";slider.value="0";
    slider.setAttribute("aria-label",name.textContent);
    const number=document.createElement("input");number.id="value_"+key;number.type="number";
    number.min=slider.min;number.max=slider.max;number.step="1";number.value="0";
@@ -307,6 +308,7 @@
   const pose=frames[frameIndex],j=profile.joints;
   const desired=sourceFromPoint(...coordinates,pose);
   const raw=key.startsWith("front")?"front":"rear";
+  if(key.endsWith("Knee")||key.endsWith("Foot"))desired[0]-=pose[raw+"Step"]||0;
   const old=rig.poseJoints(profile,pose);
   if(key==="body"){
    const dy=(coordinates[1]-priorY)/(C.h/324);
