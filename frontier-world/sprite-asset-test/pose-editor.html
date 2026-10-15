@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10232b">
+<title>フロンティアワールド｜関節パーツ・1コマ編集</title>
+<style>
+:root{color-scheme:dark;--bg:#0e2128;--panel:#1a3038;--panel2:#142934;--line:#40636b;--ink:#ecf8f4;--sub:#c2d8d5;--accent:#8bf4ce;--gold:#ffe1a4}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#102e35,#0c1e28 550px);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",Meir,system-ui,sans-serif}
+main{max-width:1370px;margin:auto;padding:15px 14px 60px}
+h1{font-size:clamp(21px,4.7vw,32px);margin:6px 0 10px}h2{font-size:17px;margin:0 0 12px}h3{font-size:14px;color:#bce9d5;margin:10px 0}
+p{line-height:1.65}a{color:var(--accent);text-underline-offset:4px}
+.lead{font-size:13px;color:var(--sub);margin:6px 0 15px}.tag{font-size:12px;font-weight:800;letter-spacing:.09em;color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:clamp(10px,2vw,16px);margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toolbar>label{font-size:13px;color:var(--sub)}
+.controls{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--sub)}
+button,select,input[type=number],input[type=file]{font:inherit;font-size:13px;min-height:39px;padding:7px 10px;border-radius:9px;border:1px solid #5b808b;background:#274650;color:#f5fffc;touch-action:manipulation}
+button{cursor:pointer}
+button.selected,button[aria-pressed=true]{border-color:#c3ffe5;background:#107e76}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.42;cursor:not-allowed}
+input[type=range]{accent-color:#61e8bb;min-width:70px}
+input[type=checkbox]{width:18px;height:18px;accent-color:#41c79f}
+canvas{display:block;max-width:100%}
+.stages{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.stages .panel{min-width:0}
+.editCanvas{width:100%;height:auto;border-radius:11px;border:1px solid #55747c;background:#28454c;touch-action:none;cursor:crosshair}
+.note{font-size:12px;color:var(--sub);line-height:1.6;margin:8px 0 0}
+.modeSwitch{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.status{padding:12px;background:#142b30;border:1px solid #467269;border-radius:10px;font-size:13px;color:#c9e5db;min-height:46px;overflow-wrap:anywhere}
+.status.error{border-color:#bd7468;color:#ffd1be}
+.gallery{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.partTile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:118px;padding:6px;border-radius:10px;background:#17343b}
+.partTile canvas{background:radial-gradient(circle,#436064,#233b42);border-radius:6px;width:100%;max-width:112px;height:auto}
+.partTile span{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.partFields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.partFields label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--sub)}
+.partFields input{width:100%}
+.timeline{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.timeline button{min-width:41px}
+.frameGrid{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}
+.frameButton{width:42px;min-width:42px;font-weight:700}
+.frameButton.selected{background:#0e8075}
+.frameTweak{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.frameTweak button{font-size:12px}
+.poseGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.poseRow{display:grid;grid-template-columns:minmax(72px,90px) minmax(65px,1fr) 59px;align-items:center;gap:8px;border:1px solid #314f56;background:#132b33;border-radius:8px;padding:6px}
+.poseRow span{font-size:12px;color:var(--sub)}
+.poseRow input[type=range]{width:100%;margin:0}
+.poseRow input[type=number]{width:100%;min-height:33px;padding:5px 6px}
+.checkboxRow{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0;font-size:13px}
+.checkboxRow label{display:flex;align-items:center;gap:6px}
+#frameSlider{width:165px;max-width:70vw}
+.exportGrid{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.importField{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+.links{margin-top:14px;display:flex;gap:18px;flex-wrap:wrap;font-size:13px}
+@media(max-width:900px){.stages{grid-template-columns:1fr}.poseGrid{grid-template-columns:1fr 1fr}.controls{grid-template-columns:1fr 1fr}}
+@media(max-width:570px){.controls{grid-template-columns:1fr 1fr}.controls .field:last-child{grid-column:1/-1}.gallery{grid-template-columns:repeat(3,minmax(0,1fr))}.poseGrid{grid-template-columns:1fr}.poseRow{grid-template-columns:95px minmax(65px,1fr) 60px}.timeline button{min-width:36px}}
+</style>
+<script defer src="./battle-rig.js?v=52.5parts1"></script>
+<script defer src="./life-motion.js?v=52.5parts1"></script>
+<script defer src="./part-motion-studio.js?v=52.5parts1"></script>
+</head>
+<body>
+<main>
+<header>
+<div class="tag">FRONTIER WORLD / PART BUILDER & STOP-MOTION STUDIO</div>
+<h1>🦴 関節パーツ・1コマ編集</h1>
+<p class="lead">キャラクターを10個の透明パーツに再切り出し。左で輪郭・関節の位置を編集、右で1コマごとに肩・肘・手首・股関節・膝・足先を動かせます。スマホでは指で直接ドラッグできます。</p>
+</header>
+<section class="panel">
+<div class="controls">
+<label class="field">キャラクター<select id="character"><option value="girl1">Mio</option><option value="boy2">冒険好きの男の子</option></select></label>
+<label class="field">向き<select id="direction"><option value="front">正面</option><option value="right">右</option><option value="back">背面</option><option value="left">左（右素材の反転）</option></select></label>
+<label class="field">モーション<select id="action"><option value="chop">生活モーションを読み込み中</option></select></label>
+</div>
+</section>
+<div class="stages">
+<section class="panel" id="partEditor">
+<h2>① 元画像からパーツを作り直す</h2>
+<div class="modeSwitch">
+<button id="editOutline" type="button" class="selected" aria-pressed="true">パーツの輪郭</button>
+<button id="editAnchors" type="button" aria-pressed="false">関節の基準位置</button>
+</div>
+<canvas class="editCanvas" id="sourceCanvas" width="560" height="590" tabindex="0" role="img" aria-label="元画像上の各パーツの輪郭頂点と関節基点を編集"></canvas>
+<p class="note" id="sourceHelp">選択パーツの多角形の頂点をドラッグ。追加・削除もできます。</p>
+<div class="toolbar" style="margin:10px 0">
+<strong id="currentPart" style="font-size:13px">手前の上腕</strong>
+<span id="currentVertex" class="note" style="margin:0">頂点 1</span>
+<button id="addVertex" type="button">＋ 頂点追加</button>
+<button id="removeVertex" type="button">－ 頂点削除</button>
+<button id="resetMask" type="button">輪郭を初期化</button>
+</div>
+<div class="partFields">
+<label>パーツ横移動<input type="number" id="partX" min="-48" max="48" step="1" value="0"></label>
+<label>パーツ縦移動<input type="number" id="partY" min="-48" max="48" step="1" value="0"></label>
+<label>パーツ拡大率<input type="number" id="partScale" min=".65" max="1.45" step=".005" value="1"></label>
+</div>
+<p class="note">輪郭・基準関節はキャラと向きごとに保存されます。元画像には上書きせず、各パーツを透明画像に切り出します。</p>
+</section>
+<section class="panel" id="frameEditor">
+<h2>② 1コマずつ関節を動かす</h2>
+<canvas class="editCanvas" id="poseCanvas" width="560" height="590" tabindex="0" role="img" aria-label="各コマの手首、肘、膝、足先や頭の操作用キャンバス"></canvas>
+<div class="checkboxRow">
+<label><input id="showHandles" type="checkbox" checked>関節の操作点</label>
+<label><input id="showProps" type="checkbox" checked>生活道具も表示</label>
+</div>
+<p class="note">色付きの丸をドラッグしてください。手首と足先は自動的に肘・膝も曲げます。下の数値で各関節を1度ずつ微調整できます。</p>
+<div class="timeline">
+<button id="first" type="button" title="最初のコマ">|◀</button>
+<button id="prev" type="button" title="前のコマ">◀</button>
+<strong id="frameStatus" style="font-size:13px">1 / 8 コマ</strong>
+<button id="next" type="button" title="次のコマ">▶</button>
+<button id="play" type="button">▶ 再生</button>
+<label class="field" style="display:inline-flex;gap:4px">再生速度 <span><input id="fps" type="range" min="2" max="12" value="6"><output id="fpsVal">6 fps</output></span></label>
+</div>
+<input id="frameSlider" type="range" min="0" max="7" value="0" step="1" aria-label="コマの選択">
+<div id="frameButtons" class="frameGrid" aria-label="編集するコマ一覧"></div>
+<div class="checkboxRow"><label><input id="interpolate" type="checkbox" checked>コマ間を補間して再生</label></div>
+<div class="frameTweak">
+<button id="addFrame" type="button">＋ コマ追加</button>
+<button id="deleteFrame" type="button">－ コマ削除</button>
+<button id="copyPrev" type="button">前コマを複製</button>
+<button id="resetFrame" type="button">このコマを初期化</button>
+</div>
+</section>
+</div>
+<section class="panel">
+<h2>③ 切り出した10パーツを確認・選択</h2>
+<div class="gallery" id="partGallery"></div>
+<p class="note">それぞれの部位が独立した透明Canvasになります。クリックすると左側の輪郭を編集できます。左向きは右向きの元画像を反転利用します。</p>
+</section>
+<section class="panel">
+<h2>④ 各関節の角度を数値で編集</h2>
+<div class="poseGrid" id="poseSliders"></div>
+<p class="note">現在選択しているコマの角度だけが変わります。コマの変更は端末に自動保存され、別のコマはそのまま保持されます。</p>
+</section>
+<section class="panel">
+<h2>⑤ 保存・書き出し・共有</h2>
+<div class="exportGrid">
+<button id="exportJSON" type="button">⬇ 全コマ＋関節・輪郭をJSON保存</button>
+<button id="exportParts" type="button">⬇ 10パーツ透明PNG</button>
+<button id="exportFrames" type="button">⬇ 現在モーションの全コマPNG</button>
+<label class="importField">JSON読込<input id="importJSON" type="file" accept=".json,application/json"></label>
+</div>
+<p class="note">自動保存は使用中のブラウザ内です。別端末への共有やGitHubへの素材反映にはJSONファイル・PNGを保管してください。制作中の個人編集は自動的にGitHubへは送信しません。</p>
+</section>
+<div id="editorStatus" class="status" role="status" aria-live="polite">エディタを起動しています…</div>
+<nav class="links">
+<a href="./life.html">生活モーションだけ再生する</a>
+<a href="./full.html">全キャラテストへ</a>
+<a href="../">フロンティアワールドに戻る</a>
+</nav>
+</main>
+</body>
+</html>
