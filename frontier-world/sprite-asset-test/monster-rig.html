@@ -35,7 +35,7 @@ details{margin:7px 0;border-top:1px solid #51616a;padding-top:8px}details summar
 <label class="field">方向<select id="direction"><option value="front">↓ 正面</option><option value="left">← 左</option><option value="right">→ 右</option><option value="back">↑ 背面</option></select></label>
 <label class="field">コマ数<select id="frameCount"><option value="4">4コマ（イラスト準拠）</option><option value="8">8コマ（詳細）</option></select></label>
 </div>
-<div class="options"><label><input id="joints" type="checkbox" checked>関節点を表示</label><label><input id="onion" type="checkbox" checked>前コマを重ねる</label><label><input id="guide" type="checkbox" checked>位置ガイド</label><label><input id="autoSave" type="checkbox" checked>自動保存（この端末）</label></div>
+<div class="options"><label><input id="joints" type="checkbox" checked>関節点を表示</label><label><input id="onion" type="checkbox" checked>前コマを重ねる</label><label><input id="guide" type="checkbox" checked>位置ガイド</label><label><input id="autoSave" type="checkbox" checked>自動保存（この端末）</label><label><input id="refEdit" type="checkbox">参考イラスト上で編集</label></div>
 <canvas id="stage" width="1000" height="570" aria-label="関節をドラッグしてポーズを調整。左側は参考イラスト、中央は編集中のリグ。"></canvas>
 <div id="status" role="status" aria-live="polite">編集画面を準備しています…</div>
 </section>
@@ -52,9 +52,9 @@ details{margin:7px 0;border-top:1px solid #51616a;padding-top:8px}details summar
 <section class="panel side">
 <h2>設定の保存と素材</h2>
 <div class="toolbar"><button id="exportJson" class="primary">↓ 全ポーズをJSON保存</button><button id="importJson">↑ JSON読込</button><input id="jsonFile" type="file" accept=".json,application/json" hidden></div>
-<div class="toolbar"><button id="exportPng">↓ 現モーションの4方向PNG</button><button id="exportAllPng">↓ 全6モーションPNG（順次）</button></div>
+<div class="toolbar"><button id="exportPng">↓ 現モーションの4方向PNG</button><button id="exportAllPng">↓ 全6モーションまとめPNG</button></div>
 <details><summary>参考イラストを取り込む（任意）</summary>
-<p>前回制作した四方向モーション指示シート（PNG）を、モンスターごとに登録できます。参考コマがキャンバス左側に表示されます。読み込んだ画像はブラウザ内のIndexedDBに保存します（利用可能な場合）。</p>
+<p>前回制作した四方向モーション指示シート（PNG）を、モンスターごとに登録できます。登録するとイラストを拡大し、描かれたキャラの上に重ねた関節をドラッグ調整できます。読み込んだ画像はブラウザ内のIndexedDBに保存します（利用可能な場合）。</p>
 <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp"><button id="clearImage">参考イラスト解除</button>
 <p id="imageStatus" class="subtle">参考画像は未登録です。未登録でも関節編集できます。</p>
 </details>
