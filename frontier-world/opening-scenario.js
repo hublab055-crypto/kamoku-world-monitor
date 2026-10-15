@@ -5,7 +5,7 @@ if(window.FWOpeningV1)return;
 const PENDING='__fwOpeningRequested';
 const storyKey='storyOpeningV1';
 const SCRIPT_VERSION='1.0.0';
-let stage=null,hint=null,pollTimer=null,sceneIndex=0,talkSeen=false,bagSeen=false,baseline=0,walkingStart=null;
+let stage=null,hint=null,pollTimer=null,sceneIndex=0,talkSeen=false,bagSeen=false,baseline=0,walkingStart=null,rehabDistance=0,lastPosition=null;
 const scenes=[
  {scene:'arrival',title:'序章　灯りのある場所',speaker:'主人公',dialog:'……灯りだ。あと、少し……。',description:'夕暮れの森。足元がおぼつかない旅人が、焚き火の灯る開拓者のキャンプへ向かっている。',button:'灯りを目指す'},
  {scene:'collapse',title:'倒れた旅人',speaker:'ミオ',dialog:'誰か！　こっちに来て！　人が倒れてる！',description:'キャンプの入口にたどり着く。救いを求めるように手を伸ばし、主人公は意識を失った。',button:'意識が遠のく'},
@@ -104,7 +104,7 @@ function begin(meta){
 function finishCinematic(){
  const s=state(),st=story();if(!s||!st)return;
  buildUi();stage.hidden=true;closeUi();
- st.phase='tutorial';st.scene=4;st.lesson=0;st.walked=false;
+ st.phase='tutorial';st.scene=4;st.lesson=0;st.walked=false;st.rehab={distance:0,assisted:true,recovery:0};rehabDistance=0;lastPosition=null;
  const tent=(s.buildings||[]).find(function(b){return b.id==='player'&&b.type==='tent';});
  if(tent){
   s.player.x=tent.x+1;s.player.y=tent.y+2.6;
@@ -126,7 +126,7 @@ function showLesson(){
  hint.hidden=false;const reopen=document.getElementById('fwStoryReopen');if(reopen)reopen.hidden=true;
  hint.querySelector('#fwStoryCount').textContent='リハビリ練習 '+(st.lesson+1)+' / '+lessons.length;
  hint.querySelector('#fwStoryTask').textContent=entry.title;
- hint.querySelector('#fwStoryText').textContent=entry.body;
+ hint.querySelector('#fwStoryText').textContent=entry.body+(st.lesson===0?'　ミオが傍で支えています。少しずつ足取りが安定します。':'');
 }
 function nextLesson(){
  const st=story();if(!st)return;
@@ -151,10 +151,11 @@ function startPoll(){
   // Progress detection continues even when the hint is temporarily minimized.
   const panel=document.getElementById('dialogPanel'),bag=document.getElementById('panel');
   if(st.lesson===0){
+   if(s.interior){const p=s.interior.pos;if(lastPosition){const delta=Math.hypot(p.x-lastPosition.x,p.y-lastPosition.y);if(delta<.4){rehabDistance+=delta;st.rehab=st.rehab||{};st.rehab.distance=rehabDistance;st.rehab.recovery=Math.min(100,Math.round(rehabDistance/1.6*100));}}lastPosition={x:p.x,y:p.y};}
    if(!s.interior){nextLesson();return;}
    const p=s.interior.pos;
    if(!walkingStart)walkingStart={x:p.x,y:p.y};
-   if(Math.hypot(p.x-walkingStart.x,p.y-walkingStart.y)>.65)nextLesson();
+   if(rehabDistance>=1.6||Math.hypot(p.x-walkingStart.x,p.y-walkingStart.y)>.9){st.rehab.assisted=false;nextLesson();}
   }else if(st.lesson===1){
    if(!s.interior)nextLesson();
   }else if(st.lesson===2){
@@ -175,6 +176,7 @@ function resume(){
  if(st.phase==='cinematic'){sceneIndex=Math.max(2,Math.min(4,Number(st.scene)||2));renderScene();}
  else if(st.phase==='tutorial'){
   if(st.lesson===0&&!s.interior)st.lesson=1;
+  rehabDistance=Number(st.rehab&&st.rehab.distance)||0;lastPosition=null;
   if(st.lesson===0&&s.interior)walkingStart={x:s.interior.pos.x,y:s.interior.pos.y};
   baseline=sumResources(s);showLesson();startPoll();
  }
