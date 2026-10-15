@@ -86,6 +86,7 @@ select{width:100%;min-height:44px;background:#22262a;color:var(--text);border:1p
           <button type="button" class="fw-title-action" data-fw-title-choice="continue" aria-current="false">つづける</button>
           <button type="button" class="fw-title-action" data-fw-title-choice="settings" aria-current="false">設定</button>
         </nav>
+        <a href="sprite-asset-test/pose-editor.html?v=52.5parts1" style="display:inline-block;margin-top:9px;font-size:13px;color:#c5f1df;text-decoration:underline" aria-label="1コマ関節モーション編集画面を開く">🦴 1コマ関節モーション編集</a>
       </div>
       <div id="fwTitleSaves" hidden>
         <h2 class="fw-title-save-heading">つづける</h2>
@@ -133,6 +134,7 @@ select{width:100%;min-height:44px;background:#22262a;color:var(--text);border:1p
   <section id="settingsPanel" class="panel hidden">
     <div class="panelHead"><strong>⚙️ 5ボタン設定</strong><div style="display:flex;gap:6px"><button class="smallBtn" data-fw37-open type="button" aria-label="コンソールログ">🧾 ログ</button><button id="closeSettings" class="close" type="button">✕</button></div></div>
     <div id="slotEditor"></div>
+    <p style="margin:10px 0"><a href="sprite-asset-test/pose-editor.html?v=52.5parts1" style="color:#a6efd2;text-decoration:underline;font-size:14px">🦴 生活・戦闘モーションを1コマずつ編集</a></p>
     <div class="note">⚡💬📦💤🔨 の5枠を、🏹⚔️🛡️🧪🌱などへ変更できます。</div>
   <div id="fwVersionCard" class="tileCard" style="margin-top:10px">
  <b>🧩 ゲームバージョン</b>
@@ -12924,13 +12926,42 @@ runCommand=function(key){
  if(key==='cleanFurniture')fwLifeMark(state.player,'sweep',1300);
  return result;
 };
+/* FW52.5 PARTS1: Use hand-authored frame-by-frame motions in this browser.
+   The editor keeps source cutouts and authored frame poses separate from game saves. */
+let fwLifeMotionProject=null,fwLifeProjectLastRead=0;
+function fwLifeEditedPose(charId,dir,kind,progress){
+ const now=Date.now();
+ if(now-fwLifeProjectLastRead>2200){
+  fwLifeProjectLastRead=now;
+  try{
+   const source=JSON.parse(localStorage.getItem('frontierWorldPartMotionStudioV1')||'{}');
+   fwLifeMotionProject=source.version===1&&source.motions&&typeof source.motions==='object'?source.motions:{};
+  }catch(e){fwLifeMotionProject={};}
+ }
+ const key=String(charId)+'|'+String(dir)+'|'+String(kind);
+ const frames=fwLifeMotionProject&&fwLifeMotionProject[key];
+ if(!Array.isArray(frames)||frames.length<2||frames.length>32)return null;
+ const num=frames.length,raw=((Math.max(0,Math.min(.99999,progress))*num)%num);
+ const index=Math.floor(raw),next=(index+1)%num,t=raw-index,ease=t*t*(3-2*t);
+ const first=frames[index],second=frames[next],keys=window.FWBattleRig&&window.FWBattleRig.poseKeys;
+ if(!first||!second||!keys)return null;
+ const pose={};
+ for(const field of keys){
+  const a=Number(first[field]),b=Number(second[field]);
+  if(!Number.isFinite(a)||!Number.isFinite(b))return null;
+  const value=a+(b-a)*ease;
+  pose[field]=Math.max(field==='bodyY'?-80:-180,Math.min(field==='bodyY'?100:180,value));
+ }
+ return pose;
+}
 function fwLifeRig(ctx,actor,sprite,rect,x,y,w,h,choice,environment){
  const api=window.FWLifeMotion;if(!api||!choice||!atlasImg||!atlasImg.complete||!atlasImg.naturalWidth)return false;
  const d=actor.dir||'front',row=d==='left'?'right':d;
  return api.render(ctx,atlasImg,rect,x,y,w,h,{
   action:choice.kind,progress:choice.progress,mirror:d==='left',
   characterId:sprite==='mio'?'girl1':(actor.id||sprite||'default'),
-  direction:d,environment:!!environment
+  direction:d,environment:!!environment,
+  pose:fwLifeEditedPose(sprite==='mio'?'girl1':(actor.id||sprite||'default'),d,choice.kind,choice.progress)
  });
 }
 const fwLifePreviousDrawPerson=drawPerson;
@@ -13908,8 +13939,8 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 
 })();
 </script>
-<script defer src="sprite-asset-test/battle-rig.js?v=52.5life2"></script>
-<script defer src="sprite-asset-test/life-motion.js?v=52.5life2"></script>
+<script defer src="sprite-asset-test/battle-rig.js?v=52.5parts1"></script>
+<script defer src="sprite-asset-test/life-motion.js?v=52.5parts1"></script>
 <script defer src="sprite-asset-test/battle-motion.js?v=52.4bm3"></script>
 <script defer src="publishing-industry.js?v=52.0"></script>
 
