@@ -166,7 +166,7 @@
  function directionOf(dir){return VALID_DIRECTIONS.includes(dir)?dir:"front"}
  function basicProfile(id,dir){
   const actual=dir==="left"?"right":directionOf(dir);
-  const p={profileKind:id==="boy2"?"boy2":id==="girl1"?"girl1":"default",joints:copy(DEFAULT_JOINTS),parts:{}};
+  const p={profileKind:id==="boy2"?"boy2":id==="girl1"?"girl1":"default",joints:copy(DEFAULT_JOINTS),parts:{},masks:{}};
   for(const part of PART_NAMES)p.parts[part]={x:0,y:0,scale:1};
   const shifts=PRESET_DELTAS[id]&&PRESET_DELTAS[id][actual]||{};
   for(const key of JOINT_NAMES){
@@ -193,6 +193,17 @@
     y:Math.round(clamp(positive(part.y,0),-48,48)*10)/10,
     scale:Math.round(clamp(positive(part.scale,1),.65,1.45)*1000)/1000
    };
+  }
+  // Custom editable source-pixel silhouettes for independently movable limbs.
+  for(const name of PART_NAMES){
+   const polygon=o.masks&&o.masks[name];
+   if(!Array.isArray(polygon)||polygon.length<3||polygon.length>28)continue;
+   const points=[];
+   for(const point of polygon){
+    if(!Array.isArray(point)||point.length!==2||!point.every(v=>Number.isFinite(v))){points.length=0;break;}
+    points.push([Math.round(clamp(point[0],0,256)*10)/10,Math.round(clamp(point[1],0,324)*10)/10]);
+   }
+   if(points.length>=3)profile.masks[name]=points;
   }
   return profile;
  }
@@ -283,7 +294,7 @@
   const x=pt[0]-pivot[0],y=pt[1]-pivot[1],co=Math.cos(angle),si=Math.sin(angle);
   return [pivot[0]+x*co-y*si,pivot[1]+x*si+y*co];
  }
- function drawPart(ctx,img,rect,part,pivot,angle,elbow,elbowAngle,profile){
+ function drawPart(ctx,img,rect,part,pivot,angle,elbow,elbowAngle,profile,partAtlases){
   const offset=profile.parts[part]||{x:0,y:0,scale:1};
   ctx.save();
   ctx.translate(offset.x,offset.y);
@@ -294,8 +305,80 @@
   if(elbow){
    ctx.translate(elbow[0],elbow[1]);ctx.rotate(elbowAngle*RAD);ctx.translate(-elbow[0],-elbow[1]);
   }
-  polygon(ctx,(CHARACTER_CLIPS[profile.profileKind]||CLIPS)[part]||CLIPS[part]);
-  ctx.drawImage(img,rect[0],rect[1],rect[2],rect[3],0,0,256,324);
+  if(partAtlases&&partAtlases[part]){
+   ctx.drawImage(partAtlases[part],0,0,256,324);
+  }else{
+   polygon(ctx,profile.masks&&profile.masks[part]||((CHARACTER_CLIPS[profile.profileKind]||CLIPS)[part]||CLIPS[part]));
+   ctx.drawImage(img,rect[0],rect[1],rect[2],rect[3],0,0,256,324);
+  }
+  ctx.restore();
+ }
+ function partMasks(id,dir,profile){
+  const p=profile||getProfile(id,dir);
+  const base=CHARACTER_CLIPS[p.profileKind]||CLIPS,output={};
+  for(const key of PART_NAMES)output[key]=copy(p.masks&&p.masks[key]||base[key]||CLIPS[key]);
+  return output;
+ }
+ // Split the original atlas into truly independent transparent canvas images.
+ // All derived pixels come from the source art; custom silhouette control points
+ // permit rebuilding each limb without baking artifacts into the original file.
+ function bakeParts(img,rect,profile){
+  if(typeof document==="undefined"||!document.createElement)throw Error("Canvas document required");
+  if(!img||!rect||rect.length!==4)throw Error("Source image and four-part rect required");
+  const p=profile||getProfile("default","front"),masks=partMasks("", "",p),out={};
+  for(const part of PART_NAMES){
+   const canvas=document.createElement("canvas");canvas.width=256;canvas.height=324;
+   const ctx=canvas.getContext("2d");if(!ctx)throw Error("Canvas 2D required");
+   ctx.save();polygon(ctx,masks[part]);
+   ctx.drawImage(img,rect[0],rect[1],rect[2],rect[3],0,0,256,324);ctx.restore();
+   out[part]=canvas;
+  }
+  return out;
+ }
+ function poseJoints(profile,pose){
+  const j=profile.joints,p=Object.assign({},ZERO,pose||{}),r=angle=>angle*RAD;
+  const transformed=point=>rot(point,j.body,r(p.torso));
+  const limb=(side,type)=>{
+   const hip=j[side+(type==="arm"?"Shoulder":"Hip")];
+   const bend=j[side+(type==="arm"?"Elbow":"Knee")];
+   const upper=p[side+(type==="arm"?"Upper":"Thigh")];
+   const lower=p[side+(type==="arm"?"Lower":"Shin")];
+   const extremity=type==="arm"?j[side+"Hand"]:[bend[0],Math.min(324,bend[1]+43)];
+   const second=rot(bend,hip,r(upper));
+   const third=rot(rot(extremity,bend,r(lower)),hip,r(upper));
+   return {base:type==="arm"?transformed(hip):hip.slice(),
+    middle:type==="arm"?transformed(second):second,
+    end:type==="arm"?transformed(third):third};
+  };
+  const fArm=limb("front","arm"),bArm=limb("rear","arm");
+  const fLeg=limb("front","leg"),bLeg=limb("rear","leg");
+  return {
+   neck:transformed(j.neck),body:j.body.slice(),
+   frontShoulder:fArm.base,frontElbow:fArm.middle,frontHand:fArm.end,
+   rearShoulder:bArm.base,rearElbow:bArm.middle,rearHand:bArm.end,
+   frontHip:fLeg.base,frontKnee:fLeg.middle,frontFoot:fLeg.end,
+   rearHip:bLeg.base,rearKnee:bLeg.middle,rearFoot:bLeg.end
+  };
+ }
+ function drawV2(ctx,img,rect,p,profile,parts){
+  const j=profile.joints;
+  const draw=(id,pivot,a,second,b)=>drawPart(ctx,img,rect,id,pivot,a,second,b,profile,parts);
+  draw("rearShin",j.rearHip,p.rearThigh,j.rearKnee,p.rearShin);
+  draw("rearThigh",j.rearHip,p.rearThigh);
+  ctx.save();
+  ctx.translate(...j.body);ctx.rotate((p.torso||0)*RAD);ctx.translate(-j.body[0],-j.body[1]);
+  draw("rearUpper",j.rearShoulder,p.rearUpper);
+  draw("rearLower",j.rearShoulder,p.rearUpper,j.rearElbow,p.rearLower);
+  draw("torso");
+  ctx.restore();
+  draw("frontShin",j.frontHip,p.frontThigh,j.frontKnee,p.frontShin);
+  draw("frontThigh",j.frontHip,p.frontThigh);
+  ctx.save();
+  ctx.translate(...j.body);ctx.rotate((p.torso||0)*RAD);ctx.translate(-j.body[0],-j.body[1]);
+  ctx.save();ctx.translate(...j.neck);ctx.rotate((p.head||0)*RAD);
+  ctx.translate(-j.neck[0],-j.neck[1]);draw("head");ctx.restore();
+  draw("frontUpper",j.frontShoulder,p.frontUpper);
+  draw("frontLower",j.frontShoulder,p.frontUpper,j.frontElbow,p.frontLower);
   ctx.restore();
  }
  function hand(p,front,profile){
@@ -382,12 +465,18 @@
   opts=opts||{};if(!ctx||!img||!rect||rect.length<4||!(width>0)||!(height>0))return false;
   if(img.complete===false||img.naturalWidth===0)return false;
   let p;
-  try{p=sample(opts.action||"idle",opts.progress||0)}catch(e){return false}
+  try{
+   p=sample(opts.action||"idle",opts.progress||0);
+   if(opts.pose&&typeof opts.pose==="object"){
+    for(const key of KEYS)if(Number.isFinite(opts.pose[key]))
+     p[key]=clamp(opts.pose[key],key==="bodyY"?-80:-180,key==="bodyY"?100:180);
+   }
+  }catch(e){return false}
   const profile=opts.profile?validated(opts.characterId||"default",opts.direction||"front",opts.profile):
     getProfile(opts.characterId||"default",opts.direction||"front");
   if(opts.handTargets)aimHands(p,profile,opts.handTargets);
   const mirror=!!opts.mirror,rotation=Number(opts.rotation)||0;
-  const mode=opts.mode==="legacy"?"legacy":"cutout";
+  const mode=opts.mode==="legacy"?"legacy":opts.mode==="partsV2"?"partsV2":"cutout";
   ctx.save();
   try{
    ctx.translate(centerX,feetY);ctx.scale(width/256*(mirror?-1:1),height/324);
@@ -397,6 +486,18 @@
     return true;
    }
    if(typeof opts.drawBehind==="function")opts.drawBehind(ctx,p,profile);
+   if(mode==="partsV2"){
+    drawV2(ctx,img,rect,p,profile,opts.partAtlases);
+    const anchors=poseJoints(profile,p);
+    if(opts.equipment)equipment(ctx,opts.equipment,p,anchors.frontHand,anchors.rearHand,opts.progress||0);
+    if(typeof opts.drawFront==="function")opts.drawFront(ctx,p,anchors.frontHand,anchors.rearHand,profile);
+    if(opts.guides){
+     ctx.save();ctx.fillStyle="#72f8e1";ctx.strokeStyle="#16313c";ctx.lineWidth=2;
+     Object.values(anchors).forEach(point=>{ctx.beginPath();ctx.arc(point[0],point[1],4,0,Math.PI*2);ctx.fill();ctx.stroke();});
+     ctx.restore();
+    }
+    return true;
+   }
    // Back -> front painter order. Each piece uses the unmodified source pixels
    // with a polygonal mask, not invented recoloring or a second copy of the body.
    const j=profile.joints;
@@ -426,8 +527,8 @@
   return true;
  }
  global.FWBattleRig=Object.freeze({
-  version:"1.3.0",actions:Object.freeze(Object.keys(TRACKS)),registerTracks:registerTracks,sample:sample,render:render,
-  aimHands:aimHands,handPosition:hand,
+  version:"2.0.0",actions:Object.freeze(Object.keys(TRACKS)),registerTracks:registerTracks,sample:sample,render:render,
+  aimHands:aimHands,handPosition:hand,partMasks:partMasks,bakeParts:bakeParts,poseJoints:poseJoints,poseKeys:Object.freeze(KEYS.slice()),
   getProfile:getProfile,setProfile:setProfile,resetProfile:resetProfile,
   exportProfiles:exportProfiles,importProfiles:importProfiles,defaultProfile:basicProfile,
   jointNames:Object.freeze(JOINT_NAMES),partNames:Object.freeze(PART_NAMES),
