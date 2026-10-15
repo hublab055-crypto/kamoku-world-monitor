@@ -54,6 +54,32 @@ const chapterStart=chapters.querySelector('#fwTitleChapterStart');
 const chapterTracks={frontier:'はじまりの村',grassland:'草原の覇者',vinland:'北海の旅路',samurai:'戦国の風',oasis:'砂漠の星',maritime:'大海原への出航',tropical:'南海の陽光',mountain:'天空の峰',celtic:'森と石の環',maya:'星辰の暦','native-american':'風と大地の道',malta:'地中海の盾',sparta:'盾の誓い',egypt:'ナイルの夜明け',anatolia:'双海峡の星','flower-capital':'花冠の謀略','iron-forest':'鉄森の盟約'};
 const chapterButtons=new Map();
 let chosenChapter='frontier';
+/* V53 opening: three gameplay lanes. Multiverse is preview-only; existing survival sim is a beta. */
+let chosenMode='scenario';
+const fwModes=[
+ {id:'scenario',label:'📜 シナリオ',note:'物語・目覚め・操作練習',ready:true},
+ {id:'survival',label:'🌲 サバイバル',note:'自由な開拓生活（β）',ready:true},
+ {id:'multiverse',label:'🌌 マルチバース',note:'世界横断（開発予定）',ready:false}
+];
+const modePicker=document.createElement('div');modePicker.className='fw-mode-picker';
+const modeHeading=document.createElement('div');modeHeading.className='fw-mode-heading';modeHeading.textContent='プレイモードを選択';
+modePicker.appendChild(modeHeading);
+const modeButtons=new Map();
+fwModes.forEach(function(m){
+ const b=document.createElement('button');b.type='button';b.className='fw-mode-option';
+ b.setAttribute('aria-pressed','false');b.dataset.modeId=m.id;
+ const name=document.createElement('strong');name.textContent=m.label;
+ const note=document.createElement('small');note.textContent=m.note;
+ b.append(name,note);b.addEventListener('click',function(){chooseMode(m.id);});
+ modePicker.appendChild(b);modeButtons.set(m.id,b);
+});
+chapterDetail.insertAdjacentElement('afterend',modePicker);
+function chooseMode(id){
+ const m=fwModes.find(function(x){return x.id===id;})||fwModes[0];chosenMode=m.id;
+ modeButtons.forEach(function(b,key){b.setAttribute('aria-pressed',key===m.id?'true':'false');});
+ chooseChapter(chosenChapter);
+}
+
 chapterDefinitions.forEach(function(def){
  const button=document.createElement('button');button.type='button';
  button.className='fw-chapter-option'+(def.available?'':' fw-chapter-planned');
@@ -72,8 +98,8 @@ function chooseChapter(id){
  chosenChapter=def.id;
  chapterButtons.forEach(function(button,key){button.setAttribute('aria-pressed',key===def.id?'true':'false');});
  chapterDetail.textContent=def.name+' — '+def.description+' ｜英雄像：'+def.hero+' ｜♪ '+chapterTracks[def.id]+'（テーマBGM）'+(def.available?'':' ※ この編はまだ制作中です。現在は始められません。');
- chapterStart.disabled=!def.available;
- chapterStart.textContent=def.available?'この物語ではじめる':'この物語は準備中';
+ chapterStart.disabled=!def.available||chosenMode==='multiverse';
+ chapterStart.textContent=!def.available?'この物語は準備中':chosenMode==='multiverse'?'マルチバースは開発予定':chosenMode==='survival'?'自由な開拓生活を始める':'この物語ではじめる';
  window.dispatchEvent(new CustomEvent('fw-title-chapter-selected',{detail:{id:def.id}}));
  status('');
 }
@@ -86,7 +112,7 @@ function showChapters(){
 }
 chapterStart.addEventListener('click',function(){
  const def=chapterDefinitions.find(function(c){return c.id===chosenChapter;});
- if(def&&def.available)activate(null);
+ if(def&&def.available&&chosenMode!=='multiverse')activate(null);
 });
 chapters.querySelector('#fwTitleChapterBack').addEventListener('click',showMain);
 chooseChapter('frontier');
@@ -127,12 +153,19 @@ function activate(slot){
  }
  if(slot===null){
   window.__fwStartingChapter=chosenChapter;
-  try{localStorage.setItem('frontier_world_start_chapter_v1',chosenChapter);}catch(_){}
+  window.__fwGameMode=chosenMode;
+  try{localStorage.setItem('frontier_world_start_chapter_v1',chosenChapter);localStorage.setItem('frontier_world_start_mode_v1',chosenMode);}catch(_){}
  }
  pending=null;root.classList.remove('fw-title-settings-open');
  if(settingsPanel)settingsPanel.classList.add('hidden');
  overlay.hidden=true;status('');root.focus({preventScroll:true});
- if(slot===null)window.dispatchEvent(new CustomEvent('fw-title-chapter-started',{detail:{id:chosenChapter}}));
+ if(slot===null){
+  const request={id:chosenChapter,mode:chosenMode};
+  window.__fwOpeningRequested=request; // Loads safely even if opening-scenario.js has not finished downloading.
+  window.dispatchEvent(new CustomEvent('fw-title-chapter-started',{detail:request}));
+ }else{
+  window.dispatchEvent(new Event('fw-title-save-loaded'));
+ }
 }
 function showSettings(){
  if(!settingsPanel)return;
@@ -274,4 +307,13 @@ select(0);
   let current='c';
   try{const v=localStorage.getItem(KEY);if(Object.hasOwn(urls,v))current=v;}catch(_){}
   apply(current,false);
+})();
+
+/* FRONTIER_V53_OPENING_SCRIPT_LOADER: isolate storyline from the 1.5MB game core. */
+(function(){
+ 'use strict';
+ const style=document.createElement('link');style.rel='stylesheet';style.href='opening-scenario.css?v=1.0.0';
+ document.head.appendChild(style);
+ const script=document.createElement('script');script.src='opening-scenario.js?v=1.0.0';script.async=false;
+ document.head.appendChild(script);
 })();
