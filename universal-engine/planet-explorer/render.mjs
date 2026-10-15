@@ -1,5 +1,7 @@
-import {geoNormal,geoOffset,DEG,clamp,samplePatch,terrainSurface} from "./geo.mjs";
+import {geoNormal,geoOffset,geoLocal,DEG,clamp,samplePatch,terrainSurface} from "./geo.mjs";
 import {noise3} from "../planet/planet-core.mjs";
+import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate} from "./rig.mjs";
+import {pickSurface} from "./picking.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -112,10 +114,82 @@ export class ExplorerRenderer{
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.patch=null;this.trees=null;this.patchKey=null;
-  const avatar=builder();box(avatar,0,.5,0,.28,.85,.22,[.21,.41,.70]);
-  box(avatar,0,1.36,0,.25,.4,.23,[.84,.60,.41]);
-  for(const s of [-1,1]){box(avatar,s*.16,0,0,.105,.5,.13,[.20,.29,.33]);box(avatar,s*.41,.68,0,.10,.66,.10,[.84,.60,.41]);}
-  this.avatar=new Mesh(gl,avatar);gl.enable(gl.DEPTH_TEST);
+  // Each anatomical segment has its own GPU mesh, positioned by joint matrices.
+  this.rigParts=RIG_SEGMENTS.map(part=>{
+    const b=builder();
+    box(b,0,part.y,part.z||0,part.w,part.h,part.d,part.color);
+    return {mesh:new Mesh(gl,b),part};
+  });
+  this.tools={};
+  for(const tool of ["sword","axe","pickaxe","hammer"]){
+    const b=builder(),timber=[.45,.28,.15],metal=[.72,.78,.83];
+    box(b,0,-.65,.0,.047,.85,.047,timber);
+    if(tool==="sword"){
+      box(b,0,-1.52,0,.075,.98,.025,metal);
+      box(b,0,-.60,0,.22,.10,.11,[.73,.55,.23]);
+    }else if(tool==="axe"){
+      box(b,.17,-1.53,0,.27,.37,.065,metal);
+    }else if(tool==="pickaxe"){
+      box(b,0,-1.47,0,.45,.12,.10,metal);
+    }else{
+      box(b,0,-1.38,0,.24,.28,.20,metal);
+    }
+    this.tools[tool]=new Mesh(gl,b);
+  }
+  this.buildingMeshes=this.makeBuildingMeshes(gl);
+  this.sceneActions=null;
+  this.pickVP=null;this.groundPatchData=null;
+  gl.enable(gl.DEPTH_TEST);
+ }
+ makeBuildingMeshes(gl){
+   const base=builder(),walls=builder(),roof=builder();
+   const wood=[.52,.35,.21],stone=[.50,.53,.55],dark=[.32,.21,.12];
+   box(base,0,0,0,2.8,.22,2.8,stone);
+   for(const sign of [-1,1]){
+     box(walls,sign*2.45,.25,0,.20,2.7,2.55,wood);
+     box(walls,0,.25,sign*2.45,2.6,2.7,.20,wood);
+   }
+   // Roof slopes as two planes; conservative low-poly building.
+   triangle(roof,[-3,3,-3],[0,4.45,-3],[0,4.45,3],dark);
+   triangle(roof,[-3,3,-3],[0,4.45,3],[-3,3,3],dark);
+   triangle(roof,[0,4.45,-3],[3,3,-3],[3,3,3],dark);
+   triangle(roof,[0,4.45,-3],[3,3,3],[0,4.45,3],dark);
+   return {base:new Mesh(gl,base),walls:new Mesh(gl,walls),roof:new Mesh(gl,roof)};
+ }
+ pickGround(clientX,clientY){
+   if(!this.pickVP||!this.groundPatchData)return null;
+   const r=this.canvas.getBoundingClientRect();
+   if(!r.width||!r.height)return null;
+   const nx=((clientX-r.left)/r.width)*2-1,ny=1-((clientY-r.top)/r.height)*2;
+   const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
+   return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
+ }
+ drawArticulated(vp,avatarTransform,s,light){
+   const motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0};
+   const pose=samplePose({moving:s.moving,phase:s.totalDistanceM*2.7,
+      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress});
+   const joints=jointTransforms(pose,s.yaw);
+   for(const {mesh,part} of this.rigParts){
+     const m=matrixMultiply(avatarTransform,joints[part.pivot]);
+     this.drawMesh(mesh,multiply4(vp,m),light,1,.72);
+   }
+   if(pose.tool&&this.tools[pose.tool]){
+     const held=matrixMultiply(avatarTransform,joints.rightWrist);
+     this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68);
+   }
+ }
+ drawBuildings(vp,light,s,radius){
+   if(!this.sceneActions)return;
+   for(const hut of this.sceneActions.structures){
+     const offset=geoLocal(s.origin.lat,s.origin.lon,hut.lat,hut.lon,this.planet.radiusM);
+     const bx=offset.eastM,bz=offset.northM;
+     if(Math.abs(bx-s.x)>radius||Math.abs(bz-s.z)>radius)continue;
+     const model=translate(bx-this.cx,hut.height,bz-this.cz);
+     const mvp=multiply4(vp,model);
+     this.drawMesh(this.buildingMeshes.base,mvp,light,1,.64);
+     if(hut.progress>=.3)this.drawMesh(this.buildingMeshes.walls,mvp,light,1,.64);
+     if(hut.progress>=.75)this.drawMesh(this.buildingMeshes.roof,mvp,light,1,.64);
+   }
  }
  drawMesh(mesh,mvp,light,alpha=1,ambient=.25){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
@@ -132,6 +206,7 @@ export class ExplorerRenderer{
   return state.altitudeM>23000?this.orbit(state,asp):this.ground(state,asp);
  }
  orbit(s,asp){
+  this.pickVP=null;
   const gl=this.gl,R=this.R,distance=R*(1+s.altitudeM/this.planet.radiusM);
   const offset=this.planet.rotationAngle*180/Math.PI*(s.altitudeM>400000?1:0);
   const n=geoNormal(s.lat,s.lon+offset),camera=n.map(v=>v*distance);
@@ -155,7 +230,8 @@ export class ExplorerRenderer{
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
    this.patch?.destroy();this.trees?.destroy();
-   this.patch=new Mesh(gl,samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution));
+   this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
+   this.patch=new Mesh(gl,this.groundPatchData);
    const shrubs=vegetation(this.terrain,this.planet,s.origin,cx,cz,radius);
    this.trees=shrubs.positions.length?new Mesh(gl,shrubs):null;
    this.patchKey=key;this.cx=cx;this.cz=cz;
@@ -166,12 +242,19 @@ export class ExplorerRenderer{
   const camera=close?[px-Math.sin(yaw)*8,feet+7,pz-Math.cos(yaw)*8]:[px,feet+alt,pz];
   const target=close?[px,feet+1,pz]:[px+Math.sin(yaw)*alt*.5,feet-alt*.8,pz+Math.cos(yaw)*alt*.5];
   const vp=multiply4(perspective(65*DEG,asp,.08,Math.max(radius*8,5000)),lookAt(camera,target));
+  this.pickVP=close?vp:null;
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
-  if(close){const transform=[1,0,0,0,0,1,0,0,0,0,1,0,px,feet,pz,1];
-   this.drawMesh(this.avatar,multiply4(vp,transform),light,1,.72);}
+  this.drawBuildings(vp,light,s,radius);
+  if(close){
+    const transform=translate(px,feet+(s.jumpY||0),pz);
+    this.drawArticulated(vp,transform,s,light);
+  }
   return "ground";
  }
- destroy(){for(const m of [this.globe,this.cloud,this.patch,this.trees,this.avatar])m?.destroy();this.gl.deleteProgram(this.program);}
+ destroy(){
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes)])m?.destroy();
+   this.gl.deleteProgram(this.program);
+ }
 }

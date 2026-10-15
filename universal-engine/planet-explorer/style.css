@@ -64,3 +64,28 @@ label{font-size:12px;color:#436478;font-weight:670}
 footer{text-align:center;font-size:11px;color:#748f9d;padding:20px}
 @media(max-width:850px){.info-grid{grid-template-columns:1fr}.headline{display:block}.version-tag{display:none}}
 @media(max-width:600px){.container{width:min(100% - 16px,1150px)}.panel{padding:14px}.view-panel{padding:8px}.view-header{display:block}.quick-actions{padding-top:5px;padding-bottom:3px}.toolbar{gap:6px}.toolbar button{padding:8px}h2{font-size:18px}.site-header{padding:16px 0 26px}}
+
+/* v0.4: touch-friendly joystick, tap mode and action palette */
+.mode-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:2px 4px 13px;color:#aac9d9;font-size:12px}
+.mode-bar button{background:#183f52;border-color:#376f82;color:#d4edf5;min-height:37px}
+.mode-bar button[aria-pressed=true]{background:#15809b;border-color:#4dcbdf;color:white}
+.mode-bar strong{font-size:11px;color:#8cd3e5;margin-left:auto}
+.stick-area{position:absolute;left:13px;bottom:44px;width:137px;height:137px;touch-action:none;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#caeef7;font-size:9px;letter-spacing:.14em;font-weight:800;z-index:2}
+.stick-area[hidden]{display:none}
+.stick-base{width:116px;height:116px;border-radius:50%;background:#0b3554aa;border:2px solid #79c8e199;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 8px #0d263455}
+.stick-nub{width:52px;height:52px;border-radius:50%;background:linear-gradient(145deg,#a3e9f4,#358ba6);border:3px solid #e0f8fe;box-shadow:0 2px 10px #0007;pointer-events:none;will-change:transform}
+.action-pad{position:absolute;right:15px;bottom:45px;display:grid;grid-template-columns:repeat(2,72px);gap:7px;z-index:2}
+.action-pad button{min-height:47px;background:#143a54dc;border:1px solid #7fbace;color:#e8f7ff;border-radius:14px;font-size:12px;touch-action:manipulation}
+.action-pad button:active{background:#237e9a}
+.action-pad button:first-child{grid-column:span 2;background:#235f86e8;font-size:14px}
+.action-pad button:last-child{background:#4b604be6}
+@media(max-width:620px){
+ .stick-area{width:108px;height:108px;bottom:42px;left:4px}
+ .stick-base{width:88px;height:88px}
+ .stick-nub{width:42px;height:42px}
+ .action-pad{grid-template-columns:repeat(2,52px);gap:5px;right:5px;bottom:42px}
+ .action-pad button{min-height:34px;padding:6px 3px;font-size:11px;border-radius:10px}
+ .action-pad button:first-child{font-size:12px}
+ .mode-bar strong{width:100%;margin:0}
+}
+.action-pad[hidden]{display:none}

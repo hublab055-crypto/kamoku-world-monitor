@@ -5,10 +5,12 @@ import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
+import {Actions} from "./actions.mjs";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions;
+let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 const keys=new Set(),touches=new Set();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -22,6 +24,7 @@ function init(saved=null){
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
   terrain=new Terrain(planet);weather=new Weather(planet);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+  actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
   universe=saved?Multiverse.fromSnapshot(saved.universe):new Multiverse();
   simWorld=universe.getWorld("terra-nova")||universe.createWorld({
    id:"terra-nova",name:"Terra Nova",clock:{tickSeconds:.05,maxTicksPerAdvance:10}
@@ -29,7 +32,8 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
-  keys.clear();touches.clear();
+  renderer.sceneActions=actions;
+  keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   log(saved?"保存した3D探索状態を復元しました。":"惑星を生成しました。降下して地上を歩いてみましょう。");
@@ -37,8 +41,8 @@ function init(saved=null){
 }
 function inputVector(){
  const on=k=>keys.has(k)||touches.has(k);
- return {forward:(on("w")||on("arrowup")?1:0)-(on("s")||on("arrowdown")?1:0),
-  strafe:(on("d")?1:0)-(on("a")?1:0),
+ return {forward:(on("w")||on("arrowup")?1:0)-(on("s")||on("arrowdown")?1:0)+(controlMode==="stick"?-stick.y:0),
+  strafe:(on("d")?1:0)-(on("a")?1:0)+(controlMode==="stick"?stick.x:0),
   turn:(on("e")||on("right")?1:0)-(on("q")||on("left")?1:0)};
 }
 function doFrame(t){
@@ -46,6 +50,8 @@ function doFrame(t){
  if(controller&&renderer){
   const input=inputVector();
   controller.update(dt,input);
+  const completed=actions.advance(dt);
+  if(completed)log(actions.message);
   if(running)universe.advance(dt);
   try{
    const next=renderer.frame(controller);
@@ -80,11 +86,21 @@ function updateHUD(){
  $("sunlight").textContent=Math.round(planet.illumination(controller.lat,controller.lon)*100)+"%";
  $("day").textContent=planet.timeDays.toFixed(2)+" 日";
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
+ $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
+ $("action-state").textContent=actions.message;
+ $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone;
+ $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
+ $("control-state").textContent=controlMode==="stick"?"スティック移動":"地面タップで移動"+(controller.moveTarget?"（移動中）":"");
+ $("mode-stick").setAttribute("aria-pressed",String(controlMode==="stick"));
+ $("mode-tap").setAttribute("aria-pressed",String(controlMode==="tap"));
+ $("stick-area").hidden=controlMode!=="stick"||!isSurface;
+ $("action-pad").hidden=!isSurface;
  $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?"歩行可能":"降下中／宇宙視点";
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
- $("walk-note").textContent=isSurface?"WASDまたは画面ボタンで移動。Q/Eまたは左右ボタンで向きを変更。":
-  "地表へ降下すると歩行操作が有効になります。";
+ $("walk-note").textContent=!isSurface?"地表へ降下すると歩行操作が有効になります。":
+  controlMode==="tap"?"地面をタップすると自動で歩きます。ドラッグは視点回転です。":
+  "左下の仮想スティックかWASDで移動。右下のボタンでジャンプや道具操作。";
 }
 function setAltitude(m){
  controller.targetAltitude(m);
@@ -102,7 +118,7 @@ $("play").addEventListener("click",()=>{
 $("save").addEventListener("click",()=>{
  try{
   const data={format:"ue/explorer-demo",version:1,
-   planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot()};
+   planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot()};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("独立した3D探索データを保存しました。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -141,15 +157,26 @@ for(const button of document.querySelectorAll("[data-move]")){
 }
 let pointer=null;
 $("world").addEventListener("pointerdown",e=>{
- pointer={id:e.pointerId,x:e.clientX};
+ pointer={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};
  $("world").setPointerCapture?.(e.pointerId);
 });
 $("world").addEventListener("pointermove",e=>{
  if(!pointer||e.pointerId!==pointer.id)return;
- controller.turn((e.clientX-pointer.x)*.006);
- pointer.x=e.clientX;
+ if(Math.hypot(e.clientX-pointer.startX,e.clientY-pointer.startY)>10)pointer.moved=true;
+ if(pointer.moved)controller.turn((e.clientX-pointer.x)*.006);
+ pointer.x=e.clientX;pointer.y=e.clientY;
 });
-for(const type of ["pointerup","pointercancel"])$("world").addEventListener(type,()=>pointer=null);
+$("world").addEventListener("pointerup",e=>{
+ if(!pointer||e.pointerId!==pointer.id)return;
+ if(controlMode==="tap"&&!pointer.moved&&controller.nearGround){
+   const ground=renderer.pickGround(e.clientX,e.clientY);
+   if(ground&&controller.setMoveTarget(ground.x,ground.z)){
+     log("タップ地点まで自動移動します。");
+   }else log("移動できない地点です（地面を近くでタップしてください）。");
+ }
+ pointer=null;
+});
+$("world").addEventListener("pointercancel",()=>pointer=null);
 $("world").addEventListener("wheel",e=>{
  e.preventDefault();
  controller.zoom(e.deltaY>0?1.3:.77);
@@ -166,4 +193,44 @@ $("landing-select").addEventListener("change",()=>{
  }catch(e){log("着陸地変更不可: "+e.message);}
 });
 $("landing-select").addEventListener("focus",()=>{keys.clear();touches.clear();});
+
+function setControlMode(mode){
+ controlMode=mode;
+ controller?.clearMoveTarget();
+ stick={x:0,y:0};
+ $("stick-nub").style.transform="translate(0px,0px)";
+ updateHUD();
+}
+$("mode-stick").addEventListener("click",()=>setControlMode("stick"));
+$("mode-tap").addEventListener("click",()=>setControlMode("tap"));
+$("jump").addEventListener("click",()=>{if(!controller.jump())log("ジャンプは地上でのみ可能です。");});
+for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-mine","mine"],["action-build","build"]]){
+ $(button).addEventListener("click",()=>{
+   actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon));
+   log(actions.message);
+   updateHUD();
+ });
+}
+const stickArea=$("stick-area"),nub=$("stick-nub");
+function updateStick(e){
+ const r=stickArea.getBoundingClientRect();
+ const cx=r.left+r.width/2,cy=r.top+r.height/2;
+ const radius=Math.max(1,Math.min(r.width,r.height)*.32);
+ const dx=e.clientX-cx,dy=e.clientY-cy,mag=Math.hypot(dx,dy);
+ const scale=mag>radius?radius/mag:1;
+ const px=dx*scale,py=dy*scale;
+ stick={x:px/radius,y:py/radius};
+ nub.style.transform="translate("+px.toFixed(1)+"px,"+py.toFixed(1)+"px)";
+}
+function releaseStick(){stickPointer=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
+stickArea.addEventListener("pointerdown",e=>{
+ if(controlMode!=="stick")return;
+ e.preventDefault();stickPointer=e.pointerId;
+ stickArea.setPointerCapture?.(e.pointerId);controller.clearMoveTarget();updateStick(e);
+});
+stickArea.addEventListener("pointermove",e=>{if(e.pointerId===stickPointer)updateStick(e);});
+for(const t of ["pointerup","pointercancel","lostpointercapture"]){
+ stickArea.addEventListener(t,e=>{if(stickPointer===e.pointerId)releaseStick();});
+}
+
 init();requestAnimationFrame(doFrame);
