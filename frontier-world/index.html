@@ -12794,7 +12794,11 @@ drawPerson=function(person,sprite){
     try{
      ctx.globalAlpha=alpha===undefined?1:alpha;
      const equipment=hit?null:kind==='bow'?'bow':kind==='axe'?'axe':'sword';
-     const drawn=window.FWBattleRig.render(ctx,atlasImg,rect,dx+dw/2,dy+dh,dw,dh,{
+     const newBattle=window.FWBattlePartsV2;
+     const newActorId=sprite==='mio'?'girl1':sprite==='riku'?'boy2':(person.id==='player'?'knight':(person.id||'knight'));
+     const drawn=(newBattle&&newBattle.render(ctx,dx+dw/2,dy+dh,dw,dh,{
+      action:kind,progress:progress,characterId:newActorId,direction:person.dir||'front'
+     })) || window.FWBattleRig.render(ctx,atlasImg,rect,dx+dw/2,dy+dh,dw,dh,{
       action:kind,progress:progress,mirror:person.dir==='left',equipment:equipment,
       characterId:sprite==='mio'?'girl1':(person.id||sprite),direction:person.dir||'front'
      });
@@ -13940,6 +13944,7 @@ fwBridge.fw10LoadGame=fw10LoadGame;
 })();
 </script>
 <script defer src="sprite-asset-test/battle-rig.js?v=52.5parts2"></script>
+<script defer src="sprite-asset-test/battle-parts-v2.js?v=53.0frame1"></script>
 <script defer src="sprite-asset-test/life-motion.js?v=52.5parts2"></script>
 <script defer src="sprite-asset-test/battle-motion.js?v=52.4bm3"></script>
 <script defer src="publishing-industry.js?v=52.0"></script>
