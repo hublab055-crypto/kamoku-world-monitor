@@ -115,7 +115,7 @@ chapterStart.addEventListener('click',function(){
  if(def&&def.available&&chosenMode!=='multiverse')activate(null);
 });
 chapters.querySelector('#fwTitleChapterBack').addEventListener('click',showMain);
-chooseChapter('frontier');
+chooseMode('scenario');
 
 function showMain(){
  pending=null;main.hidden=false;saves.hidden=true;chapters.hidden=true;root.classList.remove('fw-title-settings-open');
