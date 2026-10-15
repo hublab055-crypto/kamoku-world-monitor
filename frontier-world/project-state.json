@@ -1,11 +1,11 @@
 {
   "project": "Frontier World",
-  "updated_at": "2026-10-15T00:55:23.210Z",
+  "updated_at": "2026-10-15T07:54:36.551Z",
   "repository": "hublab055-crypto/kamoku-world-monitor",
   "branch": "main",
   "game_path": "frontier-world/index.html",
   "game_url": "https://hublab055-crypto.github.io/kamoku-world-monitor/frontier-world/",
-  "implementation_version": "V52.7-ST4+BM4+BFR2",
+  "implementation_version": "V52.7-ST4+BM4+BFR2+OP1",
   "game_commit": "9757eb334ff07af2b3c1b4d7914b02b96d2607ed",
   "spec_path": "frontier-world/SPEC.md",
   "collaboration_path": "frontier-world/COLLAB.md",
@@ -157,7 +157,11 @@
     "responsive long region selection scroll area with anchored chapter detail/start actions",
     "14 original region theme previews switched on selection with shared title audio controls",
     "15 original 16-bar synth score sketches (14 origin chapters plus imperial march) in game's selectable BGM catalog",
-    "Battle Frame Rig V2: 18 newly drawn Canvas vector combat parts, 17 separately keyable joint/position controls per frame, 10 attacks, 2-48 frame editing, JSON/PNG export and live combat rendering integration"
+    "Battle Frame Rig V2: 18 newly drawn Canvas vector combat parts, 17 separately keyable joint/position controls per frame, 10 attacks, 2-48 frame editing, JSON/PNG export and live combat rendering integration",
+    "Opening prologue cinematic with stumbling traveler arrival, collapse, tent waking, name selection and memory flag",
+    "Frontier scenario rehabilitation tutorial with movement, tent exit, conversation, inventory and resource-gathering objectives",
+    "New Game gameplay mode picker: playable scenario prologue, existing free survival beta, disabled multiverse preview",
+    "Story tutorial progress stored in V19 game state and resumed on save load"
   ],
   "partial_or_planned": [
     "runtime loading of dialogue-pack.json",
@@ -226,7 +230,10 @@
     "V52.4+BM3 cutout rig uses shared geometric masks over walk atlas and has not undergone real iPhone Safari visual testing; visible seams, costume cutout mismatch and weapon-hand misalignment may occur",
     "BM4 battle-rig initial character/direction profiles are approximations; the cutout masks are shared, and Safari touch/UI/PNG exports have not had a real browser end-to-end test",
     "V52.7 14-origin title preview and 15-score synthesized OST code validated with mock audio, but not yet iPhone Safari end-to-end verified; six added origins are previews, not playable worlds",
-    "BFR2 SVG-like Canvas vector sprites differ from existing pixel art and have not had actual iPhone Safari visual/editor/PNG export end-to-end tests; existing pose editor and new vector battle editor maintain separate stores."
+    "BFR2 SVG-like Canvas vector sprites differ from existing pixel art and have not had actual iPhone Safari visual/editor/PNG export end-to-end tests; existing pose editor and new vector battle editor maintain separate stores.",
+    "Opening arrival/collapse visuals are an overlay cinematic, not yet an actual in-world sprite/carry-to-bed animation",
+    "Survival currently shares baseline game mechanics; dedicated survival rules and cross-world multiverse progression are not implemented",
+    "V53 opening name input, tutorial objectives, mobile controls, and save/load need live iOS Safari and deployed GitHub Pages E2E testing"
   ],
   "collaboration": {
     "gameplay_owner": [
@@ -365,7 +372,10 @@
     "Test owned market BGM direct download within the game modal with authenticated buyer and supplier settlement",
     "iPhone Safari test file picker WAV/MIDI/MusicXML import playback, persistence across game save reload and site refresh",
     "test direct download-page-to-game cross-tab BGM activation, licensed village preview sharing",
-    "Visual QA of independent vector battle parts and per-frame joint controls, with screenshot-based corrections and high-fidelity final art."
+    "Visual QA of independent vector battle parts and per-frame joint controls, with screenshot-based corrections and high-fidelity final art.",
+    "Live-test Frontier opening flow on iOS Safari including mode selector, 5 scenes, name input, movement, NPC conversation, gathering, skip, save/load",
+    "Create in-world stagger/faint/carry-to-bed and waking sprite/keyframe animations for the Frontier prologue",
+    "Define survival-only rules and multiverse-worldline persistence without disturbing the 17 origin chapter IDs"
   ],
   "changelog_path": "frontier-world/CHANGELOG.md",
   "debug_path": "frontier-world/DEBUG.md",
@@ -591,5 +601,22 @@
     "listen_without_online_payment": true,
     "village_publication": "only market-backed licensed work with public-preview opt-in; server verifies entitlement",
     "test_status": "MIDI and WAV byte-level + JS syntax complete; Safari E2E pending"
+  },
+  "opening_scenario": {
+    "version": "V53.0-OP1",
+    "spec": "frontier-world/SCENARIO_FRONTIER.md",
+    "files": [
+      "frontier-world/opening-scenario.js",
+      "frontier-world/opening-scenario.css",
+      "frontier-world/title-menu.js"
+    ],
+    "commit": "a379ffbaa5c0c96e65248a00c94eb7f8572959ba",
+    "implementation": "scenario prologue scenes, name/memory and five real-state tutorial steps",
+    "modes": {
+      "scenario": "prologue_playable",
+      "survival": "existing_freeplay_beta",
+      "multiverse": "planned_disabled"
+    },
+    "ios_safari_e2e": false
   }
 }
