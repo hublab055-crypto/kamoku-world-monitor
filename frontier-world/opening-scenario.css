@@ -52,3 +52,12 @@
 @keyframes fwFire{0%{transform:scale(.92) rotate(-5deg);opacity:.8}100%{transform:scale(1.1) rotate(7deg);opacity:1}}
 @media(max-width:550px){.fw-op-content{margin-bottom:5vh;padding:17px}.fw-op-bed{transform:scale(.74)}.fw-op-tent{right:4%;bottom:39%}#fwStoryHint{top:calc(9px + env(safe-area-inset-top))}}
 @media(prefers-reduced-motion:reduce){.fw-op-traveler,.fw-op-fire{animation:none!important}#fwOpeningStage[data-scene="collapse"] .fw-op-traveler{transform:rotate(76deg)}}
+/* Mode selection on the New Game chapter screen. */
+.fw-mode-picker{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 4px;padding:10px;border:1px solid #93806899;border-radius:12px;background:rgba(10,14,17,.25)}
+.fw-mode-heading{font-size:13px;font-weight:700;flex-basis:100%;color:#e8d5a5}
+.fw-mode-option{display:flex;flex:1 1 145px;min-height:64px;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:8px;border:1px solid #8b8067;background:#232a31;color:#f0f0ef;padding:8px;text-align:center;cursor:pointer}
+.fw-mode-option[aria-pressed="true"]{outline:2px solid #e5bb73;background:#62492e;color:#fff8e9}
+.fw-mode-option strong{font-size:13px}.fw-mode-option small{font-size:11px;opacity:.86}
+.fw-mode-option[data-mode-id="multiverse"]{opacity:.68}
+#fwStoryReopen[hidden]{display:none!important}
+#fwStoryReopen{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:13999;padding:9px 13px;border:1px solid #ddbf91;border-radius:22px;background:#293335;color:#fff;font-size:12px;cursor:pointer}
