@@ -147,7 +147,8 @@
   const targets=handTargets(type,t,profile);
   return rig.render(ctx,img,rect,x,y,w,h,{
    action:type,progress:t,characterId:opts.characterId||'default',
-   direction:opts.direction||'front',mirror:!!opts.mirror,profile:profile,handTargets:targets,
+   direction:opts.direction||'front',mirror:!!opts.mirror,profile:profile,handTargets:opts.pose?null:targets,
+    pose:opts.pose||null,partAtlases:opts.partAtlases||null,
    guides:!!opts.guides,mode:opts.mode,
    drawBehind:opts.environment?function(c){scenery(c,type)}:null,
    drawFront:function(c,p,front,rear){
@@ -158,7 +159,7 @@
   });
  }
  global.FWLifeMotion=Object.freeze({
-  version:'1.1.0',actions:ACTIONS.filter(a=>IDs.has(a.id)),render:render,
+  version:'2.0.0',actions:ACTIONS.filter(a=>IDs.has(a.id)),render:render,
   handTargets:handTargets,
   has:function(id){return IDs.has(id)},
   duration:function(id){const a=ACTIONS.find(a=>a.id===id);return a?a.duration:1000}
