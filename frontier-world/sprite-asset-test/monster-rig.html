@@ -13,7 +13,7 @@ button,select,input[type=number]{border:1px solid #70817d;border-radius:9px;padd
 button:hover{border-color:#e6cc92}button.primary{background:#71603c;border-color:#ecd29b}button[aria-pressed=true],button.active{background:#81724e;border-color:#fff1c0;color:white}
 input[type=checkbox]{accent-color:#d4b66c;width:17px;height:17px}
 canvas{display:block;width:100%;height:auto;border:1px solid #8f8972;border-radius:9px}
-#stage{touch-action:none;background:#e8dfc9}#timeline{touch-action:pan-y;background:#1b292d}
+#stage{touch-action:none;background:#e8dfc9;max-width:none}#canvasViewport{overflow-x:auto;overflow-y:hidden;max-width:100%;border-radius:9px;scroll-behavior:smooth;overscroll-behavior-x:contain}#canvasViewport canvas{margin:0}#timeline{touch-action:pan-y;background:#1b292d}
 #status{margin-top:9px;padding:10px;border:1px solid #627d78;background:#14272a;border-radius:7px;color:#dbebdd;min-height:37px;line-height:1.5;font-size:12px;white-space:pre-line}
 #status.error{border-color:#c77767;color:#ffdbd3}
 .options{display:flex;flex-wrap:wrap;gap:12px;padding:4px 0 6px;font-size:13px}.options label{display:flex;gap:5px;align-items:center}
@@ -35,8 +35,8 @@ details{margin:7px 0;border-top:1px solid #51616a;padding-top:8px}details summar
 <label class="field">方向<select id="direction"><option value="front">↓ 正面</option><option value="left">← 左</option><option value="right">→ 右</option><option value="back">↑ 背面</option></select></label>
 <label class="field">コマ数<select id="frameCount"><option value="4">4コマ（イラスト準拠）</option><option value="8">8コマ（詳細）</option></select></label>
 </div>
-<div class="options"><label><input id="joints" type="checkbox" checked>関節点を表示</label><label><input id="onion" type="checkbox" checked>前コマを重ねる</label><label><input id="guide" type="checkbox" checked>位置ガイド</label><label><input id="autoSave" type="checkbox" checked>自動保存（この端末）</label><label><input id="refEdit" type="checkbox">参考イラスト上で編集</label></div>
-<canvas id="stage" width="1000" height="570" aria-label="関節をドラッグしてポーズを調整。左側は参考イラスト、中央は編集中のリグ。"></canvas>
+<div class="options"><label><input id="joints" type="checkbox" checked>関節点を表示</label><label><input id="onion" type="checkbox" checked>前コマを重ねる</label><label><input id="guide" type="checkbox" checked>位置ガイド</label><label><input id="autoSave" type="checkbox" checked>自動保存（この端末）</label><label><input id="refEdit" type="checkbox">参考イラスト上で編集</label></div><div class="toolbar"><label class="field">編集画面の倍率<select id="zoom"><option value="1">1倍・全体表示</option><option value="2">2倍・精密</option><option value="3">3倍・拡大</option></select></label><button id="scrollLeft" type="button">◀ 表示を左へ</button><button id="scrollRight" type="button">表示を右へ ▶</button><small>スマホは2〜3倍にすると指で関節点を選びやすくなります。</small></div>
+<div id="canvasViewport"><canvas id="stage" width="1000" height="570" aria-label="関節をドラッグしてポーズを調整。左側は参考イラスト、中央は編集中のリグ。"></canvas></div>
 <div id="status" role="status" aria-live="polite">編集画面を準備しています…</div>
 </section>
 <section class="panel">
