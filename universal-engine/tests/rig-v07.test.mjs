@@ -101,7 +101,7 @@ test("animator pose is serializable and validates invalid inputs",()=>{
 test("v0.6 legacy archive contains independent runtime and original save key",()=>{
  const archiveUrl=new URL("../versions/v0.6/planet-explorer/app.mjs",import.meta.url);
  const v6=readFileSync(archiveUrl,"utf8");
- const v7=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
+ const v7=readFileSync(new URL("../versions/v0.7a/planet-explorer/app.mjs",import.meta.url),"utf8");
  assert.match(v6,/SAVE_KEY="universal-engine:explorer:v1"/);
  assert.match(v7,/SAVE_KEY="universal-engine:explorer:v0\.7a"/);
  assert.match(v7,/LEGACY_SAVE_KEY="universal-engine:explorer:v1"/);
@@ -114,9 +114,9 @@ test("v0.6 legacy archive contains independent runtime and original save key",()
  assert.match(legacy,/v0\.7a/);
 });
 test("new v0.7a page visibly links to legacy v0.6",()=>{
- const html=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
+ const html=readFileSync(new URL("../versions/v0.7a/planet-explorer/index.html",import.meta.url),"utf8");
  assert.match(html,/id="version-back"/);
  assert.match(html,/versions\/v0\.6\/planet-explorer/);
  assert.match(html,/id="import-v06-save"/);
- assert.match(html,/v0\.7a 試験版/);
+ assert.match(html,/V0\.7a 保存版/);
 });

@@ -6,6 +6,9 @@ import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
 import {SmoothAnimator} from "./animator.mjs";
 import {makeJointCovers} from "./joint-covers.mjs";
+import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
+import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
+import {rotZ} from "./rig.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -145,7 +148,9 @@ export class ExplorerRenderer{
   this.avatarStyle="pioneer";
   this.rigParts=[];
   this.animator=new SmoothAnimator();
-  this.setAvatarStyle("pioneer");
+  this.expression=new ExpressionController();
+  this.appearance=createAppearance("pioneer","pioneer");
+  this.setAppearance(this.appearance);
   this.tools={};
   for(const tool of ["sword","axe","pickaxe","hammer"]){
     const src=original(tool).parts[0].geometry;
@@ -164,12 +169,20 @@ export class ExplorerRenderer{
  }
  setAvatarStyle(id){
    if(!["pioneer","scout","artisan"].includes(id))throw new RangeError("Unknown avatar style");
-   const model=original(id);
-   const meshes=[...model.parts,...makeJointCovers(id)].map(part=>({mesh:new Mesh(this.gl,part.geometry),part}));
+   this.setAppearance(createAppearance(id,id));
+   return id;
+ }
+ setAppearance(input){
+   const appearance=restoreAppearance(input);
+   const parts=[...buildAppearanceParts(appearance),...makeFaceParts()];
+   const meshes=[];
+   try{for(const part of parts)meshes.push({mesh:new Mesh(this.gl,part.geometry),part});}
+   catch(e){for(const entry of meshes)entry.mesh.destroy();throw e;}
    for(const entry of this.rigParts||[])entry.mesh.destroy();
    this.rigParts=meshes;
-   this.avatarStyle=id;
-   return id;
+   this.appearance=appearance;
+   this.avatarStyle=appearance.baseModelId;
+   return {...appearance};
  }
  makeBuildingMeshes(gl){
    const parts=original("hut").parts;
@@ -190,14 +203,27 @@ export class ExplorerRenderer{
  }
  drawArticulated(vp,avatarTransform,s,light,dt=1/60){
    const motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0};
+   const face=this.expression.update(dt);
    const pose=this.animator.update(dt,{
       moving:s.moving,phase:s.totalDistanceM*2.7,
       speedMps:s.moving?s.walkSpeed:0,
-      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress
+      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,
+      emotion:this.expression.preset,faceDirection:face.gazeX*.27
    });
+   Object.assign(pose,expressionPoseValues(face));
    const joints=jointTransformsV2(pose,s.yaw);
    for(const {mesh,part} of this.rigParts){
-     const m=matrixMultiply(avatarTransform,joints[part.pivot]);
+     let m=matrixMultiply(avatarTransform,joints[part.pivot]);
+     if(part.faceKind==="lid"){
+       const openScale=Math.max(.015,Math.min(1,face.blink));
+       m=matrixMultiply(m,[1,0,0,0,0,openScale,0,0,0,0,1,0,0,0,0,1]);
+     }else if(part.faceKind==="leftBrow"||part.faceKind==="rightBrow"){
+       const angle=face.brow*(part.faceKind==="leftBrow"?1:-1);
+       m=matrixMultiply(m,rotZ(angle));
+     }else if(part.faceKind==="mouth"){
+       const x=Math.max(.5,Math.min(1.4,face.mouthWidth));
+       m=matrixMultiply(m,[x,0,0,0,0,1,0,0,0,0,1,0,0,face.mouthHeight,0,1]);
+     }
      this.drawMesh(mesh,multiply4(vp,m),light,1,.72);
    }
    if(pose.tool&&this.tools[pose.tool]){

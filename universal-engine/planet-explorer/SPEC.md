@@ -1,4 +1,4 @@
-# Universal Engine v0.7a — 惑星から地表への地理・描画接続仕様
+# Universal Engine v0.7b — 惑星から地表への地理・描画接続仕様
 
 更新: 2026-10-16 / 既存資産との分離を維持。
 
@@ -34,6 +34,18 @@ WebGL2の頂点・フラグメントシェーダーを採用。球体と雲を�
 - 地上の海、河川、標高2800m超、歩幅に対して急な標高段差は進入を拒否。
 - 位置 `(x,z)` と緯度経度は毎歩更新。ワープ／世界間の移動は未実装。
 - ジャンプは重力加速度によるローカル垂直速度の簡易積分と地面着地のみ実装。崖からの落下、海中移動、剛体衝突、地形との連続衝突検知は未実装。v0.2のBallisticsは別デモで引き続き使用可能。
+
+## v0.7b API / Draw / Save details
+
+- `wardrobe.mjs`: `createAppearance(preset,baseModelId)`, `validateAppearance`, `withOutfit`, `withAppearanceSlot`, `buildAppearanceParts`. Ten fixed outfit presets, three compatible avatar bodies and independent slots `outer`, `legs`, `feet`, `trim`, `hairColor`, `hairStyle`, `headwear`, `cape`, `bag`.
+- Slots validate a registered finite state. Color inputs require `#RRGGBB`, no untrusted remote assets. Each output part is explicit vertex geometry, with matching normal/index/color arrays, attached to a humanoid pivot.
+- `expression.mjs`: `ExpressionController` state is `{version:1,preset,autoBlink,gazeX,gazeY}`. Presets are neutral/joy/sadness/anger/fear/surprise/fatigue. Gaze is constrained [-1,+1]. Blinks follow a deterministic periodic pulse rather than unpredictable random state; interpolation smooths pose outputs.
+- Face geometry: 9 additional meshes for eye white, pupils, eyelids, eyebrows and mouth. Facial lid height, mouth width and eyebrow roll are local transforms; jaw/eye/head gesture use semantic face pivots. The `faceHeadY` pose parameter is added without modifying legacy 21-joint matrices.
+- Renderer `setAppearance` replaces avatar GPU meshes only when appearance changes; globe, terrain patch, vegetation and building meshes stay allocated. World location and action timings are unchanged.
+- Save version intentionally stays `ue/explorer-demo` `version:1` and the v0.7b key is separate. Optional `v0_7b:{schemaVersion:1,appearance,expression}` is validated by the new modules; an imported old save defaults to its three original base styles, the matching outfit and neutral expression.
+- UI offers the v0.7a archive via `../versions/v0.7a/planet-explorer/` and the v0.6 archive via `../versions/v0.6/planet-explorer/`. The latest version does not write either archive's save key. Import is explicit and read-only until the user selects v0.7b save.
+- Current camera mainly follows from behind and therefore fine face detail can require a future free/portrait camera for visual inspection. Camera v0.7c and outdoors/indoors v0.8 remain **unimplemented**.
+- QA: `tests/wardrobe-expression.test.mjs` plus legacy engine/interaction tests; actual browser/iOS rendering and performance are still to be verified.
 
 ## v0.7a 差分と復帰保証
 

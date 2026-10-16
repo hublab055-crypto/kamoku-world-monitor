@@ -6,14 +6,17 @@ import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
+import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS} from "./wardrobe.mjs";
+import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 
 const $=id=>document.getElementById(id);
-const SAVE_KEY="universal-engine:explorer:v0.7a";
+const SAVE_KEY="universal-engine:explorer:v0.7b";
+const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions;
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
-let avatarStyle="pioneer";
+let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 const keys=new Set(),touches=new Set();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
@@ -35,13 +38,17 @@ function init(saved=null){
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
-  renderer.setAvatarStyle(avatarStyle);
-  $("avatar-style").value=avatarStyle;
+  appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
+    createAppearance(avatarStyle,avatarStyle);
+  renderer.setAppearance(appearance);
+  renderer.expression=saved?.v0_7b?.expression?
+    ExpressionController.fromSnapshot(saved.v0_7b.expression):new ExpressionController();
+  syncCustomizationControls();
   renderer.sceneActions=actions;
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
-  log(saved?"v0.7a用の探索状態を復元しました。":"v0.7a：60関節と滑らかな動作の試験版です。v0.6へ戻るリンクも利用できます。");
+  log(saved?"探索状態と人物設定を読み込みました。":"v0.7b：着せ替えと表情・視線を試せます。旧v0.7a／v0.6にも戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
 function inputVector(){
@@ -93,6 +100,9 @@ function updateHUD(){
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
  $("action-state").textContent=actions.message;
+ $("customization-status").textContent=
+   (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
+   (EXPRESSIONS.find(x=>x[0]===renderer.expression.preset)?.[1]||renderer.expression.preset);
  $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone;
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  $("control-state").textContent=controlMode==="stick"?"スティック移動":"地面タップで移動"+(controller.moveTarget?"（移動中）":"");
@@ -123,9 +133,10 @@ $("play").addEventListener("click",()=>{
 $("save").addEventListener("click",()=>{
  try{
   const data={format:"ue/explorer-demo",version:1,
-   planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle};
+   planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
+   v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-  log("v0.7a専用の保存領域へ記録しました（v0.6は無変更）。");
+  log("v0.7b専用の保存領域に人物の外見・表情と探索状態を保存しました。旧版は変更しません。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
 $("restore").addEventListener("click",()=>{
@@ -142,8 +153,18 @@ $("import-v06-save").addEventListener("click",()=>{
   const data=JSON.parse(old);
   if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("非対応のv0.6セーブです。");
   running=false;init(data);updateHUD();
-  log("v0.6のデータをコピーして読み込みました。旧セーブは無変更です。v0.7a保存で新版に記録できます。");
+  log("v0.6のセーブを読み込みました（読み取りのみ）。v0.7b保存で新版に記録できます。");
  }catch(e){log("旧セーブの読み込み失敗: "+e.message)}
+});
+$("import-v07a-save").addEventListener("click",()=>{
+ try{
+  const old=localStorage.getItem(PREVIOUS_SAVE_KEY);
+  if(!old)throw Error("v0.7aの保存データが見つかりません。");
+  const data=JSON.parse(old);
+  if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("非対応のv0.7aセーブです。");
+  running=false;init(data);updateHUD();
+  log("v0.7aの進行データを読み取り専用で取り込みました。旧版セーブは変更していません。");
+ }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{running=true;init();updateHUD();});
 window.addEventListener("keydown",e=>{
@@ -209,11 +230,57 @@ $("landing-select").addEventListener("change",()=>{
 });
 $("landing-select").addEventListener("focus",()=>{keys.clear();touches.clear();});
 
+function syncCustomizationControls(){
+ $("avatar-style").value=appearance.baseModelId;
+ $("outfit-select").value=appearance.presetId;
+ for(const slot of ["hairStyle","headwear","cape","bag"]){
+  const id=slot==="hairStyle"?"hair-style":slot;
+  $(id).value=appearance[slot];
+ }
+ for(const [slot,id] of [["outer","outer-color"],["legs","legs-color"],["feet","feet-color"],["hairColor","hair-color"]])
+  $(id).value=appearance[slot];
+ $("expression-preset").value=renderer.expression.preset;
+ $("gaze-x").value=String(renderer.expression.gazeX);
+ $("auto-blink").checked=renderer.expression.autoBlink;
+}
+function applyAppearance(next,label){
+ try{
+  const restored=restoreAppearance(next);
+  renderer.setAppearance(restored);
+  appearance=restored;
+  avatarStyle=restored.baseModelId;
+  syncCustomizationControls();updateHUD();
+  if(label)log(label);
+ }catch(e){log("外見変更に失敗: "+e.message)}
+}
 $("avatar-style").addEventListener("change",()=>{
-  const id=$("avatar-style").value;
-  try{avatarStyle=renderer.setAvatarStyle(id);log("オリジナル人物モデルを「"+$("avatar-style").selectedOptions[0].text+"」に変更しました。");}
-  catch(e){log("モデル変更に失敗: "+e.message);}
+ const base=$("avatar-style").value;
+ applyAppearance({...appearance,baseModelId:base},"人物の素体を変更しました。");
 });
+$("outfit-select").addEventListener("change",()=>{
+ try{applyAppearance(withOutfit(appearance,$("outfit-select").value),"衣装を変更しました。");}
+ catch(e){log(e.message)}
+});
+for(const [id,slot] of [["hair-style","hairStyle"],["headwear","headwear"],["cape","cape"],["bag","bag"],
+ ["outer-color","outer"],["legs-color","legs"],["feet-color","feet"],["hair-color","hairColor"]]){
+ $(id).addEventListener("change",()=>{
+  try{applyAppearance(withAppearanceSlot(appearance,slot,$(id).value),"部位別の衣装・色を変更しました。");}
+  catch(e){log(e.message)}
+ });
+}
+$("expression-preset").addEventListener("change",()=>{
+ try{renderer.expression.setPreset($("expression-preset").value);updateHUD();}
+ catch(e){log("表情の変更失敗: "+e.message)}
+});
+$("gaze-x").addEventListener("input",()=>{
+ renderer.expression.setGaze(Number($("gaze-x").value));
+});
+$("auto-blink").addEventListener("change",()=>renderer.expression.setAutoBlink($("auto-blink").checked));
+$("reset-appearance").addEventListener("click",()=>{
+ renderer.expression=new ExpressionController();
+ applyAppearance(createAppearance("pioneer","pioneer"),"人物の外見と表情を初期化しました。");
+});
+
 function setControlMode(mode){
  controlMode=mode;
  controller?.clearMoveTarget();

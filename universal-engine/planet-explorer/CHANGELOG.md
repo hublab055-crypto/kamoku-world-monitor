@@ -1,5 +1,13 @@
 # Planet Explorer — Change Log
 
+## v0.7b — 2026-10-16 (experimental)
+
+- Added ten original clothing presets, adjustable hats, capes, bags, hairstyles and independent fabric/hair dyes for three existing avatar bodies.
+- Added seven expressive states, gaze, blink, eyebrows, eye and mouth meshes tied to v2 face pivots.
+- Added UI settings panel and separate v0.7b saves, including explicit read-only import from v0.7a and v0.6.
+- Archived v0.7a as a complete self-contained playable version and retained v0.6 archive and branches.
+- Added wardrobe/expression regression tests; camera, far terrain and interiors remain future work.
+
 ## v0.7a — 2026-10-16 (experimental)
 - Saved full v0.6 executable engine/demos/models under `versions/v0.6/`, plus independent GitHub branch for source-level rollback.
 - Added direct two-way version navigation between v0.6 and v0.7a.

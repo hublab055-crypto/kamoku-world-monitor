@@ -91,7 +91,7 @@ validateRig();
 const finite=(v,fallback=0)=>Number.isFinite(v)?v:fallback;
 const rotationKeys={
  torso:[null,null,null],
- head:[null,null,null],
+ head:[null,"faceHeadY",null],
  waist:["torsoX","torsoY",null],
  neck:[null,"headY",null],
  chest:["chestX",null,"chestZ"],

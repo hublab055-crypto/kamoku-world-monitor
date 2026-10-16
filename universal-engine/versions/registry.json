@@ -15,10 +15,18 @@
     {
       "id": "v0.7a",
       "label": "v0.7a — 60関節の試験版",
+      "status": "frozen",
+      "url": "./v0.7a/planet-explorer/",
+      "saveKey": "universal-engine:explorer:v0.7a",
+      "note": "60関節と補間アニメーションの独立保存版"
+    },
+    {
+      "id": "v0.7b",
+      "label": "v0.7b — 着せ替えと表情",
       "status": "experimental",
       "url": "../../planet-explorer/",
-      "saveKey": "universal-engine:explorer:v0.7a",
-      "note": "旧版へ戻れる。60関節・補間モーション・関節カバーを試験実装"
+      "saveKey": "universal-engine:explorer:v0.7b",
+      "note": "衣装10・表情7・視線とまばたき。v0.7aとv0.6へ戻れる"
     }
   ],
   "policy": {
