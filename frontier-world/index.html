@@ -13021,6 +13021,9 @@ Object.defineProperties(window.__fwFrontierBridge,{
  getDrawingPublication52:{value:function(){return {ctx:ctx,tile:TILE};}},
  moveNpcPublication52:{value:function(n,dt){return fw7MoveNpc(n,dt,.88);}}
 });
+/* FW3D v1: narrow accessors to game tap movement and collision. */
+window.__fwFrontierBridge.setPlayerMove3D=function(x,y){if(!Number.isFinite(x)||!Number.isFinite(y))return false;if(blocked(x,y))return false;tap={x:x,y:y};state.resting=false;return true;};
+window.__fwFrontierBridge.canMove3D=function(x,y){return !blocked(x,y);};
 
 })();
 </script>
@@ -14198,6 +14201,10 @@ fwBridge.fw10LoadGame=fw10LoadGame;
  if(refresh)refresh.addEventListener('click',function(){navigate('latest');});
 })();
 </script>
+<!-- FW3D V1: optional 3D view; 2D mechanics and prior version routes retained. -->
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+<script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script type="module" src="avatar-3d.js?v=1.0"></script>
 <script defer src="title-menu.js?v=52.4"></script>
 <script defer src="title-intro.js?v=52.4"></script>
 </body>
