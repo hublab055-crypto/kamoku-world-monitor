@@ -6,6 +6,7 @@ import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
+import {HutAccess,HUT} from "./buildings.mjs";
 import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS} from "./wardrobe.mjs";
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
@@ -17,7 +18,7 @@ const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access;
 let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,autoActorId="player";
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
@@ -35,6 +36,7 @@ function init(saved=null){
   terrain=new Terrain(planet);weather=new Weather(planet);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
+   access=new HutAccess(actions,{insideId:saved?.v0_7e?.insideId??null});
   universe=saved?Multiverse.fromSnapshot(saved.universe):new Multiverse();
   simWorld=universe.getWorld("terra-nova")||universe.createWorld({
    id:"terra-nova",name:"Terra Nova",clock:{tickSeconds:.05,maxTicksPerAdvance:10}
@@ -50,6 +52,7 @@ function init(saved=null){
     ExpressionController.fromSnapshot(saved.v0_7b.expression):new ExpressionController();
   syncCustomizationControls();
   renderer.sceneActions=actions;
+   renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
   renderer.squad=squad;
   renderer.cameraController=saved?.v0_7c?.camera?
@@ -76,13 +79,25 @@ function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
   const input=inputVector();
+   const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
   squad?.advance(running?dt:0,{manualLead});
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else controller.update(dt,input);
-  const completed=actions.advance(dt);
+  const transition=access.guard(previous,controller);
+   if(transition==="enter")log("🏠 ドアを通って小屋に入りました。");
+   if(transition==="exit")log("🌿 ドアから小屋の外に出ました。");
+   if(access.pendingDoorId&&!access.inside&&controller.nearGround){
+    const b=access.find(access.pendingDoorId);
+    if(!b)access.pendingDoorId=null;
+    else if(Math.hypot(controller.x-b.x,controller.z-b.z-HUT.halfDepth-.13)<=HUT.reach){
+     access.pendingDoorId=null;if(!b.doorOpen)log(access.toggle(b,controller).message);
+    }else if(!controller.moveTarget)access.pendingDoorId=null;
+   }
+   renderer.interiorBuildingId=access.insideId;
+   const completed=actions.advance(dt);
   if(completed)log(actions.message);
   if(running)universe.advance(dt);
   try{
@@ -123,7 +138,8 @@ function updateHUD(){
  $("day").textContent=planet.timeDays.toFixed(2)+" 日";
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
- $("action-state").textContent=actions.message;
+ $("action-state").textContent=access.inside?"🏠 屋内（小屋 #"+access.inside.id+"）":actions.message;
+  syncDoorUi();
  $("customization-status").textContent=
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
    (EXPRESSIONS.find(x=>x[0]===renderer.expression.preset)?.[1]||renderer.expression.preset);
@@ -174,7 +190,7 @@ $("save").addEventListener("click",()=>{
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
-   v0_7d:{schemaVersion:1,squad:squad.snapshot()}};
+   v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot()};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("v0.7d：条件分岐と3人の部隊、カメラ・進行状況を保存しました。旧版は変更していません。");
  }catch(e){log("保存に失敗: "+e.message);}
