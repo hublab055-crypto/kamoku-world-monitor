@@ -587,7 +587,8 @@ export class ExplorerRenderer{
     if(enemy.hp<=0||Math.abs(enemy.x-s.x)>radius||Math.abs(enemy.z-s.z)>radius)continue;
     const geo=geoOffset(s.origin.lat,s.origin.lon,enemy.x,enemy.z,this.planet.radiusM);
     const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
-    const base=translate(enemy.x-this.cx,height,enemy.z-this.cz);
+    const bob=enemy.type==="slime"?0:Math.abs(Math.sin(enemy.walkPhase||0))*.035;
+    const base=translate(enemy.x-this.cx,height+bob,enemy.z-this.cz);
     this.drawMesh(this.enemyMeshes[enemy.type],multiply4(vp,multiply4(base,rotateY(enemy.yaw))),light,1,.75);
     const ratio=enemy.hp/enemy.maxHp,head=enemy.height||2.1;
     const hpAt=multiply4(base,translate(0,head,0));
