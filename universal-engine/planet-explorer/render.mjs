@@ -367,7 +367,39 @@ export class ExplorerRenderer{
      }
    }
  }
- drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
+ drawLifestyle(vp,light,s,radius){
+   this.screenFurniture=[];this.screenCamps=[];
+   if(!this.sceneLife||!this.sceneActions)return;
+   for(const hut of this.sceneActions.structures){
+    if(hut.progress<1)continue;
+    const at=geoLocal(s.origin.lat,s.origin.lon,hut.lat,hut.lon,this.planet.radiusM);
+    if(Math.abs(at.eastM-s.x)>radius||Math.abs(at.northM-s.z)>radius)continue;
+    for(const f of this.sceneLife.atHut(hut)){
+     const mesh=this.lifeMeshes[f.kind];if(!mesh)continue;
+     const x=at.eastM+f.x-this.cx,z=at.northM+f.z-this.cz;
+     const model=multiply4(translate(x,hut.height,z),rotateY((f.rotation||0)*DEG));
+     this.drawMesh(mesh,multiply4(vp,model),light,1,.76);
+     if(f.lit&&f.kind==="fireplace")this.drawMesh(this.campMeshes.fire,multiply4(vp,model),[.7,.6,.2],1,.92);
+     if(hut.id===this.interiorBuildingId){
+      const point=projectScreen(vp,[x,hut.height+(f.kind==="bookshelf"?1.55:1.05),z]);
+      if(point)this.screenFurniture.push({...point,id:f.id,kind:f.kind,type:"furniture"});
+     }
+    }
+   }
+   for(const camp of this.sceneLife.deployments){
+    const at=geoLocal(s.origin.lat,s.origin.lon,camp.lat,camp.lon,this.planet.radiusM);
+    if(Math.abs(at.eastM-s.x)>radius||Math.abs(at.northM-s.z)>radius)continue;
+    const x=at.eastM-this.cx,z=at.northM-this.cz;
+    const cut=camp.kind==="tent"&&this.sceneLife.insideTentId===camp.id;
+    const mesh=this.campMeshes[cut?"tentCutaway":camp.kind];
+    if(!mesh)continue;
+    const model=multiply4(translate(x,camp.height,z),rotateY(camp.rotation||0));
+    this.drawMesh(mesh,multiply4(vp,model),light,1,.72);
+    const point=projectScreen(vp,[x,camp.height+(camp.kind==="tent"?1.20:.35),z]);
+    if(point)this.screenCamps.push({...point,id:camp.id,kind:camp.kind,type:"camp"});
+   }
+  }
+  drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
   gl.uniform3fv(this.uLight,new Float32Array(light));gl.uniform3fv(this.uTint,new Float32Array(tint));
   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);mesh.draw();
@@ -383,7 +415,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  this.screenActors=[];this.screenDoors=[];this.screenShelves=[];
+  this.screenActors=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
@@ -459,6 +491,7 @@ export class ExplorerRenderer{
   this.drawMesh(this.patch,vp,light,1,.58);
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
   this.drawBuildings(vp,light,s,radius,dt);
+  this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
   this.drawArticulated(vp,transform,s,light,dt);
@@ -490,7 +523,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes)])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes)])m?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }
