@@ -530,7 +530,8 @@ $("mode-tap").addEventListener("click",()=>setControlMode("tap"));
 $("jump").addEventListener("click",()=>{if(!controller.jump())log("ジャンプは地上でのみ可能です。");});
 for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-mine","mine"],["action-build","build"]]){
  $(button).addEventListener("click",()=>{
-   actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon));
+   actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
+    frontierUI?.attackVariantFor("player",kind)||"overhead");
    log(actions.message);
    updateHUD();
  });
