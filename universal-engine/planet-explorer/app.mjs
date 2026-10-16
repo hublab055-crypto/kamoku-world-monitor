@@ -250,7 +250,8 @@ window.addEventListener("keydown",e=>{
   else if(k==="arrowright")keys.add("e");
   else keys.add(k);
  }
- if(k==="+"||k==="=")zoomScene(.65);
+ if(k==="f"){e.preventDefault();interactDoor();return;}
+  if(k==="+"||k==="=")zoomScene(.65);
  if(k==="-")zoomScene(1.55);
 });
 window.addEventListener("keyup",e=>{
@@ -282,7 +283,11 @@ $("world").addEventListener("pointermove",e=>{
 });
 $("world").addEventListener("pointerup",e=>{
  if(!pointer||e.pointerId!==pointer.id)return;
- if(rtsMode&&!pointer.moved&&controller.nearGround){
+ if(!rtsMode&&!pointer.moved&&controller.nearGround){
+   const door=renderer.pickDoor(e.clientX,e.clientY);
+   if(door){tapDoor(door.id);pointer=null;return;}
+  }
+  if(rtsMode&&!pointer.moved&&controller.nearGround){
   commandRtsTap(e.clientX,e.clientY,e.shiftKey);
  }else if(controlMode==="tap"&&!pointer.moved&&controller.nearGround){
    const ground=renderer.pickGround(e.clientX,e.clientY);
@@ -459,7 +464,40 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
    updateHUD();
  });
 }
-const stickArea=$("stick-area"),nub=$("stick-nub");
+/* Cabin interaction: tapping the door approaches/opens it; buttons handle entry/exit. */
+ function performDoor(result){log(result.message);updateHUD();}
+ function tapDoor(id){
+  const hut=access.find(id);if(!hut)return;
+  if(access.inside){
+   if(access.inside.id===hut.id)performDoor(access.toggle(hut,controller));
+   return;
+  }
+  if(access.nearby(controller)?.id===hut.id){performDoor(access.toggle(hut,controller));return;}
+  if(controller.setMoveTarget(hut.x,hut.z+HUT.halfDepth+1.08)){
+   access.pendingDoorId=hut.id;log("🚶 ドアに向かいます。近づいたら開きます。");
+  }else log("ドアまで移動できませんでした。");
+ }
+ function interactDoor(){
+  const hut=access.inside||access.nearby(controller);
+  if(!hut){log("🚪 完成した小屋の入口へ近づいてください。");return;}
+  performDoor(access.toggle(hut,controller));
+ }
+ function syncDoorUi(){
+  const inside=access.inside,near=inside||access.nearby(controller);
+  const node=$("door-controls");if(!node)return;
+  const active=controller.nearGround&&!rtsMode&&Boolean(near);
+  node.hidden=!active;
+  if(!active)return;
+  $("door-toggle").textContent=near.doorOpen?"🚪 閉める":"🚪 開ける";
+  $("door-enter").hidden=!!inside||!near.doorOpen;
+  $("door-exit").hidden=!inside;
+ }
+ $("door-toggle").addEventListener("click",interactDoor);
+ $("door-enter").addEventListener("click",()=>{
+  const hut=access.nearby(controller);if(hut)performDoor(access.enter(hut,controller));
+ });
+ $("door-exit").addEventListener("click",()=>performDoor(access.exit(controller)));
+ const stickArea=$("stick-area"),nub=$("stick-nub");
 function updateStick(e){
  const r=stickArea.getBoundingClientRect();
  const cx=r.left+r.width/2,cy=r.top+r.height/2;
