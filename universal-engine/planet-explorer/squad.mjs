@@ -93,13 +93,13 @@ export class SquadEngine{
    distance:Math.hypot(a.control.x-leader.x,a.control.z-leader.z),
    walked:a.control.totalDistanceM,...(this.frontier?.metrics(a)||{})};
  }
- performEquippedAction(id,kind){
+ performEquippedAction(id,kind,hand="right"){
   const a=this.get(id);
   if(!a||a.id==="player"||!["sword","axe","mine"].includes(kind)||!a.control.nearGround)return false;
   this.frontier?.cancel(a);
   a.control.clearMoveTarget();
   const duration=kind==="sword"?.95:kind==="axe"?1.45:1.65;
-  a.task={kind:"equipped_"+kind,remaining:duration,duration};
+  a.task={kind:"equipped_"+kind,remaining:duration,duration,hand:hand==="left"?"left":"right"};
   a.cooldown=0;a.order="manual";a.status="⚒️ "+kind+"を使用中";
   return true;
  }
@@ -172,7 +172,7 @@ export class SquadEngine{
  }
  getMotion(a){
   const key=a.task?.kind;
-  return key?.startsWith("equipped_")?{action:key.slice("equipped_".length),progress:1-a.task.remaining/a.task.duration}:
+  return key?.startsWith("equipped_")?{action:key.slice("equipped_".length),progress:1-a.task.remaining/a.task.duration,hand:a.task.hand||"right"}:
    this.frontier?.isAction(key)?{action:key==="gather_nearby"?"axe":"idle",progress:.5}:
    key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
    {action:"idle",progress:0};

@@ -44,7 +44,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    root.append(b);
   });
  }
- function executeItem(result,who,c){
+ function executeItem(result,who,c,hand="right"){
   if(!result.ok){log(result.message);return result;}
   if(result.kind==="book"){openBookLibrary();return result;}
   if(result.kind==="deploy"){
@@ -65,8 +65,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    return deployed;
   }
   if(result.kind==="action"){
+   if(c.renderer)c.renderer.actionHand[who.id]=hand;
    if(who.id!=="player"){
-    const ok=c.squad.performEquippedAction(who.id,result.action);
+    const ok=c.squad.performEquippedAction(who.id,result.action,hand);
     log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
     updateHUD();return {ok};
    }
@@ -77,11 +78,11 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function useItem(){
   const c=get(),who=actor();if(!who)return;
-  return executeItem(social.use(who,c.life,c.squad.frontier),who,c);
+  return executeItem(social.use(who,c.life,c.squad.frontier),who,c,"right");
  }
  function useHand(hand){
   const c=get(),who=actor();if(!who)return;
-  return executeItem(social.useHand(who,hand,c.life,c.squad.frontier),who,c);
+  return executeItem(social.useHand(who,hand,c.life,c.squad.frontier),who,c,hand);
  }
  function renderConfig(){
   const c=get();if(!c.squad)return;
