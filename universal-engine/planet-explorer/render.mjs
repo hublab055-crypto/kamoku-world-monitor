@@ -494,7 +494,10 @@ export class ExplorerRenderer{
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
-  this.drawArticulated(vp,transform,s,light,dt);
+  const lifeAction=this.sceneLife?.activity;
+  const playerMotion=lifeAction&&lifeAction!=="idle"?
+   {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
+  this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion);
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
   const actors=this.squad?.agents||[];
