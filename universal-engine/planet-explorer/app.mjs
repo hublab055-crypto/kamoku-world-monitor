@@ -7,6 +7,7 @@ import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
+import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
 import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS} from "./wardrobe.mjs";
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
@@ -19,6 +20,16 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access;
+let books=new BookCollection(),activeBookId=null;
+const BOOK_JOURNAL_KEY="universal-engine:explorer:reading:v1";
+function loadBookJournal(){
+ try{return JSON.parse(localStorage.getItem(BOOK_JOURNAL_KEY)||"null");}
+ catch(_){return null;}
+}
+function saveBookJournal(){
+ try{localStorage.setItem(BOOK_JOURNAL_KEY,JSON.stringify(books.snapshot()));}
+ catch(_){log("しおりの自動保存ができません。ゲーム全体の保存をお試しください。");}
+}
 let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,autoActorId="player";
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
@@ -37,6 +48,9 @@ function init(saved=null){
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
    access=new HutAccess(actions,{insideId:saved?.v0_7e?.insideId??null});
+   books=new BookCollection(saved?.v0_7f||loadBookJournal());
+   activeBookId=null;
+   $("book-overlay").hidden=true;
   universe=saved?Multiverse.fromSnapshot(saved.universe):new Multiverse();
   simWorld=universe.getWorld("terra-nova")||universe.createWorld({
    id:"terra-nova",name:"Terra Nova",clock:{tickSeconds:.05,maxTicksPerAdvance:10}
@@ -78,7 +92,7 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const input=inputVector();
+  const input=$("book-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
   squad?.advance(running?dt:0,{manualLead});
@@ -190,7 +204,8 @@ $("save").addEventListener("click",()=>{
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
-   v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot()};
+   v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
+    v0_7f:books.snapshot()};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("v0.7d：条件分岐と3人の部隊、カメラ・進行状況を保存しました。旧版は変更していません。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -283,7 +298,10 @@ $("world").addEventListener("pointermove",e=>{
 });
 $("world").addEventListener("pointerup",e=>{
  if(!pointer||e.pointerId!==pointer.id)return;
- if(!rtsMode&&!pointer.moved&&controller.nearGround){
+ if(!rtsMode&&!pointer.moved&&access.inside&&renderer.pickBookshelf(e.clientX,e.clientY)){
+   openBookLibrary();pointer=null;return;
+  }
+  if(!rtsMode&&!pointer.moved&&controller.nearGround){
    const door=renderer.pickDoor(e.clientX,e.clientY);
    if(door){tapDoor(door.id);pointer=null;return;}
   }
@@ -491,6 +509,7 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
   $("door-toggle").textContent=near.doorOpen?"🚪 閉める":"🚪 開ける";
   $("door-enter").hidden=!!inside||!near.doorOpen;
   $("door-exit").hidden=!inside;
+  $("door-shelf").hidden=!inside;
  }
  $("door-toggle").addEventListener("click",interactDoor);
  $("door-enter").addEventListener("click",()=>{
