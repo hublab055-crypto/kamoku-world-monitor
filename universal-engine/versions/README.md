@@ -6,7 +6,8 @@
 | --- | --- | --- | --- |
 | [v0.6 旧安定版](./v0.6/planet-explorer/) | 旧版へ戻る | `universal-engine:explorer:v1` | 独立したコア・地形・人物・モデル工房を保存 |
 | [v0.7a 旧版](./v0.7a/planet-explorer/) | 旧版へ戻る | `universal-engine:explorer:v0.7a` | 60関節・滑らかな補間・指と関節カバー |
-| [v0.7b 最新試験版](../planet-explorer/) | 新版を試す | `universal-engine:explorer:v0.7b` | 衣装と表情・髪・視線・まばたき |
+| [v0.7b 保存版](./v0.7b/planet-explorer/) | 旧版へ戻る | `universal-engine:explorer:v0.7b` | 衣装・表情・視線・まばたき |
+| [v0.7c 最新試験版](../planet-explorer/) | 最新版を試す | `universal-engine:explorer:v0.7c` | 6カメラモードと上空マーカー |
 
 **操作:** v0.7aの上部から「↶ v0.6に戻る」を開く。v0.6の上部には「新しいv0.7aへ」があります。トップページからも両バージョンを選べます。
 

@@ -148,8 +148,8 @@ test("renderer can dress and emote without changing world geometry or old action
  renderer.destroy();
 });
 test("new UI contains expression, wardrobe and version-navigation controls",()=>{
- const html=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
- const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
+ const html=readFileSync(new URL("../versions/v0.7b/planet-explorer/index.html",import.meta.url),"utf8");
+ const app=readFileSync(new URL("../versions/v0.7b/planet-explorer/app.mjs",import.meta.url),"utf8");
  for(const id of ["outfit-select","hair-style","headwear","cape","bag","outer-color","legs-color",
   "feet-color","hair-color","expression-preset","gaze-x","auto-blink","reset-appearance","import-v07a-save"]){
   assert.match(html,new RegExp('id="'+id+'"'));
@@ -157,6 +157,6 @@ test("new UI contains expression, wardrobe and version-navigation controls",()=>
  assert.match(app,/SAVE_KEY="universal-engine:explorer:v0\.7b"/);
  assert.match(app,/PREVIOUS_SAVE_KEY="universal-engine:explorer:v0\.7a"/);
  assert.match(app,/LEGACY_SAVE_KEY="universal-engine:explorer:v1"/);
- assert.match(html,/versions\/v0\.7a\/planet-explorer/);
- assert.match(html,/versions\/v0\.6\/planet-explorer/);
+ assert.match(html,/v0\.7a\/planet-explorer/);
+ assert.match(html,/v0\.6\/planet-explorer/);
 });

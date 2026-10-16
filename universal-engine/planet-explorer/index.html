@@ -15,12 +15,13 @@
   </div>
   <div class="container headline">
     <div>
-      <p class="eyebrow">UNIVERSAL ENGINE · V0.7b · EXPERIMENTAL</p>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7c · CAMERA</p>
       <h1>オリジナルの世界を歩く。</h1>
-      <p>v0.7b試験版：オリジナル衣装10種類、髪・帽子・マントの着せ替えと表情・視線・まばたきを追加。旧v0.7a／v0.6に戻れます。</p>
+      <p>v0.7c試験版：追従・肩越し・自由・人物注視・高高度俯瞰のカメラを追加しました。アバターの居場所は上空でも表示。v0.7b以前へ戻れます。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.7b 試験版</span>
-  <a id="version-back" href="../versions/v0.7a/planet-explorer/" title="v0.7aに戻る（セーブは別）">↶ v0.7aに戻る</a>
+    <div class="version-control"><span class="version-tag">v0.7c 試験版</span>
+  <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
+  <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
 </div>
   </div>
@@ -50,9 +51,11 @@
   </select>
   <a class="model-lab-link" href="../model-lab/">3Dモデル工房 ↗</a>
   <strong id="control-state">スティック移動</strong>
+  <span class="camera-active-label" id="camera-status">追従（三人称）</span>
 </div>
 <div class="canvas-wrap">
       <canvas id="world" width="960" height="560" aria-label="3D惑星と地表を表示するWebGL2ビュー。ドラッグで向きを変えます。"></canvas>
+      <div id="actor-marker" class="actor-marker" hidden aria-label="アバターの地表位置">◆ アバター</div>
       <div class="viewport-overlay">
         <div>高度 <strong id="height">-- m</strong></div>
         <div class="coords" id="coords">--°, --°</div>
@@ -84,8 +87,9 @@
       </select>
       <button id="next-day" type="button">＋1日</button>
       <button id="next-season" type="button">＋90日</button>
-      <button id="save" type="button">v0.7b保存</button>
-      <button id="restore" type="button">v0.7b復元</button>
+      <button id="save" type="button">v0.7c保存</button>
+      <button id="restore" type="button">v0.7c復元</button>
+      <button id="import-v07b-save" type="button" title="v0.7bのセーブを読み取り専用で取り込みます">v0.7bデータ読込</button>
       <button id="import-v07a-save" type="button" title="旧v0.7aセーブを読み込み（旧版の保存データは変更しません）">v0.7aデータ読込</button>
       <button id="import-v06-save" type="button" title="v0.6の保存データをコピーして読み込む。旧保存データは変更しません。">v0.6データ読込</button>
       <button id="reset" type="button">初期化</button>
@@ -137,6 +141,45 @@
         <strong id="customization-status">開拓者・平常</strong>
         <button id="reset-appearance" type="button">外見と表情を初期値へ</button>
       </div>
+    </div>
+  </details>
+<details class="customization panel camera-settings" id="camera-settings">
+    <summary><span>カメラ設定</span> — 追従・自由視点・人物注視・上空俯瞰 <small>タップして開く</small></summary>
+    <div class="customization-inner">
+      <p>地上でモードを切り替え、画面をドラッグすると視線が回転します。自由視点ではスティック/WASDでカメラだけが移動します。</p>
+      <div class="customization-grid">
+        <label>カメラモード
+          <select id="camera-mode">
+            <option value="legacy">現在の従来モード</option>
+            <option value="follow">追従（三人称）</option>
+            <option value="shoulder">肩越し</option>
+            <option value="free">任意視点・自由移動</option>
+            <option value="orbitTarget">アバターの周囲を回転</option>
+            <option value="tactical">上空から俯瞰</option>
+          </select>
+        </label>
+        <label>視野角 <span id="camera-fov-label">65°</span>
+          <input id="camera-fov" type="range" min="35" max="90" step="1" value="65"/>
+        </label>
+        <label>追従・注視距離 <span id="camera-distance-label">8m</span>
+          <input id="camera-distance" type="range" min="1" max="120" step=".5" value="8"/>
+        </label>
+        <label>上空俯瞰の高さ <span id="camera-height-label">250m</span>
+          <input id="camera-height" type="range" min="35" max="18000" step="5" value="250"/>
+        </label>
+        <label>追従のなめらかさ
+          <input id="camera-follow-strength" type="range" min=".1" max="24" step=".1" value="8"/>
+        </label>
+        <label class="check-label"><input id="camera-indicator" type="checkbox" checked/> アバター位置マーカー</label>
+      </div>
+      <div class="customization-footer">
+        <strong id="camera-mode-label">追従（三人称）</strong>
+        <div class="camera-controls">
+          <button type="button" id="camera-face">人物の顔を見る</button>
+          <button type="button" id="camera-home">人物の位置へ戻す</button>
+        </div>
+      </div>
+      <p class="camera-tip">地上から高度35m〜18kmの俯瞰表示を選べます。10km級では人物は実物の縮尺で小さくなるため、画面上のマーカーで位置を示します。全球モードは既存の惑星描画へ切り替わります。</p>
     </div>
   </details>
   <section class="info-grid">

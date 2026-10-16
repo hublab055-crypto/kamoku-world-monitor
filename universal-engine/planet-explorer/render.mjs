@@ -9,10 +9,20 @@ import {makeJointCovers} from "./joint-covers.mjs";
 import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
 import {rotZ} from "./rig.mjs";
+import {CameraController} from "./camera-controller.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l)};
+export function projectScreen(vp,p){
+ const x=vp[0]*p[0]+vp[4]*p[1]+vp[8]*p[2]+vp[12];
+ const y=vp[1]*p[0]+vp[5]*p[1]+vp[9]*p[2]+vp[13];
+ const w=vp[3]*p[0]+vp[7]*p[1]+vp[11]*p[2]+vp[15];
+ if(!(w>.00001)||!Number.isFinite(w))return null;
+ const u=.5+x/w*.5,v=.5-y/w*.5;
+ if(!Number.isFinite(u)||!Number.isFinite(v))return null;
+ return {u,v,onScreen:u>=0&&u<=1&&v>=0&&v<=1};
+}
 export function perspective(fov,aspect,near,far){
  const f=1/Math.tan(fov/2),q=1/(near-far);
  return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)*q,-1,0,0,2*far*near*q,0];
@@ -136,6 +146,8 @@ export class ExplorerRenderer{
   const gl=canvas.getContext("webgl2",{antialias:true,alpha:false,powerPreference:"high-performance"});
   if(!gl)throw Error("WebGL2が利用できません。対応ブラウザを利用してください。");
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
+  this.cameraController=new CameraController();
+  this.actorMarker=null;
   const pg=gl.createProgram();gl.attachShader(pg,shader(gl,gl.VERTEX_SHADER,VERT));
   gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
@@ -257,29 +269,50 @@ export class ExplorerRenderer{
   gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
+  this.actorMarker=null;
   return state.altitudeM>23000?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
   this.pickVP=null;
   const gl=this.gl,R=this.R,distance=R*(1+s.altitudeM/this.planet.radiusM);
+  const c=this.cameraController.config;
   const offset=this.planet.rotationAngle*180/Math.PI*(s.altitudeM>400000?1:0);
-  const n=geoNormal(s.lat,s.lon+offset),camera=n.map(v=>v*distance);
+  // Orbiting the view never changes the avatar's real lat/lon.
+  const freeGeo=c.mode==="free"?
+    geoOffset(s.origin.lat,s.origin.lon,c.freeX,c.freeZ,this.planet.radiusM):null;
+  const centerLat=freeGeo?.lat??s.lat,centerLon=freeGeo?.lon??s.lon;
+  const pitch=c.mode==="free"?c.freePitch:c.pitchRad;
+  const yaw=c.mode==="free"?c.freeYaw:c.yawOffset;
+  const orbitalLat=clamp(centerLat+(c.mode==="legacy"?0:pitch*30),-89.5,89.5);
+  const orbitalLon=centerLon+offset+(c.mode==="legacy"?0:yaw*35);
+  const n=geoNormal(orbitalLat,orbitalLon),camera=n.map(v=>v*distance);
   const view=lookAt(camera,[0,0,0],Math.abs(n[1])>.95?[0,0,1]:[0,1,0]);
-  const vp=multiply4(perspective(53*DEG,asp,Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
+  const vp=multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
+    Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
   const spin=-this.planet.rotationAngle,tilt=-this.planet.axialTiltDeg*DEG,sun=this.planet.solarDirection;
   const cs=Math.cos(spin),ss=Math.sin(spin),x=cs*sun.x+ss*sun.z,z=-ss*sun.x+cs*sun.z;
   const ct=Math.cos(tilt),st=Math.sin(tilt),light=[x,ct*sun.y-st*z,st*sun.y+ct*z];
   this.drawMesh(this.globe,vp,light,1,.14);
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
   this.drawMesh(this.cloud,vp,light,.33,.32);gl.depthMask(true);gl.disable(gl.BLEND);
+  if(c.indicator){
+   const actor=geoNormal(s.lat,s.lon+offset).map(v=>v*(R+.15));
+   const screen=projectScreen(vp,actor);
+   this.actorMarker=screen?{...screen,altitudeM:s.altitudeM,label:"アバターの地表位置"}:null;
+  }
   return "orbit";
  }
  ground(s,asp,dt=1/60){
-  const gl=this.gl,alt=s.altitudeM;
-  const requestedRadius=clamp(alt*4+350,450,55000);
+  const gl=this.gl,alt=s.altitudeM,cameraMode=this.cameraController.mode;
+  const cfg=this.cameraController.config;
+  const cameraAltitude=cameraMode==="tactical"?cfg.tacticalHeightM:
+    cameraMode==="free"?Math.max(2.5,cfg.freeHeightM):cameraMode==="legacy"?alt:
+    Math.max(2.5,cfg.distanceM);
+  const requestedRadius=Math.max(alt,cameraAltitude)*4+350;
   const radius=clamp(450*Math.pow(2,Math.ceil(Math.log2(requestedRadius/450))),450,55000);
   const snap=radius<2200?110:radius<6500?600:3000;
-  const cx=Math.round(s.x/snap)*snap,cz=Math.round(s.z/snap)*snap;
+  const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
+  const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
   const resolution=radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
@@ -289,21 +322,30 @@ export class ExplorerRenderer{
    const shrubs=vegetation(this.terrain,this.planet,s.origin,cx,cz,radius);
    this.trees=shrubs.positions.length?new Mesh(gl,shrubs):null;
    this.patchKey=key;this.cx=cx;this.cz=cz;
+   this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
   }
   const px=s.x-this.cx,pz=s.z-this.cz;
   const ground=terrainSurface(this.terrain,s.lat,s.lon).elevationM;
-  const feet=Math.max(ground,0),close=alt<=12,yaw=s.yaw;
-  const camera=close?[px-Math.sin(yaw)*8,feet+7,pz-Math.cos(yaw)*8]:[px,feet+alt,pz];
-  const target=close?[px,feet+1,pz]:[px+Math.sin(yaw)*alt*.5,feet-alt*.8,pz+Math.cos(yaw)*alt*.5];
-  const vp=multiply4(perspective(65*DEG,asp,.08,Math.max(radius*8,5000)),lookAt(camera,target));
-  this.pickVP=close?vp:null;
+  const feet=Math.max(ground,0);
+  const focusGeo=cameraMode==="free"?
+    geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
+  const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
+  const camera=this.cameraController.groundView(s,{
+    cx:this.cx,cz:this.cz,groundM:feet,focusGroundM:focusGround,dt
+  });
+  const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
+    lookAt(camera.eye,camera.target));
+  this.pickVP=vp;
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
   this.drawBuildings(vp,light,s,radius);
-  if(close){
-    const transform=translate(px,feet+(s.jumpY||0),pz);
-    this.drawArticulated(vp,transform,s,light,dt);
+  // The grounded avatar remains at real scale even when the observer ascends.
+  const transform=translate(px,feet+(s.jumpY||0),pz);
+  this.drawArticulated(vp,transform,s,light,dt);
+  if(camera.marker){
+   const screen=projectScreen(vp,camera.actorPos);
+   this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
   }
   return "ground";
  }

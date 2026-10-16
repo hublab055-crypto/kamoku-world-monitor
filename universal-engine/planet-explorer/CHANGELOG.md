@@ -1,5 +1,13 @@
 # Planet Explorer — Change Log
 
+## v0.7c — 2026-10-16 (experimental)
+
+- Added six camera modes: legacy, following, over-shoulder, detached free, actor orbit and high tactical view.
+- Added camera settings, drag rotation, free movement controlled by stick/WASD, actor portrait button and beacon.
+- Added persistent independent v0.7c save, manual read-only import of v0.7b/v0.7a/v0.6.
+- Archived whole v0.7b runtime and models at a separate URL; source rollback branches retained.
+- Added camera projection/controls tests and save UI tests. Long-distance terrain and interiors remain future tasks.
+
 ## v0.7b — 2026-10-16 (experimental)
 
 - Added ten original clothing presets, adjustable hats, capes, bags, hairstyles and independent fabric/hair dyes for three existing avatar bodies.

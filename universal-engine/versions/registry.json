@@ -23,10 +23,18 @@
     {
       "id": "v0.7b",
       "label": "v0.7b — 着せ替えと表情",
+      "status": "frozen",
+      "url": "./v0.7b/planet-explorer/",
+      "saveKey": "universal-engine:explorer:v0.7b",
+      "note": "10衣装、表情、視線の独立保存版"
+    },
+    {
+      "id": "v0.7c",
+      "label": "v0.7c — カメラ6モード",
       "status": "experimental",
       "url": "../../planet-explorer/",
-      "saveKey": "universal-engine:explorer:v0.7b",
-      "note": "衣装10・表情7・視線とまばたき。v0.7aとv0.6へ戻れる"
+      "saveKey": "universal-engine:explorer:v0.7c",
+      "note": "追従・肩越し・自由・人物注視・俯瞰・従来。高高度に位置マーカー"
     }
   ],
   "policy": {

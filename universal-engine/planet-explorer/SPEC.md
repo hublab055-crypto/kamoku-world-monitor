@@ -1,4 +1,4 @@
-# Universal Engine v0.7b — 惑星から地表への地理・描画接続仕様
+# Universal Engine v0.7c — 惑星から地表への地理・描画接続仕様
 
 更新: 2026-10-16 / 既存資産との分離を維持。
 
@@ -34,6 +34,18 @@ WebGL2の頂点・フラグメントシェーダーを採用。球体と雲を�
 - 地上の海、河川、標高2800m超、歩幅に対して急な標高段差は進入を拒否。
 - 位置 `(x,z)` と緯度経度は毎歩更新。ワープ／世界間の移動は未実装。
 - ジャンプは重力加速度によるローカル垂直速度の簡易積分と地面着地のみ実装。崖からの落下、海中移動、剛体衝突、地形との連続衝突検知は未実装。v0.2のBallisticsは別デモで引き続き使用可能。
+
+## v0.7c — camera implementation contract
+
+- Camera logic: `camera-controller.mjs` exports `CameraController`, `CAMERA_MODES`, `sanitizeCamera`. Serialized CameraState is `{version:1,mode,yawOffset,pitchRad,distanceM,fieldOfViewDeg,followStrength,tacticalHeightM,freeX,freeZ,freeHeightM,freeYaw,freePitch,indicator}`.
+- Modes: legacy retains v0.6 ground/orbit; follow uses avatar yaw/distance; shoulder uses a near-body shoulder offset; free has detached position and movement; orbitTarget rotates around the same avatar; tactical uses independent high-altitude camera.
+- The `ExplorerController` is the *only* authority for the avatar's location: switching camera modes or free panning must not modify `actor.x/z`, `lat/lon`, `totalDistanceM`, or action state.
+- UI: camera settings inside collapsible panel, FOV/height/distance/follow damping, gaze-facing preview, optional actor location beacon. In free mode, WASD/joystick pans camera and does not walk the avatar.
+- The ground render patch centers around the **camera** only in free mode; otherwise it remains attached to the actor. A ground avatar remains world-accurate regardless of camera altitude. For high view distances, use a UI beacon at the projected avatar location.
+- Orbit renderer projects the lat/lon avatar marker onto the existing spherical globe. Its geographic position is stable and separate from camera movement. Active FPS and other game actions are unchanged.
+- The archived v0.7b demo remains standalone under `versions/v0.7b/`; old v0.7a and v0.6 snapshots are preserved.
+- Save isolation: v0.7c uses `universal-engine:explorer:v0.7c` and embeds camera settings under `v0_7c:{schemaVersion:1,camera}`; older saves are read-only sources for manual import.
+- Known limitations: no seamless spherical LOD, terrain avoidance raycast, sophisticated zoom interpolation across 23km boundary, indoor clipping, ocean/river horizon detail. See v0.7d roadmap.
 
 ## v0.7b API / Draw / Save details
 
