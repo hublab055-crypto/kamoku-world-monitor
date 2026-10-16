@@ -6,7 +6,7 @@ export const DECK_KINDS=Object.freeze({
   commands:["sweep","guard","thrust","heal"]},
  bow:{icon:"🏹",name:"弓矢",hands:{right:"bow",left:"none"},
   commands:["shoot","aim","heal","config"]},
- work:{icon:"🔨",name:"作業",hands:{right:"pickaxe",left:"none"},
+ work:{icon:"🔨",name:"作業",hands:{right:"axe",left:"pickaxe"},
   commands:["mine","chop","build","rest"]},
  social:{icon:"💬",name:"交流",hands:{right:"none",left:"none"},
   commands:["talk","gift","emote","follow"]},
