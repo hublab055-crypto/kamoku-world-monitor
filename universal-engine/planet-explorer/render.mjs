@@ -1,6 +1,6 @@
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,samplePatch,terrainSurface} from "./geo.mjs";
 import {noise3} from "../planet/planet-core.mjs";
-import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate} from "./rig.mjs";
+import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
@@ -79,6 +79,38 @@ function cone(b,x,y,z,h,r,col,sides=7){
   const a=i*2*Math.PI/sides,c=(i+1)*2*Math.PI/sides;
   triangle(b,[x+r*Math.cos(a),y,z+r*Math.sin(a)],[x+r*Math.cos(c),y,z+r*Math.sin(c)],[x,y+h,z],col);
  }
+}
+
+// Local equipment geometries are in metres; character forward is +Z.
+const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
+function bowGeometry(){
+ const b=builder(),wood=[.51,.29,.15],wrapping=[.27,.18,.11],string=[.89,.83,.68];
+ // Curved upper and lower limbs with a taut string and central wrapped grip.
+ for(let i=0;i<16;i++){
+  const y=-.64+i*.08,mid=y+.04;
+  const z=.17*(1-(mid/.64)**2);
+  box(b,0,y,z,.023,.082,.025,wood);
+ }
+ box(b,0,-.64,-.018,.006,1.28,.006,string);
+ box(b,0,-.105,.16,.041,.21,.047,wrapping);
+ return b;
+}
+function arrowGeometry(){
+ const b=builder(),wood=[.65,.46,.25],steel=[.81,.88,.91],fletch=[.84,.25,.16];
+ // Shaft and nock run along +Z: the arrowhead is pointed away from the avatar.
+ box(b,0,-.008,0,.011,.016,.47,wood);
+ for(const sign of [-1,1]){
+  triangle(b,[0,-.008,.56],[sign*.050,-.010,.43],[0,.034,.43],steel);
+  triangle(b,[0,-.008,.56],[0,-.050,.43],[sign*.050,-.010,.43],steel);
+  triangle(b,[sign*.008,0,-.33],[sign*.10,.002,-.47],[sign*.008,.012,-.45],fletch);
+ }
+ return b;
+}
+function heldItemTransform(kind){
+ const grip=translate(0,-.155,.05);
+ // Blades point ahead at rest, instead of hanging downward from the wrist.
+ // A bow retains its vertical shape while the arrow points ahead.
+ return kind==="bow"?grip:multiply4(grip,rotX(Math.PI/2));
 }
 function sphereGeometry(terrain,planet){
  const ground=builder(),clouds=builder(),R=600,resLat=64,resLon=128;
@@ -180,16 +212,17 @@ export class ExplorerRenderer{
   this.appearance=createAppearance("pioneer","pioneer");
   this.setAppearance(this.appearance);
   this.tools={};
-  for(const tool of ["sword","axe","pickaxe","hammer"]){
+  for(const [tool,scale] of Object.entries(EQUIPMENT_SCALE)){
     const src=original(tool).parts[0].geometry;
-    // Rotate the standalone upright tool so its handle extends from the wrist.
-    const b={positions:[],normals:[],colors:[...src.colors],indices:[...src.indices]};
+    // Reduce oversized display meshes; retain the original tool geometry for exports.
+    const b={positions:[],normals:[...src.normals],colors:[...src.colors],indices:[...src.indices]};
     for(let k=0;k<src.positions.length;k+=3){
-      b.positions.push(src.positions[k]*.76,-src.positions[k+1]*.76-.12,-src.positions[k+2]*.76);
-      b.normals.push(src.normals[k],-src.normals[k+1],-src.normals[k+2]);
+      b.positions.push(src.positions[k]*scale,src.positions[k+1]*scale,src.positions[k+2]*scale);
     }
     this.tools[tool]=new Mesh(gl,b);
   }
+  this.tools.bow=new Mesh(gl,bowGeometry());
+  this.tools.arrow=new Mesh(gl,arrowGeometry());
   this.buildingMeshes=this.makeBuildingMeshes(gl);
   this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.screenShelves=[];this.interiorBuildingId=null;
   this.lifeMeshes={};
@@ -321,7 +354,8 @@ export class ExplorerRenderer{
       moving:s.moving,phase:s.totalDistanceM*2.7,
       speedMps:s.moving?s.walkSpeed:0,
       jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,
-      emotion:expression.preset,faceDirection:face.gazeX*.27,hand:motion?.hand||this.actionHand?.[actorId]||"right"
+      emotion:expression.preset,faceDirection:face.gazeX*.27,hand:motion?.hand||this.actionHand?.[actorId]||"right",
+      equipped:this.handEquipment?.[actorId]||{}
    });
    Object.assign(pose,expressionPoseValues(face));
    const joints=jointTransformsV2(pose,s.yaw);
@@ -345,9 +379,19 @@ export class ExplorerRenderer{
     const kind=hand===activeHand&&pose.tool?pose.tool:equipment[hand];
     if(!this.tools[kind])continue;
     const wrist=joints[hand+"Wrist"];if(!wrist)continue;
-    const held=matrixMultiply(avatarTransform,wrist);
+    const attached=matrixMultiply(avatarTransform,wrist);
+    const held=matrixMultiply(attached,heldItemTransform(kind));
     this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
+    if(kind==="bow"&&hand===activeHand&&motion?.action==="bow")
+      this.drawFlyingArrow(vp,attached,light,motion.progress,tint);
    }
+ }
+ drawFlyingArrow(vp,wristTransform,light,progress=0,tint=[1,1,1]){
+   const t=Math.max(0,Math.min(1,Number(progress)||0));
+   // Nocked for the draw, then visibly travels forward after the release.
+   const flight=t<.64?0:Math.min(7.5,(t-.64)/.36*7.5);
+   const arrow=matrixMultiply(wristTransform,translate(0,-.155,.60+flight));
+   this.drawMesh(this.tools.arrow,multiply4(vp,arrow),light,1,.88,tint);
  }
  drawBuildings(vp,light,s,radius,dt=1/60){
    if(!this.sceneActions)return;
@@ -411,7 +455,7 @@ export class ExplorerRenderer{
   const action=kind==="gift"?"gift":"talk";
   for(const id of [from,to])if(["player","scout","artisan"].includes(id))this.socialAnimations.set(id,{kind:action,remaining:2.1});
  }
- drawSkinnedHandEquipment(rig,id,vp,characterTransform,light){
+ drawSkinnedHandEquipment(rig,id,vp,characterTransform,light,motion={}){
    const pose=rig.instances.get(id)?.previous;
    if(!pose||!rig.rig?.nodes?.length)return;
    const info=rig.rig,gear=this.handEquipment?.[id]||{};
@@ -420,6 +464,7 @@ export class ExplorerRenderer{
     x,0,0,0,0,x,0,0,0,0,x,0,
     -c[0]*x,-c[1]*x,-c[2]*x,1
    ];
+   const activeHand=motion?.hand||this.actionHand?.[id]||"right";
    for(const hand of ["right","left"]){
     const item=gear[hand],mesh=this.tools[item];
     if(!mesh)continue;
@@ -431,7 +476,9 @@ export class ExplorerRenderer{
     });
     if(joint<0||!pose.world[joint])continue;
     const attach=multiply4(characterTransform,multiply4(normalize,pose.world[joint]));
-    this.drawMesh(mesh,multiply4(vp,attach),light,1,.68);
+    this.drawMesh(mesh,multiply4(vp,multiply4(attach,heldItemTransform(item))),light,1,.68);
+    if(item==="bow"&&hand===activeHand&&motion?.action==="bow")
+      this.drawFlyingArrow(vp,attach,light,motion.progress);
    }
  }
  drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
@@ -455,7 +502,7 @@ export class ExplorerRenderer{
     this.glbStatuses[sex]={animated:false,reason:String(error.message||error)};
     drawn=false;
    }finally{this.gl.useProgram(this.program);}
-   if(drawn)this.drawSkinnedHandEquipment(rig,id,vp,characterTransform,light);
+   if(drawn)this.drawSkinnedHandEquipment(rig,id,vp,characterTransform,light,motion);
    return drawn;
   }
   const meshes=this.glbMeshes[sex];if(!meshes?.length)return false;
