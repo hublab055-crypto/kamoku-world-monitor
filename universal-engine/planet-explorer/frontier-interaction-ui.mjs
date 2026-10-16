@@ -253,12 +253,55 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    });
    row.append(picker);hands.append(row);
   }
+  $("combat-auto-target").checked=decks[configId].autoTarget;
   const root=$("quick-config-rows");root.replaceChildren();
+  const types=Object.entries(DECK_KINDS);
   for(let i=0;i<5;i++){
-   const row=document.createElement("label");row.textContent="クイック "+(i+1);
-   const picker=selectInventory(social.actor(configId).slots[i]);
-   picker.addEventListener("change",()=>{social.equip(configId,i,picker.value);slotSignature="";quick();renderConfig();});
-   row.append(picker);root.append(row);
+   const slot=decks[configId].slots[i],section=document.createElement("div");
+   section.className="deck-config";
+   const heading=document.createElement("label");heading.textContent="行動 "+(i+1)+"：";
+   const picker=document.createElement("select");
+   for(const [id,meta] of types){
+    const opt=document.createElement("option");opt.value=id;opt.textContent=meta.icon+" "+meta.name;picker.append(opt);
+   }
+   picker.value=slot.kind;
+   picker.addEventListener("change",()=>{
+    decks[configId].configure(i,{kind:picker.value});slotSignature="";renderConfig();quick();
+    if(i===decks[configId].selected)applyDeck(c.squad.get(configId));
+   });
+   heading.append(picker);section.append(heading);
+   const gears=document.createElement("div");gears.className="deck-gears";
+   for(const hand of ["right","left"]){
+    const lbl=document.createElement("label");lbl.textContent=hand==="right"?"右手":"左手";
+    const gear=document.createElement("select");
+    for(const id of ["none","sword","shield","axe","bow","pickaxe","book","cup"]){
+     const opt=document.createElement("option");opt.value=id;
+     opt.textContent=(ITEM_MAP.get(id)?.icon||"▫️")+" "+(ITEM_MAP.get(id)?.name||id);
+     gear.append(opt);
+    }
+    gear.value=slot.hands[hand];
+    gear.addEventListener("change",()=>{
+     decks[configId].configure(i,{hands:{[hand]:gear.value}});
+     if(i===decks[configId].selected)applyDeck(c.squad.get(configId));
+     slotSignature="";quick();
+    });
+    lbl.append(gear);gears.append(lbl);
+   }
+   section.append(gears);
+   const cmds=document.createElement("div");cmds.className="deck-commands";
+   for(let j=0;j<4;j++){
+    const label=document.createElement("label");label.textContent="コマンド "+(j+1);
+    const sel=document.createElement("select");
+    for(const [id,name] of Object.entries(COMMAND_LABELS)){
+     const opt=document.createElement("option");opt.value=id;opt.textContent=name;sel.append(opt);
+    }
+    sel.value=slot.commands[j];
+    sel.addEventListener("change",()=>{
+     decks[configId].setCommand(i,j,sel.value);slotSignature="";quick();
+    });
+    label.append(sel);cmds.append(label);
+   }
+   section.append(cmds);root.append(section);
   }
  }
  function selection(){const c=get();return {from:c.squad.get($("social-from").value),to:c.squad.get($("social-target").value)};}
@@ -301,6 +344,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function restore(data){
   social=new SocialEquipment(data?.social||null);headingUp=Boolean(data?.headingUp);
+  decks=Object.fromEntries(["player","scout","artisan"].map(id=>
+   [id,new ActionSlots(data?.actionDecks?.[id]||null,social.actor(id))]));
+  lastActiveActor=null;
   choice={player:"male",scout:"female",artisan:"male"};
   for(const id of Object.keys(choice))if(["male","female","classic"].includes(data?.choice?.[id]))choice[id]=data.choice[id];
   // Old saves have no source setting; never silently use stale browser-local GLBs.
@@ -312,7 +358,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   slotSignature="";quick();updateCamera();
   $("frontier-glb-choice").value=choice[$("frontier-glb-actor").value]||"male";
  }
- function snapshot(){return {social:social.snapshot(),headingUp,choice:{...choice},modelSource,modelQuality};}
+ function snapshot(){return {social:social.snapshot(),
+  actionDecks:Object.fromEntries(Object.entries(decks).map(([id,d])=>[id,d.snapshot()])),
+  headingUp,choice:{...choice},modelSource,modelQuality};}
  async function loadModels(renderer,{force=false}={}){
   const token=++modelLoadId,summary=[],status=$("frontier-glb-status");
   status.dataset.state="loading";
@@ -343,6 +391,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    " / "+summary.join(" / ")+(failed?"。失敗した人物は従来モデルになります。":"。");
  }
  $("quick-use").addEventListener("click",useItem);
+ $("combat-auto-target").addEventListener("change",()=>{
+  decks[configId].autoTarget=$("combat-auto-target").checked;updateTarget();
+ });
  $("hand-right-use").addEventListener("click",()=>useHand("right"));
  $("hand-left-use").addEventListener("click",()=>useHand("left"));
  $("quick-inventory").addEventListener("click",()=>get().lifeUI?.open("inventory"));
@@ -414,11 +465,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  window.addEventListener("keydown",e=>{
   if(e.target?.closest?.("input,select,textarea,[contenteditable=true]"))return;
   const c=get();if(!c.squad)return;
-  if(/^[1-5]$/.test(e.key)){social.select(actor().id,Number(e.key)-1);slotSignature="";quick();}
+  if(/^[1-5]$/.test(e.key)){selectDeck(Number(e.key)-1);}
   if(e.key.toLowerCase()==="u"){e.preventDefault();useItem();}
   if(e.key.toLowerCase()==="r"){e.preventDefault();useHand("right");}
   if(e.key.toLowerCase()==="l"){e.preventDefault();useHand("left");}
  });
  return {quick,restore,snapshot,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
+  updateTarget,selectTargetAt,isCombat,
   attackVariantFor:(id,kind)=>social.attackVariant(id,kind)};
 }
