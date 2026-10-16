@@ -2,7 +2,7 @@
  * Pure model: proximity is evaluated in the same metre-space as SquadEngine.
  */
 export const ITEM_OPTIONS=Object.freeze([
- ["none","— 空き","▫️"],["sword","剣","⚔️"],["axe","斧","🪓"],
+ ["none","— 空き","▫️"],["sword","剣","⚔️"],["axe","斧","🪓"],["bow","弓","🏹"],["arrow","矢","➶"],
  ["pickaxe","つるはし","⛏️"],["book","本","📖"],["cup","コップ","🥛"],
  ["bowl","椀","🥣"],["spoon","スプーン","🥄"],["meal","料理","🍲"],
  ["water","水","💧"],["wood","木材","🪵"],["stone","石","🪨"],
