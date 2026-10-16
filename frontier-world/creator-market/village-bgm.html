@@ -1,0 +1,172 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frontier World — 村のBGMと音楽マーケット</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,"Hiragino Sans",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:#101e26;color:#f7f5ec}header,main{max-width:900px;margin:auto;padding:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:1.42rem}h2{font-size:1.1rem;margin:0 0 10px}
+section,.item{background:#203039;padding:14px;border:1px solid #64818a;border-radius:12px;margin:12px 0}
+.item{background:#2a3b44}.muted{color:#bdd0d8;line-height:1.55}.hint{font-size:.86rem}button,a.btn{font:inherit;color:#fff;background:#31566e;border:1px solid #9cbdc8;border-radius:8px;padding:9px 12px;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.45}a.btn.secondary,button.secondary{background:#273943}.flex{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px}
+input,select{width:100%;font:inherit;border:1px solid #8da5b2;border-radius:8px;background:#101a20;color:white;padding:10px}
+label{display:block;margin:9px 0}.error{color:#ffa99f}.success{color:#97edbf}#status{white-space:pre-wrap}
+</style></head><body>
+<header><div><h1>🏡 村のBGM・音楽マーケット</h1><div class="muted">気に入った曲を購入すると紹介者と作り手にコインが届きます</div></div>
+<div class="flex"><a class="btn secondary" href="../">ゲームへ</a><a class="btn secondary" href="./">共用マーケットへ</a><a class="btn secondary" href="music-download.html">💿 保存した曲</a></div></header>
+<main>
+<section><div class="flex"><b id="identity">接続しています…</b><button id="login">GitHubでログイン</button><button id="logout" class="secondary" hidden>ログアウト</button></div><p class="muted hint">村で曲を聴くだけならログイン不要です。購入・BGM設定にはオンライン市場のGitHubログインが必要です。</p></section>
+<p id="status" role="status" aria-live="polite"></p>
+<section id="ownerPanel" hidden>
+<h2>🎶 自分の村にBGMを設定</h2>
+<p class="muted">購入済みまたは自作・共同制作した公開楽曲から選択します。曲の設定は無料。ほかの人が初めて購入すると紹介販売の報酬が入ります。</p>
+<label>村の名前<input id="villageName" maxlength="60" value="音楽のある村"></label>
+<label>流す楽曲<select id="ownedTrack"></select></label>
+<button id="setTrack">🌍 この曲を村のBGMにする</button> <button class="secondary" id="removeTrack">公開設定を取り消す</button>
+<p id="share" class="muted"></p>
+</section>
+<section><h2>🗺️ 音楽が聴ける村を訪ねる</h2><p class="muted hint">現在はオンライン音楽の試聴・紹介用ポータルです。プレイヤーのアバターが他人の村へ移動するオンライン同期は別実装です。</p>
+<div id="villages">村を読み込み中です…</div></section>
+<section id="selected" hidden><h2>🎵 村で流れている曲</h2><div id="trackInfo"></div><div class="flex"><button id="preview">▶ BGMを試聴（冒頭8音）</button><button id="buy">🪙 購入して保存する</button><a class="btn secondary" id="savePurchased" href="music-download.html" hidden>💿 購入済み曲を保存</a></div>
+<p class="muted hint">試聴は8音だけ。購入後、ライセンス付きWAV・MIDI・MusicXMLを何度でも追加料金なしで保存できます。購入は確認操作後に一度だけ処理します。</p></section>
+<section><h2>💰 村経由の売上配分</h2><p>初めて購入される100Gの楽曲なら、<b>紹介販売者10G・作曲／音源制作の権利者70G・マーケット20G</b>が基本配分。権利者70Gは、承諾済み共同制作者の設定した比率で分かれます。</p>
+<p class="muted hint">このGは既存のオンラインβ口座で、ゲーム内所持金とは別です。同じ曲を購入済みなら再ダウンロードは0Gで、紹介手数料も二重発生しません。</p></section>
+</main>
+<script type="module">
+const PUBLIC_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
+const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm');
+const db=createClient('https://htwcscrllohavtbejhjr.supabase.co',PUBLIC_KEY,{
+ auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
+const $=id=>document.getElementById(id);
+const state={session:null,villages:[],works:[],purchases:[],splits:[],current:null,preview:null,audio:null};
+const qs=new URLSearchParams(location.search);
+const initialVillage=qs.get('village');
+const initialTrack=qs.get('track');
+function say(t,bad){$('status').textContent=t;$('status').className=bad?'error':'success';}
+function clear(node){node.replaceChildren();}
+function button(text,fn){const x=document.createElement('button');x.type='button';x.textContent=text;x.addEventListener('click',fn);return x;}
+function text(tag,content){const x=document.createElement(tag);x.textContent=content;return x;}
+const uuidOK=s=>/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(String(s||''));
+function urlFor(owner){return location.origin+location.pathname+'?village='+encodeURIComponent(owner);}
+function short(s){return String(s||'').slice(0,8);}
+async function readVillage(owner){
+ if(!uuidOK(owner))throw Error('村の識別子が正しくありません。');
+ const r=await db.rpc('fw_creator_village_bgm_preview',{p_seller_id:owner});
+ if(r.error)throw r.error;
+ if(!r.data?.found)throw Error('この村のBGMは公開されていません。');
+ state.preview=r.data;state.current=owner;
+ $('selected').hidden=false;
+ const card=$('trackInfo');clear(card);
+ card.append(text('b',r.data.village_name),text('p','🎼 '+r.data.title),text('p','価格 '+r.data.price_g+'G / '+(r.data.description||'オリジナル曲')));
+ const buyer=state.session?.user?.id;
+ const owned=state.purchases.some(p=>p.work_id===r.data.work_id)||
+  state.works.some(w=>w.id===r.data.work_id&&w.creator_id===buyer)||
+  state.splits.some(s=>s.work_id===r.data.work_id&&s.collaborator_id===buyer&&s.accepted_at);
+ $('buy').disabled=!state.session||owned||buyer===owner;
+ $('buy').textContent=!state.session?'🔒 購入にはログインが必要':owned?'✅ 購入・制作済み':buyer===owner?'自分の村は購入不要':'🪙 '+r.data.price_g+'Gで購入';
+ $('savePurchased').hidden=!owned;
+ $('savePurchased').href='music-download.html?work='+encodeURIComponent(r.data.work_id);
+ $('selected').scrollIntoView({behavior:'smooth',block:'start'});
+ history.replaceState(null,'',urlFor(owner));
+}
+async function visit(owner){
+ try{await readVillage(owner);say('🏡 村のBGMを表示しました。▶を押して試聴できます。');}
+ catch(e){say('村を開けませんでした：'+e.message,true);}
+}
+async function load(){
+ const s=await db.auth.getSession();if(s.error)throw s.error;state.session=s.data.session;
+ const logged=!!state.session;$('login').hidden=logged;$('logout').hidden=!logged;$('ownerPanel').hidden=!logged;
+ $('identity').textContent=logged?'ログイン中：'+(state.session.user.user_metadata?.user_name||state.session.user.email||short(state.session.user.id)):'未ログイン（試聴できます）';
+ if(logged){
+  const uid=state.session.user.id;
+  const res=await Promise.all([
+   db.from('fw_creator_works').select('id,creator_id,title,kind,status').eq('kind','music').eq('status','active').limit(200),
+   db.from('fw_creator_purchases').select('work_id').eq('buyer_id',uid).limit(200),
+   db.from('fw_creator_splits').select('work_id,collaborator_id,accepted_at').eq('collaborator_id',uid).limit(100)
+  ]);
+  res.forEach(r=>{if(r.error)throw r.error;});
+  [state.works,state.purchases,state.splits]=res.map(r=>r.data||[]);
+  const owned=state.works.filter(w=>w.creator_id===uid||state.purchases.some(p=>p.work_id===w.id)||
+   state.splits.some(x=>x.work_id===w.id&&x.accepted_at));
+  const list=$('ownedTrack'),before=list.value;clear(list);
+  owned.forEach(w=>{const option=document.createElement('option');option.value=w.id;option.textContent=w.title;list.append(option);});
+  if(owned.some(w=>w.id===initialTrack))list.value=initialTrack;
+  else if(owned.some(w=>w.id===before))list.value=before;
+  $('setTrack').disabled=owned.length===0;
+  if(!owned.length)$('share').textContent='公開可能な楽曲がありません。先に楽曲を購入・出品してください。';
+ }
+ await loadVillages();
+ if(initialVillage&&uuidOK(initialVillage))await visit(initialVillage);
+ else if(state.current)await visit(state.current);
+}
+async function loadVillages(){
+ const r=await db.from('fw_creator_village_bgm').select('owner_id,work_id,village_name,updated_at').eq('enabled',true).order('updated_at',{ascending:false}).limit(60);
+ if(r.error)throw r.error;
+ state.villages=r.data||[];
+ const box=$('villages');clear(box);
+ if(!state.villages.length){box.append(text('p','現在BGMを公開している村はありません。'));return;}
+ for(const v of state.villages){
+  const row=document.createElement('div');row.className='item flex';
+  row.append(text('b','🏡 '+v.village_name),button('🎧 訪ねる・試聴',()=>visit(v.owner_id)));
+  box.append(row);
+  if(state.session?.user?.id===v.owner_id)
+   $('share').textContent='あなたの村の共有URL：'+urlFor(v.owner_id);
+ }
+}
+$('setTrack').addEventListener('click',async()=>{
+ try{
+  const id=$('ownedTrack').value,village=$('villageName').value.trim();
+  if(!id)throw Error('公開する曲がありません。');
+  const r=await db.rpc('fw_creator_set_village_bgm',{p_work_id:id,p_village_name:village});
+  if(r.error)throw r.error;
+  say('🌍 '+village+' のBGMを公開しました。訪問者に共有できます。');
+  await loadVillages();await visit(state.session.user.id);
+ }catch(e){say('BGMを設定できません：'+e.message,true);}
+});
+$('removeTrack').addEventListener('click',async()=>{
+ if(!confirm('村の公開BGMを取り消しますか？'))return;
+ const r=await db.rpc('fw_creator_clear_village_bgm');
+ if(r.error){say(r.error.message,true);return;}
+ say('村の公開BGMを取り消しました。');$('share').textContent='';$('selected').hidden=true;await loadVillages();
+});
+$('buy').addEventListener('click',async()=>{
+ const p=state.preview;if(!p||!state.session)return;
+ if(!confirm('「'+p.title+'」を'+p.price_g+'Gで購入しますか？\n販売者10%・作曲者/音源製作者など70%・運営20%へコインが分配されます。'))return;
+ const btn=$('buy');btn.disabled=true;
+ const key=crypto.randomUUID();
+ try{
+  const r=await db.rpc('fw_creator_buy_village_bgm',{p_seller_id:state.current,p_request_id:key,p_expected_work_id:p.work_id,p_expected_price_g:p.price_g});
+  if(r.error)throw r.error;
+  say('✅ 購入成立：'+r.data.price_g+'G。販売者 '+(r.data.seller_g||0)+'G / 権利者 '+(r.data.creators_g||0)+'G / 運営 '+(r.data.market_g||0)+'G を精算しました。');
+  await load();
+  $('savePurchased').hidden=false;
+  $('savePurchased').href='music-download.html?work='+encodeURIComponent(p.work_id);
+ }catch(e){say('購入できませんでした：'+e.message,true);btn.disabled=false;}
+});
+$('preview').addEventListener('click',async()=>{
+ const p=state.preview;
+ if(!p||!Array.isArray(p.preview)||!p.preview.length){say('試聴用の音符がありません。',true);return;}
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio)throw Error('このブラウザでは音を鳴らせません。');
+  if(state.audio){await state.audio.close().catch(()=>{});}
+  const c=new Audio();state.audio=c;await c.resume();
+  const start=c.currentTime+.08;
+  p.preview.slice(0,8).forEach((n,i)=>{
+   const pitch=Number(n.pitch);if(!Number.isFinite(pitch)||pitch<24||pitch>108)return;
+   const tm=start+i*.36,osc=c.createOscillator(),gain=c.createGain();
+   osc.frequency.value=440*Math.pow(2,(pitch-69)/12);osc.type='triangle';
+   gain.gain.setValueAtTime(.001,tm);
+   gain.gain.exponentialRampToValueAtTime(.14,tm+.04);
+   gain.gain.exponentialRampToValueAtTime(.001,tm+.31);
+   osc.connect(gain);gain.connect(c.destination);osc.start(tm);osc.stop(tm+.33);
+  });
+  say('🎼 「'+p.title+'」の冒頭8音を試聴しています。');
+ }catch(e){say('試聴できませんでした：'+e.message,true);}
+});
+$('login').addEventListener('click',async()=>{
+ const r=await db.auth.signInWithOAuth({provider:'github',options:{redirectTo:location.origin+location.pathname+location.search}});
+ if(r.error)say(r.error.message,true);
+});
+$('logout').addEventListener('click',async()=>{await db.auth.signOut();state.purchases=[];state.splits=[];state.works=[];await load();});
+load().catch(e=>say('通信エラー：'+e.message,true));
+</script></body></html>

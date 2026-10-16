@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frontier World 仕様書</title>
+<style>
+:root{color-scheme:dark;background:#101418;color:#e8edf2;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{margin:0}.wrap{max-width:980px;margin:auto;padding:24px 16px 60px}
+header{position:sticky;top:0;background:rgba(16,20,24,.94);backdrop-filter:blur(8px);padding:14px 0;border-bottom:1px solid #33404a;z-index:2}
+h1{font-size:24px;margin:0 0 8px}.links{display:flex;gap:8px;flex-wrap:wrap}
+a{color:#86c7ff}button,a.btn{background:#202a32;border:1px solid #40505d;border-radius:10px;padding:8px 12px;color:#e8edf2;text-decoration:none}
+pre{white-space:pre-wrap;word-break:break-word;line-height:1.6;background:#151b20;border:1px solid #303b44;border-radius:14px;padding:18px;min-height:65vh}
+.small{color:#9eb0bc;font-size:13px}
+</style>
+</head>
+<body><div class="wrap">
+<header><h1>Frontier World — 最新仕様書</h1>
+<div class="links">
+<a class="btn" href="../">🎮 ゲーム</a>
+<a class="btn" href="../SPEC.md">SPEC.md</a>
+<a class="btn" href="../COLLAB.md">COLLAB.md</a>
+<a class="btn" href="../project-state.json">project-state.json</a>
+<a class="btn" href="../data/dialogue-pack.json">dialogue-pack.json</a>
+</div><div class="small">SPEC.md を直接読み込んで表示しています。GitHub側で更新するとこのページも最新になります。</div></header>
+<pre id="spec">仕様書を読み込み中…</pre>
+</div>
+<script>
+fetch('../SPEC.md',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.text()})
+.then(t=>document.getElementById('spec').textContent=t)
+.catch(e=>document.getElementById('spec').textContent='仕様書を読み込めませんでした: '+e);
+</script></body></html>

@@ -1,50 +1,3091 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Universal Engine | Multiverse Labs</title>
-<style>
-:root{font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;color:#deecf4;background:#071728}
-*{box-sizing:border-box}body{margin:0}
-.wrap{max-width:990px;margin:auto;padding:28px 18px}
-header{padding:55px 0 31px;background:linear-gradient(120deg,#0b1d31,#18475e)}
-.eyebrow{font-size:11px;letter-spacing:.19em;color:#7fd3e4;font-weight:800}
-h1{font-size:clamp(32px,6vw,56px);letter-spacing:-.04em;margin:12px 0}
-header p{color:#b4d0db;font-size:15px;line-height:1.75;max-width:640px}
-h2{font-size:19px;margin:0 0 8px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px}
-.card{display:block;text-decoration:none;background:#122b40;border:1px solid #35566c;border-radius:17px;padding:23px;color:#ecf7fc;min-height:185px}
-.card:hover,.card:focus-visible{background:#1b3e56;outline:2px solid #58b3d1}
-.tag{display:inline-block;font-size:10px;color:#7ee0eb;margin-bottom:12px;letter-spacing:.1em}
-.card p{font-size:13px;line-height:1.75;color:#b3cfdb}
-.action{font-size:13px;color:#7fe0ed;font-weight:750}
-h3{font-size:14px;margin:25px 0 10px}
-.links a{display:inline-block;color:#9bd4e9;font-size:13px;margin-right:25px;margin-bottom:12px}
-footer{font-size:11px;color:#688a9c;line-height:1.8;border-top:1px solid #294558;margin-top:25px;padding-top:20px}
-@media(max-width:620px){.grid{grid-template-columns:1fr}header{padding:34px 0 20px}.card{min-height:0}}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Kamoku World Monitor</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="./globe.mjs"></script>
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#08111f;--panel:#0f1b2d;--panel2:#13233a;--line:#263a55;
+      --text:#e8eef7;--muted:#91a2ba;--accent:#58a6ff;--good:#54d18b;
+      --warn:#f5c76b;--bad:#ff7b72;--shadow:0 12px 40px rgba(0,0,0,.22);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+    body{min-height:100vh}
+    header{position:sticky;top:0;z-index:20;background:rgba(8,17,31,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+    .top{max-width:1500px;margin:auto;padding:7px 12px 6px;display:flex;gap:10px;align-items:center;justify-content:space-between;min-height:48px}
+    .stamp{font-size:12px;color:var(--muted);line-height:1.55}
+    .kamoku-wordmark{display:flex;align-items:center;gap:7px;min-width:0}
+    .kamoku-type{font-size:25px;font-weight:850;letter-spacing:-.055em;line-height:1;background:linear-gradient(90deg,#77c9ff,#28d0c7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .kamoku-mark{width:25px;height:25px;border:2px solid #23bcc6;border-radius:50%;position:relative;flex:0 0 auto;box-shadow:inset 0 0 12px rgba(35,188,198,.18)}
+    .kamoku-mark:before{content:"";position:absolute;left:50%;top:50%;width:5px;height:5px;background:#67e3df;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px #67e3df}
+    .kamoku-mark:after{content:"";position:absolute;left:50%;top:50%;width:10px;height:2px;background:#49ced3;transform-origin:left center;transform:rotate(-35deg)}
+    .icon-btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;width:38px;height:34px;padding:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
+    nav{max-width:1500px;margin:auto;padding:0 10px 7px;display:flex;gap:7px;overflow:auto}
+    nav button,.chip,select,input{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px}
+    nav button{padding:8px 13px;white-space:nowrap;cursor:pointer}
+    nav button.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    main{max-width:1500px;margin:auto;padding:18px}
+    .view{display:none}.view.active{display:block}
+    .grid{display:grid;gap:14px}.grid.cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .grid.two{grid-template-columns:1.4fr .6fr}
+    .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:var(--shadow);min-width:0}
+    .card h2,.card h3{margin:0 0 8px}
+    .eyebrow{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .big{font-size:27px;font-weight:750;line-height:1.2}
+    .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px}
+    label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+    select,input{padding:9px 10px;min-width:180px}
+    .chart{width:100%;min-height:420px}.chart.small{min-height:320px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+    th:first-child,td:first-child{text-align:left}
+    th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel)}
+    .tablewrap{max-height:520px;overflow:auto;border-radius:10px}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .metric{border:1px solid var(--line);border-radius:12px;padding:11px;background:rgba(255,255,255,.02)}
+    .metric .name{font-size:12px;color:var(--muted);min-height:32px}
+    .metric .value{font-size:20px;font-weight:700;margin:5px 0}
+    .metric .meta{font-size:11px;color:var(--muted)}
+    .delta{font-size:11px;margin-top:4px}
+    .pill{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--muted)}
+    .note{font-size:12px;line-height:1.6;color:var(--muted)}
+    .error{padding:18px;border:1px solid var(--bad);border-radius:12px;color:#ffd2cf;background:#2b1519}
+    .loading{padding:40px;text-align:center;color:var(--muted)}
+    .section-title{display:flex;justify-content:space-between;gap:10px;align-items:end;margin:8px 0 12px}
+    .section-title h2{margin:0}
+    .statline{display:flex;gap:8px;flex-wrap:wrap}
+    .ai-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+    .ai-tabs button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;padding:8px 12px;cursor:pointer}
+    .ai-tabs button.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    .ai-subview{display:none}.ai-subview.active{display:block}
+    .signal-buy{color:var(--good)}.signal-sell{color:var(--bad)}.signal-hold{color:var(--warn)}
+    .codebox{white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;background:#071322;border:1px solid var(--line);border-radius:10px;padding:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+    textarea{width:100%;min-height:180px;border:1px solid var(--line);background:#081522;color:var(--text);border-radius:10px;padding:10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+    .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .action-row button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;cursor:pointer}
+    .action-row button.primary-action{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    .warnbox{padding:10px;border:1px solid #6e5926;border-radius:10px;background:#221b0b;color:#f1d27d;font-size:12px;line-height:1.6}
+    .globe{width:100%;height:min(66vh,650px);min-height:430px;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
+    .sim-controls{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+    .sim-controls button,.mode-btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;cursor:pointer}
+    .mode-btn.active{background:var(--accent);color:#06111f;border-color:var(--accent);font-weight:700}
+    .trade-log{max-height:250px;overflow:auto}
+    .positive{color:var(--good)}.negative{color:var(--bad)}
+    .lang-switch{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+    .lang-switch button{border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);padding:7px 9px;font-size:11px;cursor:pointer}
+    .lang-switch button:last-child{border-right:0}
+    .lang-switch button.active{background:var(--accent);color:#06111f;font-weight:750}
+    .terrain-control{min-width:190px}
+    .terrain-control input[type="range"]{min-width:190px;width:190px;padding:0}
+    .terrain-toggle{display:flex;align-items:center;gap:7px;min-height:39px;padding:0 2px}
+    .terrain-toggle input{min-width:auto;width:auto}
+    .terrain-center{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:9px 11px;cursor:pointer}
+    .globe-control-panel{margin-top:12px;border:1px solid var(--line);border-radius:14px;padding:12px;background:rgba(5,14,26,.72)}
+    .globe-control-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+    .globe-control-title{font-weight:750}
+    .globe-gesture-help{font-size:11px;color:var(--muted);line-height:1.55}
+    .globe-dial-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:9px}
+    .globe-dial{border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.025);text-align:center;min-width:0}
+    .globe-dial-label{font-size:10px;color:var(--muted);min-height:26px;display:flex;align-items:center;justify-content:center}
+    .dial-wheel{width:62px;height:62px;margin:5px auto;position:relative;border-radius:50%;touch-action:none;cursor:ns-resize;background:radial-gradient(circle at 50% 50%,#152945 0 36%,#0c1828 37% 55%,#1f3855 56% 60%,#08111f 61%);box-shadow:inset 0 0 0 1px #35506f,0 5px 14px rgba(0,0,0,.28)}
+    .dial-wheel:before{content:"";position:absolute;inset:4px;border-radius:50%;background:repeating-conic-gradient(from -2deg,#6f8cab 0 1deg,transparent 1deg 10deg);opacity:.5;mask:radial-gradient(circle,transparent 0 58%,#000 60%)}
+    .dial-pointer{position:absolute;left:50%;top:5px;width:3px;height:22px;border-radius:3px;background:var(--accent);transform-origin:50% 26px;box-shadow:0 0 8px rgba(88,166,255,.75)}
+    .dial-value{font-size:13px;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .dial-entry{width:100%;min-width:0!important;margin-top:5px;padding:6px 5px!important;text-align:center;font-size:11px;cursor:pointer;background:#091727!important}
+    .keypad-overlay{position:fixed;inset:0;z-index:220;background:rgba(2,7,14,.78);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(8px)}
+    .keypad-box{width:min(360px,100%);background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 20px 70px rgba(0,0,0,.5)}
+    .keypad-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .keypad-title{font-weight:750}.keypad-close{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:9px;padding:6px 10px}
+    .keypad-display{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:#071322;color:var(--text);font-size:24px;text-align:right;font-variant-numeric:tabular-nums;overflow:hidden}
+    .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+    .keypad-key{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:11px;padding:14px 8px;font-size:18px;font-weight:700;cursor:pointer}
+    .keypad-key.execute{background:var(--accent);color:#06111f}.keypad-key.utility{font-size:13px;color:var(--muted)}
+    .keypad-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .globe-param-layout{display:grid;grid-template-columns:minmax(112px,.72fr) minmax(180px,1.28fr);gap:12px;align-items:stretch}
+    .globe-param-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;align-content:start}
+    .globe-param-btn{border:1px solid var(--line);background:#0a1728;color:var(--text);border-radius:11px;padding:9px 6px;min-height:48px;cursor:pointer;text-align:center;display:grid;gap:2px;align-content:center}
+    .globe-param-btn b{font-size:14px;letter-spacing:.04em}.globe-param-btn small{font-size:9px;color:var(--muted);line-height:1.15}
+    .globe-param-btn.active{background:var(--accent);border-color:var(--accent);color:#06111f;box-shadow:0 0 0 2px rgba(88,166,255,.16)}
+    .globe-param-btn.active small{color:#17324e}
+    .globe-master-dial{border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025);padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0}
+    .globe-master-label{font-size:12px;color:var(--muted);min-height:19px;text-align:center}
+    .master-dial-wheel{width:154px;height:154px;margin:8px auto;position:relative;border-radius:50%;touch-action:none;cursor:ns-resize;background:radial-gradient(circle at 50% 50%,#172b47 0 31%,#0b1829 32% 51%,#24415f 52% 55%,#08111f 56%);box-shadow:inset 0 0 0 1px #456485,0 8px 24px rgba(0,0,0,.34)}
+    .master-dial-wheel:before{content:"";position:absolute;inset:6px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#91abc3 0 1deg,transparent 1deg 7.5deg);opacity:.55;mask:radial-gradient(circle,transparent 0 58%,#000 60%)}
+    .master-dial-wheel:after{content:"";position:absolute;inset:29px;border-radius:50%;border:1px solid rgba(130,171,209,.24);pointer-events:none}
+    .master-dial-pointer{position:absolute;left:50%;top:9px;width:4px;height:49px;border-radius:4px;background:var(--accent);transform-origin:50% 68px;box-shadow:0 0 10px rgba(88,166,255,.78);z-index:2}
+    .master-dial-center{position:absolute;inset:45px;border-radius:50%;display:grid;place-items:center;background:#0a1728;border:1px solid #34506e;z-index:1}
+    .master-dial-center-value{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;padding:4px}
+    .globe-master-entry{width:min(190px,100%);min-width:0!important;margin-top:3px;text-align:center;font-size:15px!important;font-variant-numeric:tabular-nums;cursor:pointer;background:#091727!important}
+    .globe-dial-hint{font-size:10px;color:var(--muted);margin-top:7px;text-align:center;line-height:1.35}
+    @media(max-width:620px){
+      .globe-param-layout{grid-template-columns:112px minmax(0,1fr);gap:9px}
+      .globe-param-buttons{grid-template-columns:1fr}
+      .globe-param-btn{min-height:42px;padding:6px 4px}
+      .globe-param-btn small{display:none}
+      .master-dial-wheel{width:min(43vw,168px);height:min(43vw,168px)}
+      .master-dial-pointer{height:calc(min(43vw,168px)*.32);transform-origin:50% calc(min(43vw,168px)*.44)}
+      .master-dial-center{inset:29%}
+    }
+    @media(max-width:620px){.globe-dial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dial-wheel{width:68px;height:68px}.globe{min-height:440px}}
+    @media(max-width:620px){.top{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}.lang-switch button{padding:6px 8px}}
+    @media(max-width:1000px){
+      .grid.cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .grid.two{grid-template-columns:1fr}
+      .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:620px){
+      main{padding:12px}.top{padding:12px}.grid.cards{grid-template-columns:1fr 1fr}
+      .metric-grid{grid-template-columns:1fr}.chart{min-height:360px}
+      .big{font-size:22px}select,input{min-width:145px;max-width:100%}
+    }
+  .auth-overlay{position:fixed;inset:0;z-index:100;background:rgba(3,8,16,.94);display:none;align-items:center;justify-content:center;padding:18px}
+    .auth-box{width:min(460px,100%);background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+    .auth-box h2{margin:0 0 6px}.auth-box p{color:var(--muted);font-size:13px;line-height:1.55}
+    .auth-box form{display:grid;gap:10px}.auth-box input{width:100%;min-width:0}
+    .auth-box button,.logout{border:1px solid var(--line);background:var(--accent);color:#06111f;border-radius:10px;padding:10px 13px;font-weight:700;cursor:pointer}
+    .auth-box details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+    .auth-error{color:#ffb4ad;font-size:12px;min-height:18px}
+    .logout{background:transparent;color:var(--text);padding:7px 10px;font-size:12px}
+    .splash-screen{position:fixed;inset:0;z-index:500;display:grid;place-items:center;background:#f8fbfd;opacity:1;transition:opacity .38s ease;overflow:hidden}
+    .splash-screen.hiding{opacity:0;pointer-events:none}
+    .splash-lockup{text-align:center;color:#062f58;transform:translateY(-2vh);animation:splashIn .75s ease both}
+    .splash-radar{width:min(52vw,250px);aspect-ratio:1;margin:0 auto 12px;border-radius:50%;position:relative;background:radial-gradient(circle at 50% 50%,#34d5cf 0 3%,transparent 4% 14%,#2bc9d0 15% 16%,transparent 17% 28%,#1fb6c5 29% 30%,transparent 31%),radial-gradient(circle at 35% 32%,#0d789f,#04345f 64%,#021b39);border:10px solid #0c5d86;box-shadow:0 0 0 13px #f8fbfd,0 0 0 24px #0a426f}
+    .splash-radar:before{content:"";position:absolute;inset:0;border-radius:50%;background:repeating-linear-gradient(90deg,transparent 0 24%,rgba(87,228,229,.38) 24.5% 25%,transparent 25.5% 49%),repeating-linear-gradient(0deg,transparent 0 24%,rgba(87,228,229,.34) 24.5% 25%,transparent 25.5% 49%);opacity:.75}
+    .splash-radar:after{content:"";position:absolute;left:50%;top:50%;width:43%;height:43%;transform-origin:0 0;transform:rotate(-48deg);background:conic-gradient(from -15deg,rgba(77,236,227,.74),rgba(77,236,227,.03) 48deg,transparent 49deg);border-radius:0 100% 0 0}
+    .splash-brand{font-size:min(18vw,88px);font-weight:900;letter-spacing:-.075em;line-height:.95;background:linear-gradient(90deg,#0c5c87,#062e5d);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .splash-sub{font-size:min(7vw,34px);letter-spacing:.29em;font-weight:300;margin-top:10px}
+    .splash-tag{font-size:min(2.8vw,13px);letter-spacing:.32em;margin-top:18px;color:#164f76}
+    @keyframes splashIn{from{opacity:0;transform:translateY(2vh) scale(.96)}to{opacity:1;transform:translateY(-2vh) scale(1)}}
+    .settings-overlay{position:fixed;inset:0;z-index:240;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(2,7,14,.76);backdrop-filter:blur(8px)}
+    .settings-box{width:min(430px,100%);background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 20px 70px rgba(0,0,0,.52)}
+    .settings-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .settings-title{font-size:18px;font-weight:800}.settings-close{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:9px;width:34px;height:34px}
+    .settings-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line)}
+    .settings-row .label{font-size:12px;color:var(--muted)}.settings-row .value{text-align:right;font-size:13px}
+    .settings-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+    .globe-stage{position:relative;border-radius:14px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#102b4a 0,#050c18 62%,#02060c 100%)}
+    .globe-stage .globe{border-radius:0}
+    .world-rank-panel{position:absolute;left:7px;top:7px;bottom:116px;width:min(28%,176px);z-index:5;border:1px solid rgba(79,112,148,.58);border-radius:11px;background:rgba(5,14,26,.94);overflow:hidden;display:flex;flex-direction:column;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+    .world-rank-head{flex:0 0 auto;padding:7px 8px 6px;font-size:10px;line-height:1.35;color:#b9c9db;font-weight:750;border-bottom:1px solid rgba(79,112,148,.38);white-space:normal}
+    .world-rank-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px;display:block;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    .world-rank-item{display:block;position:relative;overflow:hidden;border:0;border-radius:7px;background:rgba(13,30,50,.84);color:var(--text);padding:5px 6px;text-align:left;cursor:pointer;width:100%;height:42px;min-height:42px;max-height:42px;margin:0 0 4px;box-sizing:border-box;font:inherit;-webkit-appearance:none;appearance:none}
+    .world-rank-bar{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(55,199,205,.34),rgba(88,166,255,.20));pointer-events:none}
+    .world-rank-median{position:absolute;top:3px;bottom:3px;width:1px;background:rgba(255,255,255,.42);z-index:1;pointer-events:none}
+    .world-rank-content{position:relative;z-index:1;display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px;align-items:center;height:100%}
+    .world-rank-no{font-size:9px;line-height:1;color:#8da5bd;text-align:center}
+    .world-rank-name{font-size:10px;line-height:1.15;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .world-rank-value{font-size:9px;line-height:1.15;color:#d8e7f7;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+    @media(max-width:620px){
+      .world-rank-panel{width:31%;max-width:124px;bottom:112px}
+      .world-rank-item{height:40px;min-height:40px;max-height:40px;padding:4px 5px;margin-bottom:3px}
+      .world-rank-name{font-size:9.5px}.world-rank-value{font-size:8.5px}
+      .world-rank-content{grid-template-columns:15px minmax(0,1fr)}
+    }
+    .globe-control-panel{position:absolute;left:7px;right:7px;bottom:7px;z-index:6;margin:0;border:0;border-radius:13px;padding:6px;background:transparent;backdrop-filter:none;pointer-events:none;transition:transform .18s ease,opacity .18s ease}
+    .globe-param-layout{display:grid;grid-template-columns:minmax(0,1fr) 126px;gap:7px;align-items:end}
+    .globe-param-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;align-content:end;pointer-events:auto}
+    .globe-param-btn{border:1px solid rgba(96,129,164,.65);background:rgba(7,20,35,.80);color:var(--text);border-radius:8px;padding:3px 2px;min-height:31px;cursor:pointer;text-align:center;display:grid;place-items:center}
+    .globe-param-btn b{font-size:10px;letter-spacing:.01em}.globe-param-btn small{display:none}
+    .globe-param-btn.active{background:rgba(88,166,255,.94);border-color:#79b8ff;color:#06111f;box-shadow:0 0 0 1px rgba(88,166,255,.22)}
+    .globe-master-dial{border:0;border-radius:12px;background:transparent;padding:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;pointer-events:auto}
+    .globe-master-label{font-size:9px;color:#b8c7d9;min-height:13px;text-align:center}
+    .master-dial-wheel{width:112px;height:112px;margin:2px auto;position:relative;border-radius:50%;touch-action:none;cursor:grab;background:radial-gradient(circle at 50% 50%,#172b47 0 31%,#0b1829 32% 51%,#24415f 52% 55%,#08111f 56%);box-shadow:inset 0 0 0 1px #456485,0 5px 16px rgba(0,0,0,.34)}
+    .master-dial-wheel:active{cursor:grabbing}
+    .master-dial-wheel:before{content:"";position:absolute;inset:5px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#91abc3 0 1deg,transparent 1deg 7.5deg);opacity:.72;mask:radial-gradient(circle,transparent 0 58%,#000 60%);transform:rotate(var(--dial-spin,0deg));transform-origin:50% 50%}
+    .master-dial-wheel:after{content:"";position:absolute;inset:22px;border-radius:50%;border:1px solid rgba(130,171,209,.24);pointer-events:none}
+    .master-dial-pointer{position:absolute;left:50%;top:7px;width:3px;height:24px;border-radius:4px;background:var(--accent);transform:translateX(-50%);box-shadow:0 0 9px rgba(88,166,255,.78);z-index:2}
+    .master-dial-center{position:absolute;inset:32px;border-radius:50%;display:grid;place-items:center;background:#0a1728;border:1px solid #34506e;z-index:3;padding:0}
+    .master-dial-center-value{border:0;background:transparent;color:var(--text);font-size:14px;font-weight:850;font-variant-numeric:tabular-nums;text-align:center;padding:0;width:100%;height:100%;border-radius:50%;cursor:pointer}
+    .globe-reset-mini{position:absolute;right:3px;top:-29px;width:28px;height:26px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.88);color:var(--text);pointer-events:auto}
+    .globe-axis-mini{position:absolute;right:66px;top:-29px;height:26px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.88);color:var(--text);pointer-events:auto;font-size:9px;font-weight:800;padding:0 7px}
+    .globe-axis-mini.active{background:var(--accent);color:#06111f}
+    .globe-fold-mini{position:absolute;right:34px;top:-29px;width:28px;height:26px;border:1px solid rgba(96,129,164,.7);border-radius:8px;background:rgba(7,20,35,.88);color:var(--text);pointer-events:auto}
+    .globe-control-panel.collapsed{left:auto;width:116px;right:7px;padding:0}
+    .globe-control-panel.collapsed .globe-param-layout{display:none}
+    .globe-control-panel.collapsed .globe-axis-mini{right:66px}
+    .globe-control-panel.collapsed .globe-fold-mini{right:34px}
+    .globe-control-panel.collapsed .globe-reset-mini{right:3px}
+    .globe-control-head,.globe-dial-hint,.globe-master-entry{display:none!important}
+    .world-card-head{align-items:center;margin-top:0}
+    .world-timeline{display:flex;align-items:center;gap:7px;margin:7px 0 9px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#091727}
+    .world-timeline.hidden{display:none}
+    .world-timeline button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;height:30px;min-width:36px;padding:0 8px;cursor:pointer}
+    .world-timeline input[type="range"]{flex:1;min-width:80px;padding:0}
+    .world-year-label{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+    .world-country-preview{position:absolute;right:10px;top:10px;z-index:9;display:none;max-width:min(58%,260px);border:1px solid #4a6c91;border-radius:12px;background:rgba(6,17,31,.95);color:var(--text);padding:10px 12px;text-align:left;box-shadow:0 12px 28px rgba(0,0,0,.38);cursor:pointer}
+    .world-country-preview .name{font-size:14px;font-weight:850;line-height:1.2}
+    .world-country-preview .value{font-size:18px;font-weight:850;margin-top:4px;font-variant-numeric:tabular-nums}
+    .world-country-preview .meta{font-size:10px;color:var(--muted);margin-top:4px}
+    .world-country-preview .hint{font-size:9px;color:#8fb9e6;margin-top:6px}
+    @media(max-width:620px){.world-timeline{margin:5px 0 7px;padding:5px 6px}.world-country-preview{right:7px;top:7px;max-width:56%;padding:8px 10px}}
+    .world-title-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+    .world-compact-select{min-width:0!important;width:auto;max-width:46vw;padding:6px 28px 6px 8px;font-size:13px;font-weight:700;background:#0b192b;border-radius:9px}
+    .world-mode-title{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
+    .settings-section{border-top:1px solid var(--line);padding-top:12px;margin-top:6px}
+    .settings-section-title{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:9px;letter-spacing:.04em}
+    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .settings-grid label{min-width:0}.settings-grid select,.settings-grid input{min-width:0;width:100%}
+    .settings-check{display:flex!important;align-items:center;gap:8px;min-height:38px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;background:#0a1728}
+    .settings-check input{min-width:auto!important;width:auto!important}
+    .settings-slider{grid-column:1/-1}
+    .settings-slider input[type="range"]{padding:0}
+    @media(max-width:620px){
+      .world-card-head{gap:6px}.world-title-controls{gap:4px}
+      .world-compact-select{font-size:12px;max-width:42vw;padding:5px 25px 5px 7px}
+      .world-mode-title{font-size:11px}
+      .settings-grid{grid-template-columns:1fr 1fr}
+    }
+    @media(max-width:620px){
+      .top{padding:6px 9px 5px}.kamoku-type{font-size:23px}.kamoku-mark{width:23px;height:23px}
+      nav{padding:0 7px 6px;gap:6px}nav button{padding:7px 11px;font-size:12px}
+      .lang-switch button{padding:5px 7px;font-size:10px}
+      .globe-param-layout{grid-template-columns:minmax(0,1fr) 112px;gap:5px}
+      .globe-param-buttons{gap:3px}.globe-param-btn{min-height:28px}.globe-param-btn b{font-size:9px}
+      .master-dial-wheel{width:102px;height:102px}
+      .master-dial-pointer{height:31px;transform-origin:50% 44px}
+      .master-dial-center{inset:29px}
+      .splash-radar{width:min(51vw,220px)}
+    }
+
+    .news-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin-bottom:12px}
+    .news-list{display:grid;gap:9px}
+    .news-item{display:block;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:rgba(255,255,255,.025);text-decoration:none;color:var(--text)}
+    .news-item:hover{border-color:#4d6f96;background:rgba(255,255,255,.04)}
+    .news-title{font-size:14px;font-weight:750;line-height:1.45;margin-bottom:6px}
+    .news-meta{display:flex;gap:7px;flex-wrap:wrap;color:var(--muted);font-size:11px}
+    .news-meta span{border:1px solid rgba(89,119,151,.45);border-radius:999px;padding:2px 6px}
+    .news-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+    .news-tags span{font-size:10px;color:#bad8fb;background:#0a1b2f;border:1px solid #294562;border-radius:999px;padding:2px 6px}
+    .news-network-note{font-size:11px;color:var(--muted);line-height:1.55;margin-top:8px}
+    @media(max-width:620px){.news-title{font-size:13px}.news-item{padding:10px}.news-toolbar select{min-width:130px}}
+  </style>
 </head>
 <body>
-<header><div class="wrap"><div class="eyebrow">UNIVERSAL ENGINE</div><h1>Multiverse Labs</h1>
-<p>架空の惑星・人・物理・環境を動かす独立シミュレーション基盤。現実を投影するKamoku Monitorと、既存Frontier Worldには接続しません。</p></div></header>
-<main class="wrap">
-<div class="grid">
-<a class="card" href="./versions/v0.6/planet-explorer/"><span class="tag">V0.6 / STABLE ARCHIVE</span><h2>v0.6 旧バージョン</h2>
-<p>以前の関節・カメラ・ゲーム状態のまま遊べる保存版。旧セーブデータは新版と分離しています。</p><span class="action">旧バージョンへ戻る →</span></a>
-<a class="card" href="./model-lab/"><span class="tag">V0.6 / ORIGINAL ASSETS</span><h2>オリジナル3Dモデル工房</h2>
-<p>人物3種・樹木・岩・小屋・剣・斧など合計12モデル。回転して確認し、GLB/OBJで保存。</p><span class="action">モデルを見る →</span></a>
-<a class="card" href="./planet-explorer/"><span class="tag">V0.7a / 60 JOINTS</span><h2>3D惑星探索</h2>
-<p>60関節・なめらかな移動を試す新版。v0.6旧版にも戻れます。</p><span class="action">デモを開く →</span></a>
-<a class="card" href="./planet-demo/"><span class="tag">V0.2 / SIMULATION</span><h2>惑星・気象・生態系</h2>
-<p>自転、公転、雲と雨雪、種子による森林形成、石・矢の重力運動を試す。</p><span class="action">デモを開く →</span></a>
-<a class="card" href="./demo/"><span class="tag">V0.1 / CORE</span><h2>マルチバース共通コア</h2>
-<p>それぞれ独立した世界、時計、エンティティ、イベント、保存・復元。</p><span class="action">デモを開く →</span></a>
-<a class="card" href="https://github.com/hublab055-crypto/kamoku-world-monitor/tree/main/universal-engine"><span class="tag">SOURCE / SPECIFICATION</span><h2>GitHubソース・仕様書</h2>
-<p>ES Modules、テストコード、各バージョンの設計資料を公開。</p><span class="action">リポジトリを見る →</span></a>
+<div id="splashScreen" class="splash-screen" aria-hidden="false">
+  <div class="splash-lockup">
+    <div class="splash-radar"></div>
+    <div class="splash-brand">kamoku</div>
+    <div class="splash-sub">— world monitor —</div>
+    <div class="splash-tag">A CLEARER WORLD A BRIGHTER TOMORROW</div>
+  </div>
 </div>
-<h3>開発上の境界</h3>
-<div class="links"><a href="./model-lab/">オリジナルモデル</a><a href="./planet-explorer/">3D探索</a><a href="./planet-demo/">惑星物理・気象</a><a href="./demo/">共通コア</a></div>
-<footer>Universal Engine – fictional multiverse simulation. Existing Kamoku Monitor and Frontier World files are not modified by the explorer module.</footer>
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-box">
+    <h2>Kamoku World Monitor</h2>
+    <p>このダッシュボードのデータはログイン後にだけ読み込まれます。</p>
+    <form id="loginForm">
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="メールアドレス" required>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="パスワード" minlength="12" required>
+      <button type="submit">ログイン</button>
+      <div id="loginError" class="auth-error"></div>
+    </form>
+    <details>
+      <summary>初回オーナー登録</summary>
+      <p>最初の1回だけ、ワンタイム登録コードを使ってオーナーアカウントを作成します。</p>
+      <form id="bootstrapForm">
+        <input id="bootstrapEmail" type="email" autocomplete="username" placeholder="メールアドレス" required>
+        <input id="bootstrapPassword" type="password" autocomplete="new-password" placeholder="新しいパスワード（12文字以上）" minlength="12" required>
+        <input id="bootstrapCode" type="text" autocomplete="one-time-code" placeholder="ワンタイム登録コード" required>
+        <button type="submit">オーナー登録</button>
+        <div id="bootstrapError" class="auth-error"></div>
+      </form>
+    </details>
+  </div>
+</div>
+<div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
+  <div class="settings-box">
+    <div class="settings-head"><div class="settings-title">設定</div><button id="settingsClose" class="settings-close" type="button">×</button></div>
+    <div class="settings-row"><div class="label">バージョン</div><div id="appVersionText" class="value">—</div></div>
+    <div class="settings-row"><div class="label">データ</div><div id="stamp" class="value stamp">データ読み込み中…</div></div>
+    <div class="settings-section">
+      <div class="settings-section-title">世界地図</div>
+      <div class="settings-row" style="border-top:0;padding-top:0"><div class="label">選択指標</div><div id="worldStats" class="value">—</div></div>
+      <div class="settings-grid">
+        <label>表示<select id="worldDisplay"><option value="3d">データ3D</option><option value="terrain">地形のみ</option><option value="2d">2D地図</option></select></label>
+        <label>年の扱い<select id="worldMode"><option value="latest">各国の最新値</option><option value="timeline">選択年時点</option></select></label>
+        <label class="settings-slider" id="terrainScaleWrap">地形強調 <span id="worldTerrainScaleValue">30×</span><input id="worldTerrainScale" type="range" min="1" max="100" step="1" value="30"></label>
+        <label class="settings-check" id="terrainSeabedWrap"><input id="worldSeabed" type="checkbox" checked><span id="worldSeabedText">海底地形</span></label>
+        <label class="settings-check" id="terrainDemWrap"><input id="worldDemLod" type="checkbox" checked><span id="worldDemText">高精細DEM</span></label>
+        <label class="settings-check"><input id="worldCountryFill" type="checkbox" checked><span id="worldCountryFillText">国別カラー</span></label>
+        <label>国の配色<select id="worldCountryColorMode"><option value="map">隣接国を分離</option><option value="metric">指標ヒート</option></select></label>
+        <label class="settings-check"><input id="worldShowKcuMoney" type="checkbox" checked><span id="worldShowKcuMoneyText">金額をKCU併記</span></label>
+        <label class="settings-check"><input id="worldCountryMarkers" type="checkbox"><span id="worldCountryMarkersText">指標マーカー</span></label>
+        <label class="settings-check"><input id="worldCountryRelief" type="checkbox" checked><span id="worldCountryReliefText">指標高低差</span></label>
+        <label class="settings-slider" id="countryReliefScaleWrap">指標高さ強調 <span id="worldCountryReliefScaleValue">55×</span><input id="worldCountryReliefScale" type="range" min="0" max="100" step="1" value="55"></label>
+      </div>
+      <div class="settings-actions"><button id="worldCenterBtn" class="logout" type="button">中央に戻す</button></div>
+      <div id="worldGlobeInfo" class="note" style="margin-top:12px"></div>
+    </div>
+    <div class="settings-actions"><button id="logoutBtn" class="logout" style="display:none">ログアウト</button></div>
+  </div>
+</div>
+<div id="numericKeypad" class="keypad-overlay" aria-hidden="true">
+  <div class="keypad-box" role="dialog" aria-modal="true">
+    <div class="keypad-head"><div id="keypadTitle" class="keypad-title">数値入力</div><button id="keypadClose" class="keypad-close" type="button">×</button></div>
+    <div id="keypadDisplay" class="keypad-display">0</div>
+    <div class="keypad-grid">
+      <button class="keypad-key" data-kp="7">7</button><button class="keypad-key" data-kp="8">8</button><button class="keypad-key" data-kp="9">9</button>
+      <button class="keypad-key" data-kp="4">4</button><button class="keypad-key" data-kp="5">5</button><button class="keypad-key" data-kp="6">6</button>
+      <button class="keypad-key" data-kp="1">1</button><button class="keypad-key" data-kp="2">2</button><button class="keypad-key" data-kp="3">3</button>
+      <button class="keypad-key utility" data-kp="sign">±</button><button class="keypad-key" data-kp="0">0</button><button class="keypad-key" data-kp=".">.</button>
+    </div>
+    <div class="keypad-foot">
+      <button id="keypadClear" class="keypad-key utility" type="button">クリア</button>
+      <button id="keypadBackspace" class="keypad-key utility" type="button">⌫ バックスペース</button>
+    </div>
+    <button id="keypadExecute" class="keypad-key execute" style="width:100%;margin-top:8px" type="button">実行</button>
+  </div>
+</div>
+<header>
+  <div class="top">
+    <div class="kamoku-wordmark" aria-label="kamoku"><span class="kamoku-mark" aria-hidden="true"></span><span class="kamoku-type">kamoku</span></div>
+    <div class="top-actions" style="display:flex;gap:7px;align-items:center"><div class="lang-switch" aria-label="Language"><button id="langJa" class="active" type="button">日本語</button><button id="langEn" type="button">English</button></div><button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings">⚙️</button></div>
+  </div>
+  <nav id="nav">
+    <button data-view="kcu" class="active">KCU</button>
+    <button data-view="world">世界地図</button>
+    <button data-view="country">国別</button>
+    <button data-view="regions">地域別</button>
+    <button data-view="news">ニュース</button>
+    <button data-view="markets">市場AI</button>
+    <button data-view="trade">取引シミュレーション</button>
+    <button data-view="about">データ説明</button>
+  </nav>
+</header>
+<main>
+  <div id="fatal" style="display:none"></div>
+
+  <section id="kcu" class="view active">
+    <div class="grid cards" id="kcuCards"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <label>KCU variant<select id="kcuVariant"></select></label>
+      <label>表示通貨<select id="kcuCurrency"><option value="usd">USD</option><option value="jpy">JPY</option><option value="eur">EUR</option></select></label>
+    </div>
+    <div class="grid two">
+      <div class="card"><h2>KCU推移</h2><div id="kcuChart" class="chart"></div></div>
+      <div class="card"><h2>構成ウェイト</h2><div class="tablewrap"><table><thead><tr><th>国・地域</th><th>比率</th></tr></thead><tbody id="weightBody"></tbody></table></div><div id="weightNote" class="note"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>資産のKCU換算（最新）</h2><div class="tablewrap"><table><thead><tr><th>資産</th><th>月</th><th>現地価格</th><th>USD</th><th>KCU</th><th>KCUリターン</th></tr></thead><tbody id="assetBody"></tbody></table></div></div>
+  </section>
+
+  <section id="world" class="view">
+    <div class="card">
+      <div class="section-title world-card-head">
+        <div class="world-title-controls">
+          <select id="worldLayer" class="world-compact-select" aria-label="表示レイヤー">
+            <option value="indicator">指標</option>
+            <option value="resource">資源</option>
+            <option value="product">生産・貿易</option>
+            <option value="company">企業</option>
+          </select>
+          <select id="worldDomain" class="world-compact-select" aria-label="分野"></select>
+          <select id="worldMetric" class="world-compact-select" aria-label="指標"></select>
+          <select id="worldResource" class="world-compact-select" aria-label="資源" style="display:none"></select>
+          <select id="worldResourceMetric" class="world-compact-select" aria-label="資源指標" style="display:none">
+            <option value="production_annual">年間生産量</option>
+            <option value="consumption_annual">年間消費量</option>
+            <option value="balance_annual">生産−消費</option>
+            <option value="self_sufficiency_pct">自給率</option>
+            <option value="reserves">埋蔵量</option>
+            <option value="rp_years">R/P（埋蔵量÷年間生産量）</option>
+          </select>
+          <select id="worldProductSector" class="world-compact-select" aria-label="産業分野" style="display:none"></select>
+          <select id="worldProduct" class="world-compact-select" aria-label="品目" style="display:none"></select>
+          <select id="worldProductMetric" class="world-compact-select" aria-label="生産・貿易指標" style="display:none">
+            <option value="production_quantity">生産量</option>
+            <option value="production_value_usd">生産額</option>
+            <option value="export_quantity">輸出量</option>
+            <option value="export_value_usd">輸出額</option>
+            <option value="import_quantity">輸入量</option>
+            <option value="import_value_usd">輸入額</option>
+            <option value="trade_balance_value_usd">貿易収支額</option>
+            <option value="apparent_consumption_value_usd">見かけ消費額</option>
+            <option value="housing_starts">住宅着工数</option>
+            <option value="shipbuilding_gross_tonnage">船舶建造GT</option>
+          </select>
+          <select id="worldCompanySector" class="world-compact-select" aria-label="企業業種" style="display:none">
+            <option value="">全業種</option>
+          </select>
+          <select id="worldCompanyMetric" class="world-compact-select" aria-label="企業指標" style="display:none">
+            <option value="revenue">売上高</option>
+            <option value="operating_income">営業利益</option>
+            <option value="net_income">純利益</option>
+            <option value="total_assets">総資産</option>
+            <option value="equity">自己資本</option>
+            <option value="free_cash_flow">FCF</option>
+            <option value="roe">ROE</option>
+            <option value="equity_ratio">自己資本比率</option>
+            <option value="per">PER</option>
+            <option value="pbr">PBR</option>
+            <option value="dividend_yield">配当利回り</option>
+            <option value="close_price">株価</option>
+          </select>
+          <span id="worldTitle" style="display:none"></span>
+        </div>
+      </div>
+      <div id="worldTimeline" class="world-timeline hidden">
+        <button id="worldYearBack" type="button">−1</button>
+        <button id="worldYearPlay" type="button">▶</button>
+        <input id="worldYearSlider" type="range" min="2000" max="2026" step="1" value="2026">
+        <span id="worldYearLabel" class="world-year-label">2026</span>
+        <button id="worldYearForward" type="button">+1</button>
+      </div>
+      <div id="worldGlobeStage" class="globe-stage">
+        <div id="worldRankPanel" class="world-rank-panel">
+          <div id="worldRankHead" class="world-rank-head">ランキング</div>
+          <div id="worldRankList" class="world-rank-list"></div>
+        </div>
+        <button id="worldCountryPreview" class="world-country-preview" type="button">
+          <div id="worldCountryPreviewName" class="name">—</div>
+          <div id="worldCountryPreviewValue" class="value">—</div>
+          <div id="worldCountryPreviewMeta" class="meta">—</div>
+          <div id="worldCountryPreviewHint" class="hint">タップで詳細</div>
+        </button>
+        <div id="worldGlobe" class="globe"></div>
+        <div id="globeControlPanel" class="globe-control-panel">
+          <button id="globeAxisModeBtn" class="globe-axis-mini" type="button" title="Axis rotation">AXIS</button>
+          <button id="globeHudToggle" class="globe-fold-mini" type="button" title="Collapse">⌄</button>
+          <button id="globeResetView" class="globe-reset-mini" type="button" title="Reset">↺</button>
+          <div class="globe-param-layout">
+            <div id="globeParamButtons" class="globe-param-buttons"></div>
+            <div class="globe-master-dial">
+              <div id="globeActiveParamLabel" class="globe-master-label">焦点 X</div>
+              <div id="globeMasterWheel" class="master-dial-wheel" tabindex="0">
+                <div id="globeMasterPointer" class="master-dial-pointer"></div>
+                <div class="master-dial-center"><button id="globeMasterValue" class="master-dial-center-value" type="button">0.00</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="worldMap" class="chart" style="display:none"></div>
+      <div id="resourceDetailCard" class="card" style="display:none;margin-top:12px">
+        <div class="section-title"><h2 id="resourceDetailTitle">資源詳細</h2><span id="resourceDetailBadge" class="pill">—</span></div>
+        <div id="resourceDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div id="resourceDerivedBox" class="metric-grid" style="margin-bottom:12px"></div>
+        <div class="grid two">
+          <div><h3 id="resourceProductionTitle" style="margin:0 0 6px;font-size:13px">生産・消費</h3><div id="resourceProductionChart" class="chart small"></div></div>
+          <div><h3 id="resourceReservesTitle" style="margin:0 0 6px;font-size:13px">埋蔵量</h3><div id="resourceReservesChart" class="chart small"></div></div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="section-title"><h3 id="resourcePriceTitle" style="margin:0;font-size:13px">世界価格</h3><select id="resourcePriceBenchmark" class="world-compact-select" style="max-width:260px"></select></div>
+          <div id="resourcePriceChart" class="chart small"></div>
+        </div>
+      </div>
+      <div id="productDetailCard" class="card" style="display:none;margin-top:12px">
+        <div class="section-title"><h2 id="productDetailTitle">生産・貿易詳細</h2><span id="productDetailBadge" class="pill">—</span></div>
+        <div id="productDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div id="productDetailCards" class="metric-grid" style="margin-bottom:12px"></div>
+        <div class="grid two">
+          <div><h3 style="margin:0 0 6px;font-size:13px">生産</h3><div id="productProductionChart" class="chart small"></div></div>
+          <div><h3 style="margin:0 0 6px;font-size:13px">輸出・輸入</h3><div id="productTradeChart" class="chart small"></div></div>
+        </div>
+      </div>
+      <div id="companyDetailCard" class="card" style="display:none;margin-top:12px">
+        <div class="section-title"><h2 id="companyDetailTitle">企業詳細</h2><span id="companyDetailBadge" class="pill">—</span></div>
+        <div id="companyDetailMeta" class="note" style="margin-bottom:10px"></div>
+        <div id="companyDetailCards" class="metric-grid" style="margin-bottom:12px"></div>
+        <div class="grid two">
+          <div><h3 style="margin:0 0 6px;font-size:13px">通期財務</h3><div id="companyFinancialChart" class="chart small"></div></div>
+          <div><h3 style="margin:0 0 6px;font-size:13px">株価</h3><div id="companyPriceChart" class="chart small"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="country" class="view">
+    <div class="toolbar">
+      <label>国<input id="countrySearch" list="countryList" placeholder="日本 / Japan / JPN"><datalist id="countryList"></datalist></label>
+      <label>分野<select id="countryDomain"></select></label>
+      <label>履歴指標<select id="countryMetric"></select></label>
+    </div>
+    <div class="grid cards" id="countryHeader"></div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card"><h2 id="countryChartTitle">指標推移</h2><div id="countryChart" class="chart"></div></div>
+      <div class="card"><h2>比較</h2><div id="compareBox"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>分野別指標</h2><div id="countryMetrics" class="metric-grid"></div></div>
+  </section>
+
+  <section id="regions" class="view">
+    <div class="toolbar">
+      <label>分野<select id="regionDomain"></select></label>
+      <label>指標<select id="regionMetric"></select></label>
+    </div>
+    <div class="card"><h2 id="regionTitle">地域中央値</h2><div class="tablewrap"><table><thead><tr><th>地域</th><th>中央値</th><th>国数</th></tr></thead><tbody id="regionBody"></tbody></table></div><div class="note">ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。</div></div>
+  </section>
+
+
+  <section id="news" class="view">
+    <div class="news-toolbar">
+      <label>期間
+        <select id="newsWindow">
+          <option value="6">6時間</option>
+          <option value="24">24時間</option>
+          <option value="72" selected>72時間</option>
+          <option value="168">7日</option>
+          <option value="720">30日</option>
+        </select>
+      </label>
+      <label>カテゴリ
+        <select id="newsCategory">
+          <option value="">すべて</option>
+          <option value="general">総合</option>
+          <option value="domestic">国内</option>
+          <option value="world">海外</option>
+          <option value="business">経済</option>
+          <option value="technology">テクノロジー</option>
+        </select>
+      </label>
+      <button id="newsRefreshBtn" class="logout" type="button" style="padding:9px 12px">更新</button>
+      <span id="newsStatus" class="pill">未読込</span>
+    </div>
+
+    <div class="ai-tabs" id="newsTabs">
+      <button class="active" data-news-view="newsLatest">最新ニュース</button>
+      <button data-news-view="newsHistory">履歴</button>
+      <button data-news-view="newsNetwork">Word Network</button>
+    </div>
+
+    <div id="newsLatest" class="ai-subview active">
+      <div class="card">
+        <div class="section-title"><h2>最新ニュース</h2><div id="newsLatestCount" class="pill">—</div></div>
+        <div id="newsLatestList" class="news-list"><div class="loading">ニュースを読み込みます。</div></div>
+      </div>
+    </div>
+
+    <div id="newsHistory" class="ai-subview">
+      <div class="card">
+        <div class="section-title"><h2>ニュース履歴</h2><div id="newsHistoryMeta" class="pill">—</div></div>
+        <div id="newsHistoryChart" class="chart small"></div>
+      </div>
+    </div>
+
+    <div id="newsNetwork" class="ai-subview">
+      <div class="card">
+        <div class="section-title"><h2>Word Network</h2><div id="newsNetworkMeta" class="pill">—</div></div>
+        <div id="newsNetworkChart" class="chart"></div>
+        <div id="newsAgentStatus" class="statline" style="margin-top:8px"></div>
+        <div class="news-network-note">ノードの大きさは記憶量＋活動エネルギーです。新しいニュースがエネルギーを供給し、エージェントが探索・統合・リンク・剪定で消費します。分野ごとの容量とエントロピー監視で無制限な増殖を抑えます。</div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card">
+          <div class="section-title"><h2>外部知識・論文</h2><div id="newsExternalMeta" class="pill">—</div></div>
+          <div id="newsExternalSources" class="news-list"><div class="note">Scoutの探索結果を表示します。</div></div>
+        </div>
+        <div class="card">
+          <div class="section-title"><h2>探索候補</h2><div id="newsCandidateMeta" class="pill">—</div></div>
+          <div id="newsCandidateList" class="news-list"><div class="note">候補語を待っています。</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="markets" class="view">
+    <div class="toolbar">
+      <label>銘柄
+        <input id="marketSymbolSearch" list="marketSymbolList" placeholder="7203 / トヨタ">
+        <datalist id="marketSymbolList"></datalist>
+      </label>
+      <label>判定日<select id="marketDate"><option>—</option></select></label>
+      <button id="marketLoadBtn" class="logout" style="padding:9px 12px">読み込む</button>
+    </div>
+
+    <div class="grid cards" id="marketAiCards">
+      <div class="card"><div class="eyebrow">Explain AI</div><div class="big">—</div><div class="sub">説明可能モデル</div></div>
+      <div class="card"><div class="eyebrow">Opaque AI</div><div class="big">—</div><div class="sub">非説明・非線形モデル</div></div>
+      <div class="card"><div class="eyebrow">Ensemble</div><div class="big">—</div><div class="sub">検証成績で統合</div></div>
+      <div class="card"><div class="eyebrow">Pattern</div><div class="big">—</div><div class="sub">回顧パターン図鑑</div></div>
+    </div>
+
+    <div class="ai-tabs" id="marketAiTabs">
+      <button class="active" data-ai-view="marketOverview">市場判定</button>
+      <button data-ai-view="patternAtlas">パターン図鑑</button>
+      <button data-ai-view="aiTraining">AI学習</button>
+    </div>
+
+    <div id="marketOverview" class="ai-subview active">
+      <div class="grid two">
+        <div class="card">
+          <div class="section-title"><h2>Explain / Opaque / Ensemble</h2><div id="marketModelBadge" class="pill">モデル確認中</div></div>
+          <div id="marketAiChart" class="chart small"></div>
+          <div class="note">各営業日の終値までに利用可能な情報から、次営業日寄付き→5営業日後終値を評価します。</div>
+        </div>
+        <div class="card">
+          <h2>現在判定</h2>
+          <div id="marketCurrentBox" class="metric-grid"></div>
+          <h3 style="margin-top:14px">Explain AIの主な寄与</h3>
+          <div id="marketReasons" class="codebox">—</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>モデル監査</h2>
+        <div id="marketAudit" class="note">—</div>
+      </div>
+    </div>
+
+    <div id="patternAtlas" class="ai-subview">
+      <div class="warnbox">
+        パターン図鑑の勝率・5日後リターンは未来結果を含む回顧統計です。過去リプレイの売買判断には使用しません。
+      </div>
+      <div class="grid cards" id="patternCurrentCards" style="margin-top:14px"></div>
+      <div class="card" style="margin-top:14px">
+        <div class="section-title"><h2>Market Pattern Atlas</h2><div id="atlasBadge" class="pill">図鑑確認中</div></div>
+        <div id="patternCurrentSummary" class="note">—</div>
+        <div class="tablewrap" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Pattern</th><th>名称</th><th>発生</th><th>銘柄</th><th>5日勝率</th><th>平均5日</th><th>MAE</th></tr></thead>
+            <tbody id="patternAtlasBody"><tr><td colspan="7">図鑑準備中</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiTraining" class="ai-subview">
+      <div class="grid two">
+        <div class="card">
+          <div class="section-title"><h2>Player Strategy AI</h2><div id="trainingBadge" class="pill">プロフィール確認中</div></div>
+          <p class="note">プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。</p>
+          <div class="action-row">
+            <button id="trainingToggle">背景学習をON</button>
+            <button id="trainingSave" class="primary-action">設定保存</button>
+            <button id="trainingRun">1回学習</button>
+            <button id="trainingRefresh">履歴更新</button>
+          </div>
+          <div id="trainingMessage" class="note" style="margin-top:9px">—</div>
+          <h3 style="margin-top:14px">戦略 JSON</h3>
+          <textarea id="trainingStrategy"></textarea>
+          <h3 style="margin-top:14px">探索範囲 JSON</h3>
+          <textarea id="trainingSearch"></textarea>
+          <h3 style="margin-top:14px">採点基準 JSON</h3>
+          <textarea id="trainingObjective"></textarea>
+        </div>
+        <div class="card">
+          <div class="section-title"><h2>現在の最良個体</h2><button id="copyElite" class="logout">コピー</button></div>
+          <div id="trainingElite" class="codebox">まだ学習結果がありません。</div>
+          <h3 style="margin-top:14px">実行履歴</h3>
+          <div class="tablewrap">
+            <table>
+              <thead><tr><th>Run</th><th>状態</th><th>Score</th><th>勝率</th><th>PF</th><th>DD</th><th>取引</th></tr></thead>
+              <tbody id="trainingRuns"><tr><td colspan="7">履歴なし</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="trade" class="view">
+    <div class="toolbar">
+      <label>銘柄<input id="tradeSymbolSearch" list="tradeSymbolList" placeholder="7203 / トヨタ"><datalist id="tradeSymbolList"></datalist></label>
+      <label>リプレイ期間<select id="tradeWindow"><option value="250">250営業日</option><option value="500" selected>500営業日</option><option value="1000">1000営業日</option></select></label>
+      <label>初期資金<input id="tradeInitialCash" type="number" value="1000000" min="10000" step="10000"></label>
+      <label>売買単位<input id="tradeQty" type="number" value="100" min="1" step="100"></label>
+      <button id="tradeLoadBtn" class="logout" style="padding:9px 12px">リプレイ開始</button>
+    </div>
+    <div class="grid cards" id="tradeCards"></div>
+    <div class="card" style="margin-top:14px">
+      <div class="section-title"><h2>個別銘柄リプレイ</h2><div class="statline"><span class="pill" id="tradeSymbolMeta">—</span><span class="pill" id="tradePendingBadge">注文なし</span></div></div>
+      <div id="tradeChart" class="chart"></div>
+      <div class="sim-controls">
+        <button id="tradeStep1">+1日</button><button id="tradeStep5">+5日</button><button id="tradePlay">▶ 再生</button><button id="tradePause">⏸ 停止</button><button id="tradeReset">↺ リセット</button>
+      </div>
+    </div>
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <h2>売買モード</h2>
+        <div class="sim-controls" style="margin:9px 0 13px">
+          <button class="mode-btn active" data-trade-mode="manual">手動</button>
+          <button class="mode-btn" data-trade-mode="semi">半自動</button>
+          <button class="mode-btn" data-trade-mode="full">自動</button>
+        </div>
+        <div class="toolbar">
+          <label>AI<select id="tradeAiSource"><option value="ensemble">Ensemble</option><option value="explain">Explain AI</option><option value="opaque">Opaque AI</option></select></label>
+          <label>BUY ≥ %<input id="tradeBuyThreshold" type="number" value="60" min="50" max="95"></label>
+          <label>SELL ≤ %<input id="tradeSellThreshold" type="number" value="40" min="5" max="50"></label>
+          <label>利確 %<input id="tradeTakeProfit" type="number" value="10" min="0" step=".5"></label>
+          <label>損切 %<input id="tradeStopLoss" type="number" value="5" min="0" step=".5"></label>
+          <label>コスト bps<input id="tradeCostBps" type="number" value="5" min="0" step="1"></label>
+        </div>
+        <div id="tradeDecision" class="metric" style="margin-bottom:12px"><div class="name">AI判定</div><div class="value">—</div><div class="meta">—</div></div>
+        <div class="sim-controls"><button id="tradeManualBuy">買い注文</button><button id="tradeManualSell">売り注文</button><button id="tradeAcceptAi">AI提案を採用</button></div>
+        <label style="margin-top:12px;display:flex;align-items:center;gap:8px"><input id="tradeTax" type="checkbox" checked style="min-width:auto"> 利益への税率20.315%を反映</label>
+        <p class="note">D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。</p>
+      </div>
+      <div class="card">
+        <h2>取引履歴</h2>
+        <div class="tablewrap trade-log"><table><thead><tr><th>日付</th><th>売買</th><th>株数</th><th>価格</th><th>税/費用</th><th>現金</th></tr></thead><tbody id="tradeFills"><tr><td colspan="6">取引なし</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about" class="view">
+    <div class="card">
+      <h2>この画面の読み方</h2>
+      <p class="note">KamokuのPrimary（一次観測）とDerived（再現可能な計算）を混同しないため、国・地域には恣意的な総合点を付けていません。国別画面では、一次データの値、観測年、世界中央値、所属地域中央値、時系列を表示します。</p>
+      <p class="note" id="aboutNote"></p>
+      <p class="note">地域中央値は「その地域の典型的な国」の比較用であり、地域経済の総量を意味しません。GDP総額の地域合計などが必要な場合は別のDerived指標として追加します。</p>
+    </div>
+  </section>
 </main>
+
+<script>
+const API_BASE = "https://htwcscrllohavtbejhjr.supabase.co/functions/v1/world-dashboard";
+const DATA_URL = API_BASE + "?api=data";
+const SUPABASE_URL = "https://htwcscrllohavtbejhjr.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko";
+const SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+let AUTH_SESSION = null;
+let D=null, registry=[], regByMetric={}, countryByIso={}, selectedIso="JPN";
+let MARKET_CATALOG=[], MARKET_CODE="7203", MARKET_MODEL=null, MARKET_ROWS=[], MARKET_MEMBERSHIP=[], MARKET_PATTERNS=[], MARKET_ATLAS=null;
+let TRAIN_PROFILE=null, TRAIN_ELITE=null, TRAIN_RUNS=[];
+let TRADE={code:"7203",bars:[],aiRows:[],idx:0,startIdx:0,cash:1000000,initialCash:1000000,pos:0,avg:0,mode:"manual",pending:null,proposal:null,fills:[],timer:null,realized:0};
+let WORLD_YEAR_PLAY_TIMER=null,WORLD_PREVIEW_ISO=null,WORLD_PREVIEW_SITE_ID=null,INDICATOR_WORLD_MAX_YEAR=null;
+const RESOURCE_SITE_CACHE={},RESOURCE_SITE_DETAIL_CACHE={},RESOURCE_SITE_LOADING={};
+let PRODUCT_CATALOG=[],PRODUCT_CURRENT_ROWS=[],PRODUCT_LOADING=false;
+const PRODUCT_SERIES_CACHE={},PRODUCT_DETAIL_CACHE={};
+let COMPANY_RANK_ITEMS=[],COMPANY_SECTORS=[],WORLD_PREVIEW_COMPANY_ID=null;
+const COMPANY_RANK_CACHE={},COMPANY_DETAIL_CACHE={};
+let NEWS_LOADED=false, NEWS_LOADING=false, LAST_SEMANTIC_NETWORK=null, NEWS_NETWORK_TIMER=null;
+let LANG=(localStorage.getItem("kamokuLanguage")||"ja").toLowerCase()==="en"?"en":"ja";
+
+const METRIC_JA={
+  INTERNATIONAL_TOURISM_ARRIVALS:"国際観光客到着数",
+  GOV_REVENUE_EX_GRANTS_PCT_GDP:"国家歳入（補助金除く・GDP比）",
+  MILITARY_EXPENDITURE_PCT_GDP:"軍事費（GDP比）",
+  MILITARY_EXPENDITURE_CURRENT_USD:"軍事費（現行US$）",
+  INTENTIONAL_HOMICIDES_PER_100K:"故意の殺人（人口10万人あたり）",
+  POLITICAL_STABILITY_ESTIMATE:"政治的安定・暴力/テロ不在指数",
+  INTERNATIONAL_TOURISM_RECEIPTS_USD:"国際観光収入（現行US$）",
+  GDP_CURRENT_USD:"GDP（現行US$）",
+  GDP_PER_CAPITA_CURRENT_USD:"1人当たりGDP（現行US$）",
+  GDP_GROWTH_PCT:"GDP成長率（年率）",
+  GDP_PPP_CURRENT_INTL_USD:"GDP（購買力平価・現行国際$）",
+  CENTRAL_GOV_DEBT_PCT_GDP:"中央政府債務（GDP比）",
+  GOV_EXPENSE_PCT_GDP:"政府支出（GDP比）",
+  EDUCATION_EXPENDITURE_PCT_GDP:"政府教育支出（GDP比）",
+  HEALTH_EXPENDITURE_PCT_GDP:"医療支出（GDP比）",
+  LIFE_EXPECTANCY_YEARS:"平均寿命",
+  UNEMPLOYMENT_PCT:"失業率",
+  PATENT_APPLICATIONS_RESIDENTS:"居住者による特許出願",
+  RND_EXPENDITURE_PCT_GDP:"研究開発費（GDP比）",
+  POP_TOTAL:"総人口",
+  CPI_PRICE_INDEX:"消費者物価指数",
+  ENERGY_IMPORTS_PCT:"エネルギー純輸入比率",
+  AGRICULTURAL_LAND_PCT:"農地面積比率",
+  FOREST_AREA_PCT:"森林面積比率",
+  FRESHWATER_WITHDRAWAL_PCT:"淡水取水量（国内資源比）",
+  CURRENT_ACCOUNT_PCT_GDP:"経常収支（GDP比）",
+  EXPORTS_CURRENT_USD:"財・サービス輸出（現行US$）",
+  IMPORTS_CURRENT_USD:"財・サービス輸入（現行US$）",
+  TRADE_PCT_GDP:"貿易額（GDP比）"
+};
+const RESOURCE_JA={
+  gold:"金",silver:"銀",copper:"銅",lithium:"リチウム",cobalt:"コバルト",
+  nickel:"ニッケル",rare_earths:"レアアース",iron_ore:"鉄鉱石",zinc:"亜鉛",
+  lead:"鉛",tin:"スズ",manganese:"マンガン",chromium:"クロム",
+  bauxite:"ボーキサイト",alumina:"アルミナ",phosphate_rock:"リン鉱石",coal:"石炭",oil:"原油",gas:"天然ガス",oil_gas:"石油・ガス",
+  graphite_natural:"天然黒鉛",potash:"カリ",uranium:"ウラン"
+};
+const DOMAIN_JA={
+  culture_tourism:"文化・観光",economy:"経済",fiscal:"財政",human:"人的資本",
+  knowledge:"知識・知財",population:"人口",prices:"物価",resources:"資源",trade:"貿易",security:"安全保障・治安"
+};
+const REGION_JA={
+  "East Asia & Pacific":"東アジア・太平洋","Europe & Central Asia":"欧州・中央アジア",
+  "Latin America & Caribbean":"中南米・カリブ","Middle East & North Africa":"中東・北アフリカ",
+  "North America":"北米","South Asia":"南アジア","Sub-Saharan Africa":"サブサハラ・アフリカ"
+};
+const INCOME_JA={
+  "High income":"高所得国","Upper middle income":"上位中所得国",
+  "Lower middle income":"下位中所得国","Low income":"低所得国"
+};
+const TEXT={
+  countries:{ja:"か国",en:"countries"},worldMedian:{ja:"世界中央値",en:"World median"},worldLayerIndicator:{ja:"指標",en:"Indicators"},worldLayerResource:{ja:"資源",en:"Resources"},worldLayerProduct:{ja:"生産・貿易",en:"Production & trade"},worldLayerCompany:{ja:"企業",en:"Companies"},resourceProduction:{ja:"年間生産量",en:"Annual production"},resourceConsumption:{ja:"年間消費量",en:"Annual consumption"},resourceBalance:{ja:"生産−消費",en:"Production − consumption"},resourceSelfSufficiency:{ja:"自給率",en:"Self-sufficiency"},resourceReserves:{ja:"埋蔵量",en:"Reserves"},resourceRp:{ja:"R/P（埋蔵量÷年間生産量）",en:"R/P (reserves / annual production)"},resourcePrice:{ja:"世界価格",en:"Global price"},resourceDetail:{ja:"資源詳細",en:"Resource detail"},
+  regionalMedian:{ja:"地域中央値",en:"Regional median"},difference:{ja:"差",en:"Diff"},
+  indicators:{ja:"指標",en:"indicators"},historySince:{ja:"2000年以降の履歴",en:"History since 2000"},
+  noData:{ja:"データなし",en:"No data"},noMetricData:{ja:"この指標のデータがありません。",en:"No data for this indicator."},
+  country:{ja:"国",en:"Country"},region:{ja:"地域",en:"Region"},income:{ja:"所得区分",en:"Income group"},
+  recordedMetrics:{ja:"収録指標",en:"Available metrics"},latestValue:{ja:"選択国の最新値",en:"Latest country value"},
+  terrain3d:{ja:"データ3D",en:"Data 3D"},terrainOnly:{ja:"地形のみ",en:"Terrain only"},map2d:{ja:"2D地図",en:"2D Map"},
+  latestEach:{ja:"各国の最新値",en:"Latest value per country"},timelinePoint:{ja:"選択年時点",en:"Selected-year snapshot"},tapForDetail:{ja:"タップで詳細",en:"Tap for details"},
+  expected5d:{ja:"期待5日",en:"Expected 5d"},universe:{ja:"対象銘柄",en:"Universe"},
+  contribution:{ja:"寄与",en:"Contribution"},noContribution:{ja:"説明寄与なし",en:"No explanation contribution"},
+  training:{ja:"学習",en:"Train"},validation:{ja:"時間外検証",en:"Out-of-time validation"},
+  patternNotReady:{ja:"図鑑未準備",en:"Atlas not ready"},notReady:{ja:"未準備",en:"Not ready"},
+  marketLoading:{ja:"市場AIを読み込み中…",en:"Loading Market AI…"},
+  fiveDayWin:{ja:"5日勝率",en:"5d win rate"},avg5d:{ja:"平均5日",en:"Average 5d"},
+  occurrences:{ja:"発生回数",en:"Occurrences"},retrospective:{ja:"回顧統計",en:"Retrospective"},
+  allSymbolsAllPeriod:{ja:"全銘柄・全期間",en:"All securities / full period"},
+  date:{ja:"日付",en:"Date"},close:{ja:"終値",en:"Close"},totalAssets:{ja:"総資産",en:"Total assets"},
+  cash:{ja:"現金",en:"Cash"},position:{ja:"保有",en:"Position"},realized:{ja:"実現",en:"Realized"},
+  average:{ja:"平均",en:"Avg"},unrealized:{ja:"含み",en:"Unrealized"},shares:{ja:"株",en:"shares"},
+  noPosition:{ja:"ポジションなし",en:"No position"},noOrder:{ja:"注文なし",en:"No order"},
+  nextOpen:{ja:"次寄り",en:"next open"},aiDecision:{ja:"AI判定",en:"AI decision"},
+  noReplay:{ja:"この銘柄のリプレイデータが不足しています",en:"Insufficient replay data for this security"},
+  chooseSecurity:{ja:"銘柄を選択してください",en:"Select a security"},
+  marketNoPrediction:{ja:"Market AI予測なし",en:"No Market AI prediction"},
+  takeProfit:{ja:"利確条件",en:"Take-profit"},stopLoss:{ja:"損切条件",en:"Stop-loss"},
+  riseProbability:{ja:"上昇確率",en:"up probability"},generated:{ja:"生成",en:"Generated"},
+  loadingRequired:{ja:"ログインが必要です",en:"Sign-in required"},dataUnavailable:{ja:"データ未生成",en:"Data unavailable"},terrainExaggeration:{ja:"地形強調",en:"Terrain exaggeration"},seabedTerrain:{ja:"海底地形",en:"Seabed terrain"},highResDem:{ja:"高精細DEM",en:"High-resolution DEM"},countryFill:{ja:"国別カラー",en:"Country color fill"},countryColorMap:{ja:"隣接国を分離",en:"Separate neighbors"},countryColorMetric:{ja:"指標ヒート",en:"Metric heatmap"},showKcuMoney:{ja:"金額をKCU併記",en:"Show KCU for monetary values"},countryMarkers:{ja:"指標マーカー",en:"Indicator markers"},countryRelief:{ja:"指標高低差",en:"Indicator relief"},countryReliefScale:{ja:"指標高さ強調",en:"Indicator height"},ranking:{ja:"ランキング",en:"Ranking"},worldGlobeInfo:{ja:"3D地球儀は全球地形に加え、ズーム時に実標高DEMをLOD読込します。地形強調・海底地形・高精細DEMを切替できます。1本指回転、2本指ピンチズーム、2本指スワイプパンに対応します。DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)。",en:"The 3D globe combines global terrain with real-elevation DEM tiles loaded by LOD while zooming. Terrain exaggeration, seabed relief and high-resolution DEM can be toggled. One-finger rotate, two-finger pinch zoom and two-finger pan are supported. DEM: Mapzen/Tilezen Terrain Tiles (AWS Open Data)."},recenter:{ja:"中央に戻す",en:"Recenter globe"}
+};
+const STATIC_TEXT={
+  "データ読み込み中…":"Loading data…","ログアウト":"Logout","ログイン":"Sign in",
+  "このダッシュボードのデータはログイン後にだけ読み込まれます。":"Dashboard data is loaded only after sign-in.",
+  "メールアドレス":"Email","パスワード":"Password","初回オーナー登録":"First-time owner setup",
+  "最初の1回だけ、ワンタイム登録コードを使ってオーナーアカウントを作成します。":"Create the owner account once using a one-time registration code.",
+  "新しいパスワード（12文字以上）":"New password (12+ characters)","ワンタイム登録コード":"One-time registration code","オーナー登録":"Register owner",
+  "世界地図":"World Map","国別":"Country","地域別":"Regions","ニュース":"News","市場AI":"Market AI","取引シミュレーション":"Trade Simulator","データ説明":"Data Guide",
+  "期間":"Window","カテゴリ":"Category","すべて":"All","総合":"General","国内":"Domestic","海外":"World","経済":"Business","テクノロジー":"Technology","更新":"Refresh","未読込":"Not loaded","最新ニュース":"Latest News","履歴":"History","ニュース履歴":"News History",
+  "表示通貨":"Display currency","KCU推移":"KCU Trend","構成ウェイト":"Component Weights","国・地域":"Country / Region","比率":"Share",
+  "資産のKCU換算（最新）":"Assets in KCU (Latest)","資産":"Asset","月":"Month","現地価格":"Local price","KCUリターン":"KCU return",
+  "分野":"Domain","指標":"Indicator","表示":"Display","年の扱い":"Year handling","3D地形":"3D Terrain","2D地図":"2D Map",
+  "国":"Country","履歴指標":"Historical indicator","指標推移":"Indicator Trend","比較":"Comparison","分野別指標":"Indicators by Domain",
+  "地域中央値":"Regional Median","中央値":"Median","国数":"Countries",
+  "銘柄":"Security","判定日":"Decision date","読み込む":"Load","市場判定":"Market View","パターン図鑑":"Pattern Atlas","AI学習":"AI Training",
+  "説明可能モデル":"Explainable model","非説明・非線形モデル":"Opaque nonlinear model","検証成績で統合":"Validation-weighted ensemble","回顧パターン図鑑":"Retrospective pattern atlas",
+  "現在判定":"Current Signal","Explain AIの主な寄与":"Main Explain AI Contributions","モデル監査":"Model Audit",
+  "図鑑確認中":"Checking atlas","モデル確認中":"Checking model","プロフィール確認中":"Checking profile",
+  "設定保存":"Save settings","1回学習":"Train once","履歴更新":"Refresh history","戦略 JSON":"Strategy JSON","探索範囲 JSON":"Search Space JSON","採点基準 JSON":"Objective JSON",
+  "現在の最良個体":"Current Best Candidate","コピー":"Copy","実行履歴":"Run History","状態":"Status","勝率":"Win rate","取引":"Trades","履歴なし":"No history",
+  "リプレイ期間":"Replay window","初期資金":"Initial cash","売買単位":"Order size","リプレイ開始":"Start replay",
+  "個別銘柄リプレイ":"Security Replay","売買モード":"Trading mode","手動":"Manual","半自動":"Semi-auto","自動":"Auto",
+  "利確 %":"Take profit %","損切 %":"Stop loss %","コスト bps":"Cost bps","買い注文":"Buy order","売り注文":"Sell order","AI提案を採用":"Accept AI proposal",
+  "利益への税率20.315%を反映":"Apply 20.315% tax to realized gains","取引履歴":"Trade History","売買":"Side","株数":"Shares","価格":"Price","税/費用":"Tax / Cost","現金":"Cash",
+  "この画面の読み方":"How to Read This Dashboard","生成":"Generated","設定":"Settings","バージョン":"Version","データ":"Data","表示":"Display",
+  "3D地球儀は地形高度画像による高低差を球面へ反映し、地形強調倍率と海底地形を切り替えられます。ドラッグ回転、ピンチ/ホイールズーム、国クリックで国別画面へ移動できます。":"3D terrain displaces the globe surface using a terrain-height image. You can adjust terrain exaggeration and toggle seabed relief. Drag to rotate, pinch or scroll to zoom, and tap a country to open its country view.",
+  "各営業日の終値までに利用可能な情報から、次営業日寄付き→5営業日後終値を評価します。":"Evaluates the move from the next session open to the close five trading days later using only information available by each day’s close.",
+  "パターン図鑑の勝率・5日後リターンは未来結果を含む回顧統計です。過去リプレイの売買判断には使用しません。":"Pattern Atlas win rates and 5-day returns are retrospective statistics containing future outcomes. They are not used for historical replay trading decisions.",
+  "プレイヤー定義ルールの閾値を反復バックテストし、検証区間で最良変数を選びます。背景学習はいつでもOFFにできます。":"Repeatedly backtests player-defined rule thresholds and selects parameters on the validation period. Background training can be turned off at any time.",
+  "D日終値で判断し、成行注文はD+1営業日の寄付きで約定します。フルオートでも同じ時系列ルールです。":"Signals are decided at day D close and market orders fill at the next trading day open. Full-auto uses the same timing rule.",
+  "ここでの「地域」はKCPの国マスターにある国際地域区分です。都道府県などのKRP地域観測は別レイヤーで、データ投入後に追加します。":"Regions here are the international regions in the KCP country master. Subnational KRP observations are a separate layer and will appear after data is populated.",
+  "地形強調":"Terrain exaggeration","海底地形":"Seabed terrain","高精細DEM":"High-resolution DEM","国別カラー":"Country color fill","指標マーカー":"Indicator markers","指標高低差":"Indicator relief","指標高さ強調":"Indicator height","ランキング":"Ranking","中央に戻す":"Recenter globe"
+};
+function t(key){return TEXT[key]?.[LANG]??key;}
+function locale(){return LANG==="en"?"en-US":"ja-JP";}
+function domainName(d){return LANG==="ja"?(DOMAIN_JA[d]||d):d.replaceAll("_"," ").replace(/\b\w/g,x=>x.toUpperCase());}
+function regionName(v){return LANG==="ja"?(REGION_JA[v]||v):v||"—";}
+function incomeName(v){return LANG==="ja"?(INCOME_JA[v]||v):v||"—";}
+function countryName(c){
+  try{
+    if(c?.iso2)return new Intl.DisplayNames([LANG==="en"?"en":"ja"],{type:"region"}).of(c.iso2)||c.name;
+  }catch{}
+  return c?.name||"—";
+}
+function translateStaticText(root=document.body){
+  if(!root)return;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  while(walker.nextNode()){
+    const node=walker.currentNode,raw=node.nodeValue||"",trim=raw.trim();
+    if(!trim)continue;
+    if(!node.__kamokuI18nKey&&STATIC_TEXT[trim])node.__kamokuI18nKey=trim;
+    const key=node.__kamokuI18nKey;
+    if(!key)continue;
+    const lead=raw.match(/^\s*/)?.[0]||"",trail=raw.match(/\s*$/)?.[0]||"";
+    node.nodeValue=lead+(LANG==="en"?STATIC_TEXT[key]:key)+trail;
+  }
+}
+function updatePlaceholders(){
+  loginEmail.placeholder=LANG==="en"?"Email":"メールアドレス";
+  loginPassword.placeholder=LANG==="en"?"Password":"パスワード";
+  bootstrapEmail.placeholder=LANG==="en"?"Email":"メールアドレス";
+  bootstrapPassword.placeholder=LANG==="en"?"New password (12+ characters)":"新しいパスワード（12文字以上）";
+  bootstrapCode.placeholder=LANG==="en"?"One-time registration code":"ワンタイム登録コード";
+  countrySearch.placeholder=LANG==="en"?"Japan / JPN":"日本 / Japan / JPN";
+  marketSymbolSearch.placeholder=LANG==="en"?"7203 / Toyota":"7203 / トヨタ";
+  tradeSymbolSearch.placeholder=LANG==="en"?"7203 / Toyota":"7203 / トヨタ";
+}
+function updateStamp(){
+  if(!D)return;
+  stamp.textContent=t("generated")+": "+new Date(D.generated_at).toLocaleString(locale())+" / "+D.countries.length+" "+t("countries")+" / "+registry.length+" "+t("indicators");
+}
+function localizeSelectors(){
+  if(!D)return;
+  fillResourceSelectors();
+  syncWorldLayerControls();
+  const sets=[
+    [worldDomain,worldMetric],[countryDomain,countryMetric],[regionDomain,regionMetric]
+  ];
+  for(const [ds,ms] of sets){
+    const d=ds.value,m=ms.value;
+    fillDomain(ds);if(d)ds.value=d;
+    fillMetric(ms,ds.value);if(m)ms.value=m;
+  }
+  worldDisplay.options[0].textContent=t("terrain3d");
+  worldDisplay.options[1].textContent=t("terrainOnly");
+  worldDisplay.options[2].textContent=t("map2d");
+  worldMode.options[0].textContent=t("latestEach");
+  worldMode.options[1].textContent=t("timelinePoint");
+  if(document.getElementById("worldCountryPreviewHint"))worldCountryPreviewHint.textContent=t("tapForDetail");
+  if(document.getElementById("terrainScaleWrap"))terrainScaleWrap.childNodes[0].nodeValue=t("terrainExaggeration")+" ";
+  if(document.getElementById("worldSeabedText"))worldSeabedText.textContent=t("seabedTerrain");
+  if(document.getElementById("worldDemText"))worldDemText.textContent=t("highResDem");
+  if(document.getElementById("worldCountryFillText"))worldCountryFillText.textContent=t("countryFill");
+  if(document.getElementById("worldCountryColorMode")){
+    worldCountryColorMode.options[0].textContent=t("countryColorMap");
+    worldCountryColorMode.options[1].textContent=t("countryColorMetric");
+  }
+  if(document.getElementById("worldShowKcuMoneyText"))worldShowKcuMoneyText.textContent=t("showKcuMoney");
+  if(document.getElementById("worldCountryMarkersText"))worldCountryMarkersText.textContent=t("countryMarkers");
+  if(document.getElementById("worldCountryReliefText"))worldCountryReliefText.textContent=t("countryRelief");
+  if(document.getElementById("countryReliefScaleWrap"))countryReliefScaleWrap.childNodes[0].nodeValue=t("countryReliefScale")+" ";
+  if(document.getElementById("worldRankHead"))worldRankHead.textContent=t("ranking");
+  if(document.getElementById("worldGlobeInfo"))worldGlobeInfo.textContent=t("worldGlobeInfo");
+  if(document.getElementById("worldCenterBtn"))worldCenterBtn.textContent=t("recenter");
+  updateGlobeControlLanguage();
+  countryList.innerHTML=D.countries.map(c=>'<option value="'+esc(countryName(c))+' ('+esc(c.iso3)+')"></option>').join("");
+}
+function applyLanguage(){
+  document.documentElement.lang=LANG;
+  langJa.classList.toggle("active",LANG==="ja");langEn.classList.toggle("active",LANG==="en");
+  langJa.setAttribute("aria-pressed",LANG==="ja");langEn.setAttribute("aria-pressed",LANG==="en");
+  updatePlaceholders();translateStaticText();
+  if(D){
+    localizeSelectors();updateStamp();
+    drawWorld();renderCountry();drawRegions();
+    if(MARKET_MODEL)renderMarketAI();
+    if(MARKET_ATLAS)renderPatternAtlas();
+    if(TRAIN_PROFILE)renderTraining();
+    if(TRADE.bars.length)renderTrade();
+    translateStaticText();
+  }
+}
+function setLanguage(lang){
+  LANG=lang==="en"?"en":"ja";
+  localStorage.setItem("kamokuLanguage",LANG);
+  applyLanguage();
+}
+
+const fmt=(v,unit="")=>{
+  if(v===null||v===undefined||Number.isNaN(Number(v)))return "—";
+  const n=Number(v),a=Math.abs(n),loc=locale();
+  if(unit==="percent")return n.toLocaleString(loc,{maximumFractionDigits:2})+"%";
+  if(unit==="years")return n.toLocaleString(loc,{maximumFractionDigits:1})+(LANG==="en"?" years":" 年");
+  if(unit==="per_100k")return n.toLocaleString(loc,{maximumFractionDigits:2})+(LANG==="en"?" /100k":" /10万人");
+  if(unit==="estimate")return n.toLocaleString(loc,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(LANG==="ja"){
+    if(a>=1e12)return (n/1e12).toLocaleString(loc,{maximumFractionDigits:2})+"兆";
+    if(a>=1e9)return (n/1e9).toLocaleString(loc,{maximumFractionDigits:2})+"B";
+    if(a>=1e6)return (n/1e6).toLocaleString(loc,{maximumFractionDigits:2})+"M";
+  }else{
+    if(a>=1e12)return (n/1e12).toLocaleString(loc,{maximumFractionDigits:2})+"T";
+    if(a>=1e9)return (n/1e9).toLocaleString(loc,{maximumFractionDigits:2})+"B";
+    if(a>=1e6)return (n/1e6).toLocaleString(loc,{maximumFractionDigits:2})+"M";
+  }
+  return n.toLocaleString(loc,{maximumFractionDigits:3});
+};
+const pct=v=>v==null?"—":(Number(v)*100).toLocaleString(locale(),{maximumFractionDigits:2})+"%";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const metricName=m=>LANG==="ja"?(METRIC_JA[m]||regByMetric[m]?.display_name||m):(regByMetric[m]?.display_name||m);
+const metricUnit=m=>regByMetric[m]?.unit||"";
+function annualKcuUsd(year,variant="KCU-G"){
+  const rows=D?.kcu?.variants?.[variant]||[];
+  let sum=0,n=0;
+  for(const r of rows){
+    const y=+String(r.m||"").slice(0,4),v=+r.usd;
+    if(y===+year&&Number.isFinite(v)&&v>0){sum+=v;n++;}
+  }
+  return n?sum/n:null;
+}
+function kcuFromUsd(value,year){
+  const rate=annualKcuUsd(year,"KCU-G");
+  return Number.isFinite(+value)&&Number.isFinite(rate)&&rate>0?(+value/rate):null;
+}
+function fmtKcu(value){
+  if(value==null||!Number.isFinite(+value))return null;
+  const n=+value,a=Math.abs(n),loc=locale();
+  if(a>=1e12)return (n/1e12).toLocaleString(loc,{maximumFractionDigits:2})+"T KCU";
+  if(a>=1e9)return (n/1e9).toLocaleString(loc,{maximumFractionDigits:2})+"B KCU";
+  if(a>=1e6)return (n/1e6).toLocaleString(loc,{maximumFractionDigits:2})+"M KCU";
+  return n.toLocaleString(loc,{maximumFractionDigits:2})+" KCU";
+}
+function fmtWorldValue(value,unit,year){
+  const base=fmt(value,unit);
+  if(unit!=="USD"||!document.getElementById("worldShowKcuMoney")||!worldShowKcuMoney.checked)return base;
+  const kv=fmtKcu(kcuFromUsd(value,year));
+  return kv?base+" / "+kv:base;
+}
+function militaryPairForCountry(c,metric){
+  if(metric!=="MILITARY_EXPENDITURE_PCT_GDP"&&metric!=="MILITARY_EXPENDITURE_CURRENT_USD")return null;
+  const targetYear=worldMode.value==="timeline"?+worldYearSlider.value:null;
+  const pick=m=>targetYear?worldValueAtYear(c,m,targetYear):c.latest?.[m];
+  return {pct:pick("MILITARY_EXPENDITURE_PCT_GDP"),usd:pick("MILITARY_EXPENDITURE_CURRENT_USD")};
+}
+
+async function resourceDataApi(api,params={}){
+  if(!AUTH_SESSION?.access_token)throw new Error(t("loadingRequired"));
+  const u=new URL(API_BASE);
+  u.searchParams.set("api",api);
+  for(const [k,v] of Object.entries(params))if(v!==null&&v!==undefined&&v!=="")u.searchParams.set(k,String(v));
+  const r=await fetch(u,{cache:"no-store",headers:{Authorization:"Bearer "+AUTH_SESSION.access_token}});
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||("resource HTTP "+r.status));
+  return out;
+}
+async function loadResourceSites(key,force=false){
+  if(!key)return [];
+  if(!force&&RESOURCE_SITE_CACHE[key])return RESOURCE_SITE_CACHE[key];
+  if(RESOURCE_SITE_LOADING[key])return RESOURCE_SITE_LOADING[key];
+  RESOURCE_SITE_LOADING[key]=resourceDataApi("resource-sites",{resource:key,limit:10000})
+    .then(out=>{
+      RESOURCE_SITE_CACHE[key]=out.sites||[];
+      delete RESOURCE_SITE_LOADING[key];
+      if(worldLayer.value==="resource"&&worldResource.value===key)drawWorld();
+      return RESOURCE_SITE_CACHE[key];
+    })
+    .catch(e=>{
+      delete RESOURCE_SITE_LOADING[key];
+      console.warn("resource site load",e);
+      RESOURCE_SITE_CACHE[key]=[];
+      return [];
+    });
+  return RESOURCE_SITE_LOADING[key];
+}
+async function loadResourceSiteDetail(id){
+  if(!id)return null;
+  if(RESOURCE_SITE_DETAIL_CACHE[id])return RESOURCE_SITE_DETAIL_CACHE[id];
+  const out=await resourceDataApi("resource-site",{id});
+  RESOURCE_SITE_DETAIL_CACHE[id]=out.site||null;
+  return RESOURCE_SITE_DETAIL_CACHE[id];
+}
+
+const PRODUCT_METRIC_LABELS={
+  production_quantity:{ja:"生産量",en:"Production quantity"},
+  production_value_usd:{ja:"生産額",en:"Production value"},
+  export_quantity:{ja:"輸出量",en:"Export quantity"},
+  export_value_usd:{ja:"輸出額",en:"Export value"},
+  import_quantity:{ja:"輸入量",en:"Import quantity"},
+  import_value_usd:{ja:"輸入額",en:"Import value"},
+  trade_balance_value_usd:{ja:"貿易収支額",en:"Trade balance"},
+  apparent_consumption_value_usd:{ja:"見かけ消費額",en:"Apparent consumption"},
+  housing_starts:{ja:"住宅着工数",en:"Housing starts"},
+  shipbuilding_gross_tonnage:{ja:"船舶建造GT",en:"Shipbuilding gross tonnage"}
+};
+const PRODUCT_SECTOR_LABELS={
+  agriculture:{ja:"農産物",en:"Agriculture"},
+  transport:{ja:"輸送機械",en:"Transport manufacturing"},
+  construction:{ja:"建設",en:"Construction"},
+  electronics:{ja:"半導体・電子",en:"Semiconductors & electronics"}
+};
+function productMetricLabel(k){const x=PRODUCT_METRIC_LABELS[k];return x?x[LANG]||x.ja:k;}
+function productSectorLabel(k){const x=PRODUCT_SECTOR_LABELS[k];return x?x[LANG]||x.ja:k;}
+function productName(key){
+  const x=PRODUCT_CATALOG.find(v=>v.product_key===key);
+  return LANG==="ja"?(x?.display_name_ja||x?.display_name||key):(x?.display_name||key);
+}
+async function loadProductCatalog(force=false){
+  if(PRODUCT_CATALOG.length&&!force)return PRODUCT_CATALOG;
+  const out=await resourceDataApi("product-catalog");
+  PRODUCT_CATALOG=out.items||[];
+  fillProductSelectors();
+  return PRODUCT_CATALOG;
+}
+function fillProductSelectors(){
+  if(!document.getElementById("worldProductSector"))return;
+  const sectors=[...new Set(PRODUCT_CATALOG.map(x=>x.sector_key))];
+  const oldSector=worldProductSector.value||localStorage.getItem("kamokuProductSector")||"agriculture";
+  worldProductSector.innerHTML=sectors.map(s=>'<option value="'+esc(s)+'">'+esc(productSectorLabel(s))+'</option>').join("");
+  if(sectors.includes(oldSector))worldProductSector.value=oldSector;
+  const rows=PRODUCT_CATALOG.filter(x=>x.sector_key===worldProductSector.value);
+  const oldProduct=worldProduct.value||localStorage.getItem("kamokuProductKey")||"wheat";
+  worldProduct.innerHTML=rows.map(x=>'<option value="'+esc(x.product_key)+'">'+esc(LANG==="ja"?(x.display_name_ja||x.display_name):x.display_name)+'</option>').join("");
+  if(rows.some(x=>x.product_key===oldProduct))worldProduct.value=oldProduct;
+  [...worldProductMetric.options].forEach(o=>o.textContent=productMetricLabel(o.value));
+}
+async function loadProductSeries(force=false){
+  const sector=worldProductSector.value,key=worldProduct.value,metric=worldProductMetric.value;
+  if(!sector||!key||!metric)return [];
+  const cacheKey=[sector,key,metric].join("|");
+  if(!force&&PRODUCT_SERIES_CACHE[cacheKey]){
+    PRODUCT_CURRENT_ROWS=PRODUCT_SERIES_CACHE[cacheKey];return PRODUCT_CURRENT_ROWS;
+  }
+  PRODUCT_LOADING=true;
+  try{
+    const out=await resourceDataApi("product-data",{sector,product:key,metric,fromYear:START_YEAR_UI,toYear:new Date().getFullYear(),limit:20000});
+    PRODUCT_CURRENT_ROWS=(out.items||[]).map(x=>({iso3:x.iso3,year:+x.period_year,value:+x.value,unit:x.unit,source:x.source_name,quality:x.quality}));
+    PRODUCT_SERIES_CACHE[cacheKey]=PRODUCT_CURRENT_ROWS;
+    return PRODUCT_CURRENT_ROWS;
+  }finally{PRODUCT_LOADING=false;}
+}
+const START_YEAR_UI=2000;
+function productSnapshotCountries(){
+  const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+  const byIso=new Map();
+  for(const r of PRODUCT_CURRENT_ROWS){
+    if(!Number.isFinite(r.value)||!Number.isFinite(r.year))continue;
+    if(target!=null&&r.year>target)continue;
+    const prev=byIso.get(r.iso3);
+    if(!prev||r.year>prev.year)byIso.set(r.iso3,r);
+  }
+  return D.countries.map(c=>{
+    const r=byIso.get(c.iso3);
+    const item=r?{year:r.year,value:r.value,unit:r.unit,source:r.source,quality:r.quality}:null;
+    return Object.assign({},c,{latest:Object.assign({},c.latest||{},{__PRODUCT__:item})});
+  });
+}
+function productYears(){
+  return [...new Set(PRODUCT_CURRENT_ROWS.map(x=>x.year).filter(Number.isFinite))].sort((a,b)=>a-b);
+}
+function productFormat(v,unit,year){
+  if(v==null||!Number.isFinite(+v))return "—";
+  if(unit==="USD")return fmtWorldValue(v,"USD",year);
+  return fmt(v)+(unit?(" "+unit):"");
+}
+async function loadProductDetail(iso){
+  const sector=worldProductSector.value,key=worldProduct.value,cacheKey=[iso,sector,key].join("|");
+  if(PRODUCT_DETAIL_CACHE[cacheKey])return PRODUCT_DETAIL_CACHE[cacheKey];
+  const out=await resourceDataApi("product-data",{sector,product:key,iso3:iso,fromYear:START_YEAR_UI,toYear:new Date().getFullYear(),limit:20000});
+  PRODUCT_DETAIL_CACHE[cacheKey]=out.items||[];
+  return PRODUCT_DETAIL_CACHE[cacheKey];
+}
+async function renderProductDetail(iso){
+  const cc=countryByIso[iso];if(!cc)return;
+  productDetailCard.style.display="block";
+  productDetailTitle.textContent=countryName(cc)+" · "+productName(worldProduct.value);
+  productDetailBadge.textContent=productSectorLabel(worldProductSector.value);
+  productDetailMeta.textContent=LANG==="en"?"Production and trade histories; source years may differ.":"生産・貿易の時系列です。系列ごとに最新年が異なる場合があります。";
+  let rows=[];
+  try{rows=await loadProductDetail(iso)}catch(e){productDetailMeta.textContent=e.message||String(e);return;}
+  const byMetric={};
+  for(const r of rows)(byMetric[r.metric_type]||(byMetric[r.metric_type]=[])).push(r);
+  const latest=m=>(byMetric[m]||[]).reduce((a,b)=>!a||+b.period_year>+a.period_year?b:a,null);
+  const cards=["production_quantity","production_value_usd","export_value_usd","import_value_usd","trade_balance_value_usd","housing_starts"].map(m=>{
+    const x=latest(m);return [productMetricLabel(m),x?productFormat(+x.value,x.unit,+x.period_year):"—",x?String(x.period_year):""];
+  });
+  productDetailCards.innerHTML=cards.map(x=>'<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div><div class="meta">'+esc(x[2])+'</div></div>').join("");
+  const traces=[];
+  for(const m of ["production_quantity","production_value_usd","housing_starts"]){
+    const a=(byMetric[m]||[]).sort((x,y)=>+x.period_year-+y.period_year);
+    if(a.length)traces.push({x:a.map(x=>+x.period_year),y:a.map(x=>+x.value),type:"scatter",mode:"lines+markers",name:productMetricLabel(m),yaxis:m==="production_value_usd"?"y2":"y"});
+  }
+  if(traces.length)Plotly.react("productProductionChart",traces,layout({margin:{l:50,r:48,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"},yaxis2:{overlaying:"y",side:"right",showgrid:false},legend:{orientation:"h"}}),config);
+  else productProductionChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  const tradeTraces=[];
+  for(const m of ["export_value_usd","import_value_usd","trade_balance_value_usd"]){
+    const a=(byMetric[m]||[]).sort((x,y)=>+x.period_year-+y.period_year);
+    if(a.length)tradeTraces.push({x:a.map(x=>+x.period_year),y:a.map(x=>+x.value),type:"scatter",mode:"lines+markers",name:productMetricLabel(m)});
+  }
+  if(tradeTraces.length)Plotly.react("productTradeChart",tradeTraces,layout({margin:{l:55,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:"USD"},legend:{orientation:"h"}}),config);
+  else productTradeChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  setTimeout(()=>productDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
+}
+
+const COMPANY_METRIC_LABELS={
+  revenue:{ja:"売上高",en:"Revenue"},operating_income:{ja:"営業利益",en:"Operating income"},
+  ordinary_income:{ja:"経常利益",en:"Ordinary income"},net_income:{ja:"純利益",en:"Net income"},
+  total_assets:{ja:"総資産",en:"Total assets"},equity:{ja:"自己資本",en:"Equity"},
+  cfo:{ja:"営業CF",en:"Operating cash flow"},free_cash_flow:{ja:"FCF",en:"Free cash flow"},
+  roe:{ja:"ROE",en:"ROE"},equity_ratio:{ja:"自己資本比率",en:"Equity ratio"},
+  eps:{ja:"EPS",en:"EPS"},bps:{ja:"BPS",en:"BPS"},close_price:{ja:"株価",en:"Share price"},
+  per:{ja:"PER",en:"P/E"},pbr:{ja:"PBR",en:"P/B"},dividend_yield:{ja:"配当利回り",en:"Dividend yield"}
+};
+const COMPANY_MONEY_METRICS=new Set(["revenue","operating_income","ordinary_income","net_income","total_assets","equity","cfo","free_cash_flow"]);
+function companyMetricLabel(k){const x=COMPANY_METRIC_LABELS[k];return x?x[LANG]||x.ja:k;}
+function companyName(x){return LANG==="ja"?(x.display_name_ja||x.legal_name||x.company_id):(x.display_name_en||x.legal_name||x.display_name_ja||x.company_id);}
+function companyValueFormat(metric,value){
+  if(value==null||!Number.isFinite(+value))return "—";
+  if(COMPANY_MONEY_METRICS.has(metric))return fmt(value)+(LANG==="ja"?"円":" JPY");
+  if(metric==="roe"||metric==="equity_ratio"||metric==="dividend_yield")return fmt(value,"percent");
+  if(metric==="per"||metric==="pbr")return fmt(value)+(LANG==="ja"?"倍":"x");
+  if(metric==="eps"||metric==="bps"||metric==="close_price")return fmt(value)+(LANG==="ja"?"円":" JPY");
+  return fmt(value);
+}
+function fillCompanySelectors(){
+  if(!document.getElementById("worldCompanyMetric"))return;
+  [...worldCompanyMetric.options].forEach(o=>o.textContent=companyMetricLabel(o.value));
+  const old=worldCompanySector.value||localStorage.getItem("kamokuCompanySector")||"";
+  worldCompanySector.innerHTML='<option value="">'+(LANG==="en"?"All sectors":"全業種")+'</option>'+
+    COMPANY_SECTORS.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join("");
+  if(COMPANY_SECTORS.includes(old))worldCompanySector.value=old;
+}
+async function loadCompanyRank(force=false){
+  const metric=worldCompanyMetric.value||"revenue",sector=worldCompanySector.value||"";
+  const key=[metric,sector].join("|");
+  if(!force&&COMPANY_RANK_CACHE[key]){
+    const hit=COMPANY_RANK_CACHE[key];COMPANY_RANK_ITEMS=hit.items;COMPANY_SECTORS=hit.sectors;fillCompanySelectors();return hit;
+  }
+  const out=await resourceDataApi("company-rank",{iso3:"JPN",metric,sector17:sector,limit:100});
+  COMPANY_RANK_ITEMS=out.items||[];
+  if((out.sectors||[]).length)COMPANY_SECTORS=out.sectors;
+  COMPANY_RANK_CACHE[key]={items:COMPANY_RANK_ITEMS,sectors:COMPANY_SECTORS};
+  fillCompanySelectors();return out;
+}
+async function loadCompanyDetail(id){
+  if(COMPANY_DETAIL_CACHE[id])return COMPANY_DETAIL_CACHE[id];
+  const out=await resourceDataApi("company-detail",{id});
+  COMPANY_DETAIL_CACHE[id]=out;return out;
+}
+function renderCompanyRanking(){
+  worldRankPanel.style.display="flex";
+  const metric=worldCompanyMetric.value;
+  worldRankHead.textContent=(LANG==="en"?"Companies · ":"企業 · ")+companyMetricLabel(metric);
+  const rows=COMPANY_RANK_ITEMS.filter(x=>Number.isFinite(+x[metric]));
+  if(!rows.length){worldRankList.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+  const vals=rows.map(x=>+x[metric]),min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  const asc=[...vals].sort((a,b)=>a-b),median=asc[Math.floor((asc.length-1)/2)]??min;
+  const medianPos=Math.max(0,Math.min(80,((median-min)/span)*80));
+  worldRankList.innerHTML=rows.map((x,i)=>{
+    const w=Math.max(2.5,((+x[metric]-min)/span)*80);
+    return '<button class="world-rank-item" data-company="'+esc(x.company_id)+'">'+
+      '<span class="world-rank-bar" style="width:'+w.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-median" style="left:'+medianPos.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(companyName(x))+'</div><div class="world-rank-value">'+esc(companyValueFormat(metric,x[metric]))+'</div></span></span>'+
+    '</button>';
+  }).join("");
+  worldRankList.querySelectorAll(".world-rank-item").forEach(btn=>btn.onclick=()=>{
+    const item=COMPANY_RANK_ITEMS.find(x=>x.company_id===btn.dataset.company);if(!item)return;
+    showCompanyPreview(item);
+    const country=countryByIso[item.iso3||"JPN"];
+    if(country)window.KamokuGlobe?.flyToCountry?.(country.iso3,+country.lat,+country.lon,{duration:700});
+  });
+}
+function showCompanyPreview(item){
+  WORLD_PREVIEW_COMPANY_ID=item.company_id;WORLD_PREVIEW_ISO=item.iso3||"JPN";WORLD_PREVIEW_SITE_ID=null;
+  const metric=worldCompanyMetric.value;
+  worldCountryPreviewName.textContent=companyName(item);
+  worldCountryPreviewValue.textContent=companyValueFormat(metric,item[metric]);
+  worldCountryPreviewMeta.textContent=[item.security_code,item.sector17,item.financial_date?("FY "+item.financial_date):null].filter(Boolean).join(" · ");
+  worldCountryPreview.style.display="block";
+}
+async function renderCompanyDetail(id){
+  companyDetailCard.style.display="block";
+  companyDetailTitle.textContent=LANG==="en"?"Loading company…":"企業データ読込中…";
+  companyDetailMeta.textContent="";
+  let out;
+  try{out=await loadCompanyDetail(id)}catch(e){companyDetailMeta.textContent=e?.message||String(e);return;}
+  const co=out.company||{},latest=out.latest||{},f=out.financials||[],prices=out.prices||[];
+  companyDetailTitle.textContent=companyName(co);
+  companyDetailBadge.textContent=co.security_code||co.ticker||co.iso3||"—";
+  companyDetailMeta.textContent=[co.exchange,co.sector17,co.sector33,co.hq_city].filter(Boolean).join(" · ");
+  const cards=[
+    ["revenue",latest.revenue],["operating_income",latest.operating_income],["net_income",latest.net_income],
+    ["total_assets",latest.total_assets],["roe",latest.roe],["equity_ratio",latest.equity_ratio],
+    ["per",latest.per],["pbr",latest.pbr],["dividend_yield",latest.dividend_yield],["close_price",latest.close_price]
+  ];
+  companyDetailCards.innerHTML=cards.map(([m,v])=>'<div class="metric"><div class="name">'+esc(companyMetricLabel(m))+'</div><div class="value">'+esc(companyValueFormat(m,v))+'</div></div>').join("");
+  const fy=f.filter(x=>x.period_type==="FY").sort((a,b)=>String(a.disclosure_date).localeCompare(String(b.disclosure_date)));
+  if(fy.length){
+    Plotly.react("companyFinancialChart",[
+      {x:fy.map(x=>x.disclosure_date),y:fy.map(x=>x.revenue),type:"scatter",mode:"lines+markers",name:companyMetricLabel("revenue")},
+      {x:fy.map(x=>x.disclosure_date),y:fy.map(x=>x.operating_income),type:"scatter",mode:"lines+markers",name:companyMetricLabel("operating_income")},
+      {x:fy.map(x=>x.disclosure_date),y:fy.map(x=>x.net_income),type:"scatter",mode:"lines+markers",name:companyMetricLabel("net_income")}
+    ],layout({margin:{l:55,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:"JPY"},legend:{orientation:"h"}}),config);
+  }else companyFinancialChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  if(prices.length){
+    Plotly.react("companyPriceChart",[{x:prices.map(x=>x.price_date),y:prices.map(x=>x.adjusted_close??x.close),type:"scatter",mode:"lines",name:LANG==="en"?"Adjusted close":"調整後終値"}],
+      layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:"JPY"}}),config);
+  }else companyPriceChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+  setTimeout(()=>companyDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
+}
+function drawCompanyWorld(){
+  const use3d=worldDisplay.value!=="2d";
+  worldStats.textContent=(LANG==="en"?"Japan listed companies · ":"日本上場企業 · ")+COMPANY_RANK_ITEMS.length;
+  renderCompanyRanking();
+  worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
+  if(use3d){
+    window.KamokuGlobe?.update({
+      element:worldGlobe,countries:D.countries.map(x=>Object.assign({},x,{displayName:countryName(x)})),
+      metric:"__COMPANY__",metricLabel:companyMetricLabel(worldCompanyMetric.value),unit:"",language:LANG,
+      terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
+      countryFill:false,markers:false,countryRelief:false,resourceSites:[],
+      onCountrySelect:(iso)=>{if(iso==="JPN"&&COMPANY_RANK_ITEMS[0])showCompanyPreview(COMPANY_RANK_ITEMS[0]);}
+    });
+    setupGlobeControlDeck();return;
+  }
+  Plotly.react("worldMap",[{
+    type:"scattergeo",mode:"markers+text",locations:["JPN"],locationmode:"ISO-3",
+    text:[LANG==="en"?"Japan companies":"日本企業"],marker:{size:18},
+    hovertemplate:(LANG==="en"?"Japan listed-company layer":"日本上場企業レイヤー")+"<extra></extra>"
+  }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
+}
+
+function resourceName(key){
+  const meta=(D?.resources?.catalog||[]).find(x=>x.key===key);
+  if(LANG==="ja")return RESOURCE_JA[key]||meta?.name||String(key||"").replaceAll("_"," ");
+  return meta?.name||String(key||"").replaceAll("_"," ").replace(/\b\w/g,m=>m.toUpperCase());
+}
+function resourceMetricLabel(kind){
+  return kind==="production_annual"?t("resourceProduction"):kind==="reserves"?t("resourceReserves"):t("resourceRp");
+}
+function resourceFormat(value,unit){
+  if(value==null||!Number.isFinite(+value))return "—";
+  if(unit==="years")return fmt(value,"years");
+  if(unit==="percent")return fmt(value,"percent");
+  return fmt(value)+(unit?(" "+unit):"");
+}
+function latestResourceAtOrBefore(series,targetYear=null){
+  const rows=(series||[]).filter(x=>Number.isFinite(+x.value)&&Number.isFinite(+x.year));
+  if(!rows.length)return null;
+  let candidates=targetYear==null?rows:rows.filter(x=>+x.year<=+targetYear);
+  if(!candidates.length)return null;
+  return candidates.reduce((a,b)=>(+b.year>+a.year?b:a));
+}
+function resourceUnitBase(value,unit){
+  if(!Number.isFinite(+value))return null;
+  const u=String(unit||"").toLowerCase().trim().replace(/,/g,"");
+  const rules=[
+    [/^million metric tons?/,1e6,"metric_ton"],[/^thousand metric tons?/,1e3,"metric_ton"],[/^metric tons?/,1,"metric_ton"],
+    [/^million kilograms?/,1e6,"kg"],[/^thousand kilograms?/,1e3,"kg"],[/^kilograms?/,1,"kg"],
+    [/^million carats?/,1e6,"carat"],[/^thousand carats?/,1e3,"carat"],[/^carats?/,1,"carat"],
+    [/^million cubic meters?/,1e6,"m3"],[/^thousand cubic meters?/,1e3,"m3"],[/^cubic meters?/,1,"m3"]
+  ];
+  for(const [re,f,family] of rules)if(re.test(u))return {value:+value*f,family};
+  return {value:+value,family:"exact:"+u};
+}
+function resourceCountryPair(iso3,key,targetYear=null){
+  const node=D?.resources?.country?.[key]?.[iso3]||{};
+  const production=latestResourceAtOrBefore(node.production_annual,targetYear);
+  const consumption=latestResourceAtOrBefore(node.consumption_annual,targetYear);
+  const reserves=latestResourceAtOrBefore(node.reserves,targetYear);
+  const physical=latestResourceAtOrBefore(node.production_physical_annual,targetYear);
+  const balance=latestResourceAtOrBefore(node.balance_annual,targetYear);
+  const selfSufficiency=latestResourceAtOrBefore(node.self_sufficiency_pct,targetYear);
+  let rp=latestResourceAtOrBefore(node.rp_years,targetYear);
+  if(!rp&&reserves){
+    let years=null,py=physical||production;
+    if(key==="oil"&&physical&&/billion barrels/i.test(reserves.unit||"")&&/thousand barrels\/day/i.test(physical.unit||"")&&+physical.value>0){
+      years=(+reserves.value*1e6)/(+physical.value*365);
+    }else if(key==="gas"&&physical&&/trillion cubic feet/i.test(reserves.unit||"")&&/billion cubic feet/i.test(physical.unit||"")&&+physical.value>0){
+      years=(+reserves.value*1000)/(+physical.value);
+    }else if(key==="coal"&&physical&&/million short tons/i.test(reserves.unit||"")&&/thousand short tons/i.test(physical.unit||"")&&+physical.value>0){
+      years=(+reserves.value*1000)/(+physical.value);
+    }else if(production&&+production.value>0){
+      const p=resourceUnitBase(production.value,production.unit),r=resourceUnitBase(reserves.value,reserves.unit);
+      if(p&&r&&p.family===r.family&&p.value>0)years=r.value/p.value;
+    }
+    if(Number.isFinite(years))rp={year:Math.min(+reserves.year,+(py?.year||reserves.year)),value:years,unit:"years",quality:"derived",source:"Kamoku derived R/P"};
+  }
+  return {production,consumption,reserves,physical,balance,selfSufficiency,rp};
+}
+function resourceItemForCountry(iso3,key,kind,targetYear=null){
+  const pair=resourceCountryPair(iso3,key,targetYear);
+  if(kind==="production_annual")return pair.production;
+  if(kind==="consumption_annual")return pair.consumption;
+  if(kind==="balance_annual")return pair.balance;
+  if(kind==="self_sufficiency_pct")return pair.selfSufficiency;
+  if(kind==="reserves")return pair.reserves;
+  return pair.rp;
+}
+function worldResourceSnapshot(key,kind){
+  const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+  return D.countries.map(c=>{
+    const item=resourceItemForCountry(c.iso3,key,kind,target);
+    return Object.assign({},c,{latest:Object.assign({},c.latest||{},{__RESOURCE__:item})});
+  });
+}
+function resourceYears(key){
+  const years=new Set();
+  const countries=D?.resources?.country?.[key]||{};
+  for(const node of Object.values(countries)){
+    for(const kind of ["production_annual","consumption_annual","balance_annual","self_sufficiency_pct","reserves","production_physical_annual"]){
+      for(const x of node?.[kind]||[])if(Number.isFinite(+x.year))years.add(+x.year);
+    }
+  }
+  return [...years].sort((a,b)=>a-b);
+}
+function fillResourceSelectors(){
+  const catalog=D?.resources?.catalog||[];
+  const prior=worldResource.value;
+  worldResource.innerHTML=catalog.map(x=>'<option value="'+esc(x.key)+'">'+esc(resourceName(x.key))+'</option>').join("");
+  if(catalog.some(x=>x.key===prior))worldResource.value=prior;
+  else if(catalog.some(x=>x.key==="copper"))worldResource.value="copper";
+  worldResourceMetric.options[0].textContent=t("resourceProduction");
+  worldResourceMetric.options[1].textContent=t("resourceConsumption");
+  worldResourceMetric.options[2].textContent=t("resourceBalance");
+  worldResourceMetric.options[3].textContent=t("resourceSelfSufficiency");
+  worldResourceMetric.options[4].textContent=t("resourceReserves");
+  worldResourceMetric.options[5].textContent=t("resourceRp");
+}
+function syncWorldLayerControls(){
+  const resource=worldLayer.value==="resource",product=worldLayer.value==="product",company=worldLayer.value==="company";
+  worldDomain.style.display=(resource||product||company)?"none":"";
+  worldMetric.style.display=(resource||product||company)?"none":"";
+  worldResource.style.display=resource?"":"none";
+  worldResourceMetric.style.display=resource?"":"none";
+  worldProductSector.style.display=product?"":"none";
+  worldProduct.style.display=product?"":"none";
+  worldProductMetric.style.display=product?"":"none";
+  worldCompanySector.style.display=company?"":"none";
+  worldCompanyMetric.style.display=company?"":"none";
+  worldLayer.options[0].textContent=t("worldLayerIndicator");
+  worldLayer.options[1].textContent=t("worldLayerResource");
+  worldLayer.options[2].textContent=t("worldLayerProduct");
+  worldLayer.options[3].textContent=t("worldLayerCompany");
+  if(resource){
+    const years=resourceYears(worldResource.value);
+    if(years.length){
+      worldYearSlider.min=String(years[0]);worldYearSlider.max=String(years[years.length-1]);
+      if(+worldYearSlider.value<years[0]||+worldYearSlider.value>years[years.length-1])worldYearSlider.value=String(years[years.length-1]);
+    }
+  }else if(product){
+    const years=productYears();
+    worldYearSlider.min=String(years[0]||START_YEAR_UI);
+    worldYearSlider.max=String(years.at(-1)||new Date().getFullYear());
+    if(years.length&&(+worldYearSlider.value<years[0]||+worldYearSlider.value>years.at(-1)))worldYearSlider.value=String(years.at(-1));
+  }else{
+    worldYearSlider.min="2000";
+    worldYearSlider.max=String(INDICATOR_WORLD_MAX_YEAR||new Date().getFullYear());
+  }
+  worldYearLabel.textContent=worldYearSlider.value;
+}
+function selectedResourceSites(){
+  if(worldLayer.value!=="resource")return [];
+  const key=worldResource.value;
+  return (RESOURCE_SITE_CACHE[key]||[]).filter(s=>Number.isFinite(+s.lat)&&Number.isFinite(+s.lon))
+    .map(s=>Object.assign({},s,{resourceLabel:resourceName(key)}));
+}
+function resourceSeriesForDetail(subjectType,id,key,kind,site=null){
+  if(subjectType==="site")return site?.values?.[kind]||[];
+  return D?.resources?.country?.[key]?.[id]?.[kind]||[];
+}
+async function renderResourceDetail(subjectType,id){
+  const key=worldResource.value;
+  let site=null;
+  if(subjectType==="site"){
+    resourceDetailCard.style.display="block";
+    resourceDetailTitle.textContent=LANG==="en"?"Loading site…":"地点データ読込中…";
+    resourceDetailMeta.textContent="";
+    try{site=await loadResourceSiteDetail(id);}catch(e){
+      resourceDetailTitle.textContent=LANG==="en"?"Site load failed":"地点データ読込エラー";
+      resourceDetailMeta.textContent=e?.message||String(e);return;
+    }
+    if(!site)return;
+  }
+  const prod=resourceSeriesForDetail(subjectType,id,key,"production_annual",site);
+  const cons=resourceSeriesForDetail(subjectType,id,key,"consumption_annual",site);
+  const res=resourceSeriesForDetail(subjectType,id,key,"reserves",site);
+  let label=id,meta="",pair=null;
+  if(subjectType==="site"){
+    const s=site;label=s.name||id;
+    meta=[s.status,s.operator||s.owner,s.source,s.release].filter(Boolean).join(" · ");
+  }else{
+    const cc=countryByIso[id];if(!cc)return;
+    label=countryName(cc);pair=resourceCountryPair(id,key,null);
+    meta=resourceName(key);
+  }
+  resourceDetailTitle.textContent=label+" · "+resourceName(key);
+  resourceDetailBadge.textContent=subjectType==="site"?(LANG==="en"?"Extraction site":"採掘地点"):(LANG==="en"?"Country":"国");
+  resourceDetailMeta.textContent=meta;
+  resourceProductionTitle.textContent=t("resourceProduction")+" / "+t("resourceConsumption");
+  resourceReservesTitle.textContent=key==="uranium"?(LANG==="en"?"Identified recoverable resources":"確認済み回収可能資源"):t("resourceReserves");
+  resourcePriceTitle.textContent=t("resourcePrice");
+
+  if(pair){
+    const cards=[
+      [t("resourceProduction"),pair.production?resourceFormat(pair.production.value,pair.production.unit):"—"],
+      [t("resourceConsumption"),pair.consumption?resourceFormat(pair.consumption.value,pair.consumption.unit):"—"],
+      [t("resourceBalance"),pair.balance?resourceFormat(pair.balance.value,pair.balance.unit):"—"],
+      [t("resourceSelfSufficiency"),pair.selfSufficiency?resourceFormat(pair.selfSufficiency.value,"percent"):"—"],
+      ["R/P",pair.rp?resourceFormat(pair.rp.value,"years"):"—"]
+    ];
+    resourceDerivedBox.innerHTML=cards.map(x=>'<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div></div>').join("");
+  }else resourceDerivedBox.innerHTML="";
+
+  const flowTraces=[];
+  if(prod?.length){
+    const p=[...prod].sort((a,b)=>+a.year-+b.year);
+    flowTraces.push({x:p.map(x=>x.year),y:p.map(x=>x.value),type:"scatter",mode:"lines+markers",name:t("resourceProduction")});
+  }
+  if(cons?.length){
+    const q=[...cons].sort((a,b)=>+a.year-+b.year);
+    flowTraces.push({x:q.map(x=>x.year),y:q.map(x=>x.value),type:"scatter",mode:"lines+markers",name:t("resourceConsumption")});
+  }
+  if(flowTraces.length)Plotly.react("resourceProductionChart",flowTraces,layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"},legend:{orientation:"h"}}),config);
+  else resourceProductionChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+
+  if(res?.length){
+    const rr=[...res].sort((a,b)=>+a.year-+b.year),unit=rr.at(-1)?.unit||"";
+    Plotly.react("resourceReservesChart",[{x:rr.map(x=>x.year),y:rr.map(x=>x.value),type:"bar",name:resourceReservesTitle.textContent}],
+      layout({margin:{l:48,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:unit}}),config);
+  }else resourceReservesChart.innerHTML='<div class="note">'+t("noData")+'</div>';
+
+  const benchmarks=D?.resources?.prices?.[key]||[];
+  const previous=resourcePriceBenchmark.value;
+  resourcePriceBenchmark.innerHTML=benchmarks.map(b=>'<option value="'+esc(b.key)+'">'+esc(b.name||b.key)+'</option>').join("");
+  if(benchmarks.some(b=>b.key===previous))resourcePriceBenchmark.value=previous;
+  const drawPrice=()=>{
+    const b=benchmarks.find(x=>x.key===resourcePriceBenchmark.value)||benchmarks[0];
+    if(!b?.series?.length){resourcePriceChart.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+    Plotly.react("resourcePriceChart",[{x:b.series.map(x=>x[0]),y:b.series.map(x=>x[1]),type:"scatter",mode:"lines",name:b.name||b.key}],
+      layout({margin:{l:52,r:10,t:8,b:38},xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:(b.currency||"USD")+" "+(b.unit||"")}}),config);
+  };
+  resourcePriceBenchmark.onchange=drawPrice;drawPrice();
+  resourceDetailCard.style.display="block";
+  setTimeout(()=>resourceDetailCard.scrollIntoView({behavior:"smooth",block:"nearest"}),30);
+}
+
+function layout(extra={}){
+  return Object.assign({
+    paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
+    font:{color:"#dbe7f5",family:'-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif'},
+    margin:{l:55,r:20,t:15,b:45},hovermode:"closest"
+  },extra);
+}
+const config={responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]};
+const APP_VERSION="2026.09.25.3";
+const SPLASH_MIN_MS=1800;
+const SPLASH_STARTED=performance.now();
+function hideSplash(){
+  const el=document.getElementById("splashScreen");if(!el)return;
+  const wait=Math.max(0,SPLASH_MIN_MS-(performance.now()-SPLASH_STARTED));
+  setTimeout(()=>{
+    el.classList.add("hiding");
+    setTimeout(()=>{el.style.display="none";el.setAttribute("aria-hidden","true");},420);
+  },wait);
+}
+
+
+const GLOBE_DIAL_DEFS=[
+  {key:"x",short:"X",ja:"焦点 X",en:"Focus X",min:-6,max:6,step:.05,decimals:2},
+  {key:"y",short:"Y",ja:"焦点 Y",en:"Focus Y",min:-6,max:6,step:.05,decimals:2},
+  {key:"z",short:"Z",ja:"焦点 Z",en:"Focus Z",min:-6,max:6,step:.05,decimals:2},
+  {key:"rx",short:"RX",ja:"回転 RX",en:"Rotation RX",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"ry",short:"RY",ja:"回転 RY",en:"Rotation RY",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"rz",short:"RZ",ja:"回転 RZ",en:"Rotation RZ",min:-180,max:180,step:1,decimals:1,suffix:"°",wrap:true},
+  {key:"zoom",short:"ZOOM",ja:"ズーム",en:"Zoom",min:3.15,max:14,step:.1,decimals:2},
+  {key:"lat",short:"LAT",ja:"緯度",en:"Latitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
+  {key:"lon",short:"LON",ja:"経度",en:"Longitude",min:-180,max:180,step:.5,decimals:2,suffix:"°",wrap:true},
+  {key:"time",short:"TIME",ja:"時間 UTC",en:"UTC Time",min:0,max:24,step:.25,decimals:2,suffix:"h",wrap:true}
+];
+const GLOBE_DIAL_MAP=Object.fromEntries(GLOBE_DIAL_DEFS.map(x=>[x.key,x]));
+let globeControlsReady=false,globeUnsubscribe=null;
+let activeGlobeParam=localStorage.getItem("kamokuGlobeParam")||"x";
+let lastGlobeState=null,keypadField=null,keypadBuffer="";
+
+function clampDialValue(def,v){
+  if(def.wrap){
+    const span=def.max-def.min;
+    return ((v-def.min)%span+span)%span+def.min;
+  }
+  return Math.min(def.max,Math.max(def.min,v));
+}
+function formatDial(def,v){
+  const n=Number.isFinite(+v)?+v:0;
+  return n.toFixed(def.decimals)+(def.suffix||"");
+}
+function activeGlobeDef(){
+  return GLOBE_DIAL_MAP[activeGlobeParam]||GLOBE_DIAL_DEFS[0];
+}
+function setGlobeDialValue(key,value){
+  const def=GLOBE_DIAL_MAP[key];if(!def)return;
+  const v=clampDialValue(def,+value||0);
+  window.KamokuGlobe?.setState?.({[key]:v});
+}
+function nudgeGlobeDial(key,steps=1){
+  const def=GLOBE_DIAL_MAP[key];if(!def)return;
+  window.KamokuGlobe?.nudge?.(key,def.step*steps);
+}
+function selectGlobeParam(key){
+  if(!GLOBE_DIAL_MAP[key])return;
+  activeGlobeParam=key;
+  localStorage.setItem("kamokuGlobeParam",key);
+  document.querySelectorAll(".globe-param-btn").forEach(b=>b.classList.toggle("active",b.dataset.key===key));
+  renderActiveGlobeDial(lastGlobeState||window.KamokuGlobe?.getState?.());
+}
+function renderActiveGlobeDial(state){
+  if(!state||!document.getElementById("globeMasterWheel"))return;
+  lastGlobeState=state;
+  const def=activeGlobeDef();
+  const raw=Number.isFinite(+state[def.key])?+state[def.key]:0;
+  const v=clampDialValue(def,raw);
+  globeMasterValue.textContent=formatDial(def,v);
+  globeActiveParamLabel.textContent=LANG==="en"?def.en:def.ja;
+  globeMasterValue.setAttribute("aria-label",(LANG==="en"?def.en:def.ja)+" "+formatDial(def,v));
+}
+function syncGlobeDialDeck(state){
+  lastGlobeState=state;
+  renderActiveGlobeDial(state);
+}
+function updateGlobeControlLanguage(){
+  if(!document.getElementById("globeParamButtons"))return;
+  keypadClear.textContent=LANG==="en"?"Clear":"クリア";
+  keypadBackspace.textContent=LANG==="en"?"⌫ Backspace":"⌫ バックスペース";
+  keypadExecute.textContent=LANG==="en"?"Execute":"実行";
+  globeResetView.title=LANG==="en"?"Reset view":"表示をリセット";
+  globeAxisModeBtn.title=LANG==="en"?"Toggle free / Earth-axis rotation":"自由回転 / 地軸回転を切替";
+  document.querySelectorAll(".globe-param-btn").forEach(b=>{
+    const def=GLOBE_DIAL_MAP[b.dataset.key];
+    if(def)b.title=LANG==="en"?def.en:def.ja;
+  });
+  renderActiveGlobeDial(lastGlobeState||window.KamokuGlobe?.getState?.());
+}
+function openNumericKeypad(key=activeGlobeParam){
+  const def=GLOBE_DIAL_MAP[key];if(!def)return;
+  keypadField=key;
+  const state=lastGlobeState||window.KamokuGlobe?.getState?.()||{};
+  const v=Number.isFinite(+state[key])?+state[key]:0;
+  keypadBuffer=Number(v).toFixed(def.decimals);
+  keypadDisplay.textContent=keypadBuffer;
+  keypadTitle.textContent=(LANG==="en"?def.en:def.ja)+" · "+(LANG==="en"?"Numeric input":"数値入力");
+  numericKeypad.style.display="flex";
+  numericKeypad.setAttribute("aria-hidden","false");
+}
+function closeNumericKeypad(){
+  numericKeypad.style.display="none";
+  numericKeypad.setAttribute("aria-hidden","true");
+  keypadField=null;keypadBuffer="";
+}
+function keypadAppend(ch){
+  if(ch==="sign"){
+    keypadBuffer=keypadBuffer.startsWith("-")?keypadBuffer.slice(1):("-"+(keypadBuffer||"0"));
+  }else if(ch==="."){
+    if(!keypadBuffer.includes("."))keypadBuffer=(keypadBuffer||"0")+".";
+  }else{
+    if(keypadBuffer==="0")keypadBuffer=ch;
+    else if(keypadBuffer==="-0")keypadBuffer="-"+ch;
+    else keypadBuffer+=ch;
+  }
+  keypadDisplay.textContent=keypadBuffer||"0";
+}
+function executeNumericKeypad(){
+  if(!keypadField)return;
+  const n=Number.parseFloat(keypadBuffer);
+  if(Number.isFinite(n))setGlobeDialValue(keypadField,n);
+  closeNumericKeypad();
+}
+function setupNumericKeypad(){
+  if(numericKeypad.dataset.ready==="1")return;
+  numericKeypad.dataset.ready="1";
+  numericKeypad.querySelectorAll("[data-kp]").forEach(b=>b.addEventListener("click",()=>keypadAppend(b.dataset.kp)));
+  keypadClear.addEventListener("click",()=>{keypadBuffer="";keypadDisplay.textContent="0";});
+  keypadBackspace.addEventListener("click",()=>{keypadBuffer=keypadBuffer.slice(0,-1);keypadDisplay.textContent=keypadBuffer||"0";});
+  keypadExecute.addEventListener("click",executeNumericKeypad);
+  keypadClose.addEventListener("click",closeNumericKeypad);
+  numericKeypad.addEventListener("click",e=>{if(e.target===numericKeypad)closeNumericKeypad();});
+  window.addEventListener("keydown",e=>{
+    if(numericKeypad.style.display!=="flex")return;
+    if(/^[0-9]$/.test(e.key))keypadAppend(e.key);
+    else if(e.key===".")keypadAppend(".");
+    else if(e.key==="-")keypadAppend("sign");
+    else if(e.key==="Backspace"){keypadBuffer=keypadBuffer.slice(0,-1);keypadDisplay.textContent=keypadBuffer||"0";}
+    else if(e.key==="Enter")executeNumericKeypad();
+    else if(e.key==="Escape")closeNumericKeypad();
+  });
+}
+function setupGlobeControlDeck(){
+  if(!document.getElementById("globeParamButtons")||!window.KamokuGlobe)return;
+  setupNumericKeypad();
+
+  if(!globeControlsReady){
+    globeControlsReady=true;
+    globeParamButtons.innerHTML="";
+    for(const def of GLOBE_DIAL_DEFS){
+      const b=document.createElement("button");
+      b.type="button";b.className="globe-param-btn";b.dataset.key=def.key;
+      b.innerHTML="<b>"+def.short+"</b><small>"+(LANG==="en"?def.en:def.ja)+"</small>";
+      b.addEventListener("click",()=>selectGlobeParam(def.key));
+      globeParamButtons.appendChild(b);
+    }
+
+    let active=false,lastAngle=0,dialSpin=0;
+    const pointerAngle=e=>{
+      const r=globeMasterWheel.getBoundingClientRect();
+      return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));
+    };
+    globeMasterWheel.addEventListener("pointerdown",e=>{
+      if(e.target===globeMasterValue)return;
+      e.stopPropagation();
+      active=true;lastAngle=pointerAngle(e);
+      globeMasterWheel.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    });
+    globeMasterWheel.addEventListener("pointermove",e=>{
+      if(!active)return;
+      const a=pointerAngle(e);
+      let delta=a-lastAngle;
+      if(delta>Math.PI)delta-=Math.PI*2;
+      if(delta<-Math.PI)delta+=Math.PI*2;
+      lastAngle=a;
+      const deltaDeg=delta*180/Math.PI;
+      dialSpin+=deltaDeg;
+      globeMasterWheel.style.setProperty("--dial-spin",dialSpin+"deg");
+      const def=activeGlobeDef();
+      const state=lastGlobeState||window.KamokuGlobe?.getState?.()||{};
+      const current=Number.isFinite(+state[def.key])?+state[def.key]:0;
+      setGlobeDialValue(def.key,current+(deltaDeg/7)*def.step);
+      e.preventDefault();
+    });
+    const end=e=>{active=false;try{globeMasterWheel.releasePointerCapture?.(e.pointerId)}catch{}};
+    globeMasterWheel.addEventListener("pointerup",end);
+    globeMasterWheel.addEventListener("pointercancel",end);
+    globeMasterWheel.addEventListener("touchmove",e=>{e.preventDefault();e.stopPropagation();},{passive:false});
+    globeMasterWheel.addEventListener("wheel",e=>{
+      e.preventDefault();
+      const dir=e.deltaY<0?1:-1;
+      const mult=e.shiftKey?10:1;
+      nudgeGlobeDial(activeGlobeParam,dir*mult);
+    },{passive:false});
+    globeMasterWheel.addEventListener("keydown",e=>{
+      if(e.key==="ArrowUp"||e.key==="ArrowRight"){nudgeGlobeDial(activeGlobeParam,1);e.preventDefault();}
+      if(e.key==="ArrowDown"||e.key==="ArrowLeft"){nudgeGlobeDial(activeGlobeParam,-1);e.preventDefault();}
+      if(e.key==="Enter"){openNumericKeypad(activeGlobeParam);e.preventDefault();}
+    });
+    globeMasterValue.addEventListener("click",e=>{e.stopPropagation();openNumericKeypad(activeGlobeParam);});
+    globeResetView.addEventListener("click",()=>window.KamokuGlobe?.center?.());
+    let axis=localStorage.getItem("kamokuAxisMode")==="1";
+    const applyAxis=()=>{
+      globeAxisModeBtn.classList.toggle("active",axis);
+      globeAxisModeBtn.textContent=axis?"AXIS":"FREE";
+      window.KamokuGlobe?.setAxisMode?.(axis);
+    };
+    globeAxisModeBtn.addEventListener("click",()=>{
+      axis=!axis;localStorage.setItem("kamokuAxisMode",axis?"1":"0");applyAxis();
+    });
+    let collapsed=localStorage.getItem("kamokuGlobeHudCollapsed");
+    if(collapsed==null)collapsed=window.matchMedia("(max-width:620px)").matches?"1":"0";
+    const applyFold=()=>{
+      const isCollapsed=collapsed==="1";
+      globeControlPanel.classList.toggle("collapsed",isCollapsed);
+      globeHudToggle.textContent=isCollapsed?"⌃":"⌄";
+      globeHudToggle.title=isCollapsed?(LANG==="en"?"Expand controls":"操作を展開"):(LANG==="en"?"Collapse controls":"操作を折りたたむ");
+    };
+    globeHudToggle.addEventListener("click",()=>{
+      collapsed=collapsed==="1"?"0":"1";
+      localStorage.setItem("kamokuGlobeHudCollapsed",collapsed);
+      applyFold();
+    });
+    applyAxis();applyFold();
+  }
+
+  if(!GLOBE_DIAL_MAP[activeGlobeParam])activeGlobeParam="x";
+  selectGlobeParam(activeGlobeParam);
+  if(globeUnsubscribe)globeUnsubscribe();
+  globeUnsubscribe=window.KamokuGlobe.subscribe?.(syncGlobeDialDeck)||null;
+  syncGlobeDialDeck(window.KamokuGlobe.getState?.());
+  updateGlobeControlLanguage();
+}
+
+function setNav(){
+  document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); document.getElementById(b.dataset.view).classList.add("active");
+    if(b.dataset.view==="news"&&!NEWS_LOADED&&!NEWS_LOADING)loadNews().catch(renderNewsError);
+    setTimeout(()=>window.dispatchEvent(new Event("resize")),20);
+  });
+}
+
+function domains(){
+  return [...new Set(registry.map(r=>r.domain))].sort();
+}
+function metricsForDomain(domain){
+  return registry.filter(r=>r.domain===domain);
+}
+function fillDomain(select){
+  select.innerHTML=domains().map(d=>`<option value="${esc(d)}">${esc(domainName(d))}</option>`).join("");
+}
+function fillMetric(select,domain){
+  select.innerHTML=metricsForDomain(domain).map(r=>`<option value="${esc(r.metric)}">${esc(metricName(r.metric))}</option>`).join("");
+}
+
+function renderKcu(){
+  const variants=Object.keys(D.kcu.variants);
+  kcuVariant.innerHTML=variants.map(v=>`<option>${esc(v)}</option>`).join("");
+  const update=()=>{
+    const variant=kcuVariant.value, ccy=kcuCurrency.value, rows=D.kcu.variants[variant]||[], last=rows.at(-1)||{};
+    const cards=[
+      ["KCU / USD",fmt(last.usd),(LANG==="en"?"Latest month ":"最新月 ")+(last.m||"—")],
+      ["KCU / JPY",fmt(last.jpy),"coverage "+pct(last.coverage)],
+      ["KCU / EUR",fmt(last.eur),last.quality||"—"],
+      [LANG==="en"?"Components":"構成要素",fmt(last.components),"weight year "+(last.weight_year||"—")]
+    ];
+    kcuCards.innerHTML=cards.map(x=>`<div class="card"><div class="eyebrow">${x[0]}</div><div class="big">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
+    Plotly.react("kcuChart",[{
+      x:rows.map(r=>r.m),y:rows.map(r=>r[ccy]),type:"scatter",mode:"lines",
+      line:{width:2.5},name:variant+" / "+ccy.toUpperCase(),
+      hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"
+    }],layout({xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:ccy.toUpperCase()}}),config);
+    const weights=D.kcu.weights[variant]||[];
+    weightBody.innerHTML=weights.map(w=>`<tr><td>${esc(w.code)}</td><td>${pct(w.weight)}</td></tr>`).join("");
+    const w=weights[0]; weightNote.textContent=w? `weight year ${w.year} / basis ${w.basis_start}–${w.basis_end} / ${w.source}`:"";
+    assetBody.innerHTML=(D.kcu.assets_latest||[]).filter(a=>a.variant===variant).map(a=>`<tr><td>${esc(a.asset)}</td><td>${esc(a.month)}</td><td>${fmt(a.local)} ${esc(a.ccy)}</td><td>${fmt(a.usd)}</td><td>${fmt(a.kcu)}</td><td>${fmt(a.kcu_ret,"percent")}</td></tr>`).join("");
+  };
+  kcuVariant.onchange=update;kcuCurrency.onchange=update;update();
+}
+
+function worldValueAtYear(country,metric,year){
+  const hist=D?.history?.[country.iso3]?.[metric]||[];
+  let found=null;
+  for(const pair of hist){
+    const y=+pair[0],v=pair[1];
+    if(y>year)break;
+    if(v!=null&&Number.isFinite(+v))found={year:y,value:+v,unit:metricUnit(metric),source:"historical"};
+  }
+  return found;
+}
+function worldSnapshotCountries(metric){
+  if(worldMode.value!=="timeline")return D.countries;
+  const y=+worldYearSlider.value||new Date().getFullYear();
+  return D.countries.map(c=>{
+    const item=worldValueAtYear(c,metric,y);
+    return Object.assign({},c,{latest:Object.assign({},c.latest||{},{[metric]:item})});
+  });
+}
+function worldMedianForRows(rows){
+  const a=rows.map(x=>+x.v?.value).filter(Number.isFinite).sort((x,y)=>x-y);
+  if(!a.length)return null;
+  const m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function stopWorldTimeline(){
+  if(WORLD_YEAR_PLAY_TIMER){clearInterval(WORLD_YEAR_PLAY_TIMER);WORLD_YEAR_PLAY_TIMER=null;}
+  if(document.getElementById("worldYearPlay"))worldYearPlay.textContent="▶";
+}
+function syncWorldTimelineVisibility(){
+  const show=worldLayer.value!=="company"&&worldMode.value==="timeline"&&worldDisplay.value!=="terrain";
+  worldTimeline.classList.toggle("hidden",!show);
+  worldYearLabel.textContent=worldYearSlider.value;
+  if(!show)stopWorldTimeline();
+}
+function showWorldCountryPreview(iso){
+  const c=countryByIso[iso];if(!c)return;
+  WORLD_PREVIEW_ISO=iso;WORLD_PREVIEW_SITE_ID=null;
+  worldCountryPreviewName.textContent=countryName(c);
+  if(worldLayer.value==="resource"){
+    const key=worldResource.value,kind=worldResourceMetric.value;
+    const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+    const item=resourceItemForCountry(iso,key,kind,target);
+    const pair=resourceCountryPair(iso,key,target);
+    worldCountryPreviewValue.textContent=item?resourceFormat(item.value,item.unit):"—";
+    const parts=[];
+    if(pair.production)parts.push((LANG==="en"?"Production ":"生産 ")+resourceFormat(pair.production.value,pair.production.unit)+" ("+pair.production.year+")");
+    if(pair.consumption)parts.push((LANG==="en"?"Consumption ":"消費 ")+resourceFormat(pair.consumption.value,pair.consumption.unit)+" ("+pair.consumption.year+")");
+    if(pair.selfSufficiency)parts.push((LANG==="en"?"Self-sufficiency ":"自給率 ")+resourceFormat(pair.selfSufficiency.value,"percent"));
+    if(pair.reserves)parts.push((LANG==="en"?(key==="uranium"?"Recoverable resources ":"Reserves "):(key==="uranium"?"回収可能資源 ":"埋蔵 "))+resourceFormat(pair.reserves.value,pair.reserves.unit)+" ("+pair.reserves.year+")");
+    if(pair.rp)parts.push("R/P "+resourceFormat(pair.rp.value,"years"));
+    worldCountryPreviewMeta.textContent=resourceName(key)+" · "+parts.join(" · ");
+  }else if(worldLayer.value==="product"){
+    const target=worldMode.value==="timeline"?+worldYearSlider.value:null;
+    const rows=PRODUCT_CURRENT_ROWS.filter(x=>x.iso3===iso&&(target==null||x.year<=target)).sort((a,b)=>a.year-b.year);
+    const item=rows.at(-1)||null;
+    const metric=worldProductMetric.value;
+    worldCountryPreviewValue.textContent=item?productFormat(item.value,item.unit,item.year):"—";
+    worldCountryPreviewMeta.textContent=productName(worldProduct.value)+" · "+productMetricLabel(metric)+(item?(" · "+item.year):"");
+  }else{
+    const metric=worldMetric.value;
+    const countries=worldSnapshotCountries(metric);
+    const shown=countries.find(x=>x.iso3===iso)||c;
+    const item=shown.latest?.[metric];
+    const unit=metricUnit(metric);
+    worldCountryPreviewValue.textContent=item?fmtWorldValue(item.value,unit,item.year):"—";
+    const pair=militaryPairForCountry(c,metric);
+    if(pair){
+      const parts=[];
+      if(pair.pct)parts.push((LANG==="en"?"GDP share ":"GDP比 ")+fmt(pair.pct.value,"percent")+" ("+pair.pct.year+")");
+      if(pair.usd)parts.push((LANG==="en"?"Amount ":"実額 ")+fmtWorldValue(pair.usd.value,"USD",pair.usd.year)+" ("+pair.usd.year+")");
+      worldCountryPreviewMeta.textContent=parts.join(" · ");
+    }else{
+      worldCountryPreviewMeta.textContent=metricName(metric)+(item?.year?(" · "+item.year):"");
+    }
+  }
+  worldCountryPreview.style.display="block";
+}
+function showResourceSitePreview(siteId){
+  const s=Object.values(RESOURCE_SITE_CACHE).flat().find(x=>x.id===siteId);if(!s)return;
+  WORLD_PREVIEW_SITE_ID=siteId;WORLD_PREVIEW_ISO=s.iso3||null;
+  worldCountryPreviewName.textContent=s.name||siteId;
+  const prod=latestResourceAtOrBefore(s.values?.production_annual,null);
+  const res=latestResourceAtOrBefore(s.values?.reserves,null);
+  worldCountryPreviewValue.textContent=prod?resourceFormat(prod.value,prod.unit):(res?resourceFormat(res.value,res.unit):"—");
+  worldCountryPreviewMeta.textContent=[resourceName(s.resource),s.status,s.operator||s.owner].filter(Boolean).join(" · ");
+  worldCountryPreview.style.display="block";
+}
+function hideWorldCountryPreview(){
+  WORLD_PREVIEW_ISO=null;WORLD_PREVIEW_SITE_ID=null;WORLD_PREVIEW_COMPANY_ID=null;
+  if(document.getElementById("worldCountryPreview"))worldCountryPreview.style.display="none";
+}
+function openWorldCountryDetail(){
+  if(worldLayer.value==="company"){
+    if(WORLD_PREVIEW_COMPANY_ID)return renderCompanyDetail(WORLD_PREVIEW_COMPANY_ID);
+    return;
+  }
+  if(worldLayer.value==="resource"){
+    if(WORLD_PREVIEW_SITE_ID)return renderResourceDetail("site",WORLD_PREVIEW_SITE_ID);
+    if(WORLD_PREVIEW_ISO)return renderResourceDetail("country",WORLD_PREVIEW_ISO);
+    return;
+  }
+  if(worldLayer.value==="product"){
+    if(WORLD_PREVIEW_ISO)return renderProductDetail(WORLD_PREVIEW_ISO);
+    return;
+  }
+  if(!WORLD_PREVIEW_ISO)return;
+  selectedIso=WORLD_PREVIEW_ISO;syncCountryInput();
+  const d=regByMetric[worldMetric.value]?.domain;
+  if(d){countryDomain.value=d;fillMetric(countryMetric,d);countryMetric.value=worldMetric.value;}
+  renderCountry();
+  document.querySelector('[data-view="country"]').click();
+}
+function renderWorld(){
+  fillDomain(worldDomain);fillMetric(worldMetric,worldDomain.value);fillResourceSelectors();fillProductSelectors();fillCompanySelectors();
+  worldLayer.value=localStorage.getItem("kamokuWorldLayer")||"indicator";
+  worldResourceMetric.value=localStorage.getItem("kamokuResourceMetric")||"production_annual";
+  worldProductMetric.value=localStorage.getItem("kamokuProductMetric")||"production_quantity";
+  worldCompanyMetric.value=localStorage.getItem("kamokuCompanyMetric")||"revenue";
+  const savedTerrain=Math.max(1,Math.min(100,+(localStorage.getItem("kamokuTerrainScale")||30)));
+  worldTerrainScale.value=String(savedTerrain);
+  worldTerrainScaleValue.textContent=savedTerrain+"×";
+  worldSeabed.checked=localStorage.getItem("kamokuSeabedTerrain")!=="0";
+  worldDemLod.checked=localStorage.getItem("kamokuDemLod")!=="0";
+  worldCountryFill.checked=localStorage.getItem("kamokuCountryFill")!=="0";
+  worldCountryColorMode.value=localStorage.getItem("kamokuCountryColorMode")||"map";
+    worldShowKcuMoney.checked=localStorage.getItem("kamokuShowKcuMoney")!=="0";
+    worldCountryMarkers.checked=localStorage.getItem("kamokuCountryMarkers")==="1";
+  worldCountryRelief.checked=localStorage.getItem("kamokuCountryRelief")!=="0";
+  const savedRelief=Math.max(0,Math.min(100,+(localStorage.getItem("kamokuCountryReliefScale")||55)));
+  worldCountryReliefScale.value=String(savedRelief);
+  worldCountryReliefScaleValue.textContent=savedRelief+"×";
+  const syncTerrainVisibility=()=>{
+    const show=worldDisplay.value!=="2d";
+    terrainScaleWrap.style.display=show?"grid":"none";
+    terrainSeabedWrap.style.display=show?"flex":"none";
+    terrainDemWrap.style.display=show?"flex":"none";
+    countryReliefScaleWrap.style.display=worldDisplay.value==="3d"&&worldCountryRelief.checked?"grid":"none";
+    worldCenterBtn.style.display=show?"inline-block":"none";
+    globeControlPanel.style.display=show?"block":"none";
+  };
+  const updateMetric=()=>{fillMetric(worldMetric,worldDomain.value);hideWorldCountryPreview();drawWorld();};
+  worldDomain.onchange=updateMetric;
+  worldMetric.onchange=()=>{hideWorldCountryPreview();drawWorld();};
+  worldLayer.onchange=async()=>{
+    localStorage.setItem("kamokuWorldLayer",worldLayer.value);
+    hideWorldCountryPreview();resourceDetailCard.style.display="none";productDetailCard.style.display="none";companyDetailCard.style.display="none";
+    if(worldLayer.value==="product"){
+      try{await loadProductCatalog();fillProductSelectors();await loadProductSeries();}catch(e){console.warn("product layer",e)}
+    }
+    if(worldLayer.value==="company"){
+      try{await loadCompanyRank();}catch(e){console.warn("company layer",e)}
+    }
+    syncWorldLayerControls();syncWorldTimelineVisibility();drawWorld();
+    if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
+  };
+  worldResource.onchange=()=>{
+    localStorage.setItem("kamokuWorldResource",worldResource.value);
+    syncWorldLayerControls();hideWorldCountryPreview();resourceDetailCard.style.display="none";drawWorld();
+    loadResourceSites(worldResource.value);
+  };
+  const savedResource=localStorage.getItem("kamokuWorldResource");
+  if(savedResource&&[...worldResource.options].some(o=>o.value===savedResource))worldResource.value=savedResource;
+  worldResourceMetric.onchange=()=>{
+    localStorage.setItem("kamokuResourceMetric",worldResourceMetric.value);
+    hideWorldCountryPreview();drawWorld();
+  };
+  worldProductSector.onchange=async()=>{
+    localStorage.setItem("kamokuProductSector",worldProductSector.value);
+    fillProductSelectors();localStorage.setItem("kamokuProductKey",worldProduct.value);
+    hideWorldCountryPreview();productDetailCard.style.display="none";
+    await loadProductSeries(true);syncWorldLayerControls();drawWorld();
+  };
+  worldProduct.onchange=async()=>{
+    localStorage.setItem("kamokuProductKey",worldProduct.value);
+    hideWorldCountryPreview();productDetailCard.style.display="none";
+    await loadProductSeries(true);syncWorldLayerControls();drawWorld();
+  };
+  worldProductMetric.onchange=async()=>{
+    localStorage.setItem("kamokuProductMetric",worldProductMetric.value);
+    hideWorldCountryPreview();productDetailCard.style.display="none";
+    await loadProductSeries();syncWorldLayerControls();drawWorld();
+  };
+  worldCompanyMetric.onchange=async()=>{
+    localStorage.setItem("kamokuCompanyMetric",worldCompanyMetric.value);
+    hideWorldCountryPreview();companyDetailCard.style.display="none";
+    await loadCompanyRank(true);drawWorld();
+  };
+  worldCompanySector.onchange=async()=>{
+    localStorage.setItem("kamokuCompanySector",worldCompanySector.value);
+    hideWorldCountryPreview();companyDetailCard.style.display="none";
+    await loadCompanyRank(true);drawWorld();
+  };
+  worldDisplay.onchange=()=>{syncTerrainVisibility();syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
+  worldMode.onchange=()=>{syncWorldTimelineVisibility();hideWorldCountryPreview();drawWorld();};
+  let maxYear=new Date().getFullYear();
+  for(const metrics of Object.values(D.history||{})){
+    for(const series of Object.values(metrics||{})){
+      for(const pair of series||[]){
+        const y=+pair?.[0];if(Number.isFinite(y)&&y>maxYear)maxYear=y;
+      }
+    }
+  }
+  INDICATOR_WORLD_MAX_YEAR=maxYear;
+  worldYearSlider.max=String(maxYear);
+  worldYearSlider.value=localStorage.getItem("kamokuWorldYear")||String(maxYear);
+  syncWorldLayerControls();
+  worldYearLabel.textContent=worldYearSlider.value;
+  worldYearSlider.oninput=()=>{worldYearLabel.textContent=worldYearSlider.value;localStorage.setItem("kamokuWorldYear",worldYearSlider.value);hideWorldCountryPreview();drawWorld();};
+  worldYearBack.onclick=()=>{worldYearSlider.value=String(Math.max(+worldYearSlider.min,+worldYearSlider.value-1));worldYearSlider.oninput();};
+  worldYearForward.onclick=()=>{worldYearSlider.value=String(Math.min(+worldYearSlider.max,+worldYearSlider.value+1));worldYearSlider.oninput();};
+  worldYearPlay.onclick=()=>{
+    if(WORLD_YEAR_PLAY_TIMER){stopWorldTimeline();return;}
+    worldYearPlay.textContent="⏸";
+    WORLD_YEAR_PLAY_TIMER=setInterval(()=>{
+      let y=+worldYearSlider.value+1;
+      if(y>+worldYearSlider.max)y=+worldYearSlider.min;
+      worldYearSlider.value=String(y);worldYearSlider.oninput();
+    },700);
+  };
+  worldCountryPreview.onclick=openWorldCountryDetail;
+  worldTerrainScale.oninput=()=>{
+    const v=Math.max(1,Math.min(100,+worldTerrainScale.value||30));
+    worldTerrainScaleValue.textContent=v+"×";
+    localStorage.setItem("kamokuTerrainScale",String(v));
+    window.KamokuGlobe?.setTerrain?.({exaggeration:v,seabed:worldSeabed.checked,fit:false});
+  };
+  worldTerrainScale.onchange=drawWorld;
+  worldSeabed.onchange=()=>{
+    localStorage.setItem("kamokuSeabedTerrain",worldSeabed.checked?"1":"0");
+    drawWorld();
+  };
+  worldDemLod.onchange=()=>{
+    localStorage.setItem("kamokuDemLod",worldDemLod.checked?"1":"0");
+    window.KamokuGlobe?.setDem?.(worldDemLod.checked);
+    drawWorld();
+  };
+  worldCountryFill.onchange=()=>{
+    localStorage.setItem("kamokuCountryFill",worldCountryFill.checked?"1":"0");
+    drawWorld();
+  };
+  worldCountryColorMode.onchange=()=>{
+    localStorage.setItem("kamokuCountryColorMode",worldCountryColorMode.value);
+    drawWorld();
+  };
+  worldShowKcuMoney.onchange=()=>{
+    localStorage.setItem("kamokuShowKcuMoney",worldShowKcuMoney.checked?"1":"0");
+    hideWorldCountryPreview();drawWorld();
+  };
+  worldCountryMarkers.onchange=()=>{
+    localStorage.setItem("kamokuCountryMarkers",worldCountryMarkers.checked?"1":"0");
+    drawWorld();
+  };
+  worldCountryRelief.onchange=()=>{
+    localStorage.setItem("kamokuCountryRelief",worldCountryRelief.checked?"1":"0");
+    countryReliefScaleWrap.style.display=worldDisplay.value==="3d"&&worldCountryRelief.checked?"grid":"none";
+    drawWorld();
+  };
+  worldCountryReliefScale.oninput=()=>{
+    const v=Math.max(0,Math.min(100,+worldCountryReliefScale.value||55));
+    worldCountryReliefScaleValue.textContent=v+"×";
+    localStorage.setItem("kamokuCountryReliefScale",String(v));
+  };
+  worldCountryReliefScale.onchange=drawWorld;
+  worldCenterBtn.onclick=()=>window.KamokuGlobe?.center?.();
+  syncTerrainVisibility();syncWorldTimelineVisibility();
+  window.addEventListener("kamoku-globe-ready",()=>{setupGlobeControlDeck();drawWorld();},{once:true});
+  setupGlobeControlDeck();
+  drawWorld();
+  if(worldLayer.value==="resource")loadResourceSites(worldResource.value);
+  loadProductCatalog().then(async()=>{fillProductSelectors();if(worldLayer.value==="product"){await loadProductSeries();syncWorldLayerControls();drawWorld();}}).catch(e=>console.warn("product catalog",e));
+  loadCompanyRank().then(()=>{if(worldLayer.value==="company"){syncWorldLayerControls();drawWorld();}}).catch(e=>console.warn("company rank",e));
+}
+function renderWorldRanking(rows,unit,use3d,label=null,formatter=null){
+  if(!document.getElementById("worldRankPanel"))return;
+  worldRankPanel.style.display=use3d?"flex":"none";
+  const sorted=rows
+    .filter(x=>Number.isFinite(+x.v?.value)&&Number.isFinite(+x.c?.lat)&&Number.isFinite(+x.c?.lon))
+    .sort((a,b)=>(+b.v.value)-(+a.v.value));
+  worldRankHead.textContent=(LANG==="en"?"Ranking":"ランキング")+" · "+(label||metricName(worldMetric.value));
+  if(!sorted.length){worldRankList.innerHTML='<div class="note">'+t("noData")+'</div>';return;}
+  const vals=sorted.map(x=>+x.v.value);
+  const min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  const asc=[...vals].sort((a,b)=>a-b),median=asc[Math.floor((asc.length-1)/2)]??min;
+  const medianPos=Math.max(0,Math.min(80,((median-min)/span)*80));
+  worldRankList.innerHTML=sorted.map((x,i)=>{
+    const w=Math.max(2.5,((+x.v.value-min)/span)*80);
+    return '<button class="world-rank-item" data-iso="'+esc(x.c.iso3)+'" data-lat="'+(+x.c.lat)+'" data-lon="'+(+x.c.lon)+'" title="'+esc((x.c.capital||""))+'">'+
+      '<span class="world-rank-bar" style="width:'+w.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-median" style="left:'+medianPos.toFixed(1)+'%"></span>'+
+      '<span class="world-rank-content"><span class="world-rank-no">'+(i+1)+'</span><span><div class="world-rank-name">'+esc(countryName(x.c))+'</div><div class="world-rank-value">'+esc(formatter?formatter(x.v):fmtWorldValue(x.v.value,unit,x.v.year))+'</div></span></span>'+
+    '</button>';
+  }).join("");
+  worldRankList.querySelectorAll(".world-rank-item").forEach(btn=>btn.onclick=()=>{
+    const lat=+btn.dataset.lat,lon=+btn.dataset.lon,iso=btn.dataset.iso;
+    window.KamokuGlobe?.flyToCountry?.(iso,lat,lon,{duration:900});
+  });
+}
+
+function drawWorld(){
+  if(worldLayer.value==="company"){drawCompanyWorld();return;}
+  const isResource=worldLayer.value==="resource",isProduct=worldLayer.value==="product";
+  const resourceKey=worldResource.value,resourceKind=worldResourceMetric.value;
+  const metric=isResource?"__RESOURCE__":isProduct?"__PRODUCT__":worldMetric.value;
+  const reg=(isResource||isProduct)?{}:(regByMetric[metric]||{});
+  const displayCountries=isResource?worldResourceSnapshot(resourceKey,resourceKind):isProduct?productSnapshotCountries():worldSnapshotCountries(metric);
+  const rows=displayCountries.map(c=>({c,v:c.latest?.[metric]})).filter(x=>x.v&&x.v.value!==null&&Number.isFinite(+x.v.value));
+  const displayMode=worldDisplay.value,use3d=displayMode!=="2d",data3d=displayMode==="3d";
+  const label=isResource?(resourceName(resourceKey)+" · "+resourceMetricLabel(resourceKind)):isProduct?(productName(worldProduct.value)+" · "+productMetricLabel(worldProductMetric.value)):metricName(metric);
+  const unit=(isResource||isProduct)?(rows.find(x=>x.v?.unit)?.v?.unit||""):(reg.unit||"");
+  worldTitle.textContent="";
+  const med=worldMedianForRows(rows);
+  const medText=isResource?resourceFormat(med,unit):isProduct?productFormat(med,unit,worldMode.value==="timeline"?+worldYearSlider.value:null):fmt(med,unit);
+  worldStats.textContent=rows.length+" "+t("countries")+" / "+t("worldMedian")+" "+medText+(worldMode.value==="timeline"?" / "+worldYearSlider.value:"");
+  renderWorldRanking(rows,unit,data3d,label,isResource?(v=>resourceFormat(v.value,v.unit||unit)):isProduct?(v=>productFormat(v.value,v.unit||unit,v.year)):null);
+  worldGlobe.style.display=use3d?"block":"none";worldMap.style.display=use3d?"none":"block";
+  if(use3d){
+    if(window.KamokuGlobe){
+      window.KamokuGlobe.update({
+        element:worldGlobe,
+        countries:displayCountries.map(c=>Object.assign({},c,{displayName:countryName(c)})),
+        metric:metric,metricLabel:label,unit:unit,language:LANG,
+        terrainScale:+worldTerrainScale.value||30,seabed:worldSeabed.checked,dem:worldDemLod.checked,
+        countryFill:data3d&&worldCountryFill.checked,countryColorMode:worldCountryColorMode.value,markers:data3d&&worldCountryMarkers.checked,
+        countryRelief:data3d&&worldCountryRelief.checked,countryReliefScale:+worldCountryReliefScale.value||55,
+        resourceSites:isResource?selectedResourceSites():[],
+        onCountrySelect:(iso)=>showWorldCountryPreview(iso),
+        onResourceSiteSelect:(siteId)=>showResourceSitePreview(siteId)
+      });
+      setupGlobeControlDeck();
+    }
+    return;
+  }
+  Plotly.react("worldMap",[{
+    type:"choropleth",locationmode:"ISO-3",locations:rows.map(x=>x.c.iso3),
+    z:rows.map(x=>x.v.value),text:rows.map(x=>countryName(x.c)),
+    customdata:rows.map(x=>[x.v.year,regionName(x.c.region)]),
+    hovertemplate:"%{text}<br>%{z:.6g}<br>"+(LANG==="en"?"Year ":"年 ")+"%{customdata[0]}<br>%{customdata[1]}<extra></extra>",
+    colorbar:{title:unit},colorscale:"Viridis"
+  }],layout({geo:{bgcolor:"rgba(0,0,0,0)",showframe:false,showcoastlines:true,coastlinecolor:"#425876",projection:{type:"natural earth"}},margin:{l:0,r:0,t:0,b:0}}),config);
+  const el=document.getElementById("worldMap");
+  el.removeAllListeners?.("plotly_click");
+  el.on?.("plotly_click",ev=>{const iso=ev.points?.[0]?.location;if(iso)showWorldCountryPreview(iso);});
+}
+
+function setupCountry(){
+  countryList.innerHTML=D.countries.map(c=>`<option value="${esc(countryName(c))} (${c.iso3})"></option>`).join("");
+  fillDomain(countryDomain);fillMetric(countryMetric,countryDomain.value);
+  countryDomain.onchange=()=>{fillMetric(countryMetric,countryDomain.value);renderCountry();};
+  countryMetric.onchange=renderCountry;
+  countrySearch.onchange=()=>{
+    const q=countrySearch.value.trim().toLowerCase();
+    const found=D.countries.find(c=>{
+      const localized=countryName(c).toLowerCase();
+      return q===c.iso3.toLowerCase()||q===(c.iso2||"").toLowerCase()||
+        q===c.name.toLowerCase()||q===localized||
+        q.includes("("+c.iso3.toLowerCase()+")");
+    })||D.countries.find(c=>c.name.toLowerCase().includes(q)||countryName(c).toLowerCase().includes(q));
+    if(found){selectedIso=found.iso3;renderCountry();}
+  };
+  syncCountryInput();renderCountry();
+}
+function syncCountryInput(){const c=countryByIso[selectedIso];if(c)countrySearch.value=`${countryName(c)} (${c.iso3})`;}
+
+function compareLine(label,value,ref,unit){
+  if(value==null||ref==null)return `<div class="metric"><div class="name">${label}</div><div class="value">—</div></div>`;
+  const diff=value-ref,rel=ref!==0?diff/Math.abs(ref)*100:null;
+  return `<div class="metric"><div class="name">${label}</div><div class="value">${fmt(ref,unit)}</div><div class="meta">${t("difference")} ${fmt(diff,unit)}${rel==null?"":` / ${rel.toLocaleString(locale(),{maximumFractionDigits:1})}%`}</div></div>`;
+}
+
+function renderCountry(){
+  const c=countryByIso[selectedIso]||D.countries[0];if(!c)return;
+  selectedIso=c.iso3;syncCountryInput();
+  const chosen=countryMetric.value||metricsForDomain(countryDomain.value)[0]?.metric;
+  const hv=D.history?.[c.iso3]?.[chosen]||[];
+  const latest=c.latest?.[chosen],reg=D.regions.find(r=>r.code===c.region_code),unit=metricUnit(chosen);
+  countryHeader.innerHTML=[
+    [t("country"),countryName(c),c.iso3],
+    [t("region"),regionName(c.region),c.region_code||"—"],
+    [t("income"),incomeName(c.income),c.capital||""],
+    [t("recordedMetrics"),Object.keys(c.latest||{}).length+" "+t("indicators"),t("historySince")]
+  ].map(x=>`<div class="card"><div class="eyebrow">${esc(x[0])}</div><div class="big">${esc(x[1])}</div><div class="sub">${esc(x[2])}</div></div>`).join("");
+  countryChartTitle.textContent=metricName(chosen);
+  Plotly.react("countryChart",[{
+    x:hv.map(x=>x[0]),y:hv.map(x=>x[1]),type:"scatter",mode:"lines+markers",
+    line:{width:2.5},hovertemplate:"%{x}<br>%{y:.6g}<extra></extra>"
+  }],layout({xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",title:unit}}),config);
+  compareBox.innerHTML=latest?`
+    <div class="metric" style="margin-bottom:10px"><div class="name">${t("latestValue")}</div><div class="value">${fmt(latest.value,unit)}</div><div class="meta">${latest.year} / ${esc(latest.source||"")}</div></div>
+    ${compareLine(t("worldMedian"),latest.value,D.global?.[chosen]?.median,unit)}
+    <div style="height:10px"></div>
+    ${compareLine(t("regionalMedian"),latest.value,reg?.latest?.[chosen]?.median,unit)}
+  `:"<div class='note'>"+t("noMetricData")+"</div>";
+  const ms=metricsForDomain(countryDomain.value);
+  countryMetrics.innerHTML=ms.map(r=>{
+    const x=c.latest?.[r.metric],g=D.global?.[r.metric]?.median,rr=reg?.latest?.[r.metric]?.median;
+    return `<div class="metric"><div class="name">${esc(metricName(r.metric))}</div><div class="value">${x?fmt(x.value,r.unit):"—"}</div><div class="meta">${x?`${x.year} · ${esc(x.unit||r.unit||"")}`:t("noData")}</div><div class="delta">${t("worldMedian")} ${fmt(g,r.unit)} / ${t("regionalMedian")} ${fmt(rr,r.unit)}</div></div>`;
+  }).join("");
+}
+
+function renderRegions(){
+  fillDomain(regionDomain);fillMetric(regionMetric,regionDomain.value);
+  const updateMetric=()=>{fillMetric(regionMetric,regionDomain.value);drawRegions();};
+  regionDomain.onchange=updateMetric;regionMetric.onchange=drawRegions;drawRegions();
+}
+function drawRegions(){
+  const metric=regionMetric.value,r=regByMetric[metric]||{};
+  regionTitle.textContent=metricName(metric)+" — "+t("regionalMedian");
+  const rows=D.regions.map(x=>({name:x.name,...(x.latest?.[metric]||{})})).filter(x=>x.median!=null).sort((a,b)=>b.median-a.median);
+  regionBody.innerHTML=rows.map(x=>`<tr><td>${esc(regionName(x.name))}</td><td>${fmt(x.median,r.unit)}</td><td>${x.n}</td></tr>`).join("");
+}
+
+
+
+async function newsApi(params){
+  if(!AUTH_SESSION?.access_token)throw new Error(t("loadingRequired"));
+  const u=new URL(API_BASE);
+  Object.entries(params||{}).forEach(([k,v])=>{
+    if(v!==null&&v!==undefined&&v!=="")u.searchParams.set(k,String(v));
+  });
+  const r=await fetch(u,{cache:"no-store",headers:{Authorization:"Bearer "+AUTH_SESSION.access_token}});
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||("news HTTP "+r.status));
+  return out;
+}
+
+function setupNews(){
+  document.querySelectorAll("#newsTabs button").forEach(b=>b.onclick=()=>{
+    document.querySelectorAll("#newsTabs button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll("#news .ai-subview").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById(b.dataset.newsView).classList.add("active");
+    setTimeout(()=>window.dispatchEvent(new Event("resize")),20);
+  });
+  newsRefreshBtn.onclick=()=>loadNews(true).catch(renderNewsError);
+  newsWindow.onchange=()=>loadNews(true).catch(renderNewsError);
+  newsCategory.onchange=()=>loadNews(true).catch(renderNewsError);
+}
+
+function renderNewsError(e){
+  NEWS_LOADING=false;
+  newsStatus.textContent=LANG==="en"?"Load failed":"読込エラー";
+  const msg=esc(e?.message||String(e));
+  newsLatestList.innerHTML='<div class="error">'+msg+'</div>';
+  newsHistoryChart.innerHTML='<div class="error">'+msg+'</div>';
+  newsNetworkChart.innerHTML='<div class="error">'+msg+'</div>';
+  if(window.newsExternalSources)newsExternalSources.innerHTML='<div class="error">'+msg+'</div>';
+  if(window.newsCandidateList)newsCandidateList.innerHTML='<div class="error">'+msg+'</div>';
+}
+
+function safeNewsHref(value){
+  try{
+    const u=new URL(String(value||""));
+    return (u.protocol==="http:"||u.protocol==="https:")?u.href:"#";
+  }catch{return "#";}
+}
+
+function renderNewsLatest(items){
+  newsLatestCount.textContent=(items?.length||0)+" "+(LANG==="en"?"items":"件");
+  if(!items?.length){
+    newsLatestList.innerHTML='<div class="note">'+(LANG==="en"?"No news in this window.":"この条件のニュースはありません。")+'</div>';
+    return;
+  }
+  newsLatestList.innerHTML=items.map(n=>{
+    const when=new Date(n.published_at||n.fetched_at);
+    const ts=Number.isFinite(when.getTime())?when.toLocaleString(locale()):"—";
+    const tags=(n.tags||[]).slice(0,6).map(x=>'<span>'+esc(x)+'</span>').join("");
+    return '<a class="news-item" href="'+esc(safeNewsHref(n.url))+'" target="_blank" rel="noopener noreferrer">'+
+      '<div class="news-title">'+esc(n.title||"—")+'</div>'+
+      '<div class="news-meta"><span>'+esc(n.source||"—")+'</span><span>'+esc(n.category||"—")+'</span><span>'+esc(ts)+'</span>'+
+      (n.related_event_count?'<span>events '+esc(n.related_event_count)+'</span>':"")+'</div>'+
+      (tags?'<div class="news-tags">'+tags+'</div>':"")+
+    '</a>';
+  }).join("");
+}
+
+function renderNewsHistory(data){
+  const s=data?.series||[];
+  newsHistoryMeta.textContent=(data?.hours||newsWindow.value)+"h / "+(data?.bucket||"hour");
+  if(!s.length){
+    newsHistoryChart.innerHTML='<div class="note">'+(LANG==="en"?"No history in this window.":"この期間の履歴はありません。")+'</div>';
+    return;
+  }
+  Plotly.react("newsHistoryChart",[
+    {x:s.map(x=>x.bucket_time),y:s.map(x=>x.news_count),type:"scatter",mode:"lines+markers",name:LANG==="en"?"News":"ニュース",line:{width:2.5}},
+    {x:s.map(x=>x.bucket_time),y:s.map(x=>x.event_count||0),type:"bar",name:LANG==="en"?"Events":"イベント",opacity:.32}
+  ],layout({barmode:"overlay",xaxis:{gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55",rangemode:"tozero"}}),config);
+}
+
+const SEMANTIC_DOMAIN_LABELS={
+  technology:{ja:"技術",en:"Technology"},science:{ja:"科学",en:"Science"},
+  economy:{ja:"経済",en:"Economy"},business:{ja:"企業・産業",en:"Business"},
+  politics:{ja:"政治・政策",en:"Politics"},defense:{ja:"防衛・安全保障",en:"Defense"},
+  health:{ja:"医療・健康",en:"Health"},culture:{ja:"文化",en:"Culture"},
+  society:{ja:"社会",en:"Society"},environment:{ja:"環境",en:"Environment"},
+  resources:{ja:"資源",en:"Resources"},geography:{ja:"地理・地域",en:"Geography"}
+};
+const AGENT_ICON={scout:"🔭",curator:"🧬",weaver:"🕸️",gardener:"🌿",historian:"📚",bridge:"🌉"};
+
+function semanticDomainLabel(key){
+  return SEMANTIC_DOMAIN_LABELS[key]?.[LANG]||key||"other";
+}
+function semanticTopDomain(node){
+  return node?.domains?.[0]?.domain_key||"other";
+}
+function semanticLayout(nodes){
+  const byDomain=new Map();
+  nodes.forEach(n=>{
+    const d=semanticTopDomain(n);
+    if(!byDomain.has(d))byDomain.set(d,[]);
+    byDomain.get(d).push(n);
+  });
+  const domainKeys=[...byDomain.keys()].sort((a,b)=>{
+    const ea=byDomain.get(a).reduce((s,n)=>s+(+n.activity_energy||0),0);
+    const eb=byDomain.get(b).reduce((s,n)=>s+(+n.activity_energy||0),0);
+    return eb-ea||a.localeCompare(b);
+  });
+  const pos=new Map(),centers=new Map();
+  domainKeys.forEach((domain,di)=>{
+    const a=(Math.PI*2*di/Math.max(1,domainKeys.length))-Math.PI/2;
+    const cr=domainKeys.length<=4?.60:.70;
+    const cx=Math.cos(a)*cr,cy=Math.sin(a)*cr;
+    centers.set(domain,{x:cx,y:cy});
+    const group=byDomain.get(domain).slice().sort((a,b)=>(+b.activity_energy||0)-(+a.activity_energy||0)||String(a.label).localeCompare(String(b.label)));
+    group.forEach((n,i)=>{
+      if(i===0){pos.set(n.id,{x:cx,y:cy});return;}
+      const ring=Math.floor((Math.sqrt(i)-1)/2)+1;
+      const angle=i*2.399963229728653;
+      const rr=Math.min(.24,.055+.035*ring);
+      pos.set(n.id,{x:cx+Math.cos(angle)*rr,y:cy+Math.sin(angle)*rr});
+    });
+  });
+  return {pos,centers};
+}
+function semanticAgentPosition(agent,pos,now=Date.now()){
+  const current=pos.get(agent.current_concept_id);
+  const previous=pos.get(agent.previous_concept_id);
+  if(!current)return null;
+  if(!previous)return current;
+  const started=Date.parse(agent.move_started_at||"");
+  const eta=Date.parse(agent.move_eta_at||"");
+  if(!Number.isFinite(started)||!Number.isFinite(eta)||eta<=started||now>=eta)return current;
+  const t=Math.max(0,Math.min(1,(now-started)/(eta-started)));
+  const smooth=t*t*(3-2*t);
+  return {x:previous.x+(current.x-previous.x)*smooth,y:previous.y+(current.y-previous.y)*smooth};
+}
+function renderAgentStatus(agents,nodes){
+  const nodeById=new Map(nodes.map(n=>[n.id,n]));
+  if(!agents?.length){newsAgentStatus.innerHTML="";return;}
+  newsAgentStatus.innerHTML=agents.map(a=>{
+    const n=nodeById.get(a.current_concept_id);
+    const icon=AGENT_ICON[a.agent_type]||"🤖";
+    const node=n?.label||"—";
+    const e=Number(a.energy||0).toFixed(1);
+    return '<span class="pill">'+icon+' '+esc(a.agent_name)+' · '+esc(node)+' · E '+e+'</span>';
+  }).join("");
+}
+function renderExternalKnowledge(data){
+  const nodes=data?.nodes||[],sources=data?.external_sources||[],candidates=data?.candidates||[];
+  const nodeById=new Map(nodes.map(n=>[n.id,n]));
+  const rankedSources=sources.slice().sort((a,b)=>
+    (Number(b.cited_by_count||0)-Number(a.cited_by_count||0))||
+    String(b.discovered_at||"").localeCompare(String(a.discovered_at||""))
+  ).slice(0,12);
+  newsExternalMeta.textContent=sources.length+" "+(LANG==="en"?"sources":"件");
+  if(!rankedSources.length){
+    newsExternalSources.innerHTML='<div class="note">'+(LANG==="en"?"Scout has not collected external sources yet.":"Scoutはまだ外部資料を収集していません。")+'</div>';
+  }else{
+    newsExternalSources.innerHTML=rankedSources.map(s=>{
+      const node=nodeById.get(s.concept_id);
+      const cited=s.cited_by_count==null?"":(" · "+(LANG==="en"?"cited ":"引用 ")+Number(s.cited_by_count).toLocaleString(locale()));
+      const year=s.publication_year?(" · "+s.publication_year):"";
+      const kind=s.work_type||s.source_type||"source";
+      const body='<div class="news-title">'+esc(s.title||"—")+'</div>'+
+        '<div class="news-meta"><span>'+esc(kind)+'</span><span>'+esc(node?.label||"—")+'</span>'+
+        (year?'<span>'+esc(String(s.publication_year))+'</span>':"")+
+        (cited?'<span>'+esc((LANG==="en"?"cited ":"引用 ")+Number(s.cited_by_count).toLocaleString(locale()))+'</span>':"")+
+        '</div>';
+      const href=safeNewsHref(s.url);
+      return href==="#"?'<div class="news-item">'+body+'</div>':
+        '<a class="news-item" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+body+'</a>';
+    }).join("");
+  }
+
+  const recent=candidates.slice(0,14);
+  newsCandidateMeta.textContent=candidates.length+" "+(LANG==="en"?"candidates":"候補");
+  if(!recent.length){
+    newsCandidateList.innerHTML='<div class="note">'+(LANG==="en"?"No discovery candidates yet.":"探索候補はまだありません。")+'</div>';
+  }else{
+    newsCandidateList.innerHTML=recent.map(x=>{
+      const node=nodeById.get(x.source_concept_id);
+      const conf=(Number(x.confidence||0)*100).toFixed(0)+"%";
+      const status=String(x.status||"candidate");
+      return '<div class="news-item"><div class="news-title">'+esc(x.display_name||"—")+'</div>'+
+        '<div class="news-meta"><span>'+esc(x.discovery_source||"external")+'</span><span>'+esc(status)+'</span>'+
+        '<span>'+esc(conf)+'</span><span>← '+esc(node?.label||"—")+'</span></div></div>';
+    }).join("");
+  }
+}
+
+function renderNewsNetwork(data){
+  LAST_SEMANTIC_NETWORK=data;
+  const nodes=data?.nodes||[],edges=data?.edges||[],agents=data?.agents||[];
+  const entropy=(data?.entropy||[]).map(x=>+x.normalized_entropy||0);
+  const maxEntropy=entropy.length?Math.max(...entropy):0;
+  newsNetworkMeta.textContent=nodes.length+" nodes / "+edges.length+" links / "+agents.length+" agents · H "+maxEntropy.toFixed(2);
+  renderAgentStatus(agents,nodes);
+  renderExternalKnowledge(data);
+  if(!nodes.length){
+    newsNetworkChart.innerHTML='<div class="note">'+(LANG==="en"?"No semantic network data.":"セマンティックネットワークデータがありません。")+'</div>';
+    return;
+  }
+
+  const {pos,centers}=semanticLayout(nodes);
+  const edgeX=[],edgeY=[];
+  edges.forEach(e=>{
+    const a=pos.get(e.source),b=pos.get(e.target);if(!a||!b)return;
+    edgeX.push(a.x,b.x,null);edgeY.push(a.y,b.y,null);
+  });
+
+  const sizes=nodes.map(n=>Math.max(10,Math.min(54,+n.display_size||12)));
+  const hover=nodes.map(n=>{
+    const domain=semanticDomainLabel(semanticTopDomain(n));
+    return esc(n.label)+"<br>"+(LANG==="en"?"Activity energy ":"活動E ")+Number(n.activity_energy||0).toFixed(1)+
+      "<br>"+(LANG==="en"?"Memory ":"記憶 ")+Number(n.memory_mass||0).toFixed(1)+
+      "<br>"+(LANG==="en"?"Evidence ":"証拠 ")+Number(n.evidence_count||0)+
+      "<br>"+esc(domain)+"<extra></extra>";
+  });
+  const edgeTrace={type:"scatter",mode:"lines",x:edgeX,y:edgeY,hoverinfo:"skip",
+    line:{width:1.15,color:"rgba(120,160,205,.25)"},name:"links"};
+  const nodeTrace={type:"scatter",mode:"markers+text",
+    x:nodes.map(n=>pos.get(n.id)?.x??0),y:nodes.map(n=>pos.get(n.id)?.y??0),
+    text:nodes.map(n=>n.label),textposition:"top center",hovertemplate:hover,
+    marker:{size:sizes,opacity:.88,line:{width:1}},name:"concepts"};
+
+  const domainTrace={type:"scatter",mode:"text",
+    x:[...centers.values()].map(x=>x.x),
+    y:[...centers.values()].map(x=>x.y-.12),
+    text:[...centers.keys()].map(semanticDomainLabel),
+    textfont:{size:11},hoverinfo:"skip",name:"domains"};
+
+  const now=Date.now(),agentPositions=agents.map(a=>semanticAgentPosition(a,pos,now));
+  const visibleAgents=agents.map((a,i)=>({a,p:agentPositions[i]})).filter(x=>x.p);
+  const agentTrace={type:"scatter",mode:"text",
+    x:visibleAgents.map(x=>x.p.x),y:visibleAgents.map(x=>x.p.y),
+    text:visibleAgents.map(x=>AGENT_ICON[x.a.agent_type]||"🤖"),
+    textfont:{size:23},
+    hovertemplate:visibleAgents.map(x=>
+      esc(x.a.agent_name)+"<br>"+esc(x.a.agent_type)+
+      "<br>"+(LANG==="en"?"Energy ":"E ")+Number(x.a.energy||0).toFixed(1)+
+      "<br>"+esc(x.a.status||"")+"<extra></extra>"
+    ),
+    name:"agents"};
+
+  Plotly.react("newsNetworkChart",[edgeTrace,nodeTrace,domainTrace,agentTrace],layout({
+    showlegend:false,hovermode:"closest",margin:{l:8,r:8,t:8,b:8},
+    xaxis:{visible:false,range:[-1.15,1.15]},
+    yaxis:{visible:false,range:[-1.15,1.15],scaleanchor:"x",scaleratio:1}
+  }),config);
+
+  const moving=agents.some(a=>{
+    const s=Date.parse(a.move_started_at||""),e=Date.parse(a.move_eta_at||"");
+    return Number.isFinite(s)&&Number.isFinite(e)&&Date.now()>=s&&Date.now()<e;
+  });
+  if(moving){
+    setTimeout(()=>{if(LAST_SEMANTIC_NETWORK===data)renderNewsNetwork(data);},180);
+  }
+}
+
+async function refreshSemanticNetwork(){
+  if(!AUTH_SESSION?.access_token)return;
+  try{
+    const semantic=await newsApi({api:"semantic-network",limit:120});
+    renderNewsNetwork(semantic);
+  }catch(e){
+    console.warn("semantic network refresh failed",e);
+  }
+}
+function startSemanticNetworkPolling(){
+  if(NEWS_NETWORK_TIMER)return;
+  NEWS_NETWORK_TIMER=setInterval(()=>{
+    const newsView=document.getElementById("news");
+    const networkView=document.getElementById("newsNetwork");
+    if(newsView?.classList.contains("active")&&networkView?.classList.contains("active")){
+      refreshSemanticNetwork();
+    }
+  },20000);
+}
+
+async function loadNews(force=false){
+  if(NEWS_LOADING)return;
+  NEWS_LOADING=true;
+  newsStatus.textContent=LANG==="en"?"Loading…":"読込中…";
+  try{
+    const hours=+newsWindow.value||72;
+    const category=newsCategory.value||"";
+    const from=new Date(Date.now()-hours*3600_000).toISOString();
+    const [latest,history,semantic]=await Promise.all([
+      newsApi({api:"news-latest",limit:50,category,from}),
+      newsApi({api:"news-history",hours,bucket:hours>=168?"day":"hour",category}),
+      newsApi({api:"semantic-network",limit:120})
+    ]);
+    renderNewsLatest(latest.items||[]);
+    renderNewsHistory(history);
+    renderNewsNetwork(semantic);
+    startSemanticNetworkPolling();
+    NEWS_LOADED=true;
+    newsStatus.textContent=(LANG==="en"?"Updated ":"更新 ")+new Date().toLocaleTimeString(locale(),{hour:"2-digit",minute:"2-digit"});
+  }finally{
+    NEWS_LOADING=false;
+  }
+}
+
+const MARKET_FEATURE_LABELS={
+  ret1_pct:"前日比",ret5_pct:"5日騰落",ret20_pct:"20日モメンタム",
+  wma5_25_pct:"WMA5−25",wma25_75_pct:"WMA25−75",close_wma75_pct:"終値−WMA75",
+  rsi14:"RSI14",macd_hist_pct:"MACD",volume_ratio20:"出来高比",atr14_pct:"ATR14",
+  vix:"VIX",usdjpy:"USD/JPY",nikkei_ret1_pct:"日経前日比",djia_ret1_pct:"DJIA前日比",
+  market_breadth_pct:"市場Breadth",market_median_return_1d_pct:"市場中央値",
+  market_pct_above_wma25:"WMA25上銘柄率",market_pct_above_wma75:"WMA75上銘柄率",
+  per:"PER",pbr:"PBR",dividend_yield_pct:"配当利回り",equity_ratio:"自己資本比率",
+  roe:"ROE",operating_margin_pct:"営業利益率",has_financial:"財務データ有無"
+};
+const MARKET_FEATURE_LABELS_EN={
+  ret1_pct:"1-day return",ret5_pct:"5-day return",ret20_pct:"20-day momentum",
+  wma5_25_pct:"WMA5−25",wma25_75_pct:"WMA25−75",close_wma75_pct:"Close−WMA75",
+  rsi14:"RSI14",macd_hist_pct:"MACD",volume_ratio20:"Volume ratio 20",atr14_pct:"ATR14",
+  vix:"VIX",usdjpy:"USD/JPY",nikkei_ret1_pct:"Nikkei 1-day",djia_ret1_pct:"DJIA 1-day",
+  market_breadth_pct:"Market breadth",market_median_return_1d_pct:"Market median return",
+  market_pct_above_wma25:"% above WMA25",market_pct_above_wma75:"% above WMA75",
+  per:"PER",pbr:"PBR",dividend_yield_pct:"Dividend yield",equity_ratio:"Equity ratio",
+  roe:"ROE",operating_margin_pct:"Operating margin",has_financial:"Financial data present"
+};
+function marketFeatureLabel(name){return (LANG==="en"?MARKET_FEATURE_LABELS_EN:MARKET_FEATURE_LABELS)[name]||name;}
+function patternName(p){
+  if(!p)return "—";
+  if(LANG==="ja")return p.display_name||p.pattern_key||"—";
+  const tops=(p.top_features||[]).slice(0,3).map(x=>marketFeatureLabel(x.feature));
+  return tops.length?tops.join(" + ")+" pattern":(p.pattern_key||"Pattern");
+}
+function patternSummaryText(p){
+  if(!p)return LANG==="en"?"No pattern assignment for this date.":"この日付のパターン割当はありません。";
+  if(LANG==="ja")return p.summary_text||"";
+  const wr=p.win_rate_5d_pct==null?"—":(+p.win_rate_5d_pct).toFixed(1)+"%";
+  const ar=p.avg_return_5d_pct==null?"—":(+p.avg_return_5d_pct).toFixed(2)+"%";
+  return "Retrospective 5-day statistics: win rate "+wr+", average return "+ar+".";
+}
+
+const DEFAULT_TRAIN_STRATEGY={
+  version:"rules-v2",buy_logic:"AND",
+  buy_rules:[
+    {id:"b_wma",enabled:true,indicator:"wma5_vs_wma25_pct",op:">",value:0,aiMin:-2,aiMax:5,aiStep:.25},
+    {id:"b_long",enabled:true,indicator:"close_vs_wma75_pct",op:">",value:0,aiMin:-5,aiMax:12,aiStep:.5},
+    {id:"b_rsi",enabled:true,indicator:"rsi14",op:"<",value:70,aiMin:45,aiMax:80,aiStep:1}
+  ],
+  sell_logic:"OR",
+  sell_rules:[{id:"s_wma",enabled:true,indicator:"wma5_vs_wma25_pct",op:"<",value:0,aiMin:-5,aiMax:3,aiStep:.25}],
+  risk:{take_profit_pct:10,stop_loss_pct:5,trailing_stop_pct:0,cost_bps:5}
+};
+const DEFAULT_TRAIN_SEARCH={
+  rules:{
+    b_wma:{min:-2,max:5,step:.25},b_long:{min:-5,max:12,step:.5},
+    b_rsi:{min:45,max:80,step:1},s_wma:{min:-5,max:3,step:.25}
+  },
+  risk:{
+    take_profit_pct:{min:3,max:25,step:.5},stop_loss_pct:{min:2,max:15,step:.5},
+    trailing_stop_pct:{min:0,max:15,step:.5},cost_bps:{min:3,max:15,step:1}
+  },
+  candidate_count:80,generations:4,validation_ratio:.30
+};
+const DEFAULT_TRAIN_OBJECTIVE={return:.40,win_rate:.20,profit_factor:.20,max_drawdown:.20,min_trades:8};
+
+function signalClass(p){
+  if(p>=.60)return "signal-buy";
+  if(p<=.40)return "signal-sell";
+  return "signal-hold";
+}
+function signalName(p){
+  if(p>=.60)return "BUY";
+  if(p<=.40)return "SELL";
+  return "HOLD";
+}
+async function gunzipJson(url){
+  const r=await fetch(url,{cache:"no-store"});
+  if(!r.ok)throw new Error("gzip HTTP "+r.status);
+  const ab=await r.arrayBuffer();
+  if(!("DecompressionStream" in window))throw new Error("このブラウザはgzip展開APIに未対応です");
+  const stream=new Blob([ab]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(stream).text());
+}
+async function marketEdge(slug,body){
+  if(!AUTH_SESSION?.access_token)throw new Error("ログインが必要です");
+  const r=await fetch(SUPABASE_URL+"/functions/v1/"+slug,{
+    method:"POST",
+    headers:{
+      apikey:SUPABASE_PUBLISHABLE_KEY,
+      Authorization:"Bearer "+AUTH_SESSION.access_token,
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify(body||{})
+  });
+  const out=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(out.error||slug+" HTTP "+r.status);
+  return out;
+}
+async function loadMarketCatalog(){
+  MARKET_CATALOG=[];
+  let offset=0;
+  while(true){
+    const u=new URL(SUPABASE_URL+"/rest/v1/replay_security_catalog");
+    u.searchParams.set("select","code,name,market,sector17,sector33");
+    u.searchParams.set("order","code.asc");
+    u.searchParams.set("limit","1000");
+    u.searchParams.set("offset",String(offset));
+    const r=await fetch(u,{headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:"Bearer "+AUTH_SESSION.access_token}});
+    if(!r.ok)throw new Error("replay catalog HTTP "+r.status);
+    const rows=await r.json(); MARKET_CATALOG.push(...rows);
+    if(rows.length<1000)break;
+    offset+=1000;
+  }
+  marketSymbolList.innerHTML=MARKET_CATALOG.map(function(x){
+    return '<option value="'+esc(x.code+" "+(x.name||""))+'"></option>';
+  }).join("");
+  const d=MARKET_CATALOG.find(function(x){return x.code===MARKET_CODE})||MARKET_CATALOG[0];
+  if(d){MARKET_CODE=d.code;marketSymbolSearch.value=d.code+" "+(d.name||"");}
+}
+function resolveMarketCode(){
+  const q=marketSymbolSearch.value.trim();
+  const code=(q.match(/^[0-9A-Z]{4,5}/i)||[])[0]?.toUpperCase();
+  let x=MARKET_CATALOG.find(function(a){return a.code===code});
+  if(!x){
+    const low=q.toLowerCase();
+    x=MARKET_CATALOG.find(function(a){return (a.name||"").toLowerCase().includes(low)});
+  }
+  if(x){MARKET_CODE=x.code;marketSymbolSearch.value=x.code+" "+(x.name||"");}
+  return x;
+}
+function currentMarketRow(){
+  const day=marketDate.value;
+  let found=null;
+  for(const r of MARKET_ROWS){if(r[0]<=day)found=r;else break;}
+  return found;
+}
+function currentMembership(){
+  const day=marketDate.value;
+  let found=null;
+  for(const r of MARKET_MEMBERSHIP){if(r[0]<=day)found=r;else break;}
+  return found;
+}
+function patternById(id){return MARKET_PATTERNS.find(function(x){return +x.pattern_id===+id})||null;}
+
+async function loadMarketAI(){
+  const x=resolveMarketCode();
+  if(!x)throw new Error("銘柄を選択してください");
+  marketModelBadge.textContent="読込中";
+  const meta=await marketEdge("market-ai-data",{code:MARKET_CODE});
+  MARKET_MODEL=meta.model;
+  const p=await gunzipJson(meta.prediction.signed_url);
+  MARKET_ROWS=p.rows||[];
+  marketDate.innerHTML=MARKET_ROWS.slice().reverse().map(function(r){return '<option value="'+esc(r[0])+'">'+esc(r[0])+'</option>';}).join("");
+  marketDate.value=MARKET_ROWS.at(-1)?.[0]||"";
+  renderMarketAI();
+}
+async function loadPatternAtlas(){
+  const data=await marketEdge("pattern-atlas-data",{code:MARKET_CODE});
+  MARKET_ATLAS=data.atlas; MARKET_PATTERNS=data.patterns||[]; MARKET_MEMBERSHIP=[];
+  if(data.membership?.signed_url){
+    const p=await gunzipJson(data.membership.signed_url); MARKET_MEMBERSHIP=p.rows||[];
+  }
+  renderPatternAtlas();
+}
+async function loadMarketModule(){
+  marketCurrentBox.innerHTML='<div class="loading">市場AIを読み込み中…</div>';
+  try{
+    await Promise.all([loadMarketAI(),loadPatternAtlas()]);
+  }catch(e){
+    marketCurrentBox.innerHTML='<div class="error">'+esc(e.message||String(e))+'</div>';
+    marketModelBadge.textContent="未準備";
+  }
+}
+
+function renderMarketAI(){
+  if(!MARKET_MODEL||!MARKET_ROWS.length)return;
+  const row=currentMarketRow()||MARKET_ROWS.at(-1);if(!row)return;
+  const pe=+row[1],po=+row[2],pa=+row[3],re=+row[4],ro=+row[5],ra=+row[6];
+  const currentPattern=patternById(currentMembership()?.[1]);
+  marketAiCards.innerHTML=[
+    ["Explain AI",signalName(pe)+" "+(pe*100).toFixed(1)+"%",t("expected5d")+" "+re.toFixed(2)+"%",signalClass(pe)],
+    ["Opaque AI",signalName(po)+" "+(po*100).toFixed(1)+"%",t("expected5d")+" "+ro.toFixed(2)+"%",signalClass(po)],
+    ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%",t("expected5d")+" "+ra.toFixed(2)+"%",signalClass(pa)],
+    ["Pattern",currentPattern?.pattern_key||"—",currentPattern?patternName(currentPattern):t("patternNotReady"),""]
+  ].map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big '+x[3]+'">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
+
+  marketCurrentBox.innerHTML=[
+    ["Ensemble",signalName(pa)+" "+(pa*100).toFixed(1)+"%"],
+    [t("expected5d"),ra.toFixed(2)+"%"],
+    ["Regime",row[7]||"—"],
+    ["Breadth",(+(row[8]||0)).toFixed(1)+"%"],
+    ["VIX",(+(row[9]||0)).toFixed(1)],
+    [t("universe"),(MARKET_MODEL.universe_count||0).toLocaleString(locale())]
+  ].map(x=>'<div class="metric"><div class="name">'+esc(x[0])+'</div><div class="value">'+esc(x[1])+'</div></div>').join("");
+
+  const fns=MARKET_MODEL.feature_names||[];
+  marketReasons.textContent=(row[10]||[]).map(z=>{
+    const name=fns[+z[0]]||String(z[0]),v=+z[1];
+    return (v>=0?"＋ ":"− ")+marketFeatureLabel(name)+"  "+t("contribution")+" "+(v>=0?"+":"")+v.toFixed(3);
+  }).join("\n")||t("noContribution");
+
+  const tail=MARKET_ROWS.slice(-250);
+  Plotly.react("marketAiChart",[
+    {x:tail.map(r=>r[0]),y:tail.map(r=>+r[1]*100),type:"scatter",mode:"lines",name:"Explain"},
+    {x:tail.map(r=>r[0]),y:tail.map(r=>+r[2]*100),type:"scatter",mode:"lines",name:"Opaque"},
+    {x:tail.map(r=>r[0]),y:tail.map(r=>+r[3]*100),type:"scatter",mode:"lines",name:"Ensemble"}
+  ],layout({yaxis:{title:(LANG==="en"?"Up probability %":"上昇確率 %"),gridcolor:"#263a55"},xaxis:{gridcolor:"#263a55"},legend:{orientation:"h"}}),config);
+
+  const em=MARKET_MODEL.explain_metrics||{},om=MARKET_MODEL.opaque_metrics||{},am=MARKET_MODEL.ensemble_metrics||{};
+  marketModelBadge.textContent="Model "+String(MARKET_MODEL.model_id||"").slice(0,8);
+  marketAudit.innerHTML=
+    t("training")+" "+esc(MARKET_MODEL.train_start||"—")+"〜"+esc(MARKET_MODEL.train_end||"—")+
+    " / "+t("validation")+" "+esc(MARKET_MODEL.validation_start||"—")+"〜"+esc(MARKET_MODEL.validation_end||"—")+"<br>"+
+    "Explain AUC "+fmt(em.auc)+" / Opaque AUC "+fmt(om.auc)+" / Ensemble AUC "+fmt(am.auc)+
+    " / cache coverage "+fmt((+MARKET_MODEL.cache_coverage_ratio||0)*100,"percent");
+}
+function renderPatternAtlas(){
+  if(!MARKET_ATLAS){
+    atlasBadge.textContent=t("notReady");return;
+  }
+  atlasBadge.textContent="Atlas "+String(MARKET_ATLAS.atlas_id||"").slice(0,8)+" / "+MARKET_PATTERNS.length+" patterns";
+  const mem=currentMembership(),p=patternById(mem?.[1]);
+  patternCurrentCards.innerHTML=[
+    ["Pattern",p?.pattern_key||"—",p?patternName(p):"—"],
+    [t("fiveDayWin"),p?.win_rate_5d_pct==null?"—":(+p.win_rate_5d_pct).toFixed(1)+"%",t("retrospective")],
+    [t("avg5d"),p?.avg_return_5d_pct==null?"—":(+p.avg_return_5d_pct).toFixed(2)+"%",t("retrospective")],
+    [t("occurrences"),p?(+p.occurrence_count||0).toLocaleString(locale()):"—",t("allSymbolsAllPeriod")]
+  ].map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
+  patternCurrentSummary.textContent=patternSummaryText(p);
+  patternAtlasBody.innerHTML=MARKET_PATTERNS.map(x=>
+    "<tr><td>"+esc(x.pattern_key)+"</td><td>"+esc(patternName(x))+"</td><td>"+fmt(x.occurrence_count)+"</td><td>"+fmt(x.security_count)+"</td><td>"+
+    (x.win_rate_5d_pct==null?"—":(+x.win_rate_5d_pct).toFixed(1)+"%")+"</td><td>"+
+    (x.avg_return_5d_pct==null?"—":(+x.avg_return_5d_pct).toFixed(2)+"%")+"</td><td>"+
+    (x.avg_mae_5d_pct==null?"—":(+x.avg_mae_5d_pct).toFixed(2)+"%")+"</td></tr>"
+  ).join("");
+}
+function randomOwnerToken(){
+  const a=new Uint8Array(32);crypto.getRandomValues(a);
+  return Array.from(a).map(function(x){return x.toString(16).padStart(2,"0")}).join("");
+}
+async function trainingCall(action,extra){
+  let token=localStorage.getItem("kamokuAiOwnerToken");
+  if(!token){token=randomOwnerToken();localStorage.setItem("kamokuAiOwnerToken",token);}
+  const pid=localStorage.getItem("kamokuAiProfileId");
+  const body=Object.assign({action:action,owner_token:token},pid?{profile_id:pid}:{},extra||{});
+  return marketEdge("stock-replay-ai",body);
+}
+async function ensureTrainingProfile(){
+  try{
+    if(!localStorage.getItem("kamokuAiProfileId")){
+      const x=await trainingCall("init",{display_name:"World Monitor Strategy"});
+      localStorage.setItem("kamokuAiProfileId",x.profile.profile_id);
+      trainingStrategy.value=JSON.stringify(DEFAULT_TRAIN_STRATEGY,null,2);
+      trainingSearch.value=JSON.stringify(DEFAULT_TRAIN_SEARCH,null,2);
+      trainingObjective.value=JSON.stringify(DEFAULT_TRAIN_OBJECTIVE,null,2);
+      await saveTrainingSettings();
+    }
+    await refreshTraining();
+    if(!localStorage.getItem("kamokuBgAiOptInV1")){
+      if(!TRAIN_PROFILE?.training_enabled){
+        const y=await trainingCall("toggle",{enabled:true});
+        TRAIN_PROFILE=Object.assign({},TRAIN_PROFILE||{},y.profile||{});
+      }
+      await trainingCall("request_train");
+      localStorage.setItem("kamokuBgAiOptInV1","1");
+      trainingMessage.textContent="背景AI学習をONにし、学習キューへ追加しました。";
+      renderTraining();
+    }
+  }catch(e){trainingMessage.textContent=e.message||String(e);}
+}
+async function saveTrainingSettings(){
+  const strategy=JSON.parse(trainingStrategy.value);
+  const search=JSON.parse(trainingSearch.value);
+  const objective=JSON.parse(trainingObjective.value);
+  const x=await trainingCall("save",{
+    display_name:"World Monitor Strategy",
+    strategy_json:strategy,search_space_json:search,objective_json:objective,
+    universe_json:{mode:"random",count:20},train_interval_hours:6
+  });
+  TRAIN_PROFILE=Object.assign({},TRAIN_PROFILE||{},x.profile||{});
+  trainingMessage.textContent="設定を保存しました。";
+  renderTraining();
+}
+async function refreshTraining(){
+  const x=await trainingCall("get");
+  TRAIN_PROFILE=x.profile;TRAIN_ELITE=x.elite;TRAIN_RUNS=x.runs||[];
+  if(TRAIN_PROFILE?.strategy_json&&(!trainingStrategy.value||trainingStrategy.value==="{}"))trainingStrategy.value=JSON.stringify(TRAIN_PROFILE.strategy_json,null,2);
+  if(TRAIN_PROFILE?.search_space_json&&(!trainingSearch.value||trainingSearch.value==="{}"))trainingSearch.value=JSON.stringify(TRAIN_PROFILE.search_space_json,null,2);
+  if(TRAIN_PROFILE?.objective_json&&(!trainingObjective.value||trainingObjective.value==="{}"))trainingObjective.value=JSON.stringify(TRAIN_PROFILE.objective_json,null,2);
+  renderTraining();
+}
+function renderTraining(){
+  if(!TRAIN_PROFILE)return;
+  trainingBadge.textContent=(LANG==="en"?"Background training ":"背景学習 ")+(TRAIN_PROFILE.training_enabled?"ON":"OFF");
+  trainingToggle.textContent=TRAIN_PROFILE.training_enabled?(LANG==="en"?"Turn background training OFF":"背景学習をOFF"):(LANG==="en"?"Turn background training ON":"背景学習をON");
+  trainingElite.textContent=TRAIN_ELITE?JSON.stringify({
+    score:TRAIN_ELITE.score,variables:TRAIN_ELITE.best_params,
+    validation:TRAIN_ELITE.validation_metrics,source:TRAIN_ELITE.source_snapshot
+  },null,2):(LANG==="en"?"No training result yet.":"まだ学習結果がありません。");
+  trainingRuns.innerHTML=TRAIN_RUNS.length?TRAIN_RUNS.map(r=>{
+    const m=r.validation_metrics||{};
+    return "<tr><td>#"+r.run_id+"</td><td>"+esc(r.status)+"</td><td>"+fmt(r.best_score)+"</td><td>"+
+      (m.win_rate_pct==null?"—":(+m.win_rate_pct).toFixed(1)+"%")+"</td><td>"+fmt(m.profit_factor)+"</td><td>"+
+      (m.max_drawdown_pct==null?"—":(+m.max_drawdown_pct).toFixed(1)+"%")+"</td><td>"+fmt(m.trade_count)+"</td></tr>";
+  }).join(""):'<tr><td colspan="7">'+(LANG==="en"?"No history":"履歴なし")+'</td></tr>';
+}
+
+function tradeResolveSymbol(){
+  const q=tradeSymbolSearch.value.trim(),code=(q.match(/^[0-9A-Z]{4,5}/i)||[])[0]?.toUpperCase();
+  let x=MARKET_CATALOG.find(a=>a.code===code);
+  if(!x){const low=q.toLowerCase();x=MARKET_CATALOG.find(a=>(a.name||"").toLowerCase().includes(low));}
+  if(x){TRADE.code=x.code;tradeSymbolSearch.value=x.code+" "+(x.name||"");}
+  return x;
+}
+function tradeBar(i=TRADE.idx){
+  const r=TRADE.bars[i];
+  return r?{date:r[0],open:+r[1],high:+r[2],low:+r[3],close:+r[4],volume:+(r[5]||0)}:null;
+}
+function tradeTotal(){const b=tradeBar();return TRADE.cash+TRADE.pos*(b?.close||0);}
+function tradeAiRow(day){let found=null;for(const r of TRADE.aiRows){if(r[0]<=day)found=r;else break;}return found;}
+function tradeAiValues(row){
+  if(!row)return null;
+  const src=tradeAiSource.value;
+  if(src==="explain")return {p:+row[1],r:+row[4],name:"Explain"};
+  if(src==="opaque")return {p:+row[2],r:+row[5],name:"Opaque"};
+  return {p:+row[3],r:+row[6],name:"Ensemble"};
+}
+function tradeDecisionNow(){
+  const b=tradeBar();if(!b)return {action:"hold",reason:LANG==="en"?"No data":"データなし",p:null,r:null};
+  if(TRADE.pos>0&&TRADE.avg>0){
+    const ret=(b.close/TRADE.avg-1)*100,tp=+tradeTakeProfit.value||0,sl=+tradeStopLoss.value||0;
+    if(tp>0&&ret>=tp)return {action:"sell",reason:t("takeProfit")+" "+ret.toFixed(2)+"% ≥ "+tp+"%",p:null,r:null};
+    if(sl>0&&ret<=-sl)return {action:"sell",reason:t("stopLoss")+" "+ret.toFixed(2)+"% ≤ -"+sl+"%",p:null,r:null};
+  }
+  const v=tradeAiValues(tradeAiRow(b.date));
+  if(!v)return {action:"hold",reason:t("marketNoPrediction"),p:null,r:null};
+  const buy=(+tradeBuyThreshold.value||60)/100,sell=(+tradeSellThreshold.value||40)/100;
+  if(TRADE.pos<=0&&v.p>=buy)return {action:"buy",reason:v.name+" "+t("riseProbability")+" "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  if(TRADE.pos>0&&v.p<=sell)return {action:"sell",reason:v.name+" "+t("riseProbability")+" "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+  return {action:"hold",reason:v.name+" "+t("riseProbability")+" "+(v.p*100).toFixed(1)+"%",p:v.p,r:v.r};
+}
+function queueTrade(side,source){
+  if(!TRADE.bars.length||TRADE.idx>=TRADE.bars.length-1||TRADE.pending)return;
+  const qty=Math.max(1,+tradeQty.value||100);
+  if(side==="sell"&&TRADE.pos<=0)return;
+  TRADE.pending={side:side,qty:side==="sell"?Math.min(qty,TRADE.pos):qty,source:source||"manual",decisionDate:tradeBar().date};
+  renderTrade();
+}
+function executeTradePending(){
+  if(!TRADE.pending)return;
+  const b=tradeBar(),o=TRADE.pending,px=b.open,feeRate=(+tradeCostBps.value||0)/10000;
+  const fee=px*o.qty*feeRate;let tax=0;
+  if(o.side==="buy"){
+    const cost=px*o.qty+fee;
+    if(cost<=TRADE.cash){
+      TRADE.avg=(TRADE.avg*TRADE.pos+px*o.qty)/(TRADE.pos+o.qty);
+      TRADE.pos+=o.qty;TRADE.cash-=cost;
+      TRADE.fills.push({date:b.date,side:"BUY",qty:o.qty,price:px,cost:fee,cash:TRADE.cash,source:o.source});
+    }
+  }else{
+    const qty=Math.min(o.qty,TRADE.pos),gain=(px-TRADE.avg)*qty;
+    if(tradeTax.checked&&gain>0)tax=gain*.20315;
+    TRADE.cash+=px*qty-fee-tax;TRADE.realized+=gain-fee-tax;TRADE.pos-=qty;if(TRADE.pos===0)TRADE.avg=0;
+    TRADE.fills.push({date:b.date,side:"SELL",qty:qty,price:px,cost:fee+tax,cash:TRADE.cash,source:o.source});
+  }
+  TRADE.pending=null;
+}
+function autoTradeAfterClose(){
+  const d=tradeDecisionNow();TRADE.proposal=d;
+  if(TRADE.mode==="full"&&(d.action==="buy"||d.action==="sell"))queueTrade(d.action,"auto");
+}
+function advanceTrade(days){
+  if(!TRADE.bars.length)return;
+  for(let n=0;n<days;n++){
+    if(TRADE.idx>=TRADE.bars.length-1){stopTradePlay();break;}
+    TRADE.idx++;executeTradePending();autoTradeAfterClose();
+  }
+  renderTrade();
+}
+function stopTradePlay(){if(TRADE.timer){clearInterval(TRADE.timer);TRADE.timer=null;}}
+async function loadTradeReplay(){
+  stopTradePlay();
+  const sym=tradeResolveSymbol();if(!sym)throw new Error(t("chooseSecurity"));
+  tradeSymbolMeta.textContent=LANG==="en"?"Loading…":"読み込み中…";
+  const results=await Promise.all([
+    marketEdge("stock-replay-data",{code:TRADE.code}),
+    marketEdge("market-ai-data",{code:TRADE.code}).catch(()=>null)
+  ]);
+  const meta=results[0],ai=results[1];
+  const payload=await gunzipJson(meta.signed_url);
+  TRADE.bars=payload.bars||[];TRADE.aiRows=[];
+  if(ai?.prediction?.signed_url){const ap=await gunzipJson(ai.prediction.signed_url);TRADE.aiRows=ap.rows||[];}
+  if(TRADE.bars.length<100)throw new Error(t("noReplay"));
+  const win=Math.max(100,+tradeWindow.value||500);
+  TRADE.startIdx=Math.max(80,TRADE.bars.length-win);TRADE.idx=TRADE.startIdx;
+  TRADE.initialCash=Math.max(10000,+tradeInitialCash.value||1000000);
+  TRADE.cash=TRADE.initialCash;TRADE.pos=0;TRADE.avg=0;TRADE.pending=null;TRADE.proposal=null;TRADE.fills=[];TRADE.realized=0;
+  tradeSymbolMeta.textContent=TRADE.code+" "+(sym.name||"")+" / "+meta.first_date+"〜"+meta.last_date;
+  autoTradeAfterClose();renderTrade();
+}
+function renderTrade(){
+  if(!TRADE.bars.length){tradeCards.innerHTML="";return;}
+  const b=tradeBar(),total=tradeTotal(),ret=(total/TRADE.initialCash-1)*100,unreal=TRADE.pos?((b.close-TRADE.avg)*TRADE.pos):0,loc=locale();
+  const money=v=>Math.round(v).toLocaleString(loc)+(LANG==="en"?" JPY":" 円");
+  const cardData=[
+    [t("date"),b.date,t("close")+" "+b.close.toLocaleString(loc)],
+    [t("totalAssets"),money(total),(ret>=0?"+":"")+ret.toFixed(2)+"%"],
+    [t("cash"),money(TRADE.cash),t("realized")+" "+money(TRADE.realized)],
+    [t("position"),TRADE.pos.toLocaleString(loc)+" "+t("shares"),TRADE.pos?t("average")+" "+TRADE.avg.toFixed(2)+" / "+t("unrealized")+" "+money(unreal):t("noPosition")]
+  ];
+  tradeCards.innerHTML=cardData.map(x=>'<div class="card"><div class="eyebrow">'+esc(x[0])+'</div><div class="big">'+esc(x[1])+'</div><div class="sub">'+esc(x[2])+'</div></div>').join("");
+  tradePendingBadge.textContent=TRADE.pending?(TRADE.pending.side.toUpperCase()+" "+TRADE.pending.qty+" "+t("shares")+" → "+t("nextOpen")):t("noOrder");
+  const d=tradeDecisionNow();TRADE.proposal=d;
+  const cls=d.action==="buy"?"positive":d.action==="sell"?"negative":"";
+  tradeDecision.innerHTML='<div class="name">'+t("aiDecision")+' / '+esc(TRADE.mode)+'</div><div class="value '+cls+'">'+d.action.toUpperCase()+'</div><div class="meta">'+esc(d.reason)+(d.r==null?"":" / "+t("expected5d")+" "+(+d.r).toFixed(2)+"%")+'</div>';
+  tradeAcceptAi.style.display=TRADE.mode==="semi"?"inline-block":"none";
+  tradeFills.innerHTML=TRADE.fills.length?TRADE.fills.slice().reverse().map(f=>'<tr><td>'+esc(f.date)+'</td><td>'+esc(f.side+" "+f.source)+'</td><td>'+f.qty+'</td><td>'+f.price.toFixed(2)+'</td><td>'+Math.round(f.cost).toLocaleString(loc)+'</td><td>'+Math.round(f.cash).toLocaleString(loc)+'</td></tr>').join(""):'<tr><td colspan="6">'+(LANG==="en"?"No trades":"取引なし")+'</td></tr>';
+  const lo=Math.max(0,TRADE.idx-119),slice=TRADE.bars.slice(lo,TRADE.idx+1);
+  const traces=[{type:"candlestick",x:slice.map(r=>r[0]),open:slice.map(r=>+r[1]),high:slice.map(r=>+r[2]),low:slice.map(r=>+r[3]),close:slice.map(r=>+r[4]),name:TRADE.code}];
+  const visible=new Set(slice.map(r=>r[0])),fills=TRADE.fills.filter(f=>visible.has(f.date));
+  if(fills.length)traces.push({type:"scatter",mode:"markers",x:fills.map(f=>f.date),y:fills.map(f=>f.price),text:fills.map(f=>f.side),marker:{size:10,symbol:fills.map(f=>f.side==="BUY"?"triangle-up":"triangle-down")},name:LANG==="en"?"Fills":"約定"});
+  Plotly.react("tradeChart",traces,layout({xaxis:{rangeslider:{visible:false},gridcolor:"#263a55"},yaxis:{gridcolor:"#263a55"}}),config);
+}
+async function setupTrade(){
+  if(!MARKET_CATALOG.length)await loadMarketCatalog();
+  tradeSymbolList.innerHTML=MARKET_CATALOG.map(x=>'<option value="'+esc(x.code+" "+(x.name||""))+'"></option>').join("");
+  const d=MARKET_CATALOG.find(x=>x.code===TRADE.code)||MARKET_CATALOG[0];
+  if(d)tradeSymbolSearch.value=d.code+" "+(d.name||"");
+  document.querySelectorAll(".mode-btn").forEach(b=>b.onclick=()=>{
+    TRADE.mode=b.dataset.tradeMode;
+    document.querySelectorAll(".mode-btn").forEach(x=>x.classList.toggle("active",x.dataset.tradeMode===TRADE.mode));
+    autoTradeAfterClose();renderTrade();
+  });
+  tradeLoadBtn.onclick=()=>loadTradeReplay().catch(e=>{tradeSymbolMeta.textContent=e.message||String(e)});
+  tradeSymbolSearch.onchange=()=>loadTradeReplay().catch(e=>{tradeSymbolMeta.textContent=e.message||String(e)});
+  tradeStep1.onclick=()=>advanceTrade(1);tradeStep5.onclick=()=>advanceTrade(5);
+  tradePlay.onclick=()=>{if(!TRADE.timer)TRADE.timer=setInterval(()=>advanceTrade(1),250)};
+  tradePause.onclick=stopTradePlay;tradeReset.onclick=()=>loadTradeReplay().catch(()=>{});
+  tradeManualBuy.onclick=()=>queueTrade("buy","manual");tradeManualSell.onclick=()=>queueTrade("sell","manual");
+  tradeAcceptAi.onclick=()=>{const d=tradeDecisionNow();if(d.action==="buy"||d.action==="sell")queueTrade(d.action,"semi")};
+  [tradeAiSource,tradeBuyThreshold,tradeSellThreshold,tradeTakeProfit,tradeStopLoss,tradeCostBps].forEach(el=>el.oninput=()=>renderTrade());
+  await loadTradeReplay();
+}
+
+async function setupMarketAI(){
+  document.querySelectorAll("#marketAiTabs button").forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll("#marketAiTabs button").forEach(function(x){x.classList.remove("active")});
+      document.querySelectorAll("#markets .ai-subview").forEach(function(x){x.classList.remove("active")});
+      b.classList.add("active");document.getElementById(b.dataset.aiView).classList.add("active");
+      setTimeout(function(){window.dispatchEvent(new Event("resize"))},20);
+    };
+  });
+  marketLoadBtn.onclick=loadMarketModule;
+  marketSymbolSearch.onchange=loadMarketModule;
+  marketDate.onchange=function(){renderMarketAI();renderPatternAtlas();};
+  trainingToggle.onclick=async function(){
+    try{
+      const x=await trainingCall("toggle",{enabled:!TRAIN_PROFILE?.training_enabled});
+      TRAIN_PROFILE=Object.assign({},TRAIN_PROFILE||{},x.profile||{});renderTraining();
+    }catch(e){trainingMessage.textContent=e.message||String(e);}
+  };
+  trainingSave.onclick=async function(){try{await saveTrainingSettings()}catch(e){trainingMessage.textContent=e.message||String(e)}};
+  trainingRun.onclick=async function(){
+    try{await saveTrainingSettings();await trainingCall("request_train");trainingMessage.textContent="学習キューへ追加しました。";}
+    catch(e){trainingMessage.textContent=e.message||String(e)}
+  };
+  trainingRefresh.onclick=async function(){try{await refreshTraining();trainingMessage.textContent="履歴を更新しました。"}catch(e){trainingMessage.textContent=e.message||String(e)}};
+  copyElite.onclick=function(){if(TRAIN_ELITE)navigator.clipboard?.writeText(trainingElite.textContent)};
+  trainingStrategy.value=JSON.stringify(DEFAULT_TRAIN_STRATEGY,null,2);
+  trainingSearch.value=JSON.stringify(DEFAULT_TRAIN_SEARCH,null,2);
+  trainingObjective.value=JSON.stringify(DEFAULT_TRAIN_OBJECTIVE,null,2);
+
+  try{
+    await loadMarketCatalog();
+    await Promise.all([loadMarketModule(),ensureTrainingProfile()]);
+  }catch(e){
+    marketCurrentBox.innerHTML='<div class="error">'+esc(e.message||String(e))+'</div>';
+  }
+}
+
+async function requireSession(){
+  const {data:{session}} = await SB.auth.getSession();
+  AUTH_SESSION = session;
+  if(!session){
+    authOverlay.style.display="flex";
+    logoutBtn.style.display="none";
+    return null;
+  }
+  authOverlay.style.display="none";
+  logoutBtn.style.display="inline-block";
+  return session;
+}
+
+loginForm.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  loginError.textContent=LANG==="en"?"Signing in…":"ログイン中…";
+  const email=loginEmail.value.trim();
+  const password=loginPassword.value;
+  const {error}=await SB.auth.signInWithPassword({email,password});
+  if(error){loginError.textContent=(LANG==="en"?"Sign-in failed: ":"ログインできません: ")+error.message;return;}
+  location.reload();
+});
+
+bootstrapForm.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  bootstrapError.textContent=LANG==="en"?"Registering…":"登録中…";
+  const body={
+    email:bootstrapEmail.value.trim(),
+    password:bootstrapPassword.value,
+    code:bootstrapCode.value.trim()
+  };
+  try{
+    const res=await fetch(API_BASE+"?api=bootstrap",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const out=await res.json();
+    if(!res.ok)throw new Error(out.error||(LANG==="en"?"Registration failed":"登録に失敗しました"));
+    bootstrapError.textContent=LANG==="en"?"Registered. Signing in…":"登録しました。ログインします…";
+    const {error}=await SB.auth.signInWithPassword({email:body.email,password:body.password});
+    if(error) throw error;
+    location.reload();
+  }catch(err){bootstrapError.textContent=err.message||String(err);}
+});
+
+logoutBtn.addEventListener("click",async()=>{await SB.auth.signOut();location.reload();});
+langJa.addEventListener("click",()=>setLanguage("ja"));
+langEn.addEventListener("click",()=>setLanguage("en"));
+appVersionText.textContent=APP_VERSION;
+settingsBtn.addEventListener("click",()=>{settingsOverlay.style.display="flex";settingsOverlay.setAttribute("aria-hidden","false");});
+settingsClose.addEventListener("click",()=>{settingsOverlay.style.display="none";settingsOverlay.setAttribute("aria-hidden","true");});
+settingsOverlay.addEventListener("click",e=>{if(e.target===settingsOverlay){settingsOverlay.style.display="none";settingsOverlay.setAttribute("aria-hidden","true");}});
+
+
+async function boot(){
+  setNav();applyLanguage();
+  const session=await requireSession();
+  if(!session){stamp.textContent=t("loadingRequired");hideSplash();return;}
+  try{
+    const res=await fetch(DATA_URL,{cache:"no-store",headers:{Authorization:"Bearer "+session.access_token}});
+    if(!res.ok) throw new Error("snapshot HTTP "+res.status);
+    D=await res.json();registry=D.registry.filter(r=>r.enabled!==false);
+    regByMetric=Object.fromEntries(registry.map(r=>[r.metric,r]));
+    countryByIso=Object.fromEntries(D.countries.map(c=>[c.iso3,c]));
+    if(!countryByIso[selectedIso]) selectedIso=D.countries[0]?.iso3;
+    updateStamp();
+    renderKcu();renderWorld();setupCountry();renderRegions();setupNews();
+    await setupMarketAI();
+    await setupTrade();
+    aboutNote.textContent=D.notes?.country_comparison||"";
+    applyLanguage();
+    hideSplash();
+  }catch(e){
+    fatal.style.display="block";
+    fatal.className="error";
+    fatal.innerHTML="<b>ダッシュボードデータを読み込めませんでした。</b><br>"+esc(e.message)+"<br><br>GitHub Actions の Export World Dashboard を実行して dashboard/data/world_dashboard.json を生成してください。";
+    stamp.textContent=t("dataUnavailable");
+    hideSplash();
+  }
+}
+boot();
+</script>
 </body>
 </html>

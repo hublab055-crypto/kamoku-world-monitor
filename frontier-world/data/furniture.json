@@ -1,0 +1,457 @@
+{
+  "schema_version": 1,
+  "kind": "furniture",
+  "version": "2026-10-07",
+  "status": "authoring_source_not_runtime_loaded",
+  "records": [
+    {
+      "id": "bed",
+      "name": "ベッド",
+      "category": "sleep",
+      "width": 1,
+      "height": 2,
+      "collision": true,
+      "functions": [
+        "sleep"
+      ],
+      "capacity": 1,
+      "comfort": 35,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 30,
+      "craftCost": {
+        "wood": 4,
+        "fiber": 2
+      },
+      "tags": [
+        "home"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "double_bed",
+      "name": "ダブルベッド",
+      "category": "sleep",
+      "width": 2,
+      "height": 2,
+      "collision": true,
+      "functions": [
+        "sleep",
+        "couple"
+      ],
+      "capacity": 2,
+      "comfort": 50,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 60,
+      "craftCost": {
+        "wood": 7,
+        "fiber": 5
+      },
+      "tags": [
+        "home"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "crib",
+      "name": "ベビーベッド",
+      "category": "sleep",
+      "width": 1,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "baby_sleep",
+        "baby_care"
+      ],
+      "capacity": 1,
+      "comfort": 30,
+      "cleanable": true,
+      "storageSlots": 2,
+      "basePrice": 35,
+      "craftCost": {
+        "wood": 4,
+        "fiber": 2
+      },
+      "tags": [
+        "baby",
+        "home"
+      ],
+      "notes": "使用中は撤去保護対象"
+    },
+    {
+      "id": "chair",
+      "name": "椅子",
+      "category": "seating",
+      "width": 1,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "sit",
+        "rest"
+      ],
+      "capacity": 1,
+      "comfort": 12,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 12,
+      "craftCost": {
+        "wood": 2
+      },
+      "tags": [
+        "home"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "table",
+      "name": "食卓",
+      "category": "work",
+      "width": 2,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "eat",
+        "serve",
+        "group_meal"
+      ],
+      "capacity": 4,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 24,
+      "craftCost": {
+        "wood": 4
+      },
+      "tags": [
+        "home",
+        "meal"
+      ],
+      "notes": "家族集合・みんなで食べる対応"
+    },
+    {
+      "id": "chest",
+      "name": "チェスト",
+      "category": "storage",
+      "width": 1,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "storage"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 24,
+      "basePrice": 26,
+      "craftCost": {
+        "wood": 4
+      },
+      "tags": [
+        "storage"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "shelf",
+      "name": "棚",
+      "category": "storage",
+      "width": 1,
+      "height": 2,
+      "collision": true,
+      "functions": [
+        "storage",
+        "display"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 16,
+      "basePrice": 22,
+      "craftCost": {
+        "plank": 3
+      },
+      "tags": [
+        "storage"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "workbench",
+      "name": "作業台",
+      "category": "work",
+      "width": 2,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "craft",
+        "repair"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 4,
+      "basePrice": 35,
+      "craftCost": {
+        "wood": 5,
+        "stone": 1
+      },
+      "tags": [
+        "crafting"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "kitchen",
+      "name": "キッチン",
+      "category": "cooking",
+      "width": 2,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "cook",
+        "prepare_food"
+      ],
+      "capacity": 2,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 8,
+      "basePrice": 55,
+      "craftCost": {
+        "wood": 5,
+        "stone": 3,
+        "iron_ingot": 1
+      },
+      "tags": [
+        "cooking",
+        "home"
+      ],
+      "notes": "清潔度管理対象"
+    },
+    {
+      "id": "stove",
+      "name": "かまど",
+      "category": "cooking",
+      "width": 1,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "cook",
+        "heat"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 2,
+      "basePrice": 42,
+      "craftCost": {
+        "stone": 5,
+        "iron_ingot": 1
+      },
+      "tags": [
+        "cooking"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "fireplace",
+      "name": "暖炉",
+      "category": "heating",
+      "width": 2,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "heat",
+        "rest"
+      ],
+      "capacity": 4,
+      "comfort": 18,
+      "cleanable": true,
+      "storageSlots": 2,
+      "basePrice": 50,
+      "craftCost": {
+        "stone": 6,
+        "iron_ingot": 1
+      },
+      "tags": [
+        "home",
+        "heating"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "toilet",
+      "name": "トイレ",
+      "category": "sanitary",
+      "width": 1,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "toilet"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 40,
+      "craftCost": {
+        "wood": 2,
+        "stone": 3
+      },
+      "tags": [
+        "sanitary"
+      ],
+      "notes": "清潔度管理対象"
+    },
+    {
+      "id": "bath",
+      "name": "風呂",
+      "category": "sanitary",
+      "width": 2,
+      "height": 2,
+      "collision": true,
+      "functions": [
+        "bath",
+        "clean_body"
+      ],
+      "capacity": 2,
+      "comfort": 28,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 80,
+      "craftCost": {
+        "wood": 6,
+        "stone": 6,
+        "iron_ingot": 2
+      },
+      "tags": [
+        "sanitary",
+        "home"
+      ],
+      "notes": "清潔度管理対象"
+    },
+    {
+      "id": "wash_tub",
+      "name": "洗濯たらい",
+      "category": "sanitary",
+      "width": 1,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "laundry_wash"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 2,
+      "basePrice": 25,
+      "craftCost": {
+        "wood": 3,
+        "iron_ingot": 1
+      },
+      "tags": [
+        "laundry"
+      ],
+      "notes": "洗濯工程の開始設備"
+    },
+    {
+      "id": "drying_rack",
+      "name": "物干し",
+      "category": "work",
+      "width": 2,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "laundry_dry"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": false,
+      "storageSlots": 8,
+      "basePrice": 20,
+      "craftCost": {
+        "wood": 3,
+        "fiber": 1
+      },
+      "tags": [
+        "laundry",
+        "outdoor_ok"
+      ],
+      "notes": "屋外設置可"
+    },
+    {
+      "id": "desk",
+      "name": "机",
+      "category": "work",
+      "width": 2,
+      "height": 1,
+      "collision": true,
+      "functions": [
+        "read",
+        "write",
+        "research"
+      ],
+      "capacity": 1,
+      "comfort": 5,
+      "cleanable": true,
+      "storageSlots": 4,
+      "basePrice": 28,
+      "craftCost": {
+        "plank": 4
+      },
+      "tags": [
+        "study"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "bookcase",
+      "name": "本棚",
+      "category": "storage",
+      "width": 1,
+      "height": 2,
+      "collision": true,
+      "functions": [
+        "book_storage",
+        "research"
+      ],
+      "capacity": 1,
+      "comfort": 0,
+      "cleanable": true,
+      "storageSlots": 30,
+      "basePrice": 38,
+      "craftCost": {
+        "plank": 5
+      },
+      "tags": [
+        "library",
+        "study"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "lamp",
+      "name": "室内灯",
+      "category": "lighting",
+      "width": 1,
+      "height": 1,
+      "collision": false,
+      "functions": [
+        "light"
+      ],
+      "capacity": 0,
+      "comfort": 5,
+      "cleanable": true,
+      "storageSlots": 0,
+      "basePrice": 18,
+      "craftCost": {
+        "iron_ingot": 1,
+        "candle": 1
+      },
+      "tags": [
+        "lighting"
+      ],
+      "notes": ""
+    }
+  ]
+}

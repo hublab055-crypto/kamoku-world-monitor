@@ -1,0 +1,63 @@
+/* FRONTIER_OPENING_V1: responsive opening cinematic and non-blocking quest hint */
+#fwOpeningStage[hidden],#fwStoryHint[hidden],#fwOpIdentity[hidden]{display:none!important}
+#fwOpeningStage{position:fixed;inset:0;z-index:24000;display:flex;align-items:flex-end;justify-content:center;padding:clamp(12px,3vw,32px);overflow:auto;background:#141d24;color:#fff;font-family:system-ui,-apple-system,"Hiragino Sans","Yu Gothic",sans-serif}
+#fwOpeningStage *{box-sizing:border-box}
+.fw-op-sky{pointer-events:none;position:fixed;inset:0;overflow:hidden;background:radial-gradient(circle at 75% 25%,#b98a59 0,#8a6149 22%,#374854 58%,#101d27 100%);transition:background .8s}
+.fw-op-sky:before{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#0b1119 1%,transparent 57%)}
+.fw-op-sky:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 82px,#101d25bb 85px 96px,transparent 100px 135px);mask-image:linear-gradient(0deg,#000 10%,transparent 67%);opacity:.3}
+.fw-op-hill{position:absolute;bottom:15%;left:-10%;width:120%;height:48%;background:#253639;clip-path:polygon(0 78%,9% 52%,20% 67%,30% 30%,38% 45%,50% 24%,62% 56%,72% 18%,84% 56%,100% 32%,100% 100%,0 100%)}
+.fw-op-tent{position:absolute;right:12%;bottom:28%;width:21vmin;height:14vmin;min-width:130px;min-height:90px;background:linear-gradient(140deg,#ad956a 0 51%,#6c563f 52%);clip-path:polygon(50% 0%,100% 97%,0 97%);filter:drop-shadow(0 6px 8px #090c0b)}
+.fw-op-tent:after{content:"";position:absolute;top:35%;left:35%;width:31%;height:65%;background:#201b17;clip-path:polygon(50% 0,98% 100%,3% 100%)}
+.fw-op-fire{position:absolute;right:34%;bottom:27%;font-size:clamp(28px,5vw,62px);color:#ffd788;text-shadow:0 0 10px #ffa552,0 0 32px #ec8f39,0 0 55px #e16a26;animation:fwFire 1.1s ease-in-out infinite alternate}
+.fw-op-traveler{position:absolute;left:20%;bottom:30%;width:35px;height:100px;border-radius:20px 20px 12px 12px;background:linear-gradient(90deg,#0c1319,#27333c);filter:drop-shadow(0 10px 8px #0b1114);transform:rotate(8deg);animation:fwStagger 1.2s ease-in-out infinite alternate}
+.fw-op-traveler:before{content:"";position:absolute;width:36px;height:37px;left:0;top:-26px;border-radius:50%;background:#1a272d}
+.fw-op-traveler:after{content:"";position:absolute;left:10px;top:78px;width:13px;height:55px;background:#172126;box-shadow:17px -1px 0 #172126;transform:rotate(-8deg)}
+.fw-op-traveler i{position:absolute;left:-5px;top:24px;width:10px;height:67px;background:#172026;border-radius:5px;transform:rotate(35deg)}
+.fw-op-bed{position:absolute;left:calc(50% - 145px);bottom:34%;height:85px;width:290px;text-align:center;line-height:85px;border-radius:8px;background:#81654a;border:12px solid #574333;box-shadow:0 16px 36px #141517;opacity:0;transition:opacity .5s}
+#fwOpeningStage[data-scene="collapse"] .fw-op-traveler{animation:fwCollapse 1.5s forwards;transform-origin:bottom center;left:34%}
+#fwOpeningStage[data-scene="wake"] .fw-op-sky,#fwOpeningStage[data-scene="name"] .fw-op-sky,#fwOpeningStage[data-scene="stand"] .fw-op-sky{background:radial-gradient(circle at 73% 20%,#f8dca3 0,#ba9970 26%,#64513e 65%,#24201c 100%)}
+#fwOpeningStage[data-scene="wake"] .fw-op-tent,#fwOpeningStage[data-scene="name"] .fw-op-tent,#fwOpeningStage[data-scene="stand"] .fw-op-tent{right:0;bottom:5%;width:100%;height:98%;clip-path:none;min-height:0;min-width:0;opacity:.19}
+#fwOpeningStage[data-scene="wake"] .fw-op-hill,#fwOpeningStage[data-scene="name"] .fw-op-hill,#fwOpeningStage[data-scene="stand"] .fw-op-hill,#fwOpeningStage[data-scene="wake"] .fw-op-traveler,#fwOpeningStage[data-scene="name"] .fw-op-traveler,#fwOpeningStage[data-scene="stand"] .fw-op-traveler{display:none}
+#fwOpeningStage[data-scene="wake"] .fw-op-bed,#fwOpeningStage[data-scene="name"] .fw-op-bed,#fwOpeningStage[data-scene="stand"] .fw-op-bed{opacity:.85}
+#fwOpeningStage[data-scene="name"] .fw-op-bed{opacity:.45}
+.fw-op-content{position:relative;width:min(650px,100%);margin:0 auto 4vh;background:linear-gradient(135deg,rgba(13,18,25,.92),rgba(30,34,38,.92));border:1px solid #d9ad6a77;border-radius:16px;padding:clamp(18px,3.5vw,32px);box-shadow:0 15px 65px #0009;backdrop-filter:blur(7px)}
+.fw-op-tag{font-size:12px;letter-spacing:.13em;color:#d9bb82}
+.fw-op-content h2{font-family:Georgia,"Hiragino Mincho ProN","Yu Mincho",serif;letter-spacing:.04em;font-size:clamp(22px,4vw,34px);margin:7px 0 10px;color:#fff7e9}
+#fwOpDescription{line-height:1.85;color:#d8d7d2;margin:0 0 16px;font-size:clamp(13px,2.6vw,16px)}
+.fw-op-dialog{padding:12px 15px;background:rgba(255,243,216,.09);border-left:3px solid #e4b66a;border-radius:3px}
+.fw-op-dialog strong{color:#f2cd86;font-size:14px}
+.fw-op-dialog p{line-height:1.75;font-size:clamp(16px,2.5vw,19px);margin:6px 0}
+.fw-op-identity{margin-top:14px}
+.fw-op-identity>label{display:block;font-size:14px;margin-bottom:6px}
+.fw-op-identity>input{display:block;width:100%;padding:11px 12px;border:1px solid #ddc08c;border-radius:7px;background:#f4ede0;color:#24272a;font-size:18px}
+.fw-op-identity fieldset{border:1px solid #827963;border-radius:8px;margin:12px 0 0;padding:10px 12px;display:flex;gap:16px;flex-wrap:wrap;font-size:14px}
+.fw-op-identity legend{padding:0 6px;color:#eed7a9}
+.fw-op-identity label{cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.fw-op-actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+.fw-op-actions button,.fw-story-actions button{cursor:pointer;border:1px solid #c69b56;border-radius:9px;background:#6d492a;color:#fff7e7;padding:12px 16px;font:inherit;font-weight:600;min-height:44px}
+#fwOpNext{flex:1;background:#ad7b3e;color:#19130e}
+#fwOpSkip{background:transparent;border-color:#878787;color:#eee}
+.fw-op-actions button:focus-visible,.fw-story-actions button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.fw-op-counter{text-align:right;font-size:12px;color:#afa89e;margin:12px 0 0}
+#fwStoryHint{position:fixed;z-index:14000;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(430px,calc(100vw - 20px));padding:14px 17px;color:#fff5e7;background:rgba(22,31,34,.94);border:1px solid #c5a06b;border-radius:12px;box-shadow:0 8px 20px #0008;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;pointer-events:auto}
+.fw-story-top{display:flex;align-items:center;justify-content:space-between;color:#eac788;font-size:12px;letter-spacing:.03em}
+#fwStoryHint b{display:block;font-size:16px;margin-top:3px}
+#fwStoryHint p{font-size:13px;line-height:1.5;margin:6px 0 9px}
+#fwStoryClose{border:0;background:transparent;color:#fff;font-size:23px;line-height:1;padding:0 4px}
+.fw-story-actions{display:flex;gap:7px}
+.fw-story-actions button{background:#37444a;border-color:#7f8a90;padding:7px 10px;min-height:34px;font-size:12px}
+.fw-story-actions button:last-child{margin-left:auto;background:transparent}
+@keyframes fwStagger{0%{transform:rotate(12deg) translateX(-7px)}100%{transform:rotate(-7deg) translateX(12px)}}
+@keyframes fwCollapse{0%{transform:rotate(5deg);opacity:1}45%{transform:rotate(22deg);opacity:1}100%{transform:rotate(88deg) translateY(13px);opacity:.55}}
+@keyframes fwFire{0%{transform:scale(.92) rotate(-5deg);opacity:.8}100%{transform:scale(1.1) rotate(7deg);opacity:1}}
+@media(max-width:550px){.fw-op-content{margin-bottom:5vh;padding:17px}.fw-op-bed{transform:scale(.74)}.fw-op-tent{right:4%;bottom:39%}#fwStoryHint{top:calc(9px + env(safe-area-inset-top))}}
+@media(prefers-reduced-motion:reduce){.fw-op-traveler,.fw-op-fire{animation:none!important}#fwOpeningStage[data-scene="collapse"] .fw-op-traveler{transform:rotate(76deg)}}
+/* Mode selection on the New Game chapter screen. */
+.fw-mode-picker{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 4px;padding:10px;border:1px solid #93806899;border-radius:12px;background:rgba(10,14,17,.25)}
+.fw-mode-heading{font-size:13px;font-weight:700;flex-basis:100%;color:#e8d5a5}
+.fw-mode-option{display:flex;flex:1 1 145px;min-height:64px;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:8px;border:1px solid #8b8067;background:#232a31;color:#f0f0ef;padding:8px;text-align:center;cursor:pointer}
+.fw-mode-option[aria-pressed="true"]{outline:2px solid #e5bb73;background:#62492e;color:#fff8e9}
+.fw-mode-option strong{font-size:13px}.fw-mode-option small{font-size:11px;opacity:.86}
+.fw-mode-option[data-mode-id="multiverse"]{opacity:.68}
+#fwStoryReopen[hidden]{display:none!important}
+#fwStoryReopen{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:13999;padding:9px 13px;border:1px solid #ddbf91;border-radius:22px;background:#293335;color:#fff;font-size:12px;cursor:pointer}

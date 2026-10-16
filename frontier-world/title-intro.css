@@ -1,0 +1,37 @@
+/* FW52.4: Trademark before the title */
+#fwTrademarkSplash[hidden]{display:none!important}
+#fwTrademarkSplash{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 36%,#334459,#121a28 54%,#02060b);color:#f7e9cb;text-align:center;transition:opacity .65s}
+#fwTrademarkSplash.fw-splash-out{opacity:0;pointer-events:none}
+.fw-splash-logo{display:flex;flex-direction:column;align-items:center;gap:13px}
+.fw-splash-logo img{width:min(55vw,225px);height:auto;filter:drop-shadow(0 0 25px #d1aa6960)}
+.fw-splash-logo h1{font:700 clamp(32px,8vw,58px)/1.05 Georgia,serif;letter-spacing:.1em;margin:0;text-shadow:0 4px 15px #000}
+.fw-splash-logo p{font-size:13px;color:#d5c8af}
+#fwSplashStart{min-height:52px;margin-top:14px;padding:10px 22px;border:1px solid #d8b47b;border-radius:9px;background:#77553055;color:#fff1d5;font-size:17px}
+#fwSplashStart:focus-visible{outline:3px solid #ffe0a6;outline-offset:4px}
+/* Existing A/B/C image follows the saved theme, now full-bleed. */
+#fwTitleOverlay{display:block;padding:0;isolation:isolate;background:#0e1822;overflow:auto}
+#fwTitleOverlay>.fw-title-scene{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;object-position:center;border:0;border-radius:0;box-shadow:none;margin:0;z-index:0;pointer-events:none}
+#fwTitleOverlay::before{content:"";position:fixed;inset:0;background:linear-gradient(90deg,#0d101f93,transparent 52%,#12152177);pointer-events:none;z-index:1}
+#fwTitleOverlay[data-fw-title-theme="c"]::before{background:linear-gradient(90deg,#3a240c85,transparent 43%,#39240c75)}
+#fwTitleOverlay[data-fw-title-theme="b"]::before{background:linear-gradient(90deg,#0a1641aa,transparent 45%,#0a1638ac)}
+#fwTitleOverlay[data-fw-title-theme] .fw-title-frame{position:relative;z-index:2;display:grid;align-items:center;min-height:100dvh;max-height:none;width:min(100%,1400px);margin:auto;padding:clamp(18px,4vw,60px);overflow:visible;background:transparent;border:0;border-radius:0;box-shadow:none;animation:none}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,365px);align-items:center;gap:clamp(20px,4vw,70px)}
+#fwTitleMain .fw-title-kicker{display:none}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-name{grid-column:1;font:700 clamp(45px,7vw,110px)/1.02 Georgia,"Yu Mincho",serif;letter-spacing:.03em;margin:0;color:#f8e6bb;text-align:center;text-shadow:0 4px 15px #000c,2px 2px #855d30}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-actions{grid-column:2;position:relative;width:100%;max-width:none;display:grid;gap:16px;padding:45px 5px}
+#fwTitleOverlay #fwTitleMain .fw-title-actions::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:calc(50% - 21px);width:42px;background:repeating-linear-gradient(90deg,#3c200e,#7d5130 12px,#422512 25px);border-radius:13px;box-shadow:inset 0 0 0 5px #241509,5px 8px 17px #0008}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action{position:relative;display:block;width:100%;min-height:75px;transform:rotate(-1.1deg);padding:10px 36px;border:4px solid #5b3219;border-radius:12px;background:repeating-linear-gradient(0deg,#76482c,#a06a3b 12px,#724126 24px);color:#fff0cb;font-size:clamp(21px,2.6vw,30px);font-weight:800;text-shadow:0 2px 4px #28160e;box-shadow:inset 0 0 0 2px #e0ac6280,inset 0 0 16px #3e210e,5px 9px 0 #281507a1,0 12px 22px #0008}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action:nth-child(2){transform:rotate(1.3deg)}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action::before{content:"";position:absolute;left:10px;top:calc(50% - 5px);width:10px;height:10px;background:radial-gradient(circle at 30% 20%,#e4be8b,#654022);border-radius:50%}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action[aria-current="true"],#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action:hover,#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action:focus-visible{background:repeating-linear-gradient(0deg,#a66b36,#c28a4b 13px,#a26732 25px);outline:3px solid #fbd486;outline-offset:3px;filter:brightness(1.15)}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action[aria-current="true"]::after{content:"◀";right:11px;color:#ffe4a7}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleSaves{width:min(100%,560px);margin:auto;padding:22px;border-radius:14px;background:#15202aee;border:1px solid #cbb788;box-shadow:0 18px 60px #000a}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleSaves .fw-title-save-heading{color:#f7e6bb}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleSaves .fw-title-save{color:#f7f0e5;background:#313f41}
+#fwTitleOverlay[data-fw-title-theme] #fwTitleSaves .fw-title-save small{color:#d6ceb8}
+#fwTitleOverlay .fw-title-notice{position:relative;z-index:2;text-shadow:0 2px 5px #000}
+#fwIntroAudioControls{margin-top:10px}
+#fwIntroAudioControls label{display:flex;align-items:center;gap:8px;margin:10px 0}
+#fwIntroAudioControls input[type="range"]{width:100%;accent-color:#c7a169}
+@media(max-width:760px){#fwTitleOverlay[data-fw-title-theme] .fw-title-frame{padding:calc(19px + env(safe-area-inset-top,0px)) 12px calc(21px + env(safe-area-inset-bottom,0px))}#fwTitleOverlay[data-fw-title-theme] #fwTitleMain{grid-template-columns:1fr;gap:15px}#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-name{grid-column:1;font-size:clamp(40px,10vw,65px)}#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-actions{grid-column:1;max-width:min(82vw,350px);margin:auto;padding:25px 6px;gap:12px}#fwTitleOverlay[data-fw-title-theme] #fwTitleMain .fw-title-action{min-height:61px;font-size:22px}}
+@media(prefers-reduced-motion:reduce){#fwTrademarkSplash{transition:none}}

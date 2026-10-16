@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frontier World 画像スプライト テスト</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0f1b25;color:#effafa;font-family:system-ui,-apple-system,sans-serif}
+main{max-width:1000px;margin:auto;padding:14px}h1{font-size:22px}h2{font-size:17px}
+p{line-height:1.7;color:#b9d1d8;font-size:13px}.loader{background:#213745;border:1px solid #406171;border-radius:14px;padding:14px;margin-bottom:14px}
+.files{display:flex;flex-wrap:wrap;gap:10px}.files label{flex:1;min-width:240px;font-size:13px}input[type=file]{display:block;max-width:100%;margin:7px 0}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:14px}.pane{border:1px solid #3d596b;background:#1b2b38;padding:12px;border-radius:14px;min-width:0}
+.stage{height:320px;position:relative;overflow:hidden;background:linear-gradient(#85aeaa 0 74%,#9bb58b 74%);border-radius:12px}
+.sprite{position:absolute;width:224px;height:284px;object-fit:fill;left:50%;bottom:24px;transform:translateX(-50%)}.baseline{position:absolute;left:0;right:0;bottom:24px;border-top:2px dashed #edf7f6a1}
+.dialog{height:260px;border-radius:14px;background:linear-gradient(#153547,#234451);border:2px solid #6daea6;display:flex;overflow:hidden}
+.faceSlot{position:relative;width:48%;min-width:0}.faceSlot img{position:absolute;bottom:0;left:50%;width:100%;aspect-ratio:400/416;transform:translateX(-50%);object-fit:contain}
+.faceSlot.guide:after{content:'';position:absolute;top:0;bottom:0;left:50%;border-left:1px solid aqua}
+.say{padding:16px 10px;flex:1;align-self:center;line-height:1.8;font-size:13px}.say b{display:block;color:#80e8d6;font-size:16px}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0}
+button,select{padding:8px 11px;border:1px solid #53758a;background:#2b4858;color:white;border-radius:8px;cursor:pointer;font-size:13px}
+button.on{background:#078078;border-color:#8dece2}#faces button{padding:7px 9px}
+.tip{background:#152632;border:1px solid #334c5b;padding:9px 10px;border-radius:8px;font-size:12px;line-height:1.6;color:#b7d1dc}
+.success{color:#92eaba}#status{font-size:12px;min-height:24px;margin:6px 0;color:#92eaba}
+.thumb{display:flex;gap:5px;margin-top:10px}.thumb img{width:24%;height:110px;object-fit:contain;background:#263d49;border-radius:7px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}.stage{height:300px}.sprite{height:264px;width:209px}}
+</style></head><body><main>
+<h1>フロンティアワールド｜歩行・会話スプライトテスト</h1>
+<div class="loader"><b>生成画像を読み込む</b><p>このページはGitHub上の独立テスト用です。画像をサーバーに送信せず、端末のブラウザ内で切り分け・位置補正します。今回生成した元画像2枚（PNG）を選択してください。</p>
+<div class="files"><label>4方向の立ち姿・歩行 4×4画像<input type="file" id="walkFile" accept="image/png,image/webp,image/jpeg"></label>
+<label>セリフ用の表情 3×3画像<input type="file" id="faceFile" accept="image/png,image/webp,image/jpeg"></label></div><div id="status">2つの画像を選んでください。</div></div>
+<div class="layout">
+<section class="pane"><h2>4方向 歩行アニメーション</h2><div class="stage"><img id="walk" class="sprite" alt="歩くキャラクター"><div class="baseline"></div></div>
+<div class="controls"><select id="dir"><option value="front">正面</option><option value="back">背面</option><option value="left">左</option><option value="right">右</option></select>
+<button id="walkButton">再生</button><button id="step">1コマ</button>速度<input type="range" id="fps" min="2" max="12" value="6" aria-label="歩行速度"><span id="fpsText">6 fps</span></div>
+<div class="thumb" id="thumb"></div><div class="tip">4方向×4コマ。停止姿勢を含む各コマを256×324pxに固定し、足元を同じ基準線に配置します。</div></section>
+<section class="pane"><h2>会話ウィンドウ・顔ズレ検証</h2><div class="dialog"><div class="faceSlot" id="slot"><img id="face" alt="会話時の顔"></div><div class="say"><b>Mio（画像テスト）</b><span id="dialogText">今日は何をしようか？</span></div></div>
+<div class="controls" id="faces"></div><div class="controls"><button id="blinkButton">自動瞬き ON</button><button id="talkButton">口パク ON</button><button id="guides">中心線 OFF</button></div>
+<div class="tip"><span class="success">✓ 固定マスター方式</span> 通常顔の外形・髪・服・透明度は全表情で固定し、目・眉・口の部分だけを画像合成。画像の表示位置は全9種類で共通です。手動表情選択時に自動瞬き・口パクは一時的に割り込みます。</div></section></div>
+<p><a href="../mio-face-test/" style="color:#87eade">既存のMio顔テスト</a>・<a href="../mio-walk-test/" style="color:#87eade">既存のMio歩行テスト</a>には変更を加えていません。このページは素材の比較・採用判断用です。</p></main>
+<script>
+"use strict";
+const el=id=>document.getElementById(id),DIRECTIONS=['front','left','right','back'],EXPS=['normal','blink','closed','talk_small','talk_open','happy','angry','sad','laugh'];
+const NAMES=['通常','瞬き','口閉じ','口半開','口開','喜び','怒り','悲しみ','楽しみ'];
+const SENT=['今日は何をしようか？','……','うん、聞いているよ。','そうだね。','いっしょに行こう！','やったー！','もう、どうして！','ちょっと悲しいな……','あはは、楽しいね！'];
+const SX=[140,390,625,868,1115],SY=[0,320,634,943,1254],PX=[30,430,830],PY=[0,416,826];
+const cells={walk:{},face:{}};
+let walking=false,direction='front',frame=0,fps=6,emotion='normal',displayFace='normal',blink=true,talk=true,start=0,previous=0,walkMs=0,nextBlink=2700,blinkEnd=0;
+function loadImg(f){return new Promise((ok,bad)=>{const img=new Image();const u=URL.createObjectURL(f);img.onload=()=>{URL.revokeObjectURL(u);ok(img)};img.onerror=()=>{URL.revokeObjectURL(u);bad(Error('画像を読み込めません'))};img.src=u})}
+function cv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c}
+function getPixels(c){return c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height)}
+function sliceWalk(image){
+const scaleX=image.width/1254,scaleY=image.height/1254;
+DIRECTIONS.forEach((dir,r)=>{cells.walk[dir]=[];
+for(let j=0;j<4;j++){const x=Math.round(SX[j]*scaleX),y=Math.round(SY[r]*scaleY),w=Math.round((SX[j+1]-SX[j])*scaleX),h=Math.round((SY[r+1]-SY[r])*scaleY);
+const piece=cv(w,h),ctx=piece.getContext('2d');ctx.drawImage(image,x,y,w,h,0,0,w,h);
+const a=getPixels(piece).data;let x0=w,y0=h,x1=0,y1=0;
+for(let iy=0;iy<h;iy++)for(let ix=0;ix<w;ix++){if(a[(iy*w+ix)*4+3]>40){x0=Math.min(x0,ix);x1=Math.max(x1,ix);y0=Math.min(y0,iy);y1=Math.max(y1,iy)}}
+const out=cv(256,324),o=out.getContext('2d');if(x0<=x1){const iw=x1-x0+1,ih=y1-y0+1;o.drawImage(piece,x0,Math.max(0,y0-2),iw,ih+2,Math.floor((256-iw)/2),320-ih-2,iw,ih+2)}
+cells.walk[dir].push(out.toDataURL('image/webp',.85))}})
+}
+function hairAnchor(a){const xs=[],ys=[];for(let y=0;y<125;y++)for(let x=0;x<400;x++)if(a[(y*400+x)*4+3]>90){xs.push(x);ys.push(y)}
+xs.sort((a,b)=>a-b);ys.sort((a,b)=>a-b);return [xs[Math.floor(xs.length*.5)]||200,ys[Math.floor(ys.length*.04)]||30]}
+function cutFaces(image){
+const originals=[];const sx=image.width/1254,sy=image.height/1254;
+for(let i=0;i<9;i++){const r=Math.floor(i/3),col=i%3;const c=cv(400,416);c.getContext('2d').drawImage(image,Math.round(PX[col]*sx),Math.round(PY[r]*sy),Math.round(400*sx),Math.round(416*sy),0,0,400,416);originals.push(c)}
+const master=getPixels(originals[0]);const m=master.data,anchor=hairAnchor(m);
+for(let i=0;i<9;i++){let aligned=originals[i];if(i){const a=getPixels(originals[i]),h=hairAnchor(a.data),dx=Math.max(-9,Math.min(9,anchor[0]-h[0])),dy=Math.max(-9,Math.min(9,anchor[1]-h[1]));aligned=cv(400,416);aligned.getContext('2d').drawImage(originals[i],dx,dy)}
+const source=getPixels(aligned).data;const out=cv(400,416);const ctx=out.getContext('2d');const imageOut=ctx.createImageData(400,416),dst=imageOut.data;
+for(let y=0;y<416;y++)for(let x=0;x<400;x++){const index=(y*400+x)*4;
+let e=0;
+const e1=1-((x-200)/124)**2-((y-200)/73)**2;
+const e2=1-((x-204)/88)**2-((y-257)/53)**2;
+e=Math.max(0,Math.min(1,Math.max(e1,e2)*3.5));
+for(let j=0;j<3;j++)dst[index+j]=e<.005?m[index+j]:Math.round(m[index+j]*(1-e)+source[index+j]*e);
+dst[index+3]=m[index+3]}
+ctx.putImageData(imageOut,0,0);cells.face[EXPS[i]]=out.toDataURL('image/webp',.86)}
+}
+function drawWalk(){const imgs=cells.walk[direction];if(!imgs)return;const f=walking?[1,2,3,2][frame%4]:0;el('walk').src=imgs[f];Array.from(el('thumb').children).forEach((x,i)=>{x.style.outline=i===f?'2px solid #92eadb':'none'})}
+function makeThumb(){el('thumb').replaceChildren();(cells.walk[direction]||[]).forEach((src,i)=>{const im=new Image();im.src=src;im.alt='歩行'+i;im.onclick=()=>{walking=false;el('walkButton').textContent='再生';el('walk').src=src};el('thumb').append(im)});drawWalk()}
+function drawFace(key){if(!cells.face[key])return;el('face').src=cells.face[key];displayFace=key}
+const faceBox=el('faces');
+EXPS.forEach((k,i)=>{const b=document.createElement('button');b.textContent=NAMES[i];b.dataset.expression=k;b.onclick=()=>{emotion=k;el('dialogText').textContent=SENT[i];drawFace(k);Array.from(faceBox.children).forEach(x=>x.classList.toggle('on',x===b))};faceBox.append(b)});
+faceBox.firstElementChild.classList.add('on');
+async function reload(){const wf=el('walkFile').files[0],ff=el('faceFile').files[0];if(!wf||!ff)return;el('status').textContent='読み込み中…';
+try{const images=await Promise.all([loadImg(wf),loadImg(ff)]);
+sliceWalk(images[0]);cutFaces(images[1]);makeThumb();drawFace('normal');walking=true;el('walkButton').textContent='停止';start=0;previous=0;el('status').textContent='✓ 4方向×4コマ＋表情9種類を読み込みました。ここから切り替えて確認できます。';
+}catch(error){el('status').textContent='読込失敗: '+error.message}}
+el('walkFile').onchange=reload;el('faceFile').onchange=reload;el('dir').onchange=()=>{direction=el('dir').value;frame=0;makeThumb()};
+el('walkButton').onclick=()=>{walking=!walking;el('walkButton').textContent=walking?'停止':'再生';drawWalk()};
+el('step').onclick=()=>{walking=false;frame=(frame+1)%4;el('walk').src=(cells.walk[direction]||[])[[1,2,3,2][frame]]||'';el('walkButton').textContent='再生'};
+el('fps').oninput=()=>{fps=Number(el('fps').value);el('fpsText').textContent=fps+' fps'};
+el('blinkButton').onclick=()=>{blink=!blink;el('blinkButton').textContent='自動瞬き '+(blink?'ON':'OFF')};
+el('talkButton').onclick=()=>{talk=!talk;el('talkButton').textContent='口パク '+(talk?'ON':'OFF')};
+el('guides').onclick=()=>{const active=el('slot').classList.toggle('guide');el('guides').textContent='中心線 '+(active?'ON':'OFF')};
+function tick(t){if(!previous){previous=t;requestAnimationFrame(tick);return}
+const dt=Math.min(t-previous,120);previous=t;start+=dt;if(walking&&cells.walk[direction]){walkMs+=dt;if(walkMs>=1000/fps){walkMs%=1000/fps;frame++;drawWalk()}}
+if(cells.face.normal){if(blink&&start>=nextBlink){blinkEnd=start+145;nextBlink=start+2400+Math.random()*1500}
+let state=emotion;if(talk&&Math.floor(start/170)%4)state=['closed','talk_small','talk_open','talk_small'][Math.floor(start/170)%4];if(blink&&start<blinkEnd)state='blink';if(state!==displayFace)drawFace(state)}
+requestAnimationFrame(tick)}requestAnimationFrame(tick);
+</script></body></html>

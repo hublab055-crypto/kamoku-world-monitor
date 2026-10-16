@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Frontier World — 楽曲レコード・楽譜保存</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,"Hiragino Sans",sans-serif}*{box-sizing:border-box}
+body{margin:0;background:#121b24;color:#f7f5ef}header,main{max-width:900px;margin:auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:1.5rem;margin:0}h2{font-size:1.13rem;margin:0 0 10px}
+section,.work{background:#1c2a34;border:1px solid #4f6676;border-radius:12px;padding:15px;margin:0 0 14px}
+.work{margin:8px 0;background:#253541}button,a.btn{background:#2d526c;color:#fff;border:1px solid #89a6b9;border-radius:8px;padding:9px 13px;font:inherit;cursor:pointer;text-decoration:none}
+button:disabled{opacity:.5}button.secondary,a.secondary{background:#263744}
+label{display:block;margin:12px 0}input,select{font:inherit;max-width:100%;width:100%;color:#fff;background:#111e28;border:1px solid #849eaa;border-radius:7px;padding:10px}
+.hidden{display:none}.muted{color:#b4c7d5;line-height:1.6}.row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.title{font-weight:700}.small{font-size:.83rem}.success{color:#a8ebc2}.error{color:#ffb8ae}
+#status,#verified{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+code{overflow-wrap:anywhere}.downloadNow{background:#377e59!important;border-color:#9ad2b1!important}
+</style></head><body>
+<header><div><h1>💿 楽曲レコード・楽譜</h1><div class="muted">購入済みの楽曲を、ライセンスID付きで端末に保存</div></div>
+<div class="row"><a class="btn secondary" href="./">作品マーケットへ</a><a class="btn secondary" href="../">ゲームに戻る</a></div></header>
+<main>
+<section><div class="row"><b id="identity">接続中…</b><div><button id="login">GitHubでログイン</button><button id="logout" class="hidden secondary">ログアウト</button></div></div>
+<p class="muted small">購入時に制作者へ印税80%、マーケット運営へ20%が分配されます。<b>再ダウンロードは追加料金0G</b>。通貨はオンラインβ Gで、現実の現金には交換できません。</p></section>
+<p id="status" role="status" aria-live="polite"></p>
+<section id="licensedSection" class="hidden">
+<h2>🎵 購入済み・制作参加済みの楽曲</h2>
+<p class="muted small">WAVは音符データから合成した音声レコードです。MIDIは演奏データ、MusicXMLは楽譜編集ソフトで利用できます。録音した生演奏そのものではありません。</p>
+<div id="library"></div></section>
+<section id="saveSection" class="hidden">
+<h2>⬇️ 保存するファイル</h2>
+<div id="saveDetails"></div>
+<div class="row">
+ <a id="saveLink" class="btn downloadNow" href="#">このファイルを端末に保存</a>
+ <button type="button" id="addToGameBgm">🎶 ゲームBGMに登録</button>
+</div>
+<p id="bgmImportStatus" class="muted small" role="status"></p>
+<p class="muted small">iPhone/iPadではタップ後、Safariのダウンロード一覧や共有メニューの「ファイルに保存」を確認してください。ダウンロード開始後に保存が完了したかどうかまではサーバーで検知しません。</p>
+</section>
+<section id="historySection" class="hidden"><h2>🎫 自分のライセンス発行履歴</h2><div id="history"></div><h2>🎼 自分が権利者の作品：発行件数</h2><div id="rightsStats"></div></section>
+<section><h2>🔎 ライセンス照合</h2>
+<p class="muted small">保存済みファイルを選択すると、内部の発行IDを取得してサーバーと照合します。ファイルの指紋（SHA-256）が一致すれば、発行時に登録されたデータと一致します。購入者名などの個人情報は公開しません。</p>
+<label>ライセンスID（ファイルを選択すると自動検出）<input id="receiptId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
+<label>検証するファイル（WAV / MIDI / MusicXML）<input id="verifyFile" type="file" accept=".wav,.mid,.midi,.musicxml"></label>
+<button id="verify" class="secondary">照合する</button><p id="verified"></p>
+</section>
+<section><h2>追跡できる情報と限界</h2>
+<p class="muted small">サーバーには購入契約、権利者への印税精算、ファイル発行ID、形式、発行日時、生成したファイルのSHA-256が残ります。これによって正規に発行したファイルか照合できます。ただしファイルの複製・書き換え・ライセンス情報の除去を完全に防ぐDRMではありません。第三者への無断再配布は許可されません。</p>
+</section></main>
+<script src="../organ/bgm-import-library.js"></script>
+<script type="module">
+import {buildLicensedMusicFile,sha256Hex,licenseReceiptFromFile} from './music-export.js';
+const SUPABASE_URL='https://htwcscrllohavtbejhjr.supabase.co';
+const PUBLIC_KEY='sb_publishable_JAfSoZsiNAM2FSCVd3e_1Q_-g9AuMko';
+const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm');
+const db=createClient(SUPABASE_URL,PUBLIC_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}});
+const el=id=>document.getElementById(id);
+const app={session:null,works:[],purchases:[],splits:[],downloads:[],stats:[],pending:false};
+const requestedWork=new URLSearchParams(location.search).get('work');
+let objectUrl=null,preparedFile=null,preparedWork=null;
+function node(type,value){const x=document.createElement(type);if(value!=null)x.textContent=String(value);return x;}
+function setStatus(message,error=false){el('status').textContent=message;el('status').className=error?'error':'success';}
+function action(label,callback){const b=node('button',label);b.type='button';b.addEventListener('click',callback);return b;}
+function safeUuid(str){return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);}
+function render(){
+ const logged=!!app.session;
+ el('login').classList.toggle('hidden',logged);el('logout').classList.toggle('hidden',!logged);
+ for(const name of ['licensedSection','historySection'])el(name).classList.toggle('hidden',!logged);
+ if(!logged){el('identity').textContent='未ログイン：先にマーケットで作品を購入してください。';return;}
+ el('identity').textContent='ログイン中：'+(app.session.user.user_metadata?.user_name||app.session.user.email||'会員');
+ const uid=app.session.user.id;
+ const library=el('library');library.replaceChildren();
+ const music=app.works.filter(w=>w.kind==='music'&&(
+  w.creator_id===uid||app.purchases.some(p=>p.work_id===w.id)||
+  app.splits.some(s=>s.work_id===w.id&&s.collaborator_id===uid&&!!s.accepted_at)
+ ));
+ if(!music.length)library.append(node('p','保存できる楽曲はまだありません。作品マーケットで楽曲を購入するか、楽曲を出品してください。'));
+ music.sort((x,y)=>(y.id===requestedWork?1:0)-(x.id===requestedWork?1:0));
+ if(music.some(w=>w.id===requestedWork)){
+  const selected=music.find(w=>w.id===requestedWork);
+  el('library').prepend(node('p','🎶 選んだBGM「'+selected.title+'」を端末に保存できます。'));
+ }
+ for(const w of music){
+  const box=node('div');box.className='work';
+  if(w.id===requestedWork){box.style.borderColor='#9aeeac';box.style.background='#2b4a40';}
+  box.append(node('div',w.title),'制作物から合成して書き出します。');
+  for(const [label,format] of [['💿 WAVレコード','wav'],['🎹 MIDIデータ','midi'],['🎼 MusicXML楽譜','musicxml']]){
+   box.append(action(label,()=>prepareDownload(w,format)));
+  }
+  library.append(box);
+ }
+ const hist=el('history');hist.replaceChildren();
+ if(!app.downloads.length)hist.append(node('p','まだライセンス発行はありません。'));
+ for(const entry of app.downloads.slice(0,50)){
+  const line=node('div');line.className='work small';
+  line.append(node('b',entry.title+' / '+entry.format.toUpperCase()+
+   (entry.prepared?' / ✅ ファイル生成済み':' / 発行のみ')));
+  const receipt=node('div','ID: '+entry.receipt_id);
+  receipt.style.overflowWrap='anywhere';line.append(receipt);
+  line.append(action('照合する',()=>{el('receiptId').value=entry.receipt_id;el('verifyFile').value='';el('verified').textContent='下の「照合する」で発行履歴を検査できます。';el('receiptId').focus();}));
+  hist.append(line);
+ }
+ const stats=el('rightsStats');stats.replaceChildren();
+ if(!app.stats.length)stats.append(node('p','現在、作品へのライセンス発行はありません。'));
+ for(const rec of app.stats){
+  stats.append(node('p',rec.title+' / '+rec.format.toUpperCase()+
+  '：発行 '+rec.issued_count+'件・ファイル作成 '+rec.prepared_count+'件'));
+ }
+}
+async function load(){
+ const s=await db.auth.getSession();if(s.error)throw s.error;
+ const previousUser=app.session?.user?.id||null;
+ app.session=s.data.session;
+ if(previousUser&&previousUser!==app.session?.user?.id){
+  if(objectUrl)URL.revokeObjectURL(objectUrl);
+  objectUrl=null;preparedFile=null;preparedWork=null;
+  el('saveSection').classList.add('hidden');
+  el('saveLink').removeAttribute('href');
+ }
+ if(!app.session){render();return;}
+ const uid=app.session.user.id;
+ const results=await Promise.all([
+  db.from('fw_creator_works').select('id,creator_id,kind,title,status').eq('kind','music').limit(200),
+  db.from('fw_creator_purchases').select('work_id').eq('buyer_id',uid).limit(200),
+  db.from('fw_creator_splits').select('work_id,collaborator_id,accepted_at').eq('collaborator_id',uid).limit(100),
+  db.rpc('fw_creator_my_music_downloads'),
+  db.rpc('fw_creator_music_download_summary')
+ ]);
+ results.forEach(r=>{if(r.error)throw r.error;});
+ [app.works,app.purchases,app.splits,app.downloads,app.stats]=results.map(r=>r.data||[]);
+ render();
+}
+async function prepareDownload(work,format){
+ if(app.pending){setStatus('別のファイルを準備しています。',true);return;}
+ app.pending=true;el('licensedSection').querySelectorAll('button').forEach(b=>b.disabled=true);
+ try{
+  setStatus('ライセンス発行・ファイル書き出し・指紋登録をしています…');
+  const r=await db.rpc('fw_creator_issue_music_download',{p_work_id:work.id,p_format:format});
+  if(r.error)throw r.error;
+  const receipt=r.data;
+  const p=await db.from('fw_creator_payloads').select('content').eq('work_id',work.id).single();
+  if(p.error)throw p.error;
+  const file=buildLicensedMusicFile(work,p.data.content,receipt);
+  const digest=await sha256Hex(file.bytes);
+  const bound=await db.rpc('fw_creator_prepare_music_download',{
+   p_receipt_id:receipt.receipt_id,p_sha256_hex:digest,p_file_size:file.bytes.length
+  });
+  if(bound.error)throw bound.error;
+  if(objectUrl)URL.revokeObjectURL(objectUrl);
+  preparedFile=file;preparedWork=work;
+  objectUrl=URL.createObjectURL(file.blob);
+  const save=el('saveLink');save.href=objectUrl;save.download=file.filename;
+  el('saveDetails').replaceChildren(
+   node('p','作品：'+work.title+' / 形式：'+format.toUpperCase()+' / 追加支払：0G'),
+   node('p','ライセンスID：'+receipt.receipt_id),
+   node('p','SHA-256：'+digest)
+  );
+  el('saveSection').classList.remove('hidden');
+  el('bgmImportStatus').textContent='同じ端末のゲームBGMに、そのまま登録することもできます。';
+  setStatus('✅ ライセンス付きファイルの準備完了。「このファイルを端末に保存」をタップしてください。');
+  await load();
+ }catch(e){setStatus('書き出しに失敗：'+e.message,true);}
+ finally{app.pending=false;el('licensedSection').querySelectorAll('button').forEach(b=>b.disabled=false);}
+}
+el('addToGameBgm').addEventListener('click',async()=>{
+ const button=el('addToGameBgm'),label=el('bgmImportStatus');
+ if(!preparedFile||!preparedWork){label.textContent='最初にWAV・MIDI・楽譜のいずれかを準備してください。';return;}
+ const library=window.FW_BGM_IMPORT;
+ if(!library){label.textContent='BGM保存機能が読み込めません。ページを更新してください。';return;}
+ button.disabled=true;
+ try{
+  const result=await library.putBlob(preparedFile.blob,preparedFile.filename,preparedWork.title);
+  library.activate(result.id);
+  label.textContent='✅ 「'+result.title+'」を端末のゲームBGMへ登録しました。ゲームへ戻り、「🎶 BGM」→ ▶ 再生を押してください。';
+  setStatus('🎶 ダウンロード曲をゲームBGMに設定しました。保存ファイルの再購入・追加印税は発生しません。');
+ }catch(e){label.textContent='⚠️ BGM登録できません: '+String(e?.message||e);}
+ finally{button.disabled=false;}
+});
+async function verify(){
+ const button=el('verify');button.disabled=true;
+ try{
+  const file=el('verifyFile').files[0];
+  let bytes=null,embedded=null;
+  if(file){
+   if(file.size>20000000)throw Error('照合可能なファイルの最大サイズは20MBです。');
+   bytes=new Uint8Array(await file.arrayBuffer());
+   embedded=licenseReceiptFromFile(bytes);
+   if(!embedded)throw Error('ファイルにFrontier Worldの発行IDが埋め込まれていません。');
+  }
+  const id=el('receiptId').value.trim()||embedded;
+  if(!safeUuid(id))throw Error('ライセンスIDを入力するかファイルを選択してください。');
+  if(embedded&&embedded.toLowerCase()!==id.toLowerCase())throw Error('入力IDとファイル内部のIDが異なります。');
+  el('receiptId').value=id;
+  const r=await db.rpc('fw_creator_verify_music_download',{p_receipt_id:id});
+  if(r.error)throw r.error;
+  const rec=r.data;if(!rec?.found)throw Error('発行履歴が見つかりません。');
+  let message='✅ サーバー発行履歴あり：'+rec.title+' / '+rec.format.toUpperCase()+
+   '\n発行日時：'+new Date(rec.issued_at).toLocaleString('ja-JP');
+  if(bytes){
+   const digest=await sha256Hex(bytes);
+   if(!rec.prepared)throw Error('発行履歴はありますがファイルの指紋は未登録です。');
+   if(rec.sha256_hex!==digest||Number(rec.file_size_bytes)!==bytes.length)
+    throw Error('ファイル指紋が発行時と一致しません（変更・破損など）。');
+   message+='\n✅ SHA-256・ファイルサイズがサーバー発行記録と一致しました。';
+  }else message+='\nファイル未選択のため発行IDのみを照合しました。';
+  el('verified').textContent=message;el('verified').className='success';
+ }catch(e){el('verified').textContent='⚠️ '+e.message;el('verified').className='error';}
+ finally{button.disabled=false;}
+}
+el('verify').addEventListener('click',verify);
+el('verifyFile').addEventListener('change',async()=>{
+ const file=el('verifyFile').files[0];if(!file)return;
+ if(file.size>20000000){el('verified').textContent='ファイルの上限は20MBです。';return;}
+ try{const id=licenseReceiptFromFile(new Uint8Array(await file.arrayBuffer()));
+  if(id)el('receiptId').value=id;el('verified').textContent=id?'内部ライセンスIDを取得しました。照合ボタンを押してください。':'IDを読み取れませんでした。';
+ }catch(e){el('verified').textContent=e.message;}
+});
+el('login').addEventListener('click',async()=>{
+ const r=await db.auth.signInWithOAuth({provider:'github',options:{redirectTo:location.origin+location.pathname}});
+ if(r.error)setStatus(r.error.message,true);
+});
+el('logout').addEventListener('click',async()=>{await db.auth.signOut();await load();});
+load().catch(e=>setStatus('マーケットへの接続に失敗しました：'+e.message,true));
+</script></body></html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Frontier World | モンスター4方向テスト</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,"Hiragino Kaku Gothic ProN",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#142c34,#0d1d25);color:#edf7ee}main{max-width:1080px;margin:auto;padding:15px 14px 60px}h1{font-size:clamp(23px,5vw,34px)}h2{font-size:19px}p{color:#bfd6d4;line-height:1.6;font-size:14px}
+.panel{border:1px solid #466e70;background:#233e46;border-radius:15px;padding:15px;margin:15px 0}label{display:inline-flex;align-items:center;gap:6px;margin:5px 9px 5px 0;flex-wrap:wrap}select,button,input{color:#fff;background:#17343c;border:1px solid #739493;border-radius:8px;padding:9px;min-height:40px;font-size:14px}button{cursor:pointer}button:hover,button:focus-visible{border-color:#b2eeb5;outline:2px solid #b2eeb5}input[type=number]{width:65px}input[type=range]{padding:0;accent-color:#b2eeb5}
+canvas{display:block;width:100%;height:auto;border-radius:11px;background:#153039;image-rendering:pixelated}.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0}
+#report,#sample{padding:9px;background:#112c31;border:1px solid #4a7771;border-radius:8px;overflow-wrap:anywhere}a{color:#adedd2}.note{font-size:12px}
+</style></head><body><main>
+<div class="panel" style="border-color:#f0d498;background:#3b423a"><strong>NEW: 1コマ単位の関節エディタ</strong><p>前回のイラストを見ながら、盗賊・スライム・ゴブリンの4方向×各動作×各コマを関節ごとに編集できます。</p><a style="display:inline-block;padding:10px 14px;border-radius:9px;background:#6b5b3a;color:#fff" href="./monster-rig.html">🦴 関節・コマ編集画面を開く →</a></div>
+<header><small style="color:#b6f7cf">FRONTIER WORLD / MONSTER MOTION LAB</small><h1>👺 モンスター四方向・モーション</h1><p>最初の3種類：スライム／ゴブリン／盗賊。方向は正面・左・右・背面。透明PNGスプライトシートにも出力できます。</p></header>
+<section class="panel"><div class="toolbar">
+<label>モンスター <select id="kind"><option value="slime">💧 スライム</option><option value="goblin">👺 ゴブリン</option><option value="thief">🗡️ 盗賊</option></select></label>
+<label>動作 <select id="act"><option value="idle">待機</option><option value="walk">歩行</option><option value="chase">追跡</option><option value="attack">攻撃</option><option value="hurt">被弾</option><option value="death">戦闘不能</option></select></label>
+<label>速度 <input type="range" id="speed" min="40" max="200" value="100" step="10"></label>
+<button id="pause">⏸ 一時停止</button><button id="step">1コマ進める</button><button id="reset">↺ リセット</button>
+</div>
+<canvas id="views" width="920" height="226" aria-label="モンスターの4方向を同時にアニメーション表示"></canvas>
+<div class="toolbar"><button id="export">⬇️ 選択した動作を4方向×8コマPNGで書き出し</button></div>
+<p class="note">独立Canvas描画の仮スプライトです。PNGは1024×512px（128px×128px×32コマ）で透明。本編戦闘への組み込みは未実施です。</p></section>
+<section class="panel"><h2>🌿 初期草原の出現比率</h2><p>盗賊1：スライム6：ゴブリン3の重み付き独立抽選。各遭遇で盗賊10%、スライム60%、ゴブリン30%の目安になります。</p>
+<div class="toolbar"><label>盗賊 <input type="number" id="w_thief" min="0" value="1"></label><label>スライム <input type="number" id="w_slime" min="0" value="6"></label><label>ゴブリン <input type="number" id="w_goblin" min="0" value="3"></label></div>
+<p id="report">統計を計算します</p><div class="toolbar"><button id="draw10">🎲 10体の遭遇テスト</button><button id="draw1000">1000回抽選</button></div>
+<canvas id="encounters" width="920" height="190" aria-label="抽選で現れた10体のモンスターを表示"></canvas><p id="sample">10体の抽選待ち</p>
+<p class="note">入力の変更はこのテスト画面内のみ。ゲーム本編のセーブデータやスポーン処理には影響しません。</p></section>
+<p><a href="./life.html">生活モーション</a> ｜ <a href="./full.html">キャラ素材テスト</a> ｜ <a href="../">本編</a> ｜ <a href="../MONSTERS.md">モンスター仕様</a></p>
+<script>
+(function(){
+"use strict";
+var D=['front','left','right','back'],DL=['正面 ↓','左 ←','右 →','背面 ↑'];
+var K=['thief','slime','goblin'],N={thief:'盗賊',slime:'スライム',goblin:'ゴブリン'};
+var dur={idle:1200,walk:760,chase:490,attack:700,hurt:650,death:1000};
+var kind=document.getElementById('kind'),act=document.getElementById('act'),view=document.getElementById('views'),cx=view.getContext('2d');
+var track=document.getElementById('encounters'),tc=track.getContext('2d');
+var speed=document.getElementById('speed'),pa=false,clock=0,last=0,travel=0,sample=[];
+function path(c,pts,fill,stroke){
+ c.beginPath();c.moveTo(pts[0][0],pts[0][1]);for(var i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]);c.closePath();c.fillStyle=fill;c.fill();
+ if(stroke){c.lineWidth=2.3;c.strokeStyle=stroke;c.lineJoin='round';c.stroke();}
+}
+function oval(c,x,y,rx,ry,col,stroke){c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fillStyle=col;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=2;c.stroke();}}
+function seg(c,x,y,ex,ey,color,width){c.strokeStyle=color;c.lineWidth=width;c.lineCap='round';c.beginPath();c.moveTo(x,y);c.lineTo(ex,ey);c.stroke();}
+function sprite(c,type,dir,action,t,x,y,s){
+ c.save();c.translate(x+s/2,y+s/2);c.scale(s/116,s/116);c.translate(0,-57);
+ var a=Math.sin(2*Math.PI*t),moving=(action==='walk'||action==='chase'),swing=moving?a*(action==='chase'?9:6):0;
+ if(moving)c.translate(0,-Math.abs(a)*4);
+ if(action==='hurt'){c.translate(-7*Math.sin(Math.PI*t),0);c.rotate(-.15*Math.sin(Math.PI*t));}
+ if(action==='death'){var z=Math.max(.08,1-t);c.translate(0,95*(1-z));c.scale(1+(1-z)*.4,z);}
+ if(dir==='left')c.scale(-1,1);
+ var back=dir==='back',side=(dir==='left'||dir==='right'),hit=action==='attack'?Math.sin(Math.PI*Math.max(0,(t-.12)/.85)):0;
+ oval(c,0,95,29,4,'#192a2b85');
+ if(type==='slime'){
+  var sq=(moving?.07*a:action==='idle'?.025*a:0)+(action==='attack'?.22*hit:0);
+  var yy=39*(1-sq);
+  path(c,[[-33,85],[-33,75],[-25,54+sq*12],[-10,43+sq*24],[6,42+sq*24],[22,51+sq*12],[33,75],[33,85],[18,89],[-22,89]],'#39abe9','#215c8b');
+  oval(c,-14,55+sq*11,9,5,'#86eaff');oval(c,-17,52+sq*11,5,2,'#e4ffff');
+  if(!back){if(side){oval(c,8,73,3,4,'#1b537c');}else{oval(c,-11,73,3,4,'#1b537c');oval(c,10,73,3,4,'#1b537c');}}
+  if(action==='attack')oval(c,30+12*hit,56,4,4,'#b5ffff');
+ }else{
+  var gob=type==='goblin',ed=gob?'#273626':'#241f2a',skin=gob?'#91af53':'#a17a55';
+  path(c,[[-14,72],[-3,72],[-5-swing,93],[-22-swing,96],[-25-swing,90],[-14,84]],gob?'#769044':'#554536',ed);
+  path(c,[[4,72],[14,72],[16+swing,85],[25+swing,93],[23+swing,97],[7+swing,91]],gob?'#82994a':'#554536',ed);
+  if(!gob)path(c,[[-22,43],[17,43],[30,84],[13,82],[4,92],[-7,79],[-29,84]],'#333348',ed);
+  path(c,[[-19,49],[-10,42],[13,44],[20,53],[18,76],[-19,76]],gob?'#7a4f31':'#75604b',ed);
+  seg(c,-15,69,15,69,gob?'#b18f60':'#282732',4);
+  seg(c,-16,51,-26,68,gob?'#6b8a38':'#55443d',9);oval(c,-26,69,5,5,skin,ed);
+  c.save();c.translate(14,51);c.rotate(action==='attack'?-1.7*hit:(moving?-.25*a:0));
+  seg(c,0,0,15,15,gob?'#688338':'#57433b',9);oval(c,15,15,5,5,skin,ed);
+  if(gob){seg(c,16,12,29,-12,'#69432a',6);oval(c,29,-13,8,14,'#927249',ed);}
+  else{seg(c,14,16,25,7,'#634c3b',4);path(c,[[25,7],[28,9],[44,-8],[36,10]],'#d4d1c8',ed);}
+  c.restore();
+  if(gob){
+   if(!side){path(c,[[-18,36],[-39,21],[-30,43]],skin,ed);path(c,[[18,36],[39,21],[30,43]],skin,ed);}
+   else{path(c,[[-15,34],[-32,25],[-25,43]],skin,ed);}
+   oval(c,0,39,24,19,skin,ed);
+   if(!back){if(side){oval(c,10,39,4,3,'#f0d49a');}else{oval(c,-10,39,4,2.5,'#f0d49a');oval(c,10,39,4,2.5,'#f0d49a');}oval(c,0,49,5,4,'#adc46a',ed);}
+   else{path(c,[[-17,32],[0,22],[18,32],[8,43],[-8,43]],'#58712c');}
+  }else{
+   path(c,[[-27,36],[-20,21],[-8,13],[10,14],[20,24],[27,39],[20,48],[-21,48]],'#454057',ed);
+   if(back){path(c,[[-17,35],[0,23],[18,35],[9,50],[-8,50]],'#2a293a',ed);}
+   else{path(c,[[-15,34],[-9,29],[10,28],[16,35],[12,44],[-12,44]],'#302c34',ed);if(side)oval(c,8,37,3.4,2,'#efcb80');else{oval(c,-7,37,3.3,2,'#efcb80');oval(c,8,37,3.3,2,'#efcb80');}}
+  }
+ }
+ if(action==='hurt'&&t>.22&&t<.67){c.fillStyle='#fff2df55';c.fillRect(-40,18,80,76);}
+ c.restore();
+}
+var paused=document.getElementById('pause');
+paused.onclick=function(){pa=!pa;paused.textContent=pa?'▶ 再生':'⏸ 一時停止';};
+document.getElementById('step').onclick=function(){pa=true;paused.textContent='▶ 再生';clock+=dur[act.value]/8;};
+document.getElementById('reset').onclick=function(){clock=0;};
+kind.onchange=act.onchange=function(){clock=0;};
+function weights(){var w={};K.forEach(function(k){w[k]=Math.max(0,+document.getElementById('w_'+k).value||0);});return w;}
+function choose(w){var total=K.reduce(function(s,k){return s+w[k];},0);if(!total)return null;var r=Math.random()*total;for(var i=0;i<K.length;i++){r-=w[K[i]];if(r<0)return K[i];}return K[K.length-1];}
+function hist(){var w=weights(),total=K.reduce(function(s,k){return s+w[k];},0),cnt={thief:0,slime:0,goblin:0};for(var i=0;i<1000;i++){var id=choose(w);if(id)cnt[id]++;}
+ document.getElementById('report').textContent=K.map(function(k){return N[k]+' '+(total?(100*w[k]/total).toFixed(1):'0')+'%（1000回試行 '+cnt[k]+'回）';}).join(' ／ ');
+}
+function drawSamples(){sample=Array.from({length:10},function(){return choose(weights());});document.getElementById('sample').textContent='10体の抽選結果：'+sample.map(function(k){return k?N[k]:'（なし）';}).join('、');}
+document.getElementById('draw10').onclick=drawSamples;
+document.getElementById('draw1000').onclick=hist;
+['thief','slime','goblin'].forEach(function(k){document.getElementById('w_'+k).oninput=hist;});
+function paint(){
+ cx.clearRect(0,0,920,226);
+ D.forEach(function(d,i){var x=i*230;cx.fillStyle=i%2?'#1d3d48':'#25434d';cx.fillRect(x,0,230,226);cx.fillStyle='#e3f3db';cx.font='bold 16px system-ui';cx.textAlign='center';cx.fillText(DL[i],x+115,25);
+ sprite(cx,kind.value,d,act.value,act.value==='death'?Math.min(1,clock/dur[act.value]):(clock%dur[act.value])/dur[act.value],x+36,47,158);
+ });
+ tc.fillStyle='#416f53';tc.fillRect(0,0,920,190);tc.fillStyle='#928b66';tc.fillRect(0,132,920,58);
+ sample.forEach(function(type,i){if(type)sprite(tc,type,i%3===0?'left':'front','walk',(travel/830+i*.1)%1,40+(i%10)*86,55,88);});
+}
+function tick(t){if(last&&!pa){var dt=Math.min(70,t-last)*(+speed.value/100);clock+=dt;travel+=dt;}last=t;paint();requestAnimationFrame(tick);}
+document.getElementById('export').onclick=function(){var ca=document.createElement('canvas');ca.width=1024;ca.height=512;var c=ca.getContext('2d');for(var r=0;r<4;r++)for(var f=0;f<8;f++)sprite(c,kind.value,D[r],act.value,f/8,f*128,r*128,128);var a=document.createElement('a');a.href=ca.toDataURL('image/png');a.download='frontier-'+kind.value+'-'+act.value+'-4dir-8frames.png';document.body.appendChild(a);a.click();a.remove();};
+hist();drawSamples();requestAnimationFrame(tick);
+})();
+</script></main></body></html>

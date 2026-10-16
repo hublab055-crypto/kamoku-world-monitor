@@ -1,0 +1,226 @@
+{
+  "pack_version": 1,
+  "updated_at": "2026-10-03T06:00:00+09:00",
+  "status": "staging_not_runtime_loaded",
+  "instructions": "Dialogue-focused chats may add lines here. Do not edit frontier-world/index.html. Keep keys stable and increment pack_version.",
+  "characters": {
+    "mio": {
+      "relationships": {
+        "acquaintance": {
+          "intro": [
+            "はじめまして。Mioです。少しずつこの場所に慣れていこうね。"
+          ],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "companion": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "friend": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "lover": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "family": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        }
+      }
+    },
+    "riku": {
+      "relationships": {
+        "acquaintance": {
+          "intro": [
+            "Riku。道具作りや建築なら任せて。"
+          ],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "companion": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "friend": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "lover": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "family": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        }
+      }
+    },
+    "guard": {
+      "relationships": {
+        "acquaintance": {
+          "intro": [
+            "ここの警備を担当している。危険を見つけたら知らせる。"
+          ],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "companion": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "friend": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "lover": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "family": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        }
+      }
+    },
+    "merchant": {
+      "relationships": {
+        "acquaintance": {
+          "intro": [
+            "いらっしゃい。売買なら任せて。"
+          ],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "companion": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "friend": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "lover": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        },
+        "family": {
+          "intro": [],
+          "hello": [],
+          "work": [],
+          "life": [],
+          "proactive": []
+        }
+      }
+    }
+  },
+  "exchanges": [
+    {
+      "id": "favorite",
+      "prompt": "そういえば、どんなものが好き？",
+      "choices": [
+        {
+          "id": "food",
+          "label": "🍎 食べ物"
+        },
+        {
+          "id": "fish",
+          "label": "🐟 魚"
+        },
+        {
+          "id": "craft",
+          "label": "🪵 ものづくり"
+        },
+        {
+          "id": "stone",
+          "label": "🪨 石"
+        },
+        {
+          "id": "nature",
+          "label": "🌿 自然"
+        }
+      ]
+    }
+  ],
+  "gift_thanks": {
+    "acquaintance": [
+      "ありがとう。助かるよ。"
+    ],
+    "companion": [
+      "ありがとう！ 大事に使うよ。"
+    ],
+    "friend": [
+      "ありがとう。私のことを考えて選んでくれたんだね。"
+    ],
+    "lover": [
+      "ありがとう……すごくうれしい。大切にするね。"
+    ],
+    "family": [
+      "ありがとう。家族でも、こういうのはやっぱり嬉しいね。"
+    ]
+  },
+  "events": {
+    "low_stock": [],
+    "danger": [],
+    "crafted_complete": [],
+    "pregnancy": [],
+    "baby_care": [],
+    "wedding": [],
+    "funeral": []
+  }
+}
