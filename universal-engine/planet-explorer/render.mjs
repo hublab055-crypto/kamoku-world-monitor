@@ -117,6 +117,50 @@ function arrowGeometry(){
  }
  return b;
 }
+/** Arrow orientation is defined by the actor facing (+Z), NEVER the wrist.
+ * Both nocked and launched arrows share this world-space forward frame.
+ */
+export function projectileTransform(actorFacing,progress=0,hand="right"){
+ const state=bowDrawState(progress);
+ const side=hand==="right"?-1:1;
+ const x=side*.37*(1-state.nocked);
+ const y=1.42-.21*(1-state.nocked)+.11*state.raised;
+ const z=.51+.19*(1-state.nocked)-.31*state.tension+state.flight;
+ return matrixMultiply(actorFacing,translate(x,y,z));
+}
+function enemyGeometry(kind){
+ const b=builder(),eye=[.11,.13,.12],steel=[.64,.68,.72];
+ if(kind==="slime"){
+  const blue=[.34,.80,.68],dark=[.13,.48,.45];
+  cone(b,0,.09,0,.95,.73,blue,12);
+  box(b,0,.07,0,.55,.18,.50,dark);
+  for(const side of [-1,1])box(b,side*.24,.48,.52,.065,.13,.025,eye);
+ }else if(kind==="goblin"){
+  const green=[.31,.58,.28],cloth=[.38,.27,.18];
+  box(b,0,.48,0,.31,.79,.22,cloth);
+  box(b,0,1.19,.025,.32,.39,.29,green);
+  for(const side of [-1,1]){
+   box(b,side*.35,.30,0,.12,.55,.14,green);
+   box(b,side*.47,.87,0,.11,.55,.13,green);
+   cone(b,side*.43,1.35,0,.21,.16,green,5);
+   box(b,side*.13,1.39,.31,.052,.065,.025,eye);
+  }
+ }else{
+  const coat=[.46,.20,.14],hood=[.24,.23,.24],skin=[.73,.51,.33];
+  box(b,0,.54,0,.35,.90,.25,coat);
+  box(b,0,1.38,0,.27,.34,.27,skin);
+  box(b,0,1.64,-.05,.34,.15,.31,hood);
+  for(const side of [-1,1]){
+   box(b,side*.23,0,0,.13,.57,.15,hood);
+   box(b,side*.46,.69,0,.13,.73,.17,coat);
+  }
+  box(b,0,1.46,.27,.22,.07,.08,hood);
+ }
+ return b;
+}
+function enemyHealthMesh(fill){
+ const b=builder();box(b,0,0,0,.49,.085,.042,fill?[.27,.91,.43]:[.11,.16,.20]);return b;
+}
 export function heldItemTransform(kind){
  const grip=translate(0,-.155,.05);
  // Blades point ahead at rest, instead of hanging downward from the wrist.
@@ -235,6 +279,10 @@ export class ExplorerRenderer{
   this.tools.bow=new Mesh(gl,bowGeometry());
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
+  this.battle=null;
+  this.enemyMeshes=Object.fromEntries(["slime","goblin","bandit"].map(kind=>[kind,new Mesh(gl,enemyGeometry(kind))]));
+  this.enemyHealthTrack=new Mesh(gl,enemyHealthMesh(false));
+  this.enemyHealthFill=new Mesh(gl,enemyHealthMesh(true));
   this.buildingMeshes=this.makeBuildingMeshes(gl);
   this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.screenShelves=[];this.interiorBuildingId=null;
   this.lifeMeshes={};
@@ -398,7 +446,7 @@ export class ExplorerRenderer{
     if(kind==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null,tint);
     else this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
     if(kind==="bow"&&hand===activeHand&&motion?.action==="bow")
-      this.drawFlyingArrow(vp,attached,light,motion.progress,tint,hand);
+      this.drawFlyingArrow(vp,matrixMultiply(avatarTransform,rotateY(s.yaw||0)),light,motion.progress,tint,hand);
    }
  }
  drawBow(vp,held,light,motion=null,tint=[1,1,1]){
@@ -406,16 +454,26 @@ export class ExplorerRenderer{
    this.drawMesh(this.tools.bow,multiply4(vp,held),light,1,.68,tint);
    this.drawMesh(this.bowStrings[Math.round(tension*8)],multiply4(vp,held),light,1,.80,tint);
  }
- drawFlyingArrow(vp,wristTransform,light,progress=0,tint=[1,1,1],hand="right"){
-   const state=bowDrawState(progress);
-   // No arrow appears until the draw hand actually brings it to the string.
-   if(!state.visible)return;
-   const side=hand==="right"?-1:1;
-   const x=side*.30*(1-state.nocked);
-   const y=-.155-.18*(1-state.nocked);
-   const z=.05+.47+.26*(1-state.nocked)-.31*state.tension+state.flight;
-   const arrow=matrixMultiply(wristTransform,translate(x,y,z));
-   this.drawMesh(this.tools.arrow,multiply4(vp,arrow),light,1,.88,tint);
+ drawFlyingArrow(vp,actorFacing,light,progress=0,tint=[1,1,1],hand="right"){
+   // Wrist rotations may point vertically when aiming; launch along the actor's +Z.
+   if(!bowDrawState(progress).visible)return;
+   this.drawMesh(this.tools.arrow,multiply4(vp,projectileTransform(actorFacing,progress,hand)),light,1,.88,tint);
+ }
+ drawTestEnemies(vp,light,s,radius){
+   if(!this.battle)return;
+   for(const enemy of this.battle.enemies){
+    if(enemy.hp<=0||Math.abs(enemy.x-s.x)>radius||Math.abs(enemy.z-s.z)>radius)continue;
+    const geo=geoOffset(s.origin.lat,s.origin.lon,enemy.x,enemy.z,this.planet.radiusM);
+    const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
+    const base=translate(enemy.x-this.cx,height,enemy.z-this.cz);
+    this.drawMesh(this.enemyMeshes[enemy.type],multiply4(vp,multiply4(base,rotateY(enemy.yaw))),light,1,.75);
+    const ratio=enemy.hp/enemy.maxHp,head=enemy.type==="slime"?1.22:enemy.type==="goblin"?1.93:2.1;
+    const hpAt=multiply4(base,translate(0,head,0));
+    this.drawMesh(this.enemyHealthTrack,multiply4(vp,hpAt),light,1,1);
+    const scale=[ratio,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+    const fill=multiply4(hpAt,multiply4(translate(-.49*(1-ratio),0,.013),scale));
+    this.drawMesh(this.enemyHealthFill,multiply4(vp,fill),light,1,1);
+   }
  }
  drawBuildings(vp,light,s,radius,dt=1/60){
    if(!this.sceneActions)return;
@@ -505,7 +563,7 @@ export class ExplorerRenderer{
     if(item==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null);
     else this.drawMesh(mesh,multiply4(vp,held),light,1,.68);
     if(item==="bow"&&hand===activeHand&&motion?.action==="bow")
-      this.drawFlyingArrow(vp,attach,light,motion.progress,[1,1,1],hand);
+      this.drawFlyingArrow(vp,characterTransform,light,motion.progress,[1,1,1],hand);
    }
  }
  drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
@@ -681,6 +739,7 @@ export class ExplorerRenderer{
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
   this.drawBuildings(vp,light,s,radius,dt);
   this.drawFrontier(vp,light,s,radius);
+  this.drawTestEnemies(vp,light,s,radius);
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
@@ -718,7 +777,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.enemyMeshes),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
