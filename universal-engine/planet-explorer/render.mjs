@@ -396,7 +396,7 @@ export class ExplorerRenderer{
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
   const room=this.sceneActions?.structures.find(b=>b.id===this.interiorBuildingId&&b.progress>=1);
   const camera=room?{
-   eye:[room.x-this.cx,room.height+6.4,room.z-this.cz+7.0],
+   eye:[room.x-this.cx+1.5,room.height+8.1,room.z-this.cz+4.4],
    target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
    fovDeg:64,heightM:8,marker:false
   }:this.cameraController.groundView(s,{
