@@ -12,6 +12,7 @@ import {rotZ} from "./rig.mjs";
 import {CameraController} from "./camera-controller.mjs";
 import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs";
 import {CATALOG} from "./lifestyle.mjs";
+import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
@@ -277,6 +278,102 @@ export function humanoidMonsterGeometry(kind){
  }
  return b;
 }
+/** Each part is its own vertex mesh with a named local pivot.
+ * Root/hip/shoulder/elbow/knee transforms can be animated separately.
+ * Colors and face/weapon accents keep the species visually distinguishable.
+ */
+export function articulatedMonsterGeometry(kind){
+ const palette={
+  goblin:{skin:[.30,.58,.24],armor:[.46,.32,.16],metal:[.64,.62,.49],eye:[.80,.19,.12],w:.29},
+  bandit:{skin:[.75,.57,.41],armor:[.39,.21,.17],metal:[.66,.68,.71],eye:[.12,.17,.17],w:.34},
+  skeleton:{skin:[.88,.83,.72],armor:[.36,.36,.38],metal:[.73,.74,.72],eye:[.07,.10,.12],w:.24},
+  orc:{skin:[.35,.56,.27],armor:[.38,.37,.31],metal:[.70,.68,.60],eye:[.82,.23,.14],w:.49},
+  lizardman:{skin:[.20,.57,.47],armor:[.25,.42,.36],metal:[.67,.78,.75],eye:[.95,.70,.15],w:.34},
+  demon:{skin:[.43,.23,.35],armor:[.23,.17,.32],metal:[.77,.42,.56],eye:[.98,.25,.30],w:.40}
+ };
+ const p=palette[kind];if(!p)throw RangeError("Unknown humanoid monster: "+kind);
+ const out=Object.fromEntries(["torso","head","leftUpper","leftLower","rightUpper","rightLower",
+  "leftThigh","leftShin","rightThigh","rightShin","weapon","shield"].map(n=>[n,builder()]));
+ const isBone=kind==="skeleton";
+ const W=p.w;
+ // Main body is local to a pelvis joint at 1.18m.
+ box(out.torso,0,-.24,0,W,.68,.23,p.armor);
+ box(out.torso,0,-.23,.24,W*.77,.09,.035,p.metal);
+ if(isBone){
+  box(out.torso,0,-.20,.26,.06,.43,.045,p.skin);
+  for(let y=-.14;y<.28;y+=.125){
+   box(out.torso,0,y,.28,.21,.04,.055,p.skin);
+  }
+ }else{
+  box(out.torso,0,.18,.24,W*.8,.065,.045,p.metal);
+  if(kind==="orc")box(out.torso,0,-.12,.28,W*.85,.25,.10,p.skin);
+ }
+ if(kind==="demon"){
+  triangle(out.torso,[-W,.28,-.18],[-W*1.5,-.65,-.32],[0,-.47,-.34],p.armor);
+  triangle(out.torso,[W,.28,-.18],[0,-.47,-.34],[W*1.5,-.65,-.32],p.armor);
+ }
+ if(kind==="lizardman"){
+  triangle(out.torso,[-.15,-.37,-.17],[.15,-.37,-.17],[0,-.72,-1.25],p.skin);
+  triangle(out.torso,[0,-.18,-.12],[-.15,-.37,-.17],[0,-.72,-1.25],p.armor);
+ }
+ // Head mesh lives in neck-relative coordinates.
+ box(out.head,0,0,.02,W*.74,.37,.25,p.skin);
+ box(out.head,-W*.31,.20,.28,.052,.073,.023,p.eye);
+ box(out.head,W*.31,.20,.28,.052,.073,.023,p.eye);
+ if(isBone){
+  box(out.head,0,-.09,.27,W*.56,.095,.052,p.armor);
+  box(out.head,0,-.20,.20,W*.48,.06,.08,p.skin);
+ }else if(kind==="orc"){
+  box(out.head,0,-.10,.29,W*.67,.17,.19,p.skin);
+  for(const sign of [-1,1])cone(out.head,sign*W*.44,-.03,.46,.21,.072,[.92,.85,.65],6);
+ }else if(kind==="lizardman"){
+  box(out.head,0,-.02,.28,W*.65,.125,.25,p.skin);
+  for(const sign of [-1,1])cone(out.head,sign*W*.5,.27,-.05,.18,.1,p.skin,6);
+ }else if(kind==="demon"){
+  for(const sign of [-1,1])cone(out.head,sign*W*.53,.29,-.04,.43,.12,p.metal,7);
+ }else if(kind==="bandit"){
+  box(out.head,0,.28,-.06,W*.92,.15,.33,p.armor);
+ }else{
+  for(const sign of [-1,1])cone(out.head,sign*W*.65,.15,-.08,.17,.085,p.skin,6);
+ }
+ // Joint-local arm segments; negative Y extends toward the next hinge.
+ for(const side of ["left","right"]){
+  const upper=out[side+"Upper"],lower=out[side+"Lower"];
+  box(upper,0,-.36,-.01,W*.40,.38,.17,p.skin);
+  box(upper,0,-.08,0,W*.54,.18,.20,p.armor);
+  box(lower,0,-.33,0,W*.36,.34,.15,p.skin);
+  box(lower,0,-.31,.01,W*.43,.12,.16,p.armor);
+  const thigh=out[side+"Thigh"],shin=out[side+"Shin"];
+  box(thigh,0,-.41,0,W*.46,.43,.19,p.armor);
+  box(shin,0,-.35,0,W*.38,.36,.16,p.skin);
+  box(shin,0,-.39,.12,W*.49,.085,.23,p.armor);
+  if(isBone){
+   box(thigh,0,-.34,.205,W*.16,.32,.045,p.skin);
+   box(shin,0,-.28,.17,W*.13,.31,.05,p.skin);
+  }
+ }
+ // Right-hand weapon follows wrist/elbow movement, with a defined blade axis.
+ if(kind==="lizardman"){
+  box(out.weapon,0,-.13,.03,.033,1.56,.035,[.47,.31,.17]);
+  for(const o of [-.12,0,.12])cone(out.weapon,o,1.41,.03,.31,.055,p.metal,6);
+  box(out.weapon,0,1.36,.03,.20,.06,.07,p.metal);
+ }else if(kind==="orc"){
+  box(out.weapon,0,-.12,0,.055,1.09,.06,[.46,.33,.18]);
+  box(out.weapon,0,.86,0,.20,.33,.24,p.metal);
+  for(const x of [-.13,.13])cone(out.weapon,x,1.14,0,.17,.070,p.metal,5);
+ }else{
+  box(out.weapon,0,-.20,0,.05,.44,.06,[.39,.27,.19]);
+  box(out.weapon,0,.12,0,.22,.075,.09,p.metal);
+  box(out.weapon,0,.19,0,.095,.72,.052,p.metal);
+  cone(out.weapon,0,.87,0,.19,.095,p.metal,5);
+ }
+ // Left arm can raise a shield to block the player's swing.
+ const shield=p.armor,iron=p.metal;
+ box(out.shield,0,-.14,.20,W*.73,.43,.075,shield);
+ box(out.shield,0,-.06,.283,W*.58,.09,.018,iron);
+ if(kind==="skeleton")cone(out.shield,0,-.26,.24,.52,W*.67,iron,8);
+ return out;
+}
 function enemyHealthMesh(fill){
  const b=builder();box(b,0,0,0,.49,.085,.042,fill?[.27,.91,.43]:[.11,.16,.20]);return b;
 }
@@ -400,6 +497,9 @@ export class ExplorerRenderer{
   this.tools.arrow=new Mesh(gl,arrowGeometry());
   this.battle=null;
   this.enemyMeshes=Object.fromEntries(["slime","goblin","bandit","skeleton","orc","lizardman","demon"].map(kind=>[kind,new Mesh(gl,enemyGeometry(kind))]));
+  this.animatedEnemies=Object.fromEntries(HUMANOID_MONSTERS.map(kind=>
+   [kind,Object.fromEntries(Object.entries(articulatedMonsterGeometry(kind))
+    .map(([name,g])=>[name,new Mesh(gl,g)]))]));
   this.enemyHealthTrack=new Mesh(gl,enemyHealthMesh(false));
   this.enemyHealthFill=new Mesh(gl,enemyHealthMesh(true));
   this.buildingMeshes=this.makeBuildingMeshes(gl);
@@ -581,22 +681,61 @@ export class ExplorerRenderer{
    if(!bowDrawState(progress).visible)return;
    this.drawMesh(this.tools.arrow,multiply4(vp,projectileTransform(actorFacing,progress,hand)),light,1,.88,tint);
  }
+ drawArticulatedEnemy(vp,light,base,enemy){
+  const meshes=this.animatedEnemies[enemy.type];
+  if(!meshes)return;
+  const pose=enemyMotion(enemy),scale=Math.max(.75,(enemy.height||2.10)/2.15);
+  const tint=pose.state==="hit"?[1,.48,.48]:pose.state==="death"?[.56,.53,.50]:[1,1,1];
+  const scaled=[scale,0,0,0,0,scale,0,0,0,0,scale,0,0,0,0,1];
+  // Fall forward around the feet, then leave a prone body on the ground.
+  const root=multiply4(multiply4(multiply4(base,rotateY(enemy.yaw)),rotX(pose.rootFall)),scaled);
+  const hip=multiply4(root,translate(0,.84+pose.rootBob,0));
+  const torso=multiply4(hip,multiply4(translate(0,.36,0),
+   multiply4(rotX(pose.bodyX),multiply4(rotateY(pose.bodyY),rotZ(pose.bodyZ)))));
+  const draw=(name,transform)=>{
+   const mesh=meshes[name];if(mesh)this.drawMesh(mesh,multiply4(vp,transform),light,pose.opacity,.77,tint);
+  };
+  draw("torso",torso);
+  const head=multiply4(torso,multiply4(translate(0,.48,0),rotX(pose.headX)));
+  draw("head",head);
+  const width=enemy.type==="orc"?.56:enemy.type==="skeleton"?.32:.43;
+  for(const side of ["left","right"]){
+   const sign=side==="left"?-1:1;
+   const shoulder=multiply4(torso,multiply4(translate(sign*width,.25,0),
+    multiply4(rotZ(pose[side+"ArmZ"]),rotX(pose[side+"ArmX"]))));
+   draw(side+"Upper",shoulder);
+   const elbow=multiply4(shoulder,multiply4(translate(0,-.34,0),rotX(pose[side+"ElbowX"])));
+   draw(side+"Lower",elbow);
+   const wrist=multiply4(elbow,translate(0,-.30,0));
+   draw(side==="right"?"weapon":"shield",wrist);
+   const thigh=multiply4(hip,multiply4(translate(sign*.22,-.04,0),rotX(pose[side+"LegX"])));
+   draw(side+"Thigh",thigh);
+   const shin=multiply4(thigh,multiply4(translate(0,-.40,0),rotX(pose[side+"KneeX"])));
+   draw(side+"Shin",shin);
+  }
+ }
  drawTestEnemies(vp,light,s,radius){
-   if(!this.battle)return;
-   for(const enemy of this.battle.enemies){
-    if(enemy.hp<=0||Math.abs(enemy.x-s.x)>radius||Math.abs(enemy.z-s.z)>radius)continue;
-    const geo=geoOffset(s.origin.lat,s.origin.lon,enemy.x,enemy.z,this.planet.radiusM);
-    const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
-    const bob=enemy.type==="slime"?0:Math.abs(Math.sin(enemy.walkPhase||0))*.035;
-    const base=translate(enemy.x-this.cx,height+bob,enemy.z-this.cz);
-    this.drawMesh(this.enemyMeshes[enemy.type],multiply4(vp,multiply4(base,rotateY(enemy.yaw))),light,1,.75);
-    const ratio=enemy.hp/enemy.maxHp,head=enemy.height||2.1;
-    const hpAt=multiply4(base,translate(0,head,0));
-    this.drawMesh(this.enemyHealthTrack,multiply4(vp,hpAt),light,1,1);
-    const scale=[ratio,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-    const fill=multiply4(hpAt,multiply4(translate(-.49*(1-ratio),0,.013),scale));
-    this.drawMesh(this.enemyHealthFill,multiply4(vp,fill),light,1,1);
-   }
+  if(!this.battle)return;
+  for(const enemy of this.battle.enemies){
+   if(enemy.hp<=0&&(enemy.deathTime||0)>5)return;
+   if(Math.abs(enemy.x-s.x)>radius||Math.abs(enemy.z-s.z)>radius)continue;
+   const geo=geoOffset(s.origin.lat,s.origin.lon,enemy.x,enemy.z,this.planet.radiusM);
+   const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
+   const bob=enemy.type==="slime"&&enemy.hp>0?Math.abs(Math.sin(enemy.walkPhase||0))*.025:0;
+   const base=translate(enemy.x-this.cx,height+bob,enemy.z-this.cz);
+   if(this.animatedEnemies[enemy.type])
+    this.drawArticulatedEnemy(vp,light,base,enemy);
+   else if(enemy.hp>0)
+    this.drawMesh(this.enemyMeshes[enemy.type],multiply4(vp,multiply4(base,rotateY(enemy.yaw))),light,1,.75,
+     enemy.anim==="hit"?[1,.52,.52]:[1,1,1]);
+   if(enemy.hp<=0)continue;
+   const ratio=enemy.hp/enemy.maxHp,head=enemy.height||2.1;
+   const hpAt=multiply4(base,translate(0,head,0));
+   this.drawMesh(this.enemyHealthTrack,multiply4(vp,hpAt),light,1,1);
+   const scale=[ratio,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+   const fill=multiply4(hpAt,multiply4(translate(-.49*(1-ratio),0,.013),scale));
+   this.drawMesh(this.enemyHealthFill,multiply4(vp,fill),light,1,1);
+  }
  }
  drawBuildings(vp,light,s,radius,dt=1/60){
    if(!this.sceneActions)return;
@@ -901,7 +1040,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.enemyMeshes),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
