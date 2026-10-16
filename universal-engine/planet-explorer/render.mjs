@@ -3,6 +3,9 @@ import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
+import {jointTransformsV2} from "./rig-v2.mjs";
+import {SmoothAnimator} from "./animator.mjs";
+import {makeJointCovers} from "./joint-covers.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -141,6 +144,7 @@ export class ExplorerRenderer{
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
   this.rigParts=[];
+  this.animator=new SmoothAnimator();
   this.setAvatarStyle("pioneer");
   this.tools={};
   for(const tool of ["sword","axe","pickaxe","hammer"]){
@@ -161,7 +165,7 @@ export class ExplorerRenderer{
  setAvatarStyle(id){
    if(!["pioneer","scout","artisan"].includes(id))throw new RangeError("Unknown avatar style");
    const model=original(id);
-   const meshes=model.parts.map(part=>({mesh:new Mesh(this.gl,part.geometry),part}));
+   const meshes=[...model.parts,...makeJointCovers(id)].map(part=>({mesh:new Mesh(this.gl,part.geometry),part}));
    for(const entry of this.rigParts||[])entry.mesh.destroy();
    this.rigParts=meshes;
    this.avatarStyle=id;
@@ -184,11 +188,14 @@ export class ExplorerRenderer{
    const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
    return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
  }
- drawArticulated(vp,avatarTransform,s,light){
+ drawArticulated(vp,avatarTransform,s,light,dt=1/60){
    const motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0};
-   const pose=samplePose({moving:s.moving,phase:s.totalDistanceM*2.7,
-      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress});
-   const joints=jointTransforms(pose,s.yaw);
+   const pose=this.animator.update(dt,{
+      moving:s.moving,phase:s.totalDistanceM*2.7,
+      speedMps:s.moving?s.walkSpeed:0,
+      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress
+   });
+   const joints=jointTransformsV2(pose,s.yaw);
    for(const {mesh,part} of this.rigParts){
      const m=matrixMultiply(avatarTransform,joints[part.pivot]);
      this.drawMesh(mesh,multiply4(vp,m),light,1,.72);
@@ -217,14 +224,14 @@ export class ExplorerRenderer{
   gl.uniform3fv(this.uLight,new Float32Array(light));
   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);mesh.draw();
  }
- frame(state){
+ frame(state,dt=1/60){
   const gl=this.gl,dpr=Math.min(2,globalThis.devicePixelRatio||1);
   const w=Math.max(1,Math.floor(this.canvas.clientWidth*dpr)),h=Math.max(1,Math.floor(this.canvas.clientHeight*dpr));
   if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
   gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
-  return state.altitudeM>23000?this.orbit(state,asp):this.ground(state,asp);
+  return state.altitudeM>23000?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
   this.pickVP=null;
@@ -241,7 +248,7 @@ export class ExplorerRenderer{
   this.drawMesh(this.cloud,vp,light,.33,.32);gl.depthMask(true);gl.disable(gl.BLEND);
   return "orbit";
  }
- ground(s,asp){
+ ground(s,asp,dt=1/60){
   const gl=this.gl,alt=s.altitudeM;
   const requestedRadius=clamp(alt*4+350,450,55000);
   const radius=clamp(450*Math.pow(2,Math.ceil(Math.log2(requestedRadius/450))),450,55000);
@@ -270,7 +277,7 @@ export class ExplorerRenderer{
   this.drawBuildings(vp,light,s,radius);
   if(close){
     const transform=translate(px,feet+(s.jumpY||0),pz);
-    this.drawArticulated(vp,transform,s,light);
+    this.drawArticulated(vp,transform,s,light,dt);
   }
   return "ground";
  }

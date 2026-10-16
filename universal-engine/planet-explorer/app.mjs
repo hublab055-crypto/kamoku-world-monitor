@@ -8,7 +8,8 @@ import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
 
 const $=id=>document.getElementById(id);
-const SAVE_KEY="universal-engine:explorer:v1";
+const SAVE_KEY="universal-engine:explorer:v0.7a";
+const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions;
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
@@ -40,7 +41,7 @@ function init(saved=null){
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
-  log(saved?"保存した3D探索状態を復元しました。":"惑星を生成しました。降下して地上を歩いてみましょう。");
+  log(saved?"v0.7a用の探索状態を復元しました。":"v0.7a：60関節と滑らかな動作の試験版です。v0.6へ戻るリンクも利用できます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
 function inputVector(){
@@ -58,7 +59,7 @@ function doFrame(t){
   if(completed)log(actions.message);
   if(running)universe.advance(dt);
   try{
-   const next=renderer.frame(controller);
+   const next=renderer.frame(controller,dt);
    if(next!==displayMode){
     displayMode=next;
     $("mode").textContent=next==="orbit"?"宇宙・惑星モード":"地表メッシュモード";
@@ -124,7 +125,7 @@ $("save").addEventListener("click",()=>{
   const data={format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-  log("独立した3D探索データを保存しました。");
+  log("v0.7a専用の保存領域へ記録しました（v0.6は無変更）。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
 $("restore").addEventListener("click",()=>{
@@ -133,6 +134,16 @@ $("restore").addEventListener("click",()=>{
   if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("対応する保存データがありません。");
   running=false;init(data);updateHUD();
  }catch(e){log("復元失敗: "+e.message);}
+});
+$("import-v06-save").addEventListener("click",()=>{
+ try{
+  const old=localStorage.getItem(LEGACY_SAVE_KEY);
+  if(!old)throw Error("v0.6の保存データが見つかりません。");
+  const data=JSON.parse(old);
+  if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("非対応のv0.6セーブです。");
+  running=false;init(data);updateHUD();
+  log("v0.6のデータをコピーして読み込みました。旧セーブは無変更です。v0.7a保存で新版に記録できます。");
+ }catch(e){log("旧セーブの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{running=true;init();updateHUD();});
 window.addEventListener("keydown",e=>{

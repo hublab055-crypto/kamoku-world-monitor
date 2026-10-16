@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "project": "universal-engine",
+  "entries": [
+    {
+      "id": "v0.6",
+      "label": "v0.6 — 旧安定版",
+      "status": "frozen",
+      "url": "./v0.6/planet-explorer/",
+      "sourceBranch": "universal-engine-v0.6-stable",
+      "frozenCommit": "82da310c33c87526aebac5932ca43978bfe0fdf3",
+      "saveKey": "universal-engine:explorer:v1",
+      "note": "同梱した旧実行コードを使用。新機能は反映しない"
+    },
+    {
+      "id": "v0.7a",
+      "label": "v0.7a — 60関節の試験版",
+      "status": "experimental",
+      "url": "../../planet-explorer/",
+      "saveKey": "universal-engine:explorer:v0.7a",
+      "note": "旧版へ戻れる。60関節・補間モーション・関節カバーを試験実装"
+    }
+  ],
+  "policy": {
+    "freezeRuntimeAtRelease": true,
+    "noSharedSaveKeys": true,
+    "explicitlyImportPriorSaves": true,
+    "noAutomaticOverwrite": true,
+    "linkBothWays": true,
+    "preserveBinaryAssets": true,
+    "sourceBranchesAtMilestones": true
+  }
+}

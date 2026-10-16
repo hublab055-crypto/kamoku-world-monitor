@@ -154,3 +154,11 @@ body.immersive{overflow:hidden}
 .model-lab-link{color:#9be8f0;font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap;padding:9px 3px}
 .model-lab-link:hover{text-decoration:underline}
 @media(max-width:650px){#avatar-style{max-width:148px}.model-lab-link{font-size:11px}}
+
+/* v0.7a version switch: visible outside and inside immersive view */
+.version-control{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.version-control a{display:inline-flex;align-items:center;min-height:44px;padding:8px 14px;border:1px solid #89d0dc;
+ background:#184e65;border-radius:10px;color:#f1feff;font-size:13px;font-weight:800;text-decoration:none}
+.version-control a:hover,.version-control a:focus-visible{background:#27748d}
+.view-panel.immersive .version-control,.view-panel:fullscreen .version-control{display:none}
+#import-v06-save{background:#28465b;border:1px solid #a4bdc8;color:#e6f4f7}

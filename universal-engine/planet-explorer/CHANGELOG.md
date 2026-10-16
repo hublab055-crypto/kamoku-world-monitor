@@ -1,5 +1,13 @@
 # Planet Explorer — Change Log
 
+## v0.7a — 2026-10-16 (experimental)
+- Saved full v0.6 executable engine/demos/models under `versions/v0.6/`, plus independent GitHub branch for source-level rollback.
+- Added direct two-way version navigation between v0.6 and v0.7a.
+- Changed only the new version's localStorage key; import old v0.6 data read-only with explicit button.
+- Added 60 semantic anatomical joints with exact old 21 pivot compatibility, smooth gait/action transitions, joint fillers and finger pieces.
+- Added 11 v0.7a regression tests; old simulation, build, models and terrain tests remain valid.
+- **Not a full v0.7 release:** expression/wardrobe/camera/distant terrain remain on the issue roadmap.
+
 ## v0.6 — 2026-10-16
 - 12 unique original 3D models and self-contained binary GLB files; 3 avatar variants with rigid hierarchy and five GLB animation clips.
 - Procedural model generation, GLB and OBJ exporters, interactive preview studio.

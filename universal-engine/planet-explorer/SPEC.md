@@ -1,4 +1,4 @@
-# Universal Engine v0.6 — 惑星から地表への地理・描画接続仕様
+# Universal Engine v0.7a — 惑星から地表への地理・描画接続仕様
 
 更新: 2026-10-16 / 既存資産との分離を維持。
 
@@ -34,6 +34,19 @@ WebGL2の頂点・フラグメントシェーダーを採用。球体と雲を�
 - 地上の海、河川、標高2800m超、歩幅に対して急な標高段差は進入を拒否。
 - 位置 `(x,z)` と緯度経度は毎歩更新。ワープ／世界間の移動は未実装。
 - ジャンプは重力加速度によるローカル垂直速度の簡易積分と地面着地のみ実装。崖からの落下、海中移動、剛体衝突、地形との連続衝突検知は未実装。v0.2のBallisticsは別デモで引き続き使用可能。
+
+## v0.7a 差分と復帰保証
+
+- `rig-v2.mjs`: 60 semantic joints with stable 21 names. `jointTransformsV2` reproduces old 21-joint matrices when fed a legacy pose. Adds clavicle, finger pairs, toe, heel, spine/chest, jaw/eyes semantic pivots. Extended joints are not yet exported into the v0.6 GLB assets.
+- `animator.mjs`: finite-dt exponential interpolation of legacy poses, locomotion and upper-body action overlay; extra values for clavicles/twists/finger curl. Animations remain segmented meshes, **not skinning**.
+- `joint-covers.mjs`: 36 low-poly companion parts for elbow/knee/wrist/hip/shoulder/ankle/toe/fingers/spine to reduce visible segment gaps. Colors depend on original avatar variant.
+- `render.mjs`: uses the new animator and FK matrices with existing 3 avatar models; maintains existing action geometry, terrain, and interfaces. Existing v0.6 renderer remains independent under the archive folder.
+- `planet-explorer/index.html`: explicit navigation link `../versions/v0.6/planet-explorer/`.
+- **v0.6 saved state:** `universal-engine:explorer:v1` (untouched); **v0.7a saved state:** `universal-engine:explorer:v0.7a` (new). The old state is not automatically imported; a manual read-only import control is available.
+- `universal-engine/versions/v0.6/`: independent copies of core, planet engines, all demos, original-models and GLB binary assets. Only legacy HTML has a version-navigation banner.
+- Recovery source branch: `universal-engine-v0.6-stable` at commit `82da310c33c87526aebac5932ca43978bfe0fdf3`.
+- `tests/rig-v07.test.mjs`: 60-joint unique graph, old joint matrix equality in six animation kinds, smooth transitions, frame-rate invariance, joint filler geometry, archive key separation.
+- **Out of scope:** full cloth wardrobe, skinned GLBs, facial expression mesh, camera controls, high-altitude avatar tracking and distant terrain. Detailed requirements live in `../design/v0.7/SPEC.md`.
 
 ## v0.6 new original model pack
 
