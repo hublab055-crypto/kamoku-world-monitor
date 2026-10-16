@@ -11,8 +11,8 @@ const names=[["player","開拓者"],["scout","斥候"],["artisan","職人"]];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export const emptyRule=()=>({enabled:false,metric:"wood",op:"<",value:5,action:"gather_wood"});
 const defaultRules=()=>Array.from({length:8},(_,i)=>i===0?
- {enabled:true,metric:"wood",op:"<",value:8,action:"gather_wood"}:
- i===1?{enabled:true,metric:"stone",op:"<",value:5,action:"gather_stone"}:emptyRule());
+ {enabled:true,metric:"wood",op:"<",value:18,action:"gather_wood"}:
+ i===1?{enabled:true,metric:"stone",op:"<",value:12,action:"gather_stone"}:emptyRule());
 export function sanitizeRule(raw){
  if(!raw||typeof raw!=="object"||!METRICS.has(raw.metric)||!OPS.has(raw.op)||
    !TYPES.has(raw.action)||typeof raw.enabled!=="boolean"||
