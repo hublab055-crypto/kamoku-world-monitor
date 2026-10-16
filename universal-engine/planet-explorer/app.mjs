@@ -9,13 +9,16 @@ import {Actions} from "./actions.mjs";
 import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS} from "./wardrobe.mjs";
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
+import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs";
 
 const $=id=>document.getElementById(id);
-const SAVE_KEY="universal-engine:explorer:v0.7c";
+const SAVE_KEY="universal-engine:explorer:v0.7d";
+const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld,actions;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad;
+let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,autoActorId="player";
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
@@ -47,11 +50,16 @@ function init(saved=null){
     ExpressionController.fromSnapshot(saved.v0_7b.expression):new ExpressionController();
   syncCustomizationControls();
   renderer.sceneActions=actions;
+  squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
+  renderer.squad=squad;
   renderer.cameraController=saved?.v0_7c?.camera?
     CameraController.fromSnapshot(saved.v0_7c.camera):new CameraController();
   if(!saved)renderer.cameraController.setMode("follow",controller,
     terrainSurface(terrain,controller.lat,controller.lon).elevationM);
   syncCameraControls();
+  rtsMode=false;rtsMulti=false;rallyPicking=false;
+  autoActorId=squad.selectedAgents()[0]?.id||"player";
+  syncSquadUi();
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
@@ -68,6 +76,8 @@ function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
   const input=inputVector();
+  const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
+  squad?.advance(running?dt:0,{manualLead});
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
@@ -78,6 +88,7 @@ function doFrame(t){
   try{
    const next=renderer.frame(controller,dt);
    updateActorMarker(renderer.actorMarker);
+   updateRtsMarkers(renderer.screenActors);
    if(next!==displayMode){
     displayMode=next;
     $("mode").textContent=next==="orbit"?"宇宙・惑星モード":"地表メッシュモード";
@@ -126,8 +137,15 @@ function updateHUD(){
  $("mode-tap").setAttribute("aria-pressed",String(controlMode==="tap"));
  $("viewport-controls").textContent=controlMode==="stick"?"● スティック":"◎ タップ移動";
  $("viewport-controls").setAttribute("aria-label","移動方法の切替。現在："+(controlMode==="stick"?"スティック":"タップ"));
- $("stick-area").hidden=controlMode!=="stick"||!isSurface;
- $("action-pad").hidden=!isSurface;
+ $("stick-area").hidden=rtsMode||controlMode!=="stick"||!isSurface;
+ $("action-pad").hidden=rtsMode||!isSurface;
+ $("rts-controls").hidden=!rtsMode||!isSurface;
+ $("rts-summary").textContent="選択: "+squad.selectedAgents().map(a=>a.name).join("・");
+ $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
+ $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
+ $("rts-multi").setAttribute("aria-pressed",String(rtsMulti));
+ $("rts-rally").setAttribute("aria-pressed",String(rallyPicking));
+ $("rts-rally").textContent=rallyPicking?"地面をタップ":"集合地点";
  $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?"歩行可能":"降下中／宇宙視点";
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
@@ -155,9 +173,10 @@ $("save").addEventListener("click",()=>{
   const data={format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
-   v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()}};
+   v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
+   v0_7d:{schemaVersion:1,squad:squad.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-  log("v0.7c専用にカメラ・衣装・表情・進行状況を保存しました。旧版は変更していません。");
+  log("v0.7d：条件分岐と3人の部隊、カメラ・進行状況を保存しました。旧版は変更していません。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
 $("restore").addEventListener("click",()=>{
@@ -166,6 +185,14 @@ $("restore").addEventListener("click",()=>{
   if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("対応する保存データがありません。");
   running=false;init(data);updateHUD();
  }catch(e){log("復元失敗: "+e.message);}
+});
+$("import-v07c-save").addEventListener("click",()=>{
+ try{
+  const data=JSON.parse(localStorage.getItem(V07C_SAVE_KEY)||"null");
+  if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("旧v0.7cデータがありません。");
+  running=false;init(data);updateHUD();
+  log("v0.7c保存を読み込みました（旧保存は書き換えません）。");
+ }catch(e){log("v0.7c読込失敗: "+e.message);}
 });
 $("import-v06-save").addEventListener("click",()=>{
  try{
@@ -238,7 +265,9 @@ $("world").addEventListener("pointermove",e=>{
 });
 $("world").addEventListener("pointerup",e=>{
  if(!pointer||e.pointerId!==pointer.id)return;
- if(controlMode==="tap"&&!pointer.moved&&controller.nearGround){
+ if(rtsMode&&!pointer.moved&&controller.nearGround){
+  commandRtsTap(e.clientX,e.clientY,e.shiftKey);
+ }else if(controlMode==="tap"&&!pointer.moved&&controller.nearGround){
    const ground=renderer.pickGround(e.clientX,e.clientY);
    if(ground&&controller.setMoveTarget(ground.x,ground.z)){
      log("タップ地点まで自動移動します。");
@@ -256,6 +285,7 @@ $("landing-select").addEventListener("change",()=>{
  try{
   const site=findLand(terrain,p[0],p[1]);
   controller.setLanding(site.lat,site.lon);
+  squad?.repositionAfterLanding();
   controller.targetAltitude(15000000);controller.altitudeM=15000000;
   renderer.patchKey=null;
   renderer.cameraController.resetFreeAnchor(controller,
