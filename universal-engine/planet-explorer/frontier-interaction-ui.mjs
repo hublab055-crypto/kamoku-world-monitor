@@ -213,8 +213,16 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     updateTarget();log(deck.autoTarget?"🎯 自動ターゲットを有効にしました。":"🎯 手動ターゲットモードです。敵をタップしてください。");
     return {ok:true};
    }
-   case "mine":return item("pickaxe");
-   case "chop":return item("axe");
+   case "mine":{
+    const hand=["right","left"].find(h=>social.handItem(who.id,h)==="pickaxe");
+    if(!hand){log("⛏️ つるはしを装備してください。");return {ok:false};}
+    return item("pickaxe",hand);
+   }
+   case "chop":{
+    const hand=["right","left"].find(h=>social.handItem(who.id,h)==="axe");
+    if(!hand){log("🪓 斧を装備してください。");return {ok:false};}
+    return item("axe",hand);
+   }
    case "build":return executeItem({ok:true,kind:"action",action:"build"},who,c);
    case "talk":case "gift":openSocial();if(command==="gift")$("social-gift-item").focus();return {ok:true};
    case "emote":{
