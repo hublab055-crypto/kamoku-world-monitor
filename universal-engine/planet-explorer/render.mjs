@@ -496,7 +496,8 @@ export class ExplorerRenderer{
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
   this.battle=null;
-  this.enemyMeshes=Object.fromEntries(["slime","goblin","bandit","skeleton","orc","lizardman","demon"].map(kind=>[kind,new Mesh(gl,enemyGeometry(kind))]));
+  // Humanoids now use 12 articulated meshes each; only slime needs a static mesh.
+  this.enemyMeshes={slime:new Mesh(gl,enemyGeometry("slime"))};
   this.animatedEnemies=Object.fromEntries(HUMANOID_MONSTERS.map(kind=>
    [kind,Object.fromEntries(Object.entries(articulatedMonsterGeometry(kind))
     .map(([name,g])=>[name,new Mesh(gl,g)]))]));
