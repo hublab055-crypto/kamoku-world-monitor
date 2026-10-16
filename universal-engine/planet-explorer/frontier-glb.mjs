@@ -80,19 +80,28 @@ export async function cachedFrontierGLB(sex,write=null){
   req.onsuccess=()=>resolve(write||req.result||null);req.onerror=()=>reject(req.error);
  });}finally{db.close();}
 }
-/** Stable bundled avatars. Never implicitly read device-local imports. */
-export const AVATAR_PACK_VERSION="ue-original-avatars-20261016";
+/** Immutable published original GLB models. Unlike imports these never depend on IndexedDB. */
+export const AVATAR_PACK_VERSION="ue-original-humans-v2-20261016";
 export const STANDARD_AVATAR_URLS=Object.freeze({
- male:"../original-assets/models/pioneer.glb",
- female:"../original-assets/models/scout.glb"
+ male:Object.freeze({
+  high:"../original-assets/models/frontier_male_high.glb",
+  mobile:"../original-assets/models/frontier_male_mobile.glb"
+ }),
+ female:Object.freeze({
+  high:"../original-assets/models/frontier_female_high.glb",
+  mobile:"../original-assets/models/frontier_female_mobile.glb"
+ })
 });
+/** Auto deliberately resolves to the same lightweight LOD in every browser. */
+export function effectiveAvatarQuality(quality="auto"){
+ if(!["auto","high","mobile"].includes(quality))throw Error("Unknown avatar quality: "+quality);
+ return quality==="auto"?"mobile":quality;
+}
 export function standardAvatarURL(sex,quality="auto"){
  if(!Object.prototype.hasOwnProperty.call(STANDARD_AVATAR_URLS,sex))throw Error("Unknown avatar sex: "+sex);
- if(!["auto","high","mobile"].includes(quality))throw Error("Unknown avatar quality: "+quality);
- // Real high/mobile LOD pairs are not yet authored; both share one bundled mesh.
- return STANDARD_AVATAR_URLS[sex]+"?pack="+encodeURIComponent(AVATAR_PACK_VERSION);
+ const file=STANDARD_AVATAR_URLS[sex][effectiveAvatarQuality(quality)];
+ return file+"?pack="+encodeURIComponent(AVATAR_PACK_VERSION);
 }
-/** Browser-local imported GLBs are only used after an explicit opt-in. */
 export async function findFrontierGLB(sex,{source="standard",quality="auto",force=false}={}){
  if(!Object.prototype.hasOwnProperty.call(STANDARD_AVATAR_URLS,sex))throw Error("Unknown avatar sex: "+sex);
  if(source==="imported"){
@@ -100,10 +109,21 @@ export async function findFrontierGLB(sex,{source="standard",quality="auto",forc
   return buffer?{buffer,source:"imported",quality:"custom",version:"local"}:null;
  }
  if(source!=="standard")throw Error("Unknown avatar source: "+source);
- const url=standardAvatarURL(sex,quality);
- const response=await fetch(url,{cache:force?"reload":"default"});
- if(!response.ok)throw Error("標準GLBの取得失敗: HTTP "+response.status+" ("+sex+")");
- const buffer=await response.arrayBuffer();
- if(!buffer.byteLength)throw Error("標準GLBファイルが空です: "+sex);
- return {buffer,source:"standard",quality:"shared",version:AVATAR_PACK_VERSION,url};
+ const desired=effectiveAvatarQuality(quality),tryQualities=desired==="high"?["high","mobile"]:["mobile"];
+ const failures=[];
+ for(const q of tryQualities){
+  const url=standardAvatarURL(sex,q);
+  try{
+   const response=await fetch(url,{cache:force?"reload":"default"});
+   if(!response.ok)throw Error("HTTP "+response.status);
+   const buffer=await response.arrayBuffer();
+   if(!buffer.byteLength)throw Error("Empty GLB");
+   // At this boundary we can quickly reject a stale HTML error page.
+   const header=new DataView(buffer);
+   if(buffer.byteLength<28||header.getUint32(0,true)!==0x46546c67)throw Error("Invalid GLB header");
+   return {buffer,source:"standard",quality:q,version:AVATAR_PACK_VERSION,url,
+    warning:failures.length?("高精細版の読み込み失敗。軽量版に切替: "+failures.join(", ")):null};
+  }catch(err){failures.push(q+": "+String(err.message||err));}
+ }
+ throw Error("標準GLBの取得失敗: "+failures.join(" / "));
 }
