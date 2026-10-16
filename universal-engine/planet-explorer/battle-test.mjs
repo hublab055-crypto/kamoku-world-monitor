@@ -16,7 +16,7 @@ export class BattleTest{
  constructor(){
   this.enemies=[];this.nextId=1;this.maxEnemies=10;
   this.lastAttack=null;this.hitStages=new Set();
-  this.playerHp=100;this.enemyHits=[];
+  this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.targetId=null;
  }
  spawn(controller,type="slime"){
   const config=TEST_ENEMIES[type];
@@ -42,6 +42,7 @@ export class BattleTest{
   if(!Number.isFinite(dt)||dt<0)throw TypeError("Invalid battle timestep");
   if(!player)return;
   const step=clamp(dt,0,.1);
+  this.playerGuard=Math.max(0,this.playerGuard-step);
   for(const e of this.enemies){
    if(e.hp<=0){e.anim="death";e.deathTime=(e.deathTime||0)+step;continue;}
    e.animTime=(e.animTime||0)+step;
@@ -63,9 +64,10 @@ export class BattleTest{
      e.attackLanded=true;
      if(d<3.0&&this.playerHp>0){
       const points=e.type==="orc"?12:e.type==="demon"?14:e.type==="skeleton"?7:8;
-      this.playerHp=Math.max(0,this.playerHp-points);
-      this.enemyHits.push({name:e.name,damage:points,hp:this.playerHp,
-       message:e.name+" の攻撃：-"+points+" HP（戦闘テストHP "+this.playerHp+"）"});
+      const dealt=this.playerGuard>0?Math.max(1,Math.round(points*.3)):points;
+      this.playerHp=Math.max(0,this.playerHp-dealt);
+      this.enemyHits.push({name:e.name,damage:dealt,hp:this.playerHp,
+       message:e.name+" の攻撃：-"+dealt+" HP"+(this.playerGuard>0?"（ガード）":"")+"（戦闘テストHP "+this.playerHp+"）"});
      }
     }
     if(e.animTime<1.03)continue;
@@ -114,6 +116,12 @@ export class BattleTest{
    if(forward<.2||forward>range+e.radius||side>e.radius+.22)continue;
    if(forward<best){best=forward;target=e;}
   }
+  const aimed=this.enemies.find(e=>e.id===this.targetId&&e.hp>0);
+  if(aimed){
+   const dx=aimed.x-player.x,dz=aimed.z-player.z,forward=dx*fx+dz*fz;
+   const side=Math.abs(dx*fz-dz*fx);
+   if(forward>.2&&forward<range+aimed.radius&&side<aimed.radius+.22)target=aimed;
+  }
   return target?[this.damage(target,damage)]:[];
  }
  damage(enemy,points){
@@ -151,9 +159,11 @@ export class BattleTest{
   });
   return results;
  }
+ guard(seconds=1.25){this.playerGuard=Math.max(this.playerGuard,Math.min(5,Math.max(0,seconds)));return true;}
+ heal(amount=35){const prev=this.playerHp;this.playerHp=clamp(this.playerHp+amount,0,100);return this.playerHp-prev;}
  count(){return this.enemies.filter(e=>e.hp>0).length;}
  clear(){
   this.enemies=[];this.lastAttack=null;this.hitStages.clear();
-  this.playerHp=100;this.enemyHits=[];
+  this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.targetId=null;
  }
 }
