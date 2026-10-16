@@ -15,11 +15,11 @@
   </div>
   <div class="container headline">
     <div>
-      <p class="eyebrow">UNIVERSAL ENGINE · V0.7e · DOORS & INTERIORS</p>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7f · READABLE BOOKS</p>
       <h1>オリジナルの世界を歩く。</h1>
-      <p>v0.7e試験版：🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
+      <p>v0.7f試験版：📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.7e 屋内試験版</span>
+    <div class="version-control"><span class="version-tag">v0.7f 読書試験版</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -67,6 +67,7 @@
         <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
          <button type="button" id="viewport-rts" aria-pressed="false" title="上空から部隊にタップ指示">⚓ RTS視点</button>
          <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
+          <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
         <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">☰ メニュー</button>
       </div>
       <div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
@@ -77,6 +78,7 @@
   <button type="button" id="door-toggle" aria-label="ドアを開閉">🚪 開ける</button>
   <button type="button" id="door-enter" hidden>🏠 中に入る</button>
   <button type="button" id="door-exit" hidden>🌿 外に出る</button>
+  <button type="button" id="door-shelf" hidden>📚 本棚</button>
 </div>
 <div id="action-pad" class="action-pad" aria-label="アクション">
   <button type="button" id="jump">ジャンプ</button>
@@ -108,6 +110,37 @@
   </div>
   <p id="auto-status" aria-live="polite">条件の設定後、自動行動をONにしてください。</p>
 </div>
+<div id="book-overlay" class="book-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="book-heading">
+  <div class="book-topbar">
+    <strong id="book-heading">📚 本棚と持ち物の本</strong>
+    <button type="button" id="book-close" aria-label="読書画面を閉じる">× 閉じる</button>
+  </div>
+  <section id="book-library" class="book-library" aria-label="読める本">
+    <p id="book-library-status" class="book-library-status"></p>
+    <div id="book-library-list" class="book-library-list"></div>
+  </section>
+  <section id="book-reading" class="book-reading" hidden aria-label="本の本文">
+    <div class="book-reading-head">
+      <button type="button" id="book-back">← 本を選ぶ</button>
+      <div><strong id="book-title"></strong><span id="book-author"></span></div>
+    </div>
+    <div class="book-paper" id="book-paper" tabindex="0">
+      <div class="book-chapter" id="book-chapter"></div>
+      <div class="book-text" id="book-text"></div>
+    </div>
+    <div class="book-reader-bottom">
+      <button type="button" id="book-prev">◀ 前のページ</button>
+      <span id="book-page-no" aria-live="polite"></span>
+      <button type="button" id="book-next">次のページ ▶</button>
+    </div>
+    <div class="book-type-controls">
+      <span>文字サイズ</span>
+      <button type="button" id="book-font-down" aria-label="文字を小さく">A−</button>
+      <button type="button" id="book-font-up" aria-label="文字を大きく">A＋</button>
+      <span id="book-reading-note">しおりは自動保存されます</span>
+    </div>
+  </section>
+</div>
 <div id="fatal" class="fatal" hidden>初期化中</div>
       <div class="mode-hint" id="walk-note">画面をドラッグして向きを調節できます。</div>
     </div>
@@ -115,6 +148,7 @@
       <button id="zoom-in" type="button">＋ 拡大</button>
       <button id="toolbar-rts" type="button">⚓ RTS視点</button>
       <button id="toolbar-auto" type="button">🤔 条件分岐設定</button>
+       <button id="toolbar-books" type="button">📚 本棚・読書</button>
       <button id="zoom-out" type="button">− 縮小</button>
       <button id="play" type="button">⏸ 時間を停止</button>
       <label for="days-per-second">時間速度</label>
