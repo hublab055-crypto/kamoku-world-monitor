@@ -10,6 +10,7 @@ import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrob
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
 import {rotZ} from "./rig.mjs";
 import {CameraController} from "./camera-controller.mjs";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs";
 import {CATALOG} from "./lifestyle.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -198,7 +199,7 @@ export class ExplorerRenderer{
   this.dishMeshes={};
   for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
   this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
-  this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
+  this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
    this.fwResourceMeshes={};
    const colors={wood:[.40,.24,.15],stone:[.54,.59,.62],fiber:[.27,.64,.35],food:[.80,.31,.23],water:[.22,.59,.84]};
    for(const [kind,color] of Object.entries(colors)){
@@ -376,15 +377,46 @@ export class ExplorerRenderer{
      }
    }
  }
- setFrontierGlb(sex,data){
+ setFrontierGlb(sex,data,source=null){
   if(!["male","female"].includes(sex)||!data?.chunks?.length)throw Error("Invalid GLB avatar");
+  let animated=null,reason="";
+  if(source){
+   try{animated=new SkinnedFrontierAsset(this.gl,source);}
+   catch(error){reason=String(error.message||error);console.warn("Animated GLB fallback:",error);}
+  }
   const list=[];
-  try{for(const chunk of data.chunks)list.push(new Mesh(this.gl,chunk));}
-  catch(error){for(const m of list)m.destroy();throw error;}
-  for(const m of this.glbMeshes[sex]||[])m.destroy();
-  this.glbMeshes[sex]=list;return list.length;
+  if(!animated){
+   try{for(const chunk of data.chunks)list.push(new Mesh(this.gl,chunk));}
+   catch(error){for(const mesh of list)mesh.destroy();throw error;}
+  }
+  this.animatedGlb[sex]?.destroy();
+  for(const mesh of this.glbMeshes[sex]||[])mesh.destroy();
+  this.animatedGlb[sex]=animated;
+  this.glbMeshes[sex]=list;
+  this.glbStatuses[sex]=animated?{animated:true,triangles:animated.triangles,clips:animated.rig.clips.map(c=>c.name)}:
+   {animated:false,triangles:data.triangles,reason};
+  return animated?.meshes.length||list.length;
  }
- drawFrontierAvatar(sex,vp,transform,unit,light){
+ triggerSocial(from,to,kind="talk"){
+  const action=kind==="gift"?"gift":"talk";
+  for(const id of [from,to])if(["player","scout","artisan"].includes(id))this.socialAnimations.set(id,{kind:action,remaining:2.1});
+ }
+ drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
+  const animation=this.socialAnimations.get(id);
+  if(animation){
+   animation.remaining-=Math.max(0,dt);
+   if(animation.remaining<=0)this.socialAnimations.delete(id);
+  }
+  const rig=this.animatedGlb[sex];
+  if(rig){
+   const characterTransform=multiply4(transform,rotateY(unit.yaw||0));
+   try{rig.draw(vp,characterTransform,light,id,dt,{
+    moving:Boolean(unit.moving),motion:motion?.action||"idle",
+    talking:animation?.kind==="talk"&&animation.remaining>0,
+    giving:animation?.kind==="gift"&&animation.remaining>0
+   });}finally{this.gl.useProgram(this.program);}
+   return true;
+  }
   const meshes=this.glbMeshes[sex];if(!meshes?.length)return false;
   const mvp=multiply4(vp,multiply4(transform,rotateY(unit.yaw||0)));
   for(const mesh of meshes)this.drawMesh(mesh,mvp,light,1,.83);
@@ -537,7 +569,7 @@ export class ExplorerRenderer{
   const lifeAction=this.sceneLife?.activity;
   const playerMotion=lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
-  if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,s,light))
+  if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,s,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion);
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
@@ -557,7 +589,7 @@ export class ExplorerRenderer{
     this.npcAnimators.set(agent.id,{animator:new SmoothAnimator(),expression:new ExpressionController()});
    const ctx=this.npcAnimators.get(agent.id);
    const model=translate(x,elevation+(unit.jumpY||0),z);
-   if(!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light))
+   if(!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light,dt,this.squad.getMotion(agent),agent.id))
     this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
      this.squad.getMotion(agent),agent.id==="scout"?[.65,.86,1]:[1,.78,.65]);
   }
@@ -569,6 +601,7 @@ export class ExplorerRenderer{
  }
  destroy(){
    for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+    for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }
