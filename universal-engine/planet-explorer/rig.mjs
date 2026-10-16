@@ -108,12 +108,17 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
       pose.leftElbowX=-.51;
       if(style==="sweep"){
         // Horizontal cut driven by torso twist and shoulder abduction.
-        const twist=lerp(lerp(-.40,-.56,windup),.49,strike)*(1-recovery);
+        const twist=lerp(lerp(-.56,-.85,windup),.82,strike)*(1-recovery);
         pose.torsoY=twist;
-        pose.torsoX=.07*strike*(1-recovery);
-        pose.rightShoulderX=lerp(-.57,-1.15,windup)*(1-recovery)-.57*recovery;
-        pose.rightShoulderZ=lerp(lerp(.26,.60,windup),-.47,strike)*(1-recovery)+.15*recovery;
-        pose.rightWristX=-.09*windup+.18*strike;
+        pose.torsoX=.12*strike*(1-recovery);
+        pose.rightShoulderX=lerp(-.72,-1.38,windup)*(1-recovery)-.72*recovery;
+        pose.rightShoulderZ=lerp(lerp(.42,.91,windup),-.79,strike)*(1-recovery)+.21*recovery;
+        pose.rightElbowX=-.16+.11*strike;
+        pose.rightWristX=-.16*windup+.41*strike;
+        if(action==="axe"){
+         pose.leftShoulderX=-.91-1.08*windup*(1-strike);
+         pose.leftElbowX=-.64;
+        }
       }else if(style==="thrust"){
         // Draw the elbow back, then extend the hand and blade toward +Z.
         pose.torsoX=-.15*strike*(1-recovery);
