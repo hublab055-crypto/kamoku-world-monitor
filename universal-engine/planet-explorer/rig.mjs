@@ -57,22 +57,41 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
     pose.torsoX=.06;
     return pose;
   }
-  if(["sword","axe","mine","build"].includes(action)){
-    const t=clamp(progress,0,1), lift=ease(Math.min(1,t*3)),strike=ease(clamp((t-.32)*2.5,0,1));
-    const swingMotion=lift*(1-strike),repeat=action==="build"?Math.abs(Math.sin(t*5*Math.PI)):0;
+  if(["sword","axe","mine","bow","build"].includes(action)){
+    const t=clamp(progress,0,1),windup=ease(t/.30),
+      strike=ease((t-.30)/.43),recover=ease((t-.78)/.22);
+    const lerp=(a,b,f)=>a+(b-a)*f;
     pose.leftHipX=0;pose.rightHipX=0;pose.leftKneeX=0;pose.rightKneeX=0;
-    pose.torsoY=action==="sword" ? .24*(1-strike):0;
-    pose.torsoX=action==="mine"?.14:action==="build"?.09:-.12*strike;
-    pose.rightShoulderX=action==="sword" ? -1.9+1.55*strike :
-      action==="axe" ? -2.3+2.2*strike :
-      action==="mine" ? -1.65+1.9*strike : -1.85+1.1*repeat;
-    pose.rightShoulderZ=.22;
-    pose.rightElbowX=action==="sword"?-.28 :
-      action==="build"?-.8:.0;
-    pose.leftShoulderX=action==="axe" ? -1.45+1.4*strike :
-      action==="build" ? -.55 : action==="mine" ? -.6:-.25;
-    pose.leftElbowX=-.55;
-    pose.tool=action==="sword"?"sword":action==="axe"?"axe":action==="mine"?"pickaxe":"hammer";
+    if(action==="bow"){
+      // Raise the bow hand, draw with the opposite hand, then release.
+      const draw=ease(t/.44),release=ease((t-.63)/.13);
+      pose.torsoY=.10*(1-release);
+      pose.rightShoulderX=-1.18;
+      pose.rightShoulderZ=.06;
+      pose.rightElbowX=-.22;
+      pose.rightWristX=0;
+      pose.leftShoulderX=-.65-.32*draw*(1-release);
+      pose.leftShoulderZ=-.20;
+      pose.leftElbowX=-1.13-.46*draw*(1-release);
+      pose.leftWristX=-.12;
+    }else{
+      const overhead=action==="axe"||action==="sword"||action==="mine";
+      const rest=action==="axe"?-.53:action==="mine"?-.56:-.48;
+      const high=action==="axe"?-2.38:action==="mine"?-2.20:-2.15;
+      const low=action==="axe"?.46:action==="mine"?.35:.43;
+      const angle=lerp(lerp(lerp(rest,high,windup),low,strike),rest,recover);
+      const repeated=action==="build"?Math.abs(Math.sin(t*5*Math.PI)):0;
+      pose.rightShoulderX=overhead?angle:-.95-.85*repeated;
+      pose.rightShoulderZ=action==="sword"?.14:.20;
+      pose.rightElbowX=action==="sword"?-.22:action==="build"?-.75:-.16;
+      pose.rightWristX=overhead?lerp(lerp(0,-.24,windup),.48,strike)*(1-recover):-.22;
+      pose.leftShoulderX=action==="axe" ? -.75-1.00*windup*(1-strike):
+        action==="mine" ? -.62 : action==="build" ? -.55:-.25;
+      pose.leftElbowX=-.55;
+      pose.torsoY=action==="sword"?.16*windup*(1-strike)-.12*strike*(1-recover):0;
+      pose.torsoX=action==="mine"?.14:action==="build"?.09:.08*strike*(1-recover);
+    }
+    pose.tool=action==="sword"?"sword":action==="axe"?"axe":action==="mine"?"pickaxe":action==="bow"?"bow":"hammer";
     return pose;
   }
   return pose;
