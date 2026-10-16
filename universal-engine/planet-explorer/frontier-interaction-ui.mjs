@@ -6,11 +6,32 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  const $=id=>document.getElementById(id);
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let configId="player",slotSignature="";
+ const handNames={right:"右手",left:"左手"};
  const actor=()=>{const c=get();return (c.rtsMode?c.squad?.selectedAgents()[0]:null)||c.squad?.get("player");};
+ function equipmentInventory(){const c=get(),who=actor();return c.squad&&who?social.inventoryFor(who,c.life,c.squad.frontier):[];}
+ function syncHands(){
+  const c=get(),who=actor();if(!c.squad||!who)return;
+  c.renderer.handEquipment=Object.fromEntries(c.squad.agents.map(a=>[a.id,{...social.actor(a.id).hands}]));
+  for(const hand of ["right","left"]){
+   const item=social.handItem(who.id,hand),details=ITEM_MAP.get(item)||ITEM_MAP.get("none");
+   const count=social.quantity(who,item,c.life,c.squad.frontier);
+   const button=$("hand-"+hand+"-use");
+   button.textContent=(details?.icon||"▫️")+" "+handNames[hand]+"　"+(details?.name||"空");
+   button.title=handNames[hand]+"： "+(details?.name||"空")+"（タップすると使用）";
+   button.classList.toggle("unavailable",item==="none"||count<1);
+  }
+ }
+ function equipHandFromInventory(item,hand){
+  const c=get(),who=actor();
+  const r=social.equipHand(who,hand,item,c.life,c.squad.frontier);
+  if(r.ok){slotSignature="";quick();if(!$("quick-config-panel").hidden)renderConfig();}
+  updateHUD();return r;
+ }
  function quick(){
   const c=get();if(!c.squad)return;
   const who=actor(),a=social.actor(who.id);
-  const key=who.id+":"+a.selected+":"+a.slots.join(",");
+  syncHands();
+  const key=who.id+":"+a.selected+":"+a.slots.join(",")+":"+a.hands.right+":"+a.hands.left;
   if(slotSignature===key)return;slotSignature=key;
   const root=$("quick-slots");root.replaceChildren();
   a.slots.forEach((id,i)=>{
@@ -23,40 +44,83 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    root.append(b);
   });
  }
- function useItem(){
-  const c=get(),who=actor();if(!who)return;
-  const result=social.use(who,c.life,c.squad.frontier);
-  if(!result.ok){log(result.message);return;}
-  if(result.kind==="book"){openBookLibrary();return;}
+ function executeItem(result,who,c){
+  if(!result.ok){log(result.message);return result;}
+  if(result.kind==="book"){openBookLibrary();return result;}
   if(result.kind==="deploy"){
-   if(who.id!=="player"){log("設置操作は開拓者が行います。");return;}
-   const deployed=c.life.deploy(result.item,c.controller,c.sample,c.actions.structures);
-   log(deployed.message);if(deployed.ok){saveLifeJournal();updateHUD();}return;
+   if(who.id!=="player"){log("設置操作は開拓者が行います。");return {ok:false,message:"NPCの設置未対応"};}
+   const kind=result.item,stock=c.life.inventory,gifts=c.squad.frontier.person(who.id)?.gifts||{},
+     bag=c.squad.frontier.person(who.id)?.inventory||{};
+   // A gifted/personal item is temporarily made visible to Lifestyle.deploy;
+   // if placement fails, return it to the same owner without duplicating it.
+   let borrower=null;
+   if(!(stock[kind]>0)){
+    borrower=(bag[kind]||0)>0?bag:(gifts[kind]||0)>0?gifts:null;
+    if(borrower){stock[kind]=(stock[kind]||0)+1;borrower[kind]--;}
+   }
+   const deployed=c.life.deploy(kind,c.controller,c.sample,c.actions.structures);
+   if(borrower&&!deployed.ok){stock[kind]--;borrower[kind]++;}
+   log(deployed.message);
+   if(deployed.ok){saveLifeJournal();updateHUD();}
+   return deployed;
   }
   if(result.kind==="action"){
    if(who.id!=="player"){
     const ok=c.squad.performEquippedAction(who.id,result.action);
     log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
-    updateHUD();return;
+    updateHUD();return {ok};
    }
    c.actions.start(result.action,c.controller,c.sample);
    log(c.actions.message);
   }else{log(result.message);saveLifeJournal();}
-  updateHUD();
+  updateHUD();return result;
+ }
+ function useItem(){
+  const c=get(),who=actor();if(!who)return;
+  return executeItem(social.use(who,c.life,c.squad.frontier),who,c);
+ }
+ function useHand(hand){
+  const c=get(),who=actor();if(!who)return;
+  return executeItem(social.useHand(who,hand,c.life,c.squad.frontier),who,c);
  }
  function renderConfig(){
   const c=get();if(!c.squad)return;
   const sel=$("quick-actor");sel.replaceChildren();
   for(const a of c.squad.agents){const o=document.createElement("option");o.value=a.id;o.textContent=a.name;sel.append(o);}
   sel.value=configId;
+  const person=c.squad.get(configId),inventory=social.inventoryFor(person,c.life,c.squad.frontier);
+  $("equip-inventory-label").textContent=person.name+"の所持品："+inventory.map(item=>item.name+"×"+item.quantity).join("・");
+  function selectInventory(current){
+   const picker=document.createElement("select");
+   const empty=document.createElement("option");empty.value="none";empty.textContent="▫️ はずす";picker.append(empty);
+   for(const item of inventory){
+    const o=document.createElement("option");o.value=item.id;o.textContent=item.icon+" "+item.name+" ×"+item.quantity;picker.append(o);
+   }
+   if(current!=="none"&&!inventory.some(item=>item.id===current)){
+    const item=ITEM_MAP.get(current),o=document.createElement("option");
+    o.value=current;o.textContent=(item?.icon||"▫️")+" "+(item?.name||current)+"（在庫なし）";
+    picker.append(o);
+   }
+   picker.value=current;return picker;
+  }
+  const hands=$("hand-config-rows");hands.replaceChildren();
+  for(const hand of ["right","left"]){
+   const row=document.createElement("label");row.textContent=hand==="right"?"🫱 右手":"🫲 左手";
+   const picker=selectInventory(social.handItem(configId,hand));
+   picker.addEventListener("change",()=>{
+    const result=social.equipHand(person,hand,picker.value,c.life,c.squad.frontier);
+    log(result.message);
+    if(result.ok){slotSignature="";quick();renderConfig();}
+    else picker.value=social.handItem(configId,hand);
+   });
+   row.append(picker);hands.append(row);
+  }
   const root=$("quick-config-rows");root.replaceChildren();
   for(let i=0;i<5;i++){
-   const label=document.createElement("label");label.textContent="装備 "+(i+1);
-   const picker=document.createElement("select");picker.dataset.index=String(i);
-   for(const [id,name,icon] of ITEM_OPTIONS){const o=document.createElement("option");o.value=id;o.textContent=icon+" "+name;picker.append(o);}
-   picker.value=social.actor(configId).slots[i];
-   picker.addEventListener("change",()=>{social.equip(configId,i,picker.value);slotSignature="";quick();});
-   label.append(picker);root.append(label);
+   const row=document.createElement("label");row.textContent="クイック "+(i+1);
+   const picker=selectInventory(social.actor(configId).slots[i]);
+   picker.addEventListener("change",()=>{social.equip(configId,i,picker.value);slotSignature="";quick();renderConfig();});
+   row.append(picker);root.append(row);
   }
  }
  function selection(){const c=get();return {from:c.squad.get($("social-from").value),to:c.squad.get($("social-target").value)};}
@@ -123,6 +187,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(renderer===get().renderer)$("frontier-glb-status").textContent=summary.join(" / ")+"。未登録時は従来モデルになります。";
  }
  $("quick-use").addEventListener("click",useItem);
+ $("hand-right-use").addEventListener("click",()=>useHand("right"));
+ $("hand-left-use").addEventListener("click",()=>useHand("left"));
+ $("quick-inventory").addEventListener("click",()=>get().lifeUI?.open("inventory"));
+ $("equip-open-inventory").addEventListener("click",()=>{
+  $("quick-config-panel").hidden=true;get().lifeUI?.open("inventory");
+ });
  $("quick-config").addEventListener("click",()=>{configId=actor().id;renderConfig();$("quick-config-panel").hidden=false;});
  $("quick-config-close").addEventListener("click",()=>{$("quick-config-panel").hidden=true;});
  $("quick-actor").addEventListener("change",()=>{configId=$("quick-actor").value;renderConfig();});
@@ -166,6 +236,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   const c=get();if(!c.squad)return;
   if(/^[1-5]$/.test(e.key)){social.select(actor().id,Number(e.key)-1);slotSignature="";quick();}
   if(e.key.toLowerCase()==="u"){e.preventDefault();useItem();}
+  if(e.key.toLowerCase()==="r"){e.preventDefault();useHand("right");}
+  if(e.key.toLowerCase()==="l"){e.preventDefault();useHand("left");}
  });
- return {quick,restore,snapshot,updateCamera,loadModels};
+ return {quick,restore,snapshot,updateCamera,loadModels,equipmentInventory,equipHandFromInventory};
 }
