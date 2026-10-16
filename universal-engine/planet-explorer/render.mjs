@@ -82,7 +82,7 @@ function cone(b,x,y,z,h,r,col,sides=7){
 }
 
 // Local equipment geometries are in metres; character forward is +Z.
-const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
+export const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
 function bowGeometry(){
  const b=builder(),wood=[.51,.29,.15],wrapping=[.27,.18,.11],string=[.89,.83,.68];
  // Curved upper and lower limbs with a taut string and central wrapped grip.
@@ -106,7 +106,7 @@ function arrowGeometry(){
  }
  return b;
 }
-function heldItemTransform(kind){
+export function heldItemTransform(kind){
  const grip=translate(0,-.155,.05);
  // Blades point ahead at rest, instead of hanging downward from the wrist.
  // A bow retains its vertical shape while the arrow points ahead.
