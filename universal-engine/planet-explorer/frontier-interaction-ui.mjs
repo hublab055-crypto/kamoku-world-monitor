@@ -83,7 +83,10 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function useItem(){
   const c=get(),who=actor();if(!who)return;
-  return executeItem(social.use(who,c.life,c.squad.frontier),who,c,"right");
+  const chosen=social.chosen(who.id);
+  const hand=social.handItem(who.id,"right")===chosen?"right":
+    social.handItem(who.id,"left")===chosen?"left":"right";
+  return executeItem(social.use(who,c.life,c.squad.frontier),who,c,hand);
  }
  function useHand(hand){
   const c=get(),who=actor();if(!who)return;
