@@ -52,7 +52,7 @@ function say(t){try{bridge.message('🌐 '+t);}catch(_){console.log('[FW3D]',t);
 
 let enabled=false,renderer=null,scene=null,camera=null,orbit=null,clock=null,ground=null;
 let raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),actors=new Map(),terrainNodes=new Map();
-let loader=new GLTFLoader(), prototypes=new Map(), models=new Map(), selected=new Set(), orders=new Map();
+let loader=new GLTFLoader(), prototypes=new Map(), models=new Map(), modelsLow=new Map(), selected=new Set(), orders=new Map();
 let originalNpcUpdate=null, cameraMode=['follow','rts','free'].includes(config.cameraMode)?config.cameraMode:'rts';
 let multiSelect=false, refreshing=false, lastTerrain=0,lastFrame=0, prevJoyDisplay='',prevHudDisplay='';
 const up=new THREE.Vector3(0,1,0);
@@ -109,25 +109,38 @@ async function dbPut(key,bytes){
 function parseGLB(bytes){return loader.parseAsync(bytes,'');}
 async function ensureModel(sex){
  if(models.has(sex))return models.get(sex);
- let gltf=null;
+ let gltf=null,low=null;
  try{
    const saved=await dbGet(sex);
    if(saved)gltf=await parseGLB(saved);
-   else gltf=await loader.loadAsync('./assets/avatars/frontier_'+sex+'_mobile.glb');
- }catch(e){console.info('[FW3D] Using temporary procedural avatar until GLB imported:',sex);}
+   else try{gltf=await loader.loadAsync('./assets/avatars/frontier_'+sex+'_high.glb');}
+   catch(_){gltf=await loader.loadAsync('./assets/avatars/frontier_'+sex+'_mobile.glb');}
+ }catch(e){console.info('[FW3D] Fallback model:',sex,e);}
+ try{
+   const lowBytes=await dbGet(sex+'_low');
+   if(lowBytes)low=await parseGLB(lowBytes);
+ }catch(e){console.info('[FW3D] No local LOD1 file for',sex);}
+ if(low)modelsLow.set(sex,low);
  if(!gltf)gltf=placeholder(sex);
- models.set(sex,gltf);return gltf;
+ models.set(sex,gltf);
+ return gltf;
 }
 async function loadDefaults(){
  await Promise.all(['male','female'].map(ensureModel));
  if(enabled)refreshActors(true);
  updateInfo();
 }
+function desiredLOD(p){
+ const player=bridge.state.player;
+ if(!player||canonical(p.id)===canonical(player.id)||selected.has(canonical(p.id)))return 'high';
+ const distance=Math.hypot(p.x-player.x,p.y-player.y);
+ return distance>11&&modelsLow.has(sexOf(p))?'mobile':'high';
+}
 function makeActor(p){
- const sex=sexOf(p),gltf=models.get(sex)||placeholder(sex);
+ const sex=sexOf(p),lod=desiredLOD(p),gltf=(lod==='mobile'?modelsLow.get(sex):null)||models.get(sex)||placeholder(sex);
  const group=cloneSkinned(gltf.scene);
  group.name='fw3d_'+canonical(p.id);
- const m={id:canonical(p.id),actor:p,root:group,sex,mixer:null,clips:gltf.animations||[],action:null,lastPos:pos3(p.x,p.y),selectedRing:null,prevMotion:'',parts:{}};
+ const m={id:canonical(p.id),actor:p,root:group,sex,lod,mixer:null,clips:gltf.animations||[],action:null,lastPos:pos3(p.x,p.y),selectedRing:null,prevMotion:'',parts:{}};
  if(gltf.animations&&gltf.animations.length)m.mixer=new THREE.AnimationMixer(group);
  group.position.copy(m.lastPos);
  for(const key of ['leftArm','rightArm','leftLeg','rightLeg'])m.parts[key]=group.getObjectByName('fw3d_'+key);
@@ -146,7 +159,7 @@ function refreshActors(force=false){
  for(const p of all){
    const id=canonical(p.id);ids.add(id);
    const a=actors.get(id);
-   if(!a || a.sex!==sexOf(p)){if(a){scene.remove(a.root);actors.delete(id);}makeActor(p);}
+   if(!a || a.sex!==sexOf(p)||a.lod!==desiredLOD(p)){if(a){a.mixer?.stopAllAction();scene.remove(a.root);actors.delete(id);}makeActor(p);}
    else a.actor=p;
  }
  for(const [id,a] of actors){if(!ids.has(id)){scene.remove(a.root);actors.delete(id);orders.delete(id);selected.delete(id);}}
@@ -408,17 +421,25 @@ async function importGLBs(files){
      if(!window.JSZip){say('ZIPの展開ライブラリを取得できません。GLBを個別に読み込んでください。');continue;}
      const zip=await window.JSZip.loadAsync(f);
      for(const name of Object.keys(zip.files)){
-       if(/frontier_(male|female)_(mobile|rigged)\.glb$/i.test(name)&&!zip.files[name].dir)imports.push({name,bytes:await zip.files[name].async('arraybuffer')});
+       if(/frontier_(male|female)_(high|mobile|rigged)\.glb$/i.test(name)&&!zip.files[name].dir)imports.push({name,bytes:await zip.files[name].async('arraybuffer')});
      }
    }else if(/\.glb$/i.test(f.name))imports.push({name:f.name,bytes:await f.arrayBuffer()});
  }
- let loaded=0;
+ let loaded=0,lowLoaded=0;
  for(const sex of ['male','female']){
-   const chosen=imports.find(x=>new RegExp('frontier_'+sex+'_mobile\\.glb$','i').test(x.name))||imports.find(x=>new RegExp('frontier_'+sex+'_rigged\\.glb$','i').test(x.name));
-   if(!chosen)continue;
-   try{const gltf=await parseGLB(chosen.bytes);models.set(sex,gltf);await dbPut(sex,chosen.bytes);loaded++;}catch(e){console.warn('[FW3D] model error',e);}
+   const suffix=(name,kind)=>new RegExp('frontier_'+sex+'_'+kind+'\\.glb$','i').test(name);
+   const high=imports.find(x=>suffix(x.name,'high'))||imports.find(x=>suffix(x.name,'rigged'))||imports.find(x=>suffix(x.name,'mobile'));
+   const low=imports.find(x=>suffix(x.name,'mobile'));
+   if(high){
+     try{models.set(sex,await parseGLB(high.bytes));await dbPut(sex,high.bytes);loaded++;}
+     catch(e){console.warn('[FW3D] HD import error',e);}
+   }
+   if(low&&(!high||high!==low)){
+     try{modelsLow.set(sex,await parseGLB(low.bytes));await dbPut(sex+'_low',low.bytes);lowLoaded++;}
+     catch(e){console.warn('[FW3D] LOD import error',e);}
+   }
  }
- if(loaded){refreshActors(true);say('男女の3Dモデル '+loaded+'種を読み込みました。端末内に保存しました。');}
+ if(loaded){refreshActors(true);say('3Dモデル '+loaded+'種（遠景LOD '+lowLoaded+'種）を端末に読み込みました。');}
  else say('読み込み可能なGLBがありませんでした。ファイル名を確認してください。');
 }
 $('#fw3d-file').addEventListener('change',async e=>{
