@@ -60,6 +60,7 @@ class Mesh{
  destroy(){const gl=this.gl;for(const v of this.buffers)gl.deleteBuffer(v);gl.deleteBuffer(this.indices);gl.deleteVertexArray(this.vao)}
 }
 const builder=()=>({positions:[],normals:[],colors:[],indices:[]});
+const rotateY=a=>{const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]};
 function triangle(b,a,c,d,col){
  const n=norm(cross(sub(c,a),sub(d,a))),k=b.positions.length/3;
  b.positions.push(...a,...c,...d);b.normals.push(...n,...n,...n);b.colors.push(...col,...col,...col);b.indices.push(k,k+1,k+2);
@@ -187,6 +188,7 @@ export class ExplorerRenderer{
     this.tools[tool]=new Mesh(gl,b);
   }
   this.buildingMeshes=this.makeBuildingMeshes(gl);
+  this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.interiorBuildingId=null;
   this.sceneActions=null;
   this.pickVP=null;this.groundPatchData=null;
   gl.enable(gl.DEPTH_TEST);
@@ -217,7 +219,42 @@ export class ExplorerRenderer{
      details:new Mesh(gl,parts[3].geometry)
    };
  }
- pickGround(clientX,clientY){
+ makeRoomMeshes(gl){
+   const door=builder(),floor=builder(),furniture=builder();
+   box(door,.64,.29,0,.64,2.03,.065,[.37,.23,.16]);
+   box(door,1.04,1.36,.095,.065,.105,.045,[.86,.68,.35]);
+   box(floor,0,.27,0,2.58,.12,2.22,[.50,.34,.22]);
+   box(floor,0,.395,0,1.55,.015,1.25,[.36,.48,.42]);
+   const items=[
+    [-1.72,.42,-.88,.58,.29,1.05,[.40,.25,.17]],
+    [-1.72,.72,-1.1,.54,.16,.58,[.81,.78,.62]],
+    [-1.72,.61,-.48,.54,.08,.48,[.65,.24,.18]],
+    [1.67,.40,-1.2,.60,.70,.43,[.37,.23,.12]],
+    [1.67,1.07,-1.2,.62,.08,.46,[.68,.51,.28]],
+    [1.67,1.18,-.89,.13,.055,.05,[.90,.72,.37]],
+    [.62,.54,0,.78,.76,.53,[.40,.27,.16]],
+    [.62,1.28,0,.90,.10,.62,[.69,.48,.28]],
+    [.62,.43,-1.05,.38,.48,.38,[.36,.25,.16]],
+    [.62,.84,-1.28,.38,.47,.10,[.43,.29,.17]],
+    [.62,.43,1.03,.38,.48,.38,[.36,.25,.16]],
+    [.62,.84,1.26,.38,.47,.10,[.43,.29,.17]],
+    [-.7,.41,-1.78,.32,.75,.25,[.42,.29,.15]],
+    [-.7,1.17,-1.78,.12,.35,.12,[.96,.82,.42]]];
+   for(const item of items)box(furniture,...item);
+   return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture)};
+  }
+  pickDoor(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let best=null,distance=42;
+   for(const d of this.screenDoors){
+    if(!d.onScreen)continue;
+    const gap=Math.hypot((d.u-u)*r.width,(d.v-v)*r.height);
+    if(gap<distance){distance=gap;best=d;}
+   }
+   return best;
+  }
+  pickGround(clientX,clientY){
    if(!this.pickVP||!this.groundPatchData)return null;
    const r=this.canvas.getBoundingClientRect();
    if(!r.width||!r.height)return null;
@@ -254,8 +291,9 @@ export class ExplorerRenderer{
      this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68,tint);
    }
  }
- drawBuildings(vp,light,s,radius){
+ drawBuildings(vp,light,s,radius,dt=1/60){
    if(!this.sceneActions)return;
+   this.screenDoors=[];
    for(const hut of this.sceneActions.structures){
      const offset=geoLocal(s.origin.lat,s.origin.lon,hut.lat,hut.lon,this.planet.radiusM);
      const bx=offset.eastM,bz=offset.northM;
@@ -264,8 +302,19 @@ export class ExplorerRenderer{
      const mvp=multiply4(vp,model);
      this.drawMesh(this.buildingMeshes.base,mvp,light,1,.64);
      if(hut.progress>=.3)this.drawMesh(this.buildingMeshes.walls,mvp,light,1,.64);
-     if(hut.progress>=.75)this.drawMesh(this.buildingMeshes.roof,mvp,light,1,.64);
+     if(hut.progress>=.75&&hut.id!==this.interiorBuildingId)this.drawMesh(this.buildingMeshes.roof,mvp,light,1,.64);
      if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
+     if(hut.progress>=1){
+      this.drawMesh(this.roomMeshes.floor,mvp,light,1,.72);
+      if(hut.doorOpen||hut.id===this.interiorBuildingId)this.drawMesh(this.roomMeshes.furniture,mvp,light,1,.73);
+      const target=hut.doorOpen?1.4:0,prev=this.doorAngles.get(hut.id)??0;
+      const angle=prev+(target-prev)*Math.min(1,Math.max(0,dt)*5.5);
+      this.doorAngles.set(hut.id,angle);
+      const hinge=translate(bx-this.cx-.69,hut.height,bz-this.cz+2.59);
+      this.drawMesh(this.roomMeshes.door,multiply4(vp,multiply4(hinge,rotateY(-angle))),light,1,.68);
+      const point=projectScreen(vp,[bx-this.cx,hut.height+1.48,bz-this.cz+2.68]);
+      if(point)this.screenDoors.push({...point,id:hut.id});
+     }
    }
  }
  drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
@@ -284,7 +333,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  this.screenActors=[];
+  this.screenActors=[];this.screenDoors=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
@@ -345,7 +394,12 @@ export class ExplorerRenderer{
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
-  const camera=this.cameraController.groundView(s,{
+  const room=this.sceneActions?.structures.find(b=>b.id===this.interiorBuildingId&&b.progress>=1);
+  const camera=room?{
+   eye:[room.x-this.cx,room.height+6.4,room.z-this.cz+7.0],
+   target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
+   fovDeg:64,heightM:8,marker:false
+  }:this.cameraController.groundView(s,{
     cx:this.cx,cz:this.cz,groundM:feet,focusGroundM:focusGround,dt
   });
   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
@@ -354,7 +408,7 @@ export class ExplorerRenderer{
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
-  this.drawBuildings(vp,light,s,radius);
+  this.drawBuildings(vp,light,s,radius,dt);
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
   this.drawArticulated(vp,transform,s,light,dt);
@@ -386,7 +440,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes)])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes)])m?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }
