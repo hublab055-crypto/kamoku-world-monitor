@@ -1,0 +1,33 @@
+name: Universal Engine tests
+
+on:
+  push:
+    paths:
+      - "universal-engine/**"
+      - ".github/workflows/test-universal-engine.yml"
+  pull_request:
+    paths:
+      - "universal-engine/**"
+      - ".github/workflows/test-universal-engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check Javascript syntax
+        run: |
+          node --check universal-engine/planet-explorer/app.mjs
+          node --check universal-engine/planet-explorer/render.mjs
+          node --check universal-engine/planet-explorer/buildings.mjs
+      - name: Execute Unit Tests
+        working-directory: universal-engine
+        run: npm test
