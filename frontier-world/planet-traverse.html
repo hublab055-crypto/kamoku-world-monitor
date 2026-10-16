@@ -205,7 +205,7 @@ function camp(){
 }
 camp();
 const body=new THREE.Group();scene.add(body);
-let mixer=null,clips=[],playing=null,isFallback=true,modelName='仮3Dモデル',avatarLoadSequence=0;
+let mixer=null,clips=[],playing=null,facePlaying=null,isFallback=true,modelName='仮3Dモデル',avatarLoadSequence=0;
 function placeholder(){
  const g=new THREE.Group();
  const cloth=new THREE.MeshStandardMaterial({color:'#608a87'});
@@ -259,7 +259,7 @@ async function loadAvatar(){
  if(sequence!==avatarLoadSequence||!model)return;
  try{
   const rig=cloneSkinned(model.scene);
-  mixer?.stopAllAction();playing=null;body.clear();body.add(rig);mixer=new THREE.AnimationMixer(rig);
+  mixer?.stopAllAction();playing=null;facePlaying=null;body.clear();body.add(rig);mixer=new THREE.AnimationMixer(rig);
   clips=model.animations||[];isFallback=false;modelName='GLB '+sex;
  }catch(e){console.warn('[Planet] GLB cannot be displayed',e);}
 }
@@ -278,6 +278,8 @@ function animation(walking,dt,t){
    const next=mixer.clipAction(choice);next.reset().fadeIn(.18).play();
    if(playing)playing.fadeOut(.18);playing=next;
   }
+  const facial=THREE.AnimationClip.findByName(clips,'FaceIdle');
+  if(facial&&!facePlaying)facePlaying=mixer.clipAction(facial).reset().play();
   mixer.update(dt);
  }else if(isFallback&&body.children[0]?.userData?.legs){
   const p=body.children[0],angle=walking?Math.sin(t*.01)*.47:0;
@@ -361,7 +363,7 @@ function stop(){
 el('sex').onclick=()=>{
  const next=localStorage.getItem('frontier-planet-avatar-sex')==='female'?'male':'female';
  try{localStorage.setItem('frontier-planet-avatar-sex',next);}catch(_){}
- avatarLoadSequence++;mixer?.stopAllAction();mixer=null;playing=null;clips=[];
+ avatarLoadSequence++;mixer?.stopAllAction();mixer=null;playing=null;facePlaying=null;clips=[];
  body.clear();body.add(placeholder());isFallback=true;modelName='仮3Dモデル（'+(next==='female'?'女性':'男性')+'）';
  loadAvatar().catch(console.warn);
 };
