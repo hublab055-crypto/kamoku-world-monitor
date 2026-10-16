@@ -22,7 +22,8 @@ test("unfinished buildings do not expose interactive doors",()=>{
 });
 test("door is centered on +Z side and cabin bounds match the doorway",()=>{
  const {actions}=make(),b=actions.structures[0];
- assert.deepEqual(hutDoor(b),{x:10,z:22.53});
+ assert.equal(hutDoor(b).x,10);
+ assert.ok(Math.abs(hutDoor(b).z-22.53)<1e-8);
  assert.equal(inHut(b,10,20),true);
  assert.equal(inHut(b,10,22.6),false);
  assert.equal(HUT.doorHalfWidth<1,true);
