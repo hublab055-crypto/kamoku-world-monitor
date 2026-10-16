@@ -37,7 +37,7 @@ export function multiply4(a,b){
  return out;
 }
 const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","uniform mat4 uMvp;","out vec3 vN; out vec3 vC;","void main(){vN=aNorm;vC=aColor;gl_Position=uMvp*vec4(aPos,1.0);}"].join("\n");
-const FRAG=["#version 300 es","precision highp float;","in vec3 vN; in vec3 vC;","uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;","out vec4 fragColor;","void main(){float b=max(dot(normalize(vN),normalize(uLight)),0.0);fragColor=vec4(vC*(uAmbient+(1.0-uAmbient)*b),uAlpha);}"].join("\n");
+const FRAG=["#version 300 es","precision highp float;","in vec3 vN; in vec3 vC;","uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;uniform vec3 uTint;","out vec4 fragColor;","void main(){float b=max(dot(normalize(vN),normalize(uLight)),0.0);fragColor=vec4(vC*uTint*(uAmbient+(1.0-uAmbient)*b),uAlpha);}"].join("\n");
 function shader(gl,mode,src){
  const sh=gl.createShader(mode);gl.shaderSource(sh,src);gl.compileShader(sh);
  if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error("Shader compile: "+gl.getShaderInfoLog(sh));
@@ -164,7 +164,7 @@ export class ExplorerRenderer{
   gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
-  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");
+  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.patch=null;this.trees=null;this.patchKey=null;
@@ -225,7 +225,7 @@ export class ExplorerRenderer{
    const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
    return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
  }
- drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0}){
+ drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0},tint=[1,1,1]){
    const face=expression.update(dt);
    const pose=animator.update(dt,{
       moving:s.moving,phase:s.totalDistanceM*2.7,
@@ -247,11 +247,11 @@ export class ExplorerRenderer{
        const x=Math.max(.5,Math.min(1.4,face.mouthWidth));
        m=matrixMultiply(m,[x,0,0,0,0,1,0,0,0,0,1,0,0,face.mouthHeight,0,1]);
      }
-     this.drawMesh(mesh,multiply4(vp,m),light,1,.72);
+     this.drawMesh(mesh,multiply4(vp,m),light,1,.72,tint);
    }
    if(pose.tool&&this.tools[pose.tool]){
      const held=matrixMultiply(avatarTransform,joints.rightWrist);
-     this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68);
+     this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68,tint);
    }
  }
  drawBuildings(vp,light,s,radius){
@@ -268,9 +268,9 @@ export class ExplorerRenderer{
      if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
    }
  }
- drawMesh(mesh,mvp,light,alpha=1,ambient=.25){
+ drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
-  gl.uniform3fv(this.uLight,new Float32Array(light));
+  gl.uniform3fv(this.uLight,new Float32Array(light));gl.uniform3fv(this.uTint,new Float32Array(tint));
   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);mesh.draw();
  }
  frame(state,dt=1/60){
@@ -376,7 +376,8 @@ export class ExplorerRenderer{
     this.npcAnimators.set(agent.id,{animator:new SmoothAnimator(),expression:new ExpressionController()});
    const ctx=this.npcAnimators.get(agent.id);
    this.drawArticulated(vp,translate(x,elevation+(unit.jumpY||0),z),unit,light,dt,
-    ctx.animator,ctx.expression,this.squad.getMotion(agent));
+    ctx.animator,ctx.expression,this.squad.getMotion(agent),
+     agent.id==="scout"?[.65,.86,1]:[1,.78,.65]);
   }
   if(camera.marker){
    const screen=projectScreen(vp,camera.actorPos);
