@@ -82,10 +82,10 @@ test("humanoid adversaries walk towards player, receive strikes and can be defea
  assert.equal(enemy.hp,0);
  assert.equal(arena.count(),0);
 });
-test("enemy selector exposes all four new entries and v0.7o assets",()=>{
+test("enemy selector exposes all four entries in current version",()=>{
  const page=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
  for(const id of ["skeleton","orc","lizardman","demon"])
   assert.match(page,new RegExp('value="'+id+'"'));
- assert.match(page,/V0\.7o/);
- assert.match(page,/app\.mjs\?v=0\.7o/);
+ assert.match(page,/V0\.7[op]/);
+ assert.match(page,/app\.mjs\?v=0\.7[op]/);
 });
