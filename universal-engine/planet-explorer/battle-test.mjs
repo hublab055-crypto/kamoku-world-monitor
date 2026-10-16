@@ -16,6 +16,7 @@ export class BattleTest{
  constructor(){
   this.enemies=[];this.nextId=1;this.maxEnemies=10;
   this.lastAttack=null;this.hitStages=new Set();
+  this.playerHp=100;this.enemyHits=[];
  }
  spawn(controller,type="slime"){
   const config=TEST_ENEMIES[type];
@@ -30,27 +31,67 @@ export class BattleTest{
   const z=controller.z+Math.cos(yaw)*front-Math.sin(yaw)*side;
   const enemy={id:this.nextId++,type,name:config.name,
    x,z,yaw:wrap(yaw+Math.PI),radius:config.radius,height:config.height,
-   hp:config.hp,maxHp:config.hp,speed:config.speed,walkPhase:0};
+   hp:config.hp,maxHp:config.hp,speed:config.speed,walkPhase:0,
+   anim:"idle",animTime:0,attackCooldown:.6,guardCooldown:0,
+   attackLanded:false,deathTime:0,lastHit:0};
   this.enemies.push(enemy);
   return {ok:true,enemy,message:"👾 "+config.name+"が前方に出現しました（HP "+config.hp+"）。"};
  }
- advance(dt,player){
+ /** Animated approach, attack, guard, hit and death in isolated battle sandbox. */
+ advance(dt,player,playerAction=null){
   if(!Number.isFinite(dt)||dt<0)throw TypeError("Invalid battle timestep");
   if(!player)return;
   const step=clamp(dt,0,.1);
   for(const e of this.enemies){
-   if(e.hp<=0)continue;
+   if(e.hp<=0){e.anim="death";e.deathTime=(e.deathTime||0)+step;continue;}
+   e.animTime=(e.animTime||0)+step;
+   e.attackCooldown=Math.max(0,(e.attackCooldown||0)-step);
+   e.guardCooldown=Math.max(0,(e.guardCooldown||0)-step);
    const dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz);
-   if(d<.001)continue;
-   e.yaw=Math.atan2(dx,dz);
-   // Slow pursuit creates a moving target, but no damage to the player yet.
+   if(d>.001)e.yaw=Math.atan2(dx,dz);
+   if(e.anim==="hit"){
+    if(e.animTime<.34)continue;
+    e.anim="idle";e.animTime=0;
+   }
+   if(e.anim==="guard"){
+    if(e.animTime<.52)continue;
+    e.anim="idle";e.animTime=0;
+   }
+   if(e.anim==="attack"){
+    // Damage only on the animated weapon's impact; never every frame.
+    if(e.animTime>=.52&&!e.attackLanded){
+     e.attackLanded=true;
+     if(d<3.0&&this.playerHp>0){
+      const points=e.type==="orc"?12:e.type==="demon"?14:e.type==="skeleton"?7:8;
+      this.playerHp=Math.max(0,this.playerHp-points);
+      this.enemyHits.push({name:e.name,damage:points,hp:this.playerHp,
+       message:e.name+" の攻撃：-"+points+" HP（戦闘テストHP "+this.playerHp+"）"});
+     }
+    }
+    if(e.animTime<1.03)continue;
+    e.anim="idle";e.animTime=0;e.attackCooldown=1.35;
+   }
+   const incoming=playerAction&&["sword","axe"].includes(playerAction.kind)&&
+    playerAction.time/playerAction.duration<.47&&playerAction.time/playerAction.duration>.09;
+   const facingPlayer=Math.abs(wrap(Math.atan2(e.x-player.x,e.z-player.z)-(player.yaw||0)))<1.25;
+   if(incoming&&facingPlayer&&d<3.7&&e.guardCooldown===0&&e.type!=="slime"){
+    e.anim="guard";e.animTime=0;e.guardCooldown=2.2;
+    continue;
+   }
    if(d>2.45){
     const travel=Math.min(d-2.45,e.speed*step);
-    e.x+=dx/d*travel;e.z+=dz/d*travel;
+    e.x+=dx/(d||1)*travel;e.z+=dz/(d||1)*travel;
     e.walkPhase=(e.walkPhase||0)+travel*6.5;
+    if(e.anim!=="walk"){e.anim="walk";e.animTime=0;}
+   }else if(e.attackCooldown===0&&this.playerHp>0){
+    e.anim="attack";e.animTime=0;e.attackLanded=false;
+   }else if(e.anim!=="idle"){
+    e.anim="idle";e.animTime=0;
    }
   }
  }
+ consumeEnemyHits(){return this.enemyHits.splice(0);}
+
  hitArc(player,{range=2.5,arc=Math.PI*.9,damage=18}={}){
   const results=[],yaw=player.yaw||0;
   for(const e of this.enemies){
@@ -76,10 +117,15 @@ export class BattleTest{
   return target?[this.damage(target,damage)]:[];
  }
  damage(enemy,points){
-  enemy.hp=Math.max(0,enemy.hp-points);
+  if(enemy.hp<=0)return {id:enemy.id,type:enemy.type,name:enemy.name,hp:0,damage:0,defeated:true,message:enemy.name+" は既に撃破されています"};
+  const guarded=enemy.anim==="guard"&&enemy.animTime<.52;
+  const dealt=guarded?Math.max(1,Math.round(points*.45)):points;
+  enemy.hp=Math.max(0,enemy.hp-dealt);
+  enemy.lastHit=dealt;enemy.anim=enemy.hp===0?"death":"hit";
+  enemy.animTime=0;enemy.deathTime=0;enemy.attackLanded=false;
   return {id:enemy.id,type:enemy.type,name:enemy.name,hp:enemy.hp,
-   damage:points,defeated:enemy.hp===0,
-   message:enemy.name+" に "+points+" ダメージ"+(enemy.hp===0?"！撃破！":"（残りHP "+enemy.hp+"）")};
+   damage:dealt,guarded,defeated:enemy.hp===0,
+   message:enemy.name+" に "+dealt+" ダメージ"+(guarded?"（防御）":"")+(enemy.hp===0?"！撃破！":"（残りHP "+enemy.hp+"）")};
  }
  /** Apply impacts once at the visual strike/release phase (never per frame). */
  resolveAttack(active,player){
@@ -106,5 +152,8 @@ export class BattleTest{
   return results;
  }
  count(){return this.enemies.filter(e=>e.hp>0).length;}
- clear(){this.enemies=[];this.lastAttack=null;this.hitStages.clear();}
+ clear(){
+  this.enemies=[];this.lastAttack=null;this.hitStages.clear();
+  this.playerHp=100;this.enemyHits=[];
+ }
 }
