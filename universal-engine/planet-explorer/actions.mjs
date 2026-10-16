@@ -7,7 +7,7 @@ export const ATTACK_VARIANTS=Object.freeze(["overhead","sweep","thrust","combo"]
 export function actionDuration(kind,variant="overhead"){
  if(kind==="sword")return variant==="combo"?1.42:.58;
  if(kind==="axe")return variant==="combo"?1.38:.78;
- return {mine:1.65,bow:1.62,build:4.3}[kind]??0;
+ return {mine:1.65,bow:1.62,guard:1.2,build:4.3}[kind]??0;
 }
 function distanceMeters(a,b,radius){
   const rad=Math.PI/180,dlat=(b.lat-a.lat)*rad,dlon=(b.lon-a.lon)*rad;
@@ -23,7 +23,7 @@ export class Actions {
     this.message="準備完了";
   }
   start(kind, controller, terrainSurface, variant="overhead") {
-    if(!["sword","axe","mine","bow","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
+    if(!["sword","axe","mine","bow","guard","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
     if(this.active){this.message="動作が完了してから操作してください";return false;}
     if(controller.altitudeM>12.01 || controller.jumpY>.01) {
       this.message="地上に立ってから操作してください";return false;
@@ -52,7 +52,7 @@ export class Actions {
       this.structures.push({id:structureId,x,z,lat:p.lat,lon:p.lon,height:surface.elevationM,progress:0,kind:"hut"});
     }
     this.active={kind,time:0,duration,structureId,variant:move};
-    this.message={sword:"剣で攻撃モーション",axe:"斧で薪を割る",mine:"つるはしで石を採掘",bow:"弓を引いて矢を放つ",build:"作業小屋を建築中"}[kind];
+    this.message={sword:"剣で攻撃モーション",axe:"斧で薪を割る",mine:"つるはしで石を採掘",bow:"弓を引いて矢を放つ",guard:"盾を構えて防御中",build:"作業小屋を建築中"}[kind];
     return true;
   }
   advance(dt) {
@@ -71,7 +71,7 @@ export class Actions {
     if(completed==="mine"){this.resources.stone+=2;this.resources.clay=(this.resources.clay||0)+1;this.resources.metal=(this.resources.metal||0)+1;}
     this.completed++;
     this.active=null;
-    this.message={sword:"剣の振り終わり",axe:"木材 +2",mine:"石材 +2",bow:"矢を放ちました",build:"作業小屋が完成"}[completed];
+    this.message={sword:"剣の振り終わり",axe:"木材 +2",mine:"石材 +2",bow:"矢を放ちました",guard:"ガード解除",build:"作業小屋が完成"}[completed];
     return completed;
   }
   getAnimation() {
@@ -91,7 +91,7 @@ export class Actions {
     for(const s of data.structures){
       if(![s.x,s.z,s.height,s.progress,s.id,s.lat,s.lon].every(Number.isFinite)||s.progress<0||s.progress>1)throw Error("Invalid saved building.");
     }
-    if(data.active && (!["sword","axe","mine","bow","build"].includes(data.active.kind)||
+    if(data.active && (!["sword","axe","mine","bow","guard","build"].includes(data.active.kind)||
        ![data.active.time,data.active.duration].every(Number.isFinite)||
        data.active.time<0||data.active.duration<=0))throw Error("Invalid saved action.");
     x.resources={...x.resources,...data.resources};
