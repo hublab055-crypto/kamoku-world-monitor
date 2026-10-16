@@ -37,7 +37,7 @@ export class SmoothAnimator {
  reset(){this.pose=samplePose();this.state="idle";this.elapsed=0;this.movementIntensity=0;}
  update(dt,{
    moving=false,phase=0,speedMps=moving?5:0,jumpHeight=0,action="idle",progress=0,
-   emotion="neutral",faceDirection=0
+   emotion="neutral",faceDirection=0,hand="right"
  }={}){
   if(![dt,phase,speedMps,jumpHeight,progress,faceDirection].every(Number.isFinite)||dt<0)
     throw TypeError("Invalid animation update");
@@ -57,6 +57,17 @@ export class SmoothAnimator {
       if(["torsoX","torsoY","leftShoulderX","rightShoulderX",
           "leftShoulderZ","rightShoulderZ","leftElbowX","rightElbowX",
           "leftWristX","rightWristX"].includes(key))target[key]=tool[key];
+    }
+    if(hand==="left"){
+      // Mirror the tool gesture at the shoulder / elbow / wrist. Leg locomotion
+      // and other life poses are unaffected by the wielding hand.
+      for(const segment of ["ShoulderX","ShoulderZ","ElbowX","WristX"]){
+       const lk="left"+segment,rk="right"+segment;
+       const left=tool[lk],right=tool[rk];
+       if(Number.isFinite(left)&&Number.isFinite(right)){
+        target[lk]=right;target[rk]=left;
+       }
+      }
     }
     target.tool=tool.tool;
   }
