@@ -79,7 +79,7 @@ export class SquadEngine{
   return moved;
  }
  halt(ids){
-  for(const id of ids){const a=this.get(id);if(a){a.control.clearMoveTarget();a.task=null;a.cooldown=1.5;a.order="hold";a.status="待機指示";}}
+  for(const id of ids){const a=this.get(id);if(a){a.control.clearMoveTarget();a.task=null;a.auto=false;a.cooldown=1.5;a.order="hold";a.status="待機指示";}}
  }
  metrics(a){
   const leader=this.get("player").control;
