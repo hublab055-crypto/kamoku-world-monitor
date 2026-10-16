@@ -517,6 +517,9 @@ export class ExplorerRenderer{
    let drawn=true;
    try{rig.draw(vp,characterTransform,light,id,dt,{
     moving:Boolean(unit.moving),motion:motion?.action||"idle",
+    motionProgress:Number.isFinite(motion?.progress)?motion.progress:null,
+    variant:motion?.variant||"overhead",
+    hand:motion?.hand||this.actionHand?.[id]||"right",
     talking:animation?.kind==="talk"&&animation.remaining>0,
     giving:animation?.kind==="gift"&&animation.remaining>0
    });}
