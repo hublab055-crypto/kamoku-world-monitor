@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#081b2b">
+<title>Planet Explorer | Universal Engine</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="container top-line">
+    <a href="../../../../" class="back">← Universal Engine</a>
+    <span class="label">MULTIVERSE / PLANET EXPLORER</span>
+  </div>
+  <div class="container headline">
+    <div>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7a 保存版</p>
+      <h1>オリジナルの世界を歩く。</h1>
+      <p>v0.7a試験版：60関節の人体リグと補間モーションを追加しました。旧v0.6版はいつでも起動でき、セーブは別々です。</p>
+    </div>
+    <div class="version-control"><a href="../../../../planet-explorer/" title="最新版を開く">最新バージョンへ →</a><span class="version-tag">v0.7a 試験版</span>
+  <a id="version-back" href="../../v0.6/planet-explorer/" title="旧バージョンv0.6を起動（保存データは別）">↶ v0.6に戻る</a>
+</div>
+  </div>
+</header>
+<main class="container">
+  <section class="panel view-panel">
+    <div class="view-header">
+      <div>
+        <span class="eyebrow">01 / WORLD VIEWPORT</span>
+        <h2>Terra Nova <small id="mode">惑星読み込み中</small></h2>
+      </div>
+      <div class="quick-actions">
+        <button type="button" id="fullscreen-toggle" class="immersive-toggle" aria-pressed="false" aria-label="画面を最大化">⛶ 画面を広げる</button>
+        <button type="button" id="ground-button" class="primary">↓ 地表へ降下</button>
+        <button type="button" id="orbit-button">↑ 宇宙へ戻る</button>
+      </div>
+    </div>
+    <div class="mode-bar" aria-label="移動モード">
+  <span>移動方法</span>
+  <button type="button" id="mode-stick" aria-pressed="true">● スティック</button>
+  <button type="button" id="mode-tap" aria-pressed="false">◎ タップ移動</button>
+  <label class="avatar-style-label" for="avatar-style">人物</label>
+  <select id="avatar-style" aria-label="アバターの種類">
+    <option value="pioneer">開拓者・翠</option>
+    <option value="scout">斥候・藍</option>
+    <option value="artisan">職人・錆朱</option>
+  </select>
+  <a class="model-lab-link" href="../model-lab/">3Dモデル工房 ↗</a>
+  <strong id="control-state">スティック移動</strong>
+</div>
+<div class="canvas-wrap">
+      <canvas id="world" width="960" height="560" aria-label="3D惑星と地表を表示するWebGL2ビュー。ドラッグで向きを変えます。"></canvas>
+      <div class="viewport-overlay">
+        <div>高度 <strong id="height">-- m</strong></div>
+        <div class="coords" id="coords">--°, --°</div>
+      </div>
+      <div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
+  <div class="stick-base"><div id="stick-nub" class="stick-nub"></div></div>
+  <span>MOVE</span>
+</div>
+<div id="action-pad" class="action-pad" aria-label="アクション">
+  <button type="button" id="jump">ジャンプ</button>
+  <button type="button" id="action-sword">剣</button>
+  <button type="button" id="action-axe">斧</button>
+  <button type="button" id="action-mine">採掘</button>
+  <button type="button" id="action-build">建築</button>
+</div>
+<div id="fatal" class="fatal" hidden>初期化中</div>
+      <div class="mode-hint" id="walk-note">画面をドラッグして向きを調節できます。</div>
+    </div>
+    <div class="toolbar">
+      <button id="zoom-in" type="button">＋ 拡大</button>
+      <button id="zoom-out" type="button">− 縮小</button>
+      <button id="play" type="button">⏸ 時間を停止</button>
+      <label for="days-per-second">時間速度</label>
+      <select id="days-per-second">
+        <option value=".4">ゆっくり</option>
+        <option value="2" selected>標準</option>
+        <option value="10">速い</option>
+        <option value="40">超高速</option>
+      </select>
+      <button id="next-day" type="button">＋1日</button>
+      <button id="next-season" type="button">＋90日</button>
+      <button id="save" type="button">v0.7a保存</button>
+      <button id="restore" type="button">v0.7a復元</button>
+      <button id="import-v06-save" type="button" title="v0.6の保存データをコピーして読み込む。旧保存データは変更しません。">v0.6データ読込</button>
+      <button id="reset" type="button">初期化</button>
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <div class="panel">
+      <span class="eyebrow">02 / LANDING & EXPLORATION</span>
+      <h2>地表の探索</h2>
+      <p class="hint">着陸地点へ降下後、スティックまたは画面をタップして移動できます。ジャンプ、剣、斧、採掘、建築は画面右側のボタンから。キーボードはWASD、Q/Eを利用できます。</p>
+      <label for="landing-select">着陸エリア</label>
+      <select id="landing-select" class="wide-select">
+        <option value="28,42" selected>初期大陸候補</option>
+        <option value="0,80">赤道周辺の大陸候補</option>
+        <option value="54,-100">北方の大陸候補</option>
+        <option value="-32,118">南半球の大陸候補</option>
+      </select>
+      <p class="small-info">着陸地: <strong id="landing">検索中</strong></p>
+      <div class="mobile-dpad" aria-label="歩行と旋回操作">
+        <div class="dpad-row">
+          <button type="button" data-move="w" aria-label="前進">▲</button>
+        </div>
+        <div class="dpad-row">
+          <button type="button" data-move="q" aria-label="左旋回">↶ 左旋回</button>
+          <button type="button" data-move="s" aria-label="後退">▼</button>
+          <button type="button" data-move="e" aria-label="右旋回">右旋回 ↷</button>
+        </div>
+        <div class="dpad-row">
+          <button type="button" data-move="a" aria-label="左へ移動">◀</button>
+          <button type="button" data-move="d" aria-label="右へ移動">▶</button>
+        </div>
+      </div>
+      <p id="walk-status" class="status">降下中／宇宙視点</p>
+    </div>
+
+    <div class="panel">
+      <span class="eyebrow">03 / LIVE ENVIRONMENT</span>
+      <h2>現在位置の環境</h2>
+      <div class="metrics">
+        <div><span>地表標高</span><strong id="ground-height">--</strong></div>
+        <div><span>地形区分</span><strong id="biome">--</strong></div>
+        <div><span>気温</span><strong id="temp">--</strong></div>
+        <div><span>日照</span><strong id="sunlight">--</strong></div>
+        <div><span>経過日数</span><strong id="day">--</strong></div>
+        <div><span>歩行距離</span><strong id="walked">--</strong></div>
+        <div><span>描画速度</span><strong id="fps">-- fps</strong></div>
+        <div><span>跳躍</span><strong id="jump-state">接地</strong></div>
+        <div><span>道具/作業</span><strong id="action-state">準備完了</strong></div>
+        <div><span>資材</span><strong id="materials">木12 / 石8</strong></div>
+        <div><span>完成した小屋</span><strong id="building-count">0</strong></div>
+      </div>
+      <p class="hint">地上メッシュは、宇宙から見た地形と同じ緯度・経度および高度サンプルから生成しています。描画負荷を抑えるため高度に応じて地形の細かさを変えます。</p>
+    </div>
+  </section>
+  <section class="panel bottom-info">
+    <span class="eyebrow">ENGINE STATUS</span>
+    <h2>エンジン・ログ</h2>
+    <ul id="log" aria-live="polite"></ul>
+    <p class="disclaimer">本作は架空惑星のWebGL2プロトタイプです。惑星全体の地形と着陸地の座標は共通ですが、詳細な植生・動物AI・建築・河川流量・マルチプレイヤー同期はまだ組み込んでいません。現実世界を投影するKamoku Monitorおよび既存Frontier Worldとは未接続です。剣は演出用でダメージ判定なし、斧・採掘の資源増加と建築はデモ用の仮ルールです。</p>
+    <a href="../planet-demo/">従来の気候・生態系・重力実験デモを見る →</a>
+  </section>
+</main>
+<footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>
