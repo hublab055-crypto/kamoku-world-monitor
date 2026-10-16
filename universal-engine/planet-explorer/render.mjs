@@ -390,7 +390,7 @@ export function heldItemTransform(kind){
  const grip=translate(0,-.155,.05);
  // Blades point ahead at rest, instead of hanging downward from the wrist.
  // A bow retains its vertical shape while the arrow points ahead.
- return kind==="bow"?grip:multiply4(grip,rotX(Math.PI/2));
+ return kind==="bow"||kind==="shield"?grip:multiply4(grip,rotX(Math.PI/2));
 }
 function sphereGeometry(terrain,planet){
  const ground=builder(),clouds=builder(),R=600,resLat=64,resLon=128;
