@@ -289,5 +289,6 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(e.key.toLowerCase()==="r"){e.preventDefault();useHand("right");}
   if(e.key.toLowerCase()==="l"){e.preventDefault();useHand("left");}
  });
- return {quick,restore,snapshot,updateCamera,loadModels,equipmentInventory,equipHandFromInventory};
+ return {quick,restore,snapshot,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
+  attackVariantFor:(id,kind)=>social.attackVariant(id,kind)};
 }
