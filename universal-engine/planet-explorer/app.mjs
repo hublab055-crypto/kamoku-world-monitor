@@ -984,6 +984,7 @@ lifeUI=installLifestyleUI({
  });
  frontierUI=installFrontierInteractions({
  get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,rtsMode,
+  manualInputActive:Math.abs(stick.x)+Math.abs(stick.y)>.16||["w","a","s","d","ArrowUp","ArrowDown"].some(k=>keys.has(k)),
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal
 });
