@@ -1,4 +1,5 @@
 import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP} from "./social-equipment.mjs";
+import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs";
 import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
 
 /** Browser UI adapter; domain logic lives in SocialEquipment. */
@@ -6,7 +7,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  const $=id=>document.getElementById(id);
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let modelSource="standard",modelQuality="auto",modelLoadId=0;
- let configId="player",slotSignature="";
+ let configId="player",slotSignature="",lastActiveActor=null;
+ let decks=Object.fromEntries(["player","scout","artisan"].map(id=>[id,new ActionSlots()]));
  const handNames={right:"右手",left:"左手"};
  const actor=()=>{const c=get();return (c.rtsMode?c.squad?.selectedAgents()[0]:null)||c.squad?.get("player");};
  function equipmentInventory(){const c=get(),who=actor();return c.squad&&who?social.inventoryFor(who,c.life,c.squad.frontier):[];}
@@ -28,26 +30,108 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(r.ok){slotSignature="";quick();if(!$("quick-config-panel").hidden)renderConfig();}
   updateHUD();return r;
  }
+ function isCombat(who=actor()){
+  return !!who&&["melee","bow"].includes(decks[who.id]?.current().kind);
+ }
+ function applyDeck(who,{quiet=false}={}){
+  const c=get(),deck=decks[who?.id]?.current();
+  if(!c.squad||!who||!deck)return false;
+  const before={...social.actor(who.id).hands};
+  for(const hand of ["right","left"]){
+   const result=social.equipHand(who,hand,deck.hands[hand],c.life,c.squad.frontier);
+   if(!result.ok){
+    social.actor(who.id).hands=before;
+    if(!quiet)log(result.message);
+    return false;
+   }
+  }
+  if(c.renderer)syncHands();
+  return true;
+ }
+ function selectDeck(index){
+  const who=actor();if(!who)return;
+  const deck=decks[who.id],previous=deck.selected;
+  if(!deck.select(index))return;
+  if(!applyDeck(who)){deck.select(previous);applyDeck(who,{quiet:true});return;}
+  slotSignature="";quick();updateHUD();
+ }
+ function updateTarget(){
+  const c=get(),who=actor(),deck=decks[who?.id];
+  if(!deck||!c.battle||!c.renderer)return null;
+  const combat=isCombat(who);
+  const range=deck.current().kind==="bow"?18:4;
+  const target=combat?deck.resolveTarget(c.battle.enemies,who.control,range):null;
+  c.renderer.combatTargetId=target?.id||null;
+  c.battle.targetId=target?.id||null;
+  $("aim-reticle").hidden=!combat;
+  const label=$("combat-target-label");label.hidden=!combat;
+  if(combat)label.textContent=target?"🎯 "+target.name+" / HP "+target.hp+
+    (deck.manualTargetId===target.id?"（手動）":"（自動）"):"🎯 対象なし"+
+    (deck.autoTarget?"":"（手動選択）");
+  return target;
+ }
+ function selectTargetAt(clientX,clientY){
+  const c=get(),who=actor();
+  if(!isCombat(who)||!c.renderer?.canvas||!c.battle)return false;
+  const rect=c.renderer.canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return false;
+  const nx=(clientX-rect.left)/rect.width,ny=(clientY-rect.top)/rect.height;
+  let closest=null,best=.085;
+  for(const marker of c.renderer.screenEnemies||[]){
+   if(!marker.onScreen||!c.battle.enemies.some(e=>e.id===marker.id&&e.hp>0))continue;
+   const d=Math.hypot((marker.u-nx)*rect.width,(marker.v-ny)*rect.height);
+   const dnorm=d/Math.max(1,Math.min(rect.width,rect.height));
+   if(dnorm<best){closest=marker;best=dnorm;}
+  }
+  if(!closest)return false;
+  decks[who.id].setManualTarget(closest.id);
+  updateTarget();log("🎯 "+closest.name+"を手動ターゲットに指定しました。");return true;
+ }
  function quick(){
   const c=get();if(!c.squad)return;
-  const who=actor(),a=social.actor(who.id);
+  const who=actor(),a=social.actor(who.id),deck=decks[who.id];
+  if(who.id!==lastActiveActor){
+   applyDeck(who,{quiet:true});lastActiveActor=who.id;slotSignature="";
+  }
   syncHands();
-  const key=who.id+":"+a.selected+":"+a.slots.join(",")+":"+a.hands.right+":"+a.hands.left;
-  if(slotSignature===key)return;slotSignature=key;
+  const key=who.id+":"+deck.selected+":"+JSON.stringify(deck.slots)+":"+
+   a.hands.right+":"+a.hands.left;
+  if(slotSignature===key)return;
+  slotSignature=key;
   const root=$("quick-slots");root.replaceChildren();
-  a.slots.forEach((id,i)=>{
-   const item=ITEM_MAP.get(id),b=document.createElement("button");b.type="button";
-   b.setAttribute("aria-pressed",String(i===a.selected));
-   b.title=(i+1)+": "+(item?.name||id);
-   b.append(document.createTextNode((item?.icon||"▫️")+(i+1)));
-   const caption=document.createElement("span");caption.textContent=item?.name||id;b.append(caption);
-   b.addEventListener("click",()=>{social.select(who.id,i);slotSignature="";quick();});
+  deck.slots.forEach((entry,i)=>{
+   const info=DECK_KINDS[entry.kind],b=document.createElement("button");b.type="button";
+   b.setAttribute("aria-pressed",String(i===deck.selected));
+   b.title=(i+1)+": "+info.name+" / "+entry.commands.map(k=>COMMAND_LABELS[k]).join("・");
+   b.append(document.createTextNode(info.icon+(i+1)));
+   const caption=document.createElement("span");caption.textContent=info.name;b.append(caption);
+   b.addEventListener("click",()=>selectDeck(i));
    root.append(b);
   });
+  const bar=$("action-command-bar");bar.replaceChildren();
+  deck.current().commands.forEach(command=>{
+   const button=document.createElement("button");button.type="button";
+   button.textContent=COMMAND_LABELS[command];
+   button.addEventListener("click",()=>runCommand(command));
+   bar.append(button);
+  });
+  if(isCombat(who)){
+   const clear=document.createElement("button");clear.type="button";
+   clear.textContent="× 解除";clear.title="手動ターゲットを解除";
+   clear.addEventListener("click",()=>{deck.clearManual();updateTarget();});
+   bar.append(clear);
+  }
+  $("quick-use").title="実行："+COMMAND_LABELS[deck.current().commands[0]];
+  updateTarget();
  }
- function executeItem(result,who,c,hand="right"){
+ function executeItem(result,who,c,hand="right",chosenVariant=null){
   if(!result.ok){log(result.message);return result;}
   if(result.kind==="book"){openBookLibrary();return result;}
+  if(result.kind==="guard"){c.battle?.guard();log(result.message);return result;}
+  if(result.kind==="heal"){
+   const healed=c.battle?.heal(result.amount)||0;
+   log(result.message+" 戦闘HP +"+healed);saveLifeJournal();updateHUD();return result;
+  }
   if(result.kind==="deploy"){
    if(who.id!=="player"){log("設置操作は開拓者が行います。");return {ok:false,message:"NPCの設置未対応"};}
    const kind=result.item,stock=c.life.inventory,gifts=c.squad.frontier.person(who.id)?.gifts||{},
@@ -66,8 +150,15 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    return deployed;
   }
   if(result.kind==="action"){
-   const variant=["sword","axe"].includes(result.action)?
-     social.attackVariant(who.id,result.action):"overhead";
+   const variant=chosenVariant||(["sword","axe"].includes(result.action)?
+     social.attackVariant(who.id,result.action):"overhead");
+   if(who.id==="player"&&["sword","axe","bow"].includes(result.action)){
+    const target=updateTarget();
+    if(target){
+     const desired=Math.atan2(target.x-c.controller.x,target.z-c.controller.z);
+     c.controller.turn(Math.atan2(Math.sin(desired-c.controller.yaw),Math.cos(desired-c.controller.yaw)));
+    }
+   }
    if(who.id!=="player"){
     const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant);
     if(ok){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
@@ -81,12 +172,48 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   }else{log(result.message);saveLifeJournal();}
   updateHUD();return result;
  }
+ function runCommand(command){
+  const c=get(),who=actor();if(!who)return {ok:false};
+  const item=(gear,hand="right",variant=null)=>executeItem(
+   social.useItem(who,gear,c.life,c.squad.frontier),who,c,hand,variant);
+  switch(command){
+   case "sweep":return item(social.handItem(who.id,"right")==="axe"?"axe":"sword","right","sweep");
+   case "thrust":return item("sword","right","thrust");
+   case "shoot":{
+    const hand=social.handItem(who.id,"left")==="bow"?"left":"right";
+    return item("bow",hand);
+   }
+   case "guard":c.battle?.guard();log("🛡️ ガード！ 次の攻撃を軽減します。");updateHUD();return {ok:true};
+   case "heal":return item("potion");
+   case "aim":{
+    const deck=decks[who.id];deck.autoTarget=!deck.autoTarget;
+    updateTarget();log(deck.autoTarget?"🎯 自動ターゲットを有効にしました。":"🎯 手動ターゲットモードです。敵をタップしてください。");
+    return {ok:true};
+   }
+   case "mine":return item("pickaxe");
+   case "chop":return item("axe");
+   case "build":return executeItem({ok:true,kind:"action",action:"build"},who,c);
+   case "talk":case "gift":openSocial();if(command==="gift")$("social-gift-item").focus();return {ok:true};
+   case "emote":{
+    who.status="🙂 エモート";
+    c.renderer?.triggerSocial(who.id,c.squad.agents.find(a=>a.id!==who.id)?.id,"talk");
+    log(who.name+"が手を振りました。");return {ok:true};
+   }
+   case "follow":{
+    if(who.id==="player"){openSocial();log("ついてきてほしい人物を選択してください。");return {ok:true};}
+    who.order="follow";who.status="👣 隊長を追従";who.auto=true;
+    log(who.name+"が隊長についていきます。");return {ok:true};
+   }
+   case "rest":log("💤 休息はベッドやベッドロールで行えます。");c.lifeUI?.open("home");return {ok:true};
+   case "inventory":c.lifeUI?.open("inventory");return {ok:true};
+   case "book":openBookLibrary();return {ok:true};
+   case "config":configId=who.id;renderConfig();$("quick-config-panel").hidden=false;return {ok:true};
+   default:return {ok:false,message:"未対応コマンド"};
+  }
+ }
  function useItem(){
-  const c=get(),who=actor();if(!who)return;
-  const chosen=social.chosen(who.id);
-  const hand=social.handItem(who.id,"right")===chosen?"right":
-    social.handItem(who.id,"left")===chosen?"left":"right";
-  return executeItem(social.use(who,c.life,c.squad.frontier),who,c,hand);
+  const who=actor();if(!who)return;
+  return runCommand(decks[who.id].current().commands[0]);
  }
  function useHand(hand){
   const c=get(),who=actor();if(!who)return;
