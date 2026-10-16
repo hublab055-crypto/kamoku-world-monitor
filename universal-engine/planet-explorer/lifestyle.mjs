@@ -26,7 +26,7 @@ const defaults=Object.freeze([
  ["chair",.55,-1.12,0],["chair",.55,1.14,180],
  ["lamp",-.72,-1.76,0],["bookshelf",.28,-1.95,0]
 ]);
-const initialItems={plate:3,bowl:2,cup:2,pot:1,spoon:3,rawFood:4,meal:0,served:0,dirtyPlate:0,water:4};
+const initialItems={plate:3,bowl:2,cup:2,pot:1,spoon:3,rawFood:4,meal:0,served:0,dirtyPlate:0,dirtyBowl:0,dirtyCup:0,servedBowl:0,water:4};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const validNumber=n=>Number.isFinite(n);
 const copy=value=>JSON.parse(JSON.stringify(value));
@@ -204,12 +204,17 @@ export class Lifestyle {
    return result(true,"💧 台所で水を3杯汲みました（試験版）。");
   }
   if(action==="wash"&&kind==="kitchen"){
-   if(this.count("dirtyPlate")<1)return result(false,"洗う皿がありません。");
+   const dirty=this.count("dirtyPlate")+this.count("dirtyBowl")+this.count("dirtyCup");
+   if(dirty<1)return result(false,"洗う食器がありません。");
    if(this.count("water")<1)return result(false,"水がありません。");
-   const qty=Math.min(this.count("dirtyPlate"),this.count("water"));
-   this.inventory.dirtyPlate-=qty;this.inventory.water-=qty;this.inventory.plate+=qty;
-   activity("wash");this.stats.cleanliness=clamp(this.stats.cleanliness+4,0,100);
-   return result(true,"🧼 皿を"+qty+"枚洗い、食器棚へ戻しました。");
+   let left=this.count("water"),qty=0;
+   for(const [from,to] of [["dirtyPlate","plate"],["dirtyBowl","bowl"],["dirtyCup","cup"]]){
+    const n=Math.min(this.count(from),left);
+    this.inventory[from]-=n;this.inventory[to]+=n;left-=n;qty+=n;
+   }
+   this.inventory.water=left;activity("wash");
+   this.stats.cleanliness=clamp(this.stats.cleanliness+4,0,100);
+   return result(true,"🧼 食器を"+qty+"個洗い、使える状態に戻しました。");
   }
   if(action==="cook"&&["kitchen","fireplace"].includes(kind)){
    if(kind==="fireplace"&&!f.lit)return result(false,"暖炉に火がついていません。");
@@ -246,6 +251,30 @@ export class Lifestyle {
   if(action==="exit"&&d.kind==="tent")return this.exitTent(actor);
   if(action==="pack")return this.pack(id,actor);
   return result(false,"この操作はできません。");
+ }
+ useItem(kind){
+  if(kind==="cup"){
+   if(this.count("cup")<1||this.count("water")<1)
+    return result(false,"飲み物の水とコップが必要です。");
+   this.inventory.cup--;this.inventory.water--;this.inventory.dirtyCup++;
+   this.stats.stamina=clamp(this.stats.stamina+5,0,100);
+   return result(true,"🥛 コップで水を飲みました。コップは洗う必要があります。");
+  }
+  if(kind==="bowl"){
+   if(this.count("bowl")<1||this.count("meal")<1)
+    return result(false,"椀と料理が必要です。");
+   this.inventory.bowl--;this.inventory.meal--;this.inventory.servedBowl++;
+   return result(true,"🥣 椀に料理を盛りました。スプーンで食べられます。");
+  }
+  if(kind==="spoon"){
+   if(this.count("spoon")<1||this.count("servedBowl")<1)
+    return result(false,"スプーンと料理入りの椀が必要です。");
+   this.inventory.servedBowl--;this.inventory.dirtyBowl++;
+   this.stats.hunger=clamp(this.stats.hunger-42,0,100);
+   this.stats.stamina=clamp(this.stats.stamina+7,0,100);
+   this.activity="eat";return result(true,"🥄 スプーンで椀の料理を食べました。");
+  }
+  return result(false,"この道具は家具と一緒に使います。");
  }
  forage(actor){
   if(actor.altitudeM>12)return result(false,"地上で採集してください。");
