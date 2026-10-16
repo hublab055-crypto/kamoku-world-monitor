@@ -388,3 +388,51 @@ body.immersive{overflow:hidden}
  .book-text{line-height:1.85}
  .book-type-controls{gap:6px;padding-bottom:8px}
 }
+
+/* v0.7g -- mobile in-world lifestyle and furniture construction UI */
+.life-overlay{position:absolute;inset:3px;z-index:37;background:#142c34f7;color:#f2f7ed;border:1px solid #8dbab6;border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden;overscroll-behavior:contain}
+.life-overlay[hidden],.life-overlay [hidden]{display:none!important}
+.life-overlay button{background:#255466;color:#f7fbfc;border:1px solid #78aab1;border-radius:8px;min-height:35px;padding:7px 10px;font:inherit;font-size:12px;font-weight:750;touch-action:manipulation}
+.life-overlay button:disabled{opacity:.48;cursor:not-allowed}
+.life-overlay button:focus-visible{outline:3px solid #ffdf9a}
+.life-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:#214c46;border-bottom:1px solid #638987;flex:none}
+.life-header strong{font-size:15px}
+.life-stats{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 10px;font-size:11px;background:#183841;flex:none}
+.life-stats span{background:#24545a;border-radius:6px;padding:3px 7px;font-variant-numeric:tabular-nums}
+.life-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:7px;flex:none}
+.life-tabs button{min-width:0;padding:8px 2px;font-size:11px}
+.life-tabs button[aria-pressed=true]{background:#327b65;border-color:#a6dec1}
+#life-message{color:#e3efdf;background:#214247;margin:0 7px 5px;padding:6px 9px;border-radius:7px;line-height:1.5;font-size:12px;flex:none}
+.life-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr));gap:8px;padding:6px 9px;min-height:0;overflow-y:auto;overscroll-behavior:contain;align-content:start;flex:1}
+.life-item{background:#244146;border:1px solid #5b8180;border-radius:10px;padding:10px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.life-item h3{margin:0;font-size:14px;color:#fff0d6}
+.life-item p{margin:0;color:#e1ebe9;font-size:12px;line-height:1.5}
+.life-item small{font-size:11px;color:#c4dfd6}
+.life-buttons{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto}
+.life-buttons button{flex:1;min-width:90px}
+.life-buttons button[data-action='craft']{background:#3b684e}
+.life-buttons button[data-action='use']{background:#356278}
+.life-placement{overflow-y:auto;min-height:0;flex:1;padding:9px;background:#1e4143}
+.life-placement strong{font-size:14px}
+.life-placement>p{font-size:11px;line-height:1.5}
+.life-floor-map{position:relative;width:min(95%,340px);height:170px;margin:8px auto;background:repeating-linear-gradient(90deg,#a18a68 0px,#a18a68 23px,#927a5b 24px);border:6px solid #3c281b;border-bottom:13px solid #563a21;border-radius:4px;touch-action:manipulation}
+.life-floor-door{position:absolute;left:50%;bottom:-23px;transform:translateX(-50%);font-size:11px;color:#fff8d5;white-space:nowrap}
+.life-place-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:49px;text-align:center;background:#2e837bbf;color:white;border:2px solid #c6fff1;border-radius:8px;padding:5px 6px;font-size:13px;box-shadow:0 2px 8px #0008}
+.life-place-mark.invalid{background:#984437c9;border-color:#ffd2ad}
+.life-place-coords{text-align:center;font-size:12px;font-variant-numeric:tabular-nums;padding:4px;color:#fff1c7}
+.life-place-arrows,.life-place-confirm{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:7px auto}
+.life-place-arrows button,.life-place-confirm button{min-width:75px}
+#life-place-confirm{background:#317451}
+.life-help{padding:7px 11px;font-size:10px;color:#c8dfd8;background:#193943;line-height:1.5;flex:none}
+@media(max-width:600px){
+ .life-header{padding:5px 8px}.life-header strong{font-size:13px}
+ .life-stats{padding:3px 6px;gap:3px;font-size:10px}
+ .life-tabs{padding:5px;gap:3px}.life-tabs button{font-size:10px;padding:6px 3px;min-height:34px}
+ #life-message{margin:0 5px 4px;font-size:11px}
+ .life-list{grid-template-columns:1fr;padding:5px;gap:6px}
+ .life-item{padding:7px;gap:4px}
+ .life-item h3{font-size:13px}.life-item p{font-size:11px}
+ .life-buttons button{min-height:33px}
+ .life-floor-map{height:125px;width:min(90%,300px)}
+ .life-help{padding:5px 8px;font-size:10px}
+}
