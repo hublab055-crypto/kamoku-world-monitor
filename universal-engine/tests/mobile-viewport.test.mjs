@@ -42,7 +42,9 @@ test("archived rollback URLs and versioned game saves are preserved",()=>{
  for(const archived of ["v0.7b","v0.7a","v0.6"]){
   assert.ok(html.includes("../versions/"+archived+"/planet-explorer/"),archived);
  }
- assert.match(app,/const SAVE_KEY="universal-engine:explorer:v0\.7d"/);
+ assert.match(app,/const SAVE_KEY="universal-engine:explorer:v0\.7g"/);
+ assert.match(app,/const V07D_SAVE_KEY="universal-engine:explorer:v0\.7d"/);
+ assert.ok(html.includes('id="import-v07d-save"'));
  assert.match(app,/const V07C_SAVE_KEY="universal-engine:explorer:v0\.7c"/);
  assert.match(app,/const V07B_SAVE_KEY="universal-engine:explorer:v0\.7b"/);
 });
