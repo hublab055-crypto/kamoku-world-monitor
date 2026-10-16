@@ -716,6 +716,7 @@ export class ExplorerRenderer{
   }
  }
  drawTestEnemies(vp,light,s,radius){
+  this.screenEnemies=[];
   if(!this.battle)return;
   for(const enemy of this.battle.enemies){
    if(enemy.hp<=0&&(enemy.deathTime||0)>5)return;
@@ -724,6 +725,13 @@ export class ExplorerRenderer{
    const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
    const bob=enemy.type==="slime"&&enemy.hp>0?Math.abs(Math.sin(enemy.walkPhase||0))*.025:0;
    const base=translate(enemy.x-this.cx,height+bob,enemy.z-this.cz);
+   if(enemy.hp>0){
+    const screen=projectScreen(vp,[enemy.x-this.cx,height+(enemy.height||1.8)*.67,enemy.z-this.cz]);
+    if(screen)this.screenEnemies.push({...screen,id:enemy.id,name:enemy.name,hp:enemy.hp});
+    if(enemy.id===this.combatTargetId){
+     this.drawMesh(this.selectionRing,multiply4(vp,translate(enemy.x-this.cx,height+.04,enemy.z-this.cz)),light,1,.96,[1,.68,.25]);
+    }
+   }
    if(this.animatedEnemies[enemy.type])
     this.drawArticulatedEnemy(vp,light,base,enemy);
    else if(enemy.hp>0)
@@ -926,7 +934,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  this.screenActors=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
+  this.screenActors=[];this.screenEnemies=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
