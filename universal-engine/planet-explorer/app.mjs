@@ -516,6 +516,129 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
   const hut=access.nearby(controller);if(hut)performDoor(access.enter(hut,controller));
  });
  $("door-exit").addEventListener("click",()=>performDoor(access.exit(controller)));
+ 
+/* v0.7f - reader is inside the game, not an external web page. */
+let bookDialogReturnFocus=null;
+function closeBookDialog(){
+ $("book-overlay").hidden=true;
+ activeBookId=null;
+ bookDialogReturnFocus?.focus?.();
+}
+function openBookLibrary(){
+ bookDialogReturnFocus=document.activeElement;
+ controller.clearMoveTarget();
+ keys.clear();touches.clear();stick={x:0,y:0};
+ $("stick-nub").style.transform="translate(0px,0px)";
+ $("book-overlay").hidden=false;
+ activeBookId=null;
+ renderBookLibrary();
+ $("book-close").focus();
+}
+function renderBookLibrary(){
+ $("book-reading").hidden=true;$("book-library").hidden=false;
+ const hut=access.inside,library=books.available(hut),list=$("book-library-list");
+ list.replaceChildren();
+ $("book-heading").textContent=hut?"📚 小屋の本棚と持ち物":"📖 持ち歩いている本";
+ $("book-library-status").textContent=hut?
+  "表紙を選ぶと本を開けます。持ち出すと、野外でも「📖 読書」から開けます。":
+  "持ち歩いている本はどこでも読めます。小屋の本棚で本を手に取ってください。";
+ if(!library.length){
+  const empty=document.createElement("p");empty.className="book-library-status";
+  empty.textContent="まだ本がありません。小屋の中に入って、本棚を開きましょう。";
+  list.append(empty);return;
+ }
+ for(const book of library){
+  const card=document.createElement("article");card.className="book-volume";
+  const title=document.createElement("h3");title.textContent="📕 "+book.title;
+  const author=document.createElement("small");author.textContent=book.author+" ／ "+book.genre;
+  const summary=document.createElement("p");summary.textContent=book.summary;
+  const total=pagesForBook(book).length,page=books.page(book.id)+1;
+  const progress=document.createElement("small");
+  progress.textContent="しおり "+page+" / "+total+" ページ"+(books.carried.includes(book.id)?"　🎒 所持中":"　📚 本棚");
+  const buttons=document.createElement("div");buttons.className="book-buttons";
+  const open=document.createElement("button");open.type="button";open.dataset.bookOpen=book.id;
+  open.textContent=page>1?"📖 続きから読む":"📖 読み始める";
+  buttons.append(open);
+  if(hut){
+   const carry=document.createElement("button");carry.type="button";
+   if(books.carried.includes(book.id)){
+    carry.dataset.bookReturn=book.id;carry.textContent="📚 本棚に戻す";
+   }else{
+    carry.dataset.bookTake=book.id;carry.textContent="🎒 持ち出す";
+   }
+   buttons.append(carry);
+  }
+  card.append(title,author,summary,progress,buttons);list.append(card);
+ }
+}
+function openBook(bookId){
+ const book=BOOK_MAP.get(bookId);if(!book||!books.has(bookId,access.inside))return;
+ activeBookId=bookId;
+ $("book-library").hidden=true;$("book-reading").hidden=false;
+ $("book-heading").textContent="📖 読書中";
+ $("book-title").textContent=book.title;
+ $("book-author").textContent=book.author;
+ renderBookPage();
+ $("book-paper").focus();
+}
+function renderBookPage(){
+ const book=BOOK_MAP.get(activeBookId);if(!book)return;
+ const pages=pagesForBook(book),index=Math.min(books.page(book.id),pages.length-1);
+ const current=pages[index],root=$("book-text");
+ $("book-chapter").textContent=current.chapter;
+ root.replaceChildren();
+ for(const text of current.text.split(/\n\n/)){
+  const p=document.createElement("p");p.textContent=text;root.append(p);
+ }
+ root.style.setProperty("--book-font-size",books.fontSize+"px");
+ $("book-page-no").textContent=(index+1)+" / "+pages.length;
+ $("book-prev").disabled=index===0;
+ $("book-next").disabled=index===pages.length-1;
+ $("book-paper").scrollTop=0;
+}
+function moveBookPage(delta){
+ const book=BOOK_MAP.get(activeBookId);if(!book)return;
+ const target=Math.max(0,Math.min(pagesForBook(book).length-1,books.page(book.id)+delta));
+ if(books.bookmark(book.id,target)){saveBookJournal();renderBookPage();}
+}
+$("viewport-books").addEventListener("click",openBookLibrary);
+$("toolbar-books").addEventListener("click",openBookLibrary);
+$("door-shelf").addEventListener("click",openBookLibrary);
+$("book-close").addEventListener("click",closeBookDialog);
+$("book-back").addEventListener("click",()=>{
+ activeBookId=null;renderBookLibrary();$("book-close").focus();
+});
+$("book-prev").addEventListener("click",()=>moveBookPage(-1));
+$("book-next").addEventListener("click",()=>moveBookPage(1));
+$("book-font-down").addEventListener("click",()=>{
+ books.fontSize=Math.max(15,books.fontSize-2);saveBookJournal();renderBookPage();
+});
+$("book-font-up").addEventListener("click",()=>{
+ books.fontSize=Math.min(26,books.fontSize+2);saveBookJournal();renderBookPage();
+});
+$("book-library-list").addEventListener("click",event=>{
+ const button=event.target.closest("button");if(!button)return;
+ const id=button.dataset.bookOpen||button.dataset.bookTake||button.dataset.bookReturn;
+ if(!id||!BOOK_MAP.has(id))return;
+ if(button.dataset.bookOpen){openBook(id);return;}
+ const hut=access.inside;
+ if(!hut)return;
+ if(button.dataset.bookTake){
+  if(books.take(id,hut)){saveBookJournal();log("📚 「"+BOOK_MAP.get(id).title+"」を持ち物に入れました。");}
+ }else if(button.dataset.bookReturn){
+  if(books.putBack(id,hut)){saveBookJournal();log("📚 「"+BOOK_MAP.get(id).title+"」を本棚に戻しました。");}
+ }
+ renderBookLibrary();
+});
+window.addEventListener("keydown",event=>{
+ if($("book-overlay").hidden)return;
+ if(event.key==="Escape"){event.preventDefault();closeBookDialog();}
+ else if(activeBookId&&event.key==="ArrowRight"){event.preventDefault();moveBookPage(1);}
+ else if(activeBookId&&event.key==="ArrowLeft"){event.preventDefault();moveBookPage(-1);}
+ else if(["w","a","s","d","q","e","f","ArrowUp","ArrowDown"].includes(event.key))event.preventDefault();
+ event.stopImmediatePropagation();
+},true);
+
  const stickArea=$("stick-area"),nub=$("stick-nub");
 function updateStick(e){
  const r=stickArea.getBoundingClientRect();
