@@ -17,13 +17,13 @@ const sources=Object.freeze({wood:"frontier",stone:"frontier",fiber:"frontier",
 const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n));
 const defaults=()=>["sword","axe","pickaxe","cup","book"];
 export const HANDS=Object.freeze(["right","left"]);
-const permanent=new Set(["sword","axe","pickaxe","book"]);
+const permanent=new Set(["sword","axe","pickaxe","bow","book"]);
 const handDefaults=()=>({right:"sword",left:"axe"});
 export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
  constructor(snapshot=null){
   this.actors={};this.relations={};this.history=[];this.maxDistance=4;
-  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults()};
+  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults(),arrows:12};
   if(snapshot)this.restore(snapshot);
  }
  actor(id){return this.actors[id]||null;}
@@ -45,9 +45,9 @@ export class SocialEquipment {
   const shared=life?.inventory||{};
   return ITEM_OPTIONS.filter(([kind])=>kind!=="none").map(([id,name,icon])=>{
    const personal=Number(bag[id])||0,gifted=Number(gifts[id])||0,
-    communal=Number(shared[id])||0,base=permanent.has(id)?1:0;
+    communal=Number(shared[id])||0,base=permanent.has(id)?1:id==="arrow"?(this.actor(actor.id)?.arrows||0):0;
    const total=personal+gifted+communal+base;
-   return {id,name,icon,quantity:Math.max(0,total),source:base?"基本装備":personal?"本人の袋":gifted?"受け取った品":"生活用品",
+   return {id,name,icon,quantity:Math.max(0,total),source:base?(id==="arrow"?"矢筒":"基本装備"):personal?"本人の袋":gifted?"受け取った品":"生活用品",
     canEquip:true};
   }).filter(item=>item.quantity>0);
  }
@@ -64,6 +64,11 @@ export class SocialEquipment {
   }
   this.actor(actor.id).hands[hand]=item;
   return {ok:true,message:actor.name+"の"+(hand==="right"?"右手":"左手")+"に "+(ITEM_MAP.get(item)?.name||item)+" を装備しました。"};
+ }
+ spendArrow(id){
+  const owner=this.actor(id);
+  if(!owner||!(owner.arrows>0))return false;
+  owner.arrows--;return true;
  }
  useHand(actor,hand,life,frontier){
   if(!HANDS.includes(hand))return {ok:false,message:"右手か左手を選んでください。"};
@@ -115,8 +120,12 @@ export class SocialEquipment {
   if(!actor||!this.actor(actor.id)||!validItems.has(item)||item==="none")
    return {ok:false,message:"スロットに使えるアイテムがありません。"};
   if(this.quantity(actor,item,life,frontier)<1)return {ok:false,message:"そのアイテムはもう持っていません。持ち物画面で確認してください。"};
+  if(item==="arrow")return {ok:false,message:"矢は弓を装備して発射してください。"};
   if(permanent.has(item)){
    if(item==="book")return {ok:true,kind:"book"};
+   if(item==="bow")return this.actor(actor.id).arrows>0?
+    {ok:true,kind:"action",action:"bow",usesArrow:true}:
+    {ok:false,message:"矢がありません。矢筒を補充してください。"};
    return {ok:true,kind:"action",action:{sword:"sword",axe:"axe",pickaxe:"mine"}[item]};
   }
   if(["bedroll","tent"].includes(item))return {ok:true,kind:"deploy",item};
@@ -153,7 +162,7 @@ export class SocialEquipment {
   return {ok:false,message:"このアイテムは使用せずに、クラフト材料として保管します。"};
  }
  snapshot(){
-  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands}}])),
+  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands},arrows:a.arrows}])),
    relations:{...this.relations},history:this.history.slice(-60)};
  }
  restore(data){
@@ -163,6 +172,7 @@ export class SocialEquipment {
    if(!a)continue;
    this.actors[id]={slots:Array.from({length:5},(_,i)=>validItems.has(a.slots?.[i])?a.slots[i]:defaults()[i]),
     selected:Number.isInteger(a.selected)?clamp(a.selected,0,4):0,
+    arrows:Number.isSafeInteger(a.arrows)?clamp(a.arrows,0,999):12,
     hands:Object.fromEntries(HANDS.map(hand=>[hand,validItems.has(a.hands?.[hand])?a.hands[hand]:handDefaults()[hand]]))};
   }
   this.relations={};
