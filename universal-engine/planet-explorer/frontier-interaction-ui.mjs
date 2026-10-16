@@ -94,6 +94,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   sel.value=configId;
   const person=c.squad.get(configId),inventory=social.inventoryFor(person,c.life,c.squad.frontier);
   $("equip-inventory-label").textContent=person.name+"の所持品："+inventory.map(item=>item.name+"×"+item.quantity).join("・");
+  $("arrow-stock-label").textContent="🏹 "+person.name+"の矢筒："+(social.actor(configId)?.arrows||0)+"本";
   function selectInventory(current){
    const picker=document.createElement("select");
    const empty=document.createElement("option");empty.value="none";empty.textContent="▫️ はずす";picker.append(empty);
@@ -210,6 +211,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  $("hand-right-use").addEventListener("click",()=>useHand("right"));
  $("hand-left-use").addEventListener("click",()=>useHand("left"));
  $("quick-inventory").addEventListener("click",()=>get().lifeUI?.open("inventory"));
+ $("arrow-craft").addEventListener("click",()=>{
+  const c=get(),result=social.craftArrows(configId,c.actions?.resources);
+  log(result.message);
+  if(result.ok){saveLifeJournal();slotSignature="";quick();updateHUD();}
+  renderConfig();
+ });
  $("equip-open-inventory").addEventListener("click",()=>{
   $("quick-config-panel").hidden=true;get().lifeUI?.open("inventory");
  });
