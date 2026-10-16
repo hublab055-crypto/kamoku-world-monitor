@@ -27,7 +27,10 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  function equipHandFromInventory(item,hand){
   const c=get(),who=actor();
   const r=social.equipHand(who,hand,item,c.life,c.squad.frontier);
-  if(r.ok){slotSignature="";quick();if(!$("quick-config-panel").hidden)renderConfig();}
+  if(r.ok){
+   decks[who.id].configure(decks[who.id].selected,{hands:{[hand]:item}});
+   slotSignature="";quick();if(!$("quick-config-panel").hidden)renderConfig();
+  }
   updateHUD();return r;
  }
  function isCombat(who=actor()){
@@ -177,13 +180,27 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   const item=(gear,hand="right",variant=null)=>executeItem(
    social.useItem(who,gear,c.life,c.squad.frontier),who,c,hand,variant);
   switch(command){
-   case "sweep":return item(social.handItem(who.id,"right")==="axe"?"axe":"sword","right","sweep");
-   case "thrust":return item("sword","right","thrust");
+   case "sweep":{
+    const hand=["right","left"].find(h=>["sword","axe"].includes(social.handItem(who.id,h)));
+    if(!hand){log("⚔️ 剣か斧を装備してください。");return {ok:false};}
+    return item(social.handItem(who.id,hand),hand,"sweep");
+   }
+   case "thrust":{
+    const hand=["right","left"].find(h=>social.handItem(who.id,h)==="sword");
+    if(!hand){log("🗡️ 突きには剣を装備してください。");return {ok:false};}
+    return item("sword",hand,"thrust");
+   }
    case "shoot":{
-    const hand=social.handItem(who.id,"left")==="bow"?"left":"right";
+    const hand=["right","left"].find(h=>social.handItem(who.id,h)==="bow");
+    if(!hand){log("🏹 弓を装備してください。");return {ok:false};}
     return item("bow",hand);
    }
-   case "guard":c.battle?.guard();log("🛡️ ガード！ 次の攻撃を軽減します。");updateHUD();return {ok:true};
+   case "guard":
+    if(!["left","right"].some(h=>social.handItem(who.id,h)==="shield")){
+     log("🛡️ ガードするには盾を装備してください。");return {ok:false};
+    }
+    c.battle?.guard();log("🛡️ ガード！ 次の攻撃を軽減します。");
+    updateHUD();return {ok:true};
    case "heal":return item("potion");
    case "aim":{
     const deck=decks[who.id];deck.autoTarget=!deck.autoTarget;
@@ -248,7 +265,10 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    picker.addEventListener("change",()=>{
     const result=social.equipHand(person,hand,picker.value,c.life,c.squad.frontier);
     log(result.message);
-    if(result.ok){slotSignature="";quick();renderConfig();}
+    if(result.ok){
+     decks[configId].configure(decks[configId].selected,{hands:{[hand]:picker.value}});
+     slotSignature="";quick();renderConfig();
+    }
     else picker.value=social.handItem(configId,hand);
    });
    row.append(picker);hands.append(row);
@@ -281,8 +301,17 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     }
     gear.value=slot.hands[hand];
     gear.addEventListener("change",()=>{
+     const person=c.squad.get(configId);
+     if(gear.value!=="none"&&social.quantity(person,gear.value,c.life,c.squad.frontier)<1){
+      log("持っていない装備は設定できません。");gear.value=decks[configId].slots[i].hands[hand];
+      return;
+     }
+     const prior=decks[configId].slots[i].hands[hand];
      decks[configId].configure(i,{hands:{[hand]:gear.value}});
-     if(i===decks[configId].selected)applyDeck(c.squad.get(configId));
+     if(i===decks[configId].selected&&!applyDeck(person)){
+      decks[configId].configure(i,{hands:{[hand]:prior}});gear.value=prior;
+      applyDeck(person,{quiet:true});
+     }
      slotSignature="";quick();
     });
     lbl.append(gear);gears.append(lbl);
