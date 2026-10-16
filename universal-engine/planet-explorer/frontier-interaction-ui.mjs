@@ -156,7 +156,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    c.renderer.setFrontierGlb(sex,parsed,raw);
    try{await cachedFrontierGLB(sex,raw);}catch(err){log("端末保存できませんでした: "+err.message);}
    const detail=c.renderer.glbStatuses[sex];
-   $("frontier-glb-status").textContent="✅ "+sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"骨格・顔モーフ・歩行・会話アニメーション有効":"静的表示（"+(detail?.reason||"スキニング未対応")+"）");
+   $("frontier-glb-status").textContent="✅ "+sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"GPU骨格・顔モーフ対応 / "+(detail.clips?.length||0)+"クリップ (Walk・FaceTalking等)":"静的表示（"+(detail?.reason||"スキニング未対応")+"）");
    log("GLBを適用しました。");
   }catch(err){$("frontier-glb-status").textContent="GLB読み込み失敗: "+err.message;}
   e.target.value="";
