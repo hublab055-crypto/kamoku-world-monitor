@@ -2,6 +2,8 @@
 
 独立した架空マルチバースの **WebGL2 3D惑星探索プロトタイプ**。宇宙から3D球体惑星を観察し、同一の地理座標・地形サンプラーで細密な地表メッシュへ降下し、人物を操作できます。
 
+**v0.7予定:** [詳細設計・9タスク・状態スキーマ・受入チェック](../design/v0.7/)（設計完了、実装未着手）
+
 **URL:** https://hublab055-crypto.github.io/kamoku-world-monitor/universal-engine/planet-explorer/
 
 - 宇宙: WebGL2で球体惑星・大陸・海・雲の三角形メッシュ、自転の見かけと恒星照明。
