@@ -1,5 +1,14 @@
 # Planet Explorer — Change Log
 
+## v0.7d — RTS squad + conditional automation (2026-10-16)
+
+- Three independently moving on-planet avatars (pioneer, scout, artisan) share a geographical origin and render with selection rings and differentiated companion colors. The old player controls remain available.
+- New ⚓ RTS overhead mode: tap one character to select; select all or toggle multi-select to command several; tap land to move the selected squad in loose formation; set a rally point or stop (which also disables AI). Direct camera mode transitions and existing movement modes are preserved.
+- 🤔 In-view automatic action panel: eight ordered IF-condition / THEN-action slots **per avatar**, each individually enabled, plus a per-person automation master toggle. Metrics: wood, stone, finished huts, idle flag, distance from leader and walked metres. Operators: <, <=, >, >=, ==, !=. Actions: gather wood/stone, build a demo hut, move to rally, follow, patrol, or wait.
+- Per-character autonomous gathering and movement with manual override. This is a **small single-player demonstration**, not multi-device RTS networking or simulated economics/production chains. Existing building rules reuse the demo's globally shared resource/action state.
+- Independent current save key `universal-engine:explorer:v0.7d`. Old v0.7c is read-only import; v0.7b/v0.7a/v0.6 archives and keys are unchanged. Frozen pre-RTS code branch: `universal-engine-v0.7c-before-rts`.
+- Adds condition, select/order, schema and persistence tests; desktop/iPhone WebGL E2E and full repository npm tests must be verified in a runnable environment.
+
 ## v0.7c mobile viewport patch — 2026-10-16
 
 - On first visit from a small touch device, launch the 3D scene in reversible CSS immersive mode. A visible in-scene button exits to all settings and older-version links; the manual choice lasts only within that browser tab.

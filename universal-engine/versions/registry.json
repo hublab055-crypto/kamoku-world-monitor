@@ -31,10 +31,19 @@
     {
       "id": "v0.7c",
       "label": "v0.7c — カメラ6モード",
+      "status": "frozen-source",
+      "url": "https://github.com/hublab055-crypto/kamoku-world-monitor/tree/universal-engine-v0.7c-before-rts/universal-engine/planet-explorer",
+      "saveKey": "universal-engine:explorer:v0.7c",
+      "note": "v0.7cソースを固定ブランチに保管。旧版ゲーム実行URLではありません。セーブは新版から読み込み可能",
+      "sourceBranch": "universal-engine-v0.7c-before-rts"
+    },
+    {
+      "id": "v0.7d",
+      "label": "v0.7d — ⚓RTS + 🤔自動行動",
       "status": "experimental",
       "url": "../../planet-explorer/",
-      "saveKey": "universal-engine:explorer:v0.7c",
-      "note": "追従・肩越し・自由・人物注視・俯瞰・従来。高高度に位置マーカー"
+      "saveKey": "universal-engine:explorer:v0.7d",
+      "note": "3人物を選択・タップ移動・自動採集。8スロットIF条件"
     }
   ],
   "policy": {

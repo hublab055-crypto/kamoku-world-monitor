@@ -121,7 +121,8 @@ test("v0.7c has independent save and rollback UI paths",()=>{
    "camera-face","camera-home","actor-marker","import-v07b-save"])
    assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/versions\/v0\.7b\/planet-explorer/);
- assert.match(app,/SAVE_KEY="universal-engine:explorer:v0\.7c"/);
+ assert.match(app,/SAVE_KEY="universal-engine:explorer:v0\.7d"/);
+ assert.match(app,/V07C_SAVE_KEY="universal-engine:explorer:v0\.7c"/);
  assert.match(app,/V07B_SAVE_KEY="universal-engine:explorer:v0\.7b"/);
  assert.match(archive,/SAVE_KEY="universal-engine:explorer:v0\.7b"/);
  assert.ok(!archive.includes("camera-controller.mjs"));

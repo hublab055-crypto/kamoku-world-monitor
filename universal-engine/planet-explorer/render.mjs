@@ -37,7 +37,7 @@ export function multiply4(a,b){
  return out;
 }
 const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","uniform mat4 uMvp;","out vec3 vN; out vec3 vC;","void main(){vN=aNorm;vC=aColor;gl_Position=uMvp*vec4(aPos,1.0);}"].join("\n");
-const FRAG=["#version 300 es","precision highp float;","in vec3 vN; in vec3 vC;","uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;","out vec4 fragColor;","void main(){float b=max(dot(normalize(vN),normalize(uLight)),0.0);fragColor=vec4(vC*(uAmbient+(1.0-uAmbient)*b),uAlpha);}"].join("\n");
+const FRAG=["#version 300 es","precision highp float;","in vec3 vN; in vec3 vC;","uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;uniform vec3 uTint;","out vec4 fragColor;","void main(){float b=max(dot(normalize(vN),normalize(uLight)),0.0);fragColor=vec4(vC*uTint*(uAmbient+(1.0-uAmbient)*b),uAlpha);}"].join("\n");
 function shader(gl,mode,src){
  const sh=gl.createShader(mode);gl.shaderSource(sh,src);gl.compileShader(sh);
  if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error("Shader compile: "+gl.getShaderInfoLog(sh));
@@ -148,11 +148,23 @@ export class ExplorerRenderer{
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.cameraController=new CameraController();
   this.actorMarker=null;
+  this.screenActors=[];
+  this.squad=null;
+  this.npcAnimators=new Map();
+  const ring=builder();
+  for(let i=0;i<24;i++){
+   const a=i*Math.PI/12,b=(i+1)*Math.PI/12;
+   quad(ring,[Math.cos(a)*1.15,.06,Math.sin(a)*1.15],
+     [Math.cos(b)*1.15,.06,Math.sin(b)*1.15],
+     [Math.cos(b)*1.40,.06,Math.sin(b)*1.40],
+     [Math.cos(a)*1.40,.06,Math.sin(a)*1.40],[.15,.96,1]);
+  }
+  this.selectionRing=new Mesh(gl,ring);
   const pg=gl.createProgram();gl.attachShader(pg,shader(gl,gl.VERTEX_SHADER,VERT));
   gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
-  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");
+  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.patch=null;this.trees=null;this.patchKey=null;
@@ -213,14 +225,13 @@ export class ExplorerRenderer{
    const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
    return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
  }
- drawArticulated(vp,avatarTransform,s,light,dt=1/60){
-   const motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0};
-   const face=this.expression.update(dt);
-   const pose=this.animator.update(dt,{
+ drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0},tint=[1,1,1]){
+   const face=expression.update(dt);
+   const pose=animator.update(dt,{
       moving:s.moving,phase:s.totalDistanceM*2.7,
       speedMps:s.moving?s.walkSpeed:0,
       jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,
-      emotion:this.expression.preset,faceDirection:face.gazeX*.27
+      emotion:expression.preset,faceDirection:face.gazeX*.27
    });
    Object.assign(pose,expressionPoseValues(face));
    const joints=jointTransformsV2(pose,s.yaw);
@@ -236,11 +247,11 @@ export class ExplorerRenderer{
        const x=Math.max(.5,Math.min(1.4,face.mouthWidth));
        m=matrixMultiply(m,[x,0,0,0,0,1,0,0,0,0,1,0,0,face.mouthHeight,0,1]);
      }
-     this.drawMesh(mesh,multiply4(vp,m),light,1,.72);
+     this.drawMesh(mesh,multiply4(vp,m),light,1,.72,tint);
    }
    if(pose.tool&&this.tools[pose.tool]){
      const held=matrixMultiply(avatarTransform,joints.rightWrist);
-     this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68);
+     this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68,tint);
    }
  }
  drawBuildings(vp,light,s,radius){
@@ -257,9 +268,9 @@ export class ExplorerRenderer{
      if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
    }
  }
- drawMesh(mesh,mvp,light,alpha=1,ambient=.25){
+ drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
-  gl.uniform3fv(this.uLight,new Float32Array(light));
+  gl.uniform3fv(this.uLight,new Float32Array(light));gl.uniform3fv(this.uTint,new Float32Array(tint));
   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);mesh.draw();
  }
  frame(state,dt=1/60){
@@ -273,6 +284,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
+  this.screenActors=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
@@ -346,6 +358,27 @@ export class ExplorerRenderer{
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
   this.drawArticulated(vp,transform,s,light,dt);
+  // Each companion has a separate controller and animator. Screen-space
+  // projections are used for tap selection in the overhead RTS view.
+  const actors=this.squad?.agents||[];
+  this.screenActors=[];
+  for(const agent of actors){
+   const unit=agent.control;
+   const elevation=Math.max(0,terrainSurface(this.terrain,unit.lat,unit.lon).elevationM);
+   const x=unit.x-this.cx,z=unit.z-this.cz;
+   const projected=projectScreen(vp,[x,elevation+(unit.jumpY||0)+1.8,z]);
+   if(projected)this.screenActors.push({...projected,id:agent.id,name:agent.name});
+   if(this.squad.selected.has(agent.id)){
+    this.drawMesh(this.selectionRing,multiply4(vp,translate(x,elevation+(unit.jumpY||0),z)),light,1,.85);
+   }
+   if(agent.id==="player"||Math.abs(x)>radius||Math.abs(z)>radius)continue;
+   if(!this.npcAnimators.has(agent.id))
+    this.npcAnimators.set(agent.id,{animator:new SmoothAnimator(),expression:new ExpressionController()});
+   const ctx=this.npcAnimators.get(agent.id);
+   this.drawArticulated(vp,translate(x,elevation+(unit.jumpY||0),z),unit,light,dt,
+    ctx.animator,ctx.expression,this.squad.getMotion(agent),
+     agent.id==="scout"?[.65,.86,1]:[1,.78,.65]);
+  }
   if(camera.marker){
    const screen=projectScreen(vp,camera.actorPos);
    this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
@@ -353,7 +386,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes)])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes)])m?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }
