@@ -141,6 +141,7 @@ export function uprightBowTransform(wristWorld,actorFacing){
 }
 function enemyGeometry(kind){
  const b=builder(),eye=[.11,.13,.12],steel=[.64,.68,.72];
+ if(["skeleton","orc","lizardman","demon"].includes(kind))return humanoidMonsterGeometry(kind);
  if(kind==="slime"){
   const blue=[.34,.80,.68],dark=[.13,.48,.45];
   cone(b,0,.09,0,.95,.73,blue,12);
@@ -166,6 +167,113 @@ function enemyGeometry(kind){
    box(b,side*.46,.69,0,.13,.73,.17,coat);
   }
   box(b,0,1.46,.27,.22,.07,.08,hood);
+ }
+ return b;
+}
+/** Unique low-poly silhouettes for four upright fantasy adversaries.
+ * Geometry is original and shares the small coloured vertex-buffer format.
+ * Every creature has a recognisable head, torso, arms, legs and equipment.
+ */
+export function humanoidMonsterGeometry(kind){
+ const b=builder();
+ if(kind==="skeleton"){
+  const bone=[.87,.83,.70],shade=[.60,.61,.56],voidColor=[.09,.13,.16],glow=[.36,.95,.94];
+  // Separate bones / rib cage for an unmistakably skeletal silhouette.
+  box(b,0,.88,0,.16,.48,.12,bone);
+  for(let y=.97;y<1.52;y+=.14){
+   box(b,0,y,.02,.32,.052,.14,bone);
+   box(b,0,y,-.10,.23,.045,.07,shade);
+  }
+  box(b,0,.70,0,.26,.17,.17,shade);
+  for(const side of [-1,1]){
+   box(b,side*.22,0,0,.075,.48,.088,bone);
+   box(b,side*.22,.52,0,.09,.25,.09,bone);
+   box(b,side*.42,1.01,0,.065,.42,.075,bone);
+   box(b,side*.42,1.47,0,.073,.34,.083,shade);
+   box(b,side*.16,1.82,.28,.075,.075,.025,voidColor);
+   box(b,side*.16,1.84,.307,.04,.035,.013,glow);
+  }
+  box(b,0,1.70,0,.26,.39,.25,bone);
+  box(b,0,1.73,.20,.19,.12,.055,shade);
+  box(b,0,1.71,.268,.13,.065,.019,voidColor);
+  // Rusty one-handed sword + dark round shield.
+  box(b,.44,.95,.17,.032,.85,.035,shade);
+  box(b,.44,1.77,.17,.11,.17,.055,bone);
+  box(b,.44,1.19,.17,.16,.055,.065,voidColor);
+  cone(b,-.49,.85,.18,.66,.26,voidColor,9);
+  box(b,-.49,1.05,.43,.23,.13,.035,shade);
+ }else if(kind==="orc"){
+  const skin=[.34,.52,.22],darkSkin=[.21,.35,.19],armor=[.38,.37,.34],
+   iron=[.65,.65,.60],tusk=[.93,.88,.67],eye=[.87,.23,.12];
+  // Wide heavy-set body, thick arms and broad jaw.
+  box(b,0,.73,0,.53,1.00,.39,armor);
+  box(b,0,.64,.39,.48,.20,.078,iron);
+  box(b,0,1.73,0,.29,.16,.25,darkSkin);
+  box(b,0,1.87,.05,.42,.48,.38,skin);
+  box(b,0,1.89,.38,.31,.16,.21,darkSkin);
+  for(const side of [-1,1]){
+   box(b,side*.35,0,0,.22,.72,.22,darkSkin);
+   box(b,side*.70,1.05,0,.22,.64,.24,skin);
+   box(b,side*.72,1.68,0,.30,.28,.30,iron);
+   box(b,side*.73,.88,.04,.23,.18,.22,darkSkin);
+   cone(b,side*.24,1.97,.39,.29,.10,tusk,6);
+   box(b,side*.17,2.12,.41,.064,.075,.026,eye);
+  }
+  // Broad iron-headed war club in one hand.
+  box(b,.73,.38,.16,.070,1.21,.072,[.40,.26,.16]);
+  box(b,.73,1.56,.16,.22,.42,.24,iron);
+  for(let i=0;i<3;i++)cone(b,.60+i*.15,1.91,.16,.16,.055,iron,5);
+ }else if(kind==="lizardman"){
+  const scale=[.19,.55,.47],belly=[.65,.68,.36],dark=[.08,.30,.30],
+   claw=[.91,.86,.65],eye=[.89,.71,.16],steel=[.62,.74,.73];
+  box(b,0,.78,0,.34,.91,.23,scale);
+  box(b,0,.80,.23,.22,.80,.035,belly);
+  for(const side of [-1,1]){
+   box(b,side*.22,0,0,.145,.74,.18,dark);
+   box(b,side*.45,1.08,0,.14,.55,.17,scale);
+   box(b,side*.44,1.59,0,.16,.16,.16,dark);
+   box(b,side*.13,1.99,.37,.050,.07,.025,eye);
+   cone(b,side*.25,2.14,-.04,.19,.13,scale,6);
+  }
+  box(b,0,1.69,0,.20,.18,.19,dark);
+  box(b,0,1.82,.05,.28,.40,.29,scale);
+  box(b,0,1.87,.33,.25,.14,.25,scale);
+  box(b,0,1.80,.37,.23,.07,.21,belly);
+  // The long counterbalancing tail extends behind the legs.
+  triangle(b,[-.23,.76,-.19],[.23,.76,-.19],[0,.28,-1.37],scale);
+  triangle(b,[0,.98,-.18],[-.23,.76,-.19],[0,.28,-1.37],dark);
+  triangle(b,[.23,.76,-.19],[0,.98,-.18],[0,.28,-1.37],scale);
+  // Trident carried by the right hand.
+  box(b,.47,.27,.15,.036,2.04,.038,[.43,.31,.20]);
+  for(const offset of [-.15,0,.15])
+   cone(b,.47+offset,2.28,.15,.32,.072,steel,6);
+  box(b,.47,2.18,.15,.22,.06,.055,steel);
+  for(const sign of [-1,1])cone(b,sign*.19,2.18,.04,.14,.06,claw,5);
+ }else if(kind==="demon"){
+  const skin=[.39,.19,.29],armor=[.22,.17,.32],trim=[.67,.34,.50],
+   horn=[.21,.14,.18],eye=[1,.25,.32],blade=[.78,.47,.64];
+  // Armoured humanoid with horns, imposing pauldrons, cape and sword.
+  box(b,0,.73,0,.42,1.02,.31,armor);
+  box(b,0,1.17,.31,.35,.11,.04,trim);
+  box(b,0,.74,.33,.44,.13,.065,trim);
+  for(const side of [-1,1]){
+   box(b,side*.27,0,0,.18,.73,.20,armor);
+   box(b,side*.28,.67,.10,.21,.13,.23,trim);
+   box(b,side*.54,1.06,0,.16,.63,.18,skin);
+   box(b,side*.55,1.68,0,.32,.27,.28,armor);
+   cone(b,side*.65,1.82,-.03,.32,.16,trim,7);
+   cone(b,side*.29,2.08,-.07,.58,.125,horn,7);
+   box(b,side*.14,2.12,.31,.067,.09,.027,eye);
+  }
+  box(b,0,1.74,0,.22,.16,.21,trim);
+  box(b,0,1.86,.02,.28,.42,.27,skin);
+  box(b,0,2.17,.02,.31,.15,.33,armor);
+  // Large cape: visible dark wings behind the body.
+  triangle(b,[-.44,1.68,-.25],[-.66,.20,-.49],[0,1.01,-.29],armor);
+  triangle(b,[.44,1.68,-.25],[0,1.01,-.29],[.66,.20,-.49],armor);
+  box(b,.55,.77,.23,.07,1.20,.055,horn);
+  box(b,.55,1.95,.23,.17,.22,.075,blade);
+  box(b,.55,.94,.23,.24,.07,.10,trim);
  }
  return b;
 }
@@ -291,7 +399,7 @@ export class ExplorerRenderer{
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
   this.battle=null;
-  this.enemyMeshes=Object.fromEntries(["slime","goblin","bandit"].map(kind=>[kind,new Mesh(gl,enemyGeometry(kind))]));
+  this.enemyMeshes=Object.fromEntries(["slime","goblin","bandit","skeleton","orc","lizardman","demon"].map(kind=>[kind,new Mesh(gl,enemyGeometry(kind))]));
   this.enemyHealthTrack=new Mesh(gl,enemyHealthMesh(false));
   this.enemyHealthFill=new Mesh(gl,enemyHealthMesh(true));
   this.buildingMeshes=this.makeBuildingMeshes(gl);
@@ -481,7 +589,7 @@ export class ExplorerRenderer{
     const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
     const base=translate(enemy.x-this.cx,height,enemy.z-this.cz);
     this.drawMesh(this.enemyMeshes[enemy.type],multiply4(vp,multiply4(base,rotateY(enemy.yaw))),light,1,.75);
-    const ratio=enemy.hp/enemy.maxHp,head=enemy.type==="slime"?1.22:enemy.type==="goblin"?1.93:2.1;
+    const ratio=enemy.hp/enemy.maxHp,head=enemy.height||2.1;
     const hpAt=multiply4(base,translate(0,head,0));
     this.drawMesh(this.enemyHealthTrack,multiply4(vp,hpAt),light,1,1);
     const scale=[ratio,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
