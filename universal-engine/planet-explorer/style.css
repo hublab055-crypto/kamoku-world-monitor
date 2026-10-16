@@ -272,3 +272,7 @@ body.immersive{overflow:hidden}
   .view-panel.immersive.hud-tools-open .toolbar,
   .view-panel:fullscreen.hud-tools-open .toolbar{display:flex}
 }
+
+/* These palettes follow simulated planetary illumination; not device clock time. */
+#world[data-sky="dusk"]{background:linear-gradient(180deg,#263f69 0%,#a66779 26%,#f1b68e 50%,#f8d4a1 100%)}
+#world[data-sky="night"]{background:linear-gradient(180deg,#060c22 0%,#142546 42%,#314367 100%)}
