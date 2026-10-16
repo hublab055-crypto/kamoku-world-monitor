@@ -84,6 +84,15 @@ function cone(b,x,y,z,h,r,col,sides=7){
 
 // Local equipment geometries are in metres; character forward is +Z.
 export const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
+function shieldGeometry(){
+ const b=builder(),face=[.36,.43,.49],rim=[.79,.68,.43],center=[.64,.67,.72];
+ box(b,0,-.10,.06,.23,.55,.035,face);
+ box(b,0,-.10,.10,.025,.55,.05,rim);
+ for(const x of [-.22,.22])box(b,x,-.10,.09,.025,.55,.045,rim);
+ box(b,0,.38,.09,.24,.035,.05,rim);
+ box(b,0,-.08,.14,.10,.18,.065,center);
+ return b;
+}
 function bowGeometry(){
  const b=builder(),wood=[.51,.29,.15],wrapping=[.27,.18,.11];
  // Curved upper and lower limbs with a taut string and central wrapped grip.
@@ -493,6 +502,7 @@ export class ExplorerRenderer{
     this.tools[tool]=new Mesh(gl,b);
   }
   this.tools.bow=new Mesh(gl,bowGeometry());
+  this.tools.shield=new Mesh(gl,shieldGeometry());
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
   this.battle=null;
