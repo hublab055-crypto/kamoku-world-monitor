@@ -33,6 +33,7 @@ button.selected{background:#45816f}
   <button type="button" id="globe">🌍 全景</button>
   <button type="button" id="ground">🚶 地表</button>
   <button type="button" id="origin">⌂ 出発地</button>
+  <button type="button" id="sex" title="モデルの性別を切り替え">♂/♀ モデル</button>
  </div>
  <div id="status" role="status" aria-live="off">🪐 球体惑星を準備中…</div>
 </div>
@@ -204,7 +205,7 @@ function camp(){
 }
 camp();
 const body=new THREE.Group();scene.add(body);
-let mixer=null,clips=[],playing=null,isFallback=true,modelName='仮3Dモデル';
+let mixer=null,clips=[],playing=null,isFallback=true,modelName='仮3Dモデル',avatarLoadSequence=0;
 function placeholder(){
  const g=new THREE.Group();
  const cloth=new THREE.MeshStandardMaterial({color:'#608a87'});
@@ -241,6 +242,7 @@ async function getModelCache(sex){
  });
 }
 async function loadAvatar(){
+ const sequence=++avatarLoadSequence;
  const loader=new GLTFLoader();
  const sex=localStorage.getItem('frontier-planet-avatar-sex')==='female'?'female':'male';
  let model=null;
@@ -254,10 +256,10 @@ async function loadAvatar(){
    catch(_){}
   }
  }
- if(!model)return;
+ if(sequence!==avatarLoadSequence||!model)return;
  try{
   const rig=cloneSkinned(model.scene);
-  body.clear();body.add(rig);mixer=new THREE.AnimationMixer(rig);
+  mixer?.stopAllAction();playing=null;body.clear();body.add(rig);mixer=new THREE.AnimationMixer(rig);
   clips=model.animations||[];isFallback=false;modelName='GLB '+sex;
  }catch(e){console.warn('[Planet] GLB cannot be displayed',e);}
 }
@@ -356,6 +358,13 @@ function stop(){
  nav.auto=false;nav.autoDistance=0;
  for(const k in keys)keys[k]=false;save();
 }
+el('sex').onclick=()=>{
+ const next=localStorage.getItem('frontier-planet-avatar-sex')==='female'?'male':'female';
+ try{localStorage.setItem('frontier-planet-avatar-sex',next);}catch(_){}
+ avatarLoadSequence++;mixer?.stopAllAction();mixer=null;playing=null;clips=[];
+ body.clear();body.add(placeholder());isFallback=true;modelName='仮3Dモデル（'+(next==='female'?'女性':'男性')+'）';
+ loadAvatar().catch(console.warn);
+};
 el('globe').onclick=()=>setMode('globe');
 el('ground').onclick=()=>setMode('ground');
 el('east').onclick=()=>{stop();nav.heading=HALF;};
