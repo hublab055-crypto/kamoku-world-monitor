@@ -80,13 +80,30 @@ export async function cachedFrontierGLB(sex,write=null){
   req.onsuccess=()=>resolve(write||req.result||null);req.onerror=()=>reject(req.error);
  });}finally{db.close();}
 }
-export async function findFrontierGLB(sex){
- try{const cached=await cachedFrontierGLB(sex);if(cached)return cached;}catch(_){}
- for(const quality of ["high","mobile"]){
-  try{
-   const response=await fetch("../../frontier-world/assets/avatars/frontier_"+sex+"_"+quality+".glb");
-   if(response.ok)return await response.arrayBuffer();
-  }catch(_){}
+/** Stable bundled avatars. Never implicitly read device-local imports. */
+export const AVATAR_PACK_VERSION="ue-original-avatars-20261016";
+export const STANDARD_AVATAR_URLS=Object.freeze({
+ male:"../original-assets/models/pioneer.glb",
+ female:"../original-assets/models/scout.glb"
+});
+export function standardAvatarURL(sex,quality="auto"){
+ if(!Object.prototype.hasOwnProperty.call(STANDARD_AVATAR_URLS,sex))throw Error("Unknown avatar sex: "+sex);
+ if(!["auto","high","mobile"].includes(quality))throw Error("Unknown avatar quality: "+quality);
+ // Real high/mobile LOD pairs are not yet authored; both share one bundled mesh.
+ return STANDARD_AVATAR_URLS[sex]+"?pack="+encodeURIComponent(AVATAR_PACK_VERSION);
+}
+/** Browser-local imported GLBs are only used after an explicit opt-in. */
+export async function findFrontierGLB(sex,{source="standard",quality="auto",force=false}={}){
+ if(!Object.prototype.hasOwnProperty.call(STANDARD_AVATAR_URLS,sex))throw Error("Unknown avatar sex: "+sex);
+ if(source==="imported"){
+  const buffer=await cachedFrontierGLB(sex);
+  return buffer?{buffer,source:"imported",quality:"custom",version:"local"}:null;
  }
- return null;
+ if(source!=="standard")throw Error("Unknown avatar source: "+source);
+ const url=standardAvatarURL(sex,quality);
+ const response=await fetch(url,{cache:force?"reload":"default"});
+ if(!response.ok)throw Error("標準GLBの取得失敗: HTTP "+response.status+" ("+sex+")");
+ const buffer=await response.arrayBuffer();
+ if(!buffer.byteLength)throw Error("標準GLBファイルが空です: "+sex);
+ return {buffer,source:"standard",quality:"shared",version:AVATAR_PACK_VERSION,url};
 }
