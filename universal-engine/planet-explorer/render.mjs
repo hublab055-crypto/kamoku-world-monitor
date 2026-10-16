@@ -11,7 +11,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs";
 import {CameraController} from "./camera-controller.mjs";
 import {CATALOG} from "./lifestyle.mjs";
-import {furnitureGeometry,campGeometry,flameGeometry} from "./lifestyle-geometry.mjs";
+import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -195,6 +195,8 @@ export class ExplorerRenderer{
   for(const kind of Object.keys(CATALOG).filter(k=>CATALOG[k].inside))this.lifeMeshes[kind]=new Mesh(gl,furnitureGeometry(kind));
   this.campMeshes={tent:new Mesh(gl,campGeometry("tent")),tentCutaway:new Mesh(gl,campGeometry("tent",true)),
    bedroll:new Mesh(gl,campGeometry("bedroll")),fire:new Mesh(gl,flameGeometry())};
+  this.dishMeshes={};
+  for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
   this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
   this.sceneActions=null;
   this.pickVP=null;this.groundPatchData=null;
@@ -378,7 +380,13 @@ export class ExplorerRenderer{
      const mesh=this.lifeMeshes[f.kind];if(!mesh)continue;
      const x=at.eastM+f.x-this.cx,z=at.northM+f.z-this.cz;
      const model=multiply4(translate(x,hut.height,z),rotateY((f.rotation||0)*DEG));
-     this.drawMesh(mesh,multiply4(vp,model),light,1,.76);
+     this.drawMesh(mesh,multiply4(vp,model),light,1,f.kind==="lamp"?(f.lit?.98:.40):.76);
+     if(f.kind==="table"){
+      if(this.sceneLife.count("served")>0)this.drawMesh(this.dishMeshes.plate,multiply4(vp,model),light,1,.89);
+      if(this.sceneLife.count("servedBowl")>0)this.drawMesh(this.dishMeshes.bowl,multiply4(vp,model),light,1,.89);
+      if(this.sceneLife.count("cup")>0)this.drawMesh(this.dishMeshes.cup,multiply4(vp,model),light,1,.89);
+     }else if(f.kind==="kitchen"&&this.sceneLife.count("pot")>0)
+      this.drawMesh(this.dishMeshes.pot,multiply4(vp,model),light,1,.84);
      if(f.lit&&f.kind==="fireplace")this.drawMesh(this.campMeshes.fire,multiply4(vp,model),[.7,.6,.2],1,.92);
      if(hut.id===this.interiorBuildingId){
       const point=projectScreen(vp,[x,hut.height+(f.kind==="bookshelf"?1.55:1.05),z]);
@@ -526,7 +534,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes)])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes)])m?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }
