@@ -10,6 +10,8 @@ import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrob
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
 import {rotZ} from "./rig.mjs";
 import {CameraController} from "./camera-controller.mjs";
+import {CATALOG} from "./lifestyle.mjs";
+import {furnitureGeometry,campGeometry,flameGeometry} from "./lifestyle-geometry.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -189,6 +191,11 @@ export class ExplorerRenderer{
   }
   this.buildingMeshes=this.makeBuildingMeshes(gl);
   this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.screenShelves=[];this.interiorBuildingId=null;
+  this.lifeMeshes={};
+  for(const kind of Object.keys(CATALOG).filter(k=>CATALOG[k].inside))this.lifeMeshes[kind]=new Mesh(gl,furnitureGeometry(kind));
+  this.campMeshes={tent:new Mesh(gl,campGeometry("tent")),tentCutaway:new Mesh(gl,campGeometry("tent",true)),
+   bedroll:new Mesh(gl,campGeometry("bedroll")),fire:new Mesh(gl,flameGeometry())};
+  this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
   this.sceneActions=null;
   this.pickVP=null;this.groundPatchData=null;
   gl.enable(gl.DEPTH_TEST);
@@ -256,6 +263,17 @@ export class ExplorerRenderer{
    }
    return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture),
     bookshelf:new Mesh(gl,bookshelf)};
+  }
+  pickLife(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let found=null,nearest=48;
+   for(const item of [...this.screenFurniture,...this.screenCamps]){
+    if(!item.onScreen)continue;
+    const d=Math.hypot((item.u-u)*r.width,(item.v-v)*r.height);
+    if(d<nearest){nearest=d;found=item;}
+   }
+   return found;
   }
   pickBookshelf(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
@@ -331,7 +349,7 @@ export class ExplorerRenderer{
      if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
      if(hut.progress>=1){
       this.drawMesh(this.roomMeshes.floor,mvp,light,1,.72);
-      if(hut.doorOpen||hut.id===this.interiorBuildingId){
+      if(!this.sceneLife&&(hut.doorOpen||hut.id===this.interiorBuildingId)){
         this.drawMesh(this.roomMeshes.furniture,mvp,light,1,.73);
         this.drawMesh(this.roomMeshes.bookshelf,mvp,light,1,.78);
         if(hut.id===this.interiorBuildingId){
