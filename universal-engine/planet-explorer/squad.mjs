@@ -136,7 +136,7 @@ export class SquadEngine{
     }
    }
    if(a.id==="player"&&manualLead){a.task=null;a.cooldown=1;}
-   if(a.auto&&a.control.nearGround&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!manualLead){
+   if(a.auto&&a.control.nearGround&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!(a.id==="player"&&manualLead)){
     const metrics=this.metrics(a);
     const rule=a.rules.find(r=>r.enabled&&testCondition(metrics[r.metric],r.op,r.value));
     if(rule)this.schedule(a,rule.action);
