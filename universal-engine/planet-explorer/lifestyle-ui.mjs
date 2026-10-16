@@ -23,7 +23,7 @@ function makeCard(title,description,subtext){
  card.append(name,desc,extra,commands);
  return {card,commands};
 }
-export function installLifestyleUI({getContext,onChange,onBook,onSleep,notify}){
+export function installLifestyleUI({getContext,onChange,onBook,onSleep,notify,getEquipmentInventory=null,onEquipHand=null}){
  let activeTab="craft",focusedId=null,placement=null,returnFocus=null;
  const $=id=>document.getElementById(id);
  const root=$("life-overlay"),list=$("life-list"),message=$("life-message");
@@ -53,16 +53,27 @@ export function installLifestyleUI({getContext,onChange,onBook,onSleep,notify}){
     list.append(card);
    }
   }else if(activeTab==="inventory"){
-   const all=[...Object.entries(life.inventory).filter(([,n])=>n>0)];
+   const personal=typeof getEquipmentInventory==="function"?getEquipmentInventory():[];
+   const available=new Map(personal.map(item=>[item.id,item]));
+   const all=Object.entries(life.inventory).filter(([,n])=>n>0)
+     .map(([kind,quantity])=>({kind,quantity,source:"生活用品",canEquip:available.has(kind)}));
+   for(const item of personal){
+    const existing=all.find(x=>x.kind===item.id);
+    if(existing){existing.quantity=item.quantity;existing.canEquip=true;existing.source=item.source;existing.icon=item.icon;existing.name=item.name;}
+    else all.push({kind:item.id,quantity:item.quantity,source:item.source,canEquip:true,icon:item.icon,name:item.name});
+   }
    if(!all.length)empty("まだ持ち物がありません。");
-   for(const [kind,quantity] of all){
-    const entry=CATALOG[kind];
-    const title=(entry?.emoji||"📦")+" "+(entry?.name||ITEM_NAMES[kind]||kind);
-    const {card,commands}=makeCard(title,"持ち物として携帯中",
-     "数量："+quantity);
+   for(const item of all){
+    const {kind,quantity}=item,entry=CATALOG[kind];
+    const title=(item.icon||entry?.emoji||"📦")+" "+(item.name||entry?.name||ITEM_NAMES[kind]||kind);
+    const {card,commands}=makeCard(title,item.source||"持ち物として携帯中","数量："+quantity);
     if(entry?.inside&&hut)commands.append(button("🏠 家具として設置","start-place",{kind}));
     if(entry?.category==="deployable"&&!hut)commands.append(button("⛺ 設置","deploy",{kind}));
     if(["cup","bowl","spoon"].includes(kind))commands.append(button("使う","use-item",{kind}));
+    if(item.canEquip&&typeof onEquipHand==="function"){
+     commands.append(button("🫱 右手に装備","equip-hand",{kind,hand:"right"}));
+     commands.append(button("🫲 左手に装備","equip-hand",{kind,hand:"left"}));
+    }
     list.append(card);
    }
   }else if(activeTab==="home"){
@@ -176,7 +187,8 @@ export function installLifestyleUI({getContext,onChange,onBook,onSleep,notify}){
   const d=target.dataset,what=d.action,context=ctx();
   const {life,actions,access,controller}=context,kind=d.kind,id=Number(d.id);
   let outcome=null;
-  if(what==="craft")outcome=life.craft(kind,actions.resources);
+  if(what==="equip-hand")outcome=onEquipHand?.(kind,d.hand)||{ok:false,message:"装備設定を利用できません。"};
+  else if(what==="craft")outcome=life.craft(kind,actions.resources);
   else if(what==="start-place"){showPlacement(kind);return;}
   else if(what==="deploy"){
    if(access.inside||life.insideTentId!==null)outcome={ok:false,message:"屋外へ出てから設置してください。"};
