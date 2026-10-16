@@ -5,7 +5,7 @@ export const DECK_KINDS=Object.freeze({
  melee:{icon:"⚔️",name:"戦闘",hands:{right:"sword",left:"shield"},
   commands:["sweep","guard","thrust","heal"]},
  bow:{icon:"🏹",name:"弓矢",hands:{right:"bow",left:"none"},
-  commands:["shoot","aim","guard","heal"]},
+  commands:["shoot","aim","heal","config"]},
  work:{icon:"🔨",name:"作業",hands:{right:"pickaxe",left:"none"},
   commands:["mine","chop","build","rest"]},
  social:{icon:"💬",name:"交流",hands:{right:"none",left:"none"},
@@ -30,13 +30,18 @@ const clean=(slot,kind="melee")=>{
    commands[i]:def.commands[i])};
 };
 export const defaultActionSlots=()=>["melee","bow","work","social","system"].map(kind=>clean(null,kind));
+function migrateLegacy(legacy){
+ const old=legacy?.slots||[];
+ if(old.join(",")==="sword,axe,pickaxe,cup,book")return defaultActionSlots();
+ return Array.from({length:5},(_,i)=>clean(null,legacyKind(old[i])));
+}
 export class ActionSlots{
  constructor(snapshot=null,legacy=null){
   this.slots=defaultActionSlots();this.selected=0;this.autoTarget=true;
   this.manualTargetId=null;this.targetId=null;
   if(snapshot)this.restore(snapshot,legacy);
   else if(legacy?.slots?.length) {
-   this.slots=Array.from({length:5},(_,i)=>clean(null,legacyKind(legacy.slots[i])));
+   this.slots=migrateLegacy(legacy);
    this.selected=Math.max(0,Math.min(4,legacy.selected||0));
   }
  }
@@ -88,7 +93,7 @@ export class ActionSlots{
  snapshot(){return {version:1,slots:this.slots.map(s=>clean(s)),selected:this.selected,autoTarget:this.autoTarget};}
  restore(data,legacy=null){
   if(data?.version!==1||!Array.isArray(data.slots)){
-   if(legacy?.slots)this.slots=legacy.slots.slice(0,5).map(id=>clean(null,legacyKind(id)));
+   if(legacy?.slots)this.slots=migrateLegacy(legacy);
    this.selected=Math.max(0,Math.min(4,legacy?.selected||0));return false;
   }
   this.slots=Array.from({length:5},(_,i)=>clean(data.slots[i],defaultActionSlots()[i].kind));
