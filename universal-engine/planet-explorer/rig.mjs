@@ -68,6 +68,17 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
     pose.torsoX=.06;
     return pose;
   }
+  if(action==="guard"){
+    const t=clamp(progress,0,1),lift=ease(t/.22)*(1-ease((t-.75)/.25));
+    pose.leftShoulderX=-.24-1.24*lift;
+    pose.leftElbowX=-.14-.97*lift;
+    pose.leftShoulderZ=-.12-.36*lift;
+    pose.rightShoulderX=-.25-.65*lift;
+    pose.rightElbowX=-.18-.55*lift;
+    pose.torsoX=-.09*lift;
+    pose.tool=null;
+    return pose;
+  }
   if(["sword","axe","mine","bow","build"].includes(action)){
     let t=clamp(progress,0,1);
     const lerp=(a,b,f)=>a+(b-a)*f;
