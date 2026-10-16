@@ -142,6 +142,7 @@ function doFrame(t){
     }else if(!controller.moveTarget)access.pendingDoorId=null;
    }
    renderer.interiorBuildingId=access.insideId;
+   frontierUI?.updateTarget();
    const attackInProgress=actions.active;
    const completed=actions.advance(dt);
    if(running&&battle){
@@ -354,6 +355,9 @@ $("world").addEventListener("pointermove",e=>{
 });
 $("world").addEventListener("pointerup",e=>{
  if(!pointer||e.pointerId!==pointer.id)return;
+ if(!rtsMode&&!pointer.moved&&frontierUI?.selectTargetAt(e.clientX,e.clientY)){
+   pointer=null;return;
+ }
  if(!rtsMode&&!pointer.moved){
    const hit=renderer.pickLife(e.clientX,e.clientY);
    if(hit){
@@ -979,7 +983,7 @@ lifeUI=installLifestyleUI({
   onEquipHand:(kind,hand)=>frontierUI?.equipHandFromInventory(kind,hand)||{ok:false,message:"まだ装備できません。"}
  });
  frontierUI=installFrontierInteractions({
- get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,rtsMode,
+ get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,rtsMode,
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal
 });
