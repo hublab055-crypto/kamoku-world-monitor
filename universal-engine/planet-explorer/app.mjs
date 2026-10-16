@@ -464,6 +464,147 @@ for(const t of ["pointerup","pointercancel","lostpointercapture"]){
  stickArea.addEventListener(t,e=>{if(stickPointer===e.pointerId)releaseStick();});
 }
 
+/* ⚓ Tactical RTS controls and eight-slot IF -> THEN automation editor. */
+const RTS_METRICS={wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)"};
+const RTS_ACTIONS={gather_wood:"木材を採集",gather_stone:"石材を採集",build:"小屋を建築",
+ move_rally:"集合地点へ移動",follow:"隊長を追従",patrol:"集合地点付近を巡回",wait:"待機"};
+function renderAutoEditor(){
+ if(!squad)return;
+ const actor=squad.get(autoActorId)||squad.get("player");
+ $("auto-actor").value=actor.id;
+ $("auto-enabled").checked=actor.auto;
+ $("auto-actor-list").replaceChildren();
+ for(const a of squad.agents){
+  const btn=document.createElement("button");btn.type="button";
+  btn.textContent=a.name+" "+(a.auto?"● 自動":"○ 手動")+" / "+a.status;
+  btn.className=a.id===actor.id?"current":"";
+  btn.addEventListener("click",()=>{
+   autoActorId=a.id;squad.choose(a.id);renderAutoEditor();updateHUD();
+  });
+  $("auto-actor-list").append(btn);
+ }
+ const options=(items,selected,labeler)=>items.map(v=>
+  '<option value="'+v+'"'+(v===selected?' selected':'')+'>'+labeler(v)+'</option>').join("");
+ $("auto-rule-list").innerHTML=actor.rules.map((rule,index)=>
+  '<div class="auto-rule" data-slot="'+index+'">'+
+  '<label class="rule-enable"><input type="checkbox" data-field="enabled"'+(rule.enabled?' checked':'')+'> '+(index+1)+'</label>'+
+  '<label>IF <select data-field="metric">'+options(RULE_METRICS,rule.metric,v=>RTS_METRICS[v])+'</select></label>'+
+  '<label>比較 <select data-field="op">'+options(RULE_OPERATORS,rule.op,v=>v)+'</select></label>'+
+  '<label>値 <input type="number" data-field="value" step="any" min="-1000000" max="1000000" value="'+rule.value+'"></label>'+
+  '<label>THEN <select data-field="action">'+options(RULE_ACTIONS,rule.action,v=>RTS_ACTIONS[v])+'</select></label>'+
+  '</div>').join("");
+}
+function syncSquadUi(){renderAutoEditor();updateHUD();}
+function openAutoEditor(open){
+ $("auto-panel").hidden=!open;
+ $("viewport-auto").setAttribute("aria-expanded",String(open));
+ if(open){renderAutoEditor();$("auto-status").textContent="選択中の人物の条件を編集できます。";}
+}
+$("viewport-auto").addEventListener("click",()=>openAutoEditor($("auto-panel").hidden));
+$("toolbar-auto").addEventListener("click",()=>openAutoEditor(true));
+$("auto-close").addEventListener("click",()=>openAutoEditor(false));
+$("auto-actor").addEventListener("change",()=>{
+ autoActorId=$("auto-actor").value;squad.choose(autoActorId);renderAutoEditor();updateHUD();
+});
+$("auto-enabled").addEventListener("change",()=>{
+ squad.setAuto([autoActorId],$("auto-enabled").checked);
+ renderAutoEditor();updateHUD();
+});
+$("auto-rule-list").addEventListener("change",e=>{
+ const row=e.target.closest("[data-slot]");if(!row)return;
+ const index=Number(row.dataset.slot);
+ try{
+  const rule={
+   enabled:row.querySelector('[data-field="enabled"]').checked,
+   metric:row.querySelector('[data-field="metric"]').value,
+   op:row.querySelector('[data-field="op"]').value,
+   value:Number(row.querySelector('[data-field="value"]').value),
+   action:row.querySelector('[data-field="action"]').value
+  };
+  squad.setRule(autoActorId,index,rule);
+  $("auto-status").textContent=(index+1)+"番の条件を更新しました。保存ボタンで記録できます。";
+ }catch(err){$("auto-status").textContent="設定エラー: "+err.message;renderAutoEditor();}
+});
+$("auto-all-on").addEventListener("click",()=>{
+ squad.setAuto(squad.agents.map(a=>a.id),true);renderAutoEditor();updateHUD();
+});
+$("auto-all-off").addEventListener("click",()=>{
+ squad.setAuto(squad.agents.map(a=>a.id),false);renderAutoEditor();updateHUD();
+});
+$("auto-rally").addEventListener("click",()=>{
+ squad.setRally(squad.selected.size?[...squad.selected]:[autoActorId],controller.x,controller.z);
+ $("auto-status").textContent="隊長の現在地点を集合位置に設定しました。";
+});
+function toggleRts(){
+ if(!rtsMode){
+  if(!controller.nearGround){log("RTS操作は地表へ降下してから使えます。");setAltitude(2.5);return;}
+  rtsPreviousCamera=renderer.cameraController.mode;
+  rtsMode=true;
+  setCameraMode("tactical");
+  renderer.cameraController.setValue("tacticalHeightM",45);
+  setControlMode("tap");
+  log("⚓ RTS：人物をタップして選択、地面をタップして移動。全員選択も可能です。");
+ }else{
+  rtsMode=false;rtsMulti=false;rallyPicking=false;
+  setCameraMode(rtsPreviousCamera==="tactical"?"follow":rtsPreviousCamera);
+  setControlMode("stick");
+ }
+ updateHUD();
+}
+$("viewport-rts").addEventListener("click",toggleRts);
+$("toolbar-rts").addEventListener("click",toggleRts);
+$("rts-all").addEventListener("click",()=>{squad.selectAll();autoActorId="player";renderAutoEditor();updateHUD();});
+$("rts-multi").addEventListener("click",()=>{rtsMulti=!rtsMulti;updateHUD();});
+$("rts-rally").addEventListener("click",()=>{
+ rallyPicking=!rallyPicking;updateHUD();
+});
+$("rts-stop").addEventListener("click",()=>{
+ squad.halt([...squad.selected]);updateHUD();log("選択した人物の移動を停止しました。");
+});
+function commandRtsTap(clientX,clientY,shift=false){
+ const rect=$("world").getBoundingClientRect();
+ if(!rect.width||!rect.height)return;
+ const u=(clientX-rect.left)/rect.width,v=(clientY-rect.top)/rect.height;
+ const nearest=(renderer.screenActors||[])
+  .filter(p=>p.onScreen&&Math.hypot((p.u-u)*rect.width,(p.v-v)*rect.height)<42)
+  .sort((a,b)=>Math.hypot((a.u-u)*rect.width,(a.v-v)*rect.height)-
+   Math.hypot((b.u-u)*rect.width,(b.v-v)*rect.height))[0];
+ if(nearest&&!rallyPicking){
+  squad.choose(nearest.id,{add:rtsMulti||shift});
+  autoActorId=nearest.id;renderAutoEditor();log(nearest.name+" を選択しました。");updateHUD();
+  return;
+ }
+ const hit=renderer.pickGround(clientX,clientY);
+ if(!hit){log("地面をタップして指示してください。");return;}
+ if(rallyPicking){
+  squad.setRally([...squad.selected],hit.x,hit.z);rallyPicking=false;
+  log("選択した人物の集合地点を設定しました。");
+ }else{
+  const moved=squad.orderMove([...squad.selected],hit.x,hit.z);
+  log(moved?moved+"人に移動を指示しました。":"移動不可：水域・急斜面・遠すぎる地点です。");
+ }
+ updateHUD();
+}
+const rtsNodes=new Map();
+function updateRtsMarkers(projected){
+ const root=$("rts-markers");
+ if(!rtsMode||!controller.nearGround){root.hidden=true;return;}
+ root.hidden=false;
+ for(const agent of squad.agents){
+  let node=rtsNodes.get(agent.id);
+  if(!node){
+   node=document.createElement("span");node.className="rts-label";
+   root.append(node);rtsNodes.set(agent.id,node);
+  }
+  const point=projected?.find(p=>p.id===agent.id&&p.onScreen);
+  node.hidden=!point;
+  if(!point)continue;
+  node.style.left=(point.u*100)+"%";node.style.top=(point.v*100)+"%";
+  node.classList.toggle("selected",squad.selected.has(agent.id));
+  node.textContent=agent.name+(agent.auto?" ⚙":"");
+ }
+}
+
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
