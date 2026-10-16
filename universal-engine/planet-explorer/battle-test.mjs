@@ -30,7 +30,7 @@ export class BattleTest{
   const z=controller.z+Math.cos(yaw)*front-Math.sin(yaw)*side;
   const enemy={id:this.nextId++,type,name:config.name,
    x,z,yaw:wrap(yaw+Math.PI),radius:config.radius,height:config.height,
-   hp:config.hp,maxHp:config.hp,speed:config.speed};
+   hp:config.hp,maxHp:config.hp,speed:config.speed,walkPhase:0};
   this.enemies.push(enemy);
   return {ok:true,enemy,message:"👾 "+config.name+"が前方に出現しました（HP "+config.hp+"）。"};
  }
@@ -47,6 +47,7 @@ export class BattleTest{
    if(d>2.45){
     const travel=Math.min(d-2.45,e.speed*step);
     e.x+=dx/d*travel;e.z+=dz/d*travel;
+    e.walkPhase=(e.walkPhase||0)+travel*6.5;
    }
   }
  }
