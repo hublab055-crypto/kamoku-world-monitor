@@ -1,6 +1,6 @@
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,samplePatch,terrainSurface} from "./geo.mjs";
 import {noise3} from "../planet/planet-core.mjs";
-import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX} from "./rig.mjs";
+import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
@@ -84,15 +84,26 @@ function cone(b,x,y,z,h,r,col,sides=7){
 // Local equipment geometries are in metres; character forward is +Z.
 export const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
 function bowGeometry(){
- const b=builder(),wood=[.51,.29,.15],wrapping=[.27,.18,.11],string=[.89,.83,.68];
+ const b=builder(),wood=[.51,.29,.15],wrapping=[.27,.18,.11];
  // Curved upper and lower limbs with a taut string and central wrapped grip.
  for(let i=0;i<16;i++){
   const y=-.64+i*.08,mid=y+.04;
   const z=.17*(1-(mid/.64)**2);
   box(b,0,y,z,.023,.082,.025,wood);
  }
- box(b,0,-.64,-.018,.006,1.28,.006,string);
  box(b,0,-.105,.16,.041,.21,.047,wrapping);
+ return b;
+}
+function bowStringGeometry(draw=0){
+ const b=builder(),thread=[.88,.82,.70];
+ const nock=[0,0,-.018-Math.max(0,Math.min(1,draw))*.30];
+ const beam=(a,c)=>{
+  const w=.006;
+  quad(b,[-w,a[1],a[2]],[w,a[1],a[2]],[w,c[1],c[2]],[-w,c[1],c[2]],thread);
+  quad(b,[0,a[1],a[2]-w],[0,a[1],a[2]+w],[0,c[1],c[2]+w],[0,c[1],c[2]-w],thread);
+ };
+ beam([0,.64,-.018],nock);
+ beam(nock,[0,-.64,-.018]);
  return b;
 }
 function arrowGeometry(){
@@ -222,6 +233,7 @@ export class ExplorerRenderer{
     this.tools[tool]=new Mesh(gl,b);
   }
   this.tools.bow=new Mesh(gl,bowGeometry());
+  this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
   this.buildingMeshes=this.makeBuildingMeshes(gl);
   this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.screenShelves=[];this.interiorBuildingId=null;
@@ -353,7 +365,7 @@ export class ExplorerRenderer{
    const pose=animator.update(dt,{
       moving:s.moving,phase:s.totalDistanceM*2.7,
       speedMps:s.moving?s.walkSpeed:0,
-      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,
+      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,variant:motion.variant||"overhead",
       emotion:expression.preset,faceDirection:face.gazeX*.27,hand:motion?.hand||this.actionHand?.[actorId]||"right",
       equipped:this.handEquipment?.[actorId]||{}
    });
@@ -381,16 +393,26 @@ export class ExplorerRenderer{
     const wrist=joints[hand+"Wrist"];if(!wrist)continue;
     const attached=matrixMultiply(avatarTransform,wrist);
     const held=matrixMultiply(attached,heldItemTransform(kind));
-    this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
+    if(kind==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null,tint);
+    else this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
     if(kind==="bow"&&hand===activeHand&&motion?.action==="bow")
-      this.drawFlyingArrow(vp,attached,light,motion.progress,tint);
+      this.drawFlyingArrow(vp,attached,light,motion.progress,tint,hand);
    }
  }
- drawFlyingArrow(vp,wristTransform,light,progress=0,tint=[1,1,1]){
-   const t=Math.max(0,Math.min(1,Number(progress)||0));
-   // Nocked for the draw, then visibly travels forward after the release.
-   const flight=t<.64?0:Math.min(7.5,(t-.64)/.36*7.5);
-   const arrow=matrixMultiply(wristTransform,translate(0,-.155,.60+flight));
+ drawBow(vp,held,light,motion=null,tint=[1,1,1]){
+   const tension=motion?.action==="bow"?bowDrawState(motion.progress).tension:0;
+   this.drawMesh(this.tools.bow,multiply4(vp,held),light,1,.68,tint);
+   this.drawMesh(this.bowStrings[Math.round(tension*8)],multiply4(vp,held),light,1,.80,tint);
+ }
+ drawFlyingArrow(vp,wristTransform,light,progress=0,tint=[1,1,1],hand="right"){
+   const state=bowDrawState(progress);
+   // No arrow appears until the draw hand actually brings it to the string.
+   if(!state.visible)return;
+   const side=hand==="right"?-1:1;
+   const x=side*.30*(1-state.nocked);
+   const y=-.155-.18*(1-state.nocked);
+   const z=.05+.47+.26*(1-state.nocked)-.31*state.tension+state.flight;
+   const arrow=matrixMultiply(wristTransform,translate(x,y,z));
    this.drawMesh(this.tools.arrow,multiply4(vp,arrow),light,1,.88,tint);
  }
  drawBuildings(vp,light,s,radius,dt=1/60){
@@ -476,9 +498,11 @@ export class ExplorerRenderer{
     });
     if(joint<0||!pose.world[joint])continue;
     const attach=multiply4(characterTransform,multiply4(normalize,pose.world[joint]));
-    this.drawMesh(mesh,multiply4(vp,multiply4(attach,heldItemTransform(item))),light,1,.68);
+    const held=multiply4(attach,heldItemTransform(item));
+    if(item==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null);
+    else this.drawMesh(mesh,multiply4(vp,held),light,1,.68);
     if(item==="bow"&&hand===activeHand&&motion?.action==="bow")
-      this.drawFlyingArrow(vp,attach,light,motion.progress);
+      this.drawFlyingArrow(vp,attach,light,motion.progress,[1,1,1],hand);
    }
  }
  drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
@@ -688,7 +712,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
