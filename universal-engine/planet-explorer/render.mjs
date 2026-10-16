@@ -188,7 +188,7 @@ export class ExplorerRenderer{
     this.tools[tool]=new Mesh(gl,b);
   }
   this.buildingMeshes=this.makeBuildingMeshes(gl);
-  this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.interiorBuildingId=null;
+  this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.screenShelves=[];this.interiorBuildingId=null;
   this.sceneActions=null;
   this.pickVP=null;this.groundPatchData=null;
   gl.enable(gl.DEPTH_TEST);
@@ -220,7 +220,7 @@ export class ExplorerRenderer{
    };
  }
  makeRoomMeshes(gl){
-   const door=builder(),floor=builder(),furniture=builder();
+   const door=builder(),floor=builder(),furniture=builder(),bookshelf=builder();
    box(door,.64,.29,0,.64,2.03,.065,[.37,.23,.16]);
    box(door,1.04,1.36,.095,.065,.105,.045,[.86,.68,.35]);
    box(floor,0,.27,0,2.58,.12,2.22,[.50,.34,.22]);
@@ -241,7 +241,32 @@ export class ExplorerRenderer{
     [-.7,.41,-1.78,.32,.75,.25,[.42,.29,.15]],
     [-.7,1.17,-1.78,.12,.35,.12,[.96,.82,.42]]];
    for(const item of items)box(furniture,...item);
-   return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture)};
+   // Shelf built from separate planks and rows of upright colored books.
+   const wood=[.43,.29,.18],edge=[.27,.18,.12];
+   box(bookshelf,.28,.40,-1.98,.94,2.12,.33,wood);
+   box(bookshelf,.28,.46,-1.60,.86,.13,.06,edge);
+   for(const y of [.61,1.26,1.91]){
+    box(bookshelf,.28,y,-1.62,.88,.10,.30,[.61,.39,.22]);
+    for(let i=0;i<7;i++){
+     const colors=[[.23,.45,.51],[.62,.30,.22],[.66,.56,.28],[.25,.44,.32],[.58,.34,.48]];
+     const color=colors[(i+Math.round(y*5))%colors.length];
+     box(bookshelf,-.39+i*.22,y+.11,-1.62,.085,.45+(i%3)*.035,.15,color);
+     box(bookshelf,-.39+i*.22,y+.25,-1.46,.05,.012,.018,[.9,.78,.54]);
+    }
+   }
+   return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture),
+    bookshelf:new Mesh(gl,bookshelf)};
+  }
+  pickBookshelf(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let hit=null,distance=58;
+   for(const shelf of this.screenShelves){
+    if(!shelf.onScreen)continue;
+    const d=Math.hypot((shelf.u-u)*r.width,(shelf.v-v)*r.height);
+    if(d<distance){distance=d;hit=shelf;}
+   }
+   return hit;
   }
   pickDoor(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
@@ -293,7 +318,7 @@ export class ExplorerRenderer{
  }
  drawBuildings(vp,light,s,radius,dt=1/60){
    if(!this.sceneActions)return;
-   this.screenDoors=[];
+   this.screenDoors=[];this.screenShelves=[];
    for(const hut of this.sceneActions.structures){
      const offset=geoLocal(s.origin.lat,s.origin.lon,hut.lat,hut.lon,this.planet.radiusM);
      const bx=offset.eastM,bz=offset.northM;
@@ -306,7 +331,14 @@ export class ExplorerRenderer{
      if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
      if(hut.progress>=1){
       this.drawMesh(this.roomMeshes.floor,mvp,light,1,.72);
-      if(hut.doorOpen||hut.id===this.interiorBuildingId)this.drawMesh(this.roomMeshes.furniture,mvp,light,1,.73);
+      if(hut.doorOpen||hut.id===this.interiorBuildingId){
+        this.drawMesh(this.roomMeshes.furniture,mvp,light,1,.73);
+        this.drawMesh(this.roomMeshes.bookshelf,mvp,light,1,.78);
+        if(hut.id===this.interiorBuildingId){
+         const target=projectScreen(vp,[bx-this.cx+.28,hut.height+1.6,bz-this.cz-1.61]);
+         if(target)this.screenShelves.push({...target,id:hut.id});
+        }
+       }
       const target=hut.doorOpen?1.4:0,prev=this.doorAngles.get(hut.id)??0;
       const angle=prev+(target-prev)*Math.min(1,Math.max(0,dt)*5.5);
       this.doorAngles.set(hut.id,angle);
@@ -333,7 +365,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  this.screenActors=[];this.screenDoors=[];
+  this.screenActors=[];this.screenDoors=[];this.screenShelves=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
