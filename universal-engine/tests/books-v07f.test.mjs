@@ -54,7 +54,7 @@ test("book is a tangible inventory item: take, read anywhere, return per cabin",
  assert.equal(hut.bookshelfBooks.includes("iroha"),true);
 });
 test("bookmark, carried book, shelf contents and font size can be restored",()=>{
- const actions=new Actions(),hut={id:7,kind:"hut",progress:1,x:2,z:3};
+ const actions=new Actions(),hut={id:7,kind:"hut",progress:1,x:2,z:3,lat:28,lon:42,height:100};
  actions.structures=[hut];
  const library=new BookCollection();
  library.ensureShelf(hut);
