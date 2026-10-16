@@ -544,3 +544,43 @@ body.immersive{overflow:hidden}
  grid-column:1/-1;text-align:center;color:#d6e6e9;font-size:11px;
  padding:4px 3px;max-width:173px;white-space:normal
 }
+
+
+/* v0.7q Five action decks and minimal contextual command ribbon. */
+.action-command-bar{
+ position:absolute;z-index:16;left:50%;transform:translateX(-50%);
+ bottom:calc(52px + env(safe-area-inset-bottom,0px));display:flex;
+ max-width:calc(100% - 18px);gap:4px;padding:5px;overflow-x:auto;
+ background:#092f46e8;border:1px solid #6aadb5;border-radius:10px;
+ scrollbar-width:thin;white-space:nowrap;touch-action:pan-x
+}
+.action-command-bar button{
+ flex:0 0 auto;min-height:34px;padding:5px 8px;border-radius:7px;
+ color:#effbff;background:#1a4e66e8;border:1px solid #6399b0;font-size:11px
+}
+.action-command-bar button:active{background:#267b8e}
+.aim-reticle{
+ position:absolute;z-index:10;left:50%;top:46%;transform:translate(-50%,-50%);
+ color:#e8fafd;font-size:37px;font-weight:400;line-height:1;
+ text-shadow:0 0 5px #001c2a,0 0 1px #002;pointer-events:none
+}
+.aim-reticle[hidden],.combat-target-label[hidden]{display:none!important}
+.combat-target-label{
+ position:absolute;z-index:10;top:calc(46% + 25px);left:50%;
+ transform:translateX(-50%);background:#08283cb3;color:#fcf3c6;
+ border-radius:6px;padding:3px 8px;font-size:11px;
+ white-space:nowrap;pointer-events:none
+}
+.deck-config{border:1px solid #578397;border-radius:9px;padding:7px;margin:8px 0;background:#113a4bc8}
+.deck-config>label{display:flex;align-items:center;gap:7px}
+.deck-gears,.deck-commands{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:6px}
+.deck-gears label,.deck-commands label{display:flex;flex-direction:column;gap:3px;font-size:11px}
+.deck-config select{width:100%;min-width:0;max-width:100%;font-size:11px}
+.auto-target-setting{display:flex;align-items:center;gap:6px}
+@media(max-width:760px){
+ .action-command-bar{bottom:calc(44px + env(safe-area-inset-bottom,0px));padding:3px;gap:3px}
+ .action-command-bar button{min-height:31px;padding:4px 6px;font-size:10px}
+ .hand-actions{display:none!important}
+ .aim-reticle{font-size:30px}
+ .combat-target-label{font-size:10px}
+}
