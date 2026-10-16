@@ -66,14 +66,16 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    return deployed;
   }
   if(result.kind==="action"){
-   if(c.renderer)c.renderer.actionHand[who.id]=hand;
    if(who.id!=="player"){
     const ok=c.squad.performEquippedAction(who.id,result.action,hand);
+    if(ok){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
     log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
     updateHUD();return {ok};
    }
-   c.actions.start(result.action,c.controller,c.sample);
+   const started=c.actions.start(result.action,c.controller,c.sample);
+   if(started){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
    log(c.actions.message);
+   if(!started)return {ok:false,message:c.actions.message};
   }else{log(result.message);saveLifeJournal();}
   updateHUD();return result;
  }
