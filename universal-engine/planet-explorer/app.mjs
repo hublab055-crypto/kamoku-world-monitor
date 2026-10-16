@@ -14,6 +14,7 @@ import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs";
+import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7g";
@@ -45,6 +46,7 @@ let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,a
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
+let frontierUI=null;
 const keys=new Set(),touches=new Set();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
@@ -89,6 +91,8 @@ function init(saved=null){
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
+  frontierUI?.restore(saved?.v0_7i||null);
+  void frontierUI?.loadModels(renderer);
   renderer.cameraController=saved?.v0_7c?.camera?
     CameraController.fromSnapshot(saved.v0_7c.camera):new CameraController();
   if(!saved)renderer.cameraController.setMode("follow",controller,
@@ -116,6 +120,7 @@ function doFrame(t){
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
   squad?.advance(running?dt:0,{manualLead});
+  frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
@@ -199,6 +204,7 @@ function updateHUD(){
  $("rts-controls").hidden=!rtsMode||!isSurface;
  $("rts-summary").textContent="選択: "+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
+ frontierUI?.quick();
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
  $("rts-multi").setAttribute("aria-pressed",String(rtsMulti));
  $("rts-rally").setAttribute("aria-pressed",String(rallyPicking));
@@ -232,7 +238,7 @@ $("save").addEventListener("click",()=>{
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
    v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
-    v0_7f:books.snapshot(),v0_7g:life.snapshot()};
+    v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot()};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("v0.7g：家具・食器・野営・読書・3人の部隊を保存しました。旧版の保存は上書きしません。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -949,7 +955,12 @@ lifeUI=installLifestyleUI({
   onSleep:()=>{planet.advance(.25);updateHUD();},
   notify:log
  });
- init();requestAnimationFrame(doFrame);
+ frontierUI=installFrontierInteractions({
+ get:()=>({controller,renderer,squad,actions,life,terrain,rtsMode,
+  sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
+ log,updateHUD,openBookLibrary,saveLifeJournal
+});
+init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
 const stage=document.querySelector(".view-panel");
