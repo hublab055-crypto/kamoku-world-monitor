@@ -238,9 +238,15 @@ function makeHut(){
     frame=col("#4b362a"),brass2=col("#caa866");
   add("土台",m=>m.box(0,0,0,2.95,.26,2.6,stone));
   add("木壁と梁",m=>{
-    m.box(0,.27,0,2.74,2.75,2.40,plank);
-    for(let x=-2.5;x<=2.5;x+=.65){m.box(x,.26,2.41,.038,2.74,.045,plank2);
-      m.box(x,.26,-2.41,.038,2.74,.045,plank2);}
+    // Wall segments leave an actual open 1.4m-wide doorway on +Z.
+    m.box(0,.27,-2.40,2.74,2.75,.08,plank);
+    for(const side of [-1,1]){
+      m.box(side*2.66,.27,0,.08,2.75,2.40,plank);
+      m.box(side*1.71,.27,2.40,1.03,2.75,.08,plank);
+    }
+    m.box(0,2.37,2.40,.70,.65,.08,plank);
+    for(let x=-2.5;x<=2.5;x+=.65){if(Math.abs(x)>.75)m.box(x,.26,2.49,.038,2.74,.045,plank2);
+      m.box(x,.26,-2.49,.038,2.74,.045,plank2);}
     for(let z=-2.12;z<=2.1;z+=.7){m.box(-2.76,.26,z,.055,2.74,.035,plank2);
       m.box(2.76,.26,z,.055,2.74,.035,plank2);}
     m.box(0,2.92,2.45,2.84,.22,.10,frame);
@@ -253,9 +259,9 @@ function makeHut(){
     m.box(0,4.36,0,.12,.12,3.0,col("#b3a779"));
   });
   add("扉・窓・取手",m=>{
-    m.box(0,.28,2.49,.67,2.1,.08,frame);
-    m.box(0,.37,2.58,.56,1.92,.05,plank2);
-    m.box(.43,1.41,2.66,.08,.11,.04,brass2);
+    m.box(-.74,.27,2.51,.08,2.15,.10,frame);
+    m.box(.74,.27,2.51,.08,2.15,.10,frame);
+    m.box(0,2.39,2.51,.82,.10,.10,frame);
     for(const x of [-1.8,1.8]){
       m.box(x,1.38,2.49,.52,.76,.11,frame);
       m.box(x,1.50,2.60,.42,.57,.05,col("#88c0bb"));
