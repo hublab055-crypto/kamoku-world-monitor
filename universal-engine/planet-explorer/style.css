@@ -147,3 +147,10 @@ body.immersive{overflow:hidden}
  .view-panel.immersive .action-pad,
  .view-panel:fullscreen .action-pad{bottom:40px}
 }
+
+/* Original avatar selector and model studio entrypoint */
+.mode-bar .avatar-style-label{color:#d7edf4;font-size:11px}
+#avatar-style{font-size:12px;background:#163c51;border-color:#4e8191;color:#e8f5f8;min-height:37px}
+.model-lab-link{color:#9be8f0;font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap;padding:9px 3px}
+.model-lab-link:hover{text-decoration:underline}
+@media(max-width:650px){#avatar-style{max-width:148px}.model-lab-link{font-size:11px}}

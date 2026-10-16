@@ -1,4 +1,4 @@
-# Universal Engine — Planet Explorer v0.5
+# Universal Engine — Planet Explorer v0.6
 
 独立した架空マルチバースの **WebGL2 3D惑星探索プロトタイプ**。宇宙から3D球体惑星を観察し、同一の地理座標・地形サンプラーで細密な地表メッシュへ降下し、人物を操作できます。
 
@@ -10,6 +10,14 @@
 - 操作: 降下・帰還、拡大・縮小、惑星日数の早送り、時間停止、端末ローカル保存・復元。
 - モバイル: 画面ボタンを押し続ける操作、タッチでカメラ回転、ピンチの代わりに拡大縮小ボタン。
 - JavaScript ES Modules + ブラウザ標準WebGL2だけで動作。CDN・外部アセット・認証・外部ネットワーク通信なし。
+
+## v0.6 — Original 3D art pack
+
+The hand-built avatar and basic vegetation/building placeholders have been replaced by **original, procedurally-authored 3D geometry** from [`../original-assets/`](../original-assets/). Three avatar variants (pioneer/scout/artisan) can be selected in the exploration UI and are rendered through the **existing 21-pivot joint animation**. Trees, rock, tools and house also use original geometry in the WebGL scene.
+
+The separate [Original Model Lab](../model-lab/) allows rotating and previewing all 12 models and exporting `GLB` (rigid joint hierarchy + 5 clips for avatars) or `OBJ` (static geometry). Twelve actual `.glb` files are stored in `../original-assets/models/` for immediate import into 3D editors. See the original asset pack's [README](../original-assets/README.md) and [LICENSE](../original-assets/LICENSE.md).
+
+Current characters are stylized segmented low-poly models rather than skinned high-detail avatars. Models are original designs, not modified copies of KayKit, Quaternius or Kenney assets. Import/export visual QA in Blender and mobile browser is still pending.
 
 ## v0.5: Enlarged screen and 3D asset research (2026-10-16)
 

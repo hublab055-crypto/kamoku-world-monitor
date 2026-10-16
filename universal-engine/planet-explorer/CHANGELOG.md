@@ -1,5 +1,12 @@
 # Planet Explorer — Change Log
 
+## v0.6 — 2026-10-16
+- 12 unique original 3D models and self-contained binary GLB files; 3 avatar variants with rigid hierarchy and five GLB animation clips.
+- Procedural model generation, GLB and OBJ exporters, interactive preview studio.
+- Explorer's custom WebGL rendering upgraded to original avatar/environment/tool/building meshes, with avatar style switching and persisted selection.
+- Model geometry/export regression tests, sources and model license documentation.
+- Existing Frontier World and Kamoku Monitor files remain untouched.
+
 ## v0.5 — 2026-10-16
 - Expanded the desktop and phone world viewport and widened the page layout.
 - Added a fullscreen button with native Fullscreen API and CSS immersive fallback for iPhone Safari.

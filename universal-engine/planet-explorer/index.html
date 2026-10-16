@@ -16,8 +16,8 @@
   <div class="container headline">
     <div>
       <p class="eyebrow">UNIVERSAL ENGINE · V0.4</p>
-      <h1>宇宙から、地上へ。</h1>
-      <p>3D惑星から地表へ。関節を動かして歩く・跳ぶ・剣や斧を振る・道具で採取する・小屋を建てる。</p>
+      <h1>オリジナルの世界を歩く。</h1>
+      <p>3D惑星から地表へ。専用デザインの3Dアバター、樹木、道具、小屋を実装。関節を動かして歩き、跳び、採取し、建築します。</p>
     </div>
     <div class="version-tag">WebGL2 · Native 3D</div>
   </div>
@@ -39,6 +39,13 @@
   <span>移動方法</span>
   <button type="button" id="mode-stick" aria-pressed="true">● スティック</button>
   <button type="button" id="mode-tap" aria-pressed="false">◎ タップ移動</button>
+  <label class="avatar-style-label" for="avatar-style">人物</label>
+  <select id="avatar-style" aria-label="アバターの種類">
+    <option value="pioneer">開拓者・翠</option>
+    <option value="scout">斥候・藍</option>
+    <option value="artisan">職人・錆朱</option>
+  </select>
+  <a class="model-lab-link" href="../model-lab/">3Dモデル工房 ↗</a>
   <strong id="control-state">スティック移動</strong>
 </div>
 <div class="canvas-wrap">

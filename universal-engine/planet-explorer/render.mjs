@@ -2,6 +2,7 @@ import {geoNormal,geoOffset,geoLocal,DEG,clamp,samplePatch,terrainSurface} from 
 import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
+import {buildOriginalModel} from "../original-assets/original-models.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -79,25 +80,48 @@ function sphereGeometry(terrain,planet){
  }
  return {ground,clouds,R};
 }
+// Original world meshes share the same vertex-color format as the WebGL adapter.
+// Each tree is a compact triangle hierarchy; no third-party model imports.
+const natureModelCache=new Map();
+function original(id){
+ if(!natureModelCache.has(id))natureModelCache.set(id,buildOriginalModel(id));
+ return natureModelCache.get(id);
+}
+function appendModel(b,model,x,y,z,scale=1,angle=0){
+ const c=Math.cos(angle),s=Math.sin(angle);
+ for(const part of model.parts){
+   const mesh=part.geometry, offset=b.positions.length/3;
+   for(let k=0;k<mesh.positions.length;k+=3){
+     const px=mesh.positions[k]*scale,pz=mesh.positions[k+2]*scale;
+     b.positions.push(x+c*px-s*pz,y+mesh.positions[k+1]*scale,z+s*px+c*pz);
+     const nx=mesh.normals[k],ny=mesh.normals[k+1],nz=mesh.normals[k+2];
+     b.normals.push(c*nx-s*nz,ny,s*nx+c*nz);
+   }
+   b.colors.push(...mesh.colors);
+   for(const idx of mesh.indices)b.indices.push(idx+offset);
+ }
+}
 function vegetation(terrain,planet,origin,cx,cz,radius){
- const b=builder();if(radius>4000)return b;
- const cell=60,rng=Math.min(radius*.87,960);
+ const b=builder();
+ if(radius>4100)return b;
+ const cell=98,rng=Math.min(radius*.87,850);
  let count=0;
  for(let iz=Math.floor((cz-rng)/cell);iz<=Math.ceil((cz+rng)/cell);iz++){
   for(let ix=Math.floor((cx-rng)/cell);ix<=Math.ceil((cx+rng)/cell);ix++){
-   if(count>=460)break;
+   if(count>=80)break;
    const val=noise3(ix*.84,iz*.92,5,planet.seed+503);
-   if(val<-.10)continue;
+   if(val<-.22)continue;
    const ax=ix*cell+val*9,az=iz*cell+val*11,x=ax-cx,z=az-cz;
-   if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
-   const geo=geoOffset(origin.lat,origin.lon,ax,az,planet.radiusM),s=terrainSurface(terrain,geo.lat,geo.lon);
-   if(s.water||s.river||s.elevationM<60||s.elevationM>2000)continue;
-   if(val>.04){const h=6+val*5;
-    box(b,x,s.elevationM,z,.45,h*.7,.45,[.39,.27,.16]);
-    cone(b,x,s.elevationM+h*.32,z,h*.97,h*.36,[.14,.39,.20]);count++;
-   }else{cone(b,x,s.elevationM,z,.8,.45,[.34,.56,.18],4);count++}
+   if(Math.abs(x)>radius*.98||Math.abs(z)>radius*.98)continue;
+   const geo=geoOffset(origin.lat,origin.lon,ax,az,planet.radiusM);
+   const s=terrainSurface(terrain,geo.lat,geo.lon);
+   if(s.water||s.river||s.elevationM<60||s.elevationM>2200)continue;
+   const id=val>.28?"broadleaf":val>.04?"pine":val>-.07?"flowering":"boulder";
+   const scale=id==="boulder"?.8:1.05+Math.abs(val)*.42;
+   appendModel(b,original(id),x,s.elevationM,z,scale,val*5);
+   count++;
   }
-  if(count>=460)break;
+  if(count>=80)break;
  }
  return b;
 }
@@ -114,25 +138,18 @@ export class ExplorerRenderer{
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.patch=null;this.trees=null;this.patchKey=null;
-  // Each anatomical segment has its own GPU mesh, positioned by joint matrices.
-  this.rigParts=RIG_SEGMENTS.map(part=>{
-    const b=builder();
-    box(b,0,part.y,part.z||0,part.w,part.h,part.d,part.color);
-    return {mesh:new Mesh(gl,b),part};
-  });
+  // Original segmented humanoid; each mesh is parented to a semantic joint.
+  this.avatarStyle="pioneer";
+  this.rigParts=[];
+  this.setAvatarStyle("pioneer");
   this.tools={};
   for(const tool of ["sword","axe","pickaxe","hammer"]){
-    const b=builder(),timber=[.45,.28,.15],metal=[.72,.78,.83];
-    box(b,0,-.65,.0,.047,.85,.047,timber);
-    if(tool==="sword"){
-      box(b,0,-1.52,0,.075,.98,.025,metal);
-      box(b,0,-.60,0,.22,.10,.11,[.73,.55,.23]);
-    }else if(tool==="axe"){
-      box(b,.17,-1.53,0,.27,.37,.065,metal);
-    }else if(tool==="pickaxe"){
-      box(b,0,-1.47,0,.45,.12,.10,metal);
-    }else{
-      box(b,0,-1.38,0,.24,.28,.20,metal);
+    const src=original(tool).parts[0].geometry;
+    // Rotate the standalone upright tool so its handle extends from the wrist.
+    const b={positions:[],normals:[],colors:[...src.colors],indices:[...src.indices]};
+    for(let k=0;k<src.positions.length;k+=3){
+      b.positions.push(src.positions[k]*.76,-src.positions[k+1]*.76-.12,-src.positions[k+2]*.76);
+      b.normals.push(src.normals[k],-src.normals[k+1],-src.normals[k+2]);
     }
     this.tools[tool]=new Mesh(gl,b);
   }
@@ -141,20 +158,23 @@ export class ExplorerRenderer{
   this.pickVP=null;this.groundPatchData=null;
   gl.enable(gl.DEPTH_TEST);
  }
+ setAvatarStyle(id){
+   if(!["pioneer","scout","artisan"].includes(id))throw new RangeError("Unknown avatar style");
+   const model=original(id);
+   const meshes=model.parts.map(part=>({mesh:new Mesh(this.gl,part.geometry),part}));
+   for(const entry of this.rigParts||[])entry.mesh.destroy();
+   this.rigParts=meshes;
+   this.avatarStyle=id;
+   return id;
+ }
  makeBuildingMeshes(gl){
-   const base=builder(),walls=builder(),roof=builder();
-   const wood=[.52,.35,.21],stone=[.50,.53,.55],dark=[.32,.21,.12];
-   box(base,0,0,0,2.8,.22,2.8,stone);
-   for(const sign of [-1,1]){
-     box(walls,sign*2.45,.25,0,.20,2.7,2.55,wood);
-     box(walls,0,.25,sign*2.45,2.6,2.7,.20,wood);
-   }
-   // Roof slopes as two planes; conservative low-poly building.
-   triangle(roof,[-3,3,-3],[0,4.45,-3],[0,4.45,3],dark);
-   triangle(roof,[-3,3,-3],[0,4.45,3],[-3,3,3],dark);
-   triangle(roof,[0,4.45,-3],[3,3,-3],[3,3,3],dark);
-   triangle(roof,[0,4.45,-3],[3,3,3],[0,4.45,3],dark);
-   return {base:new Mesh(gl,base),walls:new Mesh(gl,walls),roof:new Mesh(gl,roof)};
+   const parts=original("hut").parts;
+   return {
+     base:new Mesh(gl,parts[0].geometry),
+     walls:new Mesh(gl,parts[1].geometry),
+     roof:new Mesh(gl,parts[2].geometry),
+     details:new Mesh(gl,parts[3].geometry)
+   };
  }
  pickGround(clientX,clientY){
    if(!this.pickVP||!this.groundPatchData)return null;
@@ -189,6 +209,7 @@ export class ExplorerRenderer{
      this.drawMesh(this.buildingMeshes.base,mvp,light,1,.64);
      if(hut.progress>=.3)this.drawMesh(this.buildingMeshes.walls,mvp,light,1,.64);
      if(hut.progress>=.75)this.drawMesh(this.buildingMeshes.roof,mvp,light,1,.64);
+     if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
    }
  }
  drawMesh(mesh,mvp,light,alpha=1,ambient=.25){

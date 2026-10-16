@@ -12,6 +12,7 @@ const SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions;
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
+let avatarStyle="pioneer";
 const keys=new Set(),touches=new Set();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
@@ -32,6 +33,9 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+  avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
+  renderer.setAvatarStyle(avatarStyle);
+  $("avatar-style").value=avatarStyle;
   renderer.sceneActions=actions;
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
@@ -118,7 +122,7 @@ $("play").addEventListener("click",()=>{
 $("save").addEventListener("click",()=>{
  try{
   const data={format:"ue/explorer-demo",version:1,
-   planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot()};
+   planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("独立した3D探索データを保存しました。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -194,6 +198,11 @@ $("landing-select").addEventListener("change",()=>{
 });
 $("landing-select").addEventListener("focus",()=>{keys.clear();touches.clear();});
 
+$("avatar-style").addEventListener("change",()=>{
+  const id=$("avatar-style").value;
+  try{avatarStyle=renderer.setAvatarStyle(id);log("オリジナル人物モデルを「"+$("avatar-style").selectedOptions[0].text+"」に変更しました。");}
+  catch(e){log("モデル変更に失敗: "+e.message);}
+});
 function setControlMode(mode){
  controlMode=mode;
  controller?.clearMoveTarget();

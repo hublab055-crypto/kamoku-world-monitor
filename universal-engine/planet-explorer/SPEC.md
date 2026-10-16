@@ -1,4 +1,4 @@
-# Universal Engine v0.5 — 惑星から地表への地理・描画接続仕様
+# Universal Engine v0.6 — 惑星から地表への地理・描画接続仕様
 
 更新: 2026-10-16 / 既存資産との分離を維持。
 
@@ -34,6 +34,17 @@ WebGL2の頂点・フラグメントシェーダーを採用。球体と雲を�
 - 地上の海、河川、標高2800m超、歩幅に対して急な標高段差は進入を拒否。
 - 位置 `(x,z)` と緯度経度は毎歩更新。ワープ／世界間の移動は未実装。
 - ジャンプは重力加速度によるローカル垂直速度の簡易積分と地面着地のみ実装。崖からの落下、海中移動、剛体衝突、地形との連続衝突検知は未実装。v0.2のBallisticsは別デモで引き続き使用可能。
+
+## v0.6 new original model pack
+
+- All geometry generated from standalone source `../original-assets/original-models.mjs`: 3 humanoids, 3 tree variants, boulder, hut, 4 tools.
+- `render.mjs` now uses `buildOriginalModel()` for the three avatar variants. It assigns each original mesh to an existing semantic pivot from `rig.mjs`; the existing action animations keep working.
+- Environment objects: original trees, stone models and upgraded colored wooden hut meshes replace placeholder primitives. Bounded CPU mesh batching still limits vegetation to protect mobile performance.
+- Runtime selection `#avatar-style` swaps all segment meshes and persists the selected avatar in the existing explorer save data, using "pioneer" as the default for legacy saves.
+- `../original-assets/export.mjs` exports glTF 2.0 GLB binaries with `COLOR_0`, normals, joint-node hierarchy and five in-place animation clips for avatars (walk, jump, sword, axe, build). These are **rigid node animations** and do not contain skinned meshes.
+- GLB files also stored at `../original-assets/models/<id>.glb`; editable OBJ export in Model Lab is static (no rig/animation/colors). Original assets metadata is CC0-1.0; generator code MIT.
+- `../model-lab/` is a separate browser viewer/editor entrypoint. No external asset requests or dependencies.
+- Known limits: no animation blending in GLB viewer, skeletal skin weighting, texture maps, facial morphs or third-party formats such as FBX. Visual QA in Blender and actual iPhone browsers has not been done.
 
 ## v0.5 large-screen viewport and asset pipeline
 
