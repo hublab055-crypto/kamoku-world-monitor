@@ -532,3 +532,15 @@ body.immersive{overflow:hidden}
 #frontier-glb-status{font-size:12px;line-height:1.55;color:#d0f5e7;overflow-wrap:anywhere}
 #frontier-glb-status[data-state="warning"]{color:#ffdfb0}
 #frontier-glb-status[data-state="loading"]{color:#c6d9e5}
+
+/* v0.7n — Battle test lives inside the compact existing tools popover. */
+.action-tool-list #enemy-type{
+ min-height:43px;width:100%;min-width:0;border-radius:8px;padding:4px;
+ border:1px solid #71b6bf;background:#123a4e;color:#ecf7f7;font-size:11px
+}
+.action-tool-list #spawn-enemy{background:#3c5960;border-color:#b9d88e}
+.action-tool-list #clear-test-enemies{background:#55383a;border-color:#ad8784}
+.action-tool-list #battle-status{
+ grid-column:1/-1;text-align:center;color:#d6e6e9;font-size:11px;
+ padding:4px 3px;max-width:173px;white-space:normal
+}
