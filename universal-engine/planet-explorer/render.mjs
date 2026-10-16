@@ -199,7 +199,7 @@ export class ExplorerRenderer{
   this.dishMeshes={};
   for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
   this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
-  this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
+  this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
    this.fwResourceMeshes={};
    const colors={wood:[.40,.24,.15],stone:[.54,.59,.62],fiber:[.27,.64,.35],food:[.80,.31,.23],water:[.22,.59,.84]};
    for(const [kind,color] of Object.entries(colors)){
@@ -315,13 +315,13 @@ export class ExplorerRenderer{
    const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
    return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
  }
- drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0},tint=[1,1,1]){
+ drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0},tint=[1,1,1],actorId="player"){
    const face=expression.update(dt);
    const pose=animator.update(dt,{
       moving:s.moving,phase:s.totalDistanceM*2.7,
       speedMps:s.moving?s.walkSpeed:0,
       jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,
-      emotion:expression.preset,faceDirection:face.gazeX*.27
+      emotion:expression.preset,faceDirection:face.gazeX*.27,hand:motion?.hand||this.actionHand?.[actorId]||"right"
    });
    Object.assign(pose,expressionPoseValues(face));
    const joints=jointTransformsV2(pose,s.yaw);
@@ -339,9 +339,14 @@ export class ExplorerRenderer{
      }
      this.drawMesh(mesh,multiply4(vp,m),light,1,.72,tint);
    }
-   if(pose.tool&&this.tools[pose.tool]){
-     const held=matrixMultiply(avatarTransform,joints.rightWrist);
-     this.drawMesh(this.tools[pose.tool],multiply4(vp,held),light,1,.68,tint);
+   const equipment=this.handEquipment?.[actorId]||{};
+   const activeHand=motion?.hand||this.actionHand?.[actorId]||"right";
+   for(const hand of ["right","left"]){
+    const kind=hand===activeHand&&pose.tool?pose.tool:equipment[hand];
+    if(!this.tools[kind])continue;
+    const wrist=joints[hand+"Wrist"];if(!wrist)continue;
+    const held=matrixMultiply(avatarTransform,wrist);
+    this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
    }
  }
  drawBuildings(vp,light,s,radius,dt=1/60){
@@ -577,7 +582,7 @@ export class ExplorerRenderer{
   const playerMotion=lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
   if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,s,light,dt,playerMotion,'player'))
-   this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion);
+   this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion,[1,1,1],"player");
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
   const actors=this.squad?.agents||[];
@@ -598,7 +603,7 @@ export class ExplorerRenderer{
    const model=translate(x,elevation+(unit.jumpY||0),z);
    if(!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light,dt,this.squad.getMotion(agent),agent.id))
     this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
-     this.squad.getMotion(agent),agent.id==="scout"?[.65,.86,1]:[1,.78,.65]);
+     this.squad.getMotion(agent),agent.id==="scout"?[.65,.86,1]:[1,.78,.65],agent.id);
   }
   if(camera.marker){
    const screen=projectScreen(vp,camera.actorPos);
