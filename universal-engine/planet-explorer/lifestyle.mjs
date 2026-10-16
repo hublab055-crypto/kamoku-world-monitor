@@ -155,6 +155,15 @@ export class Lifestyle {
   moveActor(actor,tent.x,tent.z);
   return result(true,"⛺ テントの中に入りました。");
  }
+ guardCamp(actor){
+  if(this.insideTentId===null)return null;
+  const tent=this.deployments.find(d=>d.kind==="tent"&&d.id===this.insideTentId);
+  if(!tent){this.insideTentId=null;return "exit";}
+  if(Math.hypot(actor.x-tent.x,actor.z-tent.z)>1.75){
+   this.insideTentId=null;this.activity="idle";return "exit";
+  }
+  return null;
+ }
  exitTent(actor){
   const tent=this.deployments.find(d=>d.id===this.insideTentId);
   if(!tent)return result(false,"テントの中にいません。");
