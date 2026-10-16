@@ -122,6 +122,7 @@ function doFrame(t){
   const transition=access.guard(previous,controller);
    if(transition==="enter")log("🏠 ドアを通って小屋に入りました。");
    if(transition==="exit")log("🌿 ドアから小屋の外に出ました。");
+   if(life.guardCamp(controller)==="exit")log("⛺ テントの外に出ました。");
    if(access.pendingDoorId&&!access.inside&&controller.nearGround){
     const b=access.find(access.pendingDoorId);
     if(!b)access.pendingDoorId=null;
@@ -134,7 +135,7 @@ function doFrame(t){
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,controller.moving);
    renderer.sceneLife=life;
-  if(completed)log(actions.message);
+  if(completed){log(actions.message);saveLifeJournal();}
   if(running)universe.advance(dt);
   try{
    const next=renderer.frame(controller,dt);
@@ -287,7 +288,10 @@ $("import-v07a-save").addEventListener("click",()=>{
   log("v0.7aの進行データを読み取り専用で取り込みました。旧版セーブは変更していません。");
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
-$("reset").addEventListener("click",()=>{running=true;init();updateHUD();});
+$("reset").addEventListener("click",()=>{
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);}catch(_){}
+  running=true;init();updateHUD();
+ });
 window.addEventListener("keydown",e=>{
  if(e.target?.closest?.("input,select,textarea,[contenteditable=true]"))return;
  const k=e.key.toLowerCase();
@@ -614,6 +618,7 @@ function renderBookLibrary(){
 function openBook(bookId){
  const book=BOOK_MAP.get(bookId);if(!book||!books.has(bookId,access.inside))return;
  activeBookId=bookId;
+ if(life.readPage(bookId,books.page(bookId)))saveLifeJournal();
  $("book-library").hidden=true;$("book-reading").hidden=false;
  $("book-heading").textContent="📖 読書中";
  $("book-title").textContent=book.title;
