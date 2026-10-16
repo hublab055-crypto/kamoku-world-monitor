@@ -343,3 +343,48 @@ body.immersive{overflow:hidden}
 .door-controls button{background:#224f48ec;color:#f6fffa;border:1px solid #86c4aa;border-radius:12px;min-height:45px;padding:9px 13px;font-size:13px;font-weight:750;box-shadow:0 3px 12px #001b22a8;white-space:nowrap;touch-action:manipulation}
 .door-controls button:active,.door-controls button:focus-visible{background:#357761;outline-color:#bef4cc}
 @media(max-width:600px){.door-controls{bottom:143px;gap:5px}.door-controls button{min-height:42px;padding:7px 10px;font-size:12px}}
+
+/* v0.7f: readable offline books in the same immersive 3D viewport */
+.book-overlay{position:absolute;inset:6px;z-index:35;background:#162c32f6;color:#e8f4f2;border:1px solid #8cc0b0;border-radius:14px;box-shadow:0 10px 40px #001d2cdd;display:flex;flex-direction:column;min-height:0;overflow:hidden;overscroll-behavior:contain}
+.book-overlay[hidden],.book-overlay [hidden]{display:none!important}
+.book-topbar{flex:none;display:flex;justify-content:space-between;align-items:center;padding:10px 13px;border-bottom:1px solid #5d8578;background:#214640;gap:8px}
+.book-topbar strong{font-size:15px;letter-spacing:.03em}
+.book-overlay button{touch-action:manipulation;min-height:40px;color:#fff;background:#26566a;border:1px solid #7da9a9;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:650}
+.book-overlay button:disabled{opacity:.36;cursor:not-allowed}
+.book-overlay button:focus-visible{outline:3px solid #ffe8a1;outline-offset:2px}
+.book-library{flex:1;min-height:0;overflow-y:auto;padding:10px;overscroll-behavior:contain}
+.book-library-status{font-size:12px;color:#d0e8df;line-height:1.5;margin:4px 1px 10px}
+.book-library-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:10px;align-content:start}
+.book-volume{background:#284342;border:1px solid #718e77;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.book-volume h3{font-size:16px;color:#fff3d9;margin:0;line-height:1.5}
+.book-volume small{color:#d4e5e3;line-height:1.5}
+.book-volume p{color:#eef5eb;font-size:12px;line-height:1.6;margin:0}
+.book-volume .book-buttons{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:5px}
+.book-volume .book-buttons button{flex:1;min-width:95px}
+.book-reading{display:flex;flex-direction:column;flex:1;min-height:0}
+.book-reading-head{flex:none;padding:9px 12px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #456e68}
+.book-reading-head>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.book-reading-head strong{font-size:14px;color:#f4ead5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.book-reading-head span{font-size:10px;color:#c5d4ce;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.book-paper{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:#f2e7cd;color:#302619;margin:8px 10px 4px;padding:clamp(15px,3vw,35px);border:1px solid #d2b98e;border-radius:6px;box-shadow:inset 0 0 22px #cbb48e66}
+.book-chapter{font-weight:750;font-size:.86em;color:#735338;letter-spacing:.09em;margin-bottom:16px}
+.book-text{font-family:"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP",serif;font-size:var(--book-font-size,19px);line-height:1.95;letter-spacing:.035em;overflow-wrap:anywhere}
+.book-text p{white-space:pre-line;margin:0 0 1.15em;text-indent:1em}
+.book-text p:has(> span){text-indent:0}
+.book-reader-bottom{flex:none;display:flex;justify-content:space-between;align-items:center;gap:6px;padding:4px 10px}
+.book-reader-bottom span{font-size:12px;white-space:nowrap;color:#ebf7e8;font-variant-numeric:tabular-nums}
+.book-reader-bottom button{flex:1;min-width:0}
+.book-type-controls{display:flex;align-items:center;justify-content:center;gap:9px;flex:none;padding:3px 10px 10px;font-size:11px}
+.book-type-controls button{min-height:34px;padding:4px 13px}
+#book-reading-note{color:#d1e4d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:600px){
+ .book-overlay{inset:3px;border-radius:8px}
+ .book-topbar{padding:7px 9px}
+ .book-topbar strong{font-size:13px}
+ .book-overlay button{font-size:12px;min-height:37px;padding:7px 8px}
+ .book-library-list{grid-template-columns:1fr}
+ .book-reading-head{padding:6px 8px;gap:8px}
+ .book-paper{margin:5px 6px 3px;padding:17px 17px}
+ .book-text{line-height:1.85}
+ .book-type-controls{gap:6px;padding-bottom:8px}
+}
