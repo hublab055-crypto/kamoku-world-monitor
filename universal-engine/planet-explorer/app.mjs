@@ -8,19 +8,30 @@ import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
+import {Lifestyle} from "./lifestyle.mjs";
+import {installLifestyleUI} from "./lifestyle-ui.mjs";
 import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS} from "./wardrobe.mjs";
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs";
 
 const $=id=>document.getElementById(id);
-const SAVE_KEY="universal-engine:explorer:v0.7d";
+const SAVE_KEY="universal-engine:explorer:v0.7g";
+const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
+const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access;
-let books=new BookCollection(),activeBookId=null;
+let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
+function loadLifeJournal(){
+ try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
+function saveLifeJournal(){
+ try{localStorage.setItem(LIFE_JOURNAL_KEY,JSON.stringify({life:life.snapshot(),resources:actions.resources}));}
+ catch(_){log("生活データの自動保存に失敗しました。");}
+}
 const BOOK_JOURNAL_KEY="universal-engine:explorer:reading:v1";
 function loadBookJournal(){
  try{return JSON.parse(localStorage.getItem(BOOK_JOURNAL_KEY)||"null");}
@@ -49,8 +60,16 @@ function init(saved=null){
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
    access=new HutAccess(actions,{insideId:saved?.v0_7e?.insideId??null});
    books=new BookCollection(saved?.v0_7f||loadBookJournal());
+   const journal=!saved?loadLifeJournal():null;
+   life=new Lifestyle(saved?.v0_7g||journal?.life||null);
+   if(journal?.resources&&!saved){
+    for(const k of ["wood","stone","fiber","clay","metal"])
+     if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
+   }
+   for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    activeBookId=null;
    $("book-overlay").hidden=true;
+   $("life-overlay").hidden=true;
   universe=saved?Multiverse.fromSnapshot(saved.universe):new Multiverse();
   simWorld=universe.getWorld("terra-nova")||universe.createWorld({
    id:"terra-nova",name:"Terra Nova",clock:{tickSeconds:.05,maxTicksPerAdvance:10}
@@ -65,7 +84,7 @@ function init(saved=null){
   renderer.expression=saved?.v0_7b?.expression?
     ExpressionController.fromSnapshot(saved.v0_7b.expression):new ExpressionController();
   syncCustomizationControls();
-  renderer.sceneActions=actions;
+  renderer.sceneActions=actions;renderer.sceneLife=life;
    renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
   renderer.squad=squad;
@@ -92,7 +111,7 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const input=$("book-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
   squad?.advance(running?dt:0,{manualLead});
@@ -112,6 +131,9 @@ function doFrame(t){
    }
    renderer.interiorBuildingId=access.insideId;
    const completed=actions.advance(dt);
+   for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
+   life.advance(dt,controller.moving);
+   renderer.sceneLife=life;
   if(completed)log(actions.message);
   if(running)universe.advance(dt);
   try{
@@ -157,7 +179,9 @@ function updateHUD(){
  $("customization-status").textContent=
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
    (EXPRESSIONS.find(x=>x[0]===renderer.expression.preset)?.[1]||renderer.expression.preset);
- $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone;
+ $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone+
+   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal;
+  lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  $("control-state").textContent=renderer.cameraController.mode==="free"?"自由カメラ移動":
    controlMode==="stick"?"スティック移動":"地面タップで移動"+(controller.moveTarget?"（移動中）":"");
@@ -205,9 +229,9 @@ $("save").addEventListener("click",()=>{
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
    v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
-    v0_7f:books.snapshot()};
+    v0_7f:books.snapshot(),v0_7g:life.snapshot()};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-  log("v0.7d：条件分岐と3人の部隊、カメラ・進行状況を保存しました。旧版は変更していません。");
+  log("v0.7g：家具・食器・野営・読書・3人の部隊を保存しました。旧版の保存は上書きしません。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
 $("restore").addEventListener("click",()=>{
@@ -298,7 +322,15 @@ $("world").addEventListener("pointermove",e=>{
 });
 $("world").addEventListener("pointerup",e=>{
  if(!pointer||e.pointerId!==pointer.id)return;
- if(!rtsMode&&!pointer.moved&&access.inside&&renderer.pickBookshelf(e.clientX,e.clientY)){
+ if(!rtsMode&&!pointer.moved){
+   const hit=renderer.pickLife(e.clientX,e.clientY);
+   if(hit){
+    if(hit.type==="furniture"&&hit.kind==="bookshelf")openBookLibrary();
+    else lifeUI.open(hit.type==="camp"?"camp":"home",hit.id);
+    pointer=null;return;
+   }
+  }
+  if(!rtsMode&&!pointer.moved&&access.inside&&renderer.pickBookshelf(e.clientX,e.clientY)){
    openBookLibrary();pointer=null;return;
   }
   if(!rtsMode&&!pointer.moved&&controller.nearGround){
@@ -599,7 +631,10 @@ function renderBookPage(){
 function moveBookPage(delta){
  const book=BOOK_MAP.get(activeBookId);if(!book)return;
  const target=Math.max(0,Math.min(pagesForBook(book).length-1,books.page(book.id)+delta));
- if(books.bookmark(book.id,target)){saveBookJournal();renderBookPage();}
+ if(books.bookmark(book.id,target)){
+   if(life.readPage(book.id,target))saveLifeJournal();
+   saveBookJournal();renderBookPage();
+  }
 }
 $("viewport-books").addEventListener("click",openBookLibrary);
 $("toolbar-books").addEventListener("click",openBookLibrary);
