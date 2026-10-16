@@ -28,11 +28,22 @@ export const point=(matrix,v=[0,0,0])=>[
 const chain=(...ms)=>ms.reduce(matrixMultiply,identity());
 const mix=(a,b,t)=>a+(b-a)*t,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const ease=t=>{t=clamp(t,0,1);return t*t*(3-2*t);};
+/** Return normalized bow stages shared by animation and rendering.
+ * Raising ends at 22%, nocking at 40%, drawing at 71%; release begins at 76%.
+ */
+export function bowDrawState(progress){
+ const t=clamp(progress,0,1);
+ const raised=ease(t/.22),nocked=ease((t-.22)/.18);
+ const drawn=ease((t-.40)/.31),released=ease((t-.76)/.06);
+ const recovery=ease((t-.84)/.16);
+ return {raised,nocked,drawn,released,recovery,visible:t>=.22,
+   tension:drawn*(1-released),flight:t<=.78?0:ease((t-.78)/.22)*7.5};
+}
 /**
  * Animations: idle/walk/jump/sword/axe/mine/build. Walk phase follows distance
  * travelled, so stopping doesn't cause moonwalking. Action progress 0..1.
  */
-export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",progress=0}={}) {
+export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",progress=0,variant="overhead"}={}) {
   if(!Number.isFinite(phase)||!Number.isFinite(jumpHeight)||!Number.isFinite(progress))
     throw new TypeError("Pose parameters must be finite.");
   const swing=moving?Math.sin(phase)*.54:0;
@@ -58,38 +69,70 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
     return pose;
   }
   if(["sword","axe","mine","bow","build"].includes(action)){
-    const t=clamp(progress,0,1),windup=ease(t/.30),
-      strike=ease((t-.30)/.43),recover=ease((t-.78)/.22);
+    let t=clamp(progress,0,1);
     const lerp=(a,b,f)=>a+(b-a)*f;
     pose.leftHipX=0;pose.rightHipX=0;pose.leftKneeX=0;pose.rightKneeX=0;
     if(action==="bow"){
-      // Raise the bow hand, draw with the opposite hand, then release.
-      const draw=ease(t/.44),release=ease((t-.63)/.13);
-      pose.torsoY=.10*(1-release);
-      pose.rightShoulderX=-1.18;
-      pose.rightShoulderZ=.06;
-      pose.rightElbowX=-.22;
-      pose.rightWristX=0;
-      pose.leftShoulderX=-.65-.32*draw*(1-release);
-      pose.leftShoulderZ=-.20;
-      pose.leftElbowX=-1.13-.46*draw*(1-release);
-      pose.leftWristX=-.12;
+      // Stage 1: raise the bow. Stage 2: place the arrow on the string with the
+      // off hand. Stage 3: pull the string toward the cheek. Stage 4: release.
+      const b=bowDrawState(t);
+      pose.rightShoulderX=lerp(-.48,-1.52,b.raised)+.20*b.recovery;
+      pose.rightShoulderZ=lerp(.12,-.06,b.raised);
+      pose.rightElbowX=lerp(-.18,-.10,b.raised);
+      pose.rightWristX=lerp(0,-.13,b.raised);
+      pose.leftShoulderX=lerp(-.36,-.83,b.nocked)-.29*b.tension+.50*b.recovery;
+      pose.leftShoulderZ=lerp(-.12,-.25,b.nocked);
+      pose.leftElbowX=lerp(-.18,-.88,b.nocked)-.75*b.tension+.66*b.released;
+      pose.leftWristX=-.22*b.nocked+.15*b.released;
+      pose.torsoY=.08*b.nocked*(1-b.released);
+      pose.torsoX=-.045*b.tension;
+    }else if(action==="build"){
+      const beat=Math.abs(Math.sin(t*5*Math.PI));
+      pose.rightShoulderX=-.95-.85*beat;
+      pose.rightShoulderZ=.2;pose.rightElbowX=-.75;pose.rightWristX=-.22;
+      pose.leftShoulderX=-.55;pose.leftElbowX=-.55;pose.torsoX=.09;
     }else{
-      const overhead=action==="axe"||action==="sword"||action==="mine";
-      const rest=action==="axe"?-.53:action==="mine"?-.56:-.48;
-      const high=action==="axe"?-2.38:action==="mine"?-2.20:-2.15;
-      const low=action==="axe"?.46:action==="mine"?.35:.43;
-      const angle=lerp(lerp(lerp(rest,high,windup),low,strike),rest,recover);
-      const repeated=action==="build"?Math.abs(Math.sin(t*5*Math.PI)):0;
-      pose.rightShoulderX=overhead?angle:-.95-.85*repeated;
-      pose.rightShoulderZ=action==="sword"?.14:.20;
-      pose.rightElbowX=action==="sword"?-.22:action==="build"?-.75:-.16;
-      pose.rightWristX=overhead?lerp(lerp(0,-.24,windup),.48,strike)*(1-recover):-.22;
-      pose.leftShoulderX=action==="axe" ? -.75-1.00*windup*(1-strike):
-        action==="mine" ? -.62 : action==="build" ? -.55:-.25;
-      pose.leftElbowX=-.55;
-      pose.torsoY=action==="sword"?.16*windup*(1-strike)-.12*strike*(1-recover):0;
-      pose.torsoX=action==="mine"?.14:action==="build"?.09:.08*strike*(1-recover);
+      let style=variant;
+      if(action==="axe"&&style==="thrust")style="overhead";
+      if(!["overhead","sweep","thrust","combo"].includes(style))style="overhead";
+      if(action==="mine")style="overhead";
+      if(style==="combo"){
+        const strokes=action==="axe"?["overhead","sweep"]:["overhead","sweep","thrust"];
+        const frame=Math.min(strokes.length-1,Math.floor(t*strokes.length));
+        style=strokes[frame];t=clamp(t*strokes.length-frame,0,1);
+      }
+      const windup=ease(t/.24),strike=ease((t-.24)/.39),
+        recovery=ease((t-.68)/.32);
+      pose.rightElbowX=-.20;
+      pose.leftShoulderX=action==="axe"?-.79-.88*windup*(1-strike):-.32;
+      pose.leftElbowX=-.51;
+      if(style==="sweep"){
+        // Horizontal cut driven by torso twist and shoulder abduction.
+        const twist=lerp(lerp(-.40,-.56,windup),.49,strike)*(1-recovery);
+        pose.torsoY=twist;
+        pose.torsoX=.07*strike*(1-recovery);
+        pose.rightShoulderX=lerp(-.57,-1.15,windup)*(1-recovery)-.57*recovery;
+        pose.rightShoulderZ=lerp(lerp(.26,.60,windup),-.47,strike)*(1-recovery)+.15*recovery;
+        pose.rightWristX=-.09*windup+.18*strike;
+      }else if(style==="thrust"){
+        // Draw the elbow back, then extend the hand and blade toward +Z.
+        pose.torsoX=-.15*strike*(1-recovery);
+        pose.torsoY=-.10*(1-recovery);
+        pose.rightShoulderX=lerp(-.55,-1.10,windup)-.16*strike+.71*recovery;
+        pose.rightShoulderZ=.12;
+        pose.rightElbowX=lerp(-.22,-1.25,windup)+1.18*strike-.15*recovery;
+        pose.rightWristX=.11*strike;
+      }else{
+        // True overhead windup followed by a quicker high-to-low impact.
+        const rest=action==="axe"?-.53:action==="mine"?-.56:-.48;
+        const high=action==="axe"?-2.38:action==="mine"?-2.20:-2.15;
+        const low=action==="axe"?.46:action==="mine"?.35:.43;
+        pose.rightShoulderX=lerp(lerp(lerp(rest,high,windup),low,strike),rest,recovery);
+        pose.rightShoulderZ=action==="sword"?.14:.20;
+        pose.rightWristX=lerp(lerp(0,-.24,windup),.48,strike)*(1-recovery);
+        pose.torsoY=action==="sword"?.16*windup*(1-strike)-.12*strike*(1-recovery):0;
+        pose.torsoX=action==="mine"?.14:.08*strike*(1-recovery);
+      }
     }
     pose.tool=action==="sword"?"sword":action==="axe"?"axe":action==="mine"?"pickaxe":action==="bow"?"bow":"hammer";
     return pose;
