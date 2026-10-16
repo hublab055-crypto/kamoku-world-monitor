@@ -7,6 +7,7 @@ import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
 import {BattleTest} from "./battle-test.mjs";
+import {joystickMovement} from "./stick-input.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
 import {Lifestyle} from "./lifestyle.mjs";
@@ -112,8 +113,9 @@ function init(saved=null){
 }
 function inputVector(){
  const on=k=>keys.has(k)||touches.has(k);
- return {forward:(on("w")||on("arrowup")?1:0)-(on("s")||on("arrowdown")?1:0)+(controlMode==="stick"?-stick.y:0),
-  strafe:(on("d")?1:0)-(on("a")?1:0)+(controlMode==="stick"?stick.x:0),
+ const axes=controlMode==="stick"?joystickMovement(stick):{forward:0,strafe:0};
+ return {forward:(on("w")||on("arrowup")?1:0)-(on("s")||on("arrowdown")?1:0)+axes.forward,
+  strafe:(on("d")?1:0)-(on("a")?1:0)+axes.strafe,
   turn:(on("e")||on("right")?1:0)-(on("q")||on("left")?1:0)};
 }
 function doFrame(t){
