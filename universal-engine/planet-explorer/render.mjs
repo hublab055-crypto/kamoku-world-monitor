@@ -388,6 +388,8 @@ export class ExplorerRenderer{
    const equipment=this.handEquipment?.[actorId]||{};
    const activeHand=motion?.hand||this.actionHand?.[actorId]||"right";
    for(const hand of ["right","left"]){
+    // The other hand must be free to place the arrow and draw the bowstring.
+    if(motion?.action==="bow"&&hand!==activeHand)continue;
     const kind=hand===activeHand&&pose.tool?pose.tool:equipment[hand];
     if(!this.tools[kind])continue;
     const wrist=joints[hand+"Wrist"];if(!wrist)continue;
@@ -488,6 +490,7 @@ export class ExplorerRenderer{
    ];
    const activeHand=motion?.hand||this.actionHand?.[id]||"right";
    for(const hand of ["right","left"]){
+    if(motion?.action==="bow"&&hand!==activeHand)continue;
     const item=gear[hand],mesh=this.tools[item];
     if(!mesh)continue;
     const right=hand==="right";
