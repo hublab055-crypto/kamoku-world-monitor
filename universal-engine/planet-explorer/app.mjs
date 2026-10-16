@@ -145,8 +145,9 @@ function doFrame(t){
    const attackInProgress=actions.active;
    const completed=actions.advance(dt);
    if(running&&battle){
-    battle.advance(dt,controller);
+    battle.advance(dt,controller,attackInProgress);
     for(const hit of battle.resolveAttack(attackInProgress,controller))log("🎯 "+hit.message);
+    for(const attack of battle.consumeEnemyHits())log("🛡️ "+attack.message);
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,controller.moving);
@@ -192,7 +193,7 @@ function updateHUD(){
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
  $("action-state").textContent=access.inside?"🏠 屋内（小屋 #"+access.inside.id+"）":actions.message;
- $("battle-status").textContent="戦闘テスト：敵 "+(battle?.count()||0)+"体（最大10体）";
+ $("battle-status").textContent="戦闘テスト：敵 "+(battle?.count()||0)+"体 / HP "+(battle?.playerHp??100)+" / 100";
   syncDoorUi();
  $("customization-status").textContent=
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
