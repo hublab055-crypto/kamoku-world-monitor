@@ -45,7 +45,7 @@ toggle.type='button';toggle.className='fw3d-toggle';toggle.textContent='🌐 3D�
 stage.append(toggle);
 const tools=document.createElement('div');
 tools.className='fw3d-tools';
-tools.innerHTML='<button data-do="follow" title="操作中アバターを追従">追従</button><button data-do="rts" title="上空から複数人へ指示">⚓ 上空RTS</button><button data-do="free" title="自由視点">自由視点</button><button data-do="multi" title="タップで複数選択">複数選択</button><button data-do="auto" title="元のNPC自動行動に戻す">🤖 自動</button><button data-do="stop" title="選択NPCの移動を止める">停止</button><label title="前回作成した男女GLBまたはZIPを読み込む">📦 GLB読込<input type="file" id="fw3d-file" accept=".glb,.zip,model/gltf-binary" multiple></label>';
+tools.innerHTML='<button data-do="follow" title="操作中アバターを追従">追従</button><button data-do="rts" title="上空から複数人へ指示">⚓ 上空RTS</button><button data-do="free" title="自由視点">自由視点</button><button data-do="multi" title="タップで複数選択">複数選択</button><button data-do="appearance" title="選択したアバターの男性・女性モデルを切替">♂/♀ 外見</button><button data-do="auto" title="元のNPC自動行動に戻す">🤖 自動</button><button data-do="stop" title="選択NPCの移動を止める">停止</button><label title="前回作成した男女GLBまたはZIPを読み込む">📦 GLB読込<input type="file" id="fw3d-file" accept=".glb,.zip,model/gltf-binary" multiple></label>';
 stage.append(tools);
 const info=document.createElement('div');info.className='fw3d-info';stage.append(info);
 function say(t){try{bridge.message('🌐 '+t);}catch(_){console.log('[FW3D]',t);}}
@@ -388,6 +388,14 @@ tools.addEventListener('click',e=>{
  const b=e.target.closest('button[data-do]');if(!b)return;e.stopPropagation();const name=b.dataset.do;
  if(['rts','follow','free'].includes(name))setCameraMode(name);
  if(name==='multi'){multiSelect=!multiSelect;updateInfo();}
+ if(name==='appearance'){
+  if(!selected.size)selected.add(canonical(bridge.state.player.id));
+  for(const id of selected){
+   const actor=actors.get(id)?.actor;
+   if(actor)actor.sex=sexOf(actor)==='female'?'male':'female';
+  }
+  refreshActors(true);say('アバターモデルを切り替えました');
+ }
  if(name==='auto')autoResume();
  if(name==='stop')stopSelected();
 });
