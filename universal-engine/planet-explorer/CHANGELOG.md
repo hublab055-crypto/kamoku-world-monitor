@@ -1,5 +1,14 @@
 # Planet Explorer — Change Log
 
+## v0.7e — 小屋のドアと屋内への出入り (2026-10-16)
+
+- 完成した小屋の壁に実際の開口部を設け、独立した蝶番付きドアを作成。3D画面でドアをタップするか、入口に近づいて「🚪 開ける／閉める」を押すとドアが回転して開閉する。
+- 開いた入口をアバターが徒歩で通過可能。閉じたドア・小屋の外壁では衝突を判定し、壁抜けを防ぐ。「🏠 中に入る」「🌿 外に出る」でも出入りできる。
+- 入室時に屋根を非表示にして、木床、ベッド、チェスト、机、椅子、照明器具の簡易3D室内と室内俯瞰カメラに切り替える。家具操作・所有権・部屋の自由編集は次の段階。
+- 既存のv0.7d保存キーを維持し、任意の `v0_7e.insideId` を加えて屋内状態を保存。小屋のドア開閉は `actions.structures[].doorOpen` で復元する。旧版の読込機能・v0.6/0.7a/0.7bアーカイブはそのまま。
+- `buildings.mjs` と `tests/interiors-v07e.test.mjs` を追加。GitHub ActionsでJS構文と全Nodeテストを実行し、既存v0.7dと旧v0.7cキーの共存も回帰検証する。
+- **制約:** これは小屋の簡易内装とドア開閉の試験実装。室内のオブジェクト選択・ドア鍵・自由家具配置・他NPC追従・モバイル実機の描画品質検査は今後対応。
+
 ## v0.7d — RTS squad + conditional automation (2026-10-16)
 
 - Three independently moving on-planet avatars (pioneer, scout, artisan) share a geographical origin and render with selection rings and differentiated companion colors. The old player controls remain available.
