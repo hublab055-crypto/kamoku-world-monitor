@@ -264,7 +264,7 @@ function autoResume(){
  updateInfo();
 }
 function stopSelected(){
- for(const id of selected){if(id!==canonical(bridge.state.player.id))orders.set(id,{halt:true});}
+ for(const id of selected){if(id!==canonical(bridge.state.player.id))orders.set(id,{halt:true});else if(typeof bridge.cancelPlayerMove3D==='function')bridge.cancelPlayerMove3D();}
  say('選択したNPCを停止しました');
  updateInfo();
 }
