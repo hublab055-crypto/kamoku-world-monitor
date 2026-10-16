@@ -64,7 +64,7 @@ test("enemy enters attack and damages only isolated test health once",()=>{
  mob.x=0;mob.z=2.1;mob.attackCooldown=0;
  b.advance(.05,hero);
  assert.equal(mob.anim,"attack");
- for(let i=0;i<5;i++)b.advance(.1,hero);
+ for(let i=0;i<6;i++)b.advance(.1,hero);
  assert.equal(b.playerHp,88);
  assert.equal(b.consumeEnemyHits().length,1);
  for(let i=0;i<4;i++)b.advance(.1,hero);
