@@ -84,7 +84,7 @@ test("player and NPC can start bow animations without mining resources",()=>{
  assert.equal(actions.getAnimation().action,"bow");
  const saved=Actions.fromSnapshot(actions.snapshot());
  assert.equal(saved.getAnimation().action,"bow");
- for(let i=0;i<5;i++)actions.advance(1);
+ for(let i=0;i<7;i++)actions.advance(1);
  assert.equal(actions.active,null);
  assert.deepEqual(actions.resources,before);
  const npc=squad.get("scout");
