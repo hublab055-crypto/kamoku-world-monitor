@@ -2,9 +2,13 @@
  * damaging the player's campaign state. Coordinates use explorer X/Z metres.
  */
 export const TEST_ENEMIES=Object.freeze({
- slime:Object.freeze({name:"スライム",hp:30,radius:.72,speed:.72}),
- goblin:Object.freeze({name:"ゴブリン",hp:45,radius:.60,speed:1.15}),
- bandit:Object.freeze({name:"盗賊",hp:65,radius:.65,speed:1.38})
+ slime:Object.freeze({name:"スライム",hp:30,radius:.72,speed:.72,height:1.22}),
+ goblin:Object.freeze({name:"ゴブリン",hp:45,radius:.60,speed:1.15,height:1.93}),
+ bandit:Object.freeze({name:"盗賊",hp:65,radius:.65,speed:1.38,height:2.10}),
+ skeleton:Object.freeze({name:"骸骨兵",hp:50,radius:.52,speed:1.20,height:2.25}),
+ orc:Object.freeze({name:"オーク戦士",hp:110,radius:.84,speed:.85,height:2.55}),
+ lizardman:Object.freeze({name:"リザードマン",hp:80,radius:.67,speed:1.35,height:2.32}),
+ demon:Object.freeze({name:"魔族剣士",hp:140,radius:.70,speed:1.52,height:2.60})
 });
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
@@ -25,7 +29,7 @@ export class BattleTest{
   const x=controller.x+Math.sin(yaw)*front+Math.cos(yaw)*side;
   const z=controller.z+Math.cos(yaw)*front-Math.sin(yaw)*side;
   const enemy={id:this.nextId++,type,name:config.name,
-   x,z,yaw:wrap(yaw+Math.PI),radius:config.radius,
+   x,z,yaw:wrap(yaw+Math.PI),radius:config.radius,height:config.height,
    hp:config.hp,maxHp:config.hp,speed:config.speed};
   this.enemies.push(enemy);
   return {ok:true,enemy,message:"👾 "+config.name+"が前方に出現しました（HP "+config.hp+"）。"};
