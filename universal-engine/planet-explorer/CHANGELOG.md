@@ -1,5 +1,12 @@
 # Planet Explorer — Change Log
 
+## v0.5 — 2026-10-16
+- Expanded the desktop and phone world viewport and widened the page layout.
+- Added a fullscreen button with native Fullscreen API and CSS immersive fallback for iPhone Safari.
+- Kept touch joystick, action palette, land-and-tap movement and HUD visible in expanded mode.
+- Documented original-creator CC0 model/animation packs, free-tier details, integration steps and license cautions; no external assets imported.
+- Added viewport regression tests. Existing simulators and Kamoku Monitor are untouched.
+
 ## v0.4 (2026-10-16)
 - 関節21点（頭・首・手・腰・太腿・脛・足など）と独立低ポリゴン16身体部位、歩行/ジャンプ/剣/斧/採掘/建築のポーズ。
 - 惑星重力によるジャンプ・着地。

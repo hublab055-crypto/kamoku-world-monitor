@@ -1,4 +1,4 @@
-# Universal Engine v0.4 — 惑星から地表への地理・描画接続仕様
+# Universal Engine v0.5 — 惑星から地表への地理・描画接続仕様
 
 更新: 2026-10-16 / 既存資産との分離を維持。
 
@@ -34,6 +34,16 @@ WebGL2の頂点・フラグメントシェーダーを採用。球体と雲を�
 - 地上の海、河川、標高2800m超、歩幅に対して急な標高段差は進入を拒否。
 - 位置 `(x,z)` と緯度経度は毎歩更新。ワープ／世界間の移動は未実装。
 - ジャンプは重力加速度によるローカル垂直速度の簡易積分と地面着地のみ実装。崖からの落下、海中移動、剛体衝突、地形との連続衝突検知は未実装。v0.2のBallisticsは別デモで引き続き使用可能。
+
+## v0.5 large-screen viewport and asset pipeline
+
+- Main stage uses a wide container (up to 1700px), a viewport with minimum heights, and CSS dynamic viewport height (72dvh desktop, 76dvh mobile). Canvas drawing-buffer dimensions continue to follow the actual element CSS box via the current renderer resize path.
+- The new `#fullscreen-toggle` button toggles `Element.requestFullscreen()` where supported; if unavailable or rejected, `.view-panel.immersive` is positioned fixed across the visual viewport, while `body.immersive` prevents page scroll. Both layouts retain HUD, joystick and action palette.
+- Clicking again restores the page. Escape exits the CSS fallback and native browser Escape exits native fullscreen. No screen orientation lock is requested.
+- This is a browser-dependent fullscreen UI, not a promise of guaranteed device-level immersion. On iOS Safari, native fullscreen for ordinary page elements may be unavailable; the CSS fallback displays within Safari's available viewport.
+- Commercial asset candidates and license-source links are recorded in [ASSET_CANDIDATES.md](ASSET_CANDIDATES.md); the engine does not fetch or bundle these remote assets.
+- A separate asset integration phase must implement glTF/GLB loading, texture upload, skeleton/bind-pose data, vertex skinning and animation playback/retargeting or switch to a reviewed WebGL library adapter. Current rig remains available as fallback.
+- `tests/viewport.test.mjs` checks the toggle, responsive enlargement, fallback CSS/JS, and continued presence of controls. Browser visual/device tests remain outstanding.
 
 ## v0.4 拡張仕様：関節・アクション・UI
 

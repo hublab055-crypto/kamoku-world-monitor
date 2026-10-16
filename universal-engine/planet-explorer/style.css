@@ -89,3 +89,61 @@ footer{text-align:center;font-size:11px;color:#748f9d;padding:20px}
  .mode-bar strong{width:100%;margin:0}
 }
 .action-pad[hidden]{display:none}
+
+
+/* v0.5: wider, taller 3D viewport in normal mode */
+body .container{width:min(1700px,calc(100% - 28px));max-width:none}
+.view-panel{padding:12px}
+.view-panel .canvas-wrap{height:clamp(530px,72dvh,1100px)}
+.view-panel #world{width:100%;height:100%;aspect-ratio:auto;display:block}
+.view-header .quick-actions .immersive-toggle{background:#245b74;color:#ecfaff;border-color:#87b6c7}
+.view-header .quick-actions .immersive-toggle:hover{background:#327892}
+@media(max-width:760px){
+ body .container{width:calc(100% - 12px)}
+ .view-panel{padding:7px}
+ .view-panel .canvas-wrap{height:clamp(490px,76dvh,900px)}
+ .view-panel .view-header{padding:8px}
+ .view-header .quick-actions{gap:6px}
+ .view-header .quick-actions button{font-size:11px}
+}
+@media(max-height:560px) and (orientation:landscape){
+ .view-panel .canvas-wrap{height:max(330px,calc(100dvh - 180px))}
+}
+/* True browser fullscreen, with identical CSS fallback where iPhone Safari
+   doesn't support Element.requestFullscreen for regular page elements. */
+body.immersive{overflow:hidden}
+.view-panel.immersive,
+.view-panel:fullscreen{
+ position:fixed;inset:0;z-index:9999;max-width:none;width:100%;height:100dvh;
+ padding:8px;border-radius:0;border:0;display:flex;flex-direction:column;
+ background:#10283b;overflow:hidden;box-shadow:none
+}
+.view-panel.immersive .view-header,
+.view-panel:fullscreen .view-header{flex:0 0 auto;min-height:0}
+.view-panel.immersive .mode-bar,
+.view-panel:fullscreen .mode-bar{flex:0 0 auto;padding-bottom:6px}
+.view-panel.immersive .canvas-wrap,
+.view-panel:fullscreen .canvas-wrap{
+ flex:1 1 auto;min-height:0;height:auto!important;max-height:none
+}
+.view-panel.immersive #world,
+.view-panel:fullscreen #world{width:100%;height:100%;aspect-ratio:auto}
+.view-panel.immersive .toolbar,
+.view-panel:fullscreen .toolbar{
+ flex:0 0 auto;max-height:118px;overflow:auto;overscroll-behavior:contain;
+ padding:7px 0 4px
+}
+.view-panel.immersive .viewport-overlay,
+.view-panel:fullscreen .viewport-overlay{top:9px;left:11px}
+.view-panel.immersive .mode-hint,
+.view-panel:fullscreen .mode-hint{bottom:8px}
+@media(max-width:650px){
+ .view-panel.immersive .view-header h2,
+ .view-panel:fullscreen .view-header h2{font-size:15px;margin:3px 0}
+ .view-panel.immersive .view-header .eyebrow,
+ .view-panel:fullscreen .view-header .eyebrow{display:none}
+ .view-panel.immersive .toolbar,
+ .view-panel:fullscreen .toolbar{max-height:72px}
+ .view-panel.immersive .action-pad,
+ .view-panel:fullscreen .action-pad{bottom:40px}
+}

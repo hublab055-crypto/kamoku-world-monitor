@@ -234,3 +234,58 @@ for(const t of ["pointerup","pointercancel","lostpointercapture"]){
 }
 
 init();requestAnimationFrame(doFrame);
+
+/* Enlarged view: native fullscreen where available, CSS immersive fallback on
+   iPhone Safari and browsers that restrict Element.requestFullscreen(). */
+const stage=document.querySelector(".view-panel");
+const fullBtn=$("fullscreen-toggle");
+let cssImmersive=false;
+function enlarged(){
+ return cssImmersive || document.fullscreenElement===stage;
+}
+function syncFullscreenButton(){
+ const on=enlarged();
+ fullBtn.textContent=on?"⤡ 元の画面へ戻す":"⛶ 画面を広げる";
+ fullBtn.setAttribute("aria-pressed",String(on));
+ fullBtn.setAttribute("aria-label",on?"通常表示に戻す":"画面を最大化");
+}
+async function switchFullscreen(){
+ if(enlarged()){
+   cssImmersive=false;
+   stage.classList.remove("immersive");
+   document.body.classList.remove("immersive");
+   if(document.fullscreenElement===stage&&document.exitFullscreen){
+     try{await document.exitFullscreen()}catch(e){log("全画面の解除に失敗しました: "+e.message)}
+   }
+ }else{
+   let nativeOpened=false;
+   if(typeof stage.requestFullscreen==="function"){
+     try{
+       await stage.requestFullscreen({navigationUI:"hide"});
+       nativeOpened=document.fullscreenElement===stage;
+     }catch(e){/* iOS Safari often limits fullscreen to video elements. */}
+   }
+   if(!nativeOpened){
+     cssImmersive=true;
+     stage.classList.add("immersive");
+     document.body.classList.add("immersive");
+   }
+ }
+ syncFullscreenButton();
+ lastTime=0;
+}
+fullBtn.addEventListener("click",()=>{void switchFullscreen()});
+document.addEventListener("fullscreenchange",()=>{
+ if(document.fullscreenElement!==stage&&!cssImmersive){
+   stage.classList.remove("immersive");
+   document.body.classList.remove("immersive");
+ }
+ syncFullscreenButton();lastTime=0;
+});
+window.addEventListener("keydown",e=>{
+ if(e.key==="Escape"&&cssImmersive){
+   cssImmersive=false;stage.classList.remove("immersive");
+   document.body.classList.remove("immersive");syncFullscreenButton();
+ }
+});
+syncFullscreenButton();

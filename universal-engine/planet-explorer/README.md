@@ -1,4 +1,4 @@
-# Universal Engine — Planet Explorer v0.4
+# Universal Engine — Planet Explorer v0.5
 
 独立した架空マルチバースの **WebGL2 3D惑星探索プロトタイプ**。宇宙から3D球体惑星を観察し、同一の地理座標・地形サンプラーで細密な地表メッシュへ降下し、人物を操作できます。
 
@@ -10,6 +10,14 @@
 - 操作: 降下・帰還、拡大・縮小、惑星日数の早送り、時間停止、端末ローカル保存・復元。
 - モバイル: 画面ボタンを押し続ける操作、タッチでカメラ回転、ピンチの代わりに拡大縮小ボタン。
 - JavaScript ES Modules + ブラウザ標準WebGL2だけで動作。CDN・外部アセット・認証・外部ネットワーク通信なし。
+
+## v0.5: Enlarged screen and 3D asset research (2026-10-16)
+
+- Normally, the 3D viewport is wider (up to 1700px page) and taller: 72% of viewport height for large screens, 76% on narrow screens, with minimum readable height.
+- Select **「⛶ 画面を広げる」** to maximize the game. Native browser fullscreen is used when supported; an independent CSS immersive mode is the fallback for iPhone Safari, with an on-screen restore button and Escape key support.
+- The joystick and action controls remain visible inside the expanded viewport. No change to core simulation, save formats, existing Frontier World, or Kamoku Monitor.
+- See [ASSET_CANDIDATES.md](ASSET_CANDIDATES.md) for commercially usable **CC0** 3D asset sources: KayKit Adventurers and animations, Quaternius Universal Base Characters, Nature MegaKit, and Kenney kits.
+- **No third-party 3D assets have yet been imported.** The present WebGL2 renderer still uses procedural low-poly models; glTF rigging, skeletal skinning and animation retargeting require another integration phase.
 
 ## v0.4 — 関節アバターと行動UI（2026-10-16）
 
