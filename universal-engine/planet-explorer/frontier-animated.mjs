@@ -196,7 +196,7 @@ export function sampleAnimationTrack(track,time,loop=true){
 export function chooseFrontierClip(clips,kind){
  const alias={walk:["Walk","Walking","Run"],run:["Run","Walk"],idle:["Idle","Stand"],
   talk:["Talk","Talking"],gift:["Give","Talk"],axe:["Chop","Axe"],mine:["Mine","Pickaxe","Chop"],
-  sword:["Attack","Sword"],sit:["Sit"],read:["Read","Sit"],eat:["Eat","Sit"],rest:["Sleep","Rest","Sit"],
+  sword:["Attack","Sword"],bow:["Shoot","Bow","Archery","Attack"],sit:["Sit"],read:["Read","Sit"],eat:["Eat","Sit"],rest:["Sleep","Rest","Sit"],
   sleep:["Sleep","Rest"],faceIdle:["FaceIdle"],faceTalking:["FaceTalking"]};
  const wants=alias[kind]||[kind];
  for(const name of wants){const found=clips.find(c=>c.name.toLowerCase()===name.toLowerCase());if(found)return found;}
