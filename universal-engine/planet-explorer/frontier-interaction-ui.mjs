@@ -199,7 +199,13 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     if(!["left","right"].some(h=>social.handItem(who.id,h)==="shield")){
      log("🛡️ ガードするには盾を装備してください。");return {ok:false};
     }
-    c.battle?.guard();log("🛡️ ガード！ 次の攻撃を軽減します。");
+    if(who.id==="player"){
+     if(!c.actions.start("guard",c.controller,c.sample)){
+      log(c.actions.message);return {ok:false,message:c.actions.message};
+     }
+     c.battle?.guard(1.25);
+    }else{who.status="🛡️ 防御態勢";who.guardTime=1.2;}
+    log("🛡️ ガード！ 次の攻撃を軽減します。");
     updateHUD();return {ok:true};
    case "heal":return item("potion");
    case "aim":{
