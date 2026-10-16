@@ -336,3 +336,10 @@ body.immersive{overflow:hidden}
  .auto-rule select,.auto-rule input[type=number]{font-size:11px;padding:4px 2px;min-width:0}
  .auto-rule label{font-size:10px}
 }
+
+/* v0.7e: tap-friendly door and cabin entry actions */
+.door-controls{position:absolute;z-index:5;bottom:78px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:7px;max-width:85%;pointer-events:auto}
+.door-controls[hidden],.door-controls button[hidden]{display:none!important}
+.door-controls button{background:#224f48ec;color:#f6fffa;border:1px solid #86c4aa;border-radius:12px;min-height:45px;padding:9px 13px;font-size:13px;font-weight:750;box-shadow:0 3px 12px #001b22a8;white-space:nowrap;touch-action:manipulation}
+.door-controls button:active,.door-controls button:focus-visible{background:#357761;outline-color:#bef4cc}
+@media(max-width:600px){.door-controls{bottom:143px;gap:5px}.door-controls button{min-height:42px;padding:7px 10px;font-size:12px}}
