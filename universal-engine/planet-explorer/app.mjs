@@ -106,7 +106,9 @@ function updateHUD(){
  $("biome").textContent=({ocean:"海洋",river:"河川",forest:"森林",mountain:"山岳",highland:"高地",plains:"平地",
   valley:"谷",coast:"海岸",tundra:"ツンドラ"}[g.category]||g.category);
  $("temp").textContent=climate.temperatureC.toFixed(1)+" °C";
- $("sunlight").textContent=Math.round(planet.illumination(controller.lat,controller.lon)*100)+"%";
+ const sunLevel=planet.illumination(controller.lat,controller.lon);
+ $("sunlight").textContent=Math.round(sunLevel*100)+"%";
+ $("world").dataset.sky=sunLevel<.08?"night":sunLevel<.35?"dusk":"day";
  $("day").textContent=planet.timeDays.toFixed(2)+" 日";
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
