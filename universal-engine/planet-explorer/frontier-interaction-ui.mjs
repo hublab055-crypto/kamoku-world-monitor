@@ -1,10 +1,11 @@
 import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP} from "./social-equipment.mjs";
-import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB} from "./frontier-glb.mjs";
+import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
 
 /** Browser UI adapter; domain logic lives in SocialEquipment. */
 export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,saveLifeJournal}){
  const $=id=>document.getElementById(id);
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
+ let modelSource="standard",modelQuality="auto",modelLoadId=0;
  let configId="player",slotSignature="";
  const handNames={right:"右手",left:"左手"};
  const actor=()=>{const c=get();return (c.rtsMode?c.squad?.selectedAgents()[0]:null)||c.squad?.get("player");};
@@ -166,26 +167,42 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   social=new SocialEquipment(data?.social||null);headingUp=Boolean(data?.headingUp);
   choice={player:"male",scout:"female",artisan:"male"};
   for(const id of Object.keys(choice))if(["male","female","classic"].includes(data?.choice?.[id]))choice[id]=data.choice[id];
+  // Old saves have no source setting; never silently use stale browser-local GLBs.
+  modelSource=data?.modelSource==="imported"?"imported":"standard";
+  modelQuality=["auto","high","mobile"].includes(data?.modelQuality)?data.modelQuality:"auto";
+  $("frontier-glb-source").value=modelSource;$("frontier-glb-quality").value=modelQuality;
   if(get().renderer)get().renderer.glbFor={...choice};
   $("camera-rts-heading").checked=headingUp;$("rts-heading-up").checked=headingUp;
   slotSignature="";quick();updateCamera();
   $("frontier-glb-choice").value=choice[$("frontier-glb-actor").value]||"male";
  }
- function snapshot(){return {social:social.snapshot(),headingUp,choice:{...choice}};}
- async function loadModels(renderer){
-  const summary=[];
+ function snapshot(){return {social:social.snapshot(),headingUp,choice:{...choice},modelSource,modelQuality};}
+ async function loadModels(renderer,{force=false}={}){
+  const token=++modelLoadId,summary=[],status=$("frontier-glb-status");
+  status.dataset.state="loading";
+  status.textContent="GLB読み込み中… "+(modelSource==="standard"?"共通モデル "+AVATAR_PACK_VERSION:"端末内モデル");
   for(const sex of ["male","female"]){
    try{
-    const bytes=await findFrontierGLB(sex);
-    if(renderer!==get().renderer)return;
-    if(!bytes){summary.push(sex+" 未登録");continue;}
-    const parsed=parseFrontierGLB(bytes);
-    renderer.setFrontierGlb(sex,parsed,bytes);
+    const asset=await findFrontierGLB(sex,{source:modelSource,quality:modelQuality,force});
+    if(token!==modelLoadId||renderer!==get().renderer)return;
+    if(!asset){renderer.clearFrontierGlb(sex);summary.push(sex+" 未登録");continue;}
+    const parsed=parseFrontierGLB(asset.buffer);
+    renderer.setFrontierGlb(sex,parsed,asset.buffer);
     const detail=renderer.glbStatuses[sex];
-    summary.push(sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"骨格・表情アニメ有効":"静的フォールバック"));
-   }catch(err){summary.push(sex+" 読込失敗");console.warn("Frontier avatar:",err);}
+    summary.push(sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"アニメ対応":"静的表示"));
+   }catch(err){
+    if(token!==modelLoadId||renderer!==get().renderer)return;
+    renderer.clearFrontierGlb(sex);
+    summary.push(sex+" 読込失敗 ("+String(err.message||err)+")");
+    console.warn("Frontier avatar:",err);
+   }
   }
-  if(renderer===get().renderer)$("frontier-glb-status").textContent=summary.join(" / ")+"。未登録時は従来モデルになります。";
+  if(token!==modelLoadId||renderer!==get().renderer)return;
+  const standard=modelSource==="standard",failed=summary.some(v=>v.includes("失敗")||v.includes("未登録"));
+  status.dataset.state=failed?"warning":"ready";
+  status.textContent=(standard?"共通モデル "+AVATAR_PACK_VERSION:"端末固有インポートGLB")+
+   " / 画質 "+modelQuality+(standard?"（高品質・省メモリは現在同じ配布GLB）":"")+
+   " / "+summary.join(" / ")+(failed?"。失敗した人物は従来モデルになります。":"。");
  }
  $("quick-use").addEventListener("click",useItem);
  $("hand-right-use").addEventListener("click",()=>useHand("right"));
@@ -215,6 +232,13 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  $("rts-heading-up").addEventListener("change",e=>setHeading(e.target.checked));
  $("camera-rts-heading").addEventListener("change",e=>setHeading(e.target.checked));
  $("frontier-glb-actor").addEventListener("change",()=>{$("frontier-glb-choice").value=choice[$("frontier-glb-actor").value];});
+ $("frontier-glb-source").addEventListener("change",()=>{
+  modelSource=$("frontier-glb-source").value;void loadModels(get().renderer);
+ });
+ $("frontier-glb-quality").addEventListener("change",()=>{
+  modelQuality=$("frontier-glb-quality").value;void loadModels(get().renderer);
+ });
+ $("frontier-glb-refresh").addEventListener("click",()=>void loadModels(get().renderer,{force:true}));
  $("frontier-glb-choice").addEventListener("change",()=>{
   choice[$("frontier-glb-actor").value]=$("frontier-glb-choice").value;
   const c=get();if(c.renderer)c.renderer.glbFor={...choice};
@@ -225,7 +249,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    if(!/\.glb$/i.test(file.name)||file.size>85*1024*1024)throw Error("85MB以内の.glbを選択してください。ZIPは展開が必要です。");
    const raw=await file.arrayBuffer(),parsed=parseFrontierGLB(raw),c=get();
    c.renderer.setFrontierGlb(sex,parsed,raw);
-   try{await cachedFrontierGLB(sex,raw);}catch(err){log("端末保存できませんでした: "+err.message);}
+   let saved=false;
+   try{await cachedFrontierGLB(sex,raw);saved=true;}catch(err){log("端末保存できませんでした: "+err.message);}
+   if(saved){
+    modelSource="imported";$("frontier-glb-source").value=modelSource;
+    await loadModels(c.renderer);
+   }
    const detail=c.renderer.glbStatuses[sex];
    $("frontier-glb-status").textContent="✅ "+sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"GPU骨格・顔モーフ対応 / "+(detail.clips?.length||0)+"クリップ (Walk・FaceTalking等)":"静的表示（"+(detail?.reason||"スキニング未対応")+"）");
    log("GLBを適用しました。");
