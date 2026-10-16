@@ -26,9 +26,9 @@ test("fullscreen works natively or with an iPhone-compatible CSS fallback", () =
   assert.match(css, /\.view-panel\.immersive/);
   assert.match(css, /body\.immersive\{overflow:hidden\}/);
   assert.match(app, /stage\.requestFullscreen/);
-  assert.match(app, /cssImmersive=true/);
-  assert.match(app, /stage\.classList\.add\("immersive"\)/);
-  assert.match(app, /stage\.classList\.remove\("immersive"\)/);
+  assert.match(app, /setCssImmersive\(true\)/);
+  assert.match(app, /stage\.classList\.toggle\("immersive",cssImmersive\)/);
+  assert.match(app, /setCssImmersive\(false\)/);
   assert.match(app, /syncFullscreenButton/);
 });
 

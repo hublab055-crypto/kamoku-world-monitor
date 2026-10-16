@@ -206,3 +206,73 @@ body.immersive{overflow:hidden}
 
 .camera-active-label{font-size:11px;font-weight:800;color:#c4f2f9;background:#17475e;
  padding:7px 10px;border-radius:8px;border:1px solid #5d91a8;white-space:nowrap}
+
+/* v0.7c mobile viewport patch: atmospheric background is visible where the
+   WebGL ground renderer clears to transparent, without fake terrain silhouettes. */
+#world{background:linear-gradient(180deg,#3279a7 0%,#86c4e7 25%,#d5ebf5 46%,#edf6fa 100%)}
+.viewport-actions{
+  position:absolute;z-index:12;top:12px;right:12px;
+  display:flex;flex-direction:column;align-items:flex-end;gap:6px;
+  max-width:calc(100% - 120px);
+}
+.viewport-actions button{
+  min-width:94px;min-height:40px;padding:8px 10px;
+  background:#0c344fdc;color:#eefaff;border:1px solid #83bfd5;
+  border-radius:10px;box-shadow:0 2px 8px #02152285;
+  font-size:12px;line-height:1.2;touch-action:manipulation;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+.viewport-actions button:active,.viewport-actions button[aria-pressed=true]{background:#19748c}
+.viewport-actions button:focus-visible{outline:3px solid #f6f9d1;outline-offset:2px}
+@media(max-width:760px){
+  .view-panel .canvas-wrap{height:clamp(440px,70dvh,900px)}
+  .view-panel .mode-hint{font-size:10px;padding:5px 8px;bottom:5px}
+  .viewport-overlay{top:12px;left:10px;max-width:calc(100% - 130px)}
+  .viewport-actions{right:8px;top:8px;gap:5px}
+  .viewport-actions button{min-height:40px;min-width:88px;font-size:11px;padding:7px 8px}
+  .action-pad{bottom:calc(26px + env(safe-area-inset-bottom,0px))}
+  .stick-area{bottom:calc(25px + env(safe-area-inset-bottom,0px))}
+}
+@media(max-width:760px) and (orientation:landscape){
+  .view-panel .canvas-wrap{height:max(300px,calc(100dvh - 160px))}
+  .viewport-actions{flex-direction:row;max-width:calc(100% - 140px);flex-wrap:wrap;justify-content:flex-end}
+  .viewport-actions button{min-width:72px}
+}
+@media(max-width:760px){
+  /* Safari cannot generally enter element fullscreen: fixed immersive mode
+     uses the visible dynamic viewport plus the iPhone safe-area insets. */
+  .view-panel.immersive,.view-panel:fullscreen{
+    height:100vh;height:100dvh;padding:
+      max(5px,env(safe-area-inset-top,0px))
+      max(5px,env(safe-area-inset-right,0px))
+      max(5px,env(safe-area-inset-bottom,0px))
+      max(5px,env(safe-area-inset-left,0px));
+  }
+  .view-panel.immersive .view-header,.view-panel:fullscreen .view-header,
+  .view-panel.immersive .mode-bar,.view-panel:fullscreen .mode-bar{display:none}
+  .view-panel.immersive .canvas-wrap,.view-panel:fullscreen .canvas-wrap{
+    border-radius:6px;min-height:0;height:auto;flex:1 1 auto
+  }
+  .view-panel.immersive .mode-hint,.view-panel:fullscreen .mode-hint{display:none}
+  .view-panel.immersive .action-pad,.view-panel:fullscreen .action-pad{
+    bottom:calc(16px + env(safe-area-inset-bottom,0px))
+  }
+  .view-panel.immersive .stick-area,.view-panel:fullscreen .stick-area{
+    bottom:calc(16px + env(safe-area-inset-bottom,0px))
+  }
+  .view-panel.immersive .toolbar,.view-panel:fullscreen .toolbar{
+    display:none;position:absolute;z-index:16;
+    left:calc(9px + env(safe-area-inset-left,0px));
+    right:calc(9px + env(safe-area-inset-right,0px));
+    bottom:calc(13px + env(safe-area-inset-bottom,0px));
+    max-height:44dvh;overflow:auto;padding:12px;align-content:flex-start;
+    background:#0e3146f5;border:1px solid #8cc3d4;border-radius:12px;
+    box-shadow:0 8px 32px #021522d9
+  }
+  .view-panel.immersive.hud-tools-open .toolbar,
+  .view-panel:fullscreen.hud-tools-open .toolbar{display:flex}
+}
+
+/* These palettes follow simulated planetary illumination; not device clock time. */
+#world[data-sky="dusk"]{background:linear-gradient(180deg,#263f69 0%,#a66779 26%,#f1b68e 50%,#f8d4a1 100%)}
+#world[data-sky="night"]{background:linear-gradient(180deg,#060c22 0%,#142546 42%,#314367 100%)}

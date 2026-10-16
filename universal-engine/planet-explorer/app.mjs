@@ -106,7 +106,9 @@ function updateHUD(){
  $("biome").textContent=({ocean:"海洋",river:"河川",forest:"森林",mountain:"山岳",highland:"高地",plains:"平地",
   valley:"谷",coast:"海岸",tundra:"ツンドラ"}[g.category]||g.category);
  $("temp").textContent=climate.temperatureC.toFixed(1)+" °C";
- $("sunlight").textContent=Math.round(planet.illumination(controller.lat,controller.lon)*100)+"%";
+ const sunLevel=planet.illumination(controller.lat,controller.lon);
+ $("sunlight").textContent=Math.round(sunLevel*100)+"%";
+ $("world").dataset.sky=sunLevel<.08?"night":sunLevel<.35?"dusk":"day";
  $("day").textContent=planet.timeDays.toFixed(2)+" 日";
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
@@ -122,6 +124,8 @@ function updateHUD(){
  $("camera-mode").value=renderer.cameraController.mode;
  $("mode-stick").setAttribute("aria-pressed",String(controlMode==="stick"));
  $("mode-tap").setAttribute("aria-pressed",String(controlMode==="tap"));
+ $("viewport-controls").textContent=controlMode==="stick"?"● スティック":"◎ タップ移動";
+ $("viewport-controls").setAttribute("aria-label","移動方法の切替。現在："+(controlMode==="stick"?"スティック":"タップ"));
  $("stick-area").hidden=controlMode!=="stick"||!isSurface;
  $("action-pad").hidden=!isSurface;
  $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?"歩行可能":"降下中／宇宙視点";
@@ -345,6 +349,9 @@ function syncCameraControls(){
  $("camera-fov-label").textContent=camera.fieldOfViewDeg+"°";
  $("camera-height-label").textContent=Math.round(camera.tacticalHeightM)+"m";
  $("camera-mode-label").textContent=CAMERA_MODES.find(x=>x[0]===camera.mode)?.[1]||camera.mode;
+ const quickLabels={legacy:"従来",follow:"追従",shoulder:"肩越し",free:"自由",orbitTarget:"人物注視",tactical:"俯瞰"};
+ $("viewport-camera").textContent="◉ "+(quickLabels[camera.mode]||"カメラ");
+ $("viewport-camera").setAttribute("aria-label","カメラ切替。現在："+$("camera-mode-label").textContent);
 }
 function setCameraMode(mode){
  try{
@@ -429,57 +436,78 @@ for(const t of ["pointerup","pointercancel","lostpointercapture"]){
 
 init();requestAnimationFrame(doFrame);
 
-/* Enlarged view: native fullscreen where available, CSS immersive fallback on
-   iPhone Safari and browsers that restrict Element.requestFullscreen(). */
+/* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
 const stage=document.querySelector(".view-panel");
 const fullBtn=$("fullscreen-toggle");
+const mobileViewportPref="universal-engine:mobile-expanded:v1";
 let cssImmersive=false;
-function enlarged(){
- return cssImmersive || document.fullscreenElement===stage;
+function enlarged(){return cssImmersive||document.fullscreenElement===stage;}
+function setCssImmersive(on){
+ cssImmersive=Boolean(on);
+ stage.classList.toggle("immersive",cssImmersive);
+ document.body.classList.toggle("immersive",cssImmersive);
+}
+function rememberViewport(on){
+ try{sessionStorage.setItem(mobileViewportPref,on?"1":"0");}catch(e){/* Storage unavailable. */}
 }
 function syncFullscreenButton(){
  const on=enlarged();
  fullBtn.textContent=on?"⤡ 元の画面へ戻す":"⛶ 画面を広げる";
  fullBtn.setAttribute("aria-pressed",String(on));
  fullBtn.setAttribute("aria-label",on?"通常表示に戻す":"画面を最大化");
+ $("viewport-expand").textContent=on?"⤡ 戻る":"⛶ 全画面";
+ $("viewport-expand").setAttribute("aria-pressed",String(on));
+ $("viewport-expand").setAttribute("aria-label",on?"通常表示に戻す":"画面を最大化");
+ if(!on)stage.classList.remove("hud-tools-open");
+ $("viewport-menu").setAttribute("aria-expanded",String(stage.classList.contains("hud-tools-open")));
 }
 async function switchFullscreen(){
  if(enlarged()){
-   cssImmersive=false;
-   stage.classList.remove("immersive");
-   document.body.classList.remove("immersive");
-   if(document.fullscreenElement===stage&&document.exitFullscreen){
-     try{await document.exitFullscreen()}catch(e){log("全画面の解除に失敗しました: "+e.message)}
-   }
+  setCssImmersive(false);stage.classList.remove("hud-tools-open");
+  if(document.fullscreenElement===stage&&document.exitFullscreen){
+   try{await document.exitFullscreen();}catch(e){log("全画面の解除に失敗しました: "+e.message);}
+  }
  }else{
-   let nativeOpened=false;
-   if(typeof stage.requestFullscreen==="function"){
-     try{
-       await stage.requestFullscreen({navigationUI:"hide"});
-       nativeOpened=document.fullscreenElement===stage;
-     }catch(e){/* iOS Safari often limits fullscreen to video elements. */}
-   }
-   if(!nativeOpened){
-     cssImmersive=true;
-     stage.classList.add("immersive");
-     document.body.classList.add("immersive");
-   }
+  let nativeOpened=false;
+  if(typeof stage.requestFullscreen==="function"){
+   try{
+    await stage.requestFullscreen({navigationUI:"hide"});
+    nativeOpened=document.fullscreenElement===stage;
+   }catch(e){/* iPhone Safari normally denies element fullscreen. */}
+  }
+  if(!nativeOpened)setCssImmersive(true);
  }
- syncFullscreenButton();
- lastTime=0;
+ rememberViewport(enlarged());syncFullscreenButton();lastTime=0;
 }
-fullBtn.addEventListener("click",()=>{void switchFullscreen()});
+fullBtn.addEventListener("click",()=>{void switchFullscreen();});
+$("viewport-expand").addEventListener("click",()=>{void switchFullscreen();});
+$("viewport-camera").addEventListener("click",()=>{
+ const sequence=["follow","shoulder","orbitTarget","tactical","free","legacy"];
+ const current=renderer.cameraController.mode;
+ setCameraMode(sequence[(sequence.indexOf(current)+1)%sequence.length]);
+});
+$("viewport-controls").addEventListener("click",()=>setControlMode(controlMode==="stick"?"tap":"stick"));
+$("viewport-menu").addEventListener("click",()=>{
+ if(enlarged()){stage.classList.toggle("hud-tools-open");syncFullscreenButton();}
+ else $("viewport-toolbar").scrollIntoView({behavior:"smooth",block:"nearest"});
+});
 document.addEventListener("fullscreenchange",()=>{
  if(document.fullscreenElement!==stage&&!cssImmersive){
-   stage.classList.remove("immersive");
-   document.body.classList.remove("immersive");
+  stage.classList.remove("immersive");document.body.classList.remove("immersive");
  }
  syncFullscreenButton();lastTime=0;
 });
 window.addEventListener("keydown",e=>{
  if(e.key==="Escape"&&cssImmersive){
-   cssImmersive=false;stage.classList.remove("immersive");
-   document.body.classList.remove("immersive");syncFullscreenButton();
+  setCssImmersive(false);stage.classList.remove("hud-tools-open");
+  rememberViewport(false);syncFullscreenButton();
  }
 });
+/* Mobile opens directly into the 3D play view once per tab, unless the player
+   manually exited. This preference is separate from versioned game saves. */
+if(typeof window.matchMedia==="function"&&window.matchMedia("(max-width:760px) and (pointer:coarse)").matches){
+ let pref=null;
+ try{pref=sessionStorage.getItem(mobileViewportPref);}catch(e){/* no storage */}
+ if(pref!=="0")setCssImmersive(true);
+}
 syncFullscreenButton();
