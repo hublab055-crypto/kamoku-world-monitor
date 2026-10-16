@@ -6,6 +6,7 @@ import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
+import {BattleTest} from "./battle-test.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
 import {Lifestyle} from "./lifestyle.mjs";
@@ -25,7 +26,7 @@ const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -61,6 +62,7 @@ function init(saved=null){
   terrain=new Terrain(planet);weather=new Weather(planet);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
+  battle=new BattleTest();
    access=new HutAccess(actions,{insideId:saved?.v0_7e?.insideId??null});
    books=new BookCollection(saved?.v0_7f||loadBookJournal());
    const journal=!saved?loadLifeJournal():null;
@@ -87,7 +89,7 @@ function init(saved=null){
   renderer.expression=saved?.v0_7b?.expression?
     ExpressionController.fromSnapshot(saved.v0_7b.expression):new ExpressionController();
   syncCustomizationControls();
-  renderer.sceneActions=actions;renderer.sceneLife=life;
+  renderer.sceneActions=actions;renderer.sceneLife=life;renderer.battle=battle;
    renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
   renderer.squad=squad;
@@ -138,7 +140,12 @@ function doFrame(t){
     }else if(!controller.moveTarget)access.pendingDoorId=null;
    }
    renderer.interiorBuildingId=access.insideId;
+   const attackInProgress=actions.active;
    const completed=actions.advance(dt);
+   if(running&&battle){
+    battle.advance(dt,controller);
+    for(const hit of battle.resolveAttack(attackInProgress,controller))log("🎯 "+hit.message);
+   }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,controller.moving);
    renderer.sceneLife=life;
@@ -183,6 +190,7 @@ function updateHUD(){
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
  $("action-state").textContent=access.inside?"🏠 屋内（小屋 #"+access.inside.id+"）":actions.message;
+ $("battle-status").textContent="戦闘テスト：敵 "+(battle?.count()||0)+"体（最大10体）";
   syncDoorUi();
  $("customization-status").textContent=
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
@@ -536,6 +544,14 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
    updateHUD();
  });
 }
+$("spawn-enemy").addEventListener("click",()=>{
+ const result=battle.spawn(controller,$("enemy-type").value);
+ log(result.message);
+ updateHUD();
+});
+$("clear-test-enemies").addEventListener("click",()=>{
+ battle.clear();log("👾 テスト敵を消しました。");updateHUD();
+});
 /* Cabin interaction: tapping the door approaches/opens it; buttons handle entry/exit. */
  function performDoor(result){log(result.message);updateHUD();}
  function tapDoor(id){
