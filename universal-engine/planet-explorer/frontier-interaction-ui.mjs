@@ -23,27 +23,16 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    root.append(b);
   });
  }
- function use(){
-  const c=get(),who=actor();if(!who)return;
-  const result=social.use(who,c.life,c.squad.frontier);
-  if(!result.ok){log(result.message);return;}
-  if(result.kind==="book"){openBookLibrary();return;}
-  if(result.kind==="action"){
-   if(who.id!=="player"){log("NPCの手動武器モーションは未対応です。装備設定は保存できます。");return;}
-   c.actions.start(result.action,c.controller,(lat,lon)=>c.terrain.sample?c.terrain.sample(lat,lon):c.terrain.surface(lat,lon));
-   log(c.actions.message);
-  }else{
-   log(result.message);saveLifeJournal();
-  }
-  updateHUD();
- }
- // The source terrain object does not guarantee a .surface() method; call the
- // provided sample function instead (same terrainSurface used by the main app).
  function useItem(){
   const c=get(),who=actor();if(!who)return;
   const result=social.use(who,c.life,c.squad.frontier);
   if(!result.ok){log(result.message);return;}
   if(result.kind==="book"){openBookLibrary();return;}
+  if(result.kind==="deploy"){
+   if(who.id!=="player"){log("設置操作は開拓者が行います。");return;}
+   const deployed=c.life.deploy(result.item,c.controller,c.sample,c.actions.structures);
+   log(deployed.message);if(deployed.ok){saveLifeJournal();updateHUD();}return;
+  }
   if(result.kind==="action"){
    if(who.id!=="player"){log("NPCの手動道具モーションは未対応です。");return;}
    c.actions.start(result.action,c.controller,c.sample);

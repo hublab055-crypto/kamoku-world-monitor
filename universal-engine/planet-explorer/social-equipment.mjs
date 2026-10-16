@@ -80,6 +80,7 @@ export class SocialEquipment {
   if(["sword","axe","pickaxe"].includes(item))
    return {ok:true,kind:"action",action:{sword:"sword",axe:"axe",pickaxe:"mine"}[item]};
   if(item==="book")return {ok:true,kind:"book"};
+  if(item==="bedroll")return {ok:true,kind:"deploy",item:"bedroll"};
   if(["cup","bowl","spoon"].includes(item)){
    const result=life?.useItem(item)||{ok:false,message:"生活システムが利用できません。"};
    return {...result,kind:"item"};

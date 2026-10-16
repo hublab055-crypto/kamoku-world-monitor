@@ -156,6 +156,8 @@ export class FrontierBridge {
    p.inventory=bag(s.inventory);p.radius=cap(Number(s.radius)||42,5,100);
    p.origin=point(s.origin)?{x:s.origin.x,z:s.origin.z}:{x:actor.control.x,z:actor.control.z};
    p.gathered=Math.max(0,Math.floor(Number(s.gathered)||0));
+   p.gifts={};
+   for(const [id,qty] of Object.entries(s.gifts||{}))if(/^[a-zA-Z]{1,24}$/.test(id)&&Number.isSafeInteger(qty)&&qty>=0&&qty<=9999)p.gifts[id]=qty;
   }
   const seen=new Set();
   this.nodes=data.nodes.filter(n=>n&&typeof n.id==="string"&&kinds.includes(n.kind)&&point(n)&&
