@@ -729,7 +729,7 @@ export class ExplorerRenderer{
   this.screenEnemies=[];
   if(!this.battle)return;
   for(const enemy of this.battle.enemies){
-   if(enemy.hp<=0&&(enemy.deathTime||0)>5)return;
+   if(enemy.hp<=0&&(enemy.deathTime||0)>5)continue;
    if(Math.abs(enemy.x-s.x)>radius||Math.abs(enemy.z-s.z)>radius)continue;
    const geo=geoOffset(s.origin.lat,s.origin.lon,enemy.x,enemy.z,this.planet.radiusM);
    const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
