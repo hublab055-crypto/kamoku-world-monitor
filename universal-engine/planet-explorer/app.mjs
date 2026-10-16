@@ -88,6 +88,7 @@ function init(saved=null){
    renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
   renderer.squad=squad;
+  squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
   renderer.cameraController=saved?.v0_7c?.camera?
     CameraController.fromSnapshot(saved.v0_7c.camera):new CameraController();
   if(!saved)renderer.cameraController.setMode("follow",controller,
@@ -711,14 +712,47 @@ for(const t of ["pointerup","pointercancel","lostpointercapture"]){
 }
 
 /* ⚓ Tactical RTS controls and eight-slot IF -> THEN automation editor. */
-const RTS_METRICS={wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)"};
+const RTS_METRICS={wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)",stamina:"⚡スタミナ%",load_kg:"🎒重量kg",resource_nearby:"🌿半径内の資源数"};
 const RTS_ACTIONS={gather_wood:"木材を採集",gather_stone:"石材を採集",build:"小屋を建築",
- move_rally:"集合地点へ移動",follow:"隊長を追従",patrol:"集合地点付近を巡回",wait:"待機"};
+ move_rally:"集合地点へ移動",follow:"隊長を追従",patrol:"集合地点付近を巡回",wait:"待機",rest_home:"💤家で100%まで休息",store_chest:"📦チェストに全収納",gather_nearby:"🧺範囲内の資源を全回収"};
+
+function renderFrontierEditor(actor){
+ let panel=document.getElementById("fw-life-gambit");
+ if(!panel){
+  panel=document.createElement("div");panel.id="fw-life-gambit";panel.className="fw-life-gambit";
+  panel.style.cssText="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0;padding:8px;background:#15394a;border:1px solid #6ca5ad;border-radius:9px;font-size:11px";
+  panel.innerHTML='<strong style="width:100%">🌿 Frontier World 生活AI</strong>'+
+    '<span data-fw="stats" style="flex:1 1 100%"></span>'+
+    '<button type="button" data-fw="preset">💤休息→📦収納→🧺全回収</button>'+
+    '<label>半径 <output data-fw="radiusText"></output> <input type="range" data-fw="radius" min="5" max="100" style="width:95px;accent-color:#8fe5c3"></label>'+
+    '<button type="button" data-fw="origin">📍現在地を中心に</button>';
+  document.getElementById("auto-rule-list").before(panel);
+  panel.addEventListener("click",event=>{
+   const button=event.target.closest("button[data-fw]");if(!button)return;
+   const id=autoActorId;
+   if(button.dataset.fw==="preset"){
+    squad.frontier.applyPreset(id);$("auto-status").textContent="優先1：30%以下→100%まで休息 / 2：18kg以上→全収納 / 3：範囲内全回収（4〜8は維持）";
+   }
+   if(button.dataset.fw==="origin")squad.frontier.setOrigin(id);
+   renderAutoEditor();
+  });
+  panel.querySelector('[data-fw="radius"]').addEventListener("change",event=>{
+   squad.frontier.setRadius(autoActorId,event.target.value);renderAutoEditor();
+  });
+ }
+ const fw=squad.frontier.person(actor.id),home=squad.frontier.home(actor);
+ const stored=squad.frontier.stored();
+ panel.querySelector('[data-fw="stats"]').textContent="⚡ "+fw.stamina.toFixed(1)+"% / 🎒 "+squad.frontier.loadKg(actor.id)+"kg / 🌲 資源"+squad.frontier.metrics(actor).resource_nearby+" / "+(home.kind==="hut"?"🏠家":"⛺仮拠点")+" / 収納:木"+stored.wood+" 石"+stored.stone+" 食材"+stored.food;
+ panel.querySelector('[data-fw="radius"]').value=fw.radius;
+ panel.querySelector('[data-fw="radiusText"]').textContent=fw.radius+"m";
+}
+
 function renderAutoEditor(){
  if(!squad)return;
  const actor=squad.get(autoActorId)||squad.get("player");
  $("auto-actor").value=actor.id;
  $("auto-enabled").checked=actor.auto;
+ renderFrontierEditor(actor);
  $("auto-actor-list").replaceChildren();
  for(const a of squad.agents){
   const btn=document.createElement("button");btn.type="button";
@@ -739,6 +773,16 @@ function renderAutoEditor(){
   '<label>値 <input type="number" data-field="value" step="any" min="-1000000" max="1000000" value="'+rule.value+'"></label>'+
   '<label>THEN <select data-field="action">'+options(RULE_ACTIONS,rule.action,v=>RTS_ACTIONS[v])+'</select></label>'+
   '</div>').join("");
+
+ $("auto-rule-list").querySelectorAll(".auto-rule").forEach((row,i)=>{
+  const wrap=document.createElement("div");wrap.style.cssText="display:flex;grid-column:1/-1;justify-content:flex-end;gap:5px";
+  for(const delta of [-1,1]){
+   const b=document.createElement("button");b.type="button";b.textContent=delta<0?"↑ 優先":"↓ 優先";
+   b.dataset.order=String(delta);b.disabled=(i===0&&delta<0)||(i===actor.rules.length-1&&delta>0);
+   b.style.cssText="padding:3px 9px;min-height:27px";wrap.append(b);
+  }
+  row.append(wrap);
+ });
 }
 function syncSquadUi(){renderAutoEditor();updateHUD();}
 function openAutoEditor(open){
@@ -755,6 +799,13 @@ $("auto-actor").addEventListener("change",()=>{
 $("auto-enabled").addEventListener("change",()=>{
  squad.setAuto([autoActorId],$("auto-enabled").checked);
  renderAutoEditor();updateHUD();
+});
+$("auto-rule-list").addEventListener("click",e=>{
+ const button=e.target.closest("button[data-order]");if(!button)return;
+ const row=button.closest("[data-slot]"),i=Number(row.dataset.slot),j=i+Number(button.dataset.order),actor=squad.get(autoActorId);
+ if(j<0||j>=actor.rules.length)return;
+ [actor.rules[i],actor.rules[j]]=[actor.rules[j],actor.rules[i]];
+ squad.frontier.cancel(actor);renderAutoEditor();
 });
 $("auto-rule-list").addEventListener("change",e=>{
  const row=e.target.closest("[data-slot]");if(!row)return;
