@@ -95,12 +95,12 @@ export class SquadEngine{
  }
  performEquippedAction(id,kind,hand="right"){
   const a=this.get(id);
-  if(!a||a.id==="player"||!["sword","axe","mine"].includes(kind)||!a.control.nearGround)return false;
+  if(!a||a.id==="player"||!["sword","axe","mine","bow"].includes(kind)||!a.control.nearGround)return false;
   this.frontier?.cancel(a);
   a.control.clearMoveTarget();
-  const duration=kind==="sword"?.95:kind==="axe"?1.45:1.65;
+  const duration=kind==="sword"?.95:kind==="axe"?1.45:kind==="bow"?1.2:1.65;
   a.task={kind:"equipped_"+kind,remaining:duration,duration,hand:hand==="left"?"left":"right"};
-  a.cooldown=0;a.order="manual";a.status="⚒️ "+kind+"を使用中";
+  a.cooldown=0;a.order="manual";a.status=kind==="bow"?"🏹 弓を引いています":"⚒️ "+kind+"を使用中";
   return true;
  }
  schedule(a,action,slot=0){
@@ -157,7 +157,7 @@ export class SquadEngine{
      const kind=a.task.kind.slice("equipped_".length);
      if(kind==="axe")this.actions.resources.wood+=2;
      if(kind==="mine")this.actions.resources.stone+=2;
-     a.status=kind==="sword"?"⚔️ 剣を振った":kind==="axe"?"🪵 木材 +2":"🪨 石材 +2";
+     a.status=kind==="sword"?"⚔️ 剣を振った":kind==="axe"?"🪵 木材 +2":kind==="bow"?"🏹 矢を放ちました":"🪨 石材 +2";
      a.task=null;a.cooldown=.5;
     }
    }
