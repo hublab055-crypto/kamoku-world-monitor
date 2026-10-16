@@ -15,11 +15,11 @@
   </div>
   <div class="container headline">
     <div>
-      <p class="eyebrow">UNIVERSAL ENGINE · V0.7m · FAST COMBAT & ARCHERY</p>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7n · COMBAT TEST</p>
       <h1>オリジナルの世界を歩く。</h1>
-      <p>v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
+      <p>v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.7m 高速攻撃・弓の動作改善</span>
+    <div class="version-control"><span class="version-tag">v0.7n 戦闘テスト</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -98,6 +98,14 @@
     <button type="button" id="action-axe">斧</button>
     <button type="button" id="action-mine">採掘</button>
     <button type="button" id="action-build">建築</button>
+    <select id="enemy-type" aria-label="出現させる敵">
+      <option value="slime">🟢 スライム</option>
+      <option value="goblin">👺 ゴブリン</option>
+      <option value="bandit">🗡️ 盗賊</option>
+    </select>
+    <button type="button" id="spawn-enemy">👾 敵出現</button>
+    <button type="button" id="clear-test-enemies">敵を消す</button>
+    <span id="battle-status" aria-live="polite">戦闘テスト：敵0体</span>
   </div>
 </div>
 <div class="hand-actions" id="hand-actions" role="group" aria-label="右手と左手の装備アクション">
@@ -418,6 +426,6 @@
   </section>
 </main>
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
-<script type="module" src="./app.mjs?v=0.7m"></script>
+<script type="module" src="./app.mjs?v=0.7n"></script>
 </body>
 </html>
