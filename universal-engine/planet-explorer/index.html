@@ -61,32 +61,43 @@
         <div>高度 <strong id="height">-- m</strong></div>
         <div class="coords" id="coords">--°, --°</div>
       </div>
-      <div class="viewport-actions" role="group" aria-label="ゲーム画面のクイック操作">
-        <button type="button" id="viewport-expand" aria-pressed="false" aria-label="画面を最大化">⛶ 全画面</button>
-        <button type="button" id="viewport-camera" aria-label="カメラモードを切り替える">◉ 追従</button>
-        <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
-         <button type="button" id="viewport-rts" aria-pressed="false" title="上空から部隊にタップ指示">⚓ RTS視点</button>
-         <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
-          <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
-          <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ 生活・クラフト</button>
-        <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">☰ メニュー</button>
-      </div>
-      <div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
+      <div class="viewport-actions" role="group" aria-label="ゲーム画面の操作">
+  <div class="viewport-compact-bar">
+    <button type="button" id="viewport-expand" aria-pressed="false" aria-label="画面を最大化">⛶ 全画面</button>
+    <button type="button" id="viewport-quick-toggle" aria-expanded="false" aria-controls="viewport-quick-panel" aria-label="操作メニューを開く">☰ 操作</button>
+  </div>
+  <div id="viewport-quick-panel" class="viewport-quick-panel" hidden role="group" aria-label="カメラ・モード・メニュー">
+    <button type="button" id="viewport-camera" aria-label="カメラモードを切り替える">◉ 追従</button>
+    <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
+    <button type="button" id="viewport-rts" aria-pressed="false" title="部隊にタップ指示">⚓ RTS視点</button>
+    <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
+    <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
+    <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
+    <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
+  </div>
+</div>
+<div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
   <div class="stick-base"><div id="stick-nub" class="stick-nub"></div></div>
   <span>MOVE</span>
 </div>
-<div id="door-controls" class="door-controls" hidden role="group" aria-label="小屋のドアと出入り">
-  <button type="button" id="door-toggle" aria-label="ドアを開閉">🚪 開ける</button>
-  <button type="button" id="door-enter" hidden>🏠 中に入る</button>
-  <button type="button" id="door-exit" hidden>🌿 外に出る</button>
-  <button type="button" id="door-shelf" hidden>📚 本棚</button>
+<div id="door-controls" class="door-controls" hidden role="group" aria-label="小屋の出入り操作">
+  <button type="button" id="door-actions-toggle" aria-expanded="false" aria-controls="door-options" aria-label="ドア操作を開く">🚪 ドア</button>
+  <div id="door-options" class="door-options" hidden>
+    <button type="button" id="door-toggle" aria-label="ドアを開閉">🚪 開ける</button>
+    <button type="button" id="door-enter" hidden>🏠 中に入る</button>
+    <button type="button" id="door-exit" hidden>🌿 外に出る</button>
+    <button type="button" id="door-shelf" hidden>📚 本棚</button>
+  </div>
 </div>
 <div id="action-pad" class="action-pad" aria-label="アクション">
-  <button type="button" id="jump">ジャンプ</button>
-  <button type="button" id="action-sword">剣</button>
-  <button type="button" id="action-axe">斧</button>
-  <button type="button" id="action-mine">採掘</button>
-  <button type="button" id="action-build">建築</button>
+  <button type="button" id="jump" aria-label="ジャンプ">ジャンプ</button>
+  <button type="button" id="action-tools-toggle" aria-expanded="false" aria-controls="action-tool-list" aria-label="道具メニューを開く">⚒ 道具</button>
+  <div id="action-tool-list" class="action-tool-list" hidden>
+    <button type="button" id="action-sword">剣</button>
+    <button type="button" id="action-axe">斧</button>
+    <button type="button" id="action-mine">採掘</button>
+    <button type="button" id="action-build">建築</button>
+  </div>
 </div>
 <div id="rts-controls" class="rts-controls" hidden role="group" aria-label="RTS部隊指揮">
   <button type="button" id="rts-all">全員選択</button>
