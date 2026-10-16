@@ -11,7 +11,7 @@ const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","sword","axe","mine","build",
+ "idle","walk","run","jump","sword","axe","mine","bow","build",
  "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
@@ -37,18 +37,28 @@ export class SmoothAnimator {
  reset(){this.pose=samplePose();this.state="idle";this.elapsed=0;this.movementIntensity=0;}
  update(dt,{
    moving=false,phase=0,speedMps=moving?5:0,jumpHeight=0,action="idle",progress=0,
-   emotion="neutral",faceDirection=0,hand="right"
+   emotion="neutral",faceDirection=0,hand="right",equipped={}
  }={}){
   if(![dt,phase,speedMps,jumpHeight,progress,faceDirection].every(Number.isFinite)||dt<0)
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
-  const toolAction=["sword","axe","mine","build"].includes(action);
+  const toolAction=["sword","axe","mine","bow","build"].includes(action);
   const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;
   this.state=flight?"jump":toolAction||lifeAction?action:move?(speedMps>6.4?"run":"walk"):"idle";
   const locomotion=samplePose({moving:move,phase,jumpHeight:0,action:"idle"});
   let target={...locomotion};
+  if(!flight&&!toolAction&&!lifeAction){
+   // Resting guard pose keeps armed hands slightly forward, without freezing the walk cycle.
+   for(const side of ["left","right"]){
+    if(["sword","axe","pickaxe","bow"].includes(equipped?.[side])){
+     const key=side+"ShoulderX";
+     target[key]=target[key]*.35-.48;
+     target[side+"ElbowX"]=-.23;
+    }
+   }
+  }
   if(flight)target=samplePose({jumpHeight:Math.max(.02,jumpHeight),action:"jump"});
   else if(toolAction){
     const tool=samplePose({action,progress});
@@ -69,6 +79,7 @@ export class SmoothAnimator {
        }
       }
     }
+    if(hand==="left")target.torsoY=-(target.torsoY||0);
     target.tool=tool.tool;
   }
   if(lifeAction&&!flight){
