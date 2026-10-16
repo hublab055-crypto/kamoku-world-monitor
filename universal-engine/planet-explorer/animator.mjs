@@ -37,7 +37,7 @@ export class SmoothAnimator {
  reset(){this.pose=samplePose();this.state="idle";this.elapsed=0;this.movementIntensity=0;}
  update(dt,{
    moving=false,phase=0,speedMps=moving?5:0,jumpHeight=0,action="idle",progress=0,
-   emotion="neutral",faceDirection=0,hand="right",equipped={}
+   emotion="neutral",faceDirection=0,hand="right",variant="overhead",equipped={}
  }={}){
   if(![dt,phase,speedMps,jumpHeight,progress,faceDirection].every(Number.isFinite)||dt<0)
     throw TypeError("Invalid animation update");
@@ -61,7 +61,7 @@ export class SmoothAnimator {
   }
   if(flight)target=samplePose({jumpHeight:Math.max(.02,jumpHeight),action:"jump"});
   else if(toolAction){
-    const tool=samplePose({action,progress});
+    const tool=samplePose({action,progress,variant});
     // Keep legs locomoting and smoothly blend only upper body for work.
     for(const key of Object.keys(tool)){
       if(["torsoX","torsoY","leftShoulderX","rightShoulderX",
@@ -75,7 +75,8 @@ export class SmoothAnimator {
        const lk="left"+segment,rk="right"+segment;
        const left=tool[lk],right=tool[rk];
        if(Number.isFinite(left)&&Number.isFinite(right)){
-        target[lk]=right;target[rk]=left;
+        target[lk]=segment==="ShoulderZ"?-right:right;
+        target[rk]=segment==="ShoulderZ"?-left:left;
        }
       }
     }
@@ -124,7 +125,9 @@ export class SmoothAnimator {
       target[side+finger+"2X"]=toolAction?-.52:-.12;
     }
   }
-  const a=alpha(elapsed,flight?this.actionTau:this.state==="idle"?.24:toolAction?this.actionTau:this.walkTau);
+  // Fast cuts need low latency so the head-height windup and impact remain visible.
+  const tau=toolAction&&["sword","axe"].includes(action)?Math.min(.045,this.actionTau):this.actionTau;
+  const a=alpha(elapsed,flight?this.actionTau:this.state==="idle"?.24:toolAction?tau:this.walkTau);
   this.pose=blendPose(this.pose,target,a);
   // Tool attachment switches on immediately at action start and detaches at finish.
   this.pose.tool=toolAction?target.tool:null;
