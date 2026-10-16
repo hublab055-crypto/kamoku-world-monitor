@@ -954,10 +954,12 @@ lifeUI=installLifestyleUI({
   onChange:()=>{saveLifeJournal();updateHUD();},
   onBook:openBookLibrary,
   onSleep:()=>{planet.advance(.25);updateHUD();},
-  notify:log
+  notify:log,
+  getEquipmentInventory:()=>frontierUI?.equipmentInventory()||[],
+  onEquipHand:(kind,hand)=>frontierUI?.equipHandFromInventory(kind,hand)||{ok:false,message:"まだ装備できません。"}
  });
  frontierUI=installFrontierInteractions({
- get:()=>({controller,renderer,squad,actions,life,terrain,rtsMode,
+ get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,rtsMode,
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal
 });
