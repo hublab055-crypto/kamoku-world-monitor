@@ -10,7 +10,7 @@ function distanceMeters(a,b,radius){
 }
 export class Actions {
   constructor() {
-    this.resources={wood:12,stone:8};
+    this.resources={wood:12,stone:8,fiber:12,clay:8,metal:5};
     this.structures=[];
     this.active=null;
     this.completed=0;
@@ -59,8 +59,8 @@ export class Actions {
     }
     if(progress<1)return null;
     const completed=a.kind;
-    if(completed==="axe")this.resources.wood+=2;
-    if(completed==="mine")this.resources.stone+=2;
+    if(completed==="axe"){this.resources.wood+=2;this.resources.fiber=(this.resources.fiber||0)+1;}
+    if(completed==="mine"){this.resources.stone+=2;this.resources.clay=(this.resources.clay||0)+1;this.resources.metal=(this.resources.metal||0)+1;}
     this.completed++;
     this.active=null;
     this.message={sword:"剣の振り終わり",axe:"木材 +2",mine:"石材 +2",build:"作業小屋が完成"}[completed];
@@ -86,7 +86,10 @@ export class Actions {
     if(data.active && (!["sword","axe","mine","build"].includes(data.active.kind)||
        ![data.active.time,data.active.duration].every(Number.isFinite)||
        data.active.time<0||data.active.duration<=0))throw Error("Invalid saved action.");
-    x.resources={...data.resources};
+    x.resources={...x.resources,...data.resources};
+    for(const k of ["fiber","clay","metal"]){
+      if(!Number.isSafeInteger(x.resources[k])||x.resources[k]<0)x.resources[k]=0;
+    }
     x.structures=data.structures.map(s=>({...s}));
     x.active=data.active?{...data.active}:null;
     x.completed=data.completed||0;
