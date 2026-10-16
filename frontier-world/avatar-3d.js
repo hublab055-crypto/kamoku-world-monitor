@@ -88,8 +88,8 @@ function placeholder(sex){
    const leg=new THREE.Group();leg.position.set(x*.112,.88,0);g.add(leg);
    piece(leg,new THREE.CapsuleGeometry(.095,.51,3,8),markerMaterial('#525b60'),0,-.34,0);
    piece(leg,new THREE.BoxGeometry(.21,.13,.34),markerMaterial('#493c32'),0,-.79,.095);
-   g.userData[(x===-1?'left':'right')+'Arm']=arm;
-   g.userData[(x===-1?'left':'right')+'Leg']=leg;
+   arm.name='fw3d_'+(x===-1?'left':'right')+'Arm';
+   leg.name='fw3d_'+(x===-1?'left':'right')+'Leg';
  }
  g.userData.placeholder=true;g.name='temporary_'+sex;return {scene:g,animations:[]};
 }
@@ -127,9 +127,10 @@ function makeActor(p){
  const sex=sexOf(p),gltf=models.get(sex)||placeholder(sex);
  const group=cloneSkinned(gltf.scene);
  group.name='fw3d_'+canonical(p.id);
- const m={id:canonical(p.id),actor:p,root:group,sex,mixer:null,clips:gltf.animations||[],action:null,lastPos:pos3(p.x,p.y),selectedRing:null,prevMotion:''};
+ const m={id:canonical(p.id),actor:p,root:group,sex,mixer:null,clips:gltf.animations||[],action:null,lastPos:pos3(p.x,p.y),selectedRing:null,prevMotion:'',parts:{}};
  if(gltf.animations&&gltf.animations.length)m.mixer=new THREE.AnimationMixer(group);
  group.position.copy(m.lastPos);
+ for(const key of ['leftArm','rightArm','leftLeg','rightLeg'])m.parts[key]=group.getObjectByName('fw3d_'+key);
  const ring=new THREE.Mesh(new THREE.RingGeometry(.42,.49,40),new THREE.MeshBasicMaterial({color:'#a0ffad',side:THREE.DoubleSide,transparent:true,opacity:.90}));
  ring.rotation.x=-Math.PI/2;ring.position.y=.024;ring.visible=false;group.add(ring);m.selectedRing=ring;
  scene.add(group);actors.set(m.id,m);return m;
@@ -169,10 +170,10 @@ function animateActor(a,dt){
  setMotion(a,motion);
  if(a.root.userData.placeholder){
    const wave=performance.now()*.006,bob=motion==='Walk'?Math.sin(wave*2)*.035:0;
-   a.root.userData.leftLeg&&(a.root.userData.leftLeg.rotation.x=motion==='Walk'?Math.sin(wave)*.46:0);
-   a.root.userData.rightLeg&&(a.root.userData.rightLeg.rotation.x=motion==='Walk'?-Math.sin(wave)*.46:0);
-   a.root.userData.leftArm&&(a.root.userData.leftArm.rotation.x=motion==='Walk'?-Math.sin(wave)*.35:0);
-   a.root.userData.rightArm&&(a.root.userData.rightArm.rotation.x=motion==='Walk'?Math.sin(wave)*.35:0);
+   a.parts.leftLeg&&(a.parts.leftLeg.rotation.x=motion==='Walk'?Math.sin(wave)*.46:0);
+   a.parts.rightLeg&&(a.parts.rightLeg.rotation.x=motion==='Walk'?-Math.sin(wave)*.46:0);
+   a.parts.leftArm&&(a.parts.leftArm.rotation.x=motion==='Walk'?-Math.sin(wave)*.35:0);
+   a.parts.rightArm&&(a.parts.rightArm.rotation.x=motion==='Walk'?Math.sin(wave)*.35:0);
    a.root.userData.bodyBob=bob;
  }
  a.root.position.set(next.x,a.root.userData.placeholder?(a.root.userData.bodyBob||0):0,next.z);
