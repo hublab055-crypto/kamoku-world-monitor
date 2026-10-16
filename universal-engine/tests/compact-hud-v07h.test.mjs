@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const file=name=>readFileSync(new URL("../planet-explorer/"+name,import.meta.url),"utf8");
-const html=file("index.html"),css=file("style.css"),app=file("app.mjs");
+const html=file("index.html"),css=file("style.css"),app=file("app.mjs"),lifeUI=file("lifestyle-ui.mjs");
 
 const byId=id=>new RegExp('id="'+id+'"','g');
 test("compact HUD has two immediately visible top controls and a closed quick panel",()=>{
@@ -20,7 +20,7 @@ test("existing camera, RTS, automation, books, life and full settings remain acc
  const menu=html.slice(html.indexOf('id="viewport-quick-panel"'),html.indexOf('id="stick-area"'));
  for(const id of buttons.filter(x=>x!=="viewport-expand"))assert.ok(menu.includes('id="'+id+'"'),id);
  for(const anchor of ["viewport-camera","viewport-controls","viewport-rts","viewport-auto","viewport-books","viewport-life","viewport-menu"])
-   assert.ok(app.includes('"'+anchor+'"'),anchor);
+   assert.ok((app+lifeUI).includes('"'+anchor+'"'),anchor);
 });
 test("tools are behind a toggle, while jump remains a direct action",()=>{
  const action=html.slice(html.indexOf('id="action-pad"'),html.indexOf('id="rts-controls"'));
