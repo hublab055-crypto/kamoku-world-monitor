@@ -80,9 +80,12 @@ export class HutAccess{
   for(const b of this.actions.structures){
    if(!completedHut(b)||!inHut(b,x,z,-.15))continue;
    const rx=x-b.x,rz=z-b.z,prevZ=previous.z-b.z;
-   if(b.doorOpen&&Math.abs(rx)<HUT.doorHalfWidth&&
-       prevZ>=HUT.halfDepth-.3&&rz<=HUT.halfDepth-.17){
-    this.insideId=b.id;this.pendingDoorId=null;return "enter";
+   // Keep the open doorway corridor traversable before the player crosses the wall.
+   if(b.doorOpen&&Math.abs(rx)<HUT.doorHalfWidth&&prevZ>=HUT.halfDepth-.3){
+    if(rz<=HUT.halfDepth-.17){
+     this.insideId=b.id;this.pendingDoorId=null;return "enter";
+    }
+    continue;
    }
    return restore();
   }
