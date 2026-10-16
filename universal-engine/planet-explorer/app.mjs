@@ -226,6 +226,7 @@ $("import-v07a-save").addEventListener("click",()=>{
 });
 $("reset").addEventListener("click",()=>{running=true;init();updateHUD();});
 window.addEventListener("keydown",e=>{
+ if(e.target?.closest?.("input,select,textarea,[contenteditable=true]"))return;
  const k=e.key.toLowerCase();
  if(["w","a","s","d","q","e","arrowup","arrowdown","arrowleft","arrowright","+","-"].includes(k)){
   if(e.target===document.body)e.preventDefault();
@@ -559,7 +560,7 @@ $("rts-rally").addEventListener("click",()=>{
  rallyPicking=!rallyPicking;updateHUD();
 });
 $("rts-stop").addEventListener("click",()=>{
- squad.halt([...squad.selected]);updateHUD();log("選択した人物の移動を停止しました。");
+ squad.halt([...squad.selected]);renderAutoEditor();updateHUD();log("選択した人物の移動と自動行動を停止しました。");
 });
 function commandRtsTap(clientX,clientY,shift=false){
  const rect=$("world").getBoundingClientRect();
