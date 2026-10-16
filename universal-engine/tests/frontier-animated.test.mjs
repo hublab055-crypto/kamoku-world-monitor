@@ -86,11 +86,11 @@ test("walking animates joint at half-time and mouth morph follows FaceTalking",(
 test("GPU renderer uploads four RGBA bone matrix columns and independent clip state",()=>{
  const gl=fakeWebGL(),model=new SkinnedFrontierAsset(gl,tinySkinnedGLB());
  const vp=matIdentity(),avatar=matIdentity(),light=[.5,.8,.1];
- model.draw(vp,avatar,light,"scout",.5,{moving:true,motion:"idle"});
- assert.equal(gl.state.drawCount,1);
- assert.ok(Math.abs(gl.state.boneMatrices[0][13]-.2)<.00001);
- model.draw(vp,avatar,light,"player",.5,{talking:true});
- assert.equal(gl.state.drawCount,2);
+ for(let i=0;i<5;i++)model.draw(vp,avatar,light,"scout",.1,{moving:true,motion:"idle"});
+ assert.equal(gl.state.drawCount,5);
+ assert.ok(Math.abs(gl.state.boneMatrices.at(-1)[13]-.2)<.00001);
+ for(let i=0;i<5;i++)model.draw(vp,avatar,light,"player",.1,{talking:true});
+ assert.equal(gl.state.drawCount,10);
  assert.ok(gl.state.morphs.some(m=>Math.abs(m[1]-.5)<.00001));
  assert.notEqual(model.instances.get("scout"),model.instances.get("player"));
  model.destroy();
