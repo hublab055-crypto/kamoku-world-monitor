@@ -436,3 +436,62 @@ body.immersive{overflow:hidden}
  .life-floor-map{height:125px;width:min(90%,300px)}
  .life-help{padding:5px 8px;font-size:10px}
 }
+
+/* v0.7h - Compact HUD. Two fixed top controls, one action row, context popovers.
+   Every operation remains in the DOM and retains its original button id. */
+.viewport-actions{right:9px;top:9px;max-width:calc(100% - 110px);align-items:stretch;gap:0;z-index:17}
+.viewport-compact-bar{display:flex;justify-content:flex-end;gap:6px;align-items:center}
+.viewport-compact-bar #viewport-expand{width:43px;min-width:43px;padding:6px 0;font-size:0;min-height:43px}
+.viewport-compact-bar #viewport-expand::before{content:"⛶";font-size:21px;line-height:1}
+.viewport-compact-bar #viewport-expand[aria-pressed="true"]::before{content:"↩"}
+.viewport-compact-bar #viewport-quick-toggle{min-width:70px;width:70px;min-height:43px;padding:6px 7px;font-size:12px}
+.viewport-compact-bar #viewport-quick-toggle[aria-expanded="true"]{background:#226f75;border-color:#bde7d8}
+.viewport-quick-panel{position:absolute;right:0;top:calc(100% + 7px);z-index:18;
+  width:min(247px,calc(100vw - 19px));max-height:min(62dvh,408px);padding:8px;
+  background:#092d42ec;border:1px solid #87b9c4;border-radius:12px;box-shadow:0 7px 25px #001829b3;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;overflow-y:auto;
+  overscroll-behavior:contain;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+.viewport-quick-panel[hidden],.action-tool-list[hidden],.door-options[hidden]{display:none!important}
+.viewport-quick-panel button{width:100%;min-width:0;min-height:43px;font-size:11px;white-space:normal;text-align:center;padding:7px 4px}
+.viewport-quick-panel #viewport-menu{grid-column:1/-1}
+.viewport-quick-panel button[aria-pressed="true"]{background:#257786}
+.action-pad{display:flex;gap:6px;right:9px;bottom:calc(13px + env(safe-area-inset-bottom,0px));z-index:13}
+.action-pad>button{width:48px;min-width:48px;height:48px;min-height:48px;padding:5px 2px;font-size:11px;border-radius:11px}
+.action-pad>button:first-child{grid-column:auto;font-size:11px;background:#286184e8}
+.action-pad>button:last-of-type{background:#315c60e8}
+.action-pad #action-tools-toggle[aria-expanded="true"]{background:#246b70;border-color:#b7e5d4}
+.action-tool-list{position:absolute;bottom:calc(100% + 7px);right:0;z-index:14;display:grid;
+  grid-template-columns:repeat(2,83px);gap:5px;padding:8px;background:#0b3048eb;
+  border:1px solid #84bac9;border-radius:11px;box-shadow:0 5px 19px #061726ad}
+.action-tool-list button{min-height:43px;padding:5px;border-radius:8px;font-size:11px;background:#245473df}
+.door-controls{left:auto;right:9px;transform:none;bottom:calc(78px + env(safe-area-inset-bottom,0px));
+  z-index:14;max-width:calc(100% - 18px);display:block}
+.door-controls>#door-actions-toggle{min-height:41px;min-width:66px;padding:7px;font-size:12px;border-radius:11px}
+.door-controls>#door-actions-toggle[aria-expanded="true"]{background:#2c826f}
+.door-options{position:absolute;bottom:calc(100% + 7px);right:0;z-index:15;
+  width:max-content;max-width:min(215px,80vw);display:grid;grid-template-columns:repeat(2,minmax(90px,1fr));
+  gap:5px;padding:7px;background:#0c3835f2;border:1px solid #9ad5c3;border-radius:11px;
+  box-shadow:0 5px 22px #001b1baa}
+.door-options button{min-height:43px;font-size:11px;border-radius:8px;padding:7px 5px}
+@media(max-width:760px){
+  .viewport-actions{right:7px;top:7px;max-width:calc(100% - 108px)}
+  .viewport-compact-bar{gap:5px}
+  .viewport-compact-bar #viewport-expand{width:41px;min-width:41px;min-height:42px}
+  .viewport-compact-bar #viewport-quick-toggle{width:68px;min-width:68px;min-height:42px}
+  .viewport-quick-panel{width:min(234px,calc(100vw - 14px));max-height:60dvh}
+  .viewport-quick-panel button{min-height:42px;font-size:11px;padding:7px 3px}
+  .viewport-overlay{max-width:calc(100% - 125px)}
+  .stick-area{width:98px;height:98px;bottom:calc(11px + env(safe-area-inset-bottom,0px));left:4px}
+  .stick-base{width:80px;height:80px;box-shadow:0 0 0 5px #0d26343a}
+  .stick-nub{width:38px;height:38px}
+  .action-pad,.view-panel.immersive .action-pad,.view-panel:fullscreen .action-pad{
+    bottom:calc(12px + env(safe-area-inset-bottom,0px));right:7px;gap:5px}
+  .action-pad>button{height:44px;min-height:44px;width:46px;min-width:46px;font-size:10px}
+  .action-pad>button:first-child{font-size:10px}
+  .door-controls{bottom:calc(73px + env(safe-area-inset-bottom,0px));right:7px}
+  .door-controls>#door-actions-toggle{min-height:39px;padding:5px 7px}
+}
+@media(max-width:760px) and (orientation:landscape){
+  .viewport-quick-panel{max-height:calc(100dvh - 90px)}
+  .door-controls{bottom:calc(62px + env(safe-area-inset-bottom,0px))}
+}
