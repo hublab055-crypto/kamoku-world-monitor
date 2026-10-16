@@ -3,6 +3,12 @@
  * This is not combat or construction simulation for Frontier World.
  */
 const COST={wood:4,stone:2};
+export const ATTACK_VARIANTS=Object.freeze(["overhead","sweep","thrust","combo"]);
+export function actionDuration(kind,variant="overhead"){
+ if(kind==="sword")return variant==="combo"?1.42:.58;
+ if(kind==="axe")return variant==="combo"?1.38:.78;
+ return {mine:1.65,bow:1.62,build:4.3}[kind]??0;
+}
 function distanceMeters(a,b,radius){
   const rad=Math.PI/180,dlat=(b.lat-a.lat)*rad,dlon=(b.lon-a.lon)*rad;
   const h=Math.sin(dlat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dlon/2)**2;
@@ -16,13 +22,15 @@ export class Actions {
     this.completed=0;
     this.message="準備完了";
   }
-  start(kind, controller, terrainSurface) {
+  start(kind, controller, terrainSurface, variant="overhead") {
     if(!["sword","axe","mine","bow","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
     if(this.active){this.message="動作が完了してから操作してください";return false;}
     if(controller.altitudeM>12.01 || controller.jumpY>.01) {
       this.message="地上に立ってから操作してください";return false;
     }
-    const duration={sword:.95,axe:1.45,mine:1.65,bow:1.2,build:4.3}[kind];
+    // For weapon moves, old saves and direct tool buttons default to overhead.
+    const move=ATTACK_VARIANTS.includes(variant)&&!(kind==="axe"&&variant==="thrust")?variant:"overhead";
+    const duration=actionDuration(kind,move);
     let structureId=null;
     if(kind==="build") {
       if(this.resources.wood<COST.wood||this.resources.stone<COST.stone) {
@@ -43,7 +51,7 @@ export class Actions {
       structureId=this.structures.length+1;
       this.structures.push({id:structureId,x,z,lat:p.lat,lon:p.lon,height:surface.elevationM,progress:0,kind:"hut"});
     }
-    this.active={kind,time:0,duration,structureId};
+    this.active={kind,time:0,duration,structureId,variant:move};
     this.message={sword:"剣で攻撃モーション",axe:"斧で薪を割る",mine:"つるはしで石を採掘",bow:"弓を引いて矢を放つ",build:"作業小屋を建築中"}[kind];
     return true;
   }
@@ -67,7 +75,7 @@ export class Actions {
     return completed;
   }
   getAnimation() {
-    return this.active?{action:this.active.kind,progress:this.active.time/this.active.duration}:
+    return this.active?{action:this.active.kind,progress:this.active.time/this.active.duration,variant:this.active.variant||"overhead"}:
       {action:"idle",progress:0};
   }
   snapshot() {
@@ -91,7 +99,8 @@ export class Actions {
       if(!Number.isSafeInteger(x.resources[k])||x.resources[k]<0)x.resources[k]=0;
     }
     x.structures=data.structures.map(s=>({...s}));
-    x.active=data.active?{...data.active}:null;
+    x.active=data.active?{...data.active,
+      variant:ATTACK_VARIANTS.includes(data.active.variant)?data.active.variant:"overhead"}:null;
     x.completed=data.completed||0;
     x.message=typeof data.message==="string"?data.message:"復元しました";
     return x;
