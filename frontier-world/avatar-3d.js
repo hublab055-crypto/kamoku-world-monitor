@@ -140,7 +140,7 @@ function makeActor(p){
  const sex=sexOf(p),lod=desiredLOD(p),gltf=(lod==='mobile'?modelsLow.get(sex):null)||models.get(sex)||placeholder(sex);
  const group=cloneSkinned(gltf.scene);
  group.name='fw3d_'+canonical(p.id);
- const m={id:canonical(p.id),actor:p,root:group,sex,lod,mixer:null,clips:gltf.animations||[],action:null,lastPos:pos3(p.x,p.y),selectedRing:null,prevMotion:'',parts:{}};
+ const m={id:canonical(p.id),actor:p,root:group,sex,lod,mixer:null,clips:gltf.animations||[],action:null,faceAction:null,faceMotion:'',lastPos:pos3(p.x,p.y),selectedRing:null,prevMotion:'',parts:{}};
  if(gltf.animations&&gltf.animations.length)m.mixer=new THREE.AnimationMixer(group);
  group.position.copy(m.lastPos);
  for(const key of ['leftArm','rightArm','leftLeg','rightLeg'])m.parts[key]=group.getObjectByName('fw3d_'+key);
@@ -170,11 +170,28 @@ function setMotion(a,name){
  a.prevMotion=name;
  if(!a.mixer)return;
  const clip=THREE.AnimationClip.findByName(a.clips,name)||THREE.AnimationClip.findByName(a.clips,'Idle');
- if(!clip)return;
- const next=a.mixer.clipAction(clip);
- if(a.action&&a.action!==next){next.reset().fadeIn(.2).play();a.action.fadeOut(.2);}
- else if(!a.action){next.play();}
- a.action=next;
+ if(clip){
+  const next=a.mixer.clipAction(clip);
+  if(a.action&&a.action!==next){next.reset().fadeIn(.2).play();a.action.fadeOut(.2);}
+  else if(!a.action)next.play();
+  a.action=next;
+ }
+ // v5 high-detail GLBs have actual skinned face morph targets and additional
+ // expression-only clips. Play these alongside the locomotion animation.
+ // Older GLBs simply lack those clips and continue working unchanged.
+ const facialName=name==='Talk'?'FaceTalking':'FaceIdle';
+ if(a.faceMotion!==facialName){
+  const faceClip=THREE.AnimationClip.findByName(a.clips,facialName);
+  if(faceClip){
+   const nextFace=a.mixer.clipAction(faceClip);
+   if(a.faceAction&&a.faceAction!==nextFace){
+    nextFace.reset().fadeIn(.18).play();
+    a.faceAction.fadeOut(.18);
+   }else if(!a.faceAction)nextFace.play();
+   a.faceAction=nextFace;
+  }
+  a.faceMotion=facialName;
+ }
 }
 function animateActor(a,dt){
  const p=a.actor,next=pos3(p.x,p.y),speed=a.lastPos.distanceTo(next)/Math.max(.02,dt);
