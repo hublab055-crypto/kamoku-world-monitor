@@ -115,8 +115,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     if(renderer!==get().renderer)return;
     if(!bytes){summary.push(sex+" 未登録");continue;}
     const parsed=parseFrontierGLB(bytes);
-    renderer.setFrontierGlb(sex,parsed);
-    summary.push(sex+" "+parsed.triangles.toLocaleString()+"三角形");
+    renderer.setFrontierGlb(sex,parsed,bytes);
+    const detail=renderer.glbStatuses[sex];
+    summary.push(sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"骨格・表情アニメ有効":"静的フォールバック"));
    }catch(err){summary.push(sex+" 読込失敗");console.warn("Frontier avatar:",err);}
   }
   if(renderer===get().renderer)$("frontier-glb-status").textContent=summary.join(" / ")+"。未登録時は従来モデルになります。";
@@ -132,13 +133,13 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  $("social-talk").addEventListener("click",()=>{
   const {from,to}=selection();const r=social.talk(from,to);
   $("social-result").textContent=r.message;log(r.message);
-  if(r.ok){from.status="💬 会話中";to.status="💬 会話中";}
+  if(r.ok){from.status="💬 会話中";to.status="💬 会話中";get().renderer?.triggerSocial(from.id,to.id,"talk");}
  });
  $("social-gift").addEventListener("click",()=>{
   const {from,to}=selection(),c=get();
   const r=social.gift(from,to,$("social-gift-item").value,c.life,c.squad.frontier);
   $("social-result").textContent=r.message;log(r.message);
-  if(r.ok){saveLifeJournal();gifts();updateHUD();}
+  if(r.ok){c.renderer?.triggerSocial(from.id,to.id,"gift");saveLifeJournal();gifts();updateHUD();}
  });
  $("rts-heading-up").addEventListener("change",e=>setHeading(e.target.checked));
  $("camera-rts-heading").addEventListener("change",e=>setHeading(e.target.checked));
@@ -152,9 +153,10 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   try{
    if(!/\.glb$/i.test(file.name)||file.size>85*1024*1024)throw Error("85MB以内の.glbを選択してください。ZIPは展開が必要です。");
    const raw=await file.arrayBuffer(),parsed=parseFrontierGLB(raw),c=get();
-   c.renderer.setFrontierGlb(sex,parsed);
+   c.renderer.setFrontierGlb(sex,parsed,raw);
    try{await cachedFrontierGLB(sex,raw);}catch(err){log("端末保存できませんでした: "+err.message);}
-   $("frontier-glb-status").textContent="✅ "+sex+" "+parsed.triangles.toLocaleString()+"三角形（バインドポーズ・簡易色表示）";
+   const detail=c.renderer.glbStatuses[sex];
+   $("frontier-glb-status").textContent="✅ "+sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"骨格・顔モーフ・歩行・会話アニメーション有効":"静的表示（"+(detail?.reason||"スキニング未対応")+"）");
    log("GLBを適用しました。");
   }catch(err){$("frontier-glb-status").textContent="GLB読み込み失敗: "+err.message;}
   e.target.value="";
