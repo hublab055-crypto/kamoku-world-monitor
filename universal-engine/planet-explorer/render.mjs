@@ -128,6 +128,17 @@ export function projectileTransform(actorFacing,progress=0,hand="right"){
  const z=.51+.19*(1-state.nocked)-.31*state.tension+state.flight;
  return matrixMultiply(actorFacing,translate(x,y,z));
 }
+/** Keep the stave vertical in actor space even when the wrist pitches up
+ * during the draw. Wrist position supplies the hand anchor; actor yaw supplies
+ * orientation. The arrow continues to use that same actor-facing frame.
+ */
+export function uprightBowTransform(wristWorld,actorFacing){
+ const yaw=Math.atan2(actorFacing[8],actorFacing[10]);
+ return matrixMultiply(
+  translate(wristWorld[12],wristWorld[13],wristWorld[14]),
+  matrixMultiply(rotateY(yaw),heldItemTransform("bow"))
+ );
+}
 function enemyGeometry(kind){
  const b=builder(),eye=[.11,.13,.12],steel=[.64,.68,.72];
  if(kind==="slime"){
@@ -442,7 +453,10 @@ export class ExplorerRenderer{
     if(!this.tools[kind])continue;
     const wrist=joints[hand+"Wrist"];if(!wrist)continue;
     const attached=matrixMultiply(avatarTransform,wrist);
-    const held=matrixMultiply(attached,heldItemTransform(kind));
+    // Hand position follows the animation, but the bow stays upright.
+    const held=kind==="bow"?
+      uprightBowTransform(attached,matrixMultiply(avatarTransform,rotateY(s.yaw||0))):
+      matrixMultiply(attached,heldItemTransform(kind));
     if(kind==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null,tint);
     else this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
     if(kind==="bow"&&hand===activeHand&&motion?.action==="bow")
@@ -559,7 +573,8 @@ export class ExplorerRenderer{
     });
     if(joint<0||!pose.world[joint])continue;
     const attach=multiply4(characterTransform,multiply4(normalize,pose.world[joint]));
-    const held=multiply4(attach,heldItemTransform(item));
+    const held=item==="bow"?uprightBowTransform(attach,characterTransform):
+      multiply4(attach,heldItemTransform(item));
     if(item==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null);
     else this.drawMesh(mesh,multiply4(vp,held),light,1,.68);
     if(item==="bow"&&hand===activeHand&&motion?.action==="bow")
