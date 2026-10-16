@@ -37,7 +37,9 @@ test("rules editor includes per-actor on/off, slot assignment and rally",()=>{
  assert.match(app,/RULE_ACTIONS/);
 });
 test("v0.7d save stays separate and all prior save imports remain available",()=>{
- assert.match(app,/const SAVE_KEY="universal-engine:explorer:v0\.7d"/);
+ assert.match(app,/const SAVE_KEY="universal-engine:explorer:v0\.7g"/);
+ assert.match(app,/const V07D_SAVE_KEY="universal-engine:explorer:v0\.7d"/);
+ assert.ok(html.includes('id="import-v07d-save"'));
  assert.match(app,/const V07C_SAVE_KEY="universal-engine:explorer:v0\.7c"/);
  assert.match(app,/v0_7d:\{schemaVersion:1,squad:squad\.snapshot\(\)\}/);
  for(const id of ["import-v07c-save","import-v07b-save","import-v07a-save","import-v06-save"]){
