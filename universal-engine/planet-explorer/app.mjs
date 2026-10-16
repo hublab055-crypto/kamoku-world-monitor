@@ -194,6 +194,7 @@ function updateHUD(){
  $("viewport-controls").setAttribute("aria-label","移動方法の切替。現在："+(controlMode==="stick"?"スティック":"タップ"));
  $("stick-area").hidden=rtsMode||controlMode!=="stick"||!isSurface;
  $("action-pad").hidden=rtsMode||!isSurface;
+  if(rtsMode||!isSurface)setToolMenu(false);
  $("rts-controls").hidden=!rtsMode||!isSurface;
  $("rts-summary").textContent="選択: "+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
@@ -549,7 +550,7 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
   const node=$("door-controls");if(!node)return;
   const active=controller.nearGround&&!rtsMode&&Boolean(near);
   node.hidden=!active;
-  if(!active)return;
+  if(!active){setDoorMenu(false);return;}
   $("door-toggle").textContent=near.doorOpen?"🚪 閉める":"🚪 開ける";
   $("door-enter").hidden=!!inside||!near.doorOpen;
   $("door-exit").hidden=!inside;
@@ -850,6 +851,43 @@ function updateRtsMarkers(projected){
  }
 }
 
+
+/* v0.7h Compact HUD: collapse large toolbars, retaining all existing actions. */
+const quickToggle=$("viewport-quick-toggle"),quickPanel=$("viewport-quick-panel");
+const toolToggle=$("action-tools-toggle"),toolPanel=$("action-tool-list");
+const doorToggle=$("door-actions-toggle"),doorPanel=$("door-options");
+function setQuickMenu(open){
+ quickPanel.hidden=!open;quickToggle.setAttribute("aria-expanded",String(open));
+ quickToggle.setAttribute("aria-label",open?"操作メニューを閉じる":"操作メニューを開く");
+ quickToggle.textContent=open?"× 閉じる":"☰ 操作";
+ if(open){setToolMenu(false);setDoorMenu(false);}
+}
+function setToolMenu(open){
+ toolPanel.hidden=!open;toolToggle.setAttribute("aria-expanded",String(open));
+ toolToggle.setAttribute("aria-label",open?"道具メニューを閉じる":"道具メニューを開く");
+ if(open){setQuickMenu(false);setDoorMenu(false);}
+}
+function setDoorMenu(open){
+ doorPanel.hidden=!open;doorToggle.setAttribute("aria-expanded",String(open));
+ doorToggle.setAttribute("aria-label",open?"ドア操作を閉じる":"ドア操作を開く");
+ if(open){setQuickMenu(false);setToolMenu(false);}
+}
+function closeCompactMenus(){setQuickMenu(false);setToolMenu(false);setDoorMenu(false);}
+quickToggle.addEventListener("click",()=>setQuickMenu(quickPanel.hidden));
+toolToggle.addEventListener("click",()=>setToolMenu(toolPanel.hidden));
+doorToggle.addEventListener("click",()=>setDoorMenu(doorPanel.hidden));
+quickPanel.addEventListener("click",e=>{
+ if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu"))setQuickMenu(false);
+});
+toolPanel.addEventListener("click",e=>{if(e.target.closest("button"))setToolMenu(false);});
+doorPanel.addEventListener("click",e=>{if(e.target.closest("button"))setDoorMenu(false);});
+$("viewport-expand").addEventListener("click",closeCompactMenus);
+document.addEventListener("pointerdown",e=>{
+ if(!e.target.closest(".viewport-actions"))setQuickMenu(false);
+ if(!e.target.closest(".action-pad"))setToolMenu(false);
+ if(!e.target.closest(".door-controls"))setDoorMenu(false);
+});
+
 lifeUI=installLifestyleUI({
   getContext:()=>({
    life,actions,access,controller,
@@ -924,7 +962,11 @@ document.addEventListener("fullscreenchange",()=>{
  syncFullscreenButton();lastTime=0;
 });
 window.addEventListener("keydown",e=>{
- if(e.key==="Escape"&&cssImmersive){
+ if(e.key!=="Escape")return;
+ if(!quickPanel.hidden||!toolPanel.hidden||!doorPanel.hidden){
+  closeCompactMenus();e.preventDefault();return;
+ }
+ if(cssImmersive){
   setCssImmersive(false);stage.classList.remove("hud-tools-open");
   rememberViewport(false);syncFullscreenButton();
  }
