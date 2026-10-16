@@ -13934,6 +13934,227 @@ fw10LoadGame=function(){
 
 
 
+
+/* FRONTIER_V53_CONDITIONAL_AVATAR_AUTOMATION
+ * Per-character priority gambits: recover to completion, store all bag resources,
+ * and gather every available resource in the actor's configured radius.
+ * Keep existing customized slots intact until the user selects the preset.
+ */
+Object.assign(FW11_PRIORITY,{
+ storeAll53:{icon:'📦',label:'家のチェストに全て収納',desc:'持ち歩く資源・素材を家のチェストにすべて入れる'}
+});
+FW15_CONDITIONS.resourceInRadius53={label:'行動半径内に資源がある',numeric:false};
+
+function fw53ResourceAvailable(actor){
+ if(!actor)return false;
+ const a=actor.autoSchedule||{},origin=a.origin||actor,r=Math.max(0,Number(a.radius)||6);
+ return state.objects.some(function(o){
+  return !!(o&&o.gather&&Math.hypot(o.x-origin.x,o.y-origin.y)<=r);
+ });
+}
+function fw53BagEntries(actor){
+ return Object.entries(actor&&actor.inv||{}).filter(function(entry){
+  return typeof entry[1]==='number'&&Number.isFinite(entry[1])&&entry[1]>0&&
+   (!state.chest||state.chest[entry[0]]==null||typeof state.chest[entry[0]]==='number');
+ });
+}
+function fw53CanStore(actor){
+ return !!(actor&&fw45HomeFor(actor)&&state.chest&&fw53BagEntries(actor).length);
+}
+function fw53StoreAll(actor,dt){
+ if(!fw53CanStore(actor))return false;
+ const home=fw45HomeFor(actor),pos=fw10Entrance(home);
+ const distance=Math.hypot(actor.x-pos.x,actor.y-pos.y);
+ if(distance>1.2){
+  actor.status='📦 家のチェストへ運搬中';
+  if(actor===state.player)fw10AutoMove(pos.x,pos.y,dt);
+  else fw17NpcMove(actor,pos.x,pos.y,dt,actor.status);
+  return true;
+ }
+ let amount=0,types=0;
+ fw53BagEntries(actor).forEach(function(entry){
+  const k=entry[0],count=entry[1];
+  state.chest[k]=(Number(state.chest[k])||0)+count;
+  actor.inv[k]=0;amount+=count;types++;
+ });
+ actor.status='📦 チェストに全て収納完了';
+ if(actor.autoSchedule)actor.autoSchedule.target=null;
+ if(types){
+  msg('📦 '+(actor.name||'キャラクター')+'：家のチェストへ '+types+'種類・'+amount+'個を収納');
+  if(typeof fw37Log==='function')fw37Log('action','条件付き自動収納 '+types+'種類 '+amount+'個',actor);
+ }
+ return true;
+}
+const fw53PreviousPlayerCondition=fw15ConditionPass;
+fw15ConditionPass=function(c){
+ if(c&&c.type==='resourceInRadius53')return fw53ResourceAvailable(state.player);
+ return fw53PreviousPlayerCondition(c);
+};
+const fw53PreviousNpcCondition=fw17NpcCondition;
+fw17NpcCondition=function(n,c){
+ if(c&&c.type==='resourceInRadius53')return fw53ResourceAvailable(n);
+ return fw53PreviousNpcCondition(n,c);
+};
+const fw53PreviousPlayerCan=fw14CanAction;
+fw14CanAction=function(k){
+ if(k==='storeAll53')return fw53CanStore(state.player);
+ return fw53PreviousPlayerCan(k);
+};
+const fw53PreviousNpcCan=fw17NpcCan;
+fw17NpcCan=function(n,k,a){
+ if(k==='storeAll53')return fw53CanStore(n);
+ if(k==='rest'&&a&&Number.isInteger(a.latchedSlot)&&a.latchedSlot>=0){
+  const i=a.latchedSlot,c=a.slotConditions&&a.slotConditions[i];
+  if(a.slots[i]==='rest'&&c&&c.type==='staminaBelow'&&c.holdUntil)
+   return (Number(n.st)||0)<(Number(c.untilValue)||100);
+ }
+ return fw53PreviousNpcCan(n,k,a);
+};
+const fw53PreviousPlayerRun=fw14RunAction;
+fw14RunAction=function(k,dt){
+ if(k==='storeAll53')return fw53StoreAll(state.player,dt);
+ return fw53PreviousPlayerRun(k,dt);
+};
+const fw53PreviousNpcRun=fw17NpcRun;
+fw17NpcRun=function(n,k,dt,a){
+ if(k==='storeAll53')return fw53StoreAll(n,dt);
+ return fw53PreviousNpcRun(n,k,dt,a);
+};
+// NPCs previously dropped the recovery latch at 95%, and could not be interrupted
+// by a newly true higher-priority rule. Match the player's priority semantics.
+const fw53PreviousNpcAuto=fw17UpdateFormerPlayer;
+fw17UpdateFormerPlayer=function(n,dt){
+ const a=fw44NormalizeActor(n);
+ if(!a||!a.enabled)return false;
+ const i=a.latchedSlot;
+ if(Number.isInteger(i)&&i>=0&&i<a.slots.length){
+  let higher=false;
+  for(let j=0;j<i;j++){
+   const condition=fw16NormalizeCondition(a.slotConditions[j],a.slots[j]);
+   if(fw17NpcCondition(n,condition)&&fw17NpcCan(n,a.slots[j],a)){higher=true;break;}
+  }
+  if(higher){a.latchedSlot=-1;a.activeSlot=-1;a.target=null;}
+  else {
+   const c=fw16NormalizeCondition(a.slotConditions[i],a.slots[i]);
+   if(a.slots[i]==='rest'&&c.type==='staminaBelow'&&c.holdUntil){
+    const end=Math.min(100,Math.max(Number(c.value)||0,Number(c.untilValue)||100));
+    if((Number(n.st)||0)<end){
+     n.hunger=clamp((Number(n.hunger)||0)-dt*.018,0,100);
+     a.activeSlot=i;a.priority='rest';
+     fw17NpcRun(n,'rest',dt,a);return true;
+    }
+    a.latchedSlot=-1;a.activeSlot=-1;
+   }
+  }
+ }
+ return fw53PreviousNpcAuto(n,dt);
+};
+// If a villager is busy indoors, release the indoor task when an explicit
+// conditional priority becomes ready. Otherwise preserve their household routine.
+const fw53PreviousUpdateNpc=updateNPC;
+updateNPC=function(n,dt){
+ if(n&&n.alive!==false&&!n.controlled&&n!==state.player&&!state.gameOver&&
+   n.household34&&n.autoSchedule&&n.autoSchedule.enabled&&
+   fw44ActorOptions().some(function(e){return e.actor===n;})){
+  const a=fw44NormalizeActor(n);
+  const ready=a.slots.some(function(k,i){
+   return (k==='rest'||k==='storeAll53'||k==='nearest')&&
+    fw17NpcCondition(n,fw16NormalizeCondition(a.slotConditions[i],k))&&fw17NpcCan(n,k,a);
+  });
+  if(ready)fw34ExitNpc(n,false);
+ }
+ return fw53PreviousUpdateNpc(n,dt);
+};
+function fw53ResetSelected(a){
+ a.latchedSlot=-1;a.activeSlot=-1;a.target=null;a.priority='schedule';
+ if(a.batch46)a.batch46=null;
+}
+function fw53ApplyPreset(actor){
+ const a=fw44NormalizeActor(actor);
+ a.slots[0]='rest';
+ a.slotConditions[0]={type:'staminaBelow',op:'lte',value:30,holdUntil:true,untilValue:100};
+ a.slots[1]='storeAll53';
+ a.slotConditions[1]={type:'loadAbove',op:'gte',value:18,holdUntil:false};
+ a.slots[2]='nearest';
+ a.slotConditions[2]={type:'resourceInRadius53',value:0,holdUntil:false};
+ fw53ResetSelected(a);
+}
+// Add controls after V44/V45/V46 have finished rendering their editor.
+const fw53PreviousAutoMenu=fw44AutoMenu;
+fw44AutoMenu=function(){
+ fw53PreviousAutoMenu();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ const panel=$('#panelBody'),intro=panel&&panel.querySelector('.tileCard');
+ if(!panel||!intro)return;
+ intro.insertAdjacentHTML('beforeend',
+  '<div style="margin-top:8px"><button class="smallBtn" type="button" data-fw53-preset>⚙️ 休息→収納→範囲内を全回収（優先1〜3）</button></div>'+
+  '<div class="note">各アバターに個別保存。↑↓で優先順位を入れ替えます。既存の優先4〜8は保持します。</div>');
+ panel.querySelectorAll('[data-fw44-slot]').forEach(function(sel){
+  const i=Number(sel.dataset.fw44Slot),key=a.slots[i],c=a.slotConditions[i]||{type:'always',value:0};
+  if(!sel.querySelector('[value="storeAll53"]')){
+   const option=document.createElement('option');
+   option.value='storeAll53';option.textContent='📦 家のチェストに全て収納';
+   sel.appendChild(option);
+  }
+  if(key==='storeAll53')sel.value='storeAll53';
+  const card=sel.closest('.tileCard');if(!card)return;
+  const heading=card.querySelector('b');
+  if(heading)heading.insertAdjacentHTML('afterend',
+   '<div style="display:flex;gap:6px;margin:5px 0">'+
+    '<button type="button" class="smallBtn" data-fw53-move="'+i+'" data-fw53-dir="-1" '+(i===0?'disabled':'')+'>↑ 優先を上げる</button>'+
+    '<button type="button" class="smallBtn" data-fw53-move="'+i+'" data-fw53-dir="1" '+(i===a.slots.length-1?'disabled':'')+'>↓ 下げる</button></div>');
+  const d=FW15_CONDITIONS[c.type];
+  if(d&&d.numeric&&c.type!=='metric'){
+   fw34NormalizeOp(c);
+   card.insertAdjacentHTML('beforeend',
+    '<label class="settingsRow"><span>比較演算子</span><select data-fw53-op="'+i+'">'+
+    Object.keys(FW34_OPS).map(function(op){const q=FW34_OPS[op];return '<option value="'+op+'" '+(c.op===op?'selected':'')+'>'+q.label+' ('+q.symbol+')</option>';}).join('')+
+    '</select></label>');
+  }
+  if(key==='rest'&&c.type==='staminaBelow'){
+   card.insertAdjacentHTML('beforeend',
+    '<label class="settingsRow"><span>指定値まで休息を継続</span>'+
+    '<input type="checkbox" data-fw53-hold="'+i+'" '+(c.holdUntil?'checked':'')+'></label>'+
+    '<label class="settingsRow"><span>休息終了値 (%)</span>'+
+    '<input type="number" inputmode="numeric" data-fw53-until="'+i+'" min="'+(Number(c.value||0)+1)+'" max="100" step="1" value="'+Number(c.untilValue||100)+'" style="width:100%;min-width:0"></label>');
+  }
+ });
+};
+fw11OpenThinkMenu=fw44AutoMenu;
+$('#panelBody').addEventListener('click',function(e){
+ const btn=e.target.closest('[data-fw53-preset],[data-fw53-move]');
+ if(!btn)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ if(btn.hasAttribute('data-fw53-preset')){
+  fw53ApplyPreset(entry.actor);
+  msg('🤖 '+entry.actor.name+'：優先1 休息30→100%、優先2 18kgで全収納、優先3 範囲内を全回収');
+ }else{
+  const i=Number(btn.dataset.fw53Move),j=i+Number(btn.dataset.fw53Dir);
+  if(Number.isInteger(i)&&j>=0&&i>=0&&j<a.slots.length){
+   [a.slots[i],a.slots[j]]=[a.slots[j],a.slots[i]];
+   [a.slotConditions[i],a.slotConditions[j]]=[a.slotConditions[j],a.slotConditions[i]];
+   fw53ResetSelected(a);
+  }
+ }
+ fw44AutoMenu();
+},true);
+$('#panelBody').addEventListener('change',function(e){
+ const el=e.target;
+ if(!el||!el.matches('[data-fw53-op],[data-fw53-until],[data-fw53-hold]'))return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const entry=fw44CurrentActorEntry(),a=fw44NormalizeActor(entry.actor);
+ const i=Number(el.dataset.fw53Op??el.dataset.fw53Until??el.dataset.fw53Hold);
+ if(!Number.isInteger(i)||i<0||i>=a.slots.length)return;
+ const c=a.slotConditions[i];if(!c)return;
+ if(el.hasAttribute('data-fw53-op')&&FW34_OPS[el.value])c.op=el.value;
+ if(el.hasAttribute('data-fw53-until'))c.untilValue=clamp(Number(el.value)||100,(Number(c.value)||0)+1,100);
+ if(el.hasAttribute('data-fw53-hold'))c.holdUntil=el.checked;
+ a.slotConditions[i]=fw16NormalizeCondition(c,a.slots[i]);
+ fw53ResetSelected(a);fw44AutoMenu();
+},true);
+/* END FRONTIER_V53_CONDITIONAL_AVATAR_AUTOMATION */
+
 /* FW48.4: Publish the extension wrappers to the real game-core functions. */
 fwBridge.fw18ReadBook=fw18ReadBook;
 fwBridge.openInventory=openInventory;
