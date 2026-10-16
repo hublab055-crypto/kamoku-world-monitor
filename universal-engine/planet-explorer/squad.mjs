@@ -1,11 +1,12 @@
 import {ExplorerController} from "./controller.mjs";
 import {terrainSurface} from "./geo.mjs";
+import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs";
 
 /** Local single-player RTS party and deterministic, editable IF -> THEN rules.
  * No external network, persistent background work or scripted code execution. */
-export const RULE_METRICS=Object.freeze(["wood","stone","houses","idle","distance","walked"]);
+export const RULE_METRICS=Object.freeze(["wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
 export const RULE_OPERATORS=Object.freeze(["<","<=",">",">=","==","!="]);
-export const RULE_ACTIONS=Object.freeze(["gather_wood","gather_stone","build","move_rally","follow","patrol","wait"]);
+export const RULE_ACTIONS=Object.freeze(["gather_wood","gather_stone","build","move_rally","follow","patrol","wait",...FW_ACTIONS]);
 const TYPES=new Set(RULE_ACTIONS),METRICS=new Set(RULE_METRICS),OPS=new Set(RULE_OPERATORS);
 const names=[["player","開拓者"],["scout","斥候"],["artisan","職人"]];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -42,7 +43,10 @@ export class SquadEngine{
     task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機"};
   });
   if(snapshot)this.restore(snapshot);
+  this.frontier=new FrontierBridge(this,snapshot?.frontier||null);
  }
+ attachLifestyle(life){this.frontier.attachLife(life);}
+ rulePass(a,r){const metrics=this.metrics(a);return testCondition(metrics[r.metric],r.op,r.value);}
  get(id){return this.agents.find(a=>a.id===id)||null;}
  selectedAgents(){return this.agents.filter(a=>this.selected.has(a.id));}
  choose(id,{add=false}={}){
@@ -54,11 +58,11 @@ export class SquadEngine{
  }
  selectAll(){this.selected=new Set(this.agents.map(a=>a.id));}
  setAuto(ids,enabled){
-  for(const id of ids){const a=this.get(id);if(a){a.auto=Boolean(enabled);if(!enabled)a.task=null;}}
+  for(const id of ids){const a=this.get(id);if(a){a.auto=Boolean(enabled);if(!enabled){this.frontier?.cancel(a);a.task=null;}}}
  }
  setRule(id,index,raw){
   const a=this.get(id);if(!a||!Number.isInteger(index)||index<0||index>=8)throw RangeError("Unknown slot");
-  a.rules[index]=sanitizeRule(raw);
+  a.rules[index]=sanitizeRule(raw);this.frontier?.cancel(a);
  }
  setRally(ids,x,z){
   if(!finitePoint({x,z}))throw RangeError("Invalid rally");
@@ -73,13 +77,13 @@ export class SquadEngine{
    const tx=x+(targets.length>1?col*2.4:0),tz=z+(targets.length>1?row*2.4:0);
    const p=a.control.locationAt(tx,tz),surface=terrainSurface(this.terrain,p.lat,p.lon);
    if(!surface.water&&!surface.river&&a.control.setMoveTarget(tx,tz)){
-    a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
+    this.frontier?.cancel(a);a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
    }
   });
   return moved;
  }
  halt(ids){
-  for(const id of ids){const a=this.get(id);if(a){a.control.clearMoveTarget();a.task=null;a.auto=false;a.cooldown=1.5;a.order="hold";a.status="待機指示";}}
+  for(const id of ids){const a=this.get(id);if(a){this.frontier?.cancel(a);a.control.clearMoveTarget();a.task=null;a.auto=false;a.cooldown=1.5;a.order="hold";a.status="待機指示";}}
  }
  metrics(a){
   const leader=this.get("player").control;
@@ -87,9 +91,10 @@ export class SquadEngine{
    houses:this.actions.structures.filter(s=>s.progress>=1).length,
    idle:(!a.task&&!a.control.moveTarget&&!a.control.moving)?1:0,
    distance:Math.hypot(a.control.x-leader.x,a.control.z-leader.z),
-   walked:a.control.totalDistanceM};
+   walked:a.control.totalDistanceM,...(this.frontier?.metrics(a)||{})};
  }
- schedule(a,action){
+ schedule(a,action,slot=0){
+  if(this.frontier?.isAction(action)){this.frontier.start(a,action,slot);return;}
   if(action==="gather_wood"||action==="gather_stone"){
    a.task={kind:action,remaining:action==="gather_wood"?1.45:1.65,duration:action==="gather_wood"?1.45:1.65};
    a.order="auto";a.status=action==="gather_wood"?"木材を採集中":"石材を採集中";
@@ -126,7 +131,8 @@ export class SquadEngine{
     a.control.targetAltitudeM=a.control.altitudeM;
    }
    a.cooldown=Math.max(0,a.cooldown-dt);
-   if(a.task){
+   const frontierBusy=this.frontier?.tick(a,dt,a.id==="player"&&manualLead)||false;
+   if(a.task&&["gather_wood","gather_stone"].includes(a.task.kind)){
     a.task.remaining=Math.max(0,a.task.remaining-dt);
     if(!a.task.remaining){
      const key=a.task.kind==="gather_wood"?"wood":"stone";
@@ -135,18 +141,19 @@ export class SquadEngine{
      a.cooldown=.35;
     }
    }
-   if(a.id==="player"&&manualLead){a.task=null;a.cooldown=1;}
-   if(a.auto&&a.control.nearGround&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!(a.id==="player"&&manualLead)){
+   if(a.id==="player"&&manualLead){this.frontier?.cancel(a);a.task=null;a.cooldown=1;}
+   if(a.auto&&a.control.nearGround&&!frontierBusy&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!(a.id==="player"&&manualLead)){
     const metrics=this.metrics(a);
-    const rule=a.rules.find(r=>r.enabled&&testCondition(metrics[r.metric],r.op,r.value));
-    if(rule)this.schedule(a,rule.action);
+    const index=a.rules.findIndex(r=>r.enabled&&testCondition(metrics[r.metric],r.op,r.value));
+    if(index>=0)this.schedule(a,a.rules[index].action,index);
    }
    if(a.id!=="player")a.control.update(dt);
   }
  }
  getMotion(a){
   const key=a.task?.kind;
-  return key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
+  return this.frontier?.isAction(key)?{action:key==="gather_nearby"?"axe":"idle",progress:.5}:
+   key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
    {action:"idle",progress:0};
  }
  repositionAfterLanding(){
@@ -159,9 +166,10 @@ export class SquadEngine{
    a.control.altitudeM=lead.altitudeM;a.control.targetAltitudeM=lead.targetAltitudeM;
    a.task=null;a.order="idle";a.rally={x:a.control.x,z:a.control.z};
   });
+  this.frontier?.rebase();
  }
  snapshot(){
-  return {version:1,selected:[...this.selected],
+  return {version:1,frontier:this.frontier?.snapshot(),selected:[...this.selected],
    agents:this.agents.map(a=>({id:a.id,auto:a.auto,rules:a.rules.map(r=>({...r})),
     control:a.id==="player"?null:a.control.snapshot(),rally:{...a.rally},status:a.status}))};
  }
