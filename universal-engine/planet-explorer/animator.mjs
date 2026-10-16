@@ -11,7 +11,7 @@ const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","sword","axe","mine","bow","build",
+ "idle","walk","run","jump","sword","axe","mine","bow","guard","build",
  "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
@@ -42,7 +42,7 @@ export class SmoothAnimator {
   if(![dt,phase,speedMps,jumpHeight,progress,faceDirection].every(Number.isFinite)||dt<0)
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
-  const toolAction=["sword","axe","mine","bow","build"].includes(action);
+  const toolAction=["sword","axe","mine","bow","guard","build"].includes(action);
   const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;
