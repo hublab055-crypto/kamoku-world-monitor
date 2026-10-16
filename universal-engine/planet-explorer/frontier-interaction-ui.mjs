@@ -61,7 +61,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  function updateTarget(){
   const c=get(),who=actor(),deck=decks[who?.id];
   if(!deck||!c.battle||!c.renderer)return null;
-  const combat=isCombat(who);
+  const combat=isCombat(who)&&!!who.control?.nearGround;
   const range=deck.current().kind==="bow"?18:4;
   const target=combat?deck.resolveTarget(c.battle.enemies,who.control,range):null;
   c.renderer.combatTargetId=target?.id||null;
@@ -157,7 +157,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
      social.attackVariant(who.id,result.action):"overhead");
    if(who.id==="player"&&["sword","axe","bow"].includes(result.action)){
     const target=updateTarget();
-    if(target){
+    if(target&&!c.manualInputActive){
      const desired=Math.atan2(target.x-c.controller.x,target.z-c.controller.z);
      c.controller.turn(Math.atan2(Math.sin(desired-c.controller.yaw),Math.cos(desired-c.controller.yaw)));
     }
