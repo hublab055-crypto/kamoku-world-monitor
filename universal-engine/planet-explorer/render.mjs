@@ -382,6 +382,11 @@ export class ExplorerRenderer{
      }
    }
  }
+ clearFrontierGlb(sex){
+  this.animatedGlb[sex]?.destroy();
+  for(const mesh of this.glbMeshes[sex]||[])mesh.destroy();
+  delete this.animatedGlb[sex];delete this.glbMeshes[sex];delete this.glbStatuses[sex];
+ }
  setFrontierGlb(sex,data,source=null){
   if(!["male","female"].includes(sex)||!data?.chunks?.length)throw Error("Invalid GLB avatar");
   let animated=null,reason="";

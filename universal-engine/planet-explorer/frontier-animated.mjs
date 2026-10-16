@@ -146,6 +146,23 @@ export function parseFrontierRig(buffer){
   skeleton:s.skeleton
  }));
  const clips=clipTracks(json,binary);
+ // Rigid segmented GLBs have local coordinates relative to their pivot joints.
+ // Normalize using the complete transformed bind pose, not per-part local boxes.
+ if(!skins.length){
+  const matrices=poseFrontierRig({nodes,primitives:[],clips:[]},"idle",0).world;
+  const posed={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  for(const part of primitives){
+   const m=matrices[part.node]||matIdentity(),a=part.arrays.positions;
+   for(let i=0;i<a.length;i+=3){
+    const x=a[i],y=a[i+1],z=a[i+2],p=[
+     m[0]*x+m[4]*y+m[8]*z+m[12],
+     m[1]*x+m[5]*y+m[9]*z+m[13],
+     m[2]*x+m[6]*y+m[10]*z+m[14]];
+    for(let j=0;j<3;j++){posed.min[j]=Math.min(posed.min[j],p[j]);posed.max[j]=Math.max(posed.max[j],p[j]);}
+   }
+  }
+  if(Number.isFinite(posed.min[0])){bounds.min=posed.min;bounds.max=posed.max;}
+ }
  const h=Math.max(.001,bounds.max[1]-bounds.min[1]);
  return {primitives,skins,nodes,clips,images,bounds,
   scale:1.8/h,center:[(bounds.min[0]+bounds.max[0])/2,bounds.min[1],(bounds.min[2]+bounds.max[2])/2],

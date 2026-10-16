@@ -524,3 +524,11 @@ body.immersive{overflow:hidden}
  .hand-actions button{width:49px;min-width:49px;height:43px;padding:3px;font-size:10px}
  #quick-inventory{min-width:31px}
 }
+
+/* Cross-browser v0.7k standard GLB settings and status. */
+.avatar-loading-control{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:12px 0 8px}
+.avatar-loading-control button{min-height:40px;border:1px solid #73afc3;border-radius:8px;background:#17495e;color:#e7f8fd;padding:8px 12px}
+.avatar-loading-control small{flex:1 1 200px;font-size:11px;color:#b4dce8;line-height:1.4}
+#frontier-glb-status{font-size:12px;line-height:1.55;color:#d0f5e7;overflow-wrap:anywhere}
+#frontier-glb-status[data-state="warning"]{color:#ffdfb0}
+#frontier-glb-status[data-state="loading"]{color:#c6d9e5}
