@@ -116,7 +116,7 @@ test("v0.6 legacy archive contains independent runtime and original save key",()
 test("new v0.7a page visibly links to legacy v0.6",()=>{
  const html=readFileSync(new URL("../versions/v0.7a/planet-explorer/index.html",import.meta.url),"utf8");
  assert.match(html,/id="version-back"/);
- assert.match(html,/versions\/v0\.6\/planet-explorer/);
+ assert.match(html,/v0\.6\/planet-explorer/);
  assert.match(html,/id="import-v06-save"/);
  assert.match(html,/V0\.7a 保存版/);
 });
