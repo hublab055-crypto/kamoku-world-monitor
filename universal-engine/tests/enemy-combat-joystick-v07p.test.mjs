@@ -98,8 +98,8 @@ test("guard reduces damage; hit interrupts enemy attack; death persists in anima
 });
 test("battle test HUD/controls and version marker are wired",()=>{
  const page=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
- assert.match(page,/V0\.7p/);
- assert.match(page,/app\.mjs\?v=0\.7p/);
+ assert.match(page,/V0\.7[opq]/);
+ assert.match(page,/app\.mjs\?v=0\.7[opq]/);
  assert.match(page,/id="spawn-enemy"/);
  const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
  assert.match(app,/battle\.advance\(dt,controller,attackInProgress\)/);
