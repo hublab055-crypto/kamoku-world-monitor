@@ -406,6 +406,29 @@ export class ExplorerRenderer{
   const action=kind==="gift"?"gift":"talk";
   for(const id of [from,to])if(["player","scout","artisan"].includes(id))this.socialAnimations.set(id,{kind:action,remaining:2.1});
  }
+ drawSkinnedHandEquipment(rig,id,vp,characterTransform,light){
+   const pose=rig.instances.get(id)?.previous;
+   if(!pose||!rig.rig?.nodes?.length)return;
+   const info=rig.rig,gear=this.handEquipment?.[id]||{};
+   const x=info.scale,c=info.center;
+   const normalize=[
+    x,0,0,0,0,x,0,0,0,0,x,0,
+    -c[0]*x,-c[1]*x,-c[2]*x,1
+   ];
+   for(const hand of ["right","left"]){
+    const item=gear[hand],mesh=this.tools[item];
+    if(!mesh)continue;
+    const right=hand==="right";
+    const joint=info.nodes.findIndex(n=>{
+     const name=(n.name||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+     return right?/(righthand|rightwrist|handright|bip.*rhand|handr$)/.test(name):
+       /(lefthand|leftwrist|handleft|bip.*lhand|handl$)/.test(name);
+    });
+    if(joint<0||!pose.world[joint])continue;
+    const attach=multiply4(characterTransform,multiply4(normalize,pose.world[joint]));
+    this.drawMesh(mesh,multiply4(vp,attach),light,1,.68);
+   }
+ }
  drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
   const animation=this.socialAnimations.get(id);
   if(animation){
@@ -427,6 +450,7 @@ export class ExplorerRenderer{
     this.glbStatuses[sex]={animated:false,reason:String(error.message||error)};
     drawn=false;
    }finally{this.gl.useProgram(this.program);}
+   if(drawn)this.drawSkinnedHandEquipment(rig,id,vp,characterTransform,light);
    return drawn;
   }
   const meshes=this.glbMeshes[sex];if(!meshes?.length)return false;
