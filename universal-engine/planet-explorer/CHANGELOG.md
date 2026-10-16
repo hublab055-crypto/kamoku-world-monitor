@@ -1,3 +1,9 @@
+## 2026-10-16 — v0.7j Frontier GLB GPUモーション
+
+- GLB skeleton/skin/clip/FaceIdle/FaceTalking取り込み、GPU関節と口・まぶたのモーフ、基本埋込テクスチャ描画。
+- 歩行・作業・会話/プレゼントに応じてキャラクター別再生。フォールバックと合成GLBテスト追加。
+- v0.7iセーブ形式と互換。実高精細GLB・iPhone Safari描画は未検証。
+
 ## 2026-10-16 — Frontier World 第1段階の統合
 
 3D惑星上の個人スタミナ・重量・所持品、有限資源採集、家への帰還とチェスト収納、8枠IF/THEN優先順位を連動。
