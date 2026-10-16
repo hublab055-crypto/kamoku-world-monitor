@@ -192,7 +192,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     const parsed=parseFrontierGLB(asset.buffer);
     renderer.setFrontierGlb(sex,parsed,asset.buffer);
     const detail=renderer.glbStatuses[sex];
-    summary.push(sex+" "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"アニメ対応":"静的表示"));
+    summary.push(sex+" "+(asset.quality==="custom"?"カスタム":asset.quality==="high"?"高精細":"軽量")+
+     " "+parsed.triangles.toLocaleString()+"三角形 / "+(detail?.animated?"アニメ対応":"静的表示")+
+     (asset.warning?" / ⚠ "+asset.warning:""));
    }catch(err){
     if(token!==modelLoadId||renderer!==get().renderer)return;
     renderer.clearFrontierGlb(sex);
@@ -204,7 +206,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   const standard=modelSource==="standard",failed=summary.some(v=>v.includes("失敗")||v.includes("未登録"));
   status.dataset.state=failed?"warning":"ready";
   status.textContent=(standard?"共通モデル "+AVATAR_PACK_VERSION:"端末固有インポートGLB")+
-   " / 画質 "+modelQuality+(standard?"（高品質・省メモリは現在同じ配布GLB）":"")+
+   " / 指定画質 "+modelQuality+" / "+
    " / "+summary.join(" / ")+(failed?"。失敗した人物は従来モデルになります。":"。");
  }
  $("quick-use").addEventListener("click",useItem);
