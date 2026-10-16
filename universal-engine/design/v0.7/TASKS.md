@@ -155,3 +155,15 @@
 - **v1.x モデリング/壁ペイント/動画投影:** 編集/取り消し/権限/ライセンス/コンテンツ審査/動画配信ソースを切り離す。WebGLテクスチャと外部映像URLは信頼できるソースのみ許容。
 
 関連: [実装仕様](SPEC.md) / [状態スキーマ](DATA_SCHEMAS.md)。
+
+## GitHub Issueへのリンク（登録済み）
+
+- [UE-701 — Issue #4](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/4)
+- [UE-702 — Issue #5](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/5)
+- [UE-703 — Issue #6](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/6)
+- [UE-704 — Issue #7](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/7)
+- [UE-705 — Issue #8](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/8)
+- [UE-706 — Issue #9](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/9)
+- [UE-707 — Issue #10](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/10)
+- [UE-708 — Issue #11](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/11)
+- [UE-709 — Issue #12](https://github.com/hublab055-crypto/kamoku-world-monitor/issues/12)
