@@ -6,19 +6,24 @@ export const ITEM_OPTIONS=Object.freeze([
  ["pickaxe","つるはし","⛏️"],["book","本","📖"],["cup","コップ","🥛"],
  ["bowl","椀","🥣"],["spoon","スプーン","🥄"],["meal","料理","🍲"],
  ["water","水","💧"],["wood","木材","🪵"],["stone","石","🪨"],
- ["fiber","繊維","🌿"],["rawFood","食材","🥕"],["bedroll","ベッドロール","🛏️"]
+ ["fiber","繊維","🌿"],["rawFood","食材","🥕"],["bedroll","ベッドロール","🛏️"],
+ ["tent","携帯テント","⛺"],["plate","皿","🍽️"],["pot","鍋","🍲"]
 ]);
 export const ITEM_MAP=new Map(ITEM_OPTIONS.map(([id,name,icon])=>[id,{name,icon}]));
 const validItems=new Set(ITEM_MAP.keys());
 const sources=Object.freeze({wood:"frontier",stone:"frontier",fiber:"frontier",
  water:"lifestyle",rawFood:"lifestyle",meal:"lifestyle",cup:"lifestyle",bowl:"lifestyle",
- spoon:"lifestyle",bedroll:"lifestyle"});
+ spoon:"lifestyle",bedroll:"lifestyle",tent:"lifestyle",plate:"lifestyle",pot:"lifestyle"});
 const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n));
 const defaults=()=>["sword","axe","pickaxe","cup","book"];
+export const HANDS=Object.freeze(["right","left"]);
+const permanent=new Set(["sword","axe","pickaxe","book"]);
+const handDefaults=()=>({right:"sword",left:"axe"});
+export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
  constructor(snapshot=null){
   this.actors={};this.relations={};this.history=[];this.maxDistance=4;
-  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0};
+  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults()};
   if(snapshot)this.restore(snapshot);
  }
  actor(id){return this.actors[id]||null;}
@@ -33,6 +38,37 @@ export class SocialEquipment {
   actor.selected=index;return true;
  }
  chosen(id){const actor=this.actor(id);return actor?.slots[actor.selected]||"none";}
+ handItem(id,hand){return HANDS.includes(hand)?(this.actor(id)?.hands?.[hand]||"none"):"none";}
+ inventoryFor(actor,life,frontier){
+  if(!actor)return [];
+  const bag=frontier?.person(actor.id)?.inventory||{},gifts=frontier?.person(actor.id)?.gifts||{};
+  const shared=life?.inventory||{};
+  return ITEM_OPTIONS.filter(([kind])=>kind!=="none").map(([id,name,icon])=>{
+   const personal=Number(bag[id])||0,gifted=Number(gifts[id])||0,
+    communal=Number(shared[id])||0,base=permanent.has(id)?1:0;
+   const total=personal+gifted+communal+base;
+   return {id,name,icon,quantity:Math.max(0,total),source:base?"基本装備":personal?"本人の袋":gifted?"受け取った品":"生活用品",
+    canEquip:true};
+  }).filter(item=>item.quantity>0);
+ }
+ quantity(actor,item,life,frontier){
+  return this.inventoryFor(actor,life,frontier).find(x=>x.id===item)?.quantity||0;
+ }
+ equipHand(actor,hand,item,life,frontier){
+  if(!actor||!this.actor(actor.id)||!HANDS.includes(hand)||!validItems.has(item))return {ok:false,message:"装備先かアイテムが無効です。"};
+  if(item!=="none"&&this.quantity(actor,item,life,frontier)<1)return {ok:false,message:"持っていないアイテムは装備できません。"};
+  if(item!=="none"&&!permanent.has(item)){
+   const other=hand==="right"?"left":"right";
+   if(this.handItem(actor.id,other)===item&&this.quantity(actor,item,life,frontier)<2)
+    return {ok:false,message:"このアイテムは1個しかないため、両手に同時装備できません。"};
+  }
+  this.actor(actor.id).hands[hand]=item;
+  return {ok:true,message:actor.name+"の"+(hand==="right"?"右手":"左手")+"に "+(ITEM_MAP.get(item)?.name||item)+" を装備しました。"};
+ }
+ useHand(actor,hand,life,frontier){
+  if(!HANDS.includes(hand))return {ok:false,message:"右手か左手を選んでください。"};
+  return this.useItem(actor,this.handItem(actor?.id,hand),life,frontier);
+ }
  near(a,b){return !!a&&!!b&&a.id!==b.id&&Math.hypot(a.control.x-b.control.x,a.control.z-b.control.z)<=this.maxDistance;}
  relation(a,b){return this.relations[a+":"+b]??40;}
  adjust(a,b,delta){const key=a+":"+b;this.relations[key]=clamp(this.relation(a,b)+delta,0,100);return this.relations[key];}
@@ -74,34 +110,50 @@ export class SocialEquipment {
   if(this.history.length>60)this.history.shift();
   return {ok:true,message};
  }
- use(actor,life,frontier){
-  const item=this.chosen(actor.id);
-  if(item==="none")return {ok:false,message:"スロットが空です。"};
-  if(["sword","axe","pickaxe"].includes(item))
+ use(actor,life,frontier){return this.useItem(actor,this.chosen(actor?.id),life,frontier);}
+ useItem(actor,item,life,frontier){
+  if(!actor||!this.actor(actor.id)||!validItems.has(item)||item==="none")
+   return {ok:false,message:"スロットに使えるアイテムがありません。"};
+  if(this.quantity(actor,item,life,frontier)<1)return {ok:false,message:"そのアイテムはもう持っていません。持ち物画面で確認してください。"};
+  if(permanent.has(item)){
+   if(item==="book")return {ok:true,kind:"book"};
    return {ok:true,kind:"action",action:{sword:"sword",axe:"axe",pickaxe:"mine"}[item]};
-  if(item==="book")return {ok:true,kind:"book"};
-  if(item==="bedroll")return {ok:true,kind:"deploy",item:"bedroll"};
+  }
+  if(["bedroll","tent"].includes(item))return {ok:true,kind:"deploy",item};
+  const bag=frontier?.person(actor.id)?.inventory||{},
+   gifts=frontier?.person(actor.id)?.gifts||{},shared=life?.inventory||{};
+  const take=(kind)=>{
+   if((bag[kind]||0)>0){bag[kind]--;return "bag";}
+   if((gifts[kind]||0)>0){gifts[kind]--;return "gift";}
+   if((shared[kind]||0)>0){shared[kind]--;return "shared";}
+   return null;
+  };
   if(["cup","bowl","spoon"].includes(item)){
-   const result=life?.useItem(item)||{ok:false,message:"生活システムが利用できません。"};
+   if(!life?.useItem)return {ok:false,message:"生活システムが利用できません。"};
+   // Lifestyle.useItem performs the actual removal. Temporarily lend one
+   // personally owned/gifted utensil so the existing cooking rules can run.
+   const personal=(bag[item]||0)>0?"bag":(gifts[item]||0)>0?"gift":null;
+   if(personal){shared[item]=(shared[item]||0)+1;}
+   const result=life.useItem(item);
+   if(personal){
+    if(result.ok){(personal==="bag"?bag:gifts)[item]--;}
+    else shared[item]--;
+   }
    return {...result,kind:"item"};
   }
-  if(item==="meal"){
-   if(!(life?.inventory?.meal>0))return {ok:false,message:"料理を持っていません。"};
-   life.inventory.meal--;life.stats.hunger=clamp(life.stats.hunger-35,0,100);
-   life.stats.stamina=clamp(life.stats.stamina+8,0,100);
-   if(frontier?.person(actor.id))frontier.person(actor.id).stamina=clamp(frontier.person(actor.id).stamina+8,0,100);
-   return {ok:true,kind:"item",message:"🍲 料理を食べました。"};
+  if(item==="meal"||item==="water"||item==="rawFood"){
+   const taken=take(item);if(!taken)return {ok:false,message:"アイテムを持っていません。"};
+   const hunger=item==="meal"?35:item==="rawFood"?9:0,
+    stamina=item==="meal"?8:item==="water"?4:0;
+   if(life?.stats){life.stats.hunger=clamp(life.stats.hunger-hunger,0,100);
+    life.stats.stamina=clamp(life.stats.stamina+stamina,0,100);}
+   if(frontier?.person(actor.id))frontier.person(actor.id).stamina=clamp(frontier.person(actor.id).stamina+stamina,0,100);
+   return {ok:true,kind:"item",message:item==="meal"?"🍲 料理を食べました。":item==="water"?"💧 水を飲みました。":"🥕 食材を食べました。"};
   }
-  if(item==="water"){
-   if(!(life?.inventory?.water>0))return {ok:false,message:"水がありません。"};
-   life.inventory.water--;life.stats.stamina=clamp(life.stats.stamina+4,0,100);
-   if(frontier?.person(actor.id))frontier.person(actor.id).stamina=clamp(frontier.person(actor.id).stamina+4,0,100);
-   return {ok:true,kind:"item",message:"💧 水を飲みました。"};
-  }
-  return {ok:false,message:"選択した材料はクラフトやプレゼントで使用できます。"};
+  return {ok:false,message:"このアイテムは使用せずに、クラフト材料として保管します。"};
  }
  snapshot(){
-  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected}])),
+  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands}}])),
    relations:{...this.relations},history:this.history.slice(-60)};
  }
  restore(data){
@@ -110,7 +162,8 @@ export class SocialEquipment {
    const a=data.actors?.[id];
    if(!a)continue;
    this.actors[id]={slots:Array.from({length:5},(_,i)=>validItems.has(a.slots?.[i])?a.slots[i]:defaults()[i]),
-    selected:Number.isInteger(a.selected)?clamp(a.selected,0,4):0};
+    selected:Number.isInteger(a.selected)?clamp(a.selected,0,4):0,
+    hands:Object.fromEntries(HANDS.map(hand=>[hand,validItems.has(a.hands?.[hand])?a.hands[hand]:handDefaults()[hand]]))};
   }
   this.relations={};
   for(const [k,v] of Object.entries(data.relations||{}))
