@@ -241,7 +241,15 @@ $("restore").addEventListener("click",()=>{
   running=false;init(data);updateHUD();
  }catch(e){log("復元失敗: "+e.message);}
 });
-$("import-v07c-save").addEventListener("click",()=>{
+$("import-v07d-save").addEventListener("click",()=>{
+  try{
+   const data=JSON.parse(localStorage.getItem(V07D_SAVE_KEY)||"null");
+   if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("旧v0.7dセーブがありません。");
+   running=false;init(data);updateHUD();
+   log("v0.7dセーブを取り込みました。元の保存データは変更していません。");
+  }catch(e){log("v0.7d読込失敗: "+e.message);}
+ });
+ $("import-v07c-save").addEventListener("click",()=>{
  try{
   const data=JSON.parse(localStorage.getItem(V07C_SAVE_KEY)||"null");
   if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("旧v0.7cデータがありません。");
@@ -837,7 +845,17 @@ function updateRtsMarkers(projected){
  }
 }
 
-init();requestAnimationFrame(doFrame);
+lifeUI=installLifestyleUI({
+  getContext:()=>({
+   life,actions,access,controller,
+   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)
+  }),
+  onChange:()=>{saveLifeJournal();updateHUD();},
+  onBook:openBookLibrary,
+  onSleep:()=>{planet.advance(.25);updateHUD();},
+  notify:log
+ });
+ init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
 const stage=document.querySelector(".view-panel");
