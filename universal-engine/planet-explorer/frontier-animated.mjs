@@ -1,3 +1,4 @@
+import {samplePose} from "./rig.mjs";
 /** GLB2 skeletal/morph animation data. Pure module; no DOM/WebGL dependency.
  * Supports glTF node hierarchy, inverse bind matrices, skin weights, two morph targets,
  * LINEAR/STEP/CUBICSPLINE animation samples, and separate face/body playback.
@@ -202,7 +203,45 @@ export function chooseFrontierClip(clips,kind){
  for(const name of wants){const found=clips.find(c=>c.name.toLowerCase()===name.toLowerCase());if(found)return found;}
  return kind==="faceTalking"||kind==="faceIdle"?null:clips.find(c=>c.name.toLowerCase()==="idle")||null;
 }
-export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=time){
+const qx=a=>[Math.sin(a/2),0,0,Math.cos(a/2)];
+const qy=a=>[0,Math.sin(a/2),0,Math.cos(a/2)];
+const qz=a=>[0,0,Math.sin(a/2),Math.cos(a/2)];
+const qmul=(a,b)=>[
+ a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],
+ a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],
+ a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],
+ a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]
+];
+/** Override semantic humanoid joints when a weapon uses procedural staging.
+ * Works for standard named GLBs without requiring new exported clips.
+ * Unknown/imported skeletons retain their original animation.
+ */
+export function applyWeaponRigPose(rig,poses,action,progress,variant="overhead",hand="right"){
+ if(!["sword","axe","bow"].includes(action)||!Number.isFinite(progress))return false;
+ const index=new Map(rig.nodes.map((n,i)=>[(n.name||"").toLowerCase(),i]));
+ if(!["rightshoulder","leftshoulder","rightelbow","leftelbow","waist"].every(n=>index.has(n)))return false;
+ const motion=samplePose({action,progress,variant});
+ if(hand==="left"){
+  for(const part of ["ShoulderX","ShoulderZ","ElbowX","WristX"]){
+   const left="left"+part,right="right"+part;
+   const l=motion[left],r=motion[right];
+   motion[left]=part==="ShoulderZ"?-r:r;
+   motion[right]=part==="ShoulderZ"?-l:l;
+  }
+  motion.torsoY=-(motion.torsoY||0);
+ }
+ for(const [name,id] of index){
+  const key=name==="waist"?"waist":name;
+  if(key==="waist")poses[id].rotation=qmul(qx(motion.torsoX||0),qy(motion.torsoY||0));
+  else for(const side of ["left","right"]){
+   if(key===side+"shoulder")poses[id].rotation=qmul(qz(motion[side+"ShoulderZ"]||0),qx(motion[side+"ShoulderX"]||0));
+   if(key===side+"elbow")poses[id].rotation=qx(motion[side+"ElbowX"]||0);
+   if(key===side+"wrist")poses[id].rotation=qx(motion[side+"WristX"]||0);
+  }
+ }
+ return true;
+}
+export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=time,opts={}){
  const pose=rig.nodes.map(n=>({translation:[...n.translation],rotation:[...n.rotation],scale:[...n.scale],
   weights:[...(n.weights||[0,0])]}));
  const body=chooseFrontierClip(rig.clips,bodyKind);
@@ -216,6 +255,8 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
    if(val)target[track.path]=val;
   }
  }
+ if(Number.isFinite(opts.motionProgress))
+  applyWeaponRigPose(rig,pose,bodyKind,opts.motionProgress,opts.variant||"overhead",opts.hand||"right");
  const world=Array(rig.nodes.length),inProgress=new Set(),parents=Array(rig.nodes.length).fill(-1);
  rig.nodes.forEach((node,i)=>node.children.forEach(child=>{if(parents[child]<0)parents[child]=i;}));
  const calculate=i=>{
