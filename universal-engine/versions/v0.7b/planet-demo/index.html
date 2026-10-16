@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1b30">
+<title>Planet Sandbox | Universal Engine</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header>
+  <div class="container top">
+    <a class="back" href="../">← Universal Engine</a>
+    <span class="edition">PLANET SANDBOX / v0.2 prototype</span>
+    <h1>宇宙から、一本の苗木まで。</h1>
+    <p>自転・公転する架空惑星。天候、資源、植物の繁殖、住人、重力と放物線。すべてを独立したシミュレーションとして観察します。</p>
+  </div>
+</header>
+<main class="container">
+  <section class="toolbar">
+    <div class="toolbar-buttons">
+      <button id="play" class="primary" type="button">⏸ 一時停止</button>
+      <button id="advance-day" type="button">+1日</button>
+      <button id="advance-month" type="button">+30日</button>
+      <button id="save" type="button">状態を保存</button>
+      <button id="load" type="button">復元</button>
+      <button id="reset" type="button">初期化</button>
+    </div>
+    <div class="toolbar-controls">
+      <label for="speed">惑星時間 <strong id="speed-value">0.12 日/秒</strong></label>
+      <input id="speed" type="range" min="1" max="100" step="1" value="12">
+      <span>架空惑星のシミュレーションです。現実の観測データには接続していません。</span>
+    </div>
+  </section>
+  <div class="overview-grid">
+    <section class="panel globe-panel">
+      <div class="panel-title"><div><span class="eyebrow">01 / ORBITAL VIEW</span><h2>3D惑星・宇宙空間</h2></div><span class="chip">ドラッグで視点回転</span></div>
+      <canvas id="globe" width="490" height="420" aria-label="3D球体の惑星、海洋、大陸、雲、昼夜を表示"></canvas>
+      <div class="orbit">
+        <div><span class="eyebrow">STELLAR ORBIT</span><strong>恒星の周囲を公転</strong></div>
+        <canvas id="orbit-map" width="460" height="100" aria-label="恒星と惑星の公転を示す軌道図"></canvas>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-title"><div><span class="eyebrow">02 / PLANET DATA</span><h2>惑星の状態</h2></div><span class="chip">Terra Nova</span></div>
+      <div class="stats">
+        <div><span>経過日数</span><strong><span id="day">0.0</span> 日</strong></div>
+        <div><span>惑星年</span><strong id="year">1</strong></div>
+        <div><span>自転角度</span><strong id="spin">0°</strong></div>
+        <div><span>公転角度</span><strong id="orbit">0°</strong></div>
+        <div><span>季節進行</span><strong id="season">区分1/4</strong></div>
+        <div><span>雲量</span><strong id="clouds">0%</strong></div>
+      </div>
+      <div class="separator"></div>
+      <div class="inline-controls">
+        <label for="temperature-site">気温を観測する緯度</label>
+        <select id="temperature-site">
+          <option value="0">赤道 0°</option><option value="32" selected>中緯度 32°</option>
+          <option value="55">北緯 55°</option><option value="75">北極圏 75°</option>
+          <option value="-65">南緯 65°</option>
+        </select>
+      </div>
+      <div class="conditions">
+        <div><span>気温</span><strong id="temperature">-- ℃</strong></div>
+        <div><span>降水</span><strong id="rainfall">--</strong></div>
+      </div>
+      <div class="inline-controls">
+        <label for="weather-mode">気象の表示テスト</label>
+        <select id="weather-mode">
+          <option value="auto" selected>自動（簡易気象モデル）</option>
+          <option value="rain">雨を強制表示</option>
+          <option value="snow">雪を強制表示</option>
+        </select>
+      </div>
+      <p class="muted">自転周期24時間、公転周期365.25日、地軸傾斜23.4°。緯度・標高・季節・時刻を使った近似モデルです。</p>
+    </section>
+  </div>
+  <section class="panel surface-panel">
+    <div class="panel-title"><div><span class="eyebrow">03 / LIVING SURFACE</span><h2>地表・資源・生態系</h2></div><span class="chip">架空の湿地テスト区画</span></div>
+    <canvas id="surface" width="960" height="295" aria-label="木、草、人、動物、魚、川が存在する生態系"></canvas>
+    <div class="ecology-data">
+      <div><span>樹木</span><strong id="trees">0</strong></div>
+      <div><span>うち苗木・若木</span><strong id="saplings">0</strong></div>
+      <div><span>草</span><strong id="grasses">0</strong></div>
+      <div><span>散布した種</span><strong id="seeds">0</strong></div>
+    </div>
+    <p class="mini-label">生物：<span id="creatures">人1 / 動物5 / 魚9</span></p>
+    <div class="toolbar-buttons">
+      <button id="plant-tree" type="button">+ 苗木を植える</button>
+      <button id="collect-wood" type="button">斧で成木を3本伐採</button>
+    </div>
+    <p class="resource-summary">回収資源：<span id="resources"></span></p>
+    <p class="muted">種が親株の周囲に広がり、条件が合うと発芽・成長します。水場には魚、陸地には人と動物を配置しています。表示は地上の簡易断面で、地表を覆う連続3Dメッシュは今後追加します。</p>
+  </section>
+  <section class="panel physics-panel">
+    <div class="panel-title"><div><span class="eyebrow">04 / GRAVITY LAB</span><h2>重力と投射運動</h2></div><span class="chip">m / s / m/s²</span></div>
+    <div class="physics-controls">
+      <div><label for="gravity">惑星表面の重力 <strong id="gravity-value">9.81 m/s²</strong></label><input id="gravity" type="range" min="1" max="22" step=".01" value="9.81"></div>
+      <div><label for="throw-speed">初速 <strong id="throw-speed-value">35 m/s</strong></label><input id="throw-speed" type="range" min="12" max="60" step="1" value="35"></div>
+      <div><label for="throw-angle">投射角度 <strong id="throw-angle-value">42°</strong></label><input id="throw-angle" type="range" min="10" max="80" step="1" value="42"></div>
+    </div>
+    <div class="toolbar-buttons">
+      <button id="throw-stone" class="primary" type="button">● 石を投げる</button>
+      <button id="shoot-arrow" type="button">➤ 矢を射る</button>
+      <button id="clear-trails" type="button">軌道をクリア</button>
+      <strong class="impact" id="range">発射待機中</strong>
+    </div>
+    <canvas id="ballistics" width="960" height="255" aria-label="重力による石と矢の放物線軌道"></canvas>
+    <p class="muted">惑星ごとの重力加速度を使った、地表付近の2次元投射計算です。簡易空気抵抗あり。曲率・風・高度依存の重力・障害物との衝突は未対応です。</p>
+  </section>
+  <section class="panel logs-panel"><span class="eyebrow">SIMULATION LOG</span><h2>実行ログ</h2><ol id="events"></ol></section>
+</main>
+<footer>UNIVERSAL ENGINE · Independent fictional multiverse prototype · No connection to Kamoku Monitor</footer>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>

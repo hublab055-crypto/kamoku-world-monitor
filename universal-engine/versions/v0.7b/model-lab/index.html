@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#091a2a">
+<title>Original Model Lab | Universal Engine</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header>
+ <div class="wrap masthead">
+  <div class="top-nav"><a href="../">← Universal Engine</a><a href="../planet-explorer/">3D惑星探索へ ↗</a></div>
+  <div class="eyebrow">UNIVERSAL ENGINE · ORIGINAL ASSET STUDIO</div>
+  <h1>僕たちの世界の、オリジナルモデル。</h1>
+  <p>人物、武器、森、家。すべて独自に設計した立体形状です。モデルを回転させたり、関節アニメーションを再生したり、GLBやOBJで保存できます。</p>
+ </div>
+</header>
+<main class="wrap">
+ <section class="workbench">
+  <div class="viewer-top">
+   <div><div class="eyebrow">01 / LIVE 3D VIEWER</div><h2 id="selected-name">モデル読み込み中…</h2></div>
+   <div class="view-actions">
+    <button type="button" id="auto-rotate" aria-pressed="true">↻ 自動回転 ON</button>
+    <button type="button" id="home-camera">視点リセット</button>
+   </div>
+  </div>
+  <div class="stage">
+   <canvas id="preview" width="1000" height="650" aria-label="3Dモデルの回転可能なプレビュー"></canvas>
+   <div class="stage-help">ドラッグで回転 / ホイールで拡大・縮小</div>
+   <div id="viewer-error" class="viewer-error" hidden></div>
+   <div class="stage-badge">PROCEDURAL ORIGINALS · CC0 ASSETS</div>
+  </div>
+  <div class="controls">
+   <label for="model-select">モデルを選択</label>
+   <select id="model-select"></select>
+   <label for="animation-select">アニメーション</label>
+   <select id="animation-select">
+    <option value="idle">待機</option>
+    <option value="walk" selected>歩行</option>
+    <option value="jump">ジャンプ</option>
+    <option value="sword">剣</option>
+    <option value="axe">斧</option>
+    <option value="mine">採掘</option>
+    <option value="build">建築</option>
+   </select>
+   <button id="download-glb" type="button" class="primary">GLBを保存</button>
+   <button id="download-obj" type="button">OBJを保存</button>
+  </div>
+  <p id="model-description" class="description"></p>
+  <div class="stats">
+   <div><span>モデル</span><strong id="model-id">--</strong></div>
+   <div><span>三角形</span><strong id="triangles">--</strong></div>
+   <div><span>頂点</span><strong id="vertices">--</strong></div>
+   <div><span>アニメーション</span><strong id="animation-count">--</strong></div>
+  </div>
+ </section>
+ <section class="catalogue">
+  <div class="eyebrow">02 / MODEL COLLECTION</div>
+  <h2>12種類のオリジナル3Dモデル</h2>
+  <p>下のモデルを選ぶと、3Dプレビューに表示します。</p>
+  <div id="model-cards" class="model-cards"></div>
+ </section>
+ <section class="license panel">
+  <div class="eyebrow">03 / REUSE & LICENSING</div>
+  <h2>商用作品にも再利用できます</h2>
+  <p>モデルの立体形状はUniversal Engineのために新しく生成したもので、他社の3D素材やテクスチャを取り込んだものではありません。GLBとOBJをゲーム制作や編集ソフトで利用できます。</p>
+  <p><strong>GLB：</strong>人物は関節ノード付きで、歩行・ジャンプ・剣・斧・建築の5クリップを含みます。各身体パーツを個別に回転する仕組みです（スキンメッシュではなく剛体パーツの親子階層）。<strong>OBJ：</strong>静止形状の交換形式で、アニメーションや頂点色は含みません。</p>
+  <p>オリジナルモデルの配布条件はCC0-1.0、生成コードはMITです。今後外部素材を追加する場合は、それぞれ元のライセンスを別途確認します。</p>
+  <div class="links"><a href="https://github.com/hublab055-crypto/kamoku-world-monitor/tree/main/universal-engine/original-assets">生成コード・GLB実ファイル</a><a href="../planet-explorer/">3D探索デモで使う →</a></div>
+ </section>
+</main>
+<footer>Universal Engine — original procedural 3D models. Kamoku Monitor / Frontier World are not modified.</footer>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>
