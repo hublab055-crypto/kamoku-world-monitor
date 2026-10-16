@@ -81,7 +81,7 @@ test("walking animates joint at half-time and mouth morph follows FaceTalking",(
  const pose=poseFrontierRig(rig,"walk",.5,"faceTalking",.5);
  assert.ok(Math.abs(pose.world[1][13]-.2)<.00001);
  assert.ok(Math.abs(pose.morphs[0][1]-.5)<.00001);
- assert.equal(chooseFrontierClip(rig.clips,"axe").name,undefined);
+ assert.equal(chooseFrontierClip(rig.clips,"axe"),null);
 });
 test("GPU renderer uploads four RGBA bone matrix columns and independent clip state",()=>{
  const gl=fakeWebGL(),model=new SkinnedFrontierAsset(gl,tinySkinnedGLB());
