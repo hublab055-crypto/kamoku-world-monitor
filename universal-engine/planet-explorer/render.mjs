@@ -143,7 +143,7 @@ function vegetation(terrain,planet,origin,cx,cz,radius){
 }
 export class ExplorerRenderer{
  constructor(canvas,planet,terrain){
-  const gl=canvas.getContext("webgl2",{antialias:true,alpha:false,powerPreference:"high-performance"});
+  const gl=canvas.getContext("webgl2",{antialias:true,alpha:true,powerPreference:"high-performance"});
   if(!gl)throw Error("WebGL2が利用できません。対応ブラウザを利用してください。");
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.cameraController=new CameraController();
@@ -266,11 +266,14 @@ export class ExplorerRenderer{
   const gl=this.gl,dpr=Math.min(2,globalThis.devicePixelRatio||1);
   const w=Math.max(1,Math.floor(this.canvas.clientWidth*dpr)),h=Math.max(1,Math.floor(this.canvas.clientHeight*dpr));
   if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
-  gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,1);
+  // Ground view exposes the atmospheric CSS gradient through transparent sky pixels.
+  // Orbital view remains opaque dark space; terrain meshes always draw opaque.
+  const inOrbit=state.altitudeM>23000;
+  gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,inOrbit?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  return state.altitudeM>23000?this.orbit(state,asp):this.ground(state,asp,dt);
+  return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
   this.pickVP=null;
