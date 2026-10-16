@@ -179,7 +179,13 @@ export class Lifestyle {
   const f=this.furnishings.find(f=>f.id===id&&f.buildingId===hut?.id);
   if(!f)return result(false,"家具が見つかりません。");
   const kind=f.kind;
-  const activity=(value)=>{this.activity=value;this.activityFurnitureId=id;moveActor(actor,hut.x+f.x,hut.z+f.z,Math.PI);};
+  const activity=(value)=>{
+   this.activity=value;this.activityFurnitureId=id;
+   // Stand at the usable side of counters/shelves instead of clipping through their geometry.
+   const dz=["table","kitchen","fireplace","bookshelf","chest"].includes(kind)?
+    (kind==="table"?.96:kind==="bookshelf"?.78:.76):0;
+   moveActor(actor,hut.x+f.x,hut.z+f.z+dz,Math.PI);
+  };
   if(action==="sleep"&&kind==="bed"){
    activity("sleep");this.rest(70);return result(true,"🛏️ ベッドで眠り、スタミナが回復しました。");
   }
