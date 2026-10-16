@@ -29,7 +29,7 @@ test("wide sword and axe sweeps use visibly larger shoulder and torso arcs",()=>
   assert.ok(impact.rightWristX>.20);
  }
 });
-test("enemy button domain can spawn all three types in front and cap population",()=>{
+test("enemy button domain can spawn all seven types in front and cap population",()=>{
  const battle=new BattleTest(),user=player();
  for(const kind of Object.keys(TEST_ENEMIES)){
   const result=battle.spawn(user,kind);
@@ -38,8 +38,8 @@ test("enemy button domain can spawn all three types in front and cap population"
   assert.ok(result.enemy.z>0);
   assert.ok(result.enemy.hp>0);
  }
- assert.equal(battle.count(),3);
- for(let i=3;i<10;i++)assert.equal(battle.spawn(user,"slime").ok,true);
+ assert.equal(battle.count(),Object.keys(TEST_ENEMIES).length);
+ for(let i=Object.keys(TEST_ENEMIES).length;i<10;i++)assert.equal(battle.spawn(user,"slime").ok,true);
  assert.equal(battle.spawn(user,"slime").ok,false);
  assert.equal(battle.spawn(user,"unknown").ok,false);
  battle.clear();assert.equal(battle.count(),0);
