@@ -198,7 +198,14 @@ export class ExplorerRenderer{
   this.dishMeshes={};
   for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
   this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
-  this.sceneActions=null;
+  this.sceneActions=null;this.sceneFrontier=null;
+   this.fwResourceMeshes={};
+   const colors={wood:[.40,.24,.15],stone:[.54,.59,.62],fiber:[.27,.64,.35],food:[.80,.31,.23],water:[.22,.59,.84]};
+   for(const [kind,color] of Object.entries(colors)){
+    const geo=builder();box(geo,0,0,0,.48,.85,.48,color);
+    if(kind==='wood'||kind==='fiber')cone(geo,0,.86,0,.6,.55,color);
+    this.fwResourceMeshes[kind]=new Mesh(gl,geo);
+   }
   this.pickVP=null;this.groundPatchData=null;
   gl.enable(gl.DEPTH_TEST);
  }
@@ -369,7 +376,17 @@ export class ExplorerRenderer{
      }
    }
  }
- drawLifestyle(vp,light,s,radius){
+ drawFrontier(vp,light,s,radius){
+   if(!this.sceneFrontier)return;
+   for(const n of this.sceneFrontier.nodes){
+    if(n.quantity<=0||Math.abs(n.x-s.x)>radius||Math.abs(n.z-s.z)>radius)continue;
+    const geo=geoOffset(s.origin.lat,s.origin.lon,n.x,n.z,this.planet.radiusM);
+    const elevation=terrainSurface(this.terrain,geo.lat,geo.lon).elevationM;
+    const mesh=this.fwResourceMeshes[n.kind];if(!mesh)continue;
+    this.drawMesh(mesh,multiply4(vp,translate(n.x-this.cx,Math.max(0,elevation),n.z-this.cz)),light,1,.75);
+   }
+  }
+  drawLifestyle(vp,light,s,radius){
    this.screenFurniture=[];this.screenCamps=[];
    if(!this.sceneLife||!this.sceneActions)return;
    for(const hut of this.sceneActions.structures){
@@ -499,6 +516,7 @@ export class ExplorerRenderer{
   this.drawMesh(this.patch,vp,light,1,.58);
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
   this.drawBuildings(vp,light,s,radius,dt);
+  this.drawFrontier(vp,light,s,radius);
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
@@ -534,7 +552,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes)])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes)])m?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }

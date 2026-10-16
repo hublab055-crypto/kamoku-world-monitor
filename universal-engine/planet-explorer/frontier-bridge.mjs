@@ -49,7 +49,7 @@ export class FrontierBridge {
  home(a){
   const built=this.squad.actions.structures.filter(b=>b.kind==="hut"&&b.progress>=1);
   if(!built.length)return {...this.base,kind:"camp"};
-  built.sort((a,b)=>dist(a,a.control||this.squad.get("player").control)-dist(b,a.control||this.squad.get("player").control));
+  built.sort((x,y)=>dist(x,a.control)-dist(y,a.control));
   return {...hutDoor(built[0]),kind:"hut"};
  }
  stored(){
