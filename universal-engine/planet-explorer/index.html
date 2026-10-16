@@ -100,9 +100,14 @@
     <button type="button" id="action-build">建築</button>
   </div>
 </div>
+<div class="hand-actions" id="hand-actions" role="group" aria-label="右手と左手の装備アクション">
+ <button type="button" id="hand-right-use" title="右手に装備したアイテムを使う" aria-label="右手の装備を使う">🫱 右手</button>
+ <button type="button" id="hand-left-use" title="左手に装備したアイテムを使う" aria-label="左手の装備を使う">🫲 左手</button>
+</div>
 <div id="quick-items" class="quick-items" role="group" aria-label="アイテム装備スロット">
  <div id="quick-slots" class="quick-slots"></div>
  <button type="button" id="quick-use" aria-label="選択したアイテムを使う">使う</button>
+ <button type="button" id="quick-inventory" aria-label="アイテム画面を開く">🎒</button>
  <button type="button" id="quick-config" aria-label="装備を変更">⚙</button>
 </div>
 <div id="rts-controls" class="rts-controls" hidden role="group" aria-label="RTS部隊指揮">
@@ -139,9 +144,14 @@
  <p id="social-result" aria-live="polite">相手の4m以内で利用できます。</p>
 </section>
 <section id="quick-config-panel" class="social-panel" role="dialog" aria-label="装備編集" hidden>
- <div class="social-header"><strong>🎒 アイテム5スロット</strong><button type="button" id="quick-config-close">×</button></div>
+ <div class="social-header"><strong>🎒 持ち物・左右の装備</strong><button type="button" id="quick-config-close">×</button></div>
  <label>設定対象 <select id="quick-actor"></select></label>
+ <p id="equip-inventory-label" aria-live="polite"></p>
+ <strong>🫱 右手・🫲 左手</strong>
+ <div id="hand-config-rows"></div>
+ <strong>クイック5スロット</strong>
  <div id="quick-config-rows"></div>
+ <button type="button" id="equip-open-inventory">🎒 持ち物一覧から装備を選ぶ</button>
  <p>各枠に装備を登録し、選択した枠のアイテムを「使う」で実行します。</p>
 </section>
 <div id="book-overlay" class="book-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="book-heading">
