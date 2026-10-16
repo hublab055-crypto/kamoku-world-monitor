@@ -495,3 +495,16 @@ body.immersive{overflow:hidden}
   .viewport-quick-panel{max-height:calc(100dvh - 90px)}
   .door-controls{bottom:calc(62px + env(safe-area-inset-bottom,0px))}
 }
+
+/* Frontier GLB / social actions / five-slot quick equipment */
+.quick-items{position:absolute;z-index:13;bottom:calc(5px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:3px;max-width:calc(100% - 10px);padding:4px;background:#08283fe6;border:1px solid #609db0;border-radius:10px;backdrop-filter:blur(5px)}
+.quick-slots{display:flex;gap:3px}.quick-items button{font-size:12px;color:#f2fbff;background:#173f57;border:1px solid #6b9cad;border-radius:7px;min-height:35px;min-width:32px;padding:3px 5px}
+.quick-slots button{display:flex;flex-direction:column;align-items:center;justify-content:center;width:43px;max-width:43px;gap:1px}.quick-slots button span{font-size:9px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quick-slots button[aria-pressed=true]{background:#187b92;border:2px solid #e9e39a}
+.rts-heading-label{display:flex;align-items:center;gap:4px;color:#eafaff;font-size:11px;white-space:nowrap}.rts-heading-label input{accent-color:#75d5bc;width:17px;height:17px}
+.social-panel{position:absolute;z-index:30;top:10px;right:8px;width:min(350px,calc(100% - 16px));max-height:calc(100% - 20px);overflow:auto;background:#08273ff0;border:1px solid #75abbd;border-radius:10px;padding:10px;color:#f0fcff;box-shadow:0 12px 30px #0009}
+.social-panel[hidden]{display:none!important}.social-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.social-panel label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;margin:6px 0}.social-panel select,.social-panel button{background:#17475e;color:#fff;border:1px solid #769eaa;border-radius:7px;padding:5px;min-height:34px;font-size:12px}.social-panel select{max-width:65%}
+.social-buttons{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:7px 0}.social-panel p{font-size:11px;line-height:1.6}
+#quick-config-rows label{margin:7px 0}
+@media(max-width:760px){.quick-items{bottom:calc(2px + env(safe-area-inset-bottom,0px));padding:2px}.quick-slots button{width:35px;max-width:35px;font-size:11px}.quick-items button{min-height:31px;padding:2px}.action-pad{bottom:calc(50px + env(safe-area-inset-bottom,0px))}.rts-controls{bottom:calc(52px + env(safe-area-inset-bottom,0px))}}

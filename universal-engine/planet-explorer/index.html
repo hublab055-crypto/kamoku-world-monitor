@@ -71,6 +71,7 @@
     <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
     <button type="button" id="viewport-rts" aria-pressed="false" title="部隊にタップ指示">⚓ RTS視点</button>
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
+    <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
     <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
@@ -99,11 +100,17 @@
     <button type="button" id="action-build">建築</button>
   </div>
 </div>
+<div id="quick-items" class="quick-items" role="group" aria-label="アイテム装備スロット">
+ <div id="quick-slots" class="quick-slots"></div>
+ <button type="button" id="quick-use" aria-label="選択したアイテムを使う">使う</button>
+ <button type="button" id="quick-config" aria-label="装備を変更">⚙</button>
+</div>
 <div id="rts-controls" class="rts-controls" hidden role="group" aria-label="RTS部隊指揮">
   <button type="button" id="rts-all">全員選択</button>
   <button type="button" id="rts-multi" aria-pressed="false">複数選択</button>
   <button type="button" id="rts-rally">集合地点</button>
   <button type="button" id="rts-stop">停止</button>
+ <label class="rts-heading-label"><input type="checkbox" id="rts-heading-up"> 進行方向を上に</label>
   <span id="rts-summary">選択: 開拓者</span>
 </div>
 <div id="auto-panel" class="auto-panel" hidden role="region" aria-label="自動行動条件設定">
@@ -122,6 +129,21 @@
   </div>
   <p id="auto-status" aria-live="polite">条件の設定後、自動行動をONにしてください。</p>
 </div>
+<section id="social-panel" class="social-panel" role="dialog" aria-label="会話とプレゼント" hidden>
+ <div class="social-header"><strong>💬 会話とプレゼント</strong><button type="button" id="social-close">×</button></div>
+ <label>自分 <select id="social-from"></select></label>
+ <label>相手 <select id="social-target"></select></label>
+ <div class="social-buttons"><button type="button" id="social-talk">💬 話す</button>
+ <select id="social-gift-item" aria-label="プレゼントする持ち物"></select>
+ <button type="button" id="social-gift">🎁 プレゼント</button></div>
+ <p id="social-result" aria-live="polite">相手の4m以内で利用できます。</p>
+</section>
+<section id="quick-config-panel" class="social-panel" role="dialog" aria-label="装備編集" hidden>
+ <div class="social-header"><strong>🎒 アイテム5スロット</strong><button type="button" id="quick-config-close">×</button></div>
+ <label>設定対象 <select id="quick-actor"></select></label>
+ <div id="quick-config-rows"></div>
+ <p>各枠に装備を登録し、選択した枠のアイテムを「使う」で実行します。</p>
+</section>
 <div id="book-overlay" class="book-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="book-heading">
   <div class="book-topbar">
     <strong id="book-heading">📚 本棚と持ち物の本</strong>
@@ -265,6 +287,19 @@
       </div>
     </div>
   </details>
+<details class="customization panel" id="frontier-glb-settings">
+ <summary><span>🧍 Frontier World GLBアバター</span> — 男女モデルを利用 <small>タップして開く</small></summary>
+ <div class="customization-inner">
+ <p>フロンティアワールドの男女GLBを読み込みます。既に同じブラウザでインポートしたGLBも自動検索します。</p>
+ <div class="customization-grid">
+ <label>ファイルの性別 <select id="frontier-glb-sex"><option value="male">男性GLB</option><option value="female">女性GLB</option></select></label>
+ <label>GLBファイル <input type="file" id="frontier-glb-input" accept=".glb,model/gltf-binary"></label>
+ <label>対象人物 <select id="frontier-glb-actor"><option value="player">開拓者</option><option value="scout">斥候</option><option value="artisan">職人</option></select></label>
+ <label>適用するモデル <select id="frontier-glb-choice"><option value="male">男性GLB</option><option value="female">女性GLB</option><option value="classic">従来の3Dモデル</option></select></label>
+ </div>
+ <p id="frontier-glb-status" aria-live="polite">GLBが未登録の場合、従来のアバターを表示します。</p>
+ </div>
+</details>
 <details class="customization panel camera-settings" id="camera-settings">
     <summary><span>カメラ設定</span> — 追従・自由視点・人物注視・上空俯瞰 <small>タップして開く</small></summary>
     <div class="customization-inner">
@@ -293,6 +328,7 @@
           <input id="camera-follow-strength" type="range" min=".1" max="24" step=".1" value="8"/>
         </label>
         <label class="check-label"><input id="camera-indicator" type="checkbox" checked/> アバター位置マーカー</label>
+ <label class="check-label"><input id="camera-rts-heading" type="checkbox"> RTS画面を人物の進行方向に合わせる</label>
       </div>
       <div class="customization-footer">
         <strong id="camera-mode-label">追従（三人称）</strong>
