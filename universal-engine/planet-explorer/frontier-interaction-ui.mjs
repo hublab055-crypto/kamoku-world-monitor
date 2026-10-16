@@ -66,13 +66,15 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    return deployed;
   }
   if(result.kind==="action"){
+   const variant=["sword","axe"].includes(result.action)?
+     social.attackVariant(who.id,result.action):"overhead";
    if(who.id!=="player"){
-    const ok=c.squad.performEquippedAction(who.id,result.action,hand);
+    const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant);
     if(ok){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
     log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
     updateHUD();return {ok};
    }
-   const started=c.actions.start(result.action,c.controller,c.sample);
+   const started=c.actions.start(result.action,c.controller,c.sample,variant);
    if(started){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
    log(c.actions.message);
    if(!started)return {ok:false,message:c.actions.message};
@@ -95,6 +97,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   const person=c.squad.get(configId),inventory=social.inventoryFor(person,c.life,c.squad.frontier);
   $("equip-inventory-label").textContent=person.name+"の所持品："+inventory.map(item=>item.name+"×"+item.quantity).join("・");
   $("arrow-stock-label").textContent="🏹 "+person.name+"の矢筒："+(social.actor(configId)?.arrows||0)+"本";
+  $("attack-mode").value=social.actor(configId)?.attackMode||"overhead";
   function selectInventory(current){
    const picker=document.createElement("select");
    const empty=document.createElement("option");empty.value="none";empty.textContent="▫️ はずす";picker.append(empty);
@@ -213,6 +216,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  $("hand-right-use").addEventListener("click",()=>useHand("right"));
  $("hand-left-use").addEventListener("click",()=>useHand("left"));
  $("quick-inventory").addEventListener("click",()=>get().lifeUI?.open("inventory"));
+ $("attack-mode").addEventListener("change",()=>{
+  if(social.setAttackMode(configId,$("attack-mode").value)){
+   log("⚔️ 攻撃モーションを更新しました。");
+   renderConfig();
+  }
+ });
  $("arrow-craft").addEventListener("click",()=>{
   const c=get(),result=social.craftArrows(configId,c.actions?.resources);
   log(result.message);
