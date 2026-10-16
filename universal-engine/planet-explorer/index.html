@@ -300,14 +300,17 @@
 <details class="customization panel" id="frontier-glb-settings">
  <summary><span>🧍 Frontier World GLBアバター</span> — 男女モデルを利用 <small>タップして開く</small></summary>
  <div class="customization-inner">
- <p>フロンティアワールドの男女GLBを読み込みます。既に同じブラウザでインポートしたGLBも自動検索します。</p>
+ <p>標準ではGitHub同梱の男女GLBを使います。SafariとChatGPT内ブラウザで同じモデルを表示するため、古い端末キャッシュを自動適用しません。自作GLBは「インポート済み」で使用できます。</p>
  <div class="customization-grid">
+ <label>モデルの入手先 <select id="frontier-glb-source"><option value="standard">標準・全ブラウザ共通</option><option value="imported">インポート済み・端末固有</option></select></label>
+ <label>画質設定 <select id="frontier-glb-quality"><option value="auto">自動</option><option value="high">高品質</option><option value="mobile">省メモリ</option></select></label>
  <label>ファイルの性別 <select id="frontier-glb-sex"><option value="male">男性GLB</option><option value="female">女性GLB</option></select></label>
  <label>GLBファイル <input type="file" id="frontier-glb-input" accept=".glb,model/gltf-binary"></label>
  <label>対象人物 <select id="frontier-glb-actor"><option value="player">開拓者</option><option value="scout">斥候</option><option value="artisan">職人</option></select></label>
  <label>適用するモデル <select id="frontier-glb-choice"><option value="male">男性GLB</option><option value="female">女性GLB</option><option value="classic">従来の3Dモデル</option></select></label>
  </div>
- <p id="frontier-glb-status" aria-live="polite">GLBが未登録の場合、従来のアバターを表示します。</p>
+ <div class="avatar-loading-control"><button type="button" id="frontier-glb-refresh">↻ 標準モデル・キャッシュ更新</button><small>現在は両画質で共通の軽量GLBを使用します。高精細Frontier World GLBは未同梱です。</small></div>
+ <p id="frontier-glb-status" data-state="loading" role="status" aria-live="polite">標準GLBを確認しています。</p>
  </div>
 </details>
 <details class="customization panel camera-settings" id="camera-settings">
