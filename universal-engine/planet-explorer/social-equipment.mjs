@@ -17,16 +17,26 @@ const sources=Object.freeze({wood:"frontier",stone:"frontier",fiber:"frontier",
 const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n));
 const defaults=()=>["sword","axe","pickaxe","cup","book"];
 export const HANDS=Object.freeze(["right","left"]);
+export const ATTACK_MODES=Object.freeze(["overhead","sweep","thrust","combo"]);
 const permanent=new Set(["sword","axe","pickaxe","bow","book"]);
 const handDefaults=()=>({right:"sword",left:"axe"});
 export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
  constructor(snapshot=null){
   this.actors={};this.relations={};this.history=[];this.maxDistance=4;
-  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults(),arrows:12};
+  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults(),arrows:12,attackMode:"overhead"};
   if(snapshot)this.restore(snapshot);
  }
  actor(id){return this.actors[id]||null;}
+ setAttackMode(id,mode){
+  const actor=this.actor(id);
+  if(!actor||!ATTACK_MODES.includes(mode))return false;
+  actor.attackMode=mode;return true;
+ }
+ attackVariant(id,action){
+  const mode=this.actor(id)?.attackMode||"overhead";
+  return action==="axe"&&mode==="thrust"?"overhead":mode;
+ }
  equip(id,index,item){
   const actor=this.actor(id);
   if(!actor||!Number.isInteger(index)||index<0||index>4||!validItems.has(item))return false;
@@ -172,7 +182,7 @@ export class SocialEquipment {
   return {ok:false,message:"このアイテムは使用せずに、クラフト材料として保管します。"};
  }
  snapshot(){
-  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands},arrows:a.arrows}])),
+  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands},arrows:a.arrows,attackMode:a.attackMode}])),
    relations:{...this.relations},history:this.history.slice(-60)};
  }
  restore(data){
@@ -183,6 +193,7 @@ export class SocialEquipment {
    this.actors[id]={slots:Array.from({length:5},(_,i)=>validItems.has(a.slots?.[i])?a.slots[i]:defaults()[i]),
     selected:Number.isInteger(a.selected)?clamp(a.selected,0,4):0,
     arrows:Number.isSafeInteger(a.arrows)?clamp(a.arrows,0,999):12,
+    attackMode:ATTACK_MODES.includes(a.attackMode)?a.attackMode:"overhead",
     hands:Object.fromEntries(HANDS.map(hand=>[hand,validItems.has(a.hands?.[hand])?a.hands[hand]:handDefaults()[hand]]))};
   }
   this.relations={};
