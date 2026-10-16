@@ -1,5 +1,14 @@
 # Planet Explorer — Change Log
 
+## v0.7c mobile viewport patch — 2026-10-16
+
+- On first visit from a small touch device, launch the 3D scene in reversible CSS immersive mode. A visible in-scene button exits to all settings and older-version links; the manual choice lasts only within that browser tab.
+- Add in-scene quick actions for fullscreen/return, six-camera cycling, joystick/tap movement, and an expandable tools drawer for saving, time controls and landing/orbit controls.
+- Adapt the viewport and floating controls to dynamic iPhone Safari height, portrait/landscape and safe-area insets. No claim that a web page can remove Safari chrome or external platform UI.
+- Give the ground view a daylight atmospheric sky through transparent WebGL clearing. Opaque orbital/space rendering remains unchanged. This is **not** yet distant mountain/ocean geometry.
+- Keep the v0.7c save schema unchanged and the v0.7b/v0.7a/v0.6 runtime archives intact. Create GitHub rollback branch `universal-engine-v0.7c-before-mobile`.
+- Add mobile viewport tests and update the fullscreen regression test. Browser/GPU visual checks on iPhone are still required.
+
 ## v0.7c — 2026-10-16 (experimental)
 
 - Added six camera modes: legacy, following, over-shoulder, detached free, actor orbit and high tactical view.
