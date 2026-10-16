@@ -70,6 +70,16 @@ export class SocialEquipment {
   if(!owner||!(owner.arrows>0))return false;
   owner.arrows--;return true;
  }
+ craftArrows(id,resources){
+  const owner=this.actor(id);
+  if(!owner||!resources)return {ok:false,message:"製作する人物が見つかりません。"};
+  if(owner.arrows>993)return {ok:false,message:"矢筒に空きがありません。"};
+  if(!(resources.wood>=1&&resources.stone>=1))
+   return {ok:false,message:"矢6本の製作には木材1・石材1が必要です。"};
+  resources.wood--;resources.stone--;
+  owner.arrows+=6;
+  return {ok:true,message:"🏹 矢を6本製作しました。（残り "+owner.arrows+"本）"};
+ }
  useHand(actor,hand,life,frontier){
   if(!HANDS.includes(hand))return {ok:false,message:"右手か左手を選んでください。"};
   return this.useItem(actor,this.handItem(actor?.id,hand),life,frontier);
