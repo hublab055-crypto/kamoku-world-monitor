@@ -89,3 +89,27 @@ export function flameGeometry(){
  }
  return m;
 }
+
+/* Separate visible tableware, positioned in local table / kitchen space. */
+export function dishGeometry(kind){
+ const m=new Shape();
+ if(kind==="plate"){
+  m.cylinder(0,1.34,.08,.26,.04,c("#dedbcf"),14);
+  m.cylinder(0,1.38,.08,.17,.035,c("#e0b15d"),9);
+  m.cone(0,1.42,.08,.12,.12,c("#7b9e59"),8);
+ }else if(kind==="bowl"){
+  m.cylinder(.36,1.34,-.08,.21,.13,clay,12,.16);
+  m.cylinder(.36,1.47,-.08,.15,.03,c("#c5a65c"),12);
+ }else if(kind==="cup"){
+  m.cylinder(-.38,1.34,-.1,.11,.24,c("#ede0c8"),11);
+  m.cylinder(-.38,1.59,-.1,.09,.025,c("#8db5c0"),11);
+  m.box(-.52,1.40,-.10,.05,.18,.025,c("#d8c9b1"));
+ }else if(kind==="pot"){
+  m.cylinder(.45,1.38,.0,.25,.27,c("#7c8585"),12);
+  m.cylinder(.45,1.67,0,.28,.07,c("#acb7b6"),12);
+  m.cylinder(.45,1.76,0,.07,.055,c("#4f5b60"),10);
+  m.box(.45,1.54,-.31,.07,.08,.16,c("#7c8585"));
+  m.box(.45,1.54,.31,.07,.08,.16,c("#7c8585"));
+ }else throw new RangeError("Unknown dish "+kind);
+ return m;
+}
