@@ -93,6 +93,16 @@ export class SquadEngine{
    distance:Math.hypot(a.control.x-leader.x,a.control.z-leader.z),
    walked:a.control.totalDistanceM,...(this.frontier?.metrics(a)||{})};
  }
+ performEquippedAction(id,kind){
+  const a=this.get(id);
+  if(!a||a.id==="player"||!["sword","axe","mine"].includes(kind)||!a.control.nearGround)return false;
+  this.frontier?.cancel(a);
+  a.control.clearMoveTarget();
+  const duration=kind==="sword"?.95:kind==="axe"?1.45:1.65;
+  a.task={kind:"equipped_"+kind,remaining:duration,duration};
+  a.cooldown=0;a.order="manual";a.status="⚒️ "+kind+"を使用中";
+  return true;
+ }
  schedule(a,action,slot=0){
   if(this.frontier?.isAction(action)){this.frontier.start(a,action,slot);return;}
   if(action==="gather_wood"||action==="gather_stone"){
@@ -141,6 +151,16 @@ export class SquadEngine{
      a.cooldown=.35;
     }
    }
+   if(a.task?.kind?.startsWith("equipped_")){
+    a.task.remaining=Math.max(0,a.task.remaining-dt);
+    if(a.task.remaining===0){
+     const kind=a.task.kind.slice("equipped_".length);
+     if(kind==="axe")this.actions.resources.wood+=2;
+     if(kind==="mine")this.actions.resources.stone+=2;
+     a.status=kind==="sword"?"⚔️ 剣を振った":kind==="axe"?"🪵 木材 +2":"🪨 石材 +2";
+     a.task=null;a.cooldown=.5;
+    }
+   }
    if(a.id==="player"&&manualLead){this.frontier?.cancel(a);a.task=null;a.cooldown=1;}
    if(a.auto&&a.control.nearGround&&!frontierBusy&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!(a.id==="player"&&manualLead)){
     const metrics=this.metrics(a);
@@ -152,7 +172,8 @@ export class SquadEngine{
  }
  getMotion(a){
   const key=a.task?.kind;
-  return this.frontier?.isAction(key)?{action:key==="gather_nearby"?"axe":"idle",progress:.5}:
+  return key?.startsWith("equipped_")?{action:key.slice("equipped_".length),progress:1-a.task.remaining/a.task.duration}:
+   this.frontier?.isAction(key)?{action:key==="gather_nearby"?"axe":"idle",progress:.5}:
    key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
    {action:"idle",progress:0};
  }

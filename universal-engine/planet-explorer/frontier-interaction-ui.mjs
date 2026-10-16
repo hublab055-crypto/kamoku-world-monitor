@@ -34,7 +34,11 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    log(deployed.message);if(deployed.ok){saveLifeJournal();updateHUD();}return;
   }
   if(result.kind==="action"){
-   if(who.id!=="player"){log("NPCの手動道具モーションは未対応です。");return;}
+   if(who.id!=="player"){
+    const ok=c.squad.performEquippedAction(who.id,result.action);
+    log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
+    updateHUD();return;
+   }
    c.actions.start(result.action,c.controller,c.sample);
    log(c.actions.message);
   }else{log(result.message);saveLifeJournal();}

@@ -17,7 +17,8 @@ import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs"
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 
 const $=id=>document.getElementById(id);
-const SAVE_KEY="universal-engine:explorer:v0.7g";
+const SAVE_KEY="universal-engine:explorer:v0.7i";
+const PRE_FRONTIER_SAVE_KEY="universal-engine:explorer:v0.7g";
 const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
 const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
@@ -240,12 +241,12 @@ $("save").addEventListener("click",()=>{
    v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
     v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot()};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-  log("v0.7g：家具・食器・野営・読書・3人の部隊を保存しました。旧版の保存は上書きしません。");
+  log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
 $("restore").addEventListener("click",()=>{
  try{
-  const data=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
+  const data=JSON.parse(localStorage.getItem(SAVE_KEY)||localStorage.getItem(PRE_FRONTIER_SAVE_KEY)||"null");
   if(data?.format!=="ue/explorer-demo"||data.version!==1)throw Error("対応する保存データがありません。");
   running=false;init(data);updateHUD();
  }catch(e){log("復元失敗: "+e.message);}
