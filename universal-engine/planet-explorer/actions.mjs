@@ -17,12 +17,12 @@ export class Actions {
     this.message="準備完了";
   }
   start(kind, controller, terrainSurface) {
-    if(!["sword","axe","mine","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
+    if(!["sword","axe","mine","bow","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
     if(this.active){this.message="動作が完了してから操作してください";return false;}
     if(controller.altitudeM>12.01 || controller.jumpY>.01) {
       this.message="地上に立ってから操作してください";return false;
     }
-    const duration={sword:.95,axe:1.45,mine:1.65,build:4.3}[kind];
+    const duration={sword:.95,axe:1.45,mine:1.65,bow:1.2,build:4.3}[kind];
     let structureId=null;
     if(kind==="build") {
       if(this.resources.wood<COST.wood||this.resources.stone<COST.stone) {
@@ -44,7 +44,7 @@ export class Actions {
       this.structures.push({id:structureId,x,z,lat:p.lat,lon:p.lon,height:surface.elevationM,progress:0,kind:"hut"});
     }
     this.active={kind,time:0,duration,structureId};
-    this.message={sword:"剣で攻撃モーション",axe:"斧で薪を割る",mine:"つるはしで石を採掘",build:"作業小屋を建築中"}[kind];
+    this.message={sword:"剣で攻撃モーション",axe:"斧で薪を割る",mine:"つるはしで石を採掘",bow:"弓を引いて矢を放つ",build:"作業小屋を建築中"}[kind];
     return true;
   }
   advance(dt) {
@@ -63,7 +63,7 @@ export class Actions {
     if(completed==="mine"){this.resources.stone+=2;this.resources.clay=(this.resources.clay||0)+1;this.resources.metal=(this.resources.metal||0)+1;}
     this.completed++;
     this.active=null;
-    this.message={sword:"剣の振り終わり",axe:"木材 +2",mine:"石材 +2",build:"作業小屋が完成"}[completed];
+    this.message={sword:"剣の振り終わり",axe:"木材 +2",mine:"石材 +2",bow:"矢を放ちました",build:"作業小屋が完成"}[completed];
     return completed;
   }
   getAnimation() {
@@ -83,7 +83,7 @@ export class Actions {
     for(const s of data.structures){
       if(![s.x,s.z,s.height,s.progress,s.id,s.lat,s.lon].every(Number.isFinite)||s.progress<0||s.progress>1)throw Error("Invalid saved building.");
     }
-    if(data.active && (!["sword","axe","mine","build"].includes(data.active.kind)||
+    if(data.active && (!["sword","axe","mine","bow","build"].includes(data.active.kind)||
        ![data.active.time,data.active.duration].every(Number.isFinite)||
        data.active.time<0||data.active.duration<=0))throw Error("Invalid saved action.");
     x.resources={...x.resources,...data.resources};
