@@ -15,11 +15,11 @@
   </div>
   <div class="container headline">
     <div>
-      <p class="eyebrow">UNIVERSAL ENGINE · V0.7f · READABLE BOOKS</p>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7g · LIFE & CAMP CRAFTING</p>
       <h1>オリジナルの世界を歩く。</h1>
-      <p>v0.7f試験版：📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
+      <p>v0.7g試験版：🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.7f 読書試験版</span>
+    <div class="version-control"><span class="version-tag">v0.7g 生活・野営試験版</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -68,6 +68,7 @@
          <button type="button" id="viewport-rts" aria-pressed="false" title="上空から部隊にタップ指示">⚓ RTS視点</button>
          <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
           <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
+          <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ 生活・クラフト</button>
         <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">☰ メニュー</button>
       </div>
       <div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
@@ -141,6 +142,40 @@
     </div>
   </section>
 </div>
+<div id="life-overlay" class="life-overlay" role="dialog" aria-modal="true" aria-labelledby="life-title" hidden>
+ <div class="life-header"><strong id="life-title">🛠️ 生活・クラフト</strong>
+  <button type="button" id="life-close">× 閉じる</button></div>
+ <div class="life-stats" id="life-stats" aria-live="polite"></div>
+ <nav class="life-tabs" aria-label="生活操作">
+  <button type="button" data-life-tab="craft" aria-pressed="true">🔨 クラフト</button>
+  <button type="button" data-life-tab="inventory">🎒 持ち物</button>
+  <button type="button" data-life-tab="home">🏠 家具</button>
+  <button type="button" data-life-tab="camp">⛺ 野営</button>
+ </nav>
+ <p id="life-message" role="status">家具をクラフトして生活を始めましょう。</p>
+ <div id="life-list" class="life-list" aria-live="polite"></div>
+ <div id="life-place" class="life-placement" hidden>
+   <strong id="life-place-title">家具を配置</strong>
+   <p>家の中の位置と向きを調節します。入口・壁・他の家具には重ねられません。</p>
+   <div id="life-floor-map" class="life-floor-map" aria-label="屋内の上面図">
+    <span class="life-floor-door">🚪 入口</span>
+    <div id="life-place-mark" class="life-place-mark">家具</div>
+   </div>
+   <div id="life-place-coords" class="life-place-coords"></div>
+   <div class="life-place-arrows">
+     <button type="button" data-life-move="z-">↑ 奥へ</button>
+     <button type="button" data-life-move="x-">← 左</button>
+     <button type="button" data-life-move="x+">右 →</button>
+     <button type="button" data-life-move="z+">↓ 入口へ</button>
+     <button type="button" id="life-rotate">↻ 90°回転</button>
+   </div>
+   <div class="life-place-confirm">
+    <button type="button" id="life-place-confirm">✓ ここに設置</button>
+    <button type="button" id="life-place-cancel">キャンセル</button>
+   </div>
+ </div>
+ <div class="life-help">木は伐採、石・粘土・金属は採掘、繊維は伐採で増えます。屋外で食材も採集できます。</div>
+</div>
 <div id="fatal" class="fatal" hidden>初期化中</div>
       <div class="mode-hint" id="walk-note">画面をドラッグして向きを調節できます。</div>
     </div>
@@ -149,6 +184,7 @@
       <button id="toolbar-rts" type="button">⚓ RTS視点</button>
       <button id="toolbar-auto" type="button">🤔 条件分岐設定</button>
        <button id="toolbar-books" type="button">📚 本棚・読書</button>
+       <button id="toolbar-life" type="button">🛠️ 家具・テント・食器</button>
       <button id="zoom-out" type="button">− 縮小</button>
       <button id="play" type="button">⏸ 時間を停止</button>
       <label for="days-per-second">時間速度</label>
