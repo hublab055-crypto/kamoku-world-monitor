@@ -410,12 +410,19 @@ export class ExplorerRenderer{
   const rig=this.animatedGlb[sex];
   if(rig){
    const characterTransform=multiply4(transform,rotateY(unit.yaw||0));
+   let drawn=true;
    try{rig.draw(vp,characterTransform,light,id,dt,{
     moving:Boolean(unit.moving),motion:motion?.action||"idle",
     talking:animation?.kind==="talk"&&animation.remaining>0,
     giving:animation?.kind==="gift"&&animation.remaining>0
-   });}finally{this.gl.useProgram(this.program);}
-   return true;
+   });}
+   catch(error){
+    console.warn("GLB runtime animation failed; restoring procedural avatar:",error);
+    rig.destroy();this.animatedGlb[sex]=null;
+    this.glbStatuses[sex]={animated:false,reason:String(error.message||error)};
+    drawn=false;
+   }finally{this.gl.useProgram(this.program);}
+   return drawn;
   }
   const meshes=this.glbMeshes[sex];if(!meshes?.length)return false;
   const mvp=multiply4(vp,multiply4(transform,rotateY(unit.yaw||0)));

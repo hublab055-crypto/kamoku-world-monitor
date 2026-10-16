@@ -88,7 +88,7 @@ export function parseFrontierRig(buffer){
  const nodes=(json.nodes||[]).map(n=>({
   name:n.name||"",matrix:Array.isArray(n.matrix)?n.matrix:null,
   translation:n.translation||[0,0,0],rotation:n.rotation||[0,0,0,1],scale:n.scale||[1,1,1],
-  mesh:n.mesh,skin:n.skin,children:n.children||[],weights:n.weights||null
+  mesh:n.mesh,skin:n.skin,children:n.children||[],weights:n.weights||(Number.isInteger(n.mesh)?json.meshes?.[n.mesh]?.weights:null)||null
  }));
  const primitives=[],images=(json.images||[]).map(image=>{
   if(!Number.isInteger(image.bufferView))return null;
