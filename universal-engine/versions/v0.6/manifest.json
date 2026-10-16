@@ -1,0 +1,17 @@
+{
+  "version": "v0.6",
+  "savedFrom": "82da310c33c87526aebac5932ca43978bfe0fdf3",
+  "branch": "universal-engine-v0.6-stable",
+  "entry": "planet-explorer/index.html",
+  "saveKey": "universal-engine:explorer:v1",
+  "independentRuntime": true,
+  "overlay": "planet-explorer/index.html only: link to new version",
+  "frozenTrees": {
+    "planetExplorer": "7ba6ec186cab7aeb5c609131bbbd0e1a5a1edbfc",
+    "planet": "9eeb36c3439320b7d2391169fdd0398681f97ea3",
+    "originalAssets": "048b5f4098b9419f9b15ef5aa365dd4b8af4a74e",
+    "modelLab": "407c3b6211e9f3c593b94794799a9e302a571d72",
+    "planetDemo": "e0c10a661d8fafc4dfb42000a61921ef8ae5a984",
+    "demo": "341ccd697a2b61b8d2d14219fa4e27fbb5bffa3a"
+  }
+}

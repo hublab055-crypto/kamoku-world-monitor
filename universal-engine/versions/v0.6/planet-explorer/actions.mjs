@@ -1,0 +1,96 @@
+/**
+ * A small, deterministic action loop for the 3D rig demo.
+ * This is not combat or construction simulation for Frontier World.
+ */
+const COST={wood:4,stone:2};
+function distanceMeters(a,b,radius){
+  const rad=Math.PI/180,dlat=(b.lat-a.lat)*rad,dlon=(b.lon-a.lon)*rad;
+  const h=Math.sin(dlat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dlon/2)**2;
+  return radius*2*Math.asin(Math.min(1,Math.sqrt(h)));
+}
+export class Actions {
+  constructor() {
+    this.resources={wood:12,stone:8};
+    this.structures=[];
+    this.active=null;
+    this.completed=0;
+    this.message="準備完了";
+  }
+  start(kind, controller, terrainSurface) {
+    if(!["sword","axe","mine","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
+    if(this.active){this.message="動作が完了してから操作してください";return false;}
+    if(controller.altitudeM>12.01 || controller.jumpY>.01) {
+      this.message="地上に立ってから操作してください";return false;
+    }
+    const duration={sword:.95,axe:1.45,mine:1.65,build:4.3}[kind];
+    let structureId=null;
+    if(kind==="build") {
+      if(this.resources.wood<COST.wood||this.resources.stone<COST.stone) {
+        this.message="建築資源が不足しています（木4・石2）";return false;
+      }
+      const x=controller.x+Math.sin(controller.yaw)*6.5;
+      const z=controller.z+Math.cos(controller.yaw)*6.5;
+      const p=controller.locationAt(x,z);
+      const surface=terrainSurface(p.lat,p.lon);
+      if(surface.water||surface.river||Math.abs(surface.elevationM-terrainSurface(controller.lat,controller.lon).elevationM)>2.4){
+        this.message="そこには建築できません（海・川・傾斜）";return false;
+      }
+      if(this.structures.some(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lon)&&
+         distanceMeters(p,s,controller.terrain.planet.radiusM)<8)){
+        this.message="既存の建物に近すぎます";return false;
+      }
+      this.resources.wood-=COST.wood;this.resources.stone-=COST.stone;
+      structureId=this.structures.length+1;
+      this.structures.push({id:structureId,x,z,lat:p.lat,lon:p.lon,height:surface.elevationM,progress:0,kind:"hut"});
+    }
+    this.active={kind,time:0,duration,structureId};
+    this.message={sword:"剣で攻撃モーション",axe:"斧で薪を割る",mine:"つるはしで石を採掘",build:"作業小屋を建築中"}[kind];
+    return true;
+  }
+  advance(dt) {
+    if(!Number.isFinite(dt)||dt<0)throw new TypeError("Invalid action delta");
+    if(!this.active)return null;
+    const a=this.active;
+    a.time=Math.min(a.duration,a.time+Math.min(dt,.25));
+    const progress=a.time/a.duration;
+    if(a.kind==="build"){
+      const s=this.structures.find(s=>s.id===a.structureId);
+      if(s)s.progress=progress;
+    }
+    if(progress<1)return null;
+    const completed=a.kind;
+    if(completed==="axe")this.resources.wood+=2;
+    if(completed==="mine")this.resources.stone+=2;
+    this.completed++;
+    this.active=null;
+    this.message={sword:"剣の振り終わり",axe:"木材 +2",mine:"石材 +2",build:"作業小屋が完成"}[completed];
+    return completed;
+  }
+  getAnimation() {
+    return this.active?{action:this.active.kind,progress:this.active.time/this.active.duration}:
+      {action:"idle",progress:0};
+  }
+  snapshot() {
+    return JSON.parse(JSON.stringify({format:"ue/explorer-actions",version:1,
+      resources:this.resources,structures:this.structures,active:this.active,
+      completed:this.completed,message:this.message}));
+  }
+  static fromSnapshot(data) {
+    if(data?.format!=="ue/explorer-actions"||data.version!==1||
+       !Array.isArray(data.structures)||!data.resources)throw Error("Unsupported action snapshot.");
+    const x=new Actions();
+    if(!["wood","stone"].every(k=>Number.isSafeInteger(data.resources[k])&&data.resources[k]>=0))throw Error("Invalid saved resources.");
+    for(const s of data.structures){
+      if(![s.x,s.z,s.height,s.progress,s.id,s.lat,s.lon].every(Number.isFinite)||s.progress<0||s.progress>1)throw Error("Invalid saved building.");
+    }
+    if(data.active && (!["sword","axe","mine","build"].includes(data.active.kind)||
+       ![data.active.time,data.active.duration].every(Number.isFinite)||
+       data.active.time<0||data.active.duration<=0))throw Error("Invalid saved action.");
+    x.resources={...data.resources};
+    x.structures=data.structures.map(s=>({...s}));
+    x.active=data.active?{...data.active}:null;
+    x.completed=data.completed||0;
+    x.message=typeof data.message==="string"?data.message:"復元しました";
+    return x;
+  }
+}
