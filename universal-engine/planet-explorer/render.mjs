@@ -198,7 +198,7 @@ export class ExplorerRenderer{
   this.dishMeshes={};
   for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
   this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
-  this.sceneActions=null;this.sceneFrontier=null;
+  this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
    this.fwResourceMeshes={};
    const colors={wood:[.40,.24,.15],stone:[.54,.59,.62],fiber:[.27,.64,.35],food:[.80,.31,.23],water:[.22,.59,.84]};
    for(const [kind,color] of Object.entries(colors)){
@@ -376,6 +376,20 @@ export class ExplorerRenderer{
      }
    }
  }
+ setFrontierGlb(sex,data){
+  if(!["male","female"].includes(sex)||!data?.chunks?.length)throw Error("Invalid GLB avatar");
+  const list=[];
+  try{for(const chunk of data.chunks)list.push(new Mesh(this.gl,chunk));}
+  catch(error){for(const m of list)m.destroy();throw error;}
+  for(const m of this.glbMeshes[sex]||[])m.destroy();
+  this.glbMeshes[sex]=list;return list.length;
+ }
+ drawFrontierAvatar(sex,vp,transform,unit,light){
+  const meshes=this.glbMeshes[sex];if(!meshes?.length)return false;
+  const mvp=multiply4(vp,multiply4(transform,rotateY(unit.yaw||0)));
+  for(const mesh of meshes)this.drawMesh(mesh,mvp,light,1,.83);
+  return true;
+ }
  drawFrontier(vp,light,s,radius){
    if(!this.sceneFrontier)return;
    for(const n of this.sceneFrontier.nodes){
@@ -510,7 +524,7 @@ export class ExplorerRenderer{
     cx:this.cx,cz:this.cz,groundM:feet,focusGroundM:focusGround,dt
   });
   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
-    lookAt(camera.eye,camera.target));
+    lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
   this.pickVP=vp;
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
@@ -523,7 +537,8 @@ export class ExplorerRenderer{
   const lifeAction=this.sceneLife?.activity;
   const playerMotion=lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
-  this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion);
+  if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,s,light))
+   this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion);
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
   const actors=this.squad?.agents||[];
@@ -541,9 +556,10 @@ export class ExplorerRenderer{
    if(!this.npcAnimators.has(agent.id))
     this.npcAnimators.set(agent.id,{animator:new SmoothAnimator(),expression:new ExpressionController()});
    const ctx=this.npcAnimators.get(agent.id);
-   this.drawArticulated(vp,translate(x,elevation+(unit.jumpY||0),z),unit,light,dt,
-    ctx.animator,ctx.expression,this.squad.getMotion(agent),
-     agent.id==="scout"?[.65,.86,1]:[1,.78,.65]);
+   const model=translate(x,elevation+(unit.jumpY||0),z);
+   if(!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light))
+    this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
+     this.squad.getMotion(agent),agent.id==="scout"?[.65,.86,1]:[1,.78,.65]);
   }
   if(camera.marker){
    const screen=projectScreen(vp,camera.actorPos);
@@ -552,7 +568,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes)])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
    this.gl.deleteProgram(this.program);
  }
 }
