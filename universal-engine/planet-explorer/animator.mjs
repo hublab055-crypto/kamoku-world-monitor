@@ -11,7 +11,8 @@ const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","sword","axe","mine","build"
+ "idle","walk","run","jump","sword","axe","mine","build",
+ "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
  if(!Number.isFinite(weight))throw TypeError("Invalid blend weight");
@@ -42,9 +43,10 @@ export class SmoothAnimator {
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
   const toolAction=["sword","axe","mine","build"].includes(action);
+  const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;
-  this.state=flight?"jump":toolAction?action:move?(speedMps>6.4?"run":"walk"):"idle";
+  this.state=flight?"jump":toolAction||lifeAction?action:move?(speedMps>6.4?"run":"walk"):"idle";
   const locomotion=samplePose({moving:move,phase,jumpHeight:0,action:"idle"});
   let target={...locomotion};
   if(flight)target=samplePose({jumpHeight:Math.max(.02,jumpHeight),action:"jump"});
@@ -58,8 +60,31 @@ export class SmoothAnimator {
     }
     target.tool=tool.tool;
   }
+  if(lifeAction&&!flight){
+   const sitting=["sit","read","eat"].includes(action),lying=["sleep","rest"].includes(action);
+   if(sitting||lying){
+    target.rootY=lying?-.62:-.37;
+    target.leftHipX=lying?-.20:-1.15;target.rightHipX=lying?-.20:-1.15;
+    target.leftKneeX=lying?.32:1.34;target.rightKneeX=lying?.32:1.34;
+    target.leftAnkleX=lying?0:-.28;target.rightAnkleX=lying?0:-.28;
+    target.torsoX=lying?-1.22:sitting?-.06:0;
+   }
+   if(action==="read"){
+    target.leftShoulderX=-.65;target.rightShoulderX=-.65;
+    target.leftElbowX=-.85;target.rightElbowX=-.85;target.headY=.09;
+   }else if(action==="eat"){
+    target.rightShoulderX=-.92;target.rightElbowX=-1.25;
+    target.leftShoulderX=-.45;target.leftElbowX=-.7;
+   }else if(action==="cook"||action==="wash"||action==="serve"){
+    target.torsoX=.13;target.leftShoulderX=-.82;target.rightShoulderX=-.91;
+    target.leftElbowX=-.68;target.rightElbowX=-.73;
+   }else if(action==="warm"){
+    target.leftShoulderX=-.38;target.rightShoulderX=-.38;
+    target.leftElbowX=-.75;target.rightElbowX=-.75;
+   }
+  }
   const gaze=range(faceDirection,-.48,.48);
-  target.headY=gaze;
+  target.headY=gaze+(action==="read"?.12:0);
   target.chestX=Math.sin(this.elapsed*2.4)*.012;
   // Tiny weight shifts through shoulders and pelvis; no world-space displacement.
   target.leftClavicleZ=move?Math.sin(phase+.65)*.055:.015;
