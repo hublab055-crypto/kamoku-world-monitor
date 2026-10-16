@@ -1,0 +1,180 @@
+import {ExplorerController} from "./controller.mjs";
+import {terrainSurface} from "./geo.mjs";
+
+/** Local single-player RTS party and deterministic, editable IF -> THEN rules.
+ * No external network, persistent background work or scripted code execution. */
+export const RULE_METRICS=Object.freeze(["wood","stone","houses","idle","distance","walked"]);
+export const RULE_OPERATORS=Object.freeze(["<","<=",">",">=","==","!="]);
+export const RULE_ACTIONS=Object.freeze(["gather_wood","gather_stone","build","move_rally","follow","patrol","wait"]);
+const TYPES=new Set(RULE_ACTIONS),METRICS=new Set(RULE_METRICS),OPS=new Set(RULE_OPERATORS);
+const names=[["player","開拓者"],["scout","斥候"],["artisan","職人"]];
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+export const emptyRule=()=>({enabled:false,metric:"wood",op:"<",value:5,action:"gather_wood"});
+const defaultRules=()=>Array.from({length:8},(_,i)=>i===0?
+ {enabled:true,metric:"wood",op:"<",value:8,action:"gather_wood"}:
+ i===1?{enabled:true,metric:"stone",op:"<",value:5,action:"gather_stone"}:emptyRule());
+export function sanitizeRule(raw){
+ if(!raw||typeof raw!=="object"||!METRICS.has(raw.metric)||!OPS.has(raw.op)||
+   !TYPES.has(raw.action)||typeof raw.enabled!=="boolean"||
+   !Number.isFinite(raw.value)||Math.abs(raw.value)>1e6)throw Error("Invalid RTS rule");
+ return {enabled:raw.enabled,metric:raw.metric,op:raw.op,value:raw.value,action:raw.action};
+}
+export function testCondition(a,op,b){
+ switch(op){
+ case "<":return a<b;case "<=":return a<=b;case ">":return a>b;
+ case ">=":return a>=b;case "==":return a===b;case "!=":return a!==b;
+ default:throw RangeError("Unknown comparison");
+ }
+}
+const finitePoint=p=>p&&[p.x,p.z].every(n=>Number.isFinite(n)&&Math.abs(n)<1e7);
+export class SquadEngine{
+ constructor(terrain,lead,actions,snapshot=null){
+  this.terrain=terrain;this.actions=actions;this.selected=new Set(["player"]);
+  this.agents=names.map(([id,name],i)=>{
+   let control=lead;
+   if(i){
+    const saved=lead.snapshot();
+    saved.x+=i===1?3:-3;saved.z+=i===1?1:3;
+    saved.moveTarget=null;
+    control=ExplorerController.fromSnapshot(terrain,saved);
+   }
+   return {id,name,control,auto:false,rules:defaultRules(),rally:{x:control.x,z:control.z},
+    task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機"};
+  });
+  if(snapshot)this.restore(snapshot);
+ }
+ get(id){return this.agents.find(a=>a.id===id)||null;}
+ selectedAgents(){return this.agents.filter(a=>this.selected.has(a.id));}
+ choose(id,{add=false}={}){
+  if(!this.get(id))return false;
+  if(!add)this.selected.clear();
+  if(add&&this.selected.has(id)&&this.selected.size>1)this.selected.delete(id);
+  else this.selected.add(id);
+  return true;
+ }
+ selectAll(){this.selected=new Set(this.agents.map(a=>a.id));}
+ setAuto(ids,enabled){
+  for(const id of ids){const a=this.get(id);if(a){a.auto=Boolean(enabled);if(!enabled)a.task=null;}}
+ }
+ setRule(id,index,raw){
+  const a=this.get(id);if(!a||!Number.isInteger(index)||index<0||index>=8)throw RangeError("Unknown slot");
+  a.rules[index]=sanitizeRule(raw);
+ }
+ setRally(ids,x,z){
+  if(!finitePoint({x,z}))throw RangeError("Invalid rally");
+  for(const id of ids){const a=this.get(id);if(a)a.rally={x,z};}
+ }
+ orderMove(ids,x,z){
+  if(!finitePoint({x,z}))return 0;
+  const targets=ids.map(id=>this.get(id)).filter(Boolean);
+  let moved=0;
+  targets.forEach((a,i)=>{
+   const col=i%3-1,row=Math.floor(i/3);
+   const tx=x+(targets.length>1?col*2.4:0),tz=z+(targets.length>1?row*2.4:0);
+   const p=a.control.locationAt(tx,tz),surface=terrainSurface(this.terrain,p.lat,p.lon);
+   if(!surface.water&&!surface.river&&a.control.setMoveTarget(tx,tz)){
+    a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
+   }
+  });
+  return moved;
+ }
+ halt(ids){
+  for(const id of ids){const a=this.get(id);if(a){a.control.clearMoveTarget();a.task=null;a.cooldown=1.5;a.order="hold";a.status="待機指示";}}
+ }
+ metrics(a){
+  const leader=this.get("player").control;
+  return {wood:this.actions.resources.wood,stone:this.actions.resources.stone,
+   houses:this.actions.structures.filter(s=>s.progress>=1).length,
+   idle:(!a.task&&!a.control.moveTarget&&!a.control.moving)?1:0,
+   distance:Math.hypot(a.control.x-leader.x,a.control.z-leader.z),
+   walked:a.control.totalDistanceM};
+ }
+ schedule(a,action){
+  if(action==="gather_wood"||action==="gather_stone"){
+   a.task={kind:action,remaining:action==="gather_wood"?1.45:1.65,duration:action==="gather_wood"?1.45:1.65};
+   a.order="auto";a.status=action==="gather_wood"?"木材を採集中":"石材を採集中";
+  }else if(action==="build"){
+   if(this.actions.active){a.cooldown=1;return;}
+   if(this.actions.start("build",a.control,(lat,lon)=>terrainSurface(this.terrain,lat,lon))){
+    a.order="auto";a.status="小屋を建築中";a.cooldown=5;
+   }else{a.status=this.actions.message;a.cooldown=3;}
+  }else if(action==="move_rally"||action==="patrol"){
+   const r=a.rally;
+   const shift=action==="patrol"?(a.patrolSide?6:-6):0;
+   if(a.control.setMoveTarget(r.x+shift,r.z)){a.order=action;a.status=action==="patrol"?"巡回中":"集合地点へ移動";a.patrolSide^=1;}
+   a.cooldown=1;
+  }else if(action==="follow"){
+   const lead=this.get("player").control;
+   const dx=lead.x-a.control.x,dz=lead.z-a.control.z;
+   if(a.id!=="player"&&Math.hypot(dx,dz)>4){
+    a.control.setMoveTarget(lead.x+(a.id==="scout"?2:-2),lead.z-2);
+    a.order="follow";a.status="隊長を追従";
+   }
+   a.cooldown=.7;
+  }else{
+   a.control.clearMoveTarget();a.order="hold";a.status="待機中";a.cooldown=2;
+  }
+ }
+ /** Call once per animation frame before the lead controller updates.
+  * Automatic commands never override direct input; manual orders have cooldown. */
+ advance(dt,{manualLead=false}={}){
+  if(!Number.isFinite(dt)||dt<0)throw TypeError("Invalid squad delta");
+  dt=clamp(dt,0,.1);
+  for(const a of this.agents){
+   if(a.id!=="player"){
+    a.control.altitudeM=this.get("player").control.altitudeM;
+    a.control.targetAltitudeM=a.control.altitudeM;
+   }
+   a.cooldown=Math.max(0,a.cooldown-dt);
+   if(a.task){
+    a.task.remaining=Math.max(0,a.task.remaining-dt);
+    if(!a.task.remaining){
+     const key=a.task.kind==="gather_wood"?"wood":"stone";
+     this.actions.resources[key]+=2;
+     a.task=null;a.status=key==="wood"?"木材 +2":"石材 +2";
+     a.cooldown=.35;
+    }
+   }
+   if(a.id==="player"&&manualLead){a.task=null;a.cooldown=1;}
+   if(a.auto&&a.control.nearGround&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!manualLead){
+    const metrics=this.metrics(a);
+    const rule=a.rules.find(r=>r.enabled&&testCondition(metrics[r.metric],r.op,r.value));
+    if(rule)this.schedule(a,rule.action);
+   }
+   if(a.id!=="player")a.control.update(dt);
+  }
+ }
+ getMotion(a){
+  const key=a.task?.kind;
+  return key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
+   {action:"idle",progress:0};
+ }
+ repositionAfterLanding(){
+  const lead=this.get("player").control;
+  this.agents.slice(1).forEach((a,i)=>{
+   a.control.setLanding(lead.lat,lead.lon);
+   a.control.x+=(i? -3:3);a.control.z+=(i?3:1);
+   const next=a.control.locationAt(a.control.x,a.control.z);
+   a.control.lat=next.lat;a.control.lon=next.lon;
+   a.control.altitudeM=lead.altitudeM;a.control.targetAltitudeM=lead.targetAltitudeM;
+   a.task=null;a.order="idle";a.rally={x:a.control.x,z:a.control.z};
+  });
+ }
+ snapshot(){
+  return {version:1,selected:[...this.selected],
+   agents:this.agents.map(a=>({id:a.id,auto:a.auto,rules:a.rules.map(r=>({...r})),
+    control:a.id==="player"?null:a.control.snapshot(),rally:{...a.rally},status:a.status}))};
+ }
+ restore(data){
+  if(!data||data.version!==1||!Array.isArray(data.agents)||data.agents.length!==3)throw Error("Invalid squad save");
+  for(const a of this.agents){
+   const s=data.agents.find(x=>x.id===a.id);
+   if(!s||!Array.isArray(s.rules)||s.rules.length!==8||typeof s.auto!=="boolean"||!finitePoint(s.rally))throw Error("Invalid saved actor");
+   a.rules=s.rules.map(sanitizeRule);a.auto=s.auto;a.rally={x:s.rally.x,z:s.rally.z};
+   if(a.id!=="player")a.control=ExplorerController.fromSnapshot(this.terrain,s.control);
+   a.status="復元済み";a.task=null;a.cooldown=0;
+  }
+  this.selected=new Set(Array.isArray(data.selected)?data.selected.filter(id=>this.get(id)):["player"]);
+  if(!this.selected.size)this.selected.add("player");
+ }
+}
