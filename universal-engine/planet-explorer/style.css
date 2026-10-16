@@ -276,3 +276,63 @@ body.immersive{overflow:hidden}
 /* These palettes follow simulated planetary illumination; not device clock time. */
 #world[data-sky="dusk"]{background:linear-gradient(180deg,#263f69 0%,#a66779 26%,#f1b68e 50%,#f8d4a1 100%)}
 #world[data-sky="night"]{background:linear-gradient(180deg,#060c22 0%,#142546 42%,#314367 100%)}
+
+/* v0.7d RTS: selectable character labels, overhead command bar, rule editor. */
+#rts-markers{position:absolute;inset:0;pointer-events:none;z-index:9}
+#rts-markers[hidden],.rts-label[hidden],.rts-controls[hidden],.auto-panel[hidden]{display:none!important}
+.rts-label{
+ position:absolute;transform:translate(-50%,-145%);color:#eafaff;
+ background:#153549e8;border:1px solid #a4d6e9;border-radius:9px;
+ padding:4px 7px;font-size:11px;font-weight:800;white-space:nowrap;
+ text-shadow:0 1px 2px #001a2a;box-shadow:0 1px 6px #0015229c
+}
+.rts-label.selected{background:#147a8f;border-color:#f5e5a2;box-shadow:0 0 0 2px #ffef8d5c}
+.rts-controls{
+ position:absolute;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:8px;right:8px;
+ z-index:11;display:flex;align-items:center;gap:5px;flex-wrap:wrap;
+ background:#0b293fcf;border:1px solid #5ca0b4;border-radius:10px;padding:6px;
+ backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)
+}
+.rts-controls button{color:#f2faff;background:#17516d;border:1px solid #6eb1c7;border-radius:8px;padding:6px 8px;min-height:38px;font-size:11px}
+.rts-controls button[aria-pressed=true]{background:#1a8b8b}
+.rts-controls span{font-size:11px;color:#edfaff;font-weight:700;padding:3px 5px}
+.auto-panel{
+ position:absolute;z-index:25;top:8px;left:8px;
+ width:min(550px,calc(100% - 16px));max-height:calc(100% - 16px);
+ overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;
+ background:#0a273bea;color:#e4f7fc;border:1px solid #73bac9;
+ box-shadow:0 8px 28px #000b;border-radius:12px;padding:12px;
+ backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)
+}
+.auto-title,.auto-head,.auto-footer{display:flex;gap:9px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.auto-title strong{font-size:16px}
+.auto-panel>p{font-size:11px;line-height:1.6;color:#c3dfe7;margin:10px 0}
+.auto-panel button,.auto-panel select,.auto-panel input[type=number]{
+ font-size:12px;background:#173e53;color:#eafbff;border:1px solid #669db0;
+ min-height:35px;border-radius:8px;padding:6px;max-width:100%
+}
+.auto-panel button:focus-visible,.auto-panel select:focus-visible,.auto-panel input:focus-visible{outline:2px solid #f9ea8c;outline-offset:2px}
+.auto-panel label{font-size:11px;color:#eafaff}
+.auto-head{justify-content:flex-start;gap:16px;margin:10px 0}
+.auto-head label{display:flex;align-items:center;gap:8px}
+.auto-head input[type=checkbox],.auto-rule input[type=checkbox]{width:19px;height:19px;accent-color:#42c3c5}
+.auto-actor-list{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.auto-actor-list button.current{background:#12768d;border-color:#bcf6fa}
+.auto-rule-list{display:flex;flex-direction:column;gap:6px}
+.auto-rule{display:grid;grid-template-columns:35px minmax(100px,1fr) 74px 80px minmax(130px,1.4fr);align-items:end;gap:5px;
+ background:#14374bcf;border:1px solid #37647b;border-radius:8px;padding:7px}
+.auto-rule label{display:flex;flex-direction:column;gap:3px}
+.auto-rule .rule-enable{flex-direction:row;align-items:center;align-self:center}
+.auto-rule input[type=number]{width:100%}
+.auto-footer{justify-content:flex-start;margin-top:10px}
+#auto-status{color:#a7e9d7}
+@media(max-width:760px){
+ .viewport-actions{max-width:calc(100% - 145px)}
+ .viewport-actions button{min-height:36px}
+ .rts-controls{bottom:calc(6px + env(safe-area-inset-bottom,0px))}
+ .rts-controls button{padding:5px 7px}
+ .auto-panel{top:4px;left:4px;width:calc(100% - 8px);max-height:calc(100% - 8px);padding:9px}
+ .auto-rule{grid-template-columns:31px minmax(66px,1fr) 53px 65px minmax(87px,1.1fr);gap:3px;padding:5px}
+ .auto-rule select,.auto-rule input[type=number]{font-size:11px;padding:4px 2px;min-width:0}
+ .auto-rule label{font-size:10px}
+}
