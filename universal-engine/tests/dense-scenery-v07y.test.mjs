@@ -1,14 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {VILLAGE_SITES,sceneryHash,patchSceneryHeight,planWorldScenery} from "../planet-explorer/world-scenery.mjs";
-import {buildSceneryMeshes} from "../planet-explorer/scenery-geometry.mjs";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "../planet-explorer/scenery-geometry.mjs";
 const forest={elevationM:440,category:"forest",water:false,river:false};
 const options={seed:77,cx:0,cz:0,radius:450,groundAt:()=>440,biomeAt:()=>forest};
 
 test("deterministic close-up forest and meadow are more than 10x the old 80-object ceiling",()=>{
   const first=planWorldScenery(options),second=planWorldScenery(options);
-  assert.ok(first.trees.length>=800,"at least 800 scattered trees/rocks");
-  assert.ok(first.grass.length>=8000,"dense ground cover");
+  assert.ok(first.trees.filter(n=>n.kind==="wood").length>=13000,">=10x the previous 1.3k trees");
+  assert.ok(first.trees.filter(n=>n.kind==="stone").length>=1100,">=10x previous scattered rocks");
+  assert.ok(first.grass.length>=130000,">=10x previous 13k grass blades");
   assert.equal(first.buildings.length,VILLAGE_SITES.length);
   assert.equal(first.buildings.length,12);
   assert.deepEqual(first.trees,second.trees);
@@ -42,7 +43,22 @@ test("terrain-conforming placement samples the rendered patch",()=>{
 });
 
 test("forest, grass, and all settlement geometries fit uint16 WebGL batches",()=>{
-  const scene=buildSceneryMeshes(planWorldScenery(options));
+  const plan=planWorldScenery(options);
+  // A bounded compatibility sample exercises the old baked mesh fallback.
+  // The main renderer now uses GPU instancing for the whole 10x population.
+  const sample={trees:plan.trees.slice(0,150),grass:plan.grass.slice(0,800),buildings:plan.buildings};
+  const scene=buildSceneryMeshes(sample);
+  const groups=buildSceneryInstances(plan);
+  assert.equal(groups.woods.reduce((n,g)=>n+g.count,0),plan.trees.length);
+  assert.equal(groups.meadow.reduce((n,g)=>n+g.count,0),plan.grass.length);
+  for(const group of [...groups.woods,...groups.meadow]){
+    assert.ok(group.count>0);
+    assert.equal(group.transforms.length,group.count*6);
+    assert.ok(group.transforms.every(Number.isFinite));
+    const proto=sceneryPrototype(group.kind);
+    assert.ok(proto.positions.length>0 && proto.indices.length>0);
+    assert.ok(proto.positions.length/3<65535);
+  }
   assert.ok(scene.woods.length>=1);
   assert.ok(scene.meadow.length>=1);
   assert.ok(scene.settlement.length>=1);
