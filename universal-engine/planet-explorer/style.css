@@ -643,3 +643,27 @@ body.immersive{overflow:hidden}
  .viewport-compact-bar #viewport-console-toggle{min-width:46px;min-height:42px;padding:3px 4px;font-size:10px}
 }
 @media(prefers-reduced-motion:reduce){.world-fx{transition:none!important;animation:none!important}}
+
+
+.game-console-command-form{display:flex;gap:5px;padding:5px;border-top:1px solid #4b6c7c}
+.game-console-command-form input{flex:1;min-width:0;background:#132e40;color:#e5f3f5;
+ border:1px solid #699ea9;border-radius:6px;padding:6px;font-size:12px}
+.game-console-command-form button{background:#236076;color:white;border:1px solid #81b0bc;
+ border-radius:6px;padding:5px 8px;font-size:11px}
+.world-fx:not(.fx-speech):before{content:"✦";position:absolute;z-index:-1;left:-17px;
+ top:-14px;font-size:15px;opacity:.8;color:currentColor;
+ animation:impactSpark .48s ease-out both;pointer-events:none}
+.world-fx:not(.fx-speech):after{content:"✧";position:absolute;z-index:-1;right:-17px;
+ bottom:-12px;font-size:17px;opacity:.8;color:currentColor;
+ animation:impactSpark .65s ease-out both;pointer-events:none}
+@keyframes impactSpark{
+ 0%{transform:scale(.15) rotate(-30deg);opacity:1}
+ 100%{transform:scale(1.35) rotate(18deg);opacity:0}
+}
+#world-hit-flash{position:absolute;inset:0;pointer-events:none;z-index:11;
+ background:radial-gradient(ellipse at center,transparent 35%,#e9323945 100%);
+ opacity:0;transition:opacity .08s ease-out}
+@media(prefers-reduced-motion:reduce){
+ .world-fx:before,.world-fx:after{animation:none!important}
+ #world-hit-flash{transition:none}
+}
