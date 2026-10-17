@@ -11,7 +11,7 @@ const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","sword","axe","mine","bow","guard","hit","build",
+ "idle","walk","run","jump","sword","spear","greatsword","axe","mine","bow","guard","hit","build",
  "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
@@ -42,7 +42,7 @@ export class SmoothAnimator {
   if(![dt,phase,speedMps,jumpHeight,progress,faceDirection].every(Number.isFinite)||dt<0)
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
-  const toolAction=["sword","axe","mine","bow","guard","hit","build"].includes(action);
+  const toolAction=["sword","spear","greatsword","axe","mine","bow","guard","hit","build"].includes(action);
   const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;
@@ -52,7 +52,7 @@ export class SmoothAnimator {
   if(!flight&&!toolAction&&!lifeAction){
    // Resting guard pose keeps armed hands slightly forward, without freezing the walk cycle.
    for(const side of ["left","right"]){
-    if(["sword","axe","pickaxe","bow"].includes(equipped?.[side])){
+    if(["sword","spear","greatsword","axe","pickaxe","bow"].includes(equipped?.[side])){
      const key=side+"ShoulderX";
      target[key]=target[key]*.35-.48;
      target[side+"ElbowX"]=-.23;
@@ -68,7 +68,7 @@ export class SmoothAnimator {
           "leftShoulderZ","rightShoulderZ","leftElbowX","rightElbowX",
           "leftWristX","rightWristX"].includes(key))target[key]=tool[key];
     }
-    if(hand==="left"){
+    if(hand==="left"&&!["spear","greatsword"].includes(action)){
       // Mirror the tool gesture at the shoulder / elbow / wrist. Leg locomotion
       // and other life poses are unaffected by the wielding hand.
       for(const segment of ["ShoulderX","ShoulderZ","ElbowX","WristX"]){
@@ -80,7 +80,7 @@ export class SmoothAnimator {
        }
       }
     }
-    if(hand==="left")target.torsoY=-(target.torsoY||0);
+    if(hand==="left"&&!["spear","greatsword"].includes(action))target.torsoY=-(target.torsoY||0);
     target.tool=tool.tool;
   }
   if(lifeAction&&!flight){
@@ -126,7 +126,7 @@ export class SmoothAnimator {
     }
   }
   // Fast cuts need low latency so the head-height windup and impact remain visible.
-  const tau=toolAction&&["sword","axe"].includes(action)?Math.min(.045,this.actionTau):this.actionTau;
+  const tau=toolAction&&["sword","spear","greatsword","axe"].includes(action)?Math.min(.045,this.actionTau):this.actionTau;
   const a=alpha(elapsed,flight?this.actionTau:this.state==="idle"?.24:toolAction?tau:this.walkTau);
   this.pose=blendPose(this.pose,target,a);
   // Tool attachment switches on immediately at action start and detaches at finish.
