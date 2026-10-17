@@ -19,6 +19,7 @@ import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 import {bindViewportGestures} from "./viewport-gestures.mjs";
+import {ArrowProjectiles} from "./arrow-projectiles.mjs";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -29,7 +30,7 @@ const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -47,7 +48,7 @@ function saveBookJournal(){
  try{localStorage.setItem(BOOK_JOURNAL_KEY,JSON.stringify(books.snapshot()));}
  catch(_){log("しおりの自動保存ができません。ゲーム全体の保存をお試しください。");}
 }
-let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,autoActorId="player";
+let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,syncMode=false,autoActorId="player";
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
@@ -55,7 +56,7 @@ let frontierUI=null,worldUI=null;
 const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
 const keys=new Set(),touches=new Set();
-const manualHarvest=new Map();
+const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
@@ -65,7 +66,7 @@ function log(msg){
 }
 function init(saved=null){
  try{
-  manualHarvest.clear();viewportGestures?.cancel();
+  manualHarvest.clear();pendingArrowPickup.clear();viewportGestures?.cancel();
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
@@ -73,6 +74,8 @@ function init(saved=null){
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
   battle=new BattleTest();
+   projectiles=new ArrowProjectiles(saved?.v0_7t?.projectiles||null);
+   syncMode=Boolean(saved?.v0_7t?.syncMode);
    access=new HutAccess(actions,{insideId:saved?.v0_7e?.insideId??null});
    books=new BookCollection(saved?.v0_7f||loadBookJournal());
    const journal=!saved?loadLifeJournal():null;
@@ -100,15 +103,10 @@ function init(saved=null){
     ExpressionController.fromSnapshot(saved.v0_7b.expression):new ExpressionController();
   syncCustomizationControls();
   renderer.sceneActions=actions;renderer.sceneLife=life;renderer.battle=battle;
+   renderer.arrowWorld=projectiles;
    renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
-  squad.onEquippedImpact=(agent,task)=>{
-   for(const hit of battle.hitArrow(agent.control,{targetId:task.targetId})){
-    log("🏹 "+agent.name+"："+hit.message);
-    worldUI?.float({kind:hit.guarded?"guard":"damage",
-     text:"−"+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
-   }
-  };
+  squad.onEquippedImpact=(agent,task)=>launchArrow(agent,task);
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
   frontierUI?.restore(saved?.v0_7i||null);
@@ -160,7 +158,7 @@ function doFrame(t){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else controller.update(dt,input);
-  if(running)processHarvestOrders();
+  if(running){processHarvestOrders();processArrowPickups();}
   const transition=access.guard(previous,controller);
    if(transition==="enter")log("🏠 ドアを通って小屋に入りました。");
    if(transition==="exit")log("🌿 ドアから小屋の外に出ました。");
@@ -176,9 +174,14 @@ function doFrame(t){
    frontierUI?.updateTarget();
    const attackInProgress=actions.active;
    const completed=actions.advance(dt);
+   if(running&&attackInProgress?.kind==="bow"&&!attackInProgress.arrowReleased&&
+     attackInProgress.time/attackInProgress.duration>=.81){
+    attackInProgress.arrowReleased=true;
+    launchArrow(squad.get("player"),attackInProgress);
+   }
    if(running&&battle){
     battle.advance(dt,controller,attackInProgress);
-    for(const hit of battle.resolveAttack(attackInProgress,controller)){
+    for(const hit of attackInProgress?.kind==="bow"?[]:battle.resolveAttack(attackInProgress,controller)){
      log("🎯 "+hit.message);
      worldUI?.float({kind:hit.guarded?"guard":"damage",
       text:(hit.guarded?"🛡️ −":"−")+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
@@ -189,6 +192,22 @@ function doFrame(t){
      renderer.playerHitSeconds=.48;
     }
     if(renderer.playerHitSeconds>0)renderer.playerHitSeconds=Math.max(0,renderer.playerHitSeconds-dt);
+   }
+   if(running&&projectiles){
+    const events=projectiles.advance(dt,{
+     groundHeight:terrainAt,
+     trees:renderer.resourceNodes||[],
+     buildings:actions.structures,
+     enemies:battle.enemies,
+     onEnemyHit:(enemy,damage)=>battle.damage(enemy,damage)
+    });
+    for(const event of events){
+     if(event.hit){
+      log("🎯 "+event.hit.message);
+      worldUI?.float({kind:event.hit.guarded?"guard":"damage",
+       text:"−"+event.hit.damage+(event.hit.defeated?" ✦":""),enemyId:event.hit.id,duration:1.4});
+     }else if(event.surface==="target")log("🎯 的に矢が命中しました。タップして回収できます。");
+    }
    }
    if(running){
     for(const [kind,label] of Object.entries(resourceNames)){
@@ -268,6 +287,8 @@ function updateHUD(){
  frontierUI?.quick();
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
  $("rts-multi").setAttribute("aria-pressed",String(rtsMulti));
+  $("rts-sync").setAttribute("aria-pressed",String(syncMode));
+  $("rts-sync").textContent=syncMode?"🔗 シンクロON":"🔗 シンクロOFF";
  $("rts-rally").setAttribute("aria-pressed",String(rallyPicking));
  $("rts-rally").textContent=rallyPicking?"地面をタップ":"集合地点";
  $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?"歩行可能":"降下中／宇宙視点";
@@ -300,7 +321,8 @@ $("save").addEventListener("click",()=>{
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
    v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
-    v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot()};
+    v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot(),
+    v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -389,6 +411,45 @@ for(const button of document.querySelectorAll("[data-move]")){
  for(const action of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(action,up);
 }
 /* Shared canvas gestures for TPV and RTS. */
+function terrainAt(x,z){
+ const place=controller.locationAt(x,z);
+ return Math.max(0,terrainSurface(terrain,place.lat,place.lon).elevationM);
+}
+function launchArrow(agent,plan={}){
+ if(!agent||!projectiles)return null;
+ const enemy=battle?.enemies.find(e=>e.id===plan.targetId&&e.hp>0);
+ const point=plan.targetPoint|| (enemy?{x:enemy.x,y:terrainAt(enemy.x,enemy.z)+(enemy.height||1.8)*.65,z:enemy.z}:null);
+ const shot=projectiles.launch({shooterId:agent.id,actor:agent.control,
+  groundY:terrainAt(agent.control.x,agent.control.z),target:point,mode:plan.trajectory||"auto"});
+ if(!shot)log("矢を発射できませんでした（画面内の矢が多すぎます）。");
+ return shot;
+}
+function orderArrowPickup(arrow){
+ const who=rtsMode?squad.selectedAgents()[0]:squad.get("player");
+ if(!who)return;
+ const distance=Math.hypot(who.control.x-arrow.x,who.control.z-arrow.z);
+ if(distance>3.0){
+  if(!squad.orderMove([who.id],arrow.x,arrow.z)){log("矢の位置まで移動できません。");return;}
+  pendingArrowPickup.set(who.id,arrow.id);
+  log("➶ "+who.name+"が矢の回収地点に向かいます。");
+ }else collectArrow(who,arrow.id);
+}
+function collectArrow(who,id){
+ if(!projectiles.embedded.some(a=>a.id===id))return;
+ const result=frontierUI?.addRecoveredArrow(who.id);
+ if(!result?.ok){log("矢筒が満杯で回収できません。");return;}
+ projectiles.recover(id);pendingArrowPickup.delete(who.id);
+ log("➶ "+who.name+"が矢を1本回収しました。");
+}
+function processArrowPickups(){
+ for(const [id,arrowId] of [...pendingArrowPickup]){
+  const who=squad?.get(id),arrow=projectiles?.embedded.find(a=>a.id===arrowId);
+  if(!who||!arrow){pendingArrowPickup.delete(id);continue;}
+  if(Math.hypot(who.control.x-arrow.x,who.control.z-arrow.z)<=3){
+   who.control.clearMoveTarget();collectArrow(who,arrowId);
+  }else if(!who.control.moveTarget)pendingArrowPickup.delete(id);
+ }
+}
 function cancelHarvestOrder(id){
  const a=squad?.get(id);
  if(a)a.manualHarvest=false;
@@ -449,6 +510,8 @@ function screenActorAt(x,y){
 }
 function handleSceneTap({x,y,shiftKey=false}){
  if(!renderer||!controller?.nearGround)return;
+ const arrow=renderer.pickArrow(x,y);
+ if(arrow){orderArrowPickup(arrow);return;}
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
  if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
  if(!rtsMode){
@@ -469,7 +532,8 @@ function handleSceneTap({x,y,shiftKey=false}){
 function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(!renderer||!controller?.nearGround)return;
  // Object double-taps must not send unintended ground movement.
- if(frontierUI?.selectTargetAt(x,y)||renderer.pickResource(x,y)||
+ if(frontierUI?.selectTargetAt(x,y)||renderer.pickArrow(x,y)||renderer.pickTarget(x,y)||
+   renderer.pickResource(x,y)||
    screenActorAt(x,y)||renderer.pickLife(x,y)||renderer.pickDoor(x,y))return;
  const ground=renderer.pickGround(x,y);
  if(!ground){log("地面を指定できません。");return;}
@@ -990,6 +1054,8 @@ $("viewport-rts").addEventListener("click",toggleRts);
 $("toolbar-rts").addEventListener("click",toggleRts);
 $("rts-all").addEventListener("click",()=>{squad.selectAll();autoActorId="player";renderAutoEditor();updateHUD();});
 $("rts-multi").addEventListener("click",()=>{rtsMulti=!rtsMulti;updateHUD();});
+$("rts-sync").addEventListener("click",()=>{syncMode=!syncMode;updateHUD();
+ log(syncMode?"🔗 シンクロモード：選択中の弓装備者が同時に射撃します。":"🔗 個別操作に戻しました。");});
 $("rts-rally").addEventListener("click",()=>{
  rallyPicking=!rallyPicking;updateHUD();
 });
@@ -1091,7 +1157,7 @@ lifeUI=installLifestyleUI({
   onEquipHand:(kind,hand)=>frontierUI?.equipHandFromInventory(kind,hand)||{ok:false,message:"まだ装備できません。"}
  });
  frontierUI=installFrontierInteractions({
- get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,rtsMode,
+ get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,projectiles,rtsMode,syncMode,
   manualInputActive:Math.abs(stick.x)+Math.abs(stick.y)>.16||["w","a","s","d","ArrowUp","ArrowDown"].some(k=>keys.has(k)||touches.has(k)),
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal,
