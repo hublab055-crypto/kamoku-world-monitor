@@ -113,7 +113,9 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
           const wz=(iz+(Math.floor(q/4)+.20+v*.60)/3)*stride;
           const lx=wx-cx,lz=wz-cz;
           if(lx*lx+lz*lz>reach*reach||!clearOfBuildings(wx,wz))continue;
-          grass.push({x:lx,z:lz,y:groundAt(lx,lz),scale:.24+.64*h,
+          const bladeY=groundAt(lx,lz);
+          if(bladeY<.15||bladeY>2800)continue;
+          grass.push({x:lx,z:lz,y:bladeY,scale:.24+.64*h,
             rotation:v*6.28318,tint:sceneryHash(ix+slot*3,iz-slot*5,seed)});
         }
       }
