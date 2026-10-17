@@ -64,6 +64,8 @@ export class ViewportGestures {
   }
   cancel(id=null){
     if(id===null){this.points.clear();this.lastTap=null;this.blockUntilClear=false;this.pinchDistance=0;return;}
+    // A late cancel/lost-capture after a completed tap is not a new gesture.
+    if(!this.points.has(id))return;
     this.points.delete(id);this.lastTap=null;
     if(!this.points.size){this.blockUntilClear=false;this.pinchDistance=0;}
   }
