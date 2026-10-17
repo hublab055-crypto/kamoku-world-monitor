@@ -1026,10 +1026,16 @@ export class ExplorerRenderer{
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
   const lifeAction=this.sceneLife?.activity;
-  const playerMotion=lifeAction&&lifeAction!=="idle"?
+  const baseMotion=lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
+  const hitActive=(this.playerHitSeconds||0)>0;
+  const hitMotion=hitActive&&!["sword","axe","bow","guard"].includes(baseMotion.action);
+  const playerMotion=hitMotion?
+   {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
+   baseMotion;
+  const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,s,light,dt,playerMotion,'player'))
-   this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion,[1,1,1],"player");
+   this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
   const actors=this.squad?.agents||[];
