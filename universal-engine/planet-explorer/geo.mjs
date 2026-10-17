@@ -1,4 +1,5 @@
 import {noise3} from "../planet/planet-core.mjs";
+import {frontierValleyAt} from "./landscape-relief.mjs";
 
 /** Coordinates and terrain queries shared by orbital and ground views.
  * Native planet latitude/longitude and metres; all render-scale decisions are adapters.
@@ -92,8 +93,14 @@ export function terrainSurface(terrain,lat,lon){
     landform==="mountain"?Math.abs(ridgeNoise)*48:
     landform==="canyon"?-Math.abs(ridgeNoise)*48-10:
     landform==="river"?-7:0;
+  // Apply the playable river valley after planetary geomorphology and before
+  // player earthworks. Surface, camera, picking and movement share this height.
+  const regional=frontierValleyAt(terrain,lat,lon,Math.max(.1,base.elevationM+detail*taper+relief));
   const deformation=terrain.earthworks?.deltaAt(lat,lon)||0;
-  return {...base,landform,elevationM:Math.max(.1,base.elevationM+detail*taper+relief+deformation)};
+  return {...base,landform:regional?.landform||landform,
+    river:Boolean(base.river||regional?.river),
+    waterLevelM:regional?.waterLevelM??null,
+    elevationM:Math.max(.1,(regional?.elevationM??base.elevationM+detail*taper+relief)+deformation)};
 }
 export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
   if(!Number.isFinite(radiusM)||radiusM<15||radiusM>150000||!Number.isSafeInteger(resolution)||resolution<4||resolution>128) throw new RangeError("Invalid patch resolution or radius");
