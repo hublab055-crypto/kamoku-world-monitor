@@ -257,7 +257,7 @@ function updateHUD(){
  $("camera-mode").value=renderer.cameraController.mode;
  $("mode-stick").setAttribute("aria-pressed",String(controlMode==="stick"));
  $("mode-tap").setAttribute("aria-pressed",String(controlMode==="tap"));
- $("viewport-controls").textContent=controlMode==="stick"?"● スティック":"◎ タップ移動";
+ $("viewport-controls").textContent=controlMode==="stick"?"● スティック":"◎ ダブルタップ";
  $("viewport-controls").setAttribute("aria-label","移動方法の切替。現在："+(controlMode==="stick"?"スティック":"タップ"));
  $("stick-area").hidden=rtsMode||controlMode!=="stick"||!isSurface;
  $("action-pad").hidden=rtsMode||!isSurface;
@@ -276,8 +276,9 @@ function updateHUD(){
  $("walk-note").textContent=renderer.cameraController.mode==="free"?
   "自由視点：スティック/WASDでカメラ移動。画面ドラッグで視線を回転。人物の位置は変わりません。":
   !isSurface?"地表へ降下すると歩行操作が有効になります。":
-  controlMode==="tap"?"地面をタップすると自動で歩きます。ドラッグは視点回転です。":
-  "左下の仮想スティックかWASDで移動。右下のボタンでジャンプや道具操作。";
+  rtsMode?"RTS：人物・敵・資源は1回タップ、地面はダブルタップで移動指示。2本指で拡大縮小。":
+   controlMode==="tap"?"地面をダブルタップで移動。1本指ドラッグで視点回転、2本指で拡大縮小。":
+  "スティック/WASDで移動。地面をダブルタップで目的地設定、2本指ピンチで拡大縮小。";
 }
 function setAltitude(m){
  controller.targetAltitude(m);
@@ -977,7 +978,7 @@ function toggleRts(){
   setCameraMode("tactical");
   renderer.cameraController.setValue("tacticalHeightM",45);
   setControlMode("tap");
-  log("⚓ RTS：人物をタップして選択、地面をタップして移動。全員選択も可能です。");
+  log("⚓ RTS：人物・敵・資源はタップ、地面はダブルタップで移動。ピンチで拡大縮小。");
  }else{
   rtsMode=false;rtsMulti=false;rallyPicking=false;
   setCameraMode(rtsPreviousCamera==="tactical"?"follow":rtsPreviousCamera);
@@ -993,6 +994,7 @@ $("rts-rally").addEventListener("click",()=>{
  rallyPicking=!rallyPicking;updateHUD();
 });
 $("rts-stop").addEventListener("click",()=>{
+ for(const id of squad.selected)cancelHarvestOrder(id);
  squad.halt([...squad.selected]);renderAutoEditor();updateHUD();log("選択した人物の移動と自動行動を停止しました。");
 });
 function commandRtsTap(clientX,clientY,shift=false){
