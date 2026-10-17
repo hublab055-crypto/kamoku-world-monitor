@@ -7,8 +7,8 @@ export const ATTACK_VARIANTS=Object.freeze(["overhead","sweep","thrust","combo"]
 export function actionDuration(kind,variant="overhead"){
  if(kind==="sword")return variant==="combo"?1.42:.58;
  if(kind==="axe")return variant==="combo"?1.38:.78;
- if(kind==="spear")return variant==="combo"?1.63:variant==="thrust"?.72:.89;
- if(kind==="greatsword")return variant==="combo"?1.79:1.05;
+ if(kind==="spear")return variant==="combo"?1.67:variant==="thrust"?.80:variant==="sweep"?1.00:1.12;
+ if(kind==="greatsword")return variant==="combo"?2.15:variant==="thrust"?1.08:variant==="sweep"?1.38:1.47;
  return {mine:1.65,bow:1.62,guard:1.2,build:4.3}[kind]??0;
 }
 function distanceMeters(a,b,radius){
