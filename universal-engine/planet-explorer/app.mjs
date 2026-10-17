@@ -106,7 +106,16 @@ function init(saved=null){
    renderer.arrowWorld=projectiles;
    renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
-  squad.onEquippedImpact=(agent,task)=>launchArrow(agent,task);
+  squad.onEquippedImpact=(agent,task)=>{
+    if(task.kind==="equipped_bow"){launchArrow(agent,task);return;}
+    const weapon=task.kind.slice("equipped_".length);
+    const hits=battle?.hitWeapon(agent.control,weapon,task.style||task.variant)||[];
+    for(const hit of hits){
+     log("🎯 "+agent.name+"： "+hit.message);
+     worldUI?.float({kind:hit.guarded?"guard":"damage",
+      text:(hit.guarded?"🛡️ −":"−")+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
+    }
+   };
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
   frontierUI?.restore(saved?.v0_7i||null);
