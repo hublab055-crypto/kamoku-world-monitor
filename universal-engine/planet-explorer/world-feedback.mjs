@@ -23,6 +23,8 @@ export class WorldFeedback{
   return event;
  }
  speech(actorId,text,duration=3.4){
+  // A character speaks one line at a time, not several overlapping bubbles.
+  this.events=this.events.filter(e=>!(e.kind==="speech"&&e.actorId===actorId));
   return this.emit({kind:"speech",actorId,text,duration});
  }
  advance(dt){
@@ -36,7 +38,7 @@ export class WorldFeedback{
  layout({actors=[],enemies=[],player=null,width=1,height=1}={}){
   const byId=new Map(actors.filter(a=>a?.onScreen).map(a=>[a.id,a]));
   const byEnemy=new Map(enemies.filter(e=>e?.onScreen).map(e=>[e.id,e]));
-  const out=[];
+  const out=[],stacks=new Map();
   for(const e of this.events){
    let pt=e.enemyId!=null?byEnemy.get(e.enemyId):null;
    if(!pt&&e.actorId)pt=byId.get(e.actorId);
@@ -44,9 +46,12 @@ export class WorldFeedback{
    if(!pt&&e.actorId==="player")pt=byId.get("player")||null;
    if(!pt||!pt.onScreen||!Number.isFinite(pt.u)||!Number.isFinite(pt.v))continue;
    const normalized=clamp(e.age/e.ttl,0,1);
+   const anchor=e.enemyId!=null?"enemy:"+e.enemyId:e.actorId||"world";
+   const stack=e.kind==="speech"?0:(stacks.get(anchor)||0);
+   if(e.kind!=="speech")stacks.set(anchor,stack+1);
    const stagger=(e.id%3-1)*16;
    out.push({...e,screenX:clamp(pt.u*width+stagger,34,Math.max(34,width-34)),
-    screenY:clamp(pt.v*height-12-normalized*(e.kind==="speech"?8:46),
+    screenY:clamp(pt.v*height-12-stack*24-normalized*(e.kind==="speech"?8:46),
      38,Math.max(38,height-60)),opacity:e.kind==="speech"?
       clamp((1-normalized)*4,0,1):clamp((1-normalized)*2.6,0,1),
     color:COLORS[e.kind]});
