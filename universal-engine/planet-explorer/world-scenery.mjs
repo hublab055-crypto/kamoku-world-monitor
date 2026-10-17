@@ -52,7 +52,8 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   if(radius>4100)return {trees,grass,buildings};
   const reach=Math.min(radius*.87,850);
   // A consistent cell grid: no popping/random reshuffle when panning.
-  const cell=17; // Stable world-space tree spacing at every zoom level
+  const cell=17; // Retain every existing world cell and tree ID.
+  const densityBoost=11; // Parent + 10 more in near field; >=10x after clearing paths.
   const xMin=Math.floor((cx-reach)/cell),xMax=Math.ceil((cx+reach)/cell);
   const zMin=Math.floor((cz-reach)/cell),zMax=Math.ceil((cz+reach)/cell);
   for(let iz=zMin;iz<=zMax;iz++)for(let ix=xMin;ix<=xMax;ix++){
@@ -70,10 +71,23 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     if(roll>density*(distance>430?.09:1))continue;
     const variation=sceneryHash(ix+97,iz-63,seed);
     const type=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
-    trees.push({id:"vegetation-"+ix+"-"+iz,type,kind:type==="boulder"?"stone":"wood",
-      name:type==="boulder"?"岩":"木",x:ax,z:az,localX:x,localZ:z,
-      elevationM:groundAt(x,z),scale:type==="boulder"?.68+jitter*.7:.75+jitter*.62,
-      rotation:choice*6.28318});
+    // Preserve original coordinates as slot zero. Extra slots use a stable
+    // 4x3 subcell lattice so a forest becomes dense without random clumping.
+    const slots=distance<=430?densityBoost:1;
+    for(let slot=0;slot<slots;slot++){
+      const gx=slot?slot-1:0,noiseA=sceneryHash(ix*13+slot*17,iz*7-slot,seed),
+        noiseB=sceneryHash(ix*5-slot*11,iz*19+slot*3,seed);
+      const wx=slot?(ix+((gx%4)+.18+noiseA*.64)/4)*cell:ax;
+      const wz=slot?(iz+(Math.floor(gx/4)+.18+noiseB*.64)/3)*cell:az;
+      if(slot&&!clearOfBuildings(wx,wz))continue;
+      const lx=wx-cx,lz=wz-cz;
+      if(lx*lx+lz*lz>reach*reach)continue;
+      trees.push({id:"vegetation-"+ix+"-"+iz+(slot?"-"+slot:""),type,
+        kind:type==="boulder"?"stone":"wood",name:type==="boulder"?"岩":"木",
+        x:wx,z:wz,localX:lx,localZ:lz,elevationM:groundAt(lx,lz),
+        scale:(type==="boulder"?.68:.75)+(slot?noiseA:jitter)*.62,
+        rotation:(slot?noiseB:choice)*6.28318});
+    }
   }
   // Meadow clumps use a denser mesh but only nearby; high-altitude views
   // show the terrain's vertex colors without generating unnecessary blades.
@@ -88,7 +102,20 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         if(Math.hypot(x,z)>430&&a>.10)continue;
         const y=groundAt(x,z);
         if(y<.15||y>2800)continue;
-        grass.push({x,z,y,scale:.30+.66*a,rotation:b*6.28318,tint:sceneryHash(ix+21,iz+81,seed)});
+        const tint=sceneryHash(ix+21,iz+81,seed);
+        grass.push({x,z,y,scale:.30+.66*a,rotation:b*6.28318,tint});
+        // Additional blades occupy their own deterministic subcells; their
+        // GPU geometry is shared via instancing rather than rebuilt per blade.
+        if(Math.hypot(x,z)<=430)for(let slot=1;slot<densityBoost;slot++){
+          const q=slot-1,h=sceneryHash(ix*7+slot*13,iz*11-slot*3,seed),
+            v=sceneryHash(ix*17-slot*19,iz*3+slot*5,seed);
+          const wx=(ix+((q%4)+.20+h*.60)/4)*stride;
+          const wz=(iz+(Math.floor(q/4)+.20+v*.60)/3)*stride;
+          const lx=wx-cx,lz=wz-cz;
+          if(lx*lx+lz*lz>reach*reach||!clearOfBuildings(wx,wz))continue;
+          grass.push({x:lx,z:lz,y:groundAt(lx,lz),scale:.24+.64*h,
+            rotation:v*6.28318,tint:sceneryHash(ix+slot*3,iz-slot*5,seed)});
+        }
       }
   }
   for(const site of VILLAGE_SITES){
