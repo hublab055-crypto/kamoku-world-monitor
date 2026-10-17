@@ -84,6 +84,27 @@ function cone(b,x,y,z,h,r,col,sides=7){
 
 // Local equipment geometries are in metres; character forward is +Z.
 export const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
+function spearGeometry(){
+ const b=builder(),wood=[.43,.27,.13],leather=[.22,.17,.12],steel=[.78,.84,.87];
+ box(b,0,-.38,0,.027,1.97,.027,wood);
+ box(b,0,-.28,0,.039,.38,.036,leather);
+ box(b,0,1.55,0,.052,.14,.044,steel);
+ cone(b,0,1.67,0,.48,.083,steel,8);
+ for(const x of [-.08,.08])cone(b,x,1.61,0,.18,.038,steel,6);
+ return b;
+}
+function greatswordGeometry(){
+ const b=builder(),leather=[.28,.17,.11],iron=[.49,.52,.56],steel=[.80,.85,.92],edge=[.91,.93,.96];
+ box(b,0,-.52,0,.040,.77,.041,leather);
+ box(b,0,-.57,0,.087,.085,.073,iron);
+ box(b,0,.21,0,.33,.070,.060,iron);
+ for(const x of [-.31,.31])cone(b,x,.22,0,.12,.035,iron,6);
+ box(b,0,.30,0,.128,1.10,.030,steel);
+ for(const x of [-.125,.125])box(b,x,.33,0,.018,1.03,.032,edge);
+ box(b,0,.32,.032,.016,1.10,.008,iron);
+ cone(b,0,1.39,0,.34,.128,edge,6);
+ return b;
+}
 function shieldGeometry(){
  const b=builder(),face=[.36,.43,.49],rim=[.79,.68,.43],center=[.64,.67,.72];
  box(b,0,-.10,.06,.23,.55,.035,face);
@@ -512,7 +533,9 @@ export class ExplorerRenderer{
     }
     this.tools[tool]=new Mesh(gl,b);
   }
-  this.tools.bow=new Mesh(gl,bowGeometry());
+  this.tools.spear=new Mesh(gl,spearGeometry());
+   this.tools.greatsword=new Mesh(gl,greatswordGeometry());
+   this.tools.bow=new Mesh(gl,bowGeometry());
   this.tools.shield=new Mesh(gl,shieldGeometry());
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
@@ -709,9 +732,11 @@ export class ExplorerRenderer{
    }
    const equipment=this.handEquipment?.[actorId]||{};
    const activeHand=motion?.hand||this.actionHand?.[actorId]||"right";
+    const paired=["spear","greatsword"].includes(equipment.right)&&equipment.left===equipment.right;
    for(const hand of ["right","left"]){
     // The other hand must be free to place the arrow and draw the bowstring.
-    if(motion?.action==="bow"&&hand!==activeHand)continue;
+    if(paired&&hand==="left")continue;
+     if(motion?.action==="bow"&&hand!==activeHand)continue;
     const kind=hand===activeHand&&pose.tool?pose.tool:equipment[hand];
     if(!this.tools[kind])continue;
     const wrist=joints[hand+"Wrist"];if(!wrist)continue;
@@ -898,8 +923,10 @@ export class ExplorerRenderer{
     -c[0]*x,-c[1]*x,-c[2]*x,1
    ];
    const activeHand=motion?.hand||this.actionHand?.[id]||"right";
+    const paired=["spear","greatsword"].includes(gear.right)&&gear.left===gear.right;
    for(const hand of ["right","left"]){
-    if(motion?.action==="bow"&&hand!==activeHand)continue;
+    if(paired&&hand==="left")continue;
+     if(motion?.action==="bow"&&hand!==activeHand)continue;
     const item=gear[hand],mesh=this.tools[item];
     if(!mesh)continue;
     const right=hand==="right";
@@ -1110,7 +1137,7 @@ export class ExplorerRenderer{
   const baseMotion=lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
   const hitActive=(this.playerHitSeconds||0)>0;
-  const hitMotion=hitActive&&!["sword","axe","bow","guard"].includes(baseMotion.action);
+  const hitMotion=hitActive&&!["sword","spear","greatsword","axe","bow","guard"].includes(baseMotion.action);
   const playerMotion=hitMotion?
    {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
    baseMotion;
