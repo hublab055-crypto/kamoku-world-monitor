@@ -602,7 +602,7 @@ function confirmOrbitLanding(){
   access.insideId=null;access.pendingDoorId=null;
   squad?.repositionAfterLanding();
   controller.targetAltitude(2.5);
-  renderer.patchKey=null;renderer.orbitPan=null;renderer.lastOrbitCenter=null;renderer.interiorBuildingId=null;
+  renderer.patchKey=null;renderer.setOrbitLandingFocus(site.lat,site.lon);renderer.interiorBuildingId=null;
   renderer.cameraController.resetFreeAnchor(controller,
    terrainSurface(terrain,site.lat,site.lon).elevationM);
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
