@@ -30,7 +30,8 @@ export function enemyMotion(enemy){
   pose.bodyX=.22*impact*(1-restore);
   pose.headX=-.10*impact;
  }else if(state==="guard"){
-  const up=ease(t/.16),down=ease((t-.38)/.14);
+  const hold=Math.max(.52,Number(enemy?.guardHold)||.52);
+   const up=ease(t/.16),down=ease((t-(hold-.14))/.14);
   const weight=up*(1-down);
   pose.bodyX=-.16*weight;pose.bodyY=.10*weight;
   pose.leftArmX=-1.48*weight-.22*(1-weight);
