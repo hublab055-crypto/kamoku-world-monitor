@@ -7,7 +7,30 @@
  * A height field cannot form caves/overhangs. River water is static visually;
  * it is not a fluid dynamics solver.
  */
-import {geoLocal,geoOffset} from "./geo.mjs";
+// Independent spherical helpers avoid circular dependencies with geo.mjs.
+const DEG=Math.PI/180,RAD=180/Math.PI;
+const normal=(la,lo)=>[Math.cos(la*DEG)*Math.cos(lo*DEG),Math.sin(la*DEG),Math.cos(la*DEG)*Math.sin(lo*DEG)];
+const basis=(la,lo)=>{
+ const a=la*DEG,b=lo*DEG;
+ return {east:[-Math.sin(b),0,Math.cos(b)],
+  north:[-Math.sin(a)*Math.cos(b),Math.cos(a),-Math.sin(a)*Math.sin(b)],
+  up:normal(la,lo)};
+};
+function geoOffset(lat,lon,east,north,radius){
+ const q=Math.hypot(east,north);if(!q)return {lat,lon};
+ const t=q/radius,base=basis(lat,lon);
+ const p=base.up.map((v,i)=>v*Math.cos(t)+(base.east[i]*east+base.north[i]*north)/q*Math.sin(t));
+ return {lat:Math.asin(Math.max(-1,Math.min(1,p[1])))*RAD,
+  lon:((Math.atan2(p[2],p[0])*RAD+540)%360)-180};
+}
+function geoLocal(lat0,lon0,lat,lon,radius){
+ const a=normal(lat0,lon0),b=normal(lat,lon),base=basis(lat0,lon0);
+ const cosine=Math.max(-1,Math.min(1,a.reduce((v,n,i)=>v+n*b[i],0)));
+ const theta=Math.acos(cosine);if(theta<1e-12)return {eastM:0,northM:0};
+ const dir=b.map((v,i)=>v-a[i]*cosine),len=Math.hypot(...dir);
+ return {eastM:radius*theta*dir.reduce((v,n,i)=>v+n*base.east[i],0)/len,
+  northM:radius*theta*dir.reduce((v,n,i)=>v+n*base.north[i],0)/len};
+}
 const smooth=(a,b,v)=>{const t=Math.max(0,Math.min(1,(v-a)/(b-a)));return t*t*(3-2*t);};
 export const riverCenterX=z=>145+21*Math.sin(z/155)+9*Math.sin(z/61);
 export const riverHalfWidth=z=>14+3*Math.sin(z/225);
