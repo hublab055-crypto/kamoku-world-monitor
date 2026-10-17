@@ -58,6 +58,14 @@ export class SmoothAnimator {
      target[side+"ElbowX"]=-.23;
     }
    }
+   const paired=equipped.right===equipped.left&&
+    ["spear","greatsword"].includes(equipped.right);
+   if(paired){
+    target.leftShoulderX=-.89;target.rightShoulderX=-.99;
+    target.leftShoulderZ=-.27;target.rightShoulderZ=.22;
+    target.leftElbowX=-.84;target.rightElbowX=-.72;
+    target.torsoY=.06;
+   }
   }
   if(flight)target=samplePose({jumpHeight:Math.max(.02,jumpHeight),action:"jump"});
   else if(toolAction){
@@ -126,7 +134,8 @@ export class SmoothAnimator {
     }
   }
   // Fast cuts need low latency so the head-height windup and impact remain visible.
-  const tau=toolAction&&["sword","spear","greatsword","axe"].includes(action)?Math.min(.045,this.actionTau):this.actionTau;
+  const tau=action==="greatsword"?Math.max(.115,this.actionTau):
+    toolAction&&["sword","spear","axe"].includes(action)?Math.min(.045,this.actionTau):this.actionTau;
   const a=alpha(elapsed,flight?this.actionTau:this.state==="idle"?.24:toolAction?tau:this.walkTau);
   this.pose=blendPose(this.pose,target,a);
   // Tool attachment switches on immediately at action start and detaches at finish.
