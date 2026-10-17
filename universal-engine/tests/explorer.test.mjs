@@ -133,8 +133,12 @@ test("globe and ground renderer submit real indexed 3D triangles",()=>{
  const renderer=new ExplorerRenderer(canvas,p,t);
  const ctrl=new ExplorerController(t);
  assert.equal(renderer.frame(ctrl),"orbit");
+ ctrl.altitudeM=100000;ctrl.targetAltitude(100000);
+ assert.equal(renderer.frame(ctrl),"orbit");
+ assert.ok(renderer.orbitDetail,"orbital approach should create a detailed spherical tile");
  ctrl.altitudeM=2.5;ctrl.targetAltitude(2.5);
  assert.equal(renderer.frame(ctrl),"ground");
+ assert.equal(renderer.orbitDetail,null,"orbital LOD GPU mesh must be freed after handoff");
  assert.ok(calls.uploaded>8);
  assert.ok(calls.draws>=3);
  renderer.destroy();
