@@ -1,3 +1,4 @@
+import {normalizeEquipmentHands} from "./social-equipment.mjs";
 /** Five configurable action decks, distinct from item inventory.
  * Pure state module, snapshots compatible with old five-item quick slots.
  */
@@ -19,13 +20,13 @@ export const COMMAND_LABELS=Object.freeze({
  build:"🔨 建築",rest:"💤 休む",talk:"💬 話す",gift:"🎁 プレゼント",
  emote:"🙂 エモート",follow:"👣 ついてきて",inventory:"🎒 持ち物",
  book:"📖 読書",config:"⚙️ 設定"});
-const allowedHands=new Set(["none","sword","shield","axe","bow","pickaxe","hammer","book","cup"]);
+const allowedHands=new Set(["none","sword","spear","greatsword","shield","axe","bow","pickaxe","hammer","book","cup"]);
 const legacyKind=id=>id==="bow"?"bow":id==="sword"||id==="axe"?"melee":id==="pickaxe"?"work":id==="book"?"system":"social";
 const clean=(slot,kind="melee")=>{
  const def=DECK_KINDS[DECK_KINDS[slot?.kind]?slot.kind:kind],selected=DECK_KINDS[slot?.kind]?slot.kind:kind;
  const commands=Array.isArray(slot?.commands)?slot.commands:undefined;
- return {kind:selected,hands:Object.fromEntries(["right","left"].map(hand=>[hand,
-  allowedHands.has(slot?.hands?.[hand])?slot.hands[hand]:def.hands[hand]])),
+ return {kind:selected,hands:normalizeEquipmentHands(Object.fromEntries(["right","left"].map(hand=>[hand,
+  allowedHands.has(slot?.hands?.[hand])?slot.hands[hand]:def.hands[hand]]))),
   commands:Array.from({length:4},(_,i)=>Object.hasOwn(COMMAND_LABELS,commands?.[i])?
    commands[i]:def.commands[i])};
 };
@@ -57,6 +58,10 @@ export class ActionSlots{
    kind,hands:{...prev.hands,...patch.hands},
    commands:patch.commands||prev.commands
   },kind);
+  if(patch.hands){
+   const changed=Object.hasOwn(patch.hands,"right")?"right":Object.hasOwn(patch.hands,"left")?"left":null;
+   next.hands=normalizeEquipmentHands({...next.hands,...patch.hands},changed);
+  }
   this.slots[index]=next;
   if(index===this.selected&&kind!==prev.kind){this.manualTargetId=null;this.targetId=null;}
   return true;
