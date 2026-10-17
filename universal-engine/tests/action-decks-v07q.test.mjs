@@ -100,7 +100,7 @@ test("browser view wires action toolbar, crosshair, touch priority and target ri
  const html=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
  for(const id of ["action-command-bar","aim-reticle","combat-target-label","combat-auto-target","quick-config-rows"])
   assert.ok(html.includes('id="'+id+'"'),id);
- assert.match(html,/V0\.7q/);
+ assert.match(html,/V0\.7[qr]/);
  const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
  assert.match(app,/frontierUI\?\.selectTargetAt/);
  assert.match(app,/frontierUI\?\.updateTarget/);
