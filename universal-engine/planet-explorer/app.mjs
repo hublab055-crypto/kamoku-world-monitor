@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
-import {ExplorerRenderer} from "./render.mjs";
+import {ExplorerRenderer} from "./render.mjs?v=0.7y-scenery";
 import {Actions} from "./actions.mjs";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
