@@ -94,14 +94,15 @@ export class SquadEngine{
    distance:Math.hypot(a.control.x-leader.x,a.control.z-leader.z),
    walked:a.control.totalDistanceM,...(this.frontier?.metrics(a)||{})};
  }
- performEquippedAction(id,kind,hand="right",variant="overhead"){
+ performEquippedAction(id,kind,hand="right",variant="overhead",targetId=null){
   const a=this.get(id);
   if(!a||a.id==="player"||!["sword","axe","mine","bow"].includes(kind)||!a.control.nearGround||a.task?.kind?.startsWith("equipped_"))return false;
   this.frontier?.cancel(a);
   a.control.clearMoveTarget();
   const move=ATTACK_VARIANTS.includes(variant)&&!(kind==="axe"&&variant==="thrust")?variant:"overhead";
   const duration=actionDuration(kind,move);
-  a.task={kind:"equipped_"+kind,remaining:duration,duration,hand:hand==="left"?"left":"right",variant:move};
+  a.task={kind:"equipped_"+kind,remaining:duration,duration,hand:hand==="left"?"left":"right",variant:move,
+   targetId:Number.isInteger(targetId)?targetId:null,impacted:false};
   a.cooldown=0;a.order="manual";a.status=kind==="bow"?"🏹 弓を引いています":"⚒️ "+kind+"を使用中";
   return true;
  }
@@ -155,6 +156,9 @@ export class SquadEngine{
    }
    if(a.task?.kind?.startsWith("equipped_")){
     a.task.remaining=Math.max(0,a.task.remaining-dt);
+    if(a.task.kind==="equipped_bow"&&!a.task.impacted&&a.task.remaining<=a.task.duration*.19){
+     a.task.impacted=true;this.onEquippedImpact?.(a,a.task);
+    }
     if(a.task.remaining===0){
      const kind=a.task.kind.slice("equipped_".length);
      if(kind==="axe")this.actions.resources.wood+=2;
@@ -164,7 +168,7 @@ export class SquadEngine{
     }
    }
    if(a.id==="player"&&manualLead){this.frontier?.cancel(a);a.task=null;a.cooldown=1;}
-   if(a.auto&&a.control.nearGround&&!frontierBusy&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!(a.id==="player"&&manualLead)){
+   if(a.auto&&!a.manualHarvest&&a.control.nearGround&&!frontierBusy&&!a.task&&!a.control.moveTarget&&!a.cooldown&&!(a.id==="player"&&manualLead)){
     const metrics=this.metrics(a);
     const index=a.rules.findIndex(r=>r.enabled&&testCondition(metrics[r.metric],r.op,r.value));
     if(index>=0)this.schedule(a,a.rules[index].action,index);
