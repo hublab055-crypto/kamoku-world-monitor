@@ -286,7 +286,15 @@ function doFrame(t){
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,controller.moving);
    renderer.sceneLife=life;
-  if(completed){log(actions.message);saveLifeJournal();}
+  if(completed){
+    if(completed==="axe"||completed==="mine"){
+     if(attackInProgress?.resourceNode)
+      updateHarvestWorld(harvest.hit(attackInProgress.resourceNode,completed),attackInProgress.resourceNode);
+     else log("採集対象がありません。木や石をタップするか、近づいて道具を使用してください。");
+    }else if(completed==="dig"||completed==="fill")doEarthwork(completed,attackInProgress?.earthwork);
+    else log(actions.message);
+    saveLifeJournal();
+   }
   if(running)universe.advance(dt);
   try{
    const next=renderer.frame(controller,dt);
@@ -321,8 +329,9 @@ function updateHUD(){
  $("coords").textContent=controller.lat.toFixed(5)+"°, "+controller.lon.toFixed(5)+"°";
  $("height").textContent=Math.round(controller.altitudeM).toLocaleString("ja-JP")+" m";
  $("ground-height").textContent=Math.round(g.elevationM).toLocaleString("ja-JP")+" m";
- $("biome").textContent=({ocean:"海洋",river:"河川",forest:"森林",mountain:"山岳",highland:"高地",plains:"平地",
-  valley:"谷",coast:"海岸",tundra:"ツンドラ"}[g.category]||g.category);
+ $("biome").textContent=({ocean:"海",river:"川",forest:"森林",mountain:"山",
+    "mountain-range":"山脈",hills:"丘陵",highland:"高地",plain:"平野",plains:"平野",
+    grassland:"草原",valley:"谷",canyon:"渓谷",coast:"海岸",tundra:"ツンドラ"}[g.landform||g.category]||g.landform||g.category);
  $("temp").textContent=climate.temperatureC.toFixed(1)+" °C";
  const sunLevel=planet.illumination(controller.lat,controller.lon);
  $("sunlight").textContent=Math.round(sunLevel*100)+"%";
@@ -337,7 +346,7 @@ function updateHUD(){
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
    (EXPRESSIONS.find(x=>x[0]===renderer.expression.preset)?.[1]||renderer.expression.preset);
  $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone+
-   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal;
+   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal+" / 土 "+(actions.resources.soil||0);
   lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  $("control-state").textContent=renderer.cameraController.mode==="free"?"自由カメラ移動":
@@ -405,7 +414,8 @@ $("save").addEventListener("click",()=>{
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
    v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
     v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot(),
-    v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()}};
+    v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()},
+     v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -464,7 +474,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
