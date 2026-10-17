@@ -34,7 +34,7 @@ export class BattleTest{
    x,z,yaw:wrap(yaw+Math.PI),radius:config.radius,height:config.height,
    hp:config.hp,maxHp:config.hp,speed:config.speed,walkPhase:0,
    anim:"idle",animTime:0,attackCooldown:.6,guardCooldown:0,
-   attackLanded:false,deathTime:0,lastHit:0};
+   attackLanded:false,deathTime:0,lastHit:0,guardHold:.52};
   this.enemies.push(enemy);
   return {ok:true,enemy,message:"👾 "+config.name+"が前方に出現しました（HP "+config.hp+"）。"};
  }
@@ -56,7 +56,7 @@ export class BattleTest{
     e.anim="idle";e.animTime=0;
    }
    if(e.anim==="guard"){
-    if(e.animTime<.52)continue;
+    if(e.animTime<(e.guardHold||.52))continue;
     e.anim="idle";e.animTime=0;
    }
    if(e.anim==="attack"){
@@ -79,6 +79,9 @@ export class BattleTest{
    const facingPlayer=Math.abs(wrap(Math.atan2(e.x-player.x,e.z-player.z)-(player.yaw||0)))<1.25;
    if(incoming&&facingPlayer&&d<3.7&&e.guardCooldown===0&&e.type!=="slime"){
     e.anim="guard";e.animTime=0;e.guardCooldown=2.2;
+    // Slow greatsword wind-ups need a longer defensive hold before impact.
+    e.guardHold=playerAction.kind==="greatsword"?1.04:
+     playerAction.kind==="spear"?.70:.52;
     continue;
    }
    if(d>2.45){
@@ -127,7 +130,7 @@ export class BattleTest{
  }
  damage(enemy,points){
   if(enemy.hp<=0)return {id:enemy.id,type:enemy.type,name:enemy.name,hp:0,damage:0,defeated:true,message:enemy.name+" は既に撃破されています"};
-  const guarded=enemy.anim==="guard"&&enemy.animTime<.52;
+  const guarded=enemy.anim==="guard"&&enemy.animTime<(enemy.guardHold||.52);
   const dealt=guarded?Math.max(1,Math.round(points*.45)):points;
   enemy.hp=Math.max(0,enemy.hp-dealt);
   enemy.lastHit=dealt;enemy.anim=enemy.hp===0?"death":"hit";
