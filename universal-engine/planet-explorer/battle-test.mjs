@@ -105,7 +105,7 @@ export class BattleTest{
   }
   return results;
  }
- hitArrow(player,{range=18,damage=22}={}){
+ hitArrow(player,{range=18,damage=22,targetId=this.targetId}={}){
   const yaw=player.yaw||0,fx=Math.sin(yaw),fz=Math.cos(yaw);
   let target=null,best=Infinity;
   for(const e of this.enemies){
@@ -116,7 +116,7 @@ export class BattleTest{
    if(forward<.2||forward>range+e.radius||side>e.radius+.22)continue;
    if(forward<best){best=forward;target=e;}
   }
-  const aimed=this.enemies.find(e=>e.id===this.targetId&&e.hp>0);
+  const aimed=this.enemies.find(e=>e.id===targetId&&e.hp>0);
   if(aimed){
    const dx=aimed.x-player.x,dz=aimed.z-player.z,forward=dx*fx+dz*fz;
    const side=Math.abs(dx*fz-dz*fx);
