@@ -90,7 +90,7 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
     pose.tool=null;
     return pose;
   }
-  if(["sword","axe","mine","bow","build"].includes(action)){
+  if(["sword","spear","greatsword","axe","mine","bow","build"].includes(action)){
     let t=clamp(progress,0,1);
     const lerp=(a,b,f)=>a+(b-a)*f;
     pose.leftHipX=0;pose.rightHipX=0;pose.leftKneeX=0;pose.rightKneeX=0;
@@ -108,6 +108,44 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
       pose.leftWristX=-.22*b.nocked+.15*b.released;
       pose.torsoY=.08*b.nocked*(1-b.released);
       pose.torsoX=-.045*b.tension;
+    }else if(action==="spear"||action==="greatsword"){
+      // Both arms control the same haft/hilt: forward hand guides the blade,
+      // rear hand provides leverage. Separate profiles for thrust/sweep/overhead.
+      const spear=action==="spear";
+      let style=variant;
+      if(!["overhead","sweep","thrust","combo"].includes(style))style="overhead";
+      if(style==="combo"){
+       const index=Math.min(1,Math.floor(t*2));
+       style=(spear?["sweep","thrust"]:["overhead","sweep"])[index];
+       t=clamp(t*2-index,0,1);
+      }
+      const windup=ease(t/.25),strike=ease((t-.25)/.40),
+       recovery=ease((t-.71)/.29),reach=strike*(1-recovery);
+      pose.leftShoulderX=-.89-.25*windup-.25*reach;
+      pose.rightShoulderX=-1.02-.42*windup-.31*reach;
+      pose.leftShoulderZ=-.27-.11*windup;
+      pose.rightShoulderZ=.19+.13*windup;
+      pose.leftElbowX=-1.00+.38*reach;
+      pose.rightElbowX=-.73+.35*reach;
+      pose.leftWristX=-.24*windup+.18*reach;
+      pose.rightWristX=.12*reach;
+      if(style==="thrust"){
+       pose.torsoX=-.15*reach;
+       pose.torsoY=-.18*windup+.25*reach;
+       pose.leftShoulderX=-1.07-.30*reach;
+       pose.rightShoulderX=-1.17-.44*reach;
+       pose.leftElbowX=-1.02+.63*reach;
+       pose.rightElbowX=-.85+.64*reach;
+      }else if(style==="sweep"){
+       pose.torsoY=(-.63*windup+.97*strike)*(1-recovery);
+       pose.rightShoulderZ=.48+.33*windup-1.00*reach;
+       pose.leftShoulderZ=-.46-.19*windup+.59*reach;
+       pose.torsoX=.10*reach;
+      }else{
+       pose.rightShoulderX=-1.14-1.06*windup*(1-strike)+1.39*reach;
+       pose.leftShoulderX=-1.01-.81*windup*(1-strike)+1.04*reach;
+       pose.torsoX=.15*reach;
+      }
     }else if(action==="build"){
       const beat=Math.abs(Math.sin(t*5*Math.PI));
       pose.rightShoulderX=-.95-.85*beat;
@@ -161,7 +199,7 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
         pose.torsoX=action==="mine"?.14:.08*strike*(1-recovery);
       }
     }
-    pose.tool=action==="sword"?"sword":action==="axe"?"axe":action==="mine"?"pickaxe":action==="bow"?"bow":"hammer";
+    pose.tool=action==="sword"?"sword":action==="spear"?"spear":action==="greatsword"?"greatsword":action==="axe"?"axe":action==="mine"?"pickaxe":action==="bow"?"bow":"hammer";
     return pose;
   }
   return pose;
