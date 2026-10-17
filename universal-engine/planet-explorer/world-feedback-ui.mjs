@@ -1,6 +1,6 @@
 import {WorldFeedback,GameConsole} from "./world-feedback.mjs";
 /** Browser adapter. World-space messages are anchored to projected actors/enemies. */
-export function installWorldFeedbackUI({getRenderer,getController}){
+export function installWorldFeedbackUI({getRenderer,getController,onCommand=()=>""}){
  const $=id=>document.getElementById(id);
  const feedback=new WorldFeedback(),history=new GameConsole(240);
  const overlay=$("world-fx-layer"),panel=$("game-console"),rows=$("game-console-lines");
@@ -40,6 +40,21 @@ export function installWorldFeedbackUI({getRenderer,getController}){
  $("game-console-clear").addEventListener("click",()=>{history.clear();version++;drawConsole();});
  $("game-console-filter").addEventListener("change",drawConsole);
  $("game-console-search").addEventListener("input",drawConsole);
+ $("game-console-command-form").addEventListener("submit",e=>{
+  e.preventDefault();
+  const field=$("game-console-command"),input=field.value.trim();
+  if(!input)return;
+  field.value="";
+  append("› "+input,"system");
+  if(input==="/clear"){history.clear();version++;drawConsole();return;}
+  if(input==="/help"){append("利用可能: /help /clear /status /spawn slime|goblin|bandit|skeleton|orc|lizardman|demon","system");return;}
+  const match=input.match(/^\/spawn\s+(slime|goblin|bandit|skeleton|orc|lizardman|demon)$/i);
+  if(match){
+   append(onCommand("spawn",match[1].toLowerCase())||"敵の出現に失敗しました。","system");
+  }else if(input==="/status"){
+   append(onCommand("status")||"状態を取得できませんでした。","system");
+  }else append("不明なコマンドです。/help を確認してください。","system");
+ });
  // Drag only the titlebar; normal logs and input controls keep their browser gestures.
  const head=$("game-console-head");
  let moving=null;
