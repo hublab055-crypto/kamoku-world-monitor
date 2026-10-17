@@ -385,7 +385,7 @@ export class SquadEngine{
  repositionAfterLanding(){
   const lead=this.get("player").control;
   this.agents.slice(1).forEach((a,i)=>{
-   a.control.setLanding(lead.lat,lead.lon);
+   a.control.setLanding(lead.lat,lead.lon,{allowWater:true});
    a.control.x+=(i? -3:3);a.control.z+=(i?3:1);
    const next=a.control.locationAt(a.control.x,a.control.z);
    a.control.lat=next.lat;a.control.lon=next.lon;
