@@ -521,7 +521,7 @@ export class ExplorerRenderer{
   gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
-  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");
+  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");this.uInstanced=gl.getUniformLocation(pg,"uInstanced");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
@@ -1058,7 +1058,15 @@ export class ExplorerRenderer{
   drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
   gl.uniform3fv(this.uLight,new Float32Array(light));gl.uniform3fv(this.uTint,new Float32Array(tint));
-  gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);mesh.draw();
+  gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);gl.uniform1f(this.uInstanced,0);mesh.draw();
+ }
+
+ drawInstancedMesh(mesh,vp,light,alpha=1,ambient=.25){
+   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(vp));
+   gl.uniform3fv(this.uLight,new Float32Array(light));
+   gl.uniform3fv(this.uTint,new Float32Array([1,1,1]));
+   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);
+   gl.uniform1f(this.uInstanced,1);mesh.draw();
  }
  frame(state,dt=1/60){
   const gl=this.gl,dpr=Math.min(2,globalThis.devicePixelRatio||1);
@@ -1163,13 +1171,15 @@ export class ExplorerRenderer{
      return terrainSurface(this.terrain,pos.lat,pos.lon);
     }
    });
-   const scenery=buildSceneryMeshes(plan);
+   const instanced=buildSceneryInstances(plan);
+   // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
+   const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
    this.resourceNodes=plan.trees;
    this.sceneryStats={trees:plan.trees.filter(n=>n.kind==="wood").length,
     rocks:plan.trees.filter(n=>n.kind==="stone").length,
     grass:plan.grass.length,buildings:plan.buildings.length};
-   this.trees=scenery.woods.map(g=>new Mesh(gl,g));
-   this.meadow=scenery.meadow.map(g=>new Mesh(gl,g));
+   this.trees=instanced.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+   this.meadow=instanced.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
    this.settlement=scenery.settlement.map(g=>new Mesh(gl,g));
    this.patchKey=key;this.cx=cx;this.cz=cz;
    this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
@@ -1193,8 +1203,8 @@ export class ExplorerRenderer{
   this.pickVP=vp;
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
-  for(const mesh of this.meadow)this.drawMesh(mesh,vp,light,1,.72);
-   for(const mesh of this.trees)this.drawMesh(mesh,vp,light,1,.58);
+  for(const mesh of this.meadow)this.drawInstancedMesh(mesh,vp,light,1,.72);
+   for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
   this.screenResources=(this.resourceNodes||[]).map(node=>{
    const screen=projectScreen(vp,[node.x-this.cx,node.elevationM+(node.kind==="wood"?2.0:.85),node.z-this.cz]);
