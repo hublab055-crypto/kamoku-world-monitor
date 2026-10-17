@@ -1082,8 +1082,11 @@ export class ExplorerRenderer{
   const vp=multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
     Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
   this.orbitVP=vp;this.orbitOffsetDeg=offset;
-  this.screenLanding=this.selectedLanding?projectScreen(vp,
-   geoNormal(this.selectedLanding.lat,this.selectedLanding.lon+offset).map(v=>v*(R+.7))):null;
+  const landingPoint=this.selectedLanding?
+   geoNormal(this.selectedLanding.lat,this.selectedLanding.lon+offset).map(v=>v*(R+.7)):null;
+  // A marker on the far side of the planet must not shine through the globe.
+  this.screenLanding=landingPoint&&dot(camera,landingPoint)>R*R?
+   projectScreen(vp,landingPoint):null;
   const spin=-this.planet.rotationAngle,tilt=-this.planet.axialTiltDeg*DEG,sun=this.planet.solarDirection;
   const cs=Math.cos(spin),ss=Math.sin(spin),x=cs*sun.x+ss*sun.z,z=-ss*sun.x+cs*sun.z;
   const ct=Math.cos(tilt),st=Math.sin(tilt),light=[x,ct*sun.y-st*z,st*sun.y+ct*z];
