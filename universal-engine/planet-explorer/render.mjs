@@ -3,6 +3,8 @@ import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
+import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
+import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
 import {SmoothAnimator} from "./animator.mjs";
@@ -445,7 +447,8 @@ function sphereGeometry(terrain,planet){
   quad(ground,points[0],points[3],points[2],points[1],col);
   const n=geoNormal(lat,lon);
   if(noise3(n[0]*8+3,n[1]*8,n[2]*8-1,planet.seed+91)>.20){
-   const pp=coords.map(c=>geoNormal(...c).map(v=>v*(R+8)));
+   // Cloud deck near 13 km, rather than the old 85 km shell.
+   const pp=coords.map(c=>geoNormal(...c).map(v=>v*(R+1.2)));
    quad(clouds,pp[0],pp[3],pp[2],pp[1],[.91,.95,1]);
   }
  }
@@ -499,6 +502,7 @@ export class ExplorerRenderer{
   this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
+  this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   this.patch=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
@@ -1040,12 +1044,16 @@ export class ExplorerRenderer{
   if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
   // Ground view exposes the atmospheric CSS gradient through transparent sky pixels.
   // Orbital view remains opaque dark space; terrain meshes always draw opaque.
-  const inOrbit=state.altitudeM>23000;
+  const inOrbit=state.altitudeM>ORBIT_GROUND_CUTOFF_M;
   gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,inOrbit?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  if(!inOrbit){this.orbitVP=null;this.screenLanding=null;}
+  if(!inOrbit){
+   this.orbitVP=null;this.screenLanding=null;
+   if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
+   this.orbitDetailCenter=null;this.orbitDetailRadius=0;
+  }
   this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
@@ -1078,6 +1086,27 @@ export class ExplorerRenderer{
   const cs=Math.cos(spin),ss=Math.sin(spin),x=cs*sun.x+ss*sun.z,z=-ss*sun.x+cs*sun.z;
   const ct=Math.cos(tilt),st=Math.sin(tilt),light=[x,ct*sun.y-st*z,st*sun.y+ct*z];
   this.drawMesh(this.globe,vp,light,1,.14);
+  // The global globe is coarse (degrees per triangle). Refine only the
+  // visible landing neighbourhood as we move toward the cloud deck.
+  const tier=orbitalTerrainTier(s.altitudeM);
+  if(!tier){
+   if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
+   this.orbitDetailCenter=null;this.orbitDetailRadius=0;
+  }else{
+   const geo={lat:orbitalLat,lon:wrapLon(orbitalLon-offset)};
+   const previous=this.orbitDetailCenter;
+   const moved=previous?geoLocal(previous.lat,previous.lon,geo.lat,geo.lon,this.planet.radiusM):null;
+   const farFromCenter=!moved||Math.hypot(moved.eastM,moved.northM)>tier.radiusM*.14;
+   if(!this.orbitDetail||this.orbitDetailRadius!==tier.radiusM||farFromCenter){
+    // Do not discard a valid mesh if a new tile cannot be allocated.
+    const mesh=new Mesh(gl,buildOrbitalTerrainTile(this.terrain,{
+     lat:geo.lat,lon:geo.lon,renderRadius:R,radiusM:tier.radiusM,resolution:tier.resolution
+    }));
+    this.orbitDetail?.destroy();this.orbitDetail=mesh;
+    this.orbitDetailCenter=geo;this.orbitDetailRadius=tier.radiusM;
+   }
+   this.drawMesh(this.orbitDetail,vp,light,1,.22);
+  }
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
   this.drawMesh(this.cloud,vp,light,.33,.32);gl.depthMask(true);gl.disable(gl.BLEND);
   if(c.indicator){
@@ -1205,7 +1234,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
