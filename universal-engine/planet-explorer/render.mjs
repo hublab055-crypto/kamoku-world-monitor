@@ -146,14 +146,20 @@ function trainingTargetGeometry(){
  box(b,0,1.51,.278,.20,.24,.025,[.65,.21,.16]);
  return b;
 }
-function arrowGeometry(){
- const b=builder(),wood=[.65,.46,.25],steel=[.81,.88,.91],fletch=[.84,.25,.16];
+function arrowGeometry(type="wood"){
+ const b=builder(),wood=type==="iron"?[.46,.50,.58]:[.65,.46,.25],
+  steel=type==="fire"?[.95,.44,.1]:[.81,.88,.91],
+  fletch=type==="fire"?[.98,.43,.12]:type==="iron"?[.39,.55,.72]:[.84,.25,.16];
  // Shaft and nock run along +Z: the arrowhead is pointed away from the avatar.
  box(b,0,-.008,0,.011,.016,.47,wood);
  for(const sign of [-1,1]){
   triangle(b,[0,-.008,.56],[sign*.050,-.010,.43],[0,.034,.43],steel);
   triangle(b,[0,-.008,.56],[0,-.050,.43],[sign*.050,-.010,.43],steel);
   triangle(b,[sign*.008,0,-.33],[sign*.10,.002,-.47],[sign*.008,.012,-.45],fletch);
+ }
+ if(type==="fire"){
+  cone(b,0,-.005,.51,.23,.065,[1,.43,.10],7);
+  cone(b,0,.08,.51,.17,.041,[1,.77,.13],6);
  }
  return b;
 }
@@ -539,6 +545,8 @@ export class ExplorerRenderer{
   this.tools.shield=new Mesh(gl,shieldGeometry());
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
+   this.typedArrows={wood:this.tools.arrow,iron:new Mesh(gl,arrowGeometry("iron")),
+    fire:new Mesh(gl,arrowGeometry("fire"))};
   this.practiceTargetMesh=new Mesh(gl,trainingTargetGeometry());
   this.arrowWorld=null;this.screenArrows=[];this.screenTargets=[];
   this.battle=null;
@@ -813,7 +821,7 @@ export class ExplorerRenderer{
    const y=shot.y-dir.y/len*.54;
    const z=shot.z-this.cz-dir.z/len*.54;
    const model=multiply4(translate(x,y,z),multiply4(rotateY(yaw),rotX(-pitch)));
-   this.drawMesh(this.tools.arrow,multiply4(vp,model),light,1,.96);
+   this.drawMesh(this.typedArrows[shot.arrowType]||this.tools.arrow,multiply4(vp,model),light,1,.96);
    if(!moving){
     const p=projectScreen(vp,[shot.x-this.cx,shot.y,shot.z-this.cz]);
     if(p)this.screenArrows.push({...p,...shot});
@@ -1173,7 +1181,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
