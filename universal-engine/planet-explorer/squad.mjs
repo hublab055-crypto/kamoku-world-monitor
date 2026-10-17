@@ -100,7 +100,7 @@ export class SquadEngine{
  }
  performEquippedAction(id,kind,hand="right",variant="overhead",targetId=null){
   const a=this.get(id);
-  if(!a||a.id==="player"||!["sword","axe","mine","bow"].includes(kind)||!a.control.nearGround||a.task?.kind?.startsWith("equipped_"))return false;
+  if(!a||a.id==="player"||!["sword","spear","greatsword","axe","mine","bow"].includes(kind)||!a.control.nearGround||a.task?.kind?.startsWith("equipped_"))return false;
   this.frontier?.cancel(a);
   a.control.clearMoveTarget();
   const move=ATTACK_VARIANTS.includes(variant)&&!(kind==="axe"&&variant==="thrust")?variant:"overhead";
@@ -167,7 +167,7 @@ export class SquadEngine{
      const kind=a.task.kind.slice("equipped_".length);
      if(kind==="axe")this.actions.resources.wood+=2;
      if(kind==="mine")this.actions.resources.stone+=2;
-     a.status=kind==="sword"?"⚔️ 剣を振った":kind==="axe"?"🪵 木材 +2":kind==="bow"?"🏹 矢を放ちました":"🪨 石材 +2";
+     a.status=kind==="sword"?"⚔️ 剣を振った":kind==="spear"?"🔱 長槍の攻撃":kind==="greatsword"?"⚔️ 両手剣の攻撃":kind==="axe"?"🪵 木材 +2":kind==="bow"?"🏹 矢を放ちました":"🪨 石材 +2";
      a.task=null;a.cooldown=.5;
     }
    }
