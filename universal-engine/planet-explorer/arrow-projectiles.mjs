@@ -90,6 +90,16 @@ export class ArrowProjectiles{
  advance(dt,{groundHeight=()=>0,trees=[],buildings=[],enemies=[],onEnemyHit=()=>{}}={}){
   if(!finite(dt)||dt<0)throw TypeError("Invalid arrow delta");
   const events=[];
+  // Embedded enemy arrows follow the moving target until it disappears.
+  for(const stuck of this.embedded){
+   if(stuck.surface!=="enemy"||!stuck.offset)continue;
+   const enemy=enemies.find(e=>e.id===stuck.objectId);
+   if(!enemy)continue;
+   const gy=groundHeight(enemy.x,enemy.z);
+   stuck.x=enemy.x+stuck.offset.x;
+   stuck.y=gy+stuck.offset.y;
+   stuck.z=enemy.z+stuck.offset.z;
+  }
   for(const arrow of [...this.flying]){
    let remaining=Math.min(dt,.25),impact=null;
    while(remaining>1e-7&&!impact){
@@ -141,6 +151,10 @@ export class ArrowProjectiles{
     const stuck={id:arrow.id,ownerId:arrow.ownerId,x:impact.point.x,
      y:impact.point.y,z:impact.point.z,dx:direction.x,dy:direction.y,dz:direction.z,
      surface:impact.kind,objectId:impact.obj?.id??null};
+    if(impact.kind==="enemy"){
+     const enemy=impact.obj;
+     stuck.offset={x:stuck.x-enemy.x,y:stuck.y-groundHeight(enemy.x,enemy.z),z:stuck.z-enemy.z};
+    }
     this.embedded.push(stuck);
     if(this.embedded.length>160)this.embedded.shift();
     const event={...stuck};
