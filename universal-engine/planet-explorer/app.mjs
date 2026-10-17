@@ -7,6 +7,7 @@ import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs";
 import {Actions} from "./actions.mjs";
 import {BattleTest} from "./battle-test.mjs";
+import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
@@ -49,16 +50,19 @@ let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,a
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
-let frontierUI=null;
+let frontierUI=null,worldUI=null;
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
 const keys=new Set(),touches=new Set();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
+ worldUI?.append(msg);
  const li=document.createElement("li");li.textContent=msg;
  $("log").prepend(li);while($("log").children.length>8)$("log").lastElementChild.remove();
 }
 function init(saved=null){
  try{
   if(renderer)renderer.destroy();
+  worldUI?.clear();
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
   terrain=new Terrain(planet);weather=new Weather(planet);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
@@ -124,6 +128,7 @@ function doFrame(t){
   const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
+  const priorResources={...actions.resources};
   squad?.advance(running?dt:0,{manualLead});
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
@@ -147,8 +152,23 @@ function doFrame(t){
    const completed=actions.advance(dt);
    if(running&&battle){
     battle.advance(dt,controller,attackInProgress);
-    for(const hit of battle.resolveAttack(attackInProgress,controller))log("🎯 "+hit.message);
-    for(const attack of battle.consumeEnemyHits())log("🛡️ "+attack.message);
+    for(const hit of battle.resolveAttack(attackInProgress,controller)){
+     log("🎯 "+hit.message);
+     worldUI?.float({kind:hit.guarded?"guard":"damage",
+      text:(hit.guarded?"🛡️ −":"−")+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
+    }
+    for(const attack of battle.consumeEnemyHits()){
+     log("🛡️ "+attack.message);
+     worldUI?.float({kind:"hurt",text:"−"+attack.damage+" HP",actorId:"player",duration:1.45});
+     renderer.playerHitSeconds=.48;
+    }
+    if(renderer.playerHitSeconds>0)renderer.playerHitSeconds=Math.max(0,renderer.playerHitSeconds-dt);
+   }
+   if(running){
+    for(const [kind,label] of Object.entries(resourceNames)){
+     const delta=(actions.resources[kind]||0)-(priorResources[kind]||0);
+     if(delta>0)worldUI?.float({kind:"gain",text:"+"+delta+" "+label,actorId:"player",duration:1.6});
+    }
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,controller.moving);
@@ -159,6 +179,7 @@ function doFrame(t){
    const next=renderer.frame(controller,dt);
    updateActorMarker(renderer.actorMarker);
    updateRtsMarkers(renderer.screenActors);
+   worldUI?.frame(running?dt:0);
    if(next!==displayMode){
     displayMode=next;
     $("mode").textContent=next==="orbit"?"宇宙・惑星モード":"地表メッシュモード";
@@ -986,8 +1007,11 @@ lifeUI=installLifestyleUI({
  get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,rtsMode,
   manualInputActive:Math.abs(stick.x)+Math.abs(stick.y)>.16||["w","a","s","d","ArrowUp","ArrowDown"].some(k=>keys.has(k)||touches.has(k)),
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
- log,updateHUD,openBookLibrary,saveLifeJournal
+ log,updateHUD,openBookLibrary,saveLifeJournal,
+ showSpeech:(id,text)=>worldUI?.speak(id,text),
+ showEffect:effect=>worldUI?.float(effect)
 });
+worldUI=installWorldFeedbackUI({getRenderer:()=>renderer,getController:()=>controller});
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
