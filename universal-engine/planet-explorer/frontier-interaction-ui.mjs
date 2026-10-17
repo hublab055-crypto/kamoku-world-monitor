@@ -475,12 +475,13 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  });
  $("social-gift").addEventListener("click",()=>{
   const {from,to}=selection(),c=get();
-  const r=social.gift(from,to,$("social-gift-item").value,c.life,c.squad.frontier);
+  const giftId=$("social-gift-item").value;
+  const r=social.gift(from,to,giftId,c.life,c.squad.frontier);
   $("social-result").textContent=r.message;log(r.message);
   if(r.ok){
    c.renderer?.triggerSocial(from.id,to.id,"gift");
    showSpeech(to.id,"🎁 ありがとう！");
-   showEffect({kind:"notice",actorId:to.id,text:"♥ +"+(c.squad?.frontier?4:4)});
+   showEffect({kind:"notice",actorId:to.id,text:"♥ +"+(giftId==="meal"?7:4)});
    saveLifeJournal();gifts();updateHUD();
   }
  });
