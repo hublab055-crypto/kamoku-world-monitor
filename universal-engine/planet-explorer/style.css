@@ -729,3 +729,5 @@ body.immersive{overflow:hidden}
 .archery-mode-bar label select{max-width:145px}
 .archery-mode-bar button{flex:0 0 auto}
 @media(max-width:760px){.archery-mode-bar{bottom:calc(82px + env(safe-area-inset-bottom,0px))}}
+
+.archery-mode-bar [hidden]{display:none!important}
