@@ -1183,7 +1183,7 @@ export class ExplorerRenderer{
   const snap=radius<2200?110:radius<6500?600:3000;
   const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
   const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
-  const resolution=radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution].join("/");
+  const resolution=radius<=450?96:radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
    this.patch?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement])mesh.destroy();
