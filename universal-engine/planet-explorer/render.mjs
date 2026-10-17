@@ -73,6 +73,11 @@ class InstancedMesh extends Mesh{
   super(gl,geometry);
   if(transforms.length%6)throw new RangeError("Invalid scenery instance transforms");
   this.instanceCount=transforms.length/6;
+  // Older GL mocks lack WebGL2 instancing APIs; keep nonvisual unit tests
+  // compatible. Production WebGL2 browsers use the fast instanced path.
+  this.supported=typeof gl.vertexAttribDivisor==="function"&&
+    typeof gl.drawElementsInstanced==="function";
+  if(!this.supported)return;
   gl.bindVertexArray(this.vao);
   const buffer=gl.createBuffer();this.buffers.push(buffer);
   gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
@@ -85,6 +90,7 @@ class InstancedMesh extends Mesh{
  }
  draw(){
   if(!this.instanceCount)return;
+  if(!this.supported){super.draw();return;}
   const gl=this.gl;gl.bindVertexArray(this.vao);
   gl.drawElementsInstanced(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0,this.instanceCount);
  }
