@@ -45,7 +45,7 @@ const closestBox=(a,b,box)=>{
  return lo;
 };
 const shotVector=({origin,target,yaw,mode})=>{
- const dx=target?.x-origin.x??Math.sin(yaw),dz=target?.z-origin.z??Math.cos(yaw);
+ const dx=target?target.x-origin.x:Math.sin(yaw),dz=target?target.z-origin.z:Math.cos(yaw);
  const horizontal=Math.hypot(dx,dz)||1;
  const ux=dx/horizontal,uz=dz/horizontal;
  const flightMode=mode==="auto"?(target&&horizontal>28?"lob":"direct"):mode;
