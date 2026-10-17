@@ -217,7 +217,7 @@ const qmul=(a,b)=>[
  * Unknown/imported skeletons retain their original animation.
  */
 export function applyWeaponRigPose(rig,poses,action,progress,variant="overhead",hand="right"){
- if(!["sword","axe","bow","guard"].includes(action)||!Number.isFinite(progress))return false;
+ if(!["sword","axe","bow","guard","hit"].includes(action)||!Number.isFinite(progress))return false;
  const index=new Map(rig.nodes.map((n,i)=>[(n.name||"").toLowerCase(),i]));
  if(!["rightshoulder","leftshoulder","rightelbow","leftelbow","waist"].every(n=>index.has(n)))return false;
  const motion=samplePose({action,progress,variant});
