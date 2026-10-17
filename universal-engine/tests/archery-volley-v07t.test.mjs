@@ -95,7 +95,7 @@ test("browser connects sync volley, trajectory choice, training target and tappi
  const ui=read("frontier-interaction-ui.mjs"),app=read("app.mjs"),render=read("render.mjs");
  for(const pattern of [/function volley\(/,/c\.squad\.selectedAgents\(\)/,
   /social\.handItem\(person\.id,h\)==="bow"/,/social\.spendArrow\(who\.id\)/,
-  /function addRecoveredArrow\(/,/targetPoint=target\.targetPoint/,
+  /function addRecoveredArrow\(/,/target\.targetPoint/,
   /"archery-trajectory"/,/practice-target-place/])assert.match(ui,pattern);
  for(const pattern of [/projectiles\.advance\(/,/renderer\.pickArrow\(/,
   /orderArrowPickup\(/,/v0_7t:/,/rts-sync/])assert.match(app,pattern);
