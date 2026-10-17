@@ -156,6 +156,10 @@
  <label>号令 <select id="volley-timing" aria-label="一斉射撃の発射タイミング">
   <option value="simultaneous">一斉</option><option value="ripple">順次</option>
  </select></label>
+ <label id="volley-interval-label" hidden>間隔 <select id="volley-interval" aria-label="順次射撃の時間差">
+  <option value="0.12">0.12秒</option><option value="0.22" selected>0.22秒</option>
+  <option value="0.4">0.40秒</option><option value="0.6">0.60秒</option>
+ </select></label>
  <button type="button" id="practice-target-place" title="前方9mに練習用の的を設置">🎯 的を設置</button>
 </div>
 <div id="aim-reticle" class="aim-reticle" hidden aria-hidden="true">+</div>
