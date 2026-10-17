@@ -63,7 +63,7 @@ function log(msg){
 function init(saved=null){
  try{
   if(renderer)renderer.destroy();
-  worldUI?.clear();lastNpcStatus.clear();
+  worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
   terrain=new Terrain(planet);weather=new Weather(planet);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
