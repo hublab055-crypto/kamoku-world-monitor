@@ -6,6 +6,8 @@ import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
 import {ExplorerRenderer} from "./render.mjs?v=0.7z-11x-instancing";
 import {Actions} from "./actions.mjs";
+import {ResourceHarvest} from "./resource-harvest.mjs";
+import {Earthworks} from "./earthworks.mjs";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";
@@ -28,11 +30,12 @@ const SAVE_KEY="universal-engine:explorer:v0.7i";
 const PRE_FRONTIER_SAVE_KEY="universal-engine:explorer:v0.7g";
 const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
 const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
+const WORLD_JOURNAL_KEY="universal-engine:explorer:earthworks:v0.8a";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -50,13 +53,44 @@ function saveBookJournal(){
  try{localStorage.setItem(BOOK_JOURNAL_KEY,JSON.stringify(books.snapshot()));}
  catch(_){log("しおりの自動保存ができません。ゲーム全体の保存をお試しください。");}
 }
+function loadWorldJournal(){
+ try{return JSON.parse(localStorage.getItem(WORLD_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
+function saveWorldJournal(){
+ try{localStorage.setItem(WORLD_JOURNAL_KEY,JSON.stringify({resources:harvest.snapshot(),earthworks:earthworks.snapshot()}));}
+ catch(_){log("環境の自動保存ができません。ゲームの保存をお試しください。");}
+}
+function updateHarvestWorld(result,node,who="開拓者"){
+ if(!result?.ok){log(result?.message||"資源を利用できません");return;}
+ for(const [kind,amount] of Object.entries(result.drops||{})){
+  actions.resources[kind]=(actions.resources[kind]||0)+amount;
+ }
+ renderer.patchKey=null;renderer.selectedResource=null;
+ log(who+"："+result.message);saveWorldJournal();saveLifeJournal();
+}
+function nearbyWorldResource(kind,who=controller){
+ const type=kind==="mine"?"stone":"wood";
+ return (renderer?.resourceNodes||[]).filter(n=>n.kind===type&&Math.hypot(n.x-who.x,n.z-who.z)<5.2)
+  .sort((a,b)=>Math.hypot(a.x-who.x,a.z-who.z)-Math.hypot(b.x-who.x,b.z-who.z))[0]||null;
+}
+function doEarthwork(mode,site){
+ const center=site||controller.locationAt(controller.x+Math.sin(controller.yaw)*3,
+  controller.z+Math.cos(controller.yaw)*3);
+ const base=terrain.sample(center.lat,center.lon);
+ if(base.water||base.river){log("水面・河床はこの掘削モードでは編集できません");return;}
+ if(mode==="fill"&&(actions.resources.soil||0)<1){log("盛り土には土×1が必要です");return;}
+ const r=earthworks.change(center.lat,center.lon,mode,14);
+ if(!r.ok){log(r.message);return;}
+ for(const [name,n] of Object.entries(r.material))actions.resources[name]=Math.max(0,(actions.resources[name]||0)+n);
+ renderer.patchKey=null;log(r.message);saveWorldJournal();saveLifeJournal();updateHUD();
+}
 let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,syncMode=false,autoActorId="player";
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
-const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",soil:"🟫 土"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
@@ -76,8 +110,13 @@ function init(saved=null){
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
   terrain=new Terrain(planet);weather=new Weather(planet);
+   const restoredWorld=saved?.v0_8a||(saved?null:loadWorldJournal());
+   earthworks=new Earthworks(restoredWorld?.earthworks||null);
+   terrain.earthworks=earthworks;
+   harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
+   actions.worldHarvestEnabled=true;
   battle=new BattleTest();
    projectiles=new ArrowProjectiles(saved?.v0_7t?.projectiles||null);
    syncMode=Boolean(saved?.v0_7t?.syncMode);
@@ -86,7 +125,7 @@ function init(saved=null){
    const journal=!saved?loadLifeJournal():null;
    life=new Lifestyle(saved?.v0_7g||journal?.life||null);
    if(journal?.resources&&!saved){
-    for(const k of ["wood","stone","fiber","clay","metal"])
+    for(const k of ["wood","stone","fiber","clay","metal","soil"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
@@ -100,6 +139,7 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+   renderer.resourceHarvest=harvest;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
     createAppearance(avatarStyle,avatarStyle);
