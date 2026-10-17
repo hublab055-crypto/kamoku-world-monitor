@@ -579,6 +579,7 @@ function confirmOrbitLanding(){
   squad?.repositionAfterLanding();
   controller.targetAltitude(2.5);
   renderer.patchKey=null;renderer.interiorBuildingId=null;
+  renderer.orbitPan=null;renderer.lastOrbitCenter=null;
   renderer.cameraController.resetFreeAnchor(controller,
    terrainSurface(terrain,site.lat,site.lon).elevationM);
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
@@ -639,7 +640,8 @@ viewportGestures=bindViewportGestures($("world"),{
  onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
   if(!renderer||!controller)return;
-  if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
+  if(controller.altitudeM>23000)renderer.panOrbit(dx,dy);
+  else if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
   else renderer.cameraController.rotate(dx,dy);
  },
  onPinch:factor=>{if(renderer&&controller){zoomScene(factor);syncCameraControls();}}
@@ -655,7 +657,7 @@ $("landing-select").addEventListener("change",()=>{
   controller.setLanding(site.lat,site.lon);
   squad?.repositionAfterLanding();
   controller.targetAltitude(15000000);controller.altitudeM=15000000;
-  renderer.patchKey=null;
+  renderer.patchKey=null;renderer.orbitPan=null;renderer.lastOrbitCenter=null;
   renderer.cameraController.resetFreeAnchor(controller,
     Math.max(0,terrainSurface(terrain,controller.lat,controller.lon).elevationM));
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
