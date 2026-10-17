@@ -32,13 +32,19 @@ export function normalizeEquipmentHands(hands,changed=null){
  return weapon?{right:weapon,left:weapon}:next;
 }
 export const ATTACK_MODES=Object.freeze(["overhead","sweep","thrust","combo"]);
+export const ARROW_TYPES=Object.freeze({
+ wood:{name:"木の矢",icon:"➶",damage:22},
+ iron:{name:"鉄の矢",icon:"🪙",damage:33},
+ fire:{name:"火矢",icon:"🔥",damage:17}
+});
+export const arrowTypeValid=type=>Object.hasOwn(ARROW_TYPES,type);
 const permanent=new Set(["sword","spear","greatsword","shield","axe","pickaxe","bow","book"]);
 const handDefaults=()=>({right:"sword",left:"axe"});
 export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
  constructor(snapshot=null){
   this.actors={};this.relations={};this.history=[];this.maxDistance=4;
-  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults(),arrows:12,potions:3,attackMode:"overhead"};
+  for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults(),arrows:12,specialArrows:{iron:0,fire:0},arrowType:"wood",potions:3,attackMode:"overhead"};
   if(snapshot)this.restore(snapshot);
  }
  actor(id){return this.actors[id]||null;}
@@ -90,21 +96,45 @@ export class SocialEquipment {
   const paired=twoHanded.has(item);
   return {ok:true,message:actor.name+"の"+(paired?"両手":hand==="right"?"右手":"左手")+"に "+(ITEM_MAP.get(item)?.name||item)+" を装備しました。"+(paired?"（盾などの併用不可）":"")};
  }
- spendArrow(id){
+ arrowCount(id,type="wood"){
   const owner=this.actor(id);
-  if(!owner||!(owner.arrows>0))return false;
-  owner.arrows--;return true;
+  return owner&&arrowTypeValid(type)?(type==="wood"?owner.arrows:owner.specialArrows[type])||0:0;
  }
- craftArrows(id,resources){
+ setArrowType(id,type){
   const owner=this.actor(id);
-  if(!owner||!resources)return {ok:false,message:"製作する人物が見つかりません。"};
-  if(owner.arrows>993)return {ok:false,message:"矢筒に空きがありません。"};
-  if(!(resources.wood>=1&&resources.stone>=1))
-   return {ok:false,message:"矢6本の製作には木材1・石材1が必要です。"};
-  resources.wood--;resources.stone--;
-  owner.arrows+=6;
-  return {ok:true,message:"🏹 矢を6本製作しました。（残り "+owner.arrows+"本）"};
+  if(!owner||!arrowTypeValid(type))return false;
+  owner.arrowType=type;return true;
  }
+ spendArrow(id,type=this.actor(id)?.arrowType||"wood"){
+  if(this.arrowCount(id,type)<=0)return false;
+  const owner=this.actor(id);
+  if(type==="wood")owner.arrows--;
+  else owner.specialArrows[type]--;
+  return true;
+ }
+ recoverArrow(id,type="wood"){
+  const owner=this.actor(id);
+  if(!owner||!arrowTypeValid(type)||this.arrowCount(id,type)>=999)return false;
+  if(type==="wood")owner.arrows++;
+  else owner.specialArrows[type]++;
+  return true;
+ }
+ craftTypedArrows(id,type,resources){
+  const owner=this.actor(id),recipe={
+   wood:{wood:1,stone:1},iron:{wood:1,metal:2},fire:{wood:1,fiber:2}
+  }[type];
+  if(!owner||!recipe||!resources)return {ok:false,message:"製作する人物または矢種が無効です。"};
+  const amount=type==="wood"?6:3;
+  if(this.arrowCount(id,type)>999-amount)return {ok:false,message:"矢筒に空きがありません。"};
+  if(Object.entries(recipe).some(([key,value])=>(resources[key]||0)<value))
+   return {ok:false,message:ARROW_TYPES[type].name+"の材料が不足しています。"+
+    Object.entries(recipe).map(([key,value])=>key+"×"+value).join("・")};
+  for(const [key,value] of Object.entries(recipe))resources[key]-=value;
+  if(type==="wood")owner.arrows+=amount;
+  else owner.specialArrows[type]+=amount;
+  return {ok:true,message:"🏹 "+ARROW_TYPES[type].name+"を"+amount+"本製作しました（残り"+this.arrowCount(id,type)+"本）。"};
+ }
+ craftArrows(id,resources){return this.craftTypedArrows(id,"wood",resources);}
  useHand(actor,hand,life,frontier){
   if(!HANDS.includes(hand))return {ok:false,message:"右手か左手を選んでください。"};
   return this.useItem(actor,this.handItem(actor?.id,hand),life,frontier);
@@ -166,9 +196,12 @@ export class SocialEquipment {
   }
   if(permanent.has(item)){
    if(item==="book")return {ok:true,kind:"book"};
-   if(item==="bow")return this.actor(actor.id).arrows>0?
-    {ok:true,kind:"action",action:"bow",usesArrow:true}:
-    {ok:false,message:"矢がありません。矢筒を補充してください。"};
+   if(item==="bow"){
+    const type=this.actor(actor.id).arrowType||"wood";
+    return this.arrowCount(actor.id,type)>0?
+     {ok:true,kind:"action",action:"bow",usesArrow:true,arrowType:type}:
+     {ok:false,message:ARROW_TYPES[type].name+"がありません。矢筒を補充してください。"};
+   }
    return {ok:true,kind:"action",action:{sword:"sword",spear:"spear",greatsword:"greatsword",axe:"axe",pickaxe:"mine"}[item]};
   }
   if(["bedroll","tent"].includes(item))return {ok:true,kind:"deploy",item};
@@ -205,7 +238,7 @@ export class SocialEquipment {
   return {ok:false,message:"このアイテムは使用せずに、クラフト材料として保管します。"};
  }
  snapshot(){
-  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands},arrows:a.arrows,potions:a.potions,attackMode:a.attackMode}])),
+  return {version:1,actors:Object.fromEntries(Object.entries(this.actors).map(([id,a])=>[id,{slots:[...a.slots],selected:a.selected,hands:{...a.hands},arrows:a.arrows,specialArrows:{...a.specialArrows},arrowType:a.arrowType,potions:a.potions,attackMode:a.attackMode}])),
    relations:{...this.relations},history:this.history.slice(-60)};
  }
  restore(data){
@@ -216,6 +249,9 @@ export class SocialEquipment {
    this.actors[id]={slots:Array.from({length:5},(_,i)=>validItems.has(a.slots?.[i])?a.slots[i]:defaults()[i]),
     selected:Number.isInteger(a.selected)?clamp(a.selected,0,4):0,
     arrows:Number.isSafeInteger(a.arrows)?clamp(a.arrows,0,999):12,
+    specialArrows:Object.fromEntries(["iron","fire"].map(type=>[type,
+     Number.isSafeInteger(a.specialArrows?.[type])?clamp(a.specialArrows[type],0,999):0])),
+    arrowType:arrowTypeValid(a.arrowType)?a.arrowType:"wood",
     potions:Number.isSafeInteger(a.potions)?clamp(a.potions,0,99):3,
     attackMode:ATTACK_MODES.includes(a.attackMode)?a.attackMode:"overhead",
     hands:normalizeEquipmentHands(Object.fromEntries(HANDS.map(hand=>[hand,validItems.has(a.hands?.[hand])?a.hands[hand]:handDefaults()[hand]])))};
