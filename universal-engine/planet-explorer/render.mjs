@@ -434,7 +434,7 @@ function appendModel(b,model,x,y,z,scale=1,angle=0){
  }
 }
 function vegetation(terrain,planet,origin,cx,cz,radius){
- const b=builder();
+ const b=builder();b.resourceNodes=[];
  if(radius>4100)return b;
  const cell=98,rng=Math.min(radius*.87,850);
  let count=0;
@@ -451,6 +451,8 @@ function vegetation(terrain,planet,origin,cx,cz,radius){
    const id=val>.28?"broadleaf":val>.04?"pine":val>-.07?"flowering":"boulder";
    const scale=id==="boulder"?.8:1.05+Math.abs(val)*.42;
    appendModel(b,original(id),x,s.elevationM,z,scale,val*5);
+   b.resourceNodes.push({id:"vegetation-"+ix+"-"+iz,kind:id==="boulder"?"stone":"wood",
+    name:id==="boulder"?"岩":"木",x:ax,z:az,elevationM:s.elevationM});
    count++;
   }
   if(count>=80)break;
@@ -464,7 +466,7 @@ export class ExplorerRenderer{
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.cameraController=new CameraController();
   this.actorMarker=null;
-  this.screenActors=[];
+  this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;
   this.squad=null;
   this.npcAnimators=new Map();
   const ring=builder();
@@ -596,6 +598,17 @@ export class ExplorerRenderer{
    }
    return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture),
     bookshelf:new Mesh(gl,bookshelf)};
+  }
+  pickResource(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let best=null,distance=44;
+   for(const resource of this.screenResources||[]){
+    if(!resource.onScreen)continue;
+    const d=Math.hypot((resource.u-u)*r.width,(resource.v-v)*r.height);
+    if(d<distance){best=resource;distance=d;}
+   }
+   return best;
   }
   pickLife(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
@@ -944,7 +957,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  this.screenActors=[];this.screenEnemies=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
+  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
@@ -995,6 +1008,7 @@ export class ExplorerRenderer{
    this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    this.patch=new Mesh(gl,this.groundPatchData);
    const shrubs=vegetation(this.terrain,this.planet,s.origin,cx,cz,radius);
+   this.resourceNodes=shrubs.resourceNodes;
    this.trees=shrubs.positions.length?new Mesh(gl,shrubs):null;
    this.patchKey=key;this.cx=cx;this.cz=cz;
    this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
@@ -1019,6 +1033,15 @@ export class ExplorerRenderer{
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
   if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
+  this.screenResources=(this.resourceNodes||[]).map(node=>{
+   const screen=projectScreen(vp,[node.x-this.cx,node.elevationM+(node.kind==="wood"?2.0:.85),node.z-this.cz]);
+   return screen?{...node,...screen}:null;
+  }).filter(Boolean);
+  if(this.selectedResource){
+   const node=this.resourceNodes?.find(n=>n.id===this.selectedResource.id);
+   if(node)this.drawMesh(this.selectionRing,
+    multiply4(vp,translate(node.x-this.cx,node.elevationM+.06,node.z-this.cz)),light,1,.95,[.45,1,.55]);
+  }
   this.drawBuildings(vp,light,s,radius,dt);
   this.drawFrontier(vp,light,s,radius);
   this.drawTestEnemies(vp,light,s,radius);
