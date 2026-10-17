@@ -68,6 +68,17 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
     pose.torsoX=.06;
     return pose;
   }
+  if(action==="hit"){
+    // Quick stagger and recovery, without moving the actual player controller.
+    const shock=Math.sin(Math.PI*clamp(progress,0,1));
+    pose.torsoX=-.38*shock;pose.torsoY=.12*shock;
+    pose.headX=-.20*shock;
+    pose.leftShoulderX=.43*shock;pose.rightShoulderX=.57*shock;
+    pose.leftShoulderZ=-.31*shock;pose.rightShoulderZ=.34*shock;
+    pose.leftElbowX=-.28*shock;pose.rightElbowX=-.24*shock;
+    pose.leftKneeX=.12*shock;pose.rightKneeX=.12*shock;
+    pose.tool=null;return pose;
+  }
   if(action==="guard"){
     const t=clamp(progress,0,1),lift=ease(t/.22)*(1-ease((t-.75)/.25));
     pose.leftShoulderX=-.24-1.24*lift;
