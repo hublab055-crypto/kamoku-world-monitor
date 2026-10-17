@@ -163,9 +163,9 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
       }else{
        // High guard -> accelerated descending cut -> delayed blade recovery.
        const heavy=spear?.77:1.08;
-       pose.rightShoulderX=-1.10-heavy*windup*(1-strike)+(spear?1.18:1.55)*follow;
+       pose.rightShoulderX=-1.10-heavy*windup*(1-strike)+(spear?1.18:.83)*follow;
        pose.leftShoulderX=-1.00-(spear?.57:.91)*windup*(1-strike)+
-        (spear?.94:1.37)*follow;
+        (spear?.94:.72)*follow;
        pose.torsoX=(spear?.14:.26)*follow+.10*counter;
        pose.torsoY=.15*windup*(1-strike)-.31*follow+.15*counter;
        pose.rightWristX=-.20*windup+.37*follow;
