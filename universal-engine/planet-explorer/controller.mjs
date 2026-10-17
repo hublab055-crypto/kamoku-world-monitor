@@ -1,4 +1,4 @@
-import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs";
+import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {smoothAltitude} from "./descent-visuals.mjs";
 
 /**
