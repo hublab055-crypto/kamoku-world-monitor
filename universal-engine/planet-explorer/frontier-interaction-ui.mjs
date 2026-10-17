@@ -220,6 +220,38 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   }else{log(result.message);saveLifeJournal();}
   updateHUD();return result;
  }
+ function volley(){
+  const c=get();
+  if(!c.rtsMode||!c.syncMode)return {ok:false,message:"シンクロモードではありません。"};
+  const selected=c.squad.selectedAgents(),eligible=[];
+  let noGear=0,noAmmo=0,busy=0;
+  for(const person of selected){
+   const hand=["right","left"].find(h=>social.handItem(person.id,h)==="bow");
+   if(!hand){noGear++;continue;}
+   if(!(social.actor(person.id)?.arrows>0)){noAmmo++;continue;}
+   const ready=person.id==="player"?!c.actions.active:
+    !person.task?.kind?.startsWith("equipped_");
+   if(!ready){busy++;continue;}
+   eligible.push({person,hand});
+  }
+  let launched=0;
+  for(const {person,hand} of eligible){
+   const result=social.useHand(person,hand,c.life,c.squad.frontier);
+   if(result.ok&&executeItem(result,person,c,hand).ok)launched++;
+  }
+  log("🔗 一斉射撃："+launched+"人が弓を引きました"+
+   (noGear?" / 弓なし"+noGear+"人":"")+(noAmmo?" / 矢なし"+noAmmo+"人":"")+
+   (busy?" / 動作中"+busy+"人":""));
+  return {ok:launched>0,count:launched};
+ }
+ function addRecoveredArrow(id){
+  const state=social.actor(id);
+  if(!state||state.arrows>=999)return {ok:false};
+  state.arrows++;
+  if(!$("quick-config-panel").hidden)renderConfig();
+  updateHUD();
+  return {ok:true,arrows:state.arrows};
+ }
  function runCommand(command){
   const c=get(),who=actor();if(!who)return {ok:false};
   const item=(gear,hand="right",variant=null)=>executeItem(
@@ -236,6 +268,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     return item("sword",hand,"thrust");
    }
    case "shoot":{
+    if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1)return volley();
     const hand=["right","left"].find(h=>social.handItem(who.id,h)==="bow");
     if(!hand){log("🏹 弓を装備してください。");return {ok:false};}
     return item("bow",hand);
@@ -294,6 +327,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function useHand(hand){
   const c=get(),who=actor();if(!who)return;
+  if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1&&social.handItem(who.id,hand)==="bow")return volley();
   return executeItem(social.useHand(who,hand,c.life,c.squad.frontier),who,c,hand);
  }
  function renderConfig(){
@@ -433,6 +467,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function restore(data){
   social=new SocialEquipment(data?.social||null);headingUp=Boolean(data?.headingUp);
+  trajectoryMode=["direct","lob","auto"].includes(data?.trajectoryMode)?data.trajectoryMode:"auto";
+  practiceTargetId=null;$("archery-trajectory").value=trajectoryMode;
   decks=Object.fromEntries(["player","scout","artisan"].map(id=>
    [id,new ActionSlots(data?.actionDecks?.[id]||null,social.actor(id))]));
   lastActiveActor=null;
@@ -447,7 +483,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   slotSignature="";quick();updateCamera();
   $("frontier-glb-choice").value=choice[$("frontier-glb-actor").value]||"male";
  }
- function snapshot(){return {social:social.snapshot(),
+ function snapshot(){return {social:social.snapshot(),trajectoryMode,
   actionDecks:Object.fromEntries(Object.entries(decks).map(([id,d])=>[id,d.snapshot()])),
   headingUp,choice:{...choice},modelSource,modelQuality};}
  async function loadModels(renderer,{force=false}={}){
@@ -480,6 +516,23 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    " / "+summary.join(" / ")+(failed?"。失敗した人物は従来モデルになります。":"。");
  }
  $("quick-use").addEventListener("click",useItem);
+ $("archery-trajectory").addEventListener("change",event=>{
+  trajectoryMode=event.target.value;
+  log("🏹 弾道："+({auto:"距離で自動切替",direct:"直射",lob:"放物線"}[trajectoryMode]||trajectoryMode));
+  updateTarget();
+ });
+ $("practice-target-place").addEventListener("click",()=>{
+  const c=get(),who=actor();
+  if(!who)return;
+  const x=who.control.x+Math.sin(who.control.yaw)*9;
+  const z=who.control.z+Math.cos(who.control.yaw)*9;
+  const geo=who.control.locationAt(x,z),surface=c.sample(geo.lat,geo.lon);
+  if(surface.water||surface.river){log("水域には的を設置できません。");return;}
+  const target=c.projectiles?.addTarget(who.control,{groundY:surface.elevationM});
+  if(!target){log("的は最大12個まで設置可能です。");return;}
+  practiceTargetId=target.id;
+  updateTarget();log("🎯 前方9mに練習用の的を設置しました。");
+ });
  $("combat-auto-target").addEventListener("change",()=>{
   decks[configId].autoTarget=$("combat-auto-target").checked;updateTarget();
  });
@@ -570,6 +623,6 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(e.key.toLowerCase()==="l"){e.preventDefault();useHand("left");}
  });
  return {quick,restore,snapshot,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
-  updateTarget,selectTargetAt,isCombat,
+  updateTarget,selectTargetAt,isCombat,volley,addRecoveredArrow,
   attackVariantFor:(id,kind)=>social.attackVariant(id,kind)};
 }
