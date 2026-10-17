@@ -197,7 +197,7 @@ export function sampleAnimationTrack(track,time,loop=true){
 export function chooseFrontierClip(clips,kind){
  const alias={walk:["Walk","Walking","Run"],run:["Run","Walk"],idle:["Idle","Stand"],
   talk:["Talk","Talking"],gift:["Give","Talk"],axe:["Chop","Axe"],mine:["Mine","Pickaxe","Chop"],
-  sword:["Attack","Sword"],bow:["Shoot","Bow","Archery","Attack"],sit:["Sit"],read:["Read","Sit"],eat:["Eat","Sit"],rest:["Sleep","Rest","Sit"],
+  sword:["Attack","Sword"],spear:["Spear","Polearm","Attack","Sword"],greatsword:["Greatsword","TwoHandSword","Attack","Sword"],bow:["Shoot","Bow","Archery","Attack"],sit:["Sit"],read:["Read","Sit"],eat:["Eat","Sit"],rest:["Sleep","Rest","Sit"],
   sleep:["Sleep","Rest"],faceIdle:["FaceIdle"],faceTalking:["FaceTalking"]};
  const wants=alias[kind]||[kind];
  for(const name of wants){const found=clips.find(c=>c.name.toLowerCase()===name.toLowerCase());if(found)return found;}
@@ -217,11 +217,11 @@ const qmul=(a,b)=>[
  * Unknown/imported skeletons retain their original animation.
  */
 export function applyWeaponRigPose(rig,poses,action,progress,variant="overhead",hand="right"){
- if(!["sword","axe","bow","guard","hit"].includes(action)||!Number.isFinite(progress))return false;
+ if(!["sword","spear","greatsword","axe","bow","guard","hit"].includes(action)||!Number.isFinite(progress))return false;
  const index=new Map(rig.nodes.map((n,i)=>[(n.name||"").toLowerCase(),i]));
  if(!["rightshoulder","leftshoulder","rightelbow","leftelbow","waist"].every(n=>index.has(n)))return false;
  const motion=samplePose({action,progress,variant});
- if(hand==="left"){
+ if(hand==="left"&&!["spear","greatsword"].includes(action)){
   for(const part of ["ShoulderX","ShoulderZ","ElbowX","WristX"]){
    const left="left"+part,right="right"+part;
    const l=motion[left],r=motion[right];
@@ -234,6 +234,12 @@ export function applyWeaponRigPose(rig,poses,action,progress,variant="overhead",
   const key=name==="waist"?"waist":name;
   if(key==="waist")poses[id].rotation=qmul(qx(motion.torsoX||0),qy(motion.torsoY||0));
   else for(const side of ["left","right"]){
+   // The standardized GLB rig exposes hip/knee nodes too; heavy strikes
+   // plant the legs while the existing idle/walk blend is maintained.
+   if(["spear","greatsword"].includes(action)&&key===side+"hip")
+    poses[id].rotation=qx(motion[side+"HipX"]||0);
+   if(["spear","greatsword"].includes(action)&&key===side+"knee")
+    poses[id].rotation=qx(motion[side+"KneeX"]||0);
    if(key===side+"shoulder")poses[id].rotation=qmul(qz(motion[side+"ShoulderZ"]||0),qx(motion[side+"ShoulderX"]||0));
    if(key===side+"elbow")poses[id].rotation=qx(motion[side+"ElbowX"]||0);
    if(key===side+"wrist")poses[id].rotation=qx(motion[side+"WristX"]||0);
