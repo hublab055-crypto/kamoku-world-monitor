@@ -433,7 +433,8 @@ function launchArrow(agent,plan={}){
  const enemy=battle?.enemies.find(e=>e.id===plan.targetId&&e.hp>0);
  const point=plan.targetPoint|| (enemy?{x:enemy.x,y:terrainAt(enemy.x,enemy.z)+(enemy.height||1.8)*.65,z:enemy.z}:null);
  const shot=projectiles.launch({shooterId:agent.id,actor:agent.control,
-  groundY:terrainAt(agent.control.x,agent.control.z),target:point,mode:plan.trajectory||"auto"});
+  groundY:terrainAt(agent.control.x,agent.control.z),target:point,mode:plan.trajectory||"auto",
+  arrowType:plan.arrowType||"wood"});
  if(!shot)log("矢を発射できませんでした（画面内の矢が多すぎます）。");
  return shot;
 }
@@ -449,10 +450,11 @@ function orderArrowPickup(arrow){
 }
 function collectArrow(who,id){
  if(!projectiles.embedded.some(a=>a.id===id))return;
- const result=frontierUI?.addRecoveredArrow(who.id);
+ const embedded=projectiles.embedded.find(a=>a.id===id);
+ const result=frontierUI?.addRecoveredArrow(who.id,embedded?.arrowType||"wood");
  if(!result?.ok){log("矢筒が満杯で回収できません。");return;}
  projectiles.recover(id);pendingArrowPickup.delete(who.id);
- log("➶ "+who.name+"が矢を1本回収しました。");
+ log("➶ "+who.name+"が"+({wood:"木の矢",iron:"鉄の矢",fire:"火矢"}[embedded?.arrowType]||"矢")+"を1本回収しました。");
 }
 function processArrowPickups(){
  for(const [id,arrowId] of [...pendingArrowPickup]){
