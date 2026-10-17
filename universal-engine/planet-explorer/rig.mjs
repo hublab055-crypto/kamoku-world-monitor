@@ -109,8 +109,6 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
       pose.torsoY=.08*b.nocked*(1-b.released);
       pose.torsoX=-.045*b.tension;
     }else if(action==="spear"||action==="greatsword"){
-      // Both arms control the same haft/hilt: forward hand guides the blade,
-      // rear hand provides leverage. Separate profiles for thrust/sweep/overhead.
       const spear=action==="spear";
       let style=variant;
       if(!["overhead","sweep","thrust","combo"].includes(style))style="overhead";
@@ -119,32 +117,58 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
        style=(spear?["sweep","thrust"]:["overhead","sweep"])[index];
        t=clamp(t*2-index,0,1);
       }
-      const windup=ease(t/.25),strike=ease((t-.25)/.40),
-       recovery=ease((t-.71)/.29),reach=strike*(1-recovery);
-      pose.leftShoulderX=-.89-.25*windup-.25*reach;
-      pose.rightShoulderX=-1.02-.42*windup-.31*reach;
-      pose.leftShoulderZ=-.27-.11*windup;
-      pose.rightShoulderZ=.19+.13*windup;
-      pose.leftElbowX=-1.00+.38*reach;
-      pose.rightElbowX=-.73+.35*reach;
-      pose.leftWristX=-.24*windup+.18*reach;
-      pose.rightWristX=.12*reach;
+      // A polearm uses a short draw/retraction. The greatsword's long wind-up,
+      // hip-driven cut, blade overshoot and slow recovery communicate inertia.
+      const prepare=spear?.24:.37,drive=spear?.39:.33,reset=spear?.72:.81;
+      const windup=ease(t/prepare),strike=ease((t-prepare)/drive),
+       recovery=ease((t-reset)/(1-reset)),follow=strike*(1-recovery);
+      const counter=ease((t-(spear?.60:.69))/(spear?.21:.20))*(1-recovery);
+      pose.rootY=(-.04*windup+(spear?.055:.10)*follow)*(1-recovery);
+      pose.leftHipX=-.17*windup+.12*follow;
+      pose.rightHipX=.16*windup-.17*follow;
+      pose.leftKneeX=.13*windup*(1-recovery);
+      pose.rightKneeX=.10*windup*(1-recovery);
+      pose.leftShoulderX=-.94-.23*windup-.16*follow;
+      pose.rightShoulderX=-1.02-.36*windup-.27*follow;
+      pose.leftShoulderZ=-.29-.12*windup;
+      pose.rightShoulderZ=.23+.17*windup;
+      pose.leftElbowX=-1.08+.29*follow;
+      pose.rightElbowX=-.82+.34*follow;
+      pose.leftWristX=-.24*windup+.16*follow;
+      pose.rightWristX=.10*follow;
       if(style==="thrust"){
-       pose.torsoX=-.15*reach;
-       pose.torsoY=-.18*windup+.25*reach;
-       pose.leftShoulderX=-1.07-.30*reach;
-       pose.rightShoulderX=-1.17-.44*reach;
-       pose.leftElbowX=-1.02+.63*reach;
-       pose.rightElbowX=-.85+.64*reach;
+       // Front hand leads the spear. Both hands extend and then physically pull
+       // the haft back, not simply snap from an attack to the idle animation.
+       const retreat=ease((t-.65)/.31);
+       const extension=strike*(1-retreat);
+       pose.torsoX=-.18*extension+.055*retreat*(1-recovery);
+       pose.torsoY=-.20*windup*(1-strike)+.24*extension;
+       pose.leftShoulderX=-1.02-.34*extension;
+       pose.rightShoulderX=-1.14-.42*extension;
+       pose.leftElbowX=-1.18+.75*extension;
+       pose.rightElbowX=-.94+.73*extension;
+       pose.leftWristX=-.16*windup+.23*extension-.12*retreat;
+       pose.rightWristX=.15*extension-.08*retreat;
+       pose.leftHipX=-.12*windup+.19*extension;
+       pose.rightHipX=.13*windup-.21*extension;
       }else if(style==="sweep"){
-       pose.torsoY=(-.63*windup+.97*strike)*(1-recovery);
-       pose.rightShoulderZ=.48+.33*windup-1.00*reach;
-       pose.leftShoulderZ=-.46-.19*windup+.59*reach;
-       pose.torsoX=.10*reach;
+       // Opposed hands rotate the haft/hilt together through the upper torso.
+       const arc=(-.61*windup+(spear?1.12:1.42)*strike)*(1-recovery);
+       pose.torsoY=arc+(spear?.07:.19)*counter;
+       pose.torsoX=(spear?.10:.23)*follow;
+       pose.rightShoulderZ=.45+.31*windup-(spear?.89:1.19)*follow;
+       pose.leftShoulderZ=-.46-.19*windup+(spear?.61:.76)*follow;
+       pose.rightWristX=-.08*windup+.23*follow;
+       pose.leftWristX=-.21*windup+.16*follow;
       }else{
-       pose.rightShoulderX=-1.14-1.06*windup*(1-strike)+1.39*reach;
-       pose.leftShoulderX=-1.01-.81*windup*(1-strike)+1.04*reach;
-       pose.torsoX=.15*reach;
+       // High guard -> accelerated descending cut -> delayed blade recovery.
+       const heavy=spear?.77:1.08;
+       pose.rightShoulderX=-1.10-heavy*windup*(1-strike)+(spear?1.18:1.55)*follow;
+       pose.leftShoulderX=-1.00-(spear?.57:.91)*windup*(1-strike)+
+        (spear?.94:1.37)*follow;
+       pose.torsoX=(spear?.14:.26)*follow+.10*counter;
+       pose.torsoY=.15*windup*(1-strike)-.31*follow+.15*counter;
+       pose.rightWristX=-.20*windup+.37*follow;
       }
     }else if(action==="build"){
       const beat=Math.abs(Math.sin(t*5*Math.PI));
