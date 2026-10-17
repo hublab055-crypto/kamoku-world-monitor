@@ -580,7 +580,7 @@ export class ExplorerRenderer{
    }
   this.pickVP=null;this.groundPatchData=null;
   this.orbitVP=null;this.orbitOffsetDeg=0;this.selectedLanding=null;this.screenLanding=null;
-  this.orbitPan=null;this.lastOrbitCenter=null;
+  this.orbitPan=null;this.lastOrbitCenter=null;this.orbitFocus=null;
   gl.enable(gl.DEPTH_TEST);
  }
  setAvatarStyle(id){
@@ -713,8 +713,15 @@ export class ExplorerRenderer{
   }
   /** Pick any visible point on the orbital globe. Doesn't affect the actor. */
   /** Planet drag rotates the *view* across all latitudes and longitudes. */
+  setOrbitLandingFocus(lat,lon){
+   if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90)return;
+   const here=this.lastOrbitCenter||{lat,lon};
+   this.orbitPan={lat:here.lat,lon:here.lon};
+   this.orbitFocus={lat,lon:wrapLon(lon)};
+  }
   panOrbit(dx,dy){
    if(![dx,dy].every(Number.isFinite))return;
+   this.orbitFocus=null;
    if(!this.orbitPan)this.orbitPan={...(this.lastOrbitCenter||{lat:0,lon:0})};
    this.orbitPan.lat=clamp(this.orbitPan.lat+dy*.23,-89.5,89.5);
    this.orbitPan.lon=wrapLon(this.orbitPan.lon-dx*.25);
@@ -1081,14 +1088,26 @@ export class ExplorerRenderer{
   this.actorMarker=null;
   if(!inOrbit){
    this.orbitVP=null;this.screenLanding=null;
+   this.orbitFocus=null;this.orbitPan=null;this.lastOrbitCenter=null;
    if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
   this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
-  return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
+  return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
  }
- orbit(s,asp){
+ orbit(s,asp,dt=1/60){
   this.pickVP=null;
+  if(this.orbitFocus&&this.orbitPan){
+   const a=1-Math.exp(-Math.min(Math.max(dt,0),.1)*5.5);
+   const deltaLon=wrapLon(this.orbitFocus.lon-this.orbitPan.lon);
+   this.orbitPan.lat+=(this.orbitFocus.lat-this.orbitPan.lat)*a;
+   this.orbitPan.lon=wrapLon(this.orbitPan.lon+deltaLon*a);
+   if(Math.abs(this.orbitFocus.lat-this.orbitPan.lat)<.01&&
+      Math.abs(wrapLon(this.orbitFocus.lon-this.orbitPan.lon))<.01){
+    this.orbitPan={...this.orbitFocus};
+    this.orbitFocus=null;
+   }
+  }
   const gl=this.gl,R=this.R,distance=R*(1+s.altitudeM/this.planet.radiusM);
   const c=this.cameraController.config;
   const offset=this.planet.rotationAngle*180/Math.PI*(s.altitudeM>400000?1:0);
