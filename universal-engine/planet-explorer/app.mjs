@@ -680,7 +680,7 @@ $("landing-select").addEventListener("change",()=>{
   controller.setLanding(site.lat,site.lon);
   squad?.repositionAfterLanding();
   controller.targetAltitude(15000000);controller.altitudeM=15000000;
-  renderer.patchKey=null;
+  renderer.patchKey=null;renderer.orbitPan=null;renderer.orbitFocus=null;renderer.lastOrbitCenter=null;
   renderer.cameraController.resetFreeAnchor(controller,
     Math.max(0,terrainSurface(terrain,controller.lat,controller.lon).elevationM));
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
