@@ -113,7 +113,7 @@ test("camera matrices transform finite values with nonzero perspective",()=>{
 });
 test("globe and ground renderer submit real indexed 3D triangles",()=>{
  const {p,t}=setup();
- const calls={draws:0,uploaded:0};
+ const calls={draws:0,uploaded:0,instanced:0};
  const gl={
   VERTEX_SHADER:35633,FRAGMENT_SHADER:35632,COMPILE_STATUS:35713,LINK_STATUS:35714,
   ARRAY_BUFFER:34962,ELEMENT_ARRAY_BUFFER:34963,STATIC_DRAW:35044,
@@ -123,9 +123,10 @@ test("globe and ground renderer submit real indexed 3D triangles",()=>{
   createProgram:()=>({}),attachShader(){},linkProgram(){},getProgramParameter:()=>true,
   getUniformLocation:()=>({}),createVertexArray:()=>({}),bindVertexArray(){},
   createBuffer:()=>({}),bindBuffer(){},bufferData:(_type,v)=>{assert.ok(v.length>0);calls.uploaded++;},
-  enableVertexAttribArray(){},vertexAttribPointer(){},enable(){},disable(){},
+  enableVertexAttribArray(){},vertexAttribPointer(){},vertexAttribDivisor(){},enable(){},disable(){},
   uniformMatrix4fv(){},uniform3fv(){},uniform1f(){},useProgram(){},viewport(){},clearColor(){},clear(){},
   blendFunc(){},depthMask(){},drawElements:(_mode,count)=>{assert.ok(count>0);calls.draws++;},
+  drawElementsInstanced:(_mode,count,_type,_offset,instances)=>{assert.ok(count>0&&instances>0);calls.instanced+=instances;},
   deleteBuffer(){},deleteVertexArray(){},deleteProgram(){}
  };
  const canvas={clientWidth:720,clientHeight:420,width:720,height:420,
@@ -141,5 +142,6 @@ test("globe and ground renderer submit real indexed 3D triangles",()=>{
  assert.equal(renderer.orbitDetail,null,"orbital LOD GPU mesh must be freed after handoff");
  assert.ok(calls.uploaded>8);
  assert.ok(calls.draws>=3);
+ assert.ok(calls.instanced>100,"dense nature should use hardware instancing");
  renderer.destroy();
 });
