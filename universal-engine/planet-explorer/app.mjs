@@ -387,54 +387,112 @@ for(const button of document.querySelectorAll("[data-move]")){
  button.addEventListener("pointerdown",down);
  for(const action of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(action,up);
 }
-let pointer=null;
-$("world").addEventListener("pointerdown",e=>{
- pointer={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};
- $("world").setPointerCapture?.(e.pointerId);
-});
-$("world").addEventListener("pointermove",e=>{
- if(!pointer||e.pointerId!==pointer.id)return;
- if(Math.hypot(e.clientX-pointer.startX,e.clientY-pointer.startY)>10)pointer.moved=true;
- if(pointer.moved){
-  if(renderer.cameraController.mode==="legacy")controller.turn((e.clientX-pointer.x)*.006);
-  else renderer.cameraController.rotate(e.clientX-pointer.x,e.clientY-pointer.y);
+/* Shared canvas gestures for TPV and RTS. */
+function cancelHarvestOrder(id){
+ const a=squad?.get(id);
+ if(a)a.manualHarvest=false;
+ manualHarvest.delete(id);
+}
+function commandResourceTap(resource){
+ if(!controller.nearGround||!resource)return false;
+ const selected=rtsMode?squad.selectedAgents():[squad.get("player")];
+ let count=0;
+ for(const a of selected){
+  if(!a)continue;
+  const range=Math.hypot(a.control.x-resource.x,a.control.z-resource.z);
+  const moved=range<=2.6||Boolean(squad.orderMove([a.id],resource.x,resource.z));
+  if(!moved)continue;
+  if(range<=2.6){
+   squad.frontier?.cancel(a);a.control.clearMoveTarget();
+   a.task=null;a.cooldown=1.5;
+  }
+  manualHarvest.set(a.id,{id:resource.id,kind:resource.kind,x:resource.x,z:resource.z});
+  a.manualHarvest=true;count++;
  }
- pointer.x=e.clientX;pointer.y=e.clientY;
-});
-$("world").addEventListener("pointerup",e=>{
- if(!pointer||e.pointerId!==pointer.id)return;
- if(!rtsMode&&!pointer.moved&&frontierUI?.selectTargetAt(e.clientX,e.clientY)){
-   pointer=null;return;
- }
- if(!rtsMode&&!pointer.moved){
-   const hit=renderer.pickLife(e.clientX,e.clientY);
-   if(hit){
-    if(hit.type==="furniture"&&hit.kind==="bookshelf")openBookLibrary();
-    else lifeUI.open(hit.type==="camp"?"camp":"home",hit.id);
-    pointer=null;return;
+ if(count){
+  renderer.selectedResource=resource;
+  log("🧺 "+resource.name+"に接近して"+(resource.kind==="stone"?"採掘":"伐採")+"："+
+   count+"人へ指示しました。");
+ }else log("資源まで移動できません。近くの資源を選択してください。");
+ return count>0;
+}
+function processHarvestOrders(){
+ for(const [id,order] of [...manualHarvest]){
+  const agent=squad?.get(id);
+  if(!agent||!agent.control.nearGround){cancelHarvestOrder(id);continue;}
+  const dist=Math.hypot(agent.control.x-order.x,agent.control.z-order.z);
+  if(dist>2.6){
+   if(!agent.control.moveTarget){
+    cancelHarvestOrder(id);log(agent.name+"：資源に到達できず採集を終了しました。");
    }
+   continue;
   }
-  if(!rtsMode&&!pointer.moved&&access.inside&&renderer.pickBookshelf(e.clientX,e.clientY)){
-   openBookLibrary();pointer=null;return;
+  agent.control.clearMoveTarget();
+  const kind=order.kind==="stone"?"mine":"axe";
+  if(id==="player"){
+   if(actions.active)continue;
+   if(!actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon)))continue;
+  }else{
+   if(agent.task||!squad.performEquippedAction(id,kind))continue;
   }
-  if(!rtsMode&&!pointer.moved&&controller.nearGround){
-   const door=renderer.pickDoor(e.clientX,e.clientY);
-   if(door){tapDoor(door.id);pointer=null;return;}
-  }
-  if(rtsMode&&!pointer.moved&&controller.nearGround){
-  commandRtsTap(e.clientX,e.clientY,e.shiftKey);
- }else if(controlMode==="tap"&&!pointer.moved&&controller.nearGround){
-   const ground=renderer.pickGround(e.clientX,e.clientY);
-   if(ground&&controller.setMoveTarget(ground.x,ground.z)){
-     log("タップ地点まで自動移動します。");
-   }else log("移動できない地点です（地面を近くでタップしてください）。");
+  cancelHarvestOrder(id);
+  log(agent.name+"："+(kind==="mine"?"採掘":"伐採")+"を開始しました。");
  }
- pointer=null;
+}
+function screenActorAt(x,y){
+ const r=$("world").getBoundingClientRect();
+ if(!r.width||!r.height)return false;
+ const u=(x-r.left)/r.width,v=(y-r.top)/r.height;
+ return (renderer.screenActors||[]).some(p=>p.onScreen&&
+  Math.hypot((p.u-u)*r.width,(p.v-v)*r.height)<42);
+}
+function handleSceneTap({x,y,shiftKey=false}){
+ if(!renderer||!controller?.nearGround)return;
+ if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
+ if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
+ if(!rtsMode){
+  const hit=renderer.pickLife(x,y);
+  if(hit){
+   if(hit.type==="furniture"&&hit.kind==="bookshelf")openBookLibrary();
+   else lifeUI.open(hit.type==="camp"?"camp":"home",hit.id);
+   return;
+  }
+  if(access.inside&&renderer.pickBookshelf(x,y)){openBookLibrary();return;}
+  const door=renderer.pickDoor(x,y);
+  if(door){tapDoor(door.id);return;}
+ }
+ const resource=renderer.pickResource(x,y);
+ if(resource){commandResourceTap(resource);return;}
+ if(rtsMode&&rallyPicking)commandRtsTap(x,y,shiftKey);
+}
+function handleSceneDoubleTap({x,y,shiftKey=false}){
+ if(!renderer||!controller?.nearGround)return;
+ // Object double-taps must not send unintended ground movement.
+ if(frontierUI?.selectTargetAt(x,y)||renderer.pickResource(x,y)||
+   screenActorAt(x,y)||renderer.pickLife(x,y)||renderer.pickDoor(x,y))return;
+ const ground=renderer.pickGround(x,y);
+ if(!ground){log("地面を指定できません。");return;}
+ renderer.selectedResource=null;
+ if(rtsMode){
+  for(const id of squad.selected)cancelHarvestOrder(id);
+  commandRtsTap(x,y,shiftKey);
+ }else{
+  cancelHarvestOrder("player");
+  if(controller.setMoveTarget(ground.x,ground.z))log("📍 目的地を設定しました。移動を開始します。");
+  else log("移動できない地点です（水域・急斜面・距離を確認してください）。");
+ }
+}
+viewportGestures=bindViewportGestures($("world"),{
+ onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
+ onDrag:(dx,dy)=>{
+  if(!renderer||!controller)return;
+  if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
+  else renderer.cameraController.rotate(dx,dy);
+ },
+ onPinch:factor=>{if(renderer&&controller){zoomScene(factor);syncCameraControls();}}
 });
-$("world").addEventListener("pointercancel",()=>pointer=null);
 $("world").addEventListener("wheel",e=>{
- e.preventDefault();
- zoomScene(e.deltaY>0?1.3:.77);
+ e.preventDefault();zoomScene(e.deltaY>0?1.3:.77);syncCameraControls();
 },{passive:false});
 $("landing-select").addEventListener("change",()=>{
  const p=$("landing-select").value.split(",").map(Number);
