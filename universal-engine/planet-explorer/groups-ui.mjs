@@ -6,18 +6,49 @@ export function installGroupUI({get,notify,update,onSelect,onSync,onPickRally,on
  function refresh(){
   const {squad}=context();if(!squad)return;
   const groups=squad.groups.all(),picker=$("rts-group-select"),current=active();
+  const selected=squad.selectedGroups(),multiple=selected.length>1;
   const signature=JSON.stringify(groups.map(g=>[g.id,g.name,g.members.length]));
   if(signature!==pickerSignature){
    picker.replaceChildren();
    const first=document.createElement("option");first.value="";first.textContent="個別選択";picker.append(first);
+   const many=document.createElement("option");many.value="__multi__";many.textContent="☑ 複数部隊";picker.append(many);
    for(const g of groups){
     const option=document.createElement("option");
     option.value=g.id;option.textContent=g.name+" ("+g.members.length+")";picker.append(option);
    }
+   const multiRoot=$("rts-group-multi-list");multiRoot.replaceChildren();
+   for(const g of groups){
+    const row=document.createElement("label");row.className="multi-group-item";
+    const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.value=g.id;
+    checkbox.setAttribute("aria-label",g.name+"を同時指揮に追加");
+    checkbox.addEventListener("change",()=>{
+     const chosen=[...squad.groups.activeIds];
+     if(checkbox.checked&&!chosen.includes(g.id))chosen.push(g.id);
+     if(!checkbox.checked&&chosen.includes(g.id))chosen.splice(chosen.indexOf(g.id),1);
+     const activeGroups=squad.selectGroups(chosen);
+     if(activeGroups.length){onSelect(activeGroups[0].members[0]);onSync(activeGroups.every(x=>x.sync));}
+     refresh();update();
+    });
+    const text=document.createElement("span");text.textContent=g.name+" ("+g.members.length+"人)";
+    row.append(checkbox,text);multiRoot.append(row);
+   }
    pickerSignature=signature;
   }
-  if(picker.value!==(current?.id||""))picker.value=current?.id||"";
-  $("rts-group-assemble").disabled=!current;
+  const want=multiple?"__multi__":current?.id||"";
+  if(picker.value!==want)picker.value=want;
+  for(const checkbox of $("rts-group-multi-list").querySelectorAll("input[type=checkbox]"))
+   checkbox.checked=squad.groups.activeIds.includes(checkbox.value);
+  $("rts-multi-group-summary").textContent=selected.length?
+   selected.map(g=>g.name).join("・")+" / 対象"+squad.selected.size+"人":
+   "部隊をチェックすると複数選択できます。";
+  $("rts-group-assemble").disabled=!selected.length;
+  $("rts-multi-assemble").disabled=!selected.length;
+  $("rts-multi-form").disabled=!selected.length;
+  $("rts-multi-stop").disabled=!selected.length;
+  $("rts-follow").disabled=!selected.length;
+  const follow=selected.length>0&&selected.every(g=>g.follow);
+  $("rts-follow").textContent=follow?"👣 追従ON":"👣 追従OFF";
+  $("rts-follow").setAttribute("aria-pressed",String(follow));
  }
  function drawRoster(){
   const {squad}=context(),root=$("group-members");root.replaceChildren();
@@ -59,6 +90,7 @@ export function installGroupUI({get,notify,update,onSelect,onSync,onPickRally,on
   $("group-formation").value=group?.formation||"line";
   $("group-spacing").value=group?.spacing??2.4;
   $("group-sync").checked=group?.sync??false;
+  $("group-follow").checked=group?.follow??true;
   drawRoster();
   for(const id of ["group-update","group-delete","group-rally-here","group-rally-pick","group-form","group-go"])
    $(id).disabled=!group;
@@ -76,7 +108,7 @@ export function installGroupUI({get,notify,update,onSelect,onSync,onPickRally,on
  function formData(){
   return {name:$("group-name").value,members:[...draftMembers],
    formation:$("group-formation").value,spacing:Number($("group-spacing").value),
-   sync:$("group-sync").checked};
+   sync:$("group-sync").checked,follow:$("group-follow").checked};
  }
  function feedback(error){$("group-status").textContent=error.message||String(error);}
  function selectedGroup(group){
@@ -88,10 +120,43 @@ export function installGroupUI({get,notify,update,onSelect,onSync,onPickRally,on
   if(!$("group-panel").hidden)loadDraft(group);
  }
  $("rts-group-select").addEventListener("change",e=>{
+  if(e.target.value==="__multi__")return;
   const group=context().squad.selectGroup(e.target.value||null);
   selectedGroup(group);
  });
- $("rts-group-toggle").addEventListener("click",()=>open($("group-panel").hidden));
+ $("rts-group-toggle").addEventListener("click",()=>{
+  closeMulti();
+  open($("group-panel").hidden);
+ });
+ function closeMulti(){
+  $("rts-multi-group-panel").hidden=true;
+  $("rts-multi-groups").setAttribute("aria-expanded","false");
+ }
+ $("rts-multi-groups").addEventListener("click",()=>{
+  const show=$("rts-multi-group-panel").hidden;
+  $("rts-multi-group-panel").hidden=!show;
+  $("rts-multi-groups").setAttribute("aria-expanded",String(show));
+  if(show){close();refresh();}
+ });
+ $("rts-multi-group-close").addEventListener("click",closeMulti);
+ $("rts-follow").addEventListener("click",()=>{
+  const {squad}=context(),groups=squad.selectedGroups();
+  if(!groups.length)return;
+  const value=!groups.every(g=>g.follow);
+  for(const g of groups)squad.setGroupFollow(g.id,value);
+  refresh();if(!$("group-panel").hidden)loadDraft(active());update();
+  notify(value?"👣 隊長の移動に合わせて隊形を維持します。":"👣 隊形追従を解除しました。");
+ });
+ function multiCommand(command){
+  const {squad}=context(),groups=squad.selectedGroups();
+  if(!groups.length){notify("先に部隊を選択してください。");return;}
+  const n=squad.orderGroups(groups.map(g=>g.id),command);
+  notify("👥 "+groups.length+"部隊への"+({rally:"集合",form:"整列",stop:"停止"}[command]||command)+"指示："+n+"人");
+  update();
+ }
+ $("rts-multi-assemble").addEventListener("click",()=>multiCommand("rally"));
+ $("rts-multi-form").addEventListener("click",()=>multiCommand("form"));
+ $("rts-multi-stop").addEventListener("click",()=>multiCommand("stop"));
  $("group-close").addEventListener("click",close);
  $("group-new").addEventListener("click",()=>{
   try{
@@ -113,10 +178,10 @@ export function installGroupUI({get,notify,update,onSelect,onSync,onPickRally,on
   squad.removeGroup(g.id);refresh();loadDraft(null);update();notify("👥 "+g.name+"を削除しました。");
  });
  function assemble(){
-  const {squad}=context(),g=active();
-  if(!g){notify("登録部隊を選択してください。");return;}
-  const moved=squad.rallyGroup(g.id);
-  notify(moved?"📣 "+g.name+"の"+moved+"人が登録隊形で集合します。":"集合できません。地形と集合地点を確認してください。");
+  const {squad}=context(),groups=squad.selectedGroups();
+  if(!groups.length){notify("登録部隊を選択してください。");return;}
+  const moved=squad.orderGroups(groups.map(g=>g.id),"rally");
+  notify(moved?"📣 "+groups.length+"部隊の"+moved+"人が登録隊形で集合します。":"集合できません。地形と集合地点を確認してください。");
  }
  $("rts-group-assemble").addEventListener("click",assemble);
  $("group-go").addEventListener("click",assemble);
@@ -132,13 +197,10 @@ export function installGroupUI({get,notify,update,onSelect,onSync,onPickRally,on
  });
  $("group-form").addEventListener("click",()=>{
   const {squad}=context(),g=active();if(!g)return;
-  const people=g.members.map(id=>squad.get(id)).filter(Boolean);
-  const x=people.reduce((n,a)=>n+a.control.x,0)/people.length;
-  const z=people.reduce((n,a)=>n+a.control.z,0)/people.length;
-  const moved=squad.orderMove(g.members,x,z,{formation:g.formation,spacing:g.spacing});
+  const moved=squad.orderGroups([g.id],"form");
   notify("↔ "+g.name+"："+moved+"人に隊形整列を指示しました。");
  });
- return {refresh,loadDraft,close,reset(){
-  pickerSignature="";draftMembers=[];close();refresh();
+ return {refresh,loadDraft,close,closeMulti,reset(){
+  pickerSignature="";draftMembers=[];close();closeMulti();refresh();
  }};
 }

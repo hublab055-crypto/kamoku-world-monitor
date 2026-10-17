@@ -1,6 +1,6 @@
 import {ExplorerController} from "./controller.mjs";
-import {taskBowProgress} from "./archery-timing.mjs";
 import {actionDuration,ATTACK_VARIANTS} from "./actions.mjs";
+import {taskBowProgress} from "./archery-timing.mjs";
 import {terrainSurface} from "./geo.mjs";
 import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs";
 import {GroupRegistry,formationOffsets} from "./groups.mjs";
@@ -43,7 +43,7 @@ export class SquadEngine{
     control=ExplorerController.fromSnapshot(terrain,saved);
    }
    return {id,name,control,auto:false,rules:defaultRules(),rally:{x:control.x,z:control.z},
-    task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機"};
+    task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機",formationOverride:false};
   });
   this.groups=new GroupRegistry(()=>this.agents.map(a=>a.id));
   if(snapshot)this.restore(snapshot);
@@ -62,6 +62,24 @@ export class SquadEngine{
   return true;
  }
  selectAll(){this.groups.activate(null);this.selected=new Set(this.agents.map(a=>a.id));}
+ selectedGroups(){return this.groups.selected();}
+ selectGroups(ids){
+  const groups=this.groups.activateMany(ids);
+  if(groups.length)this.selected=new Set(groups.flatMap(g=>g.members));
+  return groups;
+ }
+ setGroupFollow(id,follow){
+  const group=this.groups.update(id,{follow:Boolean(follow)});
+  for(const memberId of group.members){
+   const a=this.get(memberId);
+   if(!a)continue;
+   a.formationOverride=false;
+   if(!follow&&a.order==="formation"){
+    a.control.clearMoveTarget();a.order="idle";a.status="追従解除";
+   }
+  }
+  return group;
+ }
  /** Named groups may overlap; only the active group controls formation and sync selection. */
  registerGroup(name,members,options={}){
   const actors=members.map(id=>this.get(id));
@@ -73,10 +91,17 @@ export class SquadEngine{
  }
  updateGroup(id,patch){
   const group=this.groups.update(id,patch);
-  if(this.groups.activeId===id)this.selected=new Set(group.members);
+  if(typeof patch.follow==="boolean")this.setGroupFollow(id,patch.follow);
+  if(this.groups.activeIds.includes(id))this.selected=new Set(this.selectedGroups().flatMap(g=>g.members));
+  for(const memberId of group.members){const a=this.get(memberId);if(a)a.formationOverride=false;}
   return group;
  }
- removeGroup(id){return this.groups.remove(id);}
+ removeGroup(id){
+  const removed=this.groups.remove(id);
+  if(removed&&this.groups.activeIds.length)
+   this.selected=new Set(this.selectedGroups().flatMap(g=>g.members));
+  return removed;
+ }
  selectGroup(id){
   const group=this.groups.activate(id);
   if(group)this.selected=new Set(group.members);
@@ -90,7 +115,113 @@ export class SquadEngine{
  rallyGroup(id){
   const g=this.groups.get(id);
   if(!g||!g.rally)return 0;
-  return this.orderMove(g.members,g.rally.x,g.rally.z,{formation:g.formation,spacing:g.spacing});
+  return this.orderGroupMove(id,g.rally.x,g.rally.z);
+ }
+ /** Group leader receives a waypoint; followers continue to correct formation during travel. */
+ orderGroupMove(id,x,z,members=null){
+  const g=this.groups.get(id);
+  if(!g||!finitePoint({x,z}))return 0;
+  const targets=(members||g.members).map(key=>this.get(key)).filter(Boolean);
+  if(!targets.length)return 0;
+  if(!g.follow){
+   const moved=this.orderMove(targets.map(a=>a.id),x,z,{formation:g.formation,spacing:g.spacing});
+   for(const a of targets)a.formationOverride=false;
+   return moved;
+  }
+  const lead=targets[0];
+  const loc=lead.control.locationAt(x,z),surface=terrainSurface(this.terrain,loc.lat,loc.lon);
+  if(surface.water||surface.river||!lead.control.nearGround)return 0;
+  const moving=lead.control.setMoveTarget(x,z);
+  if(moving){
+   this.frontier?.cancel(lead);lead.control.setMoveTarget(x,z);
+   lead.task=null;lead.order="manual";lead.status="部隊移動";lead.cooldown=1.5;
+  }else if(Math.hypot(lead.control.x-x,lead.control.z-z)>0.5)return 0;
+  for(const a of targets)a.formationOverride=false;
+  const applied=this.updateFormationFollowers(0,new Set(targets.map(a=>a.id)),[id]);
+  return (moving?1:0)+applied;
+ }
+ /** Issue an RTS order to multiple groups; duplicate members execute only once.
+  * Earlier selected group has priority when registrations overlap. */
+ orderGroups(ids,command,point=null){
+  const keys=[...new Set(ids)],claimed=new Set();
+  let moved=0;
+  for(const id of keys){
+   const g=this.groups.get(id);if(!g)continue;
+   const members=g.members.filter(member=>!claimed.has(member));
+   if(!members.length)continue;
+   for(const member of members)claimed.add(member);
+   if(command==="stop"){
+    this.halt(members);moved+=members.length;continue;
+   }
+   const leaderAlreadyAssigned=members[0]!==g.members[0];
+   // A member may belong to multiple groups; the earlier group owns its leader.
+   // Non-overlapping members in a later group still receive their own order.
+   const move=(x,z)=>{
+    if(!finitePoint({x,z}))return 0;
+    return leaderAlreadyAssigned?
+     this.orderMove(members,x,z,{formation:g.formation,spacing:g.spacing}):
+     this.orderGroupMove(id,x,z,members);
+   };
+   if(command==="rally"&&g.rally)moved+=move(g.rally.x,g.rally.z);
+   else if(command==="form"){
+    const actors=members.map(member=>this.get(member));
+    const x=actors.reduce((sum,a)=>sum+a.control.x,0)/actors.length;
+    const z=actors.reduce((sum,a)=>sum+a.control.z,0)/actors.length;
+    moved+=move(x,z);
+   }else if(command==="move"&&finitePoint(point)){
+    const index=keys.indexOf(id),shift=(index-(keys.length-1)/2)*12;
+    const lead=this.get(members[0]).control;
+    const dx=point.x-lead.x,dz=point.z-lead.z;
+    const yaw=Math.hypot(dx,dz)>.01?Math.atan2(dx,dz):lead.yaw;
+    moved+=move(point.x+Math.cos(yaw)*shift,point.z-Math.sin(yaw)*shift);
+   }
+  }
+  return moved;
+ }
+ /** Follow the first registered member's facing/route; never override an explicit
+  * individual move, work task, manual input, or an actor in an earlier group. */
+ updateFormationFollowers(dt=0,allowed=null,onlyIds=null,{manualLead=false}={}){
+  const prioritized=[...this.groups.activeIds,...this.groups.all().map(g=>g.id)];
+  const order=[...new Set(onlyIds||prioritized)],claimed=new Set();
+  let issued=0;
+  for(const id of order){
+   const g=this.groups.get(id);
+   if(!g?.follow||g.members.length<2)continue;
+   const lead=this.get(g.members[0]);
+   if(!lead||lead.formationOverride||claimed.has(lead.id)||!lead.control.nearGround)continue;
+   claimed.add(lead.id);
+   const offsets=formationOffsets(g.members.length,g.formation,g.spacing);
+   const base=offsets[0],control=lead.control;
+   const target=control.moveTarget;
+   const dx=(target?.x??control.x)-control.x,dz=(target?.z??control.z)-control.z;
+   const yaw=Math.hypot(dx,dz)>.4?Math.atan2(dx,dz):control.yaw;
+   const sn=Math.sin(yaw),cs=Math.cos(yaw);
+   for(let i=1;i<g.members.length;i++){
+    const a=this.get(g.members[i]);
+    if(!a||claimed.has(a.id))continue;
+    claimed.add(a.id);
+    if(allowed&&!allowed.has(a.id))continue;
+    if(a.formationOverride||a.manualHarvest||a.task||!a.control.nearGround||
+      (a.id==="player"&&manualLead)||a.auto&&a.control.moveTarget&&a.order==="auto")continue;
+    const offset=offsets[i],right=offset.x-base.x,forward=offset.z-base.z;
+    const x=control.x+right*cs+forward*sn;
+    const z=control.z-right*sn+forward*cs;
+    const range=Math.hypot(x-a.control.x,z-a.control.z);
+    if(range<1.0){
+     if(a.order==="formation"){a.control.clearMoveTarget();a.order="idle";}
+     continue;
+    }
+    const prev=a.control.moveTarget;
+    if(prev&&Math.hypot(prev.x-x,prev.z-z)<.65)continue;
+    const where=a.control.locationAt(x,z),sample=terrainSurface(this.terrain,where.lat,where.lon);
+    if(sample.water||sample.river||sample.elevationM>2800)continue;
+    if(!a.control.setMoveTarget(x,z))continue;
+    // Do not call frontier.cancel here: it erases waypoints on each correction.
+    a.order="formation";a.status="隊形追従";a.cooldown=Math.max(a.cooldown,.2);
+    issued++;
+   }
+  }
+  return issued;
  }
  setAuto(ids,enabled){
   for(const id of ids){const a=this.get(id);if(a){a.auto=Boolean(enabled);if(!enabled){this.frontier?.cancel(a);a.task=null;}}}
@@ -108,6 +239,7 @@ export class SquadEngine{
   const active=this.activeGroup();
   if(!formation&&active&&ids.length===active.members.length&&
      ids.every(id=>active.members.includes(id))){
+   if(active.follow)return this.orderGroupMove(active.id,x,z);
    ids=active.members;formation=active.formation;spacing=active.spacing;
   }
   const targets=ids.map(id=>this.get(id)).filter(Boolean);
@@ -126,13 +258,14 @@ export class SquadEngine{
     // Reapply after Frontier cancel: cancellation may clear the move target.
     this.frontier?.cancel(a);
     a.control.setMoveTarget(tx,tz);
-    a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
+    a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";
+    a.formationOverride=true;moved++;
    }
   });
   return moved;
  }
  halt(ids){
-  for(const id of ids){const a=this.get(id);if(a){this.frontier?.cancel(a);a.control.clearMoveTarget();a.task=null;a.auto=false;a.cooldown=1.5;a.order="hold";a.status="待機指示";}}
+  for(const id of ids){const a=this.get(id);if(a){this.frontier?.cancel(a);a.control.clearMoveTarget();a.task=null;a.auto=false;a.cooldown=1.5;a.order="hold";a.status="待機指示";a.formationOverride=true;}}
  }
  metrics(a){
   const leader=this.get("player").control;
@@ -186,6 +319,7 @@ export class SquadEngine{
  advance(dt,{manualLead=false}={}){
   if(!Number.isFinite(dt)||dt<0)throw TypeError("Invalid squad delta");
   dt=clamp(dt,0,.1);
+  if(dt>0)this.updateFormationFollowers(dt,null,null,{manualLead});
   for(const a of this.agents){
    if(a.id!=="player"){
     a.control.altitudeM=this.get("player").control.altitudeM;
@@ -256,7 +390,7 @@ export class SquadEngine{
    const next=a.control.locationAt(a.control.x,a.control.z);
    a.control.lat=next.lat;a.control.lon=next.lon;
    a.control.altitudeM=lead.altitudeM;a.control.targetAltitudeM=lead.targetAltitudeM;
-   a.task=null;a.order="idle";a.rally={x:a.control.x,z:a.control.z};
+   a.task=null;a.order="idle";a.rally={x:a.control.x,z:a.control.z};a.formationOverride=false;
   });
   this.frontier?.rebase();
  }
@@ -272,13 +406,14 @@ export class SquadEngine{
    if(!s||!Array.isArray(s.rules)||s.rules.length!==8||typeof s.auto!=="boolean"||!finitePoint(s.rally))throw Error("Invalid saved actor");
    a.rules=s.rules.map(sanitizeRule);a.auto=s.auto;a.rally={x:s.rally.x,z:s.rally.z};
    if(a.id!=="player")a.control=ExplorerController.fromSnapshot(this.terrain,s.control);
-   a.status="復元済み";a.task=null;a.cooldown=0;
+   a.status="復元済み";a.task=null;a.cooldown=0;a.formationOverride=false;
   }
   this.selected=new Set(Array.isArray(data.selected)?data.selected.filter(id=>this.get(id)):["player"]);
   if(!this.selected.size)this.selected.add("player");
   this.groups.restore(data.groups);
-  const active=this.activeGroup();
-  if(active&&!(active.members.length===this.selected.size&&active.members.every(id=>this.selected.has(id))))
+  const selectedGroupMembers=new Set(this.selectedGroups().flatMap(g=>g.members));
+  if(this.groups.activeIds.length&&
+     !(selectedGroupMembers.size===this.selected.size&&[...selectedGroupMembers].every(id=>this.selected.has(id))))
    this.groups.activate(null);
  }
 }

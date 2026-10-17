@@ -59,12 +59,13 @@ export function formationOffsets(count,formation="line",spacing=2.4){
 export class GroupRegistry{
  constructor(knownIds,save=null){
   this.knownIds=knownIds;
-  this.entries=[];this.nextId=1;this.activeId=null;
+  this.entries=[];this.nextId=1;this.activeId=null;this.activeIds=[];
   if(save)this.restore(save);
  }
  all(){return this.entries.map(cloneGroup);}
  get(id){return this.entries.find(g=>g.id===id)||null;}
- active(){return this.get(this.activeId);}
+ active(){return this.activeIds.length===1?this.get(this.activeIds[0]):null;}
+ selected(){return this.activeIds.map(id=>this.get(id)).filter(Boolean).map(cloneGroup);}
  normalize(raw,previous=null){
   const base=previous||{};
   const members=cleanMembers(raw.members??base.members,this.knownIds());
@@ -73,15 +74,16 @@ export class GroupRegistry{
   const spacing=cleanSpacing(raw.spacing??base.spacing??2.4);
   const rally=cleanRally(raw.rally===undefined?base.rally??null:raw.rally);
   const sync=raw.sync===undefined?(base.sync??false):raw.sync;
-  if(typeof sync!=="boolean")throw TypeError("シンクロ設定が不正です");
+  const follow=raw.follow===undefined?(base.follow??false):raw.follow;
+  if(typeof sync!=="boolean"||typeof follow!=="boolean")throw TypeError("部隊の同期・追従設定が不正です");
   const duplicate=this.entries.find(g=>g.id!==previous?.id&&g.name===name);
   if(duplicate)throw RangeError("同じ名前の部隊が登録済みです");
-  return {id:previous?.id||"g"+this.nextId,name,members,formation,spacing,sync,rally};
+  return {id:previous?.id||"g"+this.nextId,name,members,formation,spacing,sync,follow,rally};
  }
  create(raw){
   if(this.entries.length>=32)throw RangeError("登録部隊は32個までです");
   const group=this.normalize(raw);this.nextId++;
-  this.entries.push(group);this.activeId=group.id;
+  this.entries.push(group);this.activeId=group.id;this.activeIds=[group.id];
   return cloneGroup(group);
  }
  update(id,patch){
@@ -94,21 +96,29 @@ export class GroupRegistry{
   const index=this.entries.findIndex(g=>g.id===id);
   if(index<0)return false;
   this.entries.splice(index,1);
-  if(this.activeId===id)this.activeId=null;
+  this.activeIds=this.activeIds.filter(key=>key!==id);
+  this.activeId=this.activeIds.length===1?this.activeIds[0]:null;
   return true;
  }
  activate(id){
-  if(id===null||id===""){this.activeId=null;return null;}
+  if(id===null||id===""){this.activeId=null;this.activeIds=[];return null;}
   const group=this.get(id);
   if(!group)return null;
-  this.activeId=id;return cloneGroup(group);
+  this.activeId=id;this.activeIds=[id];return cloneGroup(group);
+ }
+ activateMany(ids){
+  if(!Array.isArray(ids)||ids.length>32)throw RangeError("複数部隊指定が不正です");
+  const keys=[...new Set(ids)];
+  if(keys.length!==ids.length||keys.some(id=>!this.get(id)))throw RangeError("存在しない部隊が含まれています");
+  this.activeIds=keys;this.activeId=keys.length===1?keys[0]:null;
+  return this.selected();
  }
  snapshot(){
-  return {version:1,nextId:this.nextId,activeId:this.activeId,entries:this.all()};
+  return {version:1,nextId:this.nextId,activeId:this.activeId,activeIds:[...this.activeIds],entries:this.all()};
  }
  restore(save){
   if(save?.version!==1||!Array.isArray(save.entries))return false;
-  this.entries=[];this.nextId=1;this.activeId=null;
+  this.entries=[];this.nextId=1;this.activeId=null;this.activeIds=[];
   for(const raw of save.entries.slice(0,32)){
    if(!/^g[1-9][0-9]*$/.test(raw?.id||"")||this.get(raw.id))continue;
    try{
@@ -118,7 +128,9 @@ export class GroupRegistry{
    }catch(_){/* Ignore a corrupted group, not the entire game save. */}
   }
   if(Number.isSafeInteger(save.nextId)&&save.nextId>this.nextId)this.nextId=save.nextId;
-  if(this.get(save.activeId))this.activeId=save.activeId;
+  const selected=Array.isArray(save.activeIds)?save.activeIds:[save.activeId];
+  const valid=selected.filter((id,i)=>this.get(id)&&selected.indexOf(id)===i);
+  this.activateMany(valid);
   return true;
  }
 }

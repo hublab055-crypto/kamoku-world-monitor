@@ -295,7 +295,10 @@ function updateHUD(){
   if(rtsMode||!isSurface)setToolMenu(false);
  $("rts-controls").hidden=!rtsMode||!isSurface;
  groupUI?.refresh();
- $("rts-summary").textContent=(squad.activeGroup()?"👥 "+squad.activeGroup().name+" / ":"選択: ")+squad.selectedAgents().map(a=>a.name).join("・");
+ const selectedGroups=squad.selectedGroups();
+ $("rts-summary").textContent=selectedGroups.length?
+  "👥 "+selectedGroups.map(g=>g.name).join("・")+" / "+squad.selected.size+"人":
+  "選択: "+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
  frontierUI?.quick();
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
@@ -1059,7 +1062,7 @@ function toggleRts(){
   setControlMode("tap");
   log("⚓ RTS：人物・敵・資源はタップ、地面はダブルタップで移動。ピンチで拡大縮小。");
  }else{
-  rtsMode=false;rtsMulti=false;rallyPicking=false;groupUI?.close();
+  rtsMode=false;rtsMulti=false;rallyPicking=false;groupUI?.close();groupUI?.closeMulti();
   setCameraMode(rtsPreviousCamera==="tactical"?"follow":rtsPreviousCamera);
   setControlMode("stick");
  }
@@ -1070,7 +1073,7 @@ $("toolbar-rts").addEventListener("click",toggleRts);
 $("rts-all").addEventListener("click",()=>{squad.selectAll();autoActorId="player";renderAutoEditor();updateHUD();});
 $("rts-multi").addEventListener("click",()=>{rtsMulti=!rtsMulti;updateHUD();});
 $("rts-sync").addEventListener("click",()=>{syncMode=!syncMode;updateHUD();
- if(squad.activeGroup())squad.updateGroup(squad.activeGroup().id,{sync:syncMode});
+ for(const g of squad.selectedGroups())squad.updateGroup(g.id,{sync:syncMode});
  log(syncMode?"🔗 シンクロモード：対応装備のアバターが同じ行動を行います。":"🔗 個別操作に戻しました。");});
 $("rts-rally").addEventListener("click",()=>{
  rallyPicking=!rallyPicking;updateHUD();
@@ -1097,13 +1100,17 @@ function commandRtsTap(clientX,clientY,shift=false){
  const hit=renderer.pickGround(clientX,clientY);
  if(!hit){log("地面をタップして指示してください。");return;}
  if(rallyPicking){
-  if(squad.activeGroup())squad.setGroupRally(squad.activeGroup().id,hit.x,hit.z);
+  const groups=squad.selectedGroups();
+  if(groups.length)for(const g of groups)squad.setGroupRally(g.id,hit.x,hit.z);
   else squad.setRally([...squad.selected],hit.x,hit.z);
   rallyPicking=false;
-  log(squad.activeGroup()?"👥 部隊の集合地点を保存しました。":"選択した人物の集合地点を設定しました。");
+  log(groups.length?"👥 "+groups.length+"部隊の集合地点を保存しました。":"選択した人物の集合地点を設定しました。");
  }else{
-  const moved=squad.orderMove([...squad.selected],hit.x,hit.z);
-  log(moved?moved+"人に移動を指示しました。":"移動不可：水域・急斜面・遠すぎる地点です。");
+  const groups=squad.selectedGroups();
+  const moved=groups.length>1?squad.orderGroups(groups.map(g=>g.id),"move",{x:hit.x,z:hit.z}):
+   groups.length===1?squad.orderGroupMove(groups[0].id,hit.x,hit.z):
+   squad.orderMove([...squad.selected],hit.x,hit.z);
+  log(moved?moved+"人に"+(groups.length?"隊形つきの":"")+"移動を指示しました。":"移動不可：水域・急斜面・遠すぎる地点です。");
  }
  updateHUD();
 }

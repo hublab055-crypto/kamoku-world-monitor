@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./style.css?v=0.7w-rts-groups">
 </head>
 <body>
 <header class="site-header">
@@ -177,12 +177,25 @@
   <button type="button" id="rts-rally">集合地点</button>
   <label class="rts-group-picker">部隊 <select id="rts-group-select" aria-label="登録部隊を呼び出す"><option value="">個別選択</option></select></label>
   <button type="button" id="rts-group-toggle" aria-expanded="false" aria-controls="group-panel">👥 部隊管理</button>
+  <button type="button" id="rts-multi-groups" aria-expanded="false" aria-controls="rts-multi-group-panel">☑ 複数部隊</button>
+  <button type="button" id="rts-follow" aria-pressed="false" title="選択部隊の隊形追従を切替">👣 追従OFF</button>
   <button type="button" id="rts-group-assemble" title="登録された集合地点へ指定隊形で移動">📣 集合</button>
   <button type="button" id="rts-stop">停止</button>
  <label class="rts-heading-label"><input type="checkbox" id="rts-heading-up"> 進行方向を上に</label>
   <span id="rts-summary">選択: 開拓者</span>
 </div>
-<section id="group-panel" class="group-panel" hidden role="region" aria-label="部隊の登録と隊形編集">
+<section id="rts-multi-group-panel" class="rts-multi-group-panel" hidden role="region" aria-label="複数部隊の同時指揮">
+  <div class="multi-group-heading"><strong>☑ 複数部隊を選択</strong><button type="button" id="rts-multi-group-close" aria-label="閉じる">×</button></div>
+  <div id="rts-group-multi-list" class="multi-group-list" aria-label="同時に操作する部隊"></div>
+  <p id="rts-multi-group-summary" aria-live="polite">チェックした部隊へ同時に指示します。</p>
+  <div class="multi-group-buttons">
+   <button type="button" id="rts-multi-assemble">📣 全隊集合</button>
+   <button type="button" id="rts-multi-form">↔ 全隊整列</button>
+   <button type="button" id="rts-multi-stop">⏹ 全隊停止</button>
+  </div>
+  <p>移動は地面をダブルタップ。シンクロONで選択グループの対応する装備者が一斉行動します。</p>
+ </section>
+ <section id="group-panel" class="group-panel" hidden role="region" aria-label="部隊の登録と隊形編集">
   <div class="group-header"><strong>👥 部隊管理・隊形</strong><button id="group-close" type="button" aria-label="部隊管理を閉じる">×</button></div>
   <p>複数選択した人物を登録できます。メンバーの順番が隊形の配置順になります。</p>
   <label>部隊名 <input id="group-name" type="text" maxlength="24" placeholder="例：第一弓兵隊" autocomplete="off"></label>
@@ -193,6 +206,7 @@
     </select></label>
     <label>間隔 <input id="group-spacing" type="number" min="1.2" max="8" step="0.2" value="2.4"> m</label>
     <label class="group-sync"><input id="group-sync" type="checkbox"> 🔗 グループ選択時にシンクロ</label>
+    <label class="group-sync"><input id="group-follow" type="checkbox" checked> 👣 隊長に隊形追従</label>
   </div>
   <strong class="group-roster-title">メンバーと配置順</strong>
   <div id="group-members" class="group-members" aria-label="部隊員の選択と順番変更"></div>
@@ -512,6 +526,6 @@
   </section>
 </main>
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
-<script type="module" src="./app.mjs?v=0.7w-melee-contact-archery"></script>
+<script type="module" src="./app.mjs?v=0.7w-rts-groups-melee-archery"></script>
 </body>
 </html>
