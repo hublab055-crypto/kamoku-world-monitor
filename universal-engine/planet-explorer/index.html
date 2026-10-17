@@ -42,7 +42,7 @@
     <div class="mode-bar" aria-label="移動モード">
   <span>移動方法（RTSは画面右上の「☰ 操作」から）</span>
   <button type="button" id="mode-stick" aria-pressed="true">● スティック</button>
-  <button type="button" id="mode-tap" aria-pressed="false">◎ タップ移動</button>
+  <button type="button" id="mode-tap" aria-pressed="false">◎ ダブルタップ移動</button>
   <label class="avatar-style-label" for="avatar-style">人物</label>
   <select id="avatar-style" aria-label="アバターの種類">
     <option value="pioneer">開拓者・翠</option>
@@ -54,7 +54,7 @@
   <span class="camera-active-label" id="camera-status">追従（三人称）</span>
 </div>
 <div class="canvas-wrap">
-      <canvas id="world" width="960" height="560" aria-label="3D惑星と地表を表示するWebGL2ビュー。ドラッグで向きを変えます。"></canvas>
+      <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。地面ダブルタップで移動。人物・敵・資源は1回タップ。"></canvas>
       <div id="actor-marker" class="actor-marker" hidden aria-label="アバターの地表位置">◆ アバター</div>
       <div id="rts-markers" aria-hidden="true"></div>
       <div id="world-hit-flash" aria-hidden="true"></div>
@@ -72,7 +72,7 @@
   <div id="viewport-quick-panel" class="viewport-quick-panel" hidden role="group" aria-label="カメラ・モード・メニュー">
     <button type="button" id="viewport-camera" aria-label="カメラモードを切り替える">◉ 追従</button>
     <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
-    <button type="button" id="viewport-rts" aria-pressed="false" title="部隊にタップ指示">⚓ RTS視点</button>
+    <button type="button" id="viewport-rts" aria-pressed="false" title="人物・敵・資源をタップして選択、地面をダブルタップして移動">⚓ RTS視点</button>
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
     <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
