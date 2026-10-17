@@ -18,6 +18,7 @@ import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
+import {bindViewportGestures} from "./viewport-gestures.mjs";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -54,6 +55,8 @@ let frontierUI=null,worldUI=null;
 const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
 const keys=new Set(),touches=new Set();
+const manualHarvest=new Map();
+let viewportGestures=null;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
  worldUI?.append(msg);
@@ -62,6 +65,7 @@ function log(msg){
 }
 function init(saved=null){
  try{
+  manualHarvest.clear();viewportGestures?.cancel();
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
@@ -98,6 +102,13 @@ function init(saved=null){
   renderer.sceneActions=actions;renderer.sceneLife=life;renderer.battle=battle;
    renderer.interiorBuildingId=access.insideId;
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
+  squad.onEquippedImpact=(agent,task)=>{
+   for(const hit of battle.hitArrow(agent.control,{targetId:task.targetId})){
+    log("🏹 "+agent.name+"："+hit.message);
+    worldUI?.float({kind:hit.guarded?"guard":"damage",
+     text:"−"+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
+   }
+  };
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
   frontierUI?.restore(saved?.v0_7i||null);
@@ -129,6 +140,7 @@ function doFrame(t){
   const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
+   if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
   squad?.advance(running?dt:0,{manualLead});
   if(running){
@@ -148,6 +160,7 @@ function doFrame(t){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else controller.update(dt,input);
+  if(running)processHarvestOrders();
   const transition=access.guard(previous,controller);
    if(transition==="enter")log("🏠 ドアを通って小屋に入りました。");
    if(transition==="exit")log("🌿 ドアから小屋の外に出ました。");
@@ -239,7 +252,7 @@ function updateHUD(){
   lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  $("control-state").textContent=renderer.cameraController.mode==="free"?"自由カメラ移動":
-   controlMode==="stick"?"スティック移動":"地面タップで移動"+(controller.moveTarget?"（移動中）":"");
+   controlMode==="stick"?"スティック移動":"ダブルタップ移動"+(controller.moveTarget?"（移動中）":"");
  $("camera-status").textContent=CAMERA_MODES.find(x=>x[0]===renderer.cameraController.mode)?.[1]||"従来";
  $("camera-mode").value=renderer.cameraController.mode;
  $("mode-stick").setAttribute("aria-pressed",String(controlMode==="stick"));
