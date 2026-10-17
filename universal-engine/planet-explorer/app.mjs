@@ -20,6 +20,7 @@ import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs"
 import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 import {bindViewportGestures} from "./viewport-gestures.mjs";
+import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles} from "./arrow-projectiles.mjs";
 
 const $=id=>document.getElementById(id);
@@ -251,6 +252,7 @@ function doFrame(t){
    const next=renderer.frame(controller,dt);
    updateActorMarker(renderer.actorMarker);
    updateOrbitLandingMarker(renderer.screenLanding);
+   updateDescentOverlay(controller.altitudeM);
    updateRtsMarkers(renderer.screenActors);
    worldUI?.frame(running?dt:0);
    $("world-hit-flash").style.opacity=String(Math.min(.85,Math.max(0,(renderer.playerHitSeconds||0)/.48))*.83);
@@ -558,9 +560,19 @@ function clearOrbitSelection(){
  $("orbit-landing-preview").hidden=true;
  $("orbit-pick-marker").hidden=true;
 }
+function updateDescentOverlay(altitudeM){
+ const state=descentVisuals(altitudeM);
+ const layer=$("descent-atmosphere");
+ layer.style.setProperty("--descent-fog",state.fog.toFixed(3));
+ layer.style.setProperty("--descent-clouds",state.clouds.toFixed(3));
+ layer.style.setProperty("--descent-air",state.atmosphere.toFixed(3));
+ layer.style.setProperty("--descent-glow",state.glow.toFixed(3));
+ const stage=$("descent-phase");
+ if(stage.textContent!==state.stage)stage.textContent=state.stage;
+}
 function updateOrbitLandingMarker(info){
  const marker=$("orbit-pick-marker");
- if(!orbitSelection||!info?.onScreen||controller?.altitudeM<=23000){
+ if(!orbitSelection||!info?.onScreen||controller?.altitudeM<=ORBIT_GROUND_CUTOFF_M){
   marker.hidden=true;return;
  }
  marker.hidden=false;
@@ -601,7 +613,7 @@ function confirmOrbitLanding(){
 }
 function handleSceneTap({x,y,shiftKey=false}){
  if(!renderer)return;
- if(controller?.altitudeM>23000){
+ if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   selectOrbitLanding(x,y);return;
  }
  if(!controller?.nearGround)return;
@@ -626,7 +638,7 @@ function handleSceneTap({x,y,shiftKey=false}){
 }
 function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(!renderer)return;
- if(controller?.altitudeM>23000){
+ if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   if(selectOrbitLanding(x,y))confirmOrbitLanding();
   return;
  }
@@ -651,7 +663,7 @@ viewportGestures=bindViewportGestures($("world"),{
  onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
   if(!renderer||!controller)return;
-  if(controller.altitudeM>23000)renderer.panOrbit(dx,dy);
+  if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M)renderer.panOrbit(dx,dy);
   else if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
   else renderer.cameraController.rotate(dx,dy);
  },
@@ -730,7 +742,7 @@ $("reset-appearance").addEventListener("click",()=>{
 
 function zoomScene(factor){
  if(renderer.cameraController.mode==="legacy")controller.zoom(factor);
- else if(controller.altitudeM>23000)controller.zoom(factor);
+ else if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M)controller.zoom(factor);
  else renderer.cameraController.zoom(factor);
 }
 function updateActorMarker(info){
