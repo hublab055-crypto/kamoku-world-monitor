@@ -1206,10 +1206,19 @@ export class ExplorerRenderer{
   for(const mesh of this.meadow)this.drawInstancedMesh(mesh,vp,light,1,.72);
    for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
-  this.screenResources=(this.resourceNodes||[]).map(node=>{
+  // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
+  this.screenResources=[];
+  const farPick=cameraMode==="tactical"&&camera.heightM>70;
+  const pickRadius=farPick?Math.min(480,camera.heightM*2.4):140;
+  const thinning=farPick?Math.max(1,Math.floor(this.resourceNodes.length/1400)):1;
+  for(let i=0;i<this.resourceNodes.length;i++){
+   if(i%thinning!==0)continue;
+   const node=this.resourceNodes[i],dx=node.x-s.x,dz=node.z-s.z;
+   if(dx*dx+dz*dz>pickRadius*pickRadius)continue;
    const screen=projectScreen(vp,[node.x-this.cx,node.elevationM+(node.kind==="wood"?2.0:.85),node.z-this.cz]);
-   return screen?{...node,...screen}:null;
-  }).filter(Boolean);
+   if(screen?.onScreen)this.screenResources.push({...node,...screen});
+   if(this.screenResources.length>=1800)break;
+  }
   if(this.selectedResource){
    const node=this.resourceNodes?.find(n=>n.id===this.selectedResource.id);
    if(node)this.drawMesh(this.selectionRing,
