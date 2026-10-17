@@ -71,6 +71,15 @@ test("group move orders obey 350 m cap and halt clears all targets",()=>{
  squad.halt(["player","scout","artisan"]);
  assert.ok(squad.agents.every(a=>!a.control.moveTarget));
 });
+test("manual RTS movement survives cancellation of an active Frontier gathering task",()=>{
+ const {squad,player}=setup();
+ const a=squad.get("player");
+ a.task={kind:"gather_nearby",slot:2,target:null};
+ const moved=squad.orderMove(["player"],player.x+6,player.z+4);
+ assert.equal(moved,1);
+ assert.ok(a.control.moveTarget,"manual target must remain after auto task cancellation");
+ assert.equal(a.task,null);
+});
 test("per-actor 8 rules, enabled flags, rally and party state persist",()=>{
  const {terrain,player,actions,squad}=setup();
  squad.setRule("artisan",3,{enabled:true,metric:"houses",op:">=",value:2,action:"follow"});
