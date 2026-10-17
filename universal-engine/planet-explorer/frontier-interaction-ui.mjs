@@ -9,7 +9,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let modelSource="standard",modelQuality="auto",modelLoadId=0;
  let configId="player",slotSignature="",lastActiveActor=null;
- let trajectoryMode="auto",ammoType="wood",volleyAim="focus",volleyTiming="simultaneous",practiceTargetId=null;
+ let trajectoryMode="auto",ammoType="wood",volleyAim="focus",volleyTiming="simultaneous",volleyInterval=.22,practiceTargetId=null;
  let decks=Object.fromEntries(["player","scout","artisan"].map(id=>[id,new ActionSlots()]));
  const handNames={right:"右手",left:"左手"};
   const twoHanded=new Set(TWO_HANDED_ITEMS);
@@ -260,7 +260,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     if(target?.id!==undefined)assigned.add(target.id);
    }
    const result=social.useHand(person,hand,c.life,c.squad.frontier);
-   const delay=volleyTiming==="ripple"?launched*.22:0;
+   const delay=volleyTiming==="ripple"?launched*volleyInterval:0;
    if(result.ok&&executeItem(result,person,c,hand,null,
     {target,holdDelay:delay,forceTurn:true}).ok)launched++;
   }
@@ -524,9 +524,11 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   ammoType=ARROW_TYPES[data?.ammoType]?data.ammoType:"wood";
   volleyAim=["focus","nearest","spread"].includes(data?.volleyAim)?data.volleyAim:"focus";
   volleyTiming=["simultaneous","ripple"].includes(data?.volleyTiming)?data.volleyTiming:"simultaneous";
+  volleyInterval=[.12,.22,.4,.6].includes(data?.volleyInterval)?data.volleyInterval:.22;
   practiceTargetId=null;$("archery-trajectory").value=trajectoryMode;
   $("archery-ammo").value=ammoType;$("volley-aim").value=volleyAim;
-  $("volley-timing").value=volleyTiming;
+  $("volley-timing").value=volleyTiming;$("volley-interval").value=String(volleyInterval);
+  $("volley-interval-label").hidden=volleyTiming!=="ripple";
   decks=Object.fromEntries(["player","scout","artisan"].map(id=>
    [id,new ActionSlots(data?.actionDecks?.[id]||null,social.actor(id))]));
   lastActiveActor=null;
@@ -541,7 +543,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   slotSignature="";quick();updateCamera();
   $("frontier-glb-choice").value=choice[$("frontier-glb-actor").value]||"male";
  }
- function snapshot(){return {social:social.snapshot(),trajectoryMode,ammoType,volleyAim,volleyTiming,
+ function snapshot(){return {social:social.snapshot(),trajectoryMode,ammoType,volleyAim,volleyTiming,volleyInterval,
   actionDecks:Object.fromEntries(Object.entries(decks).map(([id,d])=>[id,d.snapshot()])),
   headingUp,choice:{...choice},modelSource,modelQuality};}
  async function loadModels(renderer,{force=false}={}){
@@ -576,7 +578,14 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  $("quick-use").addEventListener("click",useItem);
  $("archery-ammo").addEventListener("change",e=>{ammoType=e.target.value;log("🏹 "+ARROW_TYPES[ammoType].name+"を選択");});
  $("volley-aim").addEventListener("change",e=>{volleyAim=e.target.value;log("🎯 照準："+e.target.selectedOptions[0].textContent);});
- $("volley-timing").addEventListener("change",e=>{volleyTiming=e.target.value;log("🔗 号令："+e.target.selectedOptions[0].textContent);});
+ $("volley-timing").addEventListener("change",e=>{
+  volleyTiming=e.target.value;$("volley-interval-label").hidden=volleyTiming!=="ripple";
+  log("🔗 号令："+e.target.selectedOptions[0].textContent);
+ });
+ $("volley-interval").addEventListener("change",e=>{
+  volleyInterval=Number(e.target.value);
+  log("🔗 順次射撃の間隔："+volleyInterval+"秒");
+ });
  $("archery-trajectory").addEventListener("change",event=>{
   trajectoryMode=event.target.value;
   log("🏹 弾道："+({auto:"距離で自動切替",direct:"直射",lob:"放物線"}[trajectoryMode]||trajectoryMode));
