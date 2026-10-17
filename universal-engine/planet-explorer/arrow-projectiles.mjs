@@ -1,3 +1,4 @@
+import {ARROW_TYPES,arrowTypeValid} from "./social-equipment.mjs";
 /** Recoverable physical arrows for Universal Engine's metre-based ground world.
  * Flight is stepped (with swept intersection tests) and resolved only on impact.
  * Coordinates are local x/z metres and absolute terrain y metres. */
@@ -67,7 +68,7 @@ const shotVector=({origin,target,yaw,mode})=>{
 };
 export class ArrowProjectiles{
  constructor(saved=null){
-  this.flying=[];this.embedded=[];this.targets=[];this.nextId=1;
+  this.flying=[];this.embedded=[];this.targets=[];this.burning=[];this.nextId=1;
   if(saved)this.restore(saved);
  }
  addTarget(shooter,{groundY=0}={}){
@@ -78,18 +79,34 @@ export class ArrowProjectiles{
    z:shooter.z+Math.cos(angle)*9,y:groundY,yaw:angle+Math.PI};
   this.targets.push(target);return target;
  }
- launch({shooterId,actor,groundY=0,target=null,mode="auto"}){
+ launch({shooterId,actor,groundY=0,target=null,mode="auto",arrowType="wood"}){
   if(!actor||!finite(actor.x)||!finite(actor.z)||this.flying.length>=64)return null;
   const yaw=actor.yaw||0;
   const origin={x:actor.x+Math.sin(yaw)*.52,y:groundY+1.48,z:actor.z+Math.cos(yaw)*.52};
   const velocity=shotVector({origin,target,yaw,mode});
-  const arrow={id:this.nextId++,shooterId,ownerId:shooterId,x:origin.x,y:origin.y,z:origin.z,
+  const arrow={id:this.nextId++,shooterId,ownerId:shooterId,arrowType:arrowTypeValid(arrowType)?arrowType:"wood",
+   x:origin.x,y:origin.y,z:origin.z,
    vx:velocity.vx,vy:velocity.vy,vz:velocity.vz,mode:velocity.mode,age:0};
   this.flying.push(arrow);return arrow;
  }
  advance(dt,{groundHeight=()=>0,trees=[],buildings=[],enemies=[],onEnemyHit=()=>{}}={}){
   if(!finite(dt)||dt<0)throw TypeError("Invalid arrow delta");
   const events=[];
+  for(const burn of [...this.burning]){
+   burn.remaining=Math.max(0,burn.remaining-dt);
+   burn.tick+=dt;
+   while(burn.tick>=1&&burn.remaining>0){
+    burn.tick-=1;
+    if(burn.surface==="enemy"){
+     const target=enemies.find(e=>e.id===burn.objectId&&e.hp>0);
+     if(target){
+      const hit=onEnemyHit(target,4,burn.ownerId,{arrowType:"fire",effect:"burn"});
+      events.push({surface:"burn",hit,ownerId:burn.ownerId});
+     }
+    }
+   }
+   if(burn.remaining===0)this.burning.splice(this.burning.indexOf(burn),1);
+  }
   // Embedded enemy arrows follow the moving target until it disappears.
   for(const stuck of this.embedded){
    if(stuck.surface!=="enemy"||!stuck.offset)continue;
@@ -148,7 +165,7 @@ export class ArrowProjectiles{
     this.flying=this.flying.filter(a=>a!==arrow);
     if(!impact)continue;
     const direction=unit({x:arrow.vx,y:arrow.vy,z:arrow.vz});
-    const stuck={id:arrow.id,ownerId:arrow.ownerId,x:impact.point.x,
+    const stuck={id:arrow.id,ownerId:arrow.ownerId,arrowType:arrow.arrowType||"wood",x:impact.point.x,
      y:impact.point.y,z:impact.point.z,dx:direction.x,dy:direction.y,dz:direction.z,
      surface:impact.kind,objectId:impact.obj?.id??null};
     if(impact.kind==="enemy"){
@@ -158,7 +175,15 @@ export class ArrowProjectiles{
     this.embedded.push(stuck);
     if(this.embedded.length>160)this.embedded.shift();
     const event={...stuck};
-    if(impact.kind==="enemy")event.hit=onEnemyHit(impact.obj,22,arrow.shooterId);
+    if(impact.kind==="enemy")event.hit=onEnemyHit(impact.obj,
+     ARROW_TYPES[arrow.arrowType]?.damage||22,arrow.shooterId,{arrowType:arrow.arrowType,effect:"impact"});
+    if(arrow.arrowType==="fire"&&["enemy","tree","building","target"].includes(impact.kind)){
+     const existing=this.burning.find(b=>b.surface===impact.kind&&b.objectId===stuck.objectId);
+     if(existing){existing.remaining=3;existing.tick=0;}
+     else this.burning.push({x:stuck.x,y:stuck.y,z:stuck.z,ownerId:stuck.ownerId,
+      objectId:stuck.objectId,surface:stuck.surface,remaining:3,tick:0});
+     if(this.burning.length>32)this.burning.shift();
+    }
     events.push(event);
    }
   }
@@ -170,14 +195,18 @@ export class ArrowProjectiles{
   return this.embedded.splice(index,1)[0];
  }
  snapshot(){return {version:1,nextId:this.nextId,
-  targets:this.targets.map(t=>({...t})),flying:this.flying.map(a=>({...a})),
+  targets:this.targets.map(t=>({...t})),burning:this.burning.map(b=>({...b})),flying:this.flying.map(a=>({...a})),
   embedded:this.embedded.map(a=>({...a}))};}
  restore(saved){
   if(saved?.version!==1)return false;
   const coords=o=>o&&["x","y","z"].every(k=>finite(o[k]));
   this.flying=(saved.flying||[]).filter(a=>coords(a)&&
-   ["vx","vy","vz","age"].every(k=>finite(a[k]))).slice(0,64).map(a=>({...a}));
-  this.embedded=(saved.embedded||[]).filter(coords).slice(-160).map(a=>({...a}));
+   ["vx","vy","vz","age"].every(k=>finite(a[k]))).slice(0,64).map(a=>({
+    ...a,arrowType:arrowTypeValid(a.arrowType)?a.arrowType:"wood"}));
+  this.embedded=(saved.embedded||[]).filter(coords).slice(-160).map(a=>({
+   ...a,arrowType:arrowTypeValid(a.arrowType)?a.arrowType:"wood"}));
+  this.burning=(saved.burning||[]).filter(b=>coords(b)&&finite(b.remaining)&&b.remaining>0)
+   .slice(-32).map(b=>({...b,remaining:clamp(b.remaining,0,3),tick:clamp(b.tick||0,0,1)}));
   this.targets=(saved.targets||[]).filter(coords).slice(0,12).map(a=>({...a}));
   this.nextId=Math.max(1,Math.floor(Number(saved.nextId)||1),
    ...[...this.flying,...this.embedded,...this.targets].map(a=>(a.id||0)+1));
