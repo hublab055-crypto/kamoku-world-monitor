@@ -752,3 +752,30 @@ body.immersive{overflow:hidden}
  .rts-multi-group-panel{top:4px;right:4px;max-height:calc(100% - 8px);padding:9px}
  .rts-controls #rts-multi-groups,.rts-controls #rts-follow{padding:5px;min-height:32px}
 }
+
+/* v0.7x — compact orbital point selection, kept separate from ground RTS taps. */
+.orbit-pick-marker{
+ position:absolute;z-index:9;transform:translate(-50%,-50%);
+ pointer-events:none;color:#8af7fb;font-size:30px;line-height:1;
+ font-weight:900;text-shadow:0 0 5px #032c47,0 0 11px #041b36
+}
+.orbit-landing-preview{
+ position:absolute;z-index:24;left:50%;bottom:calc(13px + env(safe-area-inset-bottom,0px));
+ transform:translateX(-50%);width:max-content;max-width:calc(100% - 18px);
+ display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;
+ padding:7px 9px;border-radius:11px;border:1px solid #6aafc3;
+ background:#092a3dea;box-shadow:0 4px 18px #0008;color:#ecfaff;
+ backdrop-filter:blur(9px)
+}
+.orbit-landing-preview[hidden],.orbit-pick-marker[hidden]{display:none!important}
+.orbit-landing-coords{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+.orbit-landing-terrain{font-size:11px;color:#afdbeb}
+.orbit-landing-preview button{min-height:32px;padding:5px 9px;font-size:11px}
+.orbit-landing-preview #orbit-landing-clear{
+ min-width:31px;background:#224356;border-color:#739bad;color:#eefaff
+}
+@media(max-width:600px){
+ .orbit-landing-preview{width:min(390px,calc(100% - 12px));gap:5px;padding:6px}
+ .orbit-landing-preview button{min-height:34px}
+ .orbit-landing-coords{font-size:11px}
+}
