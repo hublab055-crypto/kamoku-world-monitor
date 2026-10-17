@@ -160,8 +160,23 @@ export class SquadEngine{
    }
    if(a.task?.kind?.startsWith("equipped_")){
     a.task.remaining=Math.max(0,a.task.remaining-dt);
-    if(a.task.kind==="equipped_bow"&&!a.task.impacted&&a.task.remaining<=a.task.duration*.19){
+    const weapon=a.task.kind.slice("equipped_".length);
+    const progress=1-a.task.remaining/a.task.duration;
+    if(weapon==="bow"&&!a.task.impacted&&progress>=.81){
      a.task.impacted=true;this.onEquippedImpact?.(a,a.task);
+    }
+    if(["sword","spear","greatsword","axe"].includes(weapon)){
+     const combo=a.task.variant==="combo";
+     const styles=combo?(weapon==="spear"?["sweep","thrust"]:
+      weapon==="greatsword"||weapon==="axe"?["overhead","sweep"]:
+      ["overhead","sweep","thrust"]):[a.task.variant];
+     const times=combo?(styles.length===3?[.22,.55,.88]:[.34,.81]):[.62];
+     a.task.hitStages??=[];
+     for(let i=0;i<times.length;i++){
+      if(progress<times[i]||a.task.hitStages.includes(i))continue;
+      a.task.hitStages.push(i);
+      this.onEquippedImpact?.(a,{...a.task,style:styles[i],impactIndex:i});
+     }
     }
     if(a.task.remaining===0){
      const kind=a.task.kind.slice("equipped_".length);
