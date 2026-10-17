@@ -532,6 +532,7 @@ export class ExplorerRenderer{
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   this.patch=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
+   this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
   this.rigParts=[];
@@ -1196,12 +1197,13 @@ export class ExplorerRenderer{
      return terrainSurface(this.terrain,pos.lat,pos.lon);
     }
    });
-   const instanced=buildSceneryInstances(plan);
+   const visible=this.resourceHarvest?this.resourceHarvest.visible(plan.trees):plan.trees;
+   const instanced=buildSceneryInstances({...plan,trees:visible});
    // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
-   this.resourceNodes=plan.trees;
-   this.sceneryStats={trees:plan.trees.filter(n=>n.kind==="wood").length,
-    rocks:plan.trees.filter(n=>n.kind==="stone").length,
+   this.resourceNodes=visible;
+   this.sceneryStats={trees:visible.filter(n=>n.kind==="wood").length,
+    rocks:visible.filter(n=>n.kind==="stone").length,
     grass:plan.grass.length,buildings:plan.buildings.length};
    this.trees=instanced.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
    this.meadow=instanced.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
