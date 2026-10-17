@@ -7,6 +7,7 @@ import {samplePose} from "../planet-explorer/rig.mjs";
 import {SmoothAnimator} from "../planet-explorer/animator.mjs";
 import {actionDuration} from "../planet-explorer/actions.mjs";
 import {enemyMotion} from "../planet-explorer/enemy-motion.mjs";
+import {applyWeaponRigPose} from "../planet-explorer/frontier-animated.mjs";
 
 const actor=(yaw=0)=>({id:"player",name:"開拓者",x:0,z:0,yaw,altitudeM:2.5,jumpY:0});
 const target=(id,x,z,radius=.6)=>({id,x,z,hp:80,radius});
@@ -96,4 +97,21 @@ test("defenders keep their guard raised until a heavy blade makes contact",()=>{
  assert.equal(foe.anim,"guard","guard does not expire halfway through slow cut");
  const pose=enemyMotion(foe);
  assert.ok(pose.leftArmX<-.3,"defender's guard pose is still raised");
+});
+
+test("Frontier GLB standard skeleton receives both-hand spear and greatsword motions",()=>{
+ const names=["waist","leftShoulder","rightShoulder","leftElbow","rightElbow",
+  "leftWrist","rightWrist","leftHip","rightHip","leftKnee","rightKnee"];
+ const rig={nodes:names.map(name=>({name}))};
+ for(const kind of ["spear","greatsword"]){
+  const poses=names.map(()=>({rotation:[0,0,0,1]}));
+  const updated=applyWeaponRigPose(rig,poses,kind,.48,"thrust","left");
+  assert.equal(updated,true);
+  const left=poses[names.indexOf("leftShoulder")].rotation;
+  const right=poses[names.indexOf("rightShoulder")].rotation;
+  assert.ok(left.every(Number.isFinite)&&right.every(Number.isFinite));
+  assert.notDeepEqual(left,[0,0,0,1]);
+  assert.notDeepEqual(right,[0,0,0,1]);
+  assert.notDeepEqual(poses[names.indexOf("leftHip")].rotation,[0,0,0,1]);
+ }
 });
