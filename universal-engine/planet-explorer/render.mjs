@@ -1,4 +1,4 @@
-import {geoNormal,geoOffset,geoLocal,DEG,clamp,samplePatch,terrainSurface} from "./geo.mjs";
+import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs";
 import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
@@ -577,6 +577,7 @@ export class ExplorerRenderer{
    }
   this.pickVP=null;this.groundPatchData=null;
   this.orbitVP=null;this.orbitOffsetDeg=0;this.selectedLanding=null;this.screenLanding=null;
+  this.orbitPan=null;this.lastOrbitCenter=null;
   gl.enable(gl.DEPTH_TEST);
  }
  setAvatarStyle(id){
@@ -708,6 +709,13 @@ export class ExplorerRenderer{
    return best;
   }
   /** Pick any visible point on the orbital globe. Doesn't affect the actor. */
+  /** Planet drag rotates the *view* across all latitudes and longitudes. */
+  panOrbit(dx,dy){
+   if(![dx,dy].every(Number.isFinite))return;
+   if(!this.orbitPan)this.orbitPan={...(this.lastOrbitCenter||{lat:0,lon:0})};
+   this.orbitPan.lat=clamp(this.orbitPan.lat+dy*.23,-89.5,89.5);
+   this.orbitPan.lon=wrapLon(this.orbitPan.lon-dx*.25);
+  }
   pickOrbit(clientX,clientY){
    if(!this.orbitVP)return null;
    const r=this.canvas.getBoundingClientRect();
@@ -1075,8 +1083,10 @@ export class ExplorerRenderer{
   const centerLat=freeGeo?.lat??s.lat,centerLon=freeGeo?.lon??s.lon;
   const pitch=c.mode==="free"?c.freePitch:c.pitchRad;
   const yaw=c.mode==="free"?c.freeYaw:c.yawOffset;
-  const orbitalLat=clamp(centerLat+(c.mode==="legacy"?0:pitch*30),-89.5,89.5);
-  const orbitalLon=centerLon+offset+(c.mode==="legacy"?0:yaw*35);
+  const orbitalLat=this.orbitPan?.lat??clamp(centerLat+(c.mode==="legacy"?0:pitch*30),-89.5,89.5);
+  const orbitalLon=this.orbitPan?this.orbitPan.lon+offset:
+   centerLon+offset+(c.mode==="legacy"?0:yaw*35);
+  this.lastOrbitCenter={lat:orbitalLat,lon:wrapLon(orbitalLon-offset)};
   const n=geoNormal(orbitalLat,orbitalLon),camera=n.map(v=>v*distance);
   const view=lookAt(camera,[0,0,0],Math.abs(n[1])>.95?[0,0,1]:[0,1,0]);
   const vp=multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
