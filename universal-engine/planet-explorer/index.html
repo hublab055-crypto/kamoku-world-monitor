@@ -15,11 +15,11 @@
   </div>
   <div class="container headline">
     <div>
-      <p class="eyebrow">UNIVERSAL ENGINE · V0.7q · ACTION DECKS</p>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7r · WORLD FEEDBACK</p>
       <h1>オリジナルの世界を歩く。</h1>
-      <p>v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
+      <p>v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.7q 行動スロット・ターゲット選択</span>
+    <div class="version-control"><span class="version-tag">v0.7r ダメージ・採集エフェクト・吹き出し・コンソール</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -57,6 +57,7 @@
       <canvas id="world" width="960" height="560" aria-label="3D惑星と地表を表示するWebGL2ビュー。ドラッグで向きを変えます。"></canvas>
       <div id="actor-marker" class="actor-marker" hidden aria-label="アバターの地表位置">◆ アバター</div>
       <div id="rts-markers" aria-hidden="true"></div>
+      <div id="world-fx-layer" class="world-fx-layer" aria-hidden="true"></div>
       <div class="viewport-overlay">
         <div>高度 <strong id="height">-- m</strong></div>
         <div class="coords" id="coords">--°, --°</div>
@@ -65,6 +66,7 @@
   <div class="viewport-compact-bar">
     <button type="button" id="viewport-expand" aria-pressed="false" aria-label="画面を最大化">⛶ 全画面</button>
     <button type="button" id="viewport-quick-toggle" aria-expanded="false" aria-controls="viewport-quick-panel" aria-label="操作メニューを開く">☰ 操作</button>
+    <button type="button" id="viewport-console-toggle" aria-expanded="false" aria-controls="game-console">▤ ログ</button>
   </div>
   <div id="viewport-quick-panel" class="viewport-quick-panel" hidden role="group" aria-label="カメラ・モード・メニュー">
     <button type="button" id="viewport-camera" aria-label="カメラモードを切り替える">◉ 追従</button>
@@ -77,6 +79,22 @@
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="game-console" class="game-console" role="dialog" aria-label="ゲームコンソール" hidden>
+ <div id="game-console-head" class="game-console-head">
+  <strong>▤ ゲームコンソール</strong>
+  <button type="button" id="game-console-close" aria-label="コンソールを閉じる">×</button>
+ </div>
+ <div class="game-console-tools">
+  <select id="game-console-filter" aria-label="ログ種別">
+   <option value="all">すべて</option><option value="combat">戦闘</option>
+   <option value="resource">資源</option><option value="social">会話</option>
+   <option value="info">一般</option><option value="system">システム</option>
+  </select>
+  <input id="game-console-search" type="search" placeholder="ログ検索" aria-label="ログを検索">
+  <button type="button" id="game-console-clear">消去</button>
+ </div>
+ <div id="game-console-lines" class="game-console-lines" role="log" aria-live="off"></div>
+</section>
 <div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
   <div class="stick-base"><div id="stick-nub" class="stick-nub"></div></div>
   <span>MOVE</span>
@@ -434,6 +452,6 @@
   </section>
 </main>
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
-<script type="module" src="./app.mjs?v=0.7q"></script>
+<script type="module" src="./app.mjs?v=0.7r"></script>
 </body>
 </html>
