@@ -77,6 +77,10 @@ export function bindViewportGestures(canvas,callbacks){
   canvas.addEventListener("pointermove",e=>gesture.move(e));
   canvas.addEventListener("pointerup",e=>gesture.up(e));
   canvas.addEventListener("pointercancel",e=>gesture.cancel(e.pointerId));
-  canvas.addEventListener("lostpointercapture",e=>gesture.cancel(e.pointerId));
+  // Safari emits this after pointerup: do not discard the previous tap,
+  // otherwise the second tap can never be recognised.
+  canvas.addEventListener("lostpointercapture",e=>{
+    if(gesture.points.has(e.pointerId))gesture.cancel(e.pointerId);
+  });
   return gesture;
 }
