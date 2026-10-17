@@ -311,7 +311,7 @@ function updateHUD(){
   $("rts-sync").textContent=syncMode?"🔗 シンクロON":"🔗 シンクロOFF";
  $("rts-rally").setAttribute("aria-pressed",String(rallyPicking));
  $("rts-rally").textContent=rallyPicking?"地面をタップ":"集合地点";
- $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?"歩行可能":"降下中／宇宙視点";
+ $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?(g.water?"🌊 海面：水泳・船は未実装":g.river?"河川：移動制限あり":g.elevationM>2800?"高山：徒歩移動不可":"歩行可能"):"降下中／宇宙視点";
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
  $("walk-note").textContent=renderer.cameraController.mode==="free"?
