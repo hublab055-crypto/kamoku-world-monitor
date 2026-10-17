@@ -27,9 +27,23 @@ function cone(b,x,y,z,height,radius,col,sides=6){
 }
 function tree(b,t){
   const x=t.localX,z=t.localZ,y=t.elevationM-.35,k=t.scale;
-  if(t.type==="boulder"){
-    box(b,x,y,z,1.05*k,.95*k,.86*k,[.52,.52,.48]);
-    cone(b,x,y+.25*k,z,.90*k,.96*k,[.49,.50,.47],6);
+  if(t.type==="boulder"||t.type==="rubble"){
+    if(t.type==="rubble"){
+      for(let i=0;i<4;i++)box(b,x+Math.cos(i*1.57)*.63*k,y,z+Math.sin(i*1.57)*.62*k,.38*k,.43*k,.35*k,[.55,.54,.50]);
+    }else{
+      box(b,x,y,z,1.05*k,.95*k,.86*k,[.52,.52,.48]);
+      cone(b,x,y+.25*k,z,.90*k,.96*k,[.49,.50,.47],6);
+    }
+    return;
+  }
+  if(t.type==="fallen-log"){
+    box(b,x,y+.20*k,z,.40*k,.68*k,2.7*k,[.42,.28,.17]);
+    for(const zz of [-2.1,1.8])box(b,x,y+.16*k,z+zz*k,.55*k,.18*k,.16*k,[.60,.40,.23]);
+    return;
+  }
+  if(t.type==="shrub"){
+    cone(b,x,y+.04*k,z,1.18*k,.88*k,[.20,.42,.18],7);
+    cone(b,x+.31*k,y+.15*k,z+.14*k,.85*k,.65*k,[.37,.60,.25],7);
     return;
   }
   box(b,x,y,z,.18*k,3.1*k,.18*k,[.38,.27,.16]);
@@ -39,6 +53,13 @@ function tree(b,t){
   }else if(t.type==="flowering"){
     cone(b,x,y+1.55*k,z,3.65*k,1.58*k,[.33,.55,.29],8);
     cone(b,x,y+3.01*k,z,2.52*k,1.26*k,[.80,.49,.58],8);
+  }else if(t.type==="maple-red"||t.type==="maple-orange"||t.type==="oak-yellow"){
+    const col=t.type==="maple-red"?[.77,.16,.12]:t.type==="maple-orange"?[.91,.43,.12]:[.76,.64,.22];
+    cone(b,x,y+1.55*k,z,3.32*k,1.77*k,col,9);
+    cone(b,x,y+2.9*k,z,2.53*k,1.50*k,col.map(v=>Math.min(1,v*1.09)),9);
+  }else if(t.type==="birch"){
+    box(b,x,y,z,.20*k,3.9*k,.20*k,[.86,.87,.80]);
+    cone(b,x,y+1.90*k,z,3.65*k,1.56*k,[.49,.61,.25],8);
   }else{
     cone(b,x,y+1.65*k,z,3.42*k,1.74*k,[.25,.49,.22],8);
     cone(b,x,y+2.95*k,z,2.78*k,1.45*k,[.31,.61,.27],8);
@@ -139,7 +160,7 @@ export function sceneryPrototype(kind){
     const tint=kind==="grass-gold"?.9:kind==="grass-deep"?.1:.5;
     meadow(b,{x:0,z:0,y:0,scale:1,rotation:0,tint});
   }else{
-    if(!["pine","broadleaf","flowering","boulder"].includes(kind))
+    if(!["pine","broadleaf","flowering","boulder","maple-red","maple-orange","oak-yellow","birch","shrub","fallen-log","rubble"].includes(kind))
       throw new RangeError("Unknown scenery prototype: "+kind);
     tree(b,{localX:0,localZ:0,elevationM:0,scale:1,type:kind});
   }
