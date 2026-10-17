@@ -55,6 +55,12 @@
 </div>
 <div class="canvas-wrap">
       <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。地面ダブルタップで移動。人物・敵・資源は1回タップ。"></canvas>
+      <div id="descent-atmosphere" class="descent-atmosphere" aria-hidden="true">
+        <div class="descent-glow"></div>
+        <div class="descent-clouds"></div>
+        <div class="descent-cloud-vein"></div>
+        <div class="descent-fog"></div>
+      </div>
       <div id="orbit-pick-marker" class="orbit-pick-marker" hidden aria-hidden="true">⊕</div>
       <div id="orbit-landing-preview" class="orbit-landing-preview" hidden role="group" aria-label="惑星上の降下地点">
         <span id="orbit-landing-coords" class="orbit-landing-coords">📍 地点を選択</span>
@@ -69,6 +75,7 @@
       <div class="viewport-overlay">
         <div>高度 <strong id="height">-- m</strong></div>
         <div class="coords" id="coords">--°, --°</div>
+        <div id="descent-phase" class="descent-phase" aria-label="降下段階">宇宙空間</div>
       </div>
       <div class="viewport-actions" role="group" aria-label="ゲーム画面の操作">
   <div class="viewport-compact-bar">
