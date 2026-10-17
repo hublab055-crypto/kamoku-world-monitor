@@ -127,3 +127,38 @@ export function buildSceneryMeshes(plan){
     settlement:meshBatch(plan.buildings,building)
   };
 }
+
+/**
+ * One GPU prototype per species; all repeated objects are 6-float per-instance
+ * (x,y,z,scale,cos(yaw),sin(yaw)) transforms rather than repeated vertices.
+ * On dense scenes, this avoids millions of baked mesh vertices on iPhone.
+ */
+export function sceneryPrototype(kind){
+  const b=fresh();
+  if(kind.startsWith("grass-")){
+    const tint=kind==="grass-gold"?.9:kind==="grass-deep"?.1:.5;
+    meadow(b,{x:0,z:0,y:0,scale:1,rotation:0,tint});
+  }else{
+    if(!["pine","broadleaf","flowering","boulder"].includes(kind))
+      throw new RangeError("Unknown scenery prototype: "+kind);
+    tree(b,{localX:0,localZ:0,elevationM:0,scale:1,type:kind});
+  }
+  return b;
+}
+export function buildSceneryInstances(plan){
+  const woods=new Map(),meadow=new Map();
+  const add=(map,kind,item)=>{
+    if(!map.has(kind))map.set(kind,[]);
+    const bucket=map.get(kind),rotation=item.rotation||0;
+    bucket.push(item.localX??item.x,item.elevationM??item.y,item.localZ??item.z,
+      item.scale,Math.cos(rotation),Math.sin(rotation));
+  };
+  for(const item of plan.trees)add(woods,item.type,item);
+  for(const item of plan.grass){
+    const kind=item.tint>.77?"grass-gold":item.tint<.16?"grass-deep":"grass-green";
+    add(meadow,kind,item);
+  }
+  const compact=map=>[...map].map(([kind,values])=>({kind,transforms:new Float32Array(values),
+    count:values.length/6}));
+  return {woods:compact(woods),meadow:compact(meadow)};
+}
