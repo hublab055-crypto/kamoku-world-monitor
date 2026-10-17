@@ -21,6 +21,19 @@ test("damage, resources and dialogue anchor to correct actor/enemy",()=>{
  assert.equal(placed[2].kind,"speech");
  assert.ok(placed.every(x=>Number.isFinite(x.screenY)&&Number.isFinite(x.opacity)));
 });
+test("simultaneous resource drops stack and speech replaces prior line",()=>{
+ const fx=new WorldFeedback();
+ fx.emit({kind:"gain",actorId:"player",text:"+2 木材"});
+ fx.emit({kind:"gain",actorId:"player",text:"+1 繊維"});
+ fx.emit({kind:"gain",actorId:"player",text:"+1 石材"});
+ const layout=fx.layout({actors:[{id:"player",u:.5,v:.8,onScreen:true}],width:440,height:360});
+ assert.ok(layout[0].screenY>layout[1].screenY);
+ assert.ok(layout[1].screenY>layout[2].screenY);
+ fx.speech("scout","こんにちは！");
+ fx.speech("scout","また会ったね。");
+ assert.equal(fx.events.filter(e=>e.kind==="speech").length,1);
+ assert.equal(fx.events.at(-1).text,"また会ったね。");
+});
 test("screen effects have capped lifetimes, bounded memory and safe text",()=>{
  const fx=new WorldFeedback({limit:5});
  for(let i=0;i<20;i++)fx.emit({kind:"gain",actorId:"player",text:"+"+i,duration:1});
