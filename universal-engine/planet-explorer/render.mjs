@@ -18,7 +18,7 @@ import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs";
-import {buildSceneryMeshes} from "./scenery-geometry.mjs";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -45,7 +45,7 @@ export function multiply4(a,b){
  for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];
  return out;
 }
-const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","uniform mat4 uMvp;","out vec3 vN; out vec3 vC;","void main(){vN=aNorm;vC=aColor;gl_Position=uMvp*vec4(aPos,1.0);}"].join("\n");
+const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","layout(location=3) in vec4 aInstance;","layout(location=4) in vec2 aFacing;","uniform mat4 uMvp;uniform float uInstanced;","out vec3 vN;out vec3 vC;","void main(){"," vec3 p=aPos,n=aNorm;"," if(uInstanced>0.5){","  float c=aFacing.x,s=aFacing.y;","  p=vec3((aPos.x*c+aPos.z*s)*aInstance.w,aPos.y*aInstance.w,(-aPos.x*s+aPos.z*c)*aInstance.w)+aInstance.xyz;","  n=vec3(aNorm.x*c+aNorm.z*s,aNorm.y,-aNorm.x*s+aNorm.z*c);"," }"," vN=n;vC=aColor;gl_Position=uMvp*vec4(p,1.0);","}"].join("\n");
 const FRAG=["#version 300 es","precision highp float;","in vec3 vN; in vec3 vC;","uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;uniform vec3 uTint;","out vec4 fragColor;","void main(){float b=max(dot(normalize(vN),normalize(uLight)),0.0);fragColor=vec4(vC*uTint*(uAmbient+(1.0-uAmbient)*b),uAlpha);}"].join("\n");
 function shader(gl,mode,src){
  const sh=gl.createShader(mode);gl.shaderSource(sh,src);gl.compileShader(sh);
@@ -68,6 +68,28 @@ class Mesh{
  draw(){const gl=this.gl;gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0)}
  destroy(){const gl=this.gl;for(const v of this.buffers)gl.deleteBuffer(v);gl.deleteBuffer(this.indices);gl.deleteVertexArray(this.vao)}
 }
+class InstancedMesh extends Mesh{
+ constructor(gl,geometry,transforms){
+  super(gl,geometry);
+  if(transforms.length%6)throw new RangeError("Invalid scenery instance transforms");
+  this.instanceCount=transforms.length/6;
+  gl.bindVertexArray(this.vao);
+  const buffer=gl.createBuffer();this.buffers.push(buffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,transforms,gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(3);gl.vertexAttribPointer(3,4,gl.FLOAT,false,24,0);
+  gl.vertexAttribDivisor(3,1);
+  gl.enableVertexAttribArray(4);gl.vertexAttribPointer(4,2,gl.FLOAT,false,24,16);
+  gl.vertexAttribDivisor(4,1);
+  gl.bindVertexArray(null);
+ }
+ draw(){
+  if(!this.instanceCount)return;
+  const gl=this.gl;gl.bindVertexArray(this.vao);
+  gl.drawElementsInstanced(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0,this.instanceCount);
+ }
+}
+
 const builder=()=>({positions:[],normals:[],colors:[],indices:[]});
 const rotateY=a=>{const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]};
 function triangle(b,a,c,d,col){
