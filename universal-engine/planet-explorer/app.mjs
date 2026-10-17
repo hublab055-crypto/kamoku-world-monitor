@@ -1011,7 +1011,19 @@ lifeUI=installLifestyleUI({
  showSpeech:(id,text)=>worldUI?.speak(id,text),
  showEffect:effect=>worldUI?.float(effect)
 });
-worldUI=installWorldFeedbackUI({getRenderer:()=>renderer,getController:()=>controller});
+worldUI=installWorldFeedbackUI({
+ getRenderer:()=>renderer,getController:()=>controller,
+ onCommand:(name,arg)=>{
+  if(name==="status")return "HP "+(battle?.playerHp??100)+"/100 / 敵 "+(battle?.count()||0)+
+   "体 / 木材 "+(actions?.resources?.wood??0)+" / 石材 "+(actions?.resources?.stone??0);
+  if(name==="spawn"){
+   const result=battle?.spawn(controller,arg);
+   if(result?.ok){log(result.message);updateHUD();}
+   return result?.message||"戦闘テストが初期化されていません。";
+  }
+  return "不明なコマンドです。";
+ }
+});
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
