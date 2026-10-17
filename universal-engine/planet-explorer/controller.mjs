@@ -1,4 +1,5 @@
 import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs";
+import {smoothAltitude} from "./descent-visuals.mjs";
 
 /**
  * Single landing-site geographic authority: the globe camera and streamed ground
@@ -56,11 +57,9 @@ export class ExplorerController {
   update(dt,{forward=0,strafe=0,turn=0}={}){
     if(!Number.isFinite(dt)||dt<0)throw new TypeError("Invalid frame delta");
     dt=clamp(dt,0,.1);
-    const response=1-Math.exp(-dt*2.15);
-    // Log-altitude interpolation covers orbit-to-ground in seconds at every scale.
-    const nextLog=Math.log(this.altitudeM)+(Math.log(this.targetAltitudeM)-Math.log(this.altitudeM))*response;
-    this.altitudeM=Math.exp(nextLog);
-    if(Math.abs(Math.log(this.targetAltitudeM/this.altitudeM))<.003) this.altitudeM=this.targetAltitudeM;
+    // Bounded log-space motion preserves the spherical-to-ground cloud handoff.
+    // Previous exponential interpolation skipped ~23 km in only a few frames.
+    this.altitudeM=smoothAltitude(this.altitudeM,this.targetAltitudeM,dt);
     if(![forward,strafe,turn].every(Number.isFinite))throw new TypeError("Invalid walking controls");
     if(Math.abs(forward)+Math.abs(strafe)+Math.abs(turn)>.1)this.moveTarget=null;
     if(this.altitudeM>12.01){
