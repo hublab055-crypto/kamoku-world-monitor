@@ -2,6 +2,7 @@ import {geoNormal,geoOffset,geoLocal,DEG,clamp,samplePatch,terrainSurface} from 
 import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
+import {pickOrbitalGeo} from "./orbit-landing.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
 import {SmoothAnimator} from "./animator.mjs";
@@ -575,6 +576,7 @@ export class ExplorerRenderer{
     this.fwResourceMeshes[kind]=new Mesh(gl,geo);
    }
   this.pickVP=null;this.groundPatchData=null;
+  this.orbitVP=null;this.orbitOffsetDeg=0;this.selectedLanding=null;this.screenLanding=null;
   gl.enable(gl.DEPTH_TEST);
  }
  setAvatarStyle(id){
@@ -704,6 +706,15 @@ export class ExplorerRenderer{
     if(gap<distance){distance=gap;best=d;}
    }
    return best;
+  }
+  /** Pick any visible point on the orbital globe. Doesn't affect the actor. */
+  pickOrbit(clientX,clientY){
+   if(!this.orbitVP)return null;
+   const r=this.canvas.getBoundingClientRect();
+   if(!r.width||!r.height)return null;
+   const nx=((clientX-r.left)/r.width)*2-1;
+   const ny=1-((clientY-r.top)/r.height)*2;
+   return pickOrbitalGeo(this.orbitVP,nx,ny,this.R,this.orbitOffsetDeg);
   }
   pickGround(clientX,clientY){
    if(!this.pickVP||!this.groundPatchData)return null;
@@ -1049,6 +1060,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
+  if(!inOrbit){this.orbitVP=null;this.screenLanding=null;}
   this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
@@ -1069,6 +1081,9 @@ export class ExplorerRenderer{
   const view=lookAt(camera,[0,0,0],Math.abs(n[1])>.95?[0,0,1]:[0,1,0]);
   const vp=multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
     Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
+  this.orbitVP=vp;this.orbitOffsetDeg=offset;
+  this.screenLanding=this.selectedLanding?projectScreen(vp,
+   geoNormal(this.selectedLanding.lat,this.selectedLanding.lon+offset).map(v=>v*(R+.7))):null;
   const spin=-this.planet.rotationAngle,tilt=-this.planet.axialTiltDeg*DEG,sun=this.planet.solarDirection;
   const cs=Math.cos(spin),ss=Math.sin(spin),x=cs*sun.x+ss*sun.z,z=-ss*sun.x+cs*sun.z;
   const ct=Math.cos(tilt),st=Math.sin(tilt),light=[x,ct*sun.y-st*z,st*sun.y+ct*z];
