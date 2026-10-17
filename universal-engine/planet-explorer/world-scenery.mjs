@@ -52,7 +52,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   if(radius>4100)return {trees,grass,buildings};
   const reach=Math.min(radius*.87,850);
   // A consistent cell grid: no popping/random reshuffle when panning.
-  const cell=Math.max(12,2*reach/46);
+  const cell=17; // Stable world-space tree spacing at every zoom level
   const xMin=Math.floor((cx-reach)/cell),xMax=Math.ceil((cx+reach)/cell);
   const zMin=Math.floor((cz-reach)/cell),zMax=Math.ceil((cz+reach)/cell);
   for(let iz=zMin;iz<=zMax;iz++)for(let ix=xMin;ix<=xMax;ix++){
@@ -62,7 +62,10 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
     const biome=biomeAt(ax,az);
     if(biome.water||biome.river||biome.elevationM<60||biome.elevationM>2800)continue;
-    const threshold=biome.category==="forest"?.89:biome.category==="mountain"?.42:.84;
+    const distance=Math.hypot(x,z);
+    const density=biome.category==="forest"?.89:biome.category==="mountain"?.42:.84;
+    // Sparse far LOD, while a 430m radius keeps the dense 10x forest unchanged.
+    const threshold=density*(distance>430?.09:1);
     if(sceneryHash(ix-11,iz+29,seed)>threshold)continue;
     const variation=sceneryHash(ix+97,iz-63,seed);
     const type=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
@@ -74,13 +77,14 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   // Meadow clumps use a denser mesh but only nearby; high-altitude views
   // show the terrain's vertex colors without generating unnecessary blades.
   if(radius<=1800){
-    const stride=2*reach/142;
+    const stride=5.5; // Fixed world-space grass grid; no zoom-dependent reshuffle
     for(let iz=Math.floor((cz-reach)/stride);iz<=Math.ceil((cz+reach)/stride);iz++)
       for(let ix=Math.floor((cx-reach)/stride);ix<=Math.ceil((cx+reach)/stride);ix++){
         const a=sceneryHash(ix+1103,iz-771,seed),b=sceneryHash(ix-321,iz+613,seed);
         if(a>.86)continue;
         const ax=(ix+.14+a*.70)*stride,az=(iz+.14+b*.70)*stride,x=ax-cx,z=az-cz;
         if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+        if(Math.hypot(x,z)>430&&a>.10)continue;
         const y=groundAt(x,z);
         if(y<.15||y>2800)continue;
         grass.push({x,z,y,scale:.30+.66*a,rotation:b*6.28318,tint:sceneryHash(ix+21,iz+81,seed)});
