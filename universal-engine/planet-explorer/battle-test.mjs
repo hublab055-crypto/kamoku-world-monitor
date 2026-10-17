@@ -73,7 +73,7 @@ export class BattleTest{
     if(e.animTime<1.03)continue;
     e.anim="idle";e.animTime=0;e.attackCooldown=1.35;
    }
-   const incoming=playerAction&&["sword","axe"].includes(playerAction.kind)&&
+   const incoming=playerAction&&["sword","spear","greatsword","axe"].includes(playerAction.kind)&&
     playerAction.time/playerAction.duration<.47&&playerAction.time/playerAction.duration>.09;
    const facingPlayer=Math.abs(wrap(Math.atan2(e.x-player.x,e.z-player.z)-(player.yaw||0)))<1.25;
    if(incoming&&facingPlayer&&d<3.7&&e.guardCooldown===0&&e.type!=="slime"){
@@ -137,11 +137,12 @@ export class BattleTest{
  }
  /** Apply impacts once at the visual strike/release phase (never per frame). */
  resolveAttack(active,player){
-  if(!active||!player||!["sword","axe","bow"].includes(active.kind))return [];
+  if(!active||!player||!["sword","spear","greatsword","axe","bow"].includes(active.kind))return [];
   if(this.lastAttack!==active){this.lastAttack=active;this.hitStages=new Set();}
   const t=active.time/active.duration,variant=active.variant||"overhead";
   const isCombo=variant==="combo"&&active.kind!=="bow";
-  const thresholds=isCombo?(active.kind==="axe"?[.34,.81]:[.22,.55,.88]):
+  const twoHit=["spear","greatsword","axe"].includes(active.kind);
+  const thresholds=isCombo?(twoHit?[.34,.81]:[.22,.55,.88]):
    [active.kind==="bow"?.81:.62];
   let results=[];
   thresholds.forEach((threshold,i)=>{
@@ -149,12 +150,19 @@ export class BattleTest{
    this.hitStages.add(i);
    if(active.kind==="bow"){results.push(...this.hitArrow(player));return;}
    const style=isCombo?(active.kind==="axe"?["overhead","sweep"][i]:
+     active.kind==="spear"?["sweep","thrust"][i]:
+     active.kind==="greatsword"?["overhead","sweep"][i]:
      ["overhead","sweep","thrust"][i]):variant;
    const wide=style==="sweep",thrust=style==="thrust";
+   const spear=active.kind==="spear",greatsword=active.kind==="greatsword";
    results.push(...this.hitArc(player,{
-    range:thrust?3.25:wide?3.0:active.kind==="axe"?2.6:2.5,
-    arc:thrust?Math.PI/4:wide?Math.PI*1.10:Math.PI*.65,
-    damage:active.kind==="axe"?22:thrust?19:18
+    range:spear?(thrust?4.7:wide?3.5:3.8):
+     greatsword?(thrust?3.5:wide?3.6:3.25):
+     thrust?3.25:wide?3.0:active.kind==="axe"?2.6:2.5,
+    arc:thrust?Math.PI/(spear?5:4):wide?Math.PI*(spear?.80:1.10):Math.PI*.65,
+    damage:spear?(thrust?27:wide?16:22):
+     greatsword?(thrust?23:wide?31:34):
+     active.kind==="axe"?22:thrust?19:18
    }));
   });
   return results;
