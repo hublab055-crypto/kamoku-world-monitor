@@ -15,9 +15,10 @@ export class ExplorerController {
     this.jumpY=0;this.jumpV=0;this.moving=false;this.moveTarget=null;
   }
   get nearGround(){return this.altitudeM<=12.01}
-  setLanding(lat,lon){
+  setLanding(lat,lon,{allowWater=false}={}){
+    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90)throw new RangeError("Invalid landing coordinate");
     const s=terrainSurface(this.terrain,lat,lon);
-    if(s.water)throw new Error("着陸地点は陸地を選択してください。");
+    if(s.water&&!allowWater)throw new Error("着陸地点は陸地を選択してください。");
     this.origin={lat,lon:wrapLon(lon)};
     this.x=0;this.z=0;this.lat=lat;this.lon=wrapLon(lon);
     this.moveTarget=null;this.jumpY=0;this.jumpV=0;
