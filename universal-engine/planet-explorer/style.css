@@ -667,3 +667,21 @@ body.immersive{overflow:hidden}
  .world-fx:before,.world-fx:after{animation:none!important}
  #world-hit-flash{transition:none}
 }
+
+/* v0.7t — compact archery options, shown only while aiming or synchronizing. */
+.archery-mode-bar{
+ position:absolute;z-index:16;left:50%;transform:translateX(-50%);
+ bottom:calc(100px + env(safe-area-inset-bottom,0px));
+ display:flex;align-items:center;justify-content:center;gap:5px;
+ max-width:calc(100% - 20px);padding:3px 6px;
+ background:#092d43df;border:1px solid #699ba5;border-radius:9px;
+ color:#e9fbff;white-space:nowrap
+}
+.archery-mode-bar[hidden]{display:none!important}
+.archery-mode-bar label{font-size:11px;display:flex;align-items:center;gap:4px}
+.archery-mode-bar select{min-height:31px;padding:3px 5px;font-size:11px}
+.archery-mode-bar button{min-height:31px;padding:4px 7px;font-size:11px;color:#ecfaff;background:#194d66;border-color:#78aabd}
+@media(max-width:760px){
+ .archery-mode-bar{bottom:calc(78px + env(safe-area-inset-bottom,0px));padding:2px 4px;gap:3px}
+ .archery-mode-bar select,.archery-mode-bar button{min-height:28px;font-size:10px;padding:3px}
+}
