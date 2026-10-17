@@ -70,7 +70,9 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     const density=biome.category==="forest"?.89:biome.category==="mountain"?.42:.84;
     if(roll>density*(distance>430?.09:1))continue;
     const variation=sceneryHash(ix+97,iz-63,seed);
-    const type=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
+    // Mature evergreen, autumn deciduous and understorey distributions.
+    // Original slot zero keeps legacy types and IDs; new slots add variety.
+    const parentType=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
     // Preserve original coordinates as slot zero. Extra slots use a stable
     // 4x3 subcell lattice so a forest becomes dense without random clumping.
     const slots=distance<=430?densityBoost:1;
@@ -82,8 +84,16 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
       if(slot&&!clearOfBuildings(wx,wz))continue;
       const lx=wx-cx,lz=wz-cz;
       if(lx*lx+lz*lz>reach*reach)continue;
+      const v=slot?sceneryHash(ix*23+slot*13,iz*17-slot*7,seed):variation;
+      const type=!slot?parentType:
+        v<.077?"boulder":v<.18?"shrub":v<.31?"maple-red":
+        v<.44?"maple-orange":v<.54?"oak-yellow":v<.62?"birch":
+        v<.72?"flowering":v<.86?"pine":"broadleaf";
       trees.push({id:"vegetation-"+ix+"-"+iz+(slot?"-"+slot:""),type,
-        kind:type==="boulder"?"stone":"wood",name:type==="boulder"?"岩":"木",
+        kind:type==="boulder"?"stone":"wood",
+        name:type==="boulder"?"岩":type==="shrub"?"低木":
+          type.startsWith("maple")?"カエデ":type==="oak-yellow"?"紅葉したナラ":
+          type==="birch"?"シラカバ":"木",
         x:wx,z:wz,localX:lx,localZ:lz,elevationM:groundAt(lx,lz),
         scale:(type==="boulder"?.68:.75)+(slot?noiseA:jitter)*.62,
         rotation:(slot?noiseB:choice)*6.28318});
