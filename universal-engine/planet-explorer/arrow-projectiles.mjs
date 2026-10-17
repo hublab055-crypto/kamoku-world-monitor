@@ -1,0 +1,172 @@
+/** Recoverable physical arrows for Universal Engine's metre-based ground world.
+ * Flight is stepped (with swept intersection tests) and resolved only on impact.
+ * Coordinates are local x/z metres and absolute terrain y metres. */
+const GRAVITY=9.81;
+const vecLength=v=>Math.hypot(v.x,v.y,v.z);
+const finite=n=>typeof n==="number"&&Number.isFinite(n);
+const clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,x));
+const unit=v=>{const d=vecLength(v)||1;return {x:v.x/d,y:v.y/d,z:v.z/d};};
+const mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
+const closestSphere=(a,b,c,r)=>{
+ const d={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z};
+ const p={x:a.x-c.x,y:a.y-c.y,z:a.z-c.z};
+ const A=d.x*d.x+d.y*d.y+d.z*d.z;
+ if(A<1e-12)return (p.x*p.x+p.y*p.y+p.z*p.z<=r*r)?0:null;
+ const B=2*(p.x*d.x+p.y*d.y+p.z*d.z),C=p.x*p.x+p.y*p.y+p.z*p.z-r*r;
+ if(C<=0)return 0;
+ const discriminant=B*B-4*A*C;
+ if(discriminant<0)return null;
+ const t=(-B-Math.sqrt(discriminant))/(2*A);
+ return t>=0&&t<=1?t:null;
+};
+const closestCylinder=(a,b,c,r,low,high)=>{
+ const dx=b.x-a.x,dz=b.z-a.z,px=a.x-c.x,pz=a.z-c.z;
+ const A=dx*dx+dz*dz,B=2*(px*dx+pz*dz),C=px*px+pz*pz-r*r;
+ const roots=[];
+ if(C<=0)roots.push(0);
+ if(A>1e-10){const disc=B*B-4*A*C;if(disc>=0){
+  roots.push((-B-Math.sqrt(disc))/(2*A),(-B+Math.sqrt(disc))/(2*A));
+ }}
+ // Vertical crossing while inside the cylinder also counts.
+ if(Math.abs(b.y-a.y)>1e-9)roots.push((low-a.y)/(b.y-a.y),(high-a.y)/(b.y-a.y));
+ return roots.filter(t=>t>=0&&t<=1)
+  .filter(t=>{const pt=mix(a,b,t);return pt.y>=low-.001&&pt.y<=high+.001&&
+   (pt.x-c.x)**2+(pt.z-c.z)**2<=r*r+.0001;})
+  .sort((x,y)=>x-y)[0]??null;
+};
+const closestBox=(a,b,box)=>{
+ let lo=0,hi=1;
+ for(const axis of ["x","y","z"]){
+  const d=b[axis]-a[axis],min=box[axis]-box["half"+axis.toUpperCase()];
+  const max=box[axis]+box["half"+axis.toUpperCase()];
+  if(Math.abs(d)<1e-9){if(a[axis]<min||a[axis]>max)return null;}
+  else{const q=(min-a[axis])/d,r=(max-a[axis])/d;lo=Math.max(lo,Math.min(q,r));hi=Math.min(hi,Math.max(q,r));if(lo>hi)return null;}
+ }
+ return lo;
+};
+const shotVector=({origin,target,yaw,mode})=>{
+ const dx=target?.x-origin.x??Math.sin(yaw),dz=target?.z-origin.z??Math.cos(yaw);
+ const horizontal=Math.hypot(dx,dz)||1;
+ const ux=dx/horizontal,uz=dz/horizontal;
+ const flightMode=mode==="auto"?(target&&horizontal>28?"lob":"direct"):mode;
+ const speed=flightMode==="lob"?38:47;
+ let pitch=flightMode==="lob"?Math.PI/4:0.022;
+ if(target){
+  const dy=target.y-origin.y,D=horizontal,v2=speed**2;
+  const discriminant=v2*v2-GRAVITY*(GRAVITY*D*D+2*dy*v2);
+  if(discriminant>=0){
+   const root=Math.sqrt(discriminant);
+   pitch=Math.atan((v2+(flightMode==="lob"?root:-root))/(GRAVITY*D));
+  }else{
+   // Out-of-range aim still launches a real arrow; it may hit the ground short.
+   pitch=Math.atan2(dy,horizontal)+(flightMode==="lob"?.35:.06);
+  }
+ }
+ pitch=clamp(pitch,-.28,1.25);
+ return {mode:flightMode,vx:ux*speed*Math.cos(pitch),vy:speed*Math.sin(pitch),vz:uz*speed*Math.cos(pitch)};
+};
+export class ArrowProjectiles{
+ constructor(saved=null){
+  this.flying=[];this.embedded=[];this.targets=[];this.nextId=1;
+  if(saved)this.restore(saved);
+ }
+ addTarget(shooter,{groundY=0}={}){
+  if(!shooter||!finite(shooter.x)||!finite(shooter.z))return null;
+  if(this.targets.length>=12)return null;
+  const angle=shooter.yaw||0;
+  const target={id:this.nextId++,x:shooter.x+Math.sin(angle)*9,
+   z:shooter.z+Math.cos(angle)*9,y:groundY,yaw:angle+Math.PI};
+  this.targets.push(target);return target;
+ }
+ launch({shooterId,actor,groundY=0,target=null,mode="auto"}){
+  if(!actor||!finite(actor.x)||!finite(actor.z)||this.flying.length>=64)return null;
+  const yaw=actor.yaw||0;
+  const origin={x:actor.x+Math.sin(yaw)*.52,y:groundY+1.48,z:actor.z+Math.cos(yaw)*.52};
+  const velocity=shotVector({origin,target,yaw,mode});
+  const arrow={id:this.nextId++,shooterId,ownerId:shooterId,x:origin.x,y:origin.y,z:origin.z,
+   vx:velocity.vx,vy:velocity.vy,vz:velocity.vz,mode:velocity.mode,age:0};
+  this.flying.push(arrow);return arrow;
+ }
+ advance(dt,{groundHeight=()=>0,trees=[],buildings=[],enemies=[],onEnemyHit=()=>{}}={}){
+  if(!finite(dt)||dt<0)throw TypeError("Invalid arrow delta");
+  const events=[];
+  for(const arrow of [...this.flying]){
+   let remaining=Math.min(dt,.25),impact=null;
+   while(remaining>1e-7&&!impact){
+    const step=Math.min(remaining,.018);remaining-=step;
+    const previous={x:arrow.x,y:arrow.y,z:arrow.z};
+    arrow.x+=arrow.vx*step;
+    arrow.y+=arrow.vy*step-.5*GRAVITY*step*step;
+    arrow.z+=arrow.vz*step;arrow.vy-=GRAVITY*step;
+    arrow.age+=step;
+    const next={x:arrow.x,y:arrow.y,z:arrow.z};
+    const candidates=[];
+    const offer=(kind,obj,t)=>{if(t!==null&&t!==undefined&&t>=0&&t<=1)candidates.push({kind,obj,t});};
+    // A finite vertical body is hit by any swept arrow segment, not a
+    // target-ID-only hit. Obstacles can intercept it first.
+    for(const enemy of enemies){
+     if(enemy.hp<=0)continue;
+     const y=finite(enemy.groundY)?enemy.groundY:groundHeight(enemy.x,enemy.z);
+     const center={x:enemy.x,z:enemy.z};
+     offer("enemy",enemy,closestCylinder(previous,next,center,
+      (enemy.radius||.6)+.12,y+.25,y+(enemy.height||1.9)));
+    }
+    for(const target of this.targets)offer("target",target,
+     closestSphere(previous,next,{x:target.x,y:target.y+1.65,z:target.z},.82));
+    for(const tree of trees){
+     const y=finite(tree.elevationM)?tree.elevationM:groundHeight(tree.x,tree.z);
+     offer(tree.kind==="stone"?"stone":"tree",tree,
+      closestCylinder(previous,next,tree,.70,y,y+(tree.kind==="stone"?1.8:5.5)));
+    }
+    for(const building of buildings){
+     if(building.progress<.25)continue;
+     offer("building",building,closestBox(previous,next,{
+      x:building.x,y:building.height+2.0,z:building.z,
+      halfX:3.3,halfY:2,halfZ:2.8}));
+    }
+    // Terrain collision crossing between old and new arrow tip heights.
+    const floor=groundHeight(next.x,next.z);
+    if(next.y<=floor){
+     const previousFloor=groundHeight(previous.x,previous.z);
+     const denom=(previous.y-previousFloor)-(next.y-floor);
+     offer("ground",null,denom>.00001?clamp((previous.y-previousFloor)/denom,0,1):0);
+    }
+    candidates.sort((l,r)=>l.t-r.t);
+    if(candidates.length)impact={...candidates[0],point:mix(previous,next,candidates[0].t)};
+   }
+   if(impact||arrow.age>12||arrow.y < -10000){
+    this.flying=this.flying.filter(a=>a!==arrow);
+    if(!impact)continue;
+    const direction=unit({x:arrow.vx,y:arrow.vy,z:arrow.vz});
+    const stuck={id:arrow.id,ownerId:arrow.ownerId,x:impact.point.x,
+     y:impact.point.y,z:impact.point.z,dx:direction.x,dy:direction.y,dz:direction.z,
+     surface:impact.kind,objectId:impact.obj?.id??null};
+    this.embedded.push(stuck);
+    if(this.embedded.length>160)this.embedded.shift();
+    const event={...stuck};
+    if(impact.kind==="enemy")event.hit=onEnemyHit(impact.obj,22,arrow.shooterId);
+    events.push(event);
+   }
+  }
+  return events;
+ }
+ recover(id){
+  const index=this.embedded.findIndex(a=>a.id===id);
+  if(index<0)return null;
+  return this.embedded.splice(index,1)[0];
+ }
+ snapshot(){return {version:1,nextId:this.nextId,
+  targets:this.targets.map(t=>({...t})),flying:this.flying.map(a=>({...a})),
+  embedded:this.embedded.map(a=>({...a}))};}
+ restore(saved){
+  if(saved?.version!==1)return false;
+  const coords=o=>o&&["x","y","z"].every(k=>finite(o[k]));
+  this.flying=(saved.flying||[]).filter(a=>coords(a)&&
+   ["vx","vy","vz","age"].every(k=>finite(a[k]))).slice(0,64).map(a=>({...a}));
+  this.embedded=(saved.embedded||[]).filter(coords).slice(-160).map(a=>({...a}));
+  this.targets=(saved.targets||[]).filter(coords).slice(0,12).map(a=>({...a}));
+  this.nextId=Math.max(1,Math.floor(Number(saved.nextId)||1),
+   ...[...this.flying,...this.embedded,...this.targets].map(a=>(a.id||0)+1));
+  return true;
+ }
+}
