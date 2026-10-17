@@ -86,6 +86,6 @@ test("enemy selector exposes all four entries in current version",()=>{
  const page=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
  for(const id of ["skeleton","orc","lizardman","demon"])
   assert.match(page,new RegExp('value="'+id+'"'));
- assert.match(page,/V0\.7[opq]/);
- assert.match(page,/app\.mjs\?v=0\.7[opq]/);
+ assert.match(page,/V0\.7[opqr]/);
+ assert.match(page,/app\.mjs\?v=0\.7[opqr]/);
 });
