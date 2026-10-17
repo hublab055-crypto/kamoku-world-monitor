@@ -15,6 +15,8 @@ import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
+import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs";
+import {buildSceneryMeshes} from "./scenery-geometry.mjs";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -470,32 +472,7 @@ function appendModel(b,model,x,y,z,scale=1,angle=0){
    for(const idx of mesh.indices)b.indices.push(idx+offset);
  }
 }
-function vegetation(terrain,planet,origin,cx,cz,radius){
- const b=builder();b.resourceNodes=[];
- if(radius>4100)return b;
- const cell=98,rng=Math.min(radius*.87,850);
- let count=0;
- for(let iz=Math.floor((cz-rng)/cell);iz<=Math.ceil((cz+rng)/cell);iz++){
-  for(let ix=Math.floor((cx-rng)/cell);ix<=Math.ceil((cx+rng)/cell);ix++){
-   if(count>=80)break;
-   const val=noise3(ix*.84,iz*.92,5,planet.seed+503);
-   if(val<-.22)continue;
-   const ax=ix*cell+val*9,az=iz*cell+val*11,x=ax-cx,z=az-cz;
-   if(Math.abs(x)>radius*.98||Math.abs(z)>radius*.98)continue;
-   const geo=geoOffset(origin.lat,origin.lon,ax,az,planet.radiusM);
-   const s=terrainSurface(terrain,geo.lat,geo.lon);
-   if(s.water||s.river||s.elevationM<60||s.elevationM>2200)continue;
-   const id=val>.28?"broadleaf":val>.04?"pine":val>-.07?"flowering":"boulder";
-   const scale=id==="boulder"?.8:1.05+Math.abs(val)*.42;
-   appendModel(b,original(id),x,s.elevationM,z,scale,val*5);
-   b.resourceNodes.push({id:"vegetation-"+ix+"-"+iz,kind:id==="boulder"?"stone":"wood",
-    name:id==="boulder"?"岩":"木",x:ax,z:az,elevationM:s.elevationM});
-   count++;
-  }
-  if(count>=80)break;
- }
- return b;
-}
+
 export class ExplorerRenderer{
  constructor(canvas,planet,terrain){
   const gl=canvas.getContext("webgl2",{antialias:true,alpha:true,powerPreference:"high-performance"});
@@ -522,7 +499,7 @@ export class ExplorerRenderer{
   this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
-  this.patch=null;this.trees=null;this.patchKey=null;
+  this.patch=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
   this.rigParts=[];
@@ -1124,12 +1101,25 @@ export class ExplorerRenderer{
   const resolution=radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
-   this.patch?.destroy();this.trees?.destroy();
+   this.patch?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement])mesh.destroy();
    this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    this.patch=new Mesh(gl,this.groundPatchData);
-   const shrubs=vegetation(this.terrain,this.planet,s.origin,cx,cz,radius);
-   this.resourceNodes=shrubs.resourceNodes;
-   this.trees=shrubs.positions.length?new Mesh(gl,shrubs):null;
+   const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
+   const plan=planWorldScenery({
+    seed:this.planet.seed,cx,cz,radius,groundAt:heightAt,
+    biomeAt:(wx,wz)=>{
+     const pos=geoOffset(s.origin.lat,s.origin.lon,wx,wz,this.planet.radiusM);
+     return terrainSurface(this.terrain,pos.lat,pos.lon);
+    }
+   });
+   const scenery=buildSceneryMeshes(plan);
+   this.resourceNodes=plan.trees;
+   this.sceneryStats={trees:plan.trees.filter(n=>n.kind==="wood").length,
+    rocks:plan.trees.filter(n=>n.kind==="stone").length,
+    grass:plan.grass.length,buildings:plan.buildings.length};
+   this.trees=scenery.woods.map(g=>new Mesh(gl,g));
+   this.meadow=scenery.meadow.map(g=>new Mesh(gl,g));
+   this.settlement=scenery.settlement.map(g=>new Mesh(gl,g));
    this.patchKey=key;this.cx=cx;this.cz=cz;
    this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
   }
@@ -1152,7 +1142,9 @@ export class ExplorerRenderer{
   this.pickVP=vp;
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
   this.drawMesh(this.patch,vp,light,1,.58);
-  if(this.trees)this.drawMesh(this.trees,vp,light,1,.58);
+  for(const mesh of this.meadow)this.drawMesh(mesh,vp,light,1,.72);
+   for(const mesh of this.trees)this.drawMesh(mesh,vp,light,1,.58);
+   for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
   this.screenResources=(this.resourceNodes||[]).map(node=>{
    const screen=projectScreen(vp,[node.x-this.cx,node.elevationM+(node.kind==="wood"?2.0:.85),node.z-this.cz]);
    return screen?{...node,...screen}:null;
@@ -1209,7 +1201,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
