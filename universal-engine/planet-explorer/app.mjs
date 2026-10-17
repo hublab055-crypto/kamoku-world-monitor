@@ -58,7 +58,7 @@ const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
-let viewportGestures=null;
+let viewportGestures=null,orbitSelection=null;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
  worldUI?.append(msg);
@@ -68,6 +68,9 @@ function log(msg){
 function init(saved=null){
  try{
   manualHarvest.clear();pendingArrowPickup.clear();viewportGestures?.cancel();
+  orbitSelection=null;
+  $("orbit-landing-preview").hidden=true;
+  $("orbit-pick-marker").hidden=true;
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
@@ -235,6 +238,7 @@ function doFrame(t){
   try{
    const next=renderer.frame(controller,dt);
    updateActorMarker(renderer.actorMarker);
+   updateOrbitLandingMarker(renderer.screenLanding);
    updateRtsMarkers(renderer.screenActors);
    worldUI?.frame(running?dt:0);
    $("world-hit-flash").style.opacity=String(Math.min(.85,Math.max(0,(renderer.playerHitSeconds||0)/.48))*.83);
@@ -312,7 +316,9 @@ function updateHUD(){
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
  $("walk-note").textContent=renderer.cameraController.mode==="free"?
   "自由視点：スティック/WASDでカメラ移動。画面ドラッグで視線を回転。人物の位置は変わりません。":
-  !isSurface?"地表へ降下すると歩行操作が有効になります。":
+  !isSurface?(controller.altitudeM>23000?
+   "宇宙視点：惑星をタップして地点を選択し「この地点へ降下」。ダブルタップなら直接降下。":
+   "地表へ降下中です。歩行操作は到着後に有効になります。"):
   rtsMode?"RTS：人物・敵・資源は1回タップ、地面はダブルタップで移動指示。2本指で拡大縮小。":
    controlMode==="tap"?"地面をダブルタップで移動。1本指ドラッグで視点回転、2本指で拡大縮小。":
   "スティック/WASDで移動。地面をダブルタップで目的地設定、2本指ピンチで拡大縮小。";
@@ -321,8 +327,15 @@ function setAltitude(m){
  controller.targetAltitude(m);
  log(m<=12?"着陸地点へ降下します。":"高度 "+Math.round(m).toLocaleString("ja-JP")+"m を目標にします。");
 }
-$("ground-button").addEventListener("click",()=>setAltitude(2.5));
-$("orbit-button").addEventListener("click",()=>setAltitude(15000000));
+$("ground-button").addEventListener("click",()=>{
+ if(orbitSelection)confirmOrbitLanding();
+ else setAltitude(2.5);
+});
+$("orbit-button").addEventListener("click",()=>{
+ clearOrbitSelection();setAltitude(15000000);
+});
+$("orbit-landing-confirm").addEventListener("click",confirmOrbitLanding);
+$("orbit-landing-clear").addEventListener("click",clearOrbitSelection);
 $("zoom-in").addEventListener("click",()=>controller.zoom(.35));
 $("zoom-out").addEventListener("click",()=>controller.zoom(2.8));
 $("next-day").addEventListener("click",()=>{planet.advance(1);log("惑星時間を1日進めました。");updateHUD();});
@@ -526,8 +539,60 @@ function screenActorAt(x,y){
  return (renderer.screenActors||[]).some(p=>p.onScreen&&
   Math.hypot((p.u-u)*r.width,(p.v-v)*r.height)<42);
 }
+/** A pending selection is a UI preview, not an actor teleport or saved state. */
+function clearOrbitSelection(){
+ orbitSelection=null;
+ if(renderer)renderer.selectedLanding=null;
+ $("orbit-landing-preview").hidden=true;
+ $("orbit-pick-marker").hidden=true;
+}
+function updateOrbitLandingMarker(info){
+ const marker=$("orbit-pick-marker");
+ if(!orbitSelection||!info?.onScreen||controller?.altitudeM<=23000){
+  marker.hidden=true;return;
+ }
+ marker.hidden=false;
+ marker.style.left=(info.u*100).toFixed(3)+"%";
+ marker.style.top=(info.v*100).toFixed(3)+"%";
+}
+function selectOrbitLanding(x,y){
+ const geo=renderer?.pickOrbit(x,y);
+ if(!geo)return false;
+ const ground=terrainSurface(terrain,geo.lat,geo.lon);
+ orbitSelection={...geo,water:ground.water,river:ground.river,elevationM:ground.elevationM,category:ground.category};
+ renderer.selectedLanding={lat:geo.lat,lon:geo.lon};
+ const coord=(v,pos,neg)=>Math.abs(v).toFixed(3)+"°"+(v>=0?pos:neg);
+ $("orbit-landing-coords").textContent="📍 "+coord(geo.lat,"N","S")+" / "+coord(geo.lon,"E","W");
+ const terrainLabel=ground.water?"🌊 海面（遊泳・船は未実装）":
+  ground.river?"🏞 河川付近":("🏞 "+ground.category+" / 標高"+Math.round(ground.elevationM)+"m");
+ $("orbit-landing-terrain").textContent=terrainLabel;
+ $("orbit-landing-preview").hidden=false;
+ updateHUD();
+ return true;
+}
+function confirmOrbitLanding(){
+ if(!orbitSelection)return;
+ try{
+  const site=orbitSelection;
+  controller.setLanding(site.lat,site.lon,{allowWater:true});
+  access.insideId=null;access.pendingDoorId=null;
+  squad?.repositionAfterLanding();
+  controller.targetAltitude(2.5);
+  renderer.patchKey=null;renderer.interiorBuildingId=null;
+  renderer.cameraController.resetFreeAnchor(controller,
+   terrainSurface(terrain,site.lat,site.lon).elevationM);
+  $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
+  clearOrbitSelection();updateHUD();
+  log(site.water?"🌊 指定した海面へ降下します。水泳・船移動は未実装です。":
+   "📍 指定した緯度・経度へ降下します。地表でTPV・RTS操作が使えます。");
+ }catch(e){log("地点降下エラー: "+e.message);}
+}
 function handleSceneTap({x,y,shiftKey=false}){
- if(!renderer||!controller?.nearGround)return;
+ if(!renderer)return;
+ if(controller?.altitudeM>23000){
+  selectOrbitLanding(x,y);return;
+ }
+ if(!controller?.nearGround)return;
  const arrow=renderer.pickArrow(x,y);
  if(arrow){orderArrowPickup(arrow);return;}
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
@@ -548,7 +613,12 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(rtsMode&&rallyPicking)commandRtsTap(x,y,shiftKey);
 }
 function handleSceneDoubleTap({x,y,shiftKey=false}){
- if(!renderer||!controller?.nearGround)return;
+ if(!renderer)return;
+ if(controller?.altitudeM>23000){
+  if(selectOrbitLanding(x,y))confirmOrbitLanding();
+  return;
+ }
+ if(!controller?.nearGround)return;
  // Object double-taps must not send unintended ground movement.
  if(frontierUI?.selectTargetAt(x,y)||renderer.pickArrow(x,y)||renderer.pickTarget(x,y)||
    renderer.pickResource(x,y)||
@@ -578,6 +648,7 @@ $("world").addEventListener("wheel",e=>{
  e.preventDefault();zoomScene(e.deltaY>0?1.3:.77);syncCameraControls();
 },{passive:false});
 $("landing-select").addEventListener("change",()=>{
+ clearOrbitSelection();
  const p=$("landing-select").value.split(",").map(Number);
  try{
   const site=findLand(terrain,p[0],p[1]);
