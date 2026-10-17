@@ -82,6 +82,12 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
       const wx=slot?(ix+((gx%4)+.18+noiseA*.64)/4)*cell:ax;
       const wz=slot?(iz+(Math.floor(gx/4)+.18+noiseB*.64)/3)*cell:az;
       if(slot&&!clearOfBuildings(wx,wz))continue;
+      // Exclude the narrow starter-valley stream from subcell trees too.
+      // Outside that corridor, avoid the many expensive biome lookups.
+      if(slot&&wx>65&&wx<230){
+       const water=biomeAt(wx,wz);
+       if(water.water||water.river)continue;
+      }
       const lx=wx-cx,lz=wz-cz;
       if(lx*lx+lz*lz>reach*reach)continue;
       const v=slot?sceneryHash(ix*23+slot*13,iz*17-slot*7,seed):variation;
@@ -109,6 +115,10 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         if(a>.86)continue;
         const ax=(ix+.14+a*.70)*stride,az=(iz+.14+b*.70)*stride,x=ax-cx,z=az-cz;
         if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+        if(ax>65&&ax<230){
+         const moisture=biomeAt(ax,az);
+         if(moisture.water||moisture.river)continue;
+        }
         if(Math.hypot(x,z)>430&&a>.10)continue;
         const y=groundAt(x,z);
         if(y<.15||y>2800)continue;
