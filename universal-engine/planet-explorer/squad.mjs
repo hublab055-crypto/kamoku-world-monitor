@@ -1,4 +1,5 @@
 import {ExplorerController} from "./controller.mjs";
+import {taskBowProgress} from "./archery-timing.mjs";
 import {actionDuration,ATTACK_VARIANTS} from "./actions.mjs";
 import {terrainSurface} from "./geo.mjs";
 import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs";
@@ -204,7 +205,7 @@ export class SquadEngine{
    if(a.task?.kind?.startsWith("equipped_")){
     a.task.remaining=Math.max(0,a.task.remaining-dt);
     const weapon=a.task.kind.slice("equipped_".length);
-    const progress=1-a.task.remaining/a.task.duration;
+    const progress=weapon==="bow"?taskBowProgress(a.task):1-a.task.remaining/a.task.duration;
     if(weapon==="bow"&&!a.task.impacted&&progress>=.81){
      a.task.impacted=true;this.onEquippedImpact?.(a,a.task);
     }
@@ -240,7 +241,9 @@ export class SquadEngine{
  }
  getMotion(a){
   const key=a.task?.kind;
-  return key?.startsWith("equipped_")?{action:key.slice("equipped_".length),progress:1-a.task.remaining/a.task.duration,hand:a.task.hand||"right",variant:a.task.variant||"overhead"}:
+  return key?.startsWith("equipped_")?{action:key.slice("equipped_".length),
+   progress:key==="equipped_bow"?taskBowProgress(a.task):1-a.task.remaining/a.task.duration,
+   hand:a.task.hand||"right",variant:a.task.variant||"overhead"}:
    this.frontier?.isAction(key)?{action:key==="gather_nearby"?"axe":"idle",progress:.5}:
    key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
    {action:"idle",progress:0};
