@@ -17,7 +17,7 @@ export function sanitizeCamera(data){
  const numeric={
   yawOffset:[-Math.PI*4,Math.PI*4],pitchRad:[-1.48,1.48],
   distanceM:[1,120],fieldOfViewDeg:[35,90],followStrength:[.1,24],
-  tacticalHeightM:[35,18000],freeX:[-2e7,2e7],freeZ:[-2e7,2e7],
+  tacticalHeightM:[8,18000],freeX:[-2e7,2e7],freeZ:[-2e7,2e7],
   freeHeightM:[1,22000],freeYaw:[-Math.PI*4,Math.PI*4],
   freePitch:[-1.48,1.48]
  };
@@ -83,7 +83,7 @@ export class CameraController{
  }
  zoom(factor){
   if(!validNumber(factor)||factor<=0)throw TypeError("Invalid camera zoom");
-  if(this.mode==="tactical")this.setValue("tacticalHeightM",clamp(this.config.tacticalHeightM*factor,35,18000));
+  if(this.mode==="tactical")this.setValue("tacticalHeightM",clamp(this.config.tacticalHeightM*factor,8,18000));
   else if(this.mode==="free")this.config.freeHeightM=clamp(this.config.freeHeightM*factor,1,22000);
   else this.setValue("distanceM",clamp(this.config.distanceM*factor,1,120));
  }
@@ -130,7 +130,10 @@ export class CameraController{
    eye=[px-sin*h*.10,groundM+h,pz-cos*h*.10];
    target=targetGround;farHeight=h;
   }else if(m==="shoulder"){
-   eye=[px-sin*1.85+cos*.65,groundM+1.82,pz-cos*1.85-sin*.65];
+   const shoulderScale=Math.max(.42,dist/8);
+    eye=[px-sin*1.85*shoulderScale+cos*.65*shoulderScale,
+      groundM+1.82+.13*(shoulderScale-1),
+      pz-cos*1.85*shoulderScale-sin*.65*shoulderScale];
    target=[px+sin*3.1,groundM+1.54,pz+cos*3.1];
    farHeight=3;
   }else{
