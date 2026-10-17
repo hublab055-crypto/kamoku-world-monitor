@@ -94,10 +94,10 @@ test("recoverable iron and fire shafts retain type across projectile save",()=>{
 test("volley controls, typed physics integration and render assets are present",()=>{
  const src=n=>readFileSync(new URL("../planet-explorer/"+n,import.meta.url),"utf8");
  const ui=src("frontier-interaction-ui.mjs"),app=src("app.mjs"),render=src("render.mjs"),html=src("index.html");
- for(const name of ["archery-ammo","volley-aim","volley-timing","arrow-craft-type"])
+ for(const name of ["archery-ammo","volley-aim","volley-timing","volley-interval","arrow-craft-type"])
   assert.match(html,new RegExp('id="'+name+'"'));
  for(const pattern of [/function volley\(/,/function nearestEnemy\(/,
-  /applyBowHold\(task,shotOptions\.holdDelay\)/,/social\.spendArrow\(who\.id,result\.arrowType\)/,
+  /applyBowHold\(task,shotOptions\.holdDelay\)/,/launched\*volleyInterval/,/social\.spendArrow\(who\.id,result\.arrowType\)/,
   /social\.craftTypedArrows\(/])assert.match(ui,pattern);
  assert.match(app,/arrowType:plan\.arrowType/);
  assert.match(app,/addRecoveredArrow\(who\.id,embedded\?\.arrowType/);
