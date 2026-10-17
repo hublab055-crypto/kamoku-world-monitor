@@ -1,5 +1,6 @@
-import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS} from "./social-equipment.mjs";
+import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS,ARROW_TYPES} from "./social-equipment.mjs";
 import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs";
+import {applyBowHold} from "./archery-timing.mjs";
 import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
 
 /** Browser UI adapter; domain logic lives in SocialEquipment. */
@@ -8,7 +9,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let modelSource="standard",modelQuality="auto",modelLoadId=0;
  let configId="player",slotSignature="",lastActiveActor=null;
- let trajectoryMode="auto",practiceTargetId=null;
+ let trajectoryMode="auto",ammoType="wood",volleyAim="focus",volleyTiming="simultaneous",practiceTargetId=null;
  let decks=Object.fromEntries(["player","scout","artisan"].map(id=>[id,new ActionSlots()]));
  const handNames={right:"右手",left:"左手"};
   const twoHanded=new Set(TWO_HANDED_ITEMS);
@@ -159,7 +160,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   $("quick-use").title="実行："+COMMAND_LABELS[deck.current().commands[0]];
   updateTarget();
  }
- function executeItem(result,who,c,hand="right",chosenVariant=null){
+ function executeItem(result,who,c,hand="right",chosenVariant=null,shotOptions=null){
   if(!result.ok){log(result.message);return result;}
   if(result.kind==="book"){openBookLibrary();return result;}
   if(result.kind==="guard"){c.battle?.guard();log(result.message);return result;}
@@ -188,8 +189,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(result.kind==="action"){
    const variant=chosenVariant||(["sword","spear","greatsword","axe"].includes(result.action)?
     social.attackVariant(who.id,result.action):"overhead");
-   const target=["sword","spear","greatsword","axe","bow"].includes(result.action)?aimFor(who,c):null;
-   if(target&&(!c.manualInputActive||who.id!=="player")){
+   const target=result.action==="bow"&&shotOptions&&Object.hasOwn(shotOptions,"target")?
+     shotOptions.target:["sword","spear","greatsword","axe","bow"].includes(result.action)?aimFor(who,c):null;
+   if(target&&(!c.manualInputActive||who.id!=="player"||shotOptions?.forceTurn)){
     const desired=Math.atan2(target.x-who.control.x,target.z-who.control.z);
     who.control.turn(Math.atan2(Math.sin(desired-who.control.yaw),Math.cos(desired-who.control.yaw)));
    }
@@ -199,8 +201,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant,targetId);
     if(ok){
      const task=c.squad.get(who.id)?.task;
-     if(task&&result.action==="bow"){task.targetPoint=targetPoint;task.trajectory=trajectoryMode;}
-     if(result.usesArrow)social.spendArrow(who.id);
+     if(task&&result.action==="bow"){
+      task.targetPoint=targetPoint;task.trajectory=trajectoryMode;
+      task.arrowType=result.arrowType||"wood";
+      if(shotOptions?.holdDelay)applyBowHold(task,shotOptions.holdDelay);
+     }
+     if(result.usesArrow)social.spendArrow(who.id,result.arrowType);
      if(c.renderer)c.renderer.actionHand[who.id]=twoHanded.has(result.action)?"right":hand;
     }
     if(!ok)log(who.name+"は行動できません（実行中か地上にいません）。");
@@ -213,14 +219,21 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
      c.actions.active.targetPoint=targetPoint;
      c.actions.active.trajectory=trajectoryMode;
      c.actions.active.arrowReleased=false;
+     c.actions.active.arrowType=result.arrowType||"wood";
     }
-    if(result.usesArrow)social.spendArrow(who.id);
+    if(result.usesArrow)social.spendArrow(who.id,result.arrowType);
     if(c.renderer)c.renderer.actionHand[who.id]=twoHanded.has(result.action)?"right":hand;
    }
    if(!started)log(c.actions.message);
    updateHUD();return {ok:started,message:c.actions.message};
   }else{log(result.message);saveLifeJournal();}
   updateHUD();return result;
+ }
+ function selectCurrentAmmo(who){return social.setArrowType(who.id,ammoType);}
+ function nearestEnemy(who,enemies,excluded=new Set()){
+  return enemies.filter(e=>e.hp>0&&!excluded.has(e.id))
+   .sort((a,b)=>Math.hypot(a.x-who.control.x,a.z-who.control.z)-
+    Math.hypot(b.x-who.control.x,b.z-who.control.z))[0]||null;
  }
  function volley(){
   const c=get();
@@ -230,29 +243,38 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   for(const person of selected){
    const hand=["right","left"].find(h=>social.handItem(person.id,h)==="bow");
    if(!hand){noGear++;continue;}
-   if(!(social.actor(person.id)?.arrows>0)){noAmmo++;continue;}
-   const ready=person.id==="player"?!c.actions.active:
-    !person.task?.kind?.startsWith("equipped_");
+   if(!social.arrowCount(person.id,ammoType)){noAmmo++;continue;}
+   const ready=person.id==="player"?!c.actions.active:!person.task?.kind?.startsWith("equipped_");
    if(!ready){busy++;continue;}
    eligible.push({person,hand});
   }
+  const assigned=new Set();
   let launched=0;
   for(const {person,hand} of eligible){
+   selectCurrentAmmo(person);
+   let target=aimFor(person,c);
+   if(volleyAim==="nearest")target=nearestEnemy(person,c.battle.enemies)||target;
+   else if(volleyAim==="spread"){
+    target=nearestEnemy(person,c.battle.enemies,assigned)||
+     nearestEnemy(person,c.battle.enemies)||target;
+    if(target?.id!==undefined)assigned.add(target.id);
+   }
    const result=social.useHand(person,hand,c.life,c.squad.frontier);
-   if(result.ok&&executeItem(result,person,c,hand).ok)launched++;
+   const delay=volleyTiming==="ripple"?launched*.22:0;
+   if(result.ok&&executeItem(result,person,c,hand,null,
+    {target,holdDelay:delay,forceTurn:true}).ok)launched++;
   }
-  log("🔗 一斉射撃："+launched+"人が弓を引きました"+
+  log("🔗 "+(volleyTiming==="ripple"?"順次":"一斉")+"射撃："+launched+"人、"+
+   ARROW_TYPES[ammoType].name+" / "+({focus:"集中",nearest:"各自",spread:"分散"}[volleyAim])+"照準"+
    (noGear?" / 弓なし"+noGear+"人":"")+(noAmmo?" / 矢なし"+noAmmo+"人":"")+
    (busy?" / 動作中"+busy+"人":""));
   return {ok:launched>0,count:launched};
  }
- function addRecoveredArrow(id){
-  const state=social.actor(id);
-  if(!state||state.arrows>=999)return {ok:false};
-  state.arrows++;
+ function addRecoveredArrow(id,type="wood"){
+  if(!social.recoverArrow(id,type))return {ok:false};
   if(!$("quick-config-panel").hidden)renderConfig();
   updateHUD();
-  return {ok:true,arrows:state.arrows};
+  return {ok:true,arrows:social.arrowCount(id,type)};
  }
  /** A synchronized order executes once for every armed selected actor. */
   function meleeOrder(variant,available){
@@ -288,7 +310,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1)return volley();
     const hand=["right","left"].find(h=>social.handItem(who.id,h)==="bow");
     if(!hand){log("🏹 弓を装備してください。");return {ok:false};}
-    return item("bow",hand);
+    selectCurrentAmmo(who);
+     return item("bow",hand);
    }
    case "guard":
     const hasShield=["left","right"].some(h=>social.handItem(who.id,h)==="shield");
@@ -349,12 +372,14 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1){
    let count=0;
    for(const member of c.squad.selectedAgents()){
-    const result=executeItem(social.useHand(member,hand,c.life,c.squad.frontier),member,c,hand);
+    if(social.handItem(member.id,hand)==="bow")selectCurrentAmmo(member);
+     const result=executeItem(social.useHand(member,hand,c.life,c.squad.frontier),member,c,hand);
     if(result?.ok)count++;
    }
    log("🔗 "+(hand==="right"?"右手":"左手")+"の一斉行動："+count+"人");
    return {ok:count>0,count};
   }
+  if(social.handItem(who.id,hand)==="bow")selectCurrentAmmo(who);
   return executeItem(social.useHand(who,hand,c.life,c.squad.frontier),who,c,hand);
  }
  function renderConfig(){
@@ -364,7 +389,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   sel.value=configId;
   const person=c.squad.get(configId),inventory=social.inventoryFor(person,c.life,c.squad.frontier);
   $("equip-inventory-label").textContent=person.name+"の所持品："+inventory.map(item=>item.name+"×"+item.quantity).join("・");
-  $("arrow-stock-label").textContent="🏹 "+person.name+"の矢筒："+(social.actor(configId)?.arrows||0)+"本";
+  $("arrow-stock-label").textContent="🏹 "+person.name+"：木"+social.arrowCount(configId,"wood")+
+    " / 鉄"+social.arrowCount(configId,"iron")+" / 火"+social.arrowCount(configId,"fire")+"本";
   $("attack-mode").value=social.actor(configId)?.attackMode||"overhead";
   function selectInventory(current){
    const picker=document.createElement("select");
@@ -495,7 +521,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  function restore(data){
   social=new SocialEquipment(data?.social||null);headingUp=Boolean(data?.headingUp);
   trajectoryMode=["direct","lob","auto"].includes(data?.trajectoryMode)?data.trajectoryMode:"auto";
+  ammoType=ARROW_TYPES[data?.ammoType]?data.ammoType:"wood";
+  volleyAim=["focus","nearest","spread"].includes(data?.volleyAim)?data.volleyAim:"focus";
+  volleyTiming=["simultaneous","ripple"].includes(data?.volleyTiming)?data.volleyTiming:"simultaneous";
   practiceTargetId=null;$("archery-trajectory").value=trajectoryMode;
+  $("archery-ammo").value=ammoType;$("volley-aim").value=volleyAim;
+  $("volley-timing").value=volleyTiming;
   decks=Object.fromEntries(["player","scout","artisan"].map(id=>
    [id,new ActionSlots(data?.actionDecks?.[id]||null,social.actor(id))]));
   lastActiveActor=null;
@@ -510,7 +541,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   slotSignature="";quick();updateCamera();
   $("frontier-glb-choice").value=choice[$("frontier-glb-actor").value]||"male";
  }
- function snapshot(){return {social:social.snapshot(),trajectoryMode,
+ function snapshot(){return {social:social.snapshot(),trajectoryMode,ammoType,volleyAim,volleyTiming,
   actionDecks:Object.fromEntries(Object.entries(decks).map(([id,d])=>[id,d.snapshot()])),
   headingUp,choice:{...choice},modelSource,modelQuality};}
  async function loadModels(renderer,{force=false}={}){
@@ -543,6 +574,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    " / "+summary.join(" / ")+(failed?"。失敗した人物は従来モデルになります。":"。");
  }
  $("quick-use").addEventListener("click",useItem);
+ $("archery-ammo").addEventListener("change",e=>{ammoType=e.target.value;log("🏹 "+ARROW_TYPES[ammoType].name+"を選択");});
+ $("volley-aim").addEventListener("change",e=>{volleyAim=e.target.value;log("🎯 照準："+e.target.selectedOptions[0].textContent);});
+ $("volley-timing").addEventListener("change",e=>{volleyTiming=e.target.value;log("🔗 号令："+e.target.selectedOptions[0].textContent);});
  $("archery-trajectory").addEventListener("change",event=>{
   trajectoryMode=event.target.value;
   log("🏹 弾道："+({auto:"距離で自動切替",direct:"直射",lob:"放物線"}[trajectoryMode]||trajectoryMode));
@@ -573,7 +607,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   }
  });
  $("arrow-craft").addEventListener("click",()=>{
-  const c=get(),result=social.craftArrows(configId,c.actions?.resources);
+  const c=get(),type=$("arrow-craft-type").value,result=social.craftTypedArrows(configId,type,c.actions?.resources);
   log(result.message);
   if(result.ok){saveLifeJournal();slotSignature="";quick();updateHUD();}
   renderConfig();
