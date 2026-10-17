@@ -6,6 +6,7 @@ import {BattleTest} from "../planet-explorer/battle-test.mjs";
 import {samplePose} from "../planet-explorer/rig.mjs";
 import {SmoothAnimator} from "../planet-explorer/animator.mjs";
 import {actionDuration} from "../planet-explorer/actions.mjs";
+import {enemyMotion} from "../planet-explorer/enemy-motion.mjs";
 
 const actor=(yaw=0)=>({id:"player",name:"開拓者",x:0,z:0,yaw,altitudeM:2.5,jumpY:0});
 const target=(id,x,z,radius=.6)=>({id,x,z,hp:80,radius});
@@ -81,4 +82,18 @@ test("weapon contact drives guarded damage, stagger, knockback and once-per-stro
  active.time=.66;
  assert.ok(battle.resolveAttack(active,p).some(hit=>hit.id===foe.id));
  assert.deepEqual(battle.resolveAttack(active,p),[],"repeated render frames never duplicate damage");
+});
+
+test("defenders keep their guard raised until a heavy blade makes contact",()=>{
+ const p=actor(),battle=new BattleTest();
+ const foe=battle.spawn(p,"orc").enemy;
+ foe.x=0;foe.z=2.6;foe.guardCooldown=0;foe.attackCooldown=3;
+ const incoming={kind:"greatsword",duration:1.47,time:.35};
+ battle.advance(.1,p,incoming);
+ assert.equal(foe.anim,"guard");
+ assert.ok(foe.guardHold>1,"greatsword anticipation extends guard window");
+ for(let i=0;i<5;i++)battle.advance(.1,p,null);
+ assert.equal(foe.anim,"guard","guard does not expire halfway through slow cut");
+ const pose=enemyMotion(foe);
+ assert.ok(pose.leftArmX<-.3,"defender's guard pose is still raised");
 });
