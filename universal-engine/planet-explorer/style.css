@@ -721,3 +721,11 @@ body.immersive{overflow:hidden}
  .group-panel{left:4px;top:4px;width:calc(100% - 8px);max-height:calc(100% - 8px);padding:9px}
  .group-panel button{font-size:11px}
 }
+
+/* v0.7v: compact, horizontally scrollable shot setup for iPhone RTS / TPV. */
+.archery-mode-bar{width:min(760px,calc(100% - 12px));justify-content:flex-start;overflow-x:auto;
+ overscroll-behavior-x:contain;scrollbar-width:thin;touch-action:pan-x}
+.archery-mode-bar label{flex:0 0 auto}
+.archery-mode-bar label select{max-width:145px}
+.archery-mode-bar button{flex:0 0 auto}
+@media(max-width:760px){.archery-mode-bar{bottom:calc(82px + env(safe-area-inset-bottom,0px))}}
