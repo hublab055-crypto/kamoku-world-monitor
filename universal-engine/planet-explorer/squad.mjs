@@ -78,7 +78,11 @@ export class SquadEngine{
    const tx=x+(targets.length>1?col*2.4:0),tz=z+(targets.length>1?row*2.4:0);
    const p=a.control.locationAt(tx,tz),surface=terrainSurface(this.terrain,p.lat,p.lon);
    if(!surface.water&&!surface.river&&a.control.setMoveTarget(tx,tz)){
-    this.frontier?.cancel(a);a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
+    // Canceling an automatic Frontier task clears the controller's waypoint;
+    // reapply the already-validated manual destination afterward.
+    this.frontier?.cancel(a);
+    a.control.setMoveTarget(tx,tz);
+    a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
    }
   });
   return moved;
