@@ -56,12 +56,28 @@ export function findLand(terrain, lat=28,lon=42) {
   }
   throw new Error("No suitable land found; change seed or starting location.");
 }
+/** Planet-scale landform names keep the existing biome.category compatible. */
+export function landformAt(terrain,lat,lon,base=terrain.sample(lat,lon)){
+ const n=geoNormal(lat,lon),seed=terrain.planet.seed;
+ const ridges=noise3(n[0]*34,n[1]*34,n[2]*34,seed+801);
+ const flow=noise3(n[0]*61,n[1]*61,n[2]*61,seed+811);
+ const moisture=noise3(n[0]*22,n[1]*22,n[2]*22,seed+821);
+ if(base.water)return "ocean";
+ if(base.river)return "river";
+ if(base.category==="coast")return "coast";
+ if(base.category==="mountain")return ridges>.07?"mountain-range":"mountain";
+ if(base.category==="highland")return ridges>.3?"mountain-range":"hills";
+ if(base.category==="valley")return flow<-.14?"canyon":"valley";
+ if(base.category==="tundra")return "tundra";
+ if(base.category==="forest")return "forest";
+ return moisture<-.08?"grassland":"plain";
+}
 /** One authoritative height sampler for both sphere and high-detail ground meshes.
  * Fine details are spherical noise: no seam at the longitude wrap or tile border.
  */
 export function terrainSurface(terrain,lat,lon){
-  const base=terrain.sample(lat,lon);
-  if(base.water)return {...base,elevationM:0};
+  const base=terrain.sample(lat,lon),landform=landformAt(terrain,lat,lon,base);
+  if(base.water)return {...base,landform,elevationM:0};
   const n=geoNormal(lat,lon),seed=terrain.planet.seed;
   const reliefFactor=base.category==="mountain"?1.8:base.category==="highland"?1.45:1;
    // Spherical hills/ridges/gullies; collision, movement and scenery share this elevation.
@@ -71,7 +87,13 @@ export function terrainSurface(terrain,lat,lon){
      noise3(n[0]*16000,n[1]*16000,n[2]*16000,seed+207)*9+
      noise3(n[0]*76000,n[1]*76000,n[2]*76000,seed+318)*1.2;
   const taper=clamp(base.elevationM/35,0,1);
-  return {...base,elevationM:Math.max(.1,base.elevationM+detail*taper)};
+  const ridgeNoise=noise3(n[0]*2500,n[1]*2500,n[2]*2500,seed+908);
+  const relief=landform==="mountain-range"?Math.abs(ridgeNoise)*105:
+    landform==="mountain"?Math.abs(ridgeNoise)*48:
+    landform==="canyon"?-Math.abs(ridgeNoise)*48-10:
+    landform==="river"?-7:0;
+  const deformation=terrain.earthworks?.deltaAt(lat,lon)||0;
+  return {...base,landform,elevationM:Math.max(.1,base.elevationM+detail*taper+relief+deformation)};
 }
 export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
   if(!Number.isFinite(radiusM)||radiusM<15||radiusM>150000||!Number.isSafeInteger(resolution)||resolution<4||resolution>128) throw new RangeError("Invalid patch resolution or radius");
@@ -89,9 +111,13 @@ export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
         s.elevationM>2400?[0.85,0.86,0.83] :
         s.elevationM>1550?[0.47,0.46,0.41] :
         s.elevationM<85?[0.75,0.70,0.48] :
-        s.category==="forest"?[0.16,0.40,0.20] :
-        s.category==="mountain"?[.40,.43,.34] :
-        s.category==="valley"?[0.36,0.56,0.26]:[0.33,0.50,0.27];
+        s.landform==="river"?[.10,.37,.63] :
+        s.landform==="coast"?[.77,.71,.51] :
+        s.landform==="mountain-range"||s.landform==="mountain"?[.44,.46,.40] :
+        s.landform==="canyon"?[.53,.35,.25] :
+        s.landform==="grassland"?[.49,.59,.27] :
+        s.landform==="forest"?[.16,.40,.20] :
+        s.landform==="valley"?[.36,.56,.26]:[.33,.50,.27];
       const fleck=noise3(geo.lat*.39,geo.lon*.39,s.elevationM*.001,terrain.planet.seed+119)*.065;
       colors.push(...(s.water?c:c.map(v=>clamp(v+fleck,0,1))));
     }
