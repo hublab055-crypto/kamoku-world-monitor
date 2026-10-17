@@ -46,23 +46,23 @@ const closestBox=(a,b,box)=>{
 };
 const shotVector=({origin,target,yaw,mode})=>{
  const dx=target?target.x-origin.x:Math.sin(yaw),dz=target?target.z-origin.z:Math.cos(yaw);
- const horizontal=Math.hypot(dx,dz)||1;
- const ux=dx/horizontal,uz=dz/horizontal;
+ const horizontal=Math.hypot(dx,dz)||1,ux=dx/horizontal,uz=dz/horizontal;
  const flightMode=mode==="auto"?(target&&horizontal>28?"lob":"direct"):mode;
- const speed=flightMode==="lob"?38:47;
- let pitch=flightMode==="lob"?Math.PI/4:0.022;
+ let speed=flightMode==="lob"?35:47,pitch=flightMode==="lob"?.89:.022;
  if(target){
-  const dy=target.y-origin.y,D=horizontal,v2=speed**2;
-  const discriminant=v2*v2-GRAVITY*(GRAVITY*D*D+2*dy*v2);
-  if(discriminant>=0){
-   const root=Math.sqrt(discriminant);
-   pitch=Math.atan((v2+(flightMode==="lob"?root:-root))/(GRAVITY*D));
+  const dy=target.y-origin.y,D=horizontal;
+  if(flightMode==="lob"){
+   // A controlled arcing shot, not the mathematical near-vertical high root:
+   // solve launch speed for a 51-degree trajectory to the chosen target.
+   pitch=.89;
+   const denominator=2*Math.cos(pitch)**2*(D*Math.tan(pitch)-dy);
+   if(denominator>0)speed=clamp(Math.sqrt(GRAVITY*D*D/denominator),12,48);
   }else{
-   // Out-of-range aim still launches a real arrow; it may hit the ground short.
-   pitch=Math.atan2(dy,horizontal)+(flightMode==="lob"?.35:.06);
+   const v2=speed**2,disc=v2*v2-GRAVITY*(GRAVITY*D*D+2*dy*v2);
+   pitch=disc>=0?Math.atan((v2-Math.sqrt(disc))/(GRAVITY*D)):Math.atan2(dy,D)+.06;
   }
  }
- pitch=clamp(pitch,-.28,1.25);
+ pitch=clamp(pitch,-.28,1.30);
  return {mode:flightMode,vx:ux*speed*Math.cos(pitch),vy:speed*Math.sin(pitch),vz:uz*speed*Math.cos(pitch)};
 };
 export class ArrowProjectiles{
