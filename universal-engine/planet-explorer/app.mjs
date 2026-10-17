@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs";
 import {findLand,terrainSurface} from "./geo.mjs";
-import {ExplorerRenderer} from "./render.mjs?v=0.8a-natural-world";
+import {ExplorerRenderer} from "./render.mjs?v=0.8b-river-valley";
 import {Actions} from "./actions.mjs";
 import {ResourceHarvest} from "./resource-harvest.mjs";
 import {Earthworks} from "./earthworks.mjs";
@@ -110,6 +110,9 @@ function init(saved=null){
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
   terrain=new Terrain(planet);weather=new Weather(planet);
+   // This seed-specific starter valley remains at a fixed planet coordinate
+   // even when the player later lands on another continent.
+   terrain.landscapeAnchor=findLand(terrain);
    const restoredWorld=saved?.v0_8a||(saved?null:loadWorldJournal());
    earthworks=new Earthworks(restoredWorld?.earthworks||null);
    terrain.earthworks=earthworks;
