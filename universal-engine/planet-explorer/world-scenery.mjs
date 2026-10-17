@@ -1,0 +1,97 @@
+/**
+ * Deterministic streamed scenery for the Planet Explorer.
+ * All world coordinates are metres from the current landing origin. Visual props
+ * are not save-game structures and must not be exposed as interactive huts.
+ */
+export const VILLAGE_SITES = Object.freeze([
+  {type:"lodge",x:54,z:44,angle:.12},
+  {type:"cabin",x:104,z:28,angle:-.25},
+  {type:"cabin",x:46,z:102,angle:.18},
+  {type:"cabin",x:-68,z:83,angle:-.34},
+  {type:"cabin",x:-114,z:-76,angle:.33},
+  {type:"barn",x:133,z:-62,angle:.23},
+  {type:"workshop",x:85,z:-122,angle:-.18},
+  {type:"watchtower",x:-115,z:-115,angle:0},
+  {type:"granary",x:-42,z:144,angle:.10},
+  {type:"well",x:12,z:78,angle:0},
+  {type:"market",x:7,z:-98,angle:-.2},
+  {type:"stable",x:173,z:91,angle:.1}
+]);
+const frac=n=>n-Math.floor(n);
+export function sceneryHash(ix,iz,seed=0){
+  // Hashing fixed integer cell IDs keeps scenery stationary across LOD changes.
+  return frac(Math.sin(ix*127.1+iz*311.7+seed*19.19)*43758.5453);
+}
+function clearOfBuildings(x,z){
+  if(Math.hypot(x,z)<14)return false; // clear the landing pad
+  if(x>0&&x<57&&Math.abs(z-x*.55)<6)return false; // village path
+  for(const site of VILLAGE_SITES){
+    const half=site.type==="barn"||site.type==="stable"||site.type==="lodge"?18:12;
+    if(Math.abs(x-site.x)<half&&Math.abs(z-site.z)<half)return false;
+  }
+  return true;
+}
+/** Height on the actual rendered ground patch, not the unsampled noise surface. */
+export function patchSceneryHeight(patch,x,z){
+  if(!patch?.vertices||!patch.resolution||!patch.radiusM)return 0;
+  const n=patch.resolution,r=patch.radiusM;
+  const u=Math.max(0,Math.min(n,(x+r)*n/(2*r)));
+  const v=Math.max(0,Math.min(n,(r-z)*n/(2*r)));
+  const i=Math.min(n-1,Math.floor(u)),j=Math.min(n-1,Math.floor(v));
+  const tx=u-i,tz=v-j,w=n+1,h=(ii,jj)=>patch.vertices[(jj*w+ii)*3+1];
+  return h(i,j)*(1-tx)*(1-tz)+h(i+1,j)*tx*(1-tz)+h(i,j+1)*(1-tx)*tz+h(i+1,j+1)*tx*tz;
+}
+/**
+ * The old renderer capped its scattered nature at 80 objects and drew no
+ * ground-cover meadow. Dense 3D woods + small meadow blades are independent
+ * of assets/network and reproducible for a planet seed.
+ */
+export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
+    groundAt=()=>300, biomeAt=()=>({water:false,river:false,category:"forest",elevationM:300})}={}){
+  const trees=[],grass=[],buildings=[];
+  if(radius>4100)return {trees,grass,buildings};
+  const reach=Math.min(radius*.87,850);
+  // A consistent cell grid: no popping/random reshuffle when panning.
+  const cell=Math.max(12,2*reach/46);
+  const xMin=Math.floor((cx-reach)/cell),xMax=Math.ceil((cx+reach)/cell);
+  const zMin=Math.floor((cz-reach)/cell),zMax=Math.ceil((cz+reach)/cell);
+  for(let iz=zMin;iz<=zMax;iz++)for(let ix=xMin;ix<=xMax;ix++){
+    const jitter=sceneryHash(ix,iz,seed),choice=sceneryHash(ix+31,iz-17,seed);
+    const ax=(ix+.15+jitter*.7)*cell,az=(iz+.15+choice*.7)*cell;
+    const x=ax-cx,z=az-cz;
+    if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+    const biome=biomeAt(ax,az);
+    if(biome.water||biome.river||biome.elevationM<60||biome.elevationM>2800)continue;
+    const threshold=biome.category==="forest"?.89:biome.category==="mountain"?.42:.84;
+    if(sceneryHash(ix-11,iz+29,seed)>threshold)continue;
+    const variation=sceneryHash(ix+97,iz-63,seed);
+    const type=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
+    trees.push({id:"vegetation-"+ix+"-"+iz,type,kind:type==="boulder"?"stone":"wood",
+      name:type==="boulder"?"岩":"木",x:ax,z:az,localX:x,localZ:z,
+      elevationM:groundAt(x,z),scale:type==="boulder"?.68+jitter*.7:.75+jitter*.62,
+      rotation:choice*6.28318});
+  }
+  // Meadow clumps use a denser mesh but only nearby; high-altitude views
+  // show the terrain's vertex colors without generating unnecessary blades.
+  if(radius<=1800){
+    const stride=2*reach/142;
+    for(let iz=Math.floor((cz-reach)/stride);iz<=Math.ceil((cz+reach)/stride);iz++)
+      for(let ix=Math.floor((cx-reach)/stride);ix<=Math.ceil((cx+reach)/stride);ix++){
+        const a=sceneryHash(ix+1103,iz-771,seed),b=sceneryHash(ix-321,iz+613,seed);
+        if(a>.86)continue;
+        const ax=(ix+.14+a*.70)*stride,az=(iz+.14+b*.70)*stride,x=ax-cx,z=az-cz;
+        if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+        const y=groundAt(x,z);
+        if(y<.15||y>2800)continue;
+        grass.push({x,z,y,scale:.30+.66*a,rotation:b*6.28318,tint:sceneryHash(ix+21,iz+81,seed)});
+      }
+  }
+  for(const site of VILLAGE_SITES){
+    const x=site.x-cx,z=site.z-cz;
+    if(Math.abs(x)>radius*.96||Math.abs(z)>radius*.96)continue;
+    const y=groundAt(x,z);
+    if(y<5||y>2800)continue;
+    buildings.push({...site,localX:x,localZ:z,elevationM:y});
+  }
+  return {trees,grass,buildings};
+}
