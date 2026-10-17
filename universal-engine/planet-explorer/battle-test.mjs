@@ -16,7 +16,7 @@ export class BattleTest{
  constructor(){
   this.enemies=[];this.nextId=1;this.maxEnemies=10;
   this.lastAttack=null;this.hitStages=new Set();
-  this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.targetId=null;
+  this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.playerGuardFactor=.30;this.targetId=null;
  }
  spawn(controller,type="slime"){
   const config=TEST_ENEMIES[type];
@@ -64,7 +64,7 @@ export class BattleTest{
      e.attackLanded=true;
      if(d<3.0&&this.playerHp>0){
       const points=e.type==="orc"?12:e.type==="demon"?14:e.type==="skeleton"?7:8;
-      const dealt=this.playerGuard>0?Math.max(1,Math.round(points*.3)):points;
+      const dealt=this.playerGuard>0?Math.max(1,Math.round(points*this.playerGuardFactor)):points;
       this.playerHp=Math.max(0,this.playerHp-dealt);
       this.enemyHits.push({name:e.name,damage:dealt,hp:this.playerHp,
        message:e.name+" の攻撃：-"+dealt+" HP"+(this.playerGuard>0?"（ガード）":"")+"（戦闘テストHP "+this.playerHp+"）"});
@@ -135,6 +135,22 @@ export class BattleTest{
    damage:dealt,guarded,defeated:enemy.hp===0,
    message:enemy.name+" に "+dealt+" ダメージ"+(guarded?"（防御）":"")+(enemy.hp===0?"！撃破！":"（残りHP "+enemy.hp+"）")};
  }
+ /** Resolve a single swing for either the player or an RTS-controlled ally.
+  * Shared hit rules prevent the NPC simulation from having different reach. */
+ hitWeapon(player,kind,style="overhead"){
+  if(!["sword","spear","greatsword","axe"].includes(kind))return [];
+  const wide=style==="sweep",thrust=style==="thrust";
+  const spear=kind==="spear",greatsword=kind==="greatsword";
+  return this.hitArc(player,{
+   range:spear?(thrust?4.7:wide?3.5:3.8):
+    greatsword?(thrust?3.5:wide?3.6:3.25):
+    thrust?3.25:wide?3.0:kind==="axe"?2.6:2.5,
+   arc:thrust?Math.PI/(spear?5:4):wide?Math.PI*(spear?.80:1.10):Math.PI*.65,
+   damage:spear?(thrust?27:wide?16:22):
+    greatsword?(thrust?23:wide?31:34):
+    kind==="axe"?22:thrust?19:18
+  });
+ }
  /** Apply impacts once at the visual strike/release phase (never per frame). */
  resolveAttack(active,player){
   if(!active||!player||!["sword","spear","greatsword","axe","bow"].includes(active.kind))return [];
@@ -153,25 +169,15 @@ export class BattleTest{
      active.kind==="spear"?["sweep","thrust"][i]:
      active.kind==="greatsword"?["overhead","sweep"][i]:
      ["overhead","sweep","thrust"][i]):variant;
-   const wide=style==="sweep",thrust=style==="thrust";
-   const spear=active.kind==="spear",greatsword=active.kind==="greatsword";
-   results.push(...this.hitArc(player,{
-    range:spear?(thrust?4.7:wide?3.5:3.8):
-     greatsword?(thrust?3.5:wide?3.6:3.25):
-     thrust?3.25:wide?3.0:active.kind==="axe"?2.6:2.5,
-    arc:thrust?Math.PI/(spear?5:4):wide?Math.PI*(spear?.80:1.10):Math.PI*.65,
-    damage:spear?(thrust?27:wide?16:22):
-     greatsword?(thrust?23:wide?31:34):
-     active.kind==="axe"?22:thrust?19:18
-   }));
+   results.push(...this.hitWeapon(player,active.kind,style));
   });
   return results;
  }
- guard(seconds=1.25){this.playerGuard=Math.max(this.playerGuard,Math.min(5,Math.max(0,seconds)));return true;}
+ guard(seconds=1.25,factor=.30){this.playerGuard=Math.max(this.playerGuard,Math.min(5,Math.max(0,seconds)));this.playerGuardFactor=clamp(factor,.1,1);return true;}
  heal(amount=35){const prev=this.playerHp;this.playerHp=clamp(this.playerHp+amount,0,100);return this.playerHp-prev;}
  count(){return this.enemies.filter(e=>e.hp>0).length;}
  clear(){
   this.enemies=[];this.lastAttack=null;this.hitStages.clear();
-  this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.targetId=null;
+  this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.playerGuardFactor=.30;this.targetId=null;
  }
 }
