@@ -3,7 +3,7 @@ import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs";
 import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
 
 /** Browser UI adapter; domain logic lives in SocialEquipment. */
-export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,saveLifeJournal}){
+export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,saveLifeJournal,showSpeech=()=>{},showEffect=()=>{}}){
  const $=id=>document.getElementById(id);
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let modelSource="standard",modelQuality="auto",modelLoadId=0;
@@ -133,6 +133,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(result.kind==="guard"){c.battle?.guard();log(result.message);return result;}
   if(result.kind==="heal"){
    const healed=c.battle?.heal(result.amount)||0;
+   showEffect({kind:"heal",text:"+"+healed+" HP",actorId:who.id});
    log(result.message+" 戦闘HP +"+healed);saveLifeJournal();updateHUD();return result;
   }
   if(result.kind==="deploy"){
@@ -227,6 +228,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    case "talk":case "gift":openSocial();if(command==="gift")$("social-gift-item").focus();return {ok:true};
    case "emote":{
     who.status="🙂 エモート";
+    showSpeech(who.id,"👋 やあ！");
     c.renderer?.triggerSocial(who.id,c.squad.agents.find(a=>a.id!==who.id)?.id,"talk");
     log(who.name+"が手を振りました。");return {ok:true};
    }
@@ -465,13 +467,22 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  $("social-talk").addEventListener("click",()=>{
   const {from,to}=selection();const r=social.talk(from,to);
   $("social-result").textContent=r.message;log(r.message);
-  if(r.ok){from.status="💬 会話中";to.status="💬 会話中";get().renderer?.triggerSocial(from.id,to.id,"talk");}
+  if(r.ok){
+   from.status="💬 会話中";to.status="💬 会話中";
+   get().renderer?.triggerSocial(from.id,to.id,"talk");
+   showSpeech(to.id,r.message.split("：「").slice(1).join("：「").replace(/」$/,"")||r.message);
+  }
  });
  $("social-gift").addEventListener("click",()=>{
   const {from,to}=selection(),c=get();
   const r=social.gift(from,to,$("social-gift-item").value,c.life,c.squad.frontier);
   $("social-result").textContent=r.message;log(r.message);
-  if(r.ok){c.renderer?.triggerSocial(from.id,to.id,"gift");saveLifeJournal();gifts();updateHUD();}
+  if(r.ok){
+   c.renderer?.triggerSocial(from.id,to.id,"gift");
+   showSpeech(to.id,"🎁 ありがとう！");
+   showEffect({kind:"notice",actorId:to.id,text:"♥ +"+(c.squad?.frontier?4:4)});
+   saveLifeJournal();gifts();updateHUD();
+  }
  });
  $("rts-heading-up").addEventListener("change",e=>setHeading(e.target.checked));
  $("camera-rts-heading").addEventListener("change",e=>setHeading(e.target.checked));
