@@ -8,6 +8,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let modelSource="standard",modelQuality="auto",modelLoadId=0;
  let configId="player",slotSignature="",lastActiveActor=null;
+ let trajectoryMode="auto",practiceTargetId=null;
  let decks=Object.fromEntries(["player","scout","artisan"].map(id=>[id,new ActionSlots()]));
  const handNames={right:"右手",left:"左手"};
  const actor=()=>{const c=get();return (c.rtsMode?c.squad?.selectedAgents()[0]:null)||c.squad?.get("player");};
@@ -58,21 +59,31 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(!applyDeck(who)){deck.select(previous);applyDeck(who,{quiet:true});return;}
   slotSignature="";quick();updateHUD();
  }
+ function aimFor(who,c=get()){
+  const selected=practiceTargetId!=null?c.projectiles?.targets.find(t=>t.id===practiceTargetId):null;
+  if(selected)return {...selected,kind:"practice",targetPoint:{x:selected.x,y:selected.y+1.65,z:selected.z}};
+  const deck=decks[who?.id];
+  if(!deck||!c.battle||!who)return null;
+  const bow=["right","left"].some(h=>social.handItem(who.id,h)==="bow");
+  const range=bow?(trajectoryMode==="direct"?55:145):4;
+  const combat=["bow","melee"].includes(deck.current().kind)||bow;
+  return combat?deck.resolveTarget(c.battle.enemies,who.control,range):
+   c.battle.enemies.find(e=>e.id===deck.manualTargetId&&e.hp>0)||null;
+ }
  function updateTarget(){
   const c=get(),who=actor(),deck=decks[who?.id];
   if(!deck||!c.battle||!c.renderer)return null;
   const combat=isCombat(who)&&!!who.control?.nearGround;
-  const range=deck.current().kind==="bow"?18:4;
-  const target=combat?deck.resolveTarget(c.battle.enemies,who.control,range):
-   c.battle.enemies.find(e=>e.id===deck.manualTargetId&&e.hp>0)||null;
+  const target=aimFor(who,c);
   if(!combat&&!target)deck.clearManual();
-  c.renderer.combatTargetId=target?.id||null;
-  c.battle.targetId=target?.id||null;
+  c.renderer.combatTargetId=target?.kind==="practice"?null:target?.id||null;
+  c.battle.targetId=target?.kind==="practice"?null:target?.id||null;
   $("aim-reticle").hidden=!combat;
   const label=$("combat-target-label");label.hidden=!combat&&!target;
-  if(combat||target)label.textContent=target?"🎯 "+target.name+" / HP "+target.hp+
-    (deck.manualTargetId===target.id?"（手動）":"（自動）"):"🎯 対象なし"+
-    (deck.autoTarget?"":"（手動選択）");
+  if(combat||target)label.textContent=target?
+   target.kind==="practice"?"🎯 練習用の的":
+    "🎯 "+target.name+" / HP "+target.hp+(deck.manualTargetId===target.id?"（手動）":"（自動）"):
+    "🎯 対象なし"+(deck.autoTarget?"":"（手動選択）");
   return target;
  }
  function selectTargetAt(clientX,clientY){
@@ -88,8 +99,17 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    const dnorm=d/Math.max(1,Math.min(rect.width,rect.height));
    if(dnorm<best){closest=marker;best=dnorm;}
   }
-  if(!closest)return false;
-  decks[who.id].setManualTarget(closest.id);
+  if(!closest){
+   const target=c.renderer.pickTarget(clientX,clientY);
+   if(!target)return false;
+   practiceTargetId=target.id;
+   for(const person of c.rtsMode&&c.syncMode?c.squad.selectedAgents():[who])
+    decks[person.id].clearManual();
+   updateTarget();log("🎯 練習用の的をターゲットに指定しました。");return true;
+  }
+  practiceTargetId=null;
+  for(const person of c.rtsMode&&c.syncMode?c.squad.selectedAgents():[who])
+   decks[person.id].setManualTarget(closest.id);
   updateTarget();log("🎯 "+closest.name+"を手動ターゲットに指定しました。");return true;
  }
  function quick(){
@@ -100,7 +120,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   }
   syncHands();
   const key=who.id+":"+deck.selected+":"+JSON.stringify(deck.slots)+":"+
-   a.hands.right+":"+a.hands.left;
+   a.hands.right+":"+a.hands.left+":"+c.rtsMode+":"+c.syncMode+":"+c.squad.selected.size;
   if(slotSignature===key)return;
   slotSignature=key;
   const root=$("quick-slots");root.replaceChildren();
@@ -120,10 +140,18 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    button.addEventListener("click",()=>runCommand(command));
    bar.append(button);
   });
+  if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1){
+   const volleyButton=document.createElement("button");
+   volleyButton.type="button";volleyButton.textContent="🏹 一斉射撃";
+   volleyButton.title="弓装備・矢ありの選択アバターが同時に射撃";
+   volleyButton.addEventListener("click",volley);
+   bar.append(volleyButton);
+  }
+  $("archery-mode-bar").hidden=!isCombat(who)&&!(c.rtsMode&&c.syncMode);
   if(isCombat(who)){
    const clear=document.createElement("button");clear.type="button";
    clear.textContent="× 解除";clear.title="手動ターゲットを解除";
-   clear.addEventListener("click",()=>{deck.clearManual();updateTarget();});
+   clear.addEventListener("click",()=>{deck.clearManual();practiceTargetId=null;updateTarget();});
    bar.append(clear);
   }
   $("quick-use").title="実行："+COMMAND_LABELS[deck.current().commands[0]];
@@ -157,29 +185,38 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   }
   if(result.kind==="action"){
    const variant=chosenVariant||(["sword","axe"].includes(result.action)?
-     social.attackVariant(who.id,result.action):"overhead");
-   if(who.id==="player"&&["sword","axe","bow"].includes(result.action)){
-    const target=updateTarget();
-    if(target&&!c.manualInputActive){
-     const desired=Math.atan2(target.x-c.controller.x,target.z-c.controller.z);
-     c.controller.turn(Math.atan2(Math.sin(desired-c.controller.yaw),Math.cos(desired-c.controller.yaw)));
-    }
+    social.attackVariant(who.id,result.action):"overhead");
+   const target=["sword","axe","bow"].includes(result.action)?aimFor(who,c):null;
+   if(target&&(!c.manualInputActive||who.id!=="player")){
+    const desired=Math.atan2(target.x-who.control.x,target.z-who.control.z);
+    who.control.turn(Math.atan2(Math.sin(desired-who.control.yaw),Math.cos(desired-who.control.yaw)));
    }
+   const targetId=target?.kind==="practice"?null:target?.id??null;
+   const targetPoint=target?.kind==="practice"?target.targetPoint:null;
    if(who.id!=="player"){
-    const target=["sword","axe","bow"].includes(result.action)?updateTarget():null;
-    if(target&&!c.manualInputActive){
-     const desired=Math.atan2(target.x-who.control.x,target.z-who.control.z);
-     who.control.turn(Math.atan2(Math.sin(desired-who.control.yaw),Math.cos(desired-who.control.yaw)));
+    const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant,targetId);
+    if(ok){
+     const task=c.squad.get(who.id)?.task;
+     if(task&&result.action==="bow"){task.targetPoint=targetPoint;task.trajectory=trajectoryMode;}
+     if(result.usesArrow)social.spendArrow(who.id);
+     if(c.renderer)c.renderer.actionHand[who.id]=hand;
     }
-    const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant,target?.id??null);
-    if(ok){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
-    log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
+    if(!ok)log(who.name+"は行動できません（実行中か地上にいません）。");
     updateHUD();return {ok};
    }
    const started=c.actions.start(result.action,c.controller,c.sample,variant);
-   if(started){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
-   log(c.actions.message);
-   if(!started)return {ok:false,message:c.actions.message};
+   if(started){
+    if(result.action==="bow"){
+     c.actions.active.targetId=targetId;
+     c.actions.active.targetPoint=targetPoint;
+     c.actions.active.trajectory=trajectoryMode;
+     c.actions.active.arrowReleased=false;
+    }
+    if(result.usesArrow)social.spendArrow(who.id);
+    if(c.renderer)c.renderer.actionHand[who.id]=hand;
+   }
+   if(!started)log(c.actions.message);
+   updateHUD();return {ok:started,message:c.actions.message};
   }else{log(result.message);saveLifeJournal();}
   updateHUD();return result;
  }
