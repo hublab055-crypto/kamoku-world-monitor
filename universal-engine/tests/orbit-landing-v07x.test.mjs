@@ -7,7 +7,7 @@ import {lookAt,multiply4,perspective} from "../planet-explorer/render.mjs";
 import {pickOrbitalGeo} from "../planet-explorer/orbit-landing.mjs";
 const DEG=Math.PI/180;
 const globeVP=(eye=[0,0,1800])=>
- multiply4(perspective(53*DEG,1.6,20,6000),lookAt(eye,[0,0,0]));
+ multiply4(perspective(53*DEG,1.6,20,6000),lookAt(eye,[0,0,0],Math.abs(eye[1])>1700?[0,0,1]:[0,1,0]));
 test("the middle of the globe picks the front hemisphere, not the back",()=>{
  const point=pickOrbitalGeo(globeVP(),0,0,600);
  assert.ok(point);
