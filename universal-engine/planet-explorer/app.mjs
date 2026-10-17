@@ -51,6 +51,7 @@ let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null;
+const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
 const keys=new Set(),touches=new Set();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -62,7 +63,7 @@ function log(msg){
 function init(saved=null){
  try{
   if(renderer)renderer.destroy();
-  worldUI?.clear();
+  worldUI?.clear();lastNpcStatus.clear();
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
   terrain=new Terrain(planet);weather=new Weather(planet);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
@@ -130,6 +131,18 @@ function doFrame(t){
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
   const priorResources={...actions.resources};
   squad?.advance(running?dt:0,{manualLead});
+  if(running){
+   for(const a of squad?.agents||[]){
+    if(a.id==="player")continue;
+    const prior=lastNpcStatus.get(a.id),now=a.status||"";
+    if(now!==prior){
+     const found=now.match(/(木材|石材)\s*\+(\d+)/);
+     if(found)worldUI?.float({kind:"gain",actorId:a.id,
+      text:"+"+found[2]+" "+(found[1]==="木材"?"🪵 木材":"🪨 石材")});
+     lastNpcStatus.set(a.id,now);
+    }
+   }
+  }
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
@@ -180,6 +193,7 @@ function doFrame(t){
    updateActorMarker(renderer.actorMarker);
    updateRtsMarkers(renderer.screenActors);
    worldUI?.frame(running?dt:0);
+   $("world-hit-flash").style.opacity=String(Math.min(.85,Math.max(0,(renderer.playerHitSeconds||0)/.48))*.83);
    if(next!==displayMode){
     displayMode=next;
     $("mode").textContent=next==="orbit"?"宇宙・惑星モード":"地表メッシュモード";
