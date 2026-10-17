@@ -93,10 +93,10 @@ export class ArrowProjectiles{
   if(!finite(dt)||dt<0)throw TypeError("Invalid arrow delta");
   const events=[];
   for(const burn of [...this.burning]){
-   burn.remaining=Math.max(0,burn.remaining-dt);
-   burn.tick+=dt;
-   while(burn.tick>=1&&burn.remaining>0){
-    burn.tick-=1;
+   const active=Math.min(Math.max(dt,0),burn.remaining);
+   burn.tick+=active;
+   while(burn.tick>=1-1e-8){
+    burn.tick=Math.max(0,burn.tick-1);
     if(burn.surface==="enemy"){
      const target=enemies.find(e=>e.id===burn.objectId&&e.hp>0);
      if(target){
@@ -105,7 +105,8 @@ export class ArrowProjectiles{
      }
     }
    }
-   if(burn.remaining===0)this.burning.splice(this.burning.indexOf(burn),1);
+   burn.remaining=Math.max(0,burn.remaining-active);
+   if(burn.remaining<=1e-8)this.burning.splice(this.burning.indexOf(burn),1);
   }
   // Embedded enemy arrows follow the moving target until it disappears.
   for(const stuck of this.embedded){
