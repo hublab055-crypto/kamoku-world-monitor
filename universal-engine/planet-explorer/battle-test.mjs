@@ -1,3 +1,4 @@
+import {CONTACT_WEAPONS,contactDamage,sweptWeaponContacts} from "./melee-contact.mjs";
 /** Local battle sandbox. Enemies are test dummies that approach without
  * damaging the player's campaign state. Coordinates use explorer X/Z metres.
  */
@@ -51,7 +52,7 @@ export class BattleTest{
    const dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz);
    if(d>.001)e.yaw=Math.atan2(dx,dz);
    if(e.anim==="hit"){
-    if(e.animTime<.34)continue;
+    if(e.animTime<(e.hitStun||.34))continue;
     e.anim="idle";e.animTime=0;
    }
    if(e.anim==="guard"){
@@ -139,16 +140,29 @@ export class BattleTest{
   * Shared hit rules prevent the NPC simulation from having different reach. */
  hitWeapon(player,kind,style="overhead"){
   if(!["sword","spear","greatsword","axe"].includes(kind))return [];
+  if(CONTACT_WEAPONS.includes(kind)){
+   // The shaft/blade itself must sweep through the enemy's collision radius.
+   // The geometric contact is retained for future particle and sound effects.
+   return sweptWeaponContacts(player,this.enemies,kind,style).map(hit=>{
+    const result=this.damage(hit.target,contactDamage(kind,style));
+    result.contact={x:hit.x,z:hit.z,phase:hit.phase};
+    result.weapon=kind;
+    if(!result.defeated){
+     hit.target.hitStun=kind==="greatsword"?.58:.39;
+     if(!result.guarded){
+      const dx=hit.target.x-player.x,dz=hit.target.z-player.z,d=Math.hypot(dx,dz)||1;
+      const knockback=kind==="greatsword"?.36:.13;
+      hit.target.x+=dx/d*knockback;hit.target.z+=dz/d*knockback;
+     }
+    }
+    return result;
+   });
+  }
   const wide=style==="sweep",thrust=style==="thrust";
-  const spear=kind==="spear",greatsword=kind==="greatsword";
   return this.hitArc(player,{
-   range:spear?(thrust?4.7:wide?3.5:3.8):
-    greatsword?(thrust?3.5:wide?3.6:3.25):
-    thrust?3.25:wide?3.0:kind==="axe"?2.6:2.5,
-   arc:thrust?Math.PI/(spear?5:4):wide?Math.PI*(spear?.80:1.10):Math.PI*.65,
-   damage:spear?(thrust?27:wide?16:22):
-    greatsword?(thrust?23:wide?31:34):
-    kind==="axe"?22:thrust?19:18
+   range:thrust?3.25:wide?3:kind==="axe"?2.6:2.5,
+   arc:thrust?Math.PI/4:wide?Math.PI*1.1:Math.PI*.65,
+   damage:kind==="axe"?22:thrust?19:18
   });
  }
  /** Apply impacts once at the visual strike/release phase (never per frame). */
