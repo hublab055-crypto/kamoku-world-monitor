@@ -71,10 +71,15 @@ export class SmoothAnimator {
   else if(toolAction){
     const tool=samplePose({action,progress,variant});
     // Keep legs locomoting and smoothly blend only upper body for work.
+    const pairedAttack=["spear","greatsword"].includes(action);
     for(const key of Object.keys(tool)){
       if(["torsoX","torsoY","leftShoulderX","rightShoulderX",
           "leftShoulderZ","rightShoulderZ","leftElbowX","rightElbowX",
           "leftWristX","rightWristX"].includes(key))target[key]=tool[key];
+      // Plant the feet and transfer weight through the hips on ground only.
+      // Moving avatars keep the normal gait for RTS/TPV responsiveness.
+      if(pairedAttack&&!move&&["rootY","leftHipX","rightHipX",
+       "leftKneeX","rightKneeX"].includes(key))target[key]=tool[key];
     }
     if(hand==="left"&&!["spear","greatsword"].includes(action)){
       // Mirror the tool gesture at the shoulder / elbow / wrist. Leg locomotion
