@@ -2,7 +2,7 @@
  * Pure model: proximity is evaluated in the same metre-space as SquadEngine.
  */
 export const ITEM_OPTIONS=Object.freeze([
- ["none","— 空き","▫️"],["sword","剣","⚔️"],["shield","盾","🛡️"],["potion","回復薬","🧪"],["axe","斧","🪓"],["bow","弓","🏹"],["arrow","矢","➶"],
+ ["none","— 空き","▫️"],["sword","剣","⚔️"],["spear","長槍（両手）","🔱"],["greatsword","両手剣","⚔️"],["shield","盾","🛡️"],["potion","回復薬","🧪"],["axe","斧","🪓"],["bow","弓","🏹"],["arrow","矢","➶"],
  ["pickaxe","つるはし","⛏️"],["book","本","📖"],["cup","コップ","🥛"],
  ["bowl","椀","🥣"],["spoon","スプーン","🥄"],["meal","料理","🍲"],
  ["water","水","💧"],["wood","木材","🪵"],["stone","石","🪨"],
@@ -17,8 +17,22 @@ const sources=Object.freeze({wood:"frontier",stone:"frontier",fiber:"frontier",
 const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n));
 const defaults=()=>["sword","axe","pickaxe","cup","book"];
 export const HANDS=Object.freeze(["right","left"]);
+export const TWO_HANDED_ITEMS=Object.freeze(["spear","greatsword"]);
+const twoHanded=new Set(TWO_HANDED_ITEMS);
+/** A two-handed weapon is a single object occupying both equipment slots. */
+export function normalizeEquipmentHands(hands,changed=null){
+ const next={right:hands?.right||"none",left:hands?.left||"none"};
+ if(HANDS.includes(changed)){
+  const other=changed==="right"?"left":"right";
+  if(twoHanded.has(next[changed]))return {right:next[changed],left:next[changed]};
+  if(twoHanded.has(next[other]))next[other]="none";
+  return next;
+ }
+ const weapon=twoHanded.has(next.right)?next.right:twoHanded.has(next.left)?next.left:null;
+ return weapon?{right:weapon,left:weapon}:next;
+}
 export const ATTACK_MODES=Object.freeze(["overhead","sweep","thrust","combo"]);
-const permanent=new Set(["sword","shield","axe","pickaxe","bow","book"]);
+const permanent=new Set(["sword","spear","greatsword","shield","axe","pickaxe","bow","book"]);
 const handDefaults=()=>({right:"sword",left:"axe"});
 export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
@@ -72,8 +86,9 @@ export class SocialEquipment {
    if(this.handItem(actor.id,other)===item&&this.quantity(actor,item,life,frontier)<2)
     return {ok:false,message:"このアイテムは1個しかないため、両手に同時装備できません。"};
   }
-  this.actor(actor.id).hands[hand]=item;
-  return {ok:true,message:actor.name+"の"+(hand==="right"?"右手":"左手")+"に "+(ITEM_MAP.get(item)?.name||item)+" を装備しました。"};
+  this.actor(actor.id).hands=normalizeEquipmentHands({...this.actor(actor.id).hands,[hand]:item},hand);
+  const paired=twoHanded.has(item);
+  return {ok:true,message:actor.name+"の"+(paired?"両手":hand==="right"?"右手":"左手")+"に "+(ITEM_MAP.get(item)?.name||item)+" を装備しました。"+(paired?"（盾などの併用不可）":"")};
  }
  spendArrow(id){
   const owner=this.actor(id);
@@ -154,7 +169,7 @@ export class SocialEquipment {
    if(item==="bow")return this.actor(actor.id).arrows>0?
     {ok:true,kind:"action",action:"bow",usesArrow:true}:
     {ok:false,message:"矢がありません。矢筒を補充してください。"};
-   return {ok:true,kind:"action",action:{sword:"sword",axe:"axe",pickaxe:"mine"}[item]};
+   return {ok:true,kind:"action",action:{sword:"sword",spear:"spear",greatsword:"greatsword",axe:"axe",pickaxe:"mine"}[item]};
   }
   if(["bedroll","tent"].includes(item))return {ok:true,kind:"deploy",item};
   const bag=frontier?.person(actor.id)?.inventory||{},
@@ -203,7 +218,7 @@ export class SocialEquipment {
     arrows:Number.isSafeInteger(a.arrows)?clamp(a.arrows,0,999):12,
     potions:Number.isSafeInteger(a.potions)?clamp(a.potions,0,99):3,
     attackMode:ATTACK_MODES.includes(a.attackMode)?a.attackMode:"overhead",
-    hands:Object.fromEntries(HANDS.map(hand=>[hand,validItems.has(a.hands?.[hand])?a.hands[hand]:handDefaults()[hand]]))};
+    hands:normalizeEquipmentHands(Object.fromEntries(HANDS.map(hand=>[hand,validItems.has(a.hands?.[hand])?a.hands[hand]:handDefaults()[hand]])))};
   }
   this.relations={};
   for(const [k,v] of Object.entries(data.relations||{}))
