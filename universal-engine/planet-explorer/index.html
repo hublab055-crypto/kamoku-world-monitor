@@ -195,20 +195,20 @@
  <div class="social-header"><strong>🎒 持ち物・左右の装備</strong><button type="button" id="quick-config-close">×</button></div>
  <label>設定対象 <select id="quick-actor"></select></label>
  <p id="equip-inventory-label" aria-live="polite"></p>
- <strong>🫱 右手・🫲 左手</strong>
+ <strong>🫱 右手・🫲 左手</strong><p>🔱 槍・⚔️ 両手剣は両手を占有します。装備すると反対側の盾や道具は自動的にはずれ、両手のボタンから同じ武器を使用できます。</p>
  <div id="hand-config-rows"></div>
- <label>⚔️ 攻撃モーション <select id="attack-mode" aria-label="剣と斧の攻撃モーション">
+ <label>⚔️ 攻撃モーション <select id="attack-mode" aria-label="剣・槍・両手剣・斧の攻撃モーション">
   <option value="overhead">振りかぶり → 振り下ろす</option>
   <option value="sweep">横薙ぎ</option>
-  <option value="thrust">突き（剣のみ）</option>
-  <option value="combo">連続攻撃（剣3連・斧2連）</option>
+  <option value="thrust">突き（剣・槍・両手剣）</option>
+  <option value="combo">連続攻撃（剣3連・両手武器2連）</option>
  </select></label>
  <div class="archery-craft"><span id="arrow-stock-label" aria-live="polite">🏹 矢筒：12本</span> <button type="button" id="arrow-craft">矢を6本製作（木材1・石材1）</button></div>
  <strong>行動スロット5枠（装備セットと4コマンドを設定）</strong>
  <label class="auto-target-setting"><input id="combat-auto-target" type="checkbox" checked/> 🎯 自動ターゲット（タップした敵を優先）</label>
  <div id="quick-config-rows"></div>
  <button type="button" id="equip-open-inventory">🎒 持ち物一覧から装備を選ぶ</button>
- <p>枠を押すと左右の装備を切替。敵または練習用の的をタップして狙いを選択できます。RTSでシンクロONの場合、射るボタンで弓装備・矢ありの選択アバターが一斉に射撃します。着弾後の矢はタップで回収。</p>
+ <p>枠を押すと左右の装備を切替。槍は長い突き、両手剣は強力な薙ぎ払いが得意。敵または練習用の的をタップして狙いを選択できます。RTSでシンクロONの場合、射るボタンで弓装備・矢ありの選択アバターが一斉に射撃します。着弾後の矢はタップで回収。</p>
 </section>
 <div id="book-overlay" class="book-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="book-heading">
   <div class="book-topbar">
@@ -467,6 +467,6 @@
   </section>
 </main>
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
-<script type="module" src="./app.mjs?v=0.7r-sync-archery-v07t"></script>
+<script type="module" src="./app.mjs?v=0.7u-twohanded-v07t"></script>
 </body>
 </html>
