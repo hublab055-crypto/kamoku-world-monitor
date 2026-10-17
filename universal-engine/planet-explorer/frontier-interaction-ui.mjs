@@ -63,19 +63,21 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(!deck||!c.battle||!c.renderer)return null;
   const combat=isCombat(who)&&!!who.control?.nearGround;
   const range=deck.current().kind==="bow"?18:4;
-  const target=combat?deck.resolveTarget(c.battle.enemies,who.control,range):null;
+  const target=combat?deck.resolveTarget(c.battle.enemies,who.control,range):
+   c.battle.enemies.find(e=>e.id===deck.manualTargetId&&e.hp>0)||null;
+  if(!combat&&!target)deck.clearManual();
   c.renderer.combatTargetId=target?.id||null;
   c.battle.targetId=target?.id||null;
   $("aim-reticle").hidden=!combat;
-  const label=$("combat-target-label");label.hidden=!combat;
-  if(combat)label.textContent=target?"🎯 "+target.name+" / HP "+target.hp+
+  const label=$("combat-target-label");label.hidden=!combat&&!target;
+  if(combat||target)label.textContent=target?"🎯 "+target.name+" / HP "+target.hp+
     (deck.manualTargetId===target.id?"（手動）":"（自動）"):"🎯 対象なし"+
     (deck.autoTarget?"":"（手動選択）");
   return target;
  }
  function selectTargetAt(clientX,clientY){
   const c=get(),who=actor();
-  if(!isCombat(who)||!c.renderer?.canvas||!c.battle)return false;
+  if(!who||!c.renderer?.canvas||!c.battle)return false;
   const rect=c.renderer.canvas.getBoundingClientRect();
   if(!rect.width||!rect.height)return false;
   const nx=(clientX-rect.left)/rect.width,ny=(clientY-rect.top)/rect.height;
@@ -164,7 +166,12 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
     }
    }
    if(who.id!=="player"){
-    const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant);
+    const target=["sword","axe","bow"].includes(result.action)?updateTarget():null;
+    if(target&&!c.manualInputActive){
+     const desired=Math.atan2(target.x-who.control.x,target.z-who.control.z);
+     who.control.turn(Math.atan2(Math.sin(desired-who.control.yaw),Math.cos(desired-who.control.yaw)));
+    }
+    const ok=c.squad.performEquippedAction(who.id,result.action,hand,variant,target?.id??null);
     if(ok){if(result.usesArrow)social.spendArrow(who.id);if(c.renderer)c.renderer.actionHand[who.id]=hand;}
     log(ok?who.name+"に "+result.action+" の使用を指示しました。":"道具を使用できません。地上にいるか確認してください。");
     updateHUD();return {ok};
