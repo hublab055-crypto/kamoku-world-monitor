@@ -589,8 +589,11 @@ function processHarvestOrders(){
   if(id==="player"){
    if(actions.active)continue;
    if(!actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon)))continue;
+    actions.active.resourceNode=renderer.resourceNodes.find(n=>n.id===order.id)||{...order,type:order.kind==="stone"?"boulder":"pine"};
   }else{
    if(agent.task||!squad.performEquippedAction(id,kind))continue;
+    const node=renderer.resourceNodes.find(n=>n.id===order.id)||{...order,type:order.kind==="stone"?"boulder":"pine"};
+    updateHarvestWorld(harvest.hit(node,kind),node,agent.name);
   }
   cancelHarvestOrder(id);
   log(agent.name+"："+(kind==="mine"?"採掘":"伐採")+"を開始しました。");
@@ -878,13 +881,21 @@ function setControlMode(mode){
 $("mode-stick").addEventListener("click",()=>setControlMode("stick"));
 $("mode-tap").addEventListener("click",()=>setControlMode("tap"));
 $("jump").addEventListener("click",()=>{if(!controller.jump())log("ジャンプは地上でのみ可能です。");});
-for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-mine","mine"],["action-build","build"]]){
- $(button).addEventListener("click",()=>{
-   actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
-    frontierUI?.attackVariantFor("player",kind)||"overhead");
-   log(actions.message);
-   updateHUD();
- });
+for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-mine","mine"],["action-build","build"],["action-dig","dig"],["action-fill","fill"]]){
+  $(button).addEventListener("click",()=>{
+    const node=["axe","mine"].includes(kind)?nearbyWorldResource(kind):null;
+    if(["axe","mine"].includes(kind)&&!node){
+     log(kind==="axe"?"斧：近くの木か低木を選択してください":"つるはし：近くの岩を選択してください");
+     return;
+    }
+    const started=actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
+     frontierUI?.attackVariantFor("player",kind)||"overhead");
+    if(started&&node)actions.active.resourceNode=node;
+    if(started&&["dig","fill"].includes(kind))actions.active.earthwork=
+      controller.locationAt(controller.x+Math.sin(controller.yaw)*3,controller.z+Math.cos(controller.yaw)*3);
+    log(actions.message);
+    updateHUD();
+  });
 }
 $("spawn-enemy").addEventListener("click",()=>{
  const result=battle.spawn(controller,$("enemy-type").value);
