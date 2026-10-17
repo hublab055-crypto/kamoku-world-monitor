@@ -786,3 +786,36 @@ body.immersive{overflow:hidden}
 #spawn-enemy-unit{background:#674250;border-color:#d8a0a0}
 #enemy-unit-type{max-width:145px}
 @media(max-width:760px){.roster-presets{grid-template-columns:1fr}.group-panel .roster-presets button{font-size:12px}}
+
+
+/* v0.7y — atmospheric approach, cloud deck and seamless-looking terrain handoff.
+   This never captures touch input and never obscures the gameplay controls. */
+.descent-atmosphere{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:hidden;
+ --descent-fog:0;--descent-clouds:0;--descent-air:0;--descent-glow:0}
+.descent-atmosphere>div{position:absolute;inset:-10%;pointer-events:none;will-change:opacity}
+.descent-glow{opacity:calc(var(--descent-air) + var(--descent-glow));
+ background:radial-gradient(ellipse 84% 83% at 50% 45%,
+ transparent 32%,#9bd7ed68 72%,#7eb7f4c9 99%);
+ mix-blend-mode:screen}
+.descent-clouds{opacity:var(--descent-clouds);
+ background:radial-gradient(ellipse 55% 26% at 18% 27%,#fff 4%,#ecf5faad 52%,transparent 95%),
+ radial-gradient(ellipse 60% 29% at 78% 60%,#fff 7%,#edf7faf2 50%,transparent 96%),
+ radial-gradient(ellipse 38% 19% at 55% 91%,#ecf6f8 8%,transparent 92%);
+ animation:descentCloudDrift 15s ease-in-out infinite alternate}
+.descent-cloud-vein{opacity:calc(var(--descent-clouds) * .7);
+ background:radial-gradient(ellipse 27% 14% at 64% 28%,#fff 7%,transparent 100%),
+ radial-gradient(ellipse 34% 23% at 19% 70%,#f7fbfd 5%,transparent 99%);
+ animation:descentCloudDrift 19s ease-in-out infinite alternate-reverse}
+.descent-fog{opacity:var(--descent-fog);
+ background:linear-gradient(168deg,#e8f4ff 0%,#ffffff 54%,#d8e9f4 100%)}
+.descent-phase{margin-top:4px;color:#f0faff;font-size:10px;font-weight:800;
+ width:max-content;max-width:100%;padding:3px 7px;border-radius:7px;
+ background:#0a2d49ad;border:1px solid #c7eaf94f;letter-spacing:.05em}
+.viewport-overlay{z-index:10}
+@keyframes descentCloudDrift{
+ from{transform:translate(-5%,2%) scale(1.04)}
+ to{transform:translate(5%,-4%) scale(1.13)}
+}
+@media(prefers-reduced-motion:reduce){
+ .descent-clouds,.descent-cloud-vein{animation:none!important}
+}
