@@ -63,8 +63,13 @@ export function terrainSurface(terrain,lat,lon){
   const base=terrain.sample(lat,lon);
   if(base.water)return {...base,elevationM:0};
   const n=geoNormal(lat,lon),seed=terrain.planet.seed;
-  const detail=noise3(n[0]*16000,n[1]*16000,n[2]*16000,seed+207)*9 +
-    noise3(n[0]*76000,n[1]*76000,n[2]*76000,seed+318)*1.2;
+  const reliefFactor=base.category==="mountain"?1.8:base.category==="highland"?1.45:1;
+   // Spherical hills/ridges/gullies; collision, movement and scenery share this elevation.
+   const broad=noise3(n[0]*3600,n[1]*3600,n[2]*3600,seed+1099)*21;
+   const ridge=1-Math.abs(noise3(n[0]*7900,n[1]*7900,n[2]*7900,seed+1117));
+   const detail=(broad+ridge*12-6)*reliefFactor+
+     noise3(n[0]*16000,n[1]*16000,n[2]*16000,seed+207)*9+
+     noise3(n[0]*76000,n[1]*76000,n[2]*76000,seed+318)*1.2;
   const taper=clamp(base.elevationM/35,0,1);
   return {...base,elevationM:Math.max(.1,base.elevationM+detail*taper)};
 }
@@ -85,8 +90,10 @@ export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
         s.elevationM>1550?[0.47,0.46,0.41] :
         s.elevationM<85?[0.75,0.70,0.48] :
         s.category==="forest"?[0.16,0.40,0.20] :
+        s.category==="mountain"?[.40,.43,.34] :
         s.category==="valley"?[0.36,0.56,0.26]:[0.33,0.50,0.27];
-      colors.push(...c);
+      const fleck=noise3(geo.lat*.39,geo.lon*.39,s.elevationM*.001,terrain.planet.seed+119)*.065;
+      colors.push(...(s.water?c:c.map(v=>clamp(v+fleck,0,1))));
     }
   }
   const d=2*radiusM/resolution;
