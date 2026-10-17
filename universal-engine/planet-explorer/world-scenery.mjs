@@ -60,13 +60,14 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     const ax=(ix+.15+jitter*.7)*cell,az=(iz+.15+choice*.7)*cell;
     const x=ax-cx,z=az-cz;
     if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+    const distance=Math.hypot(x,z),roll=sceneryHash(ix-11,iz+29,seed);
+    // Reject distant LOD first: don't run expensive geographical sampling
+    // thousands of times for trees that won't be generated.
+    if(distance>430&&roll>.09)continue;
     const biome=biomeAt(ax,az);
     if(biome.water||biome.river||biome.elevationM<60||biome.elevationM>2800)continue;
-    const distance=Math.hypot(x,z);
     const density=biome.category==="forest"?.89:biome.category==="mountain"?.42:.84;
-    // Sparse far LOD, while a 430m radius keeps the dense 10x forest unchanged.
-    const threshold=density*(distance>430?.09:1);
-    if(sceneryHash(ix-11,iz+29,seed)>threshold)continue;
+    if(roll>density*(distance>430?.09:1))continue;
     const variation=sceneryHash(ix+97,iz-63,seed);
     const type=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
     trees.push({id:"vegetation-"+ix+"-"+iz,type,kind:type==="boulder"?"stone":"wood",
@@ -76,7 +77,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   }
   // Meadow clumps use a denser mesh but only nearby; high-altitude views
   // show the terrain's vertex colors without generating unnecessary blades.
-  if(radius<=1800){
+  if(radius<=900){ // grass blades become subpixel beyond this ground LOD
     const stride=5.5; // Fixed world-space grass grid; no zoom-dependent reshuffle
     for(let iz=Math.floor((cz-reach)/stride);iz<=Math.ceil((cz+reach)/stride);iz++)
       for(let ix=Math.floor((cx-reach)/stride);ix<=Math.ceil((cx+reach)/stride);ix++){
