@@ -584,3 +584,62 @@ body.immersive{overflow:hidden}
  .aim-reticle{font-size:30px}
  .combat-target-label{font-size:10px}
 }
+
+
+/* v0.7r: Lightweight screen-space combat/resource counters, speech bubbles and a detachable-feeling console. */
+.world-fx-layer{position:absolute;inset:0;pointer-events:none;z-index:12;overflow:hidden}
+.world-fx{position:absolute;transform:translate(-50%,-110%);max-width:min(230px,54vw);
+ font-weight:800;font-size:19px;white-space:nowrap;text-align:center;line-height:1.2;
+ text-shadow:0 2px 4px #001b,0 0 7px #001b;will-change:top,opacity;filter:drop-shadow(0 1px 2px #0018)}
+.world-fx.fx-damage,.world-fx.fx-hurt{color:#ff7768}
+.world-fx.fx-hurt{font-size:21px}
+.world-fx.fx-gain{color:#b8ffb1}
+.world-fx.fx-heal{color:#71f3ba}
+.world-fx.fx-guard{color:#a9c6ff}
+.world-fx.fx-notice{color:#fff2a0}
+.world-fx.fx-speech{background:#fffff3;color:#203b46;text-shadow:none;font-weight:500;
+ font-size:12px;white-space:normal;min-width:48px;max-width:min(220px,55vw);
+ border-radius:13px;padding:7px 11px;border:1px solid #c2d0c8;
+ box-shadow:0 3px 10px #0017;filter:none;overflow-wrap:anywhere}
+.world-fx.fx-speech:after{content:"";position:absolute;bottom:-7px;left:50%;
+ border-left:7px solid transparent;border-right:7px solid transparent;
+ border-top:8px solid #fffff3;transform:translateX(-50%)}
+.viewport-compact-bar #viewport-console-toggle{min-width:54px;min-height:43px;
+ background:#12475de6;color:#eafaff;border:1px solid #87bec7;border-radius:8px;
+ font-size:11px;padding:5px 7px}
+.viewport-compact-bar #viewport-console-toggle[aria-expanded="true"]{background:#227181}
+.game-console{position:absolute;z-index:35;right:8px;top:57px;width:min(350px,calc(100% - 16px));
+ height:230px;min-width:210px;min-height:150px;max-width:calc(100% - 8px);
+ max-height:calc(100% - 72px);resize:both;overflow:hidden;display:flex;flex-direction:column;
+ background:#0b2434f2;border:1px solid #82bac2;border-radius:11px;
+ color:#e9f4f6;box-shadow:0 8px 28px #0019}
+.game-console[hidden]{display:none!important}
+.game-console-head{display:flex;align-items:center;justify-content:space-between;
+ gap:8px;background:#19485d;padding:5px 8px;min-height:34px;
+ cursor:grab;touch-action:none;user-select:none}
+.game-console-head:active{cursor:grabbing}
+.game-console-head strong{font-size:12px}
+.game-console-head button{min-width:32px;min-height:29px;background:#285f70;
+ color:white;border:1px solid #8cbbbf;border-radius:6px}
+.game-console-tools{display:flex;gap:4px;padding:5px;border-bottom:1px solid #4b6c7c}
+.game-console-tools select,.game-console-tools input{min-width:0;background:#153a4c;
+ color:#e8f6f7;border:1px solid #5c93a2;border-radius:5px;font-size:11px;padding:5px}
+.game-console-tools select{width:73px}.game-console-tools input{flex:1;width:85px}
+.game-console-tools button{font-size:11px;background:#1d5165;color:#eafaff;
+ border:1px solid #689bae;border-radius:5px;padding:4px 6px}
+.game-console-lines{flex:1;min-height:0;overflow-y:auto;padding:4px 7px;
+ font:11px/1.5 ui-monospace,SFMono-Regular,monospace;overscroll-behavior:contain}
+.game-console-entry{display:flex;gap:7px;padding:3px 0;border-bottom:1px solid #ffffff10;
+ white-space:normal;overflow-wrap:anywhere}
+.game-console-entry time{color:#91afc0;font-size:10px;flex:0 0 auto}
+.game-console-entry span{min-width:0}
+.game-console-entry.console-combat span{color:#ffb1a6}
+.game-console-entry.console-resource span{color:#b8ffba}
+.game-console-entry.console-social span{color:#b8dfff}
+@media(max-width:760px){
+ .world-fx{font-size:16px}
+ .world-fx.fx-speech{font-size:11px}
+ .game-console{top:48px;height:195px;max-height:50%}
+ .viewport-compact-bar #viewport-console-toggle{min-width:46px;min-height:42px;padding:3px 4px;font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){.world-fx{transition:none!important;animation:none!important}}
