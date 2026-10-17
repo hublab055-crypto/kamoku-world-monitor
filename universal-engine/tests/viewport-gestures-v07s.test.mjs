@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {ViewportGestures} from "../planet-explorer/viewport-gestures.mjs";
 import {BattleTest} from "../planet-explorer/battle-test.mjs";
 import {SquadEngine} from "../planet-explorer/squad.mjs";
+import {CameraController} from "../planet-explorer/camera-controller.mjs";
 
 const p=(id,x,y,type="touch")=>({pointerId:id,clientX:x,clientY:y,pointerType:type});
 test("single tap selects; nearby second tap issues exactly one double-tap",()=>{
@@ -65,4 +66,28 @@ test("companion bow fires exactly once at the release point",()=>{
  assert.equal(impacts.length,1);
  assert.equal(impacts[0][0],"scout");
  assert.ok(impacts[0][1]<=1.62*.19);
+});
+
+test("shared pinch ratios zoom tactical RTS and third-person TPV cameras",()=>{
+ const camera=new CameraController();
+ camera.setMode("tactical");camera.setValue("tacticalHeightM",45);
+ const zoom=new ViewportGestures({onPinch:factor=>camera.zoom(factor)});
+ zoom.down(p(1,0,0));zoom.down(p(2,100,0));
+ zoom.move(p(2,200,0));
+ assert.equal(camera.config.tacticalHeightM,22.5);
+ zoom.move(p(2,300,0));
+ assert.equal(camera.config.tacticalHeightM,15);
+ zoom.up(p(2,300,0));zoom.up(p(1,0,0));
+ camera.zoom(.01);
+ assert.equal(camera.config.tacticalHeightM,8,"RTS zoom stops at a usable near height");
+ camera.setMode("follow");camera.setValue("distanceM",8);
+ camera.zoom(.5);
+ assert.equal(camera.config.distanceM,4);
+ const actor={x:0,z:0,yaw:0,altitudeM:2.5,jumpY:0};
+ camera.setMode("shoulder",actor,100);
+ camera.setValue("distanceM",8);camera.smoothEye=null;
+ const before=camera.groundView(actor,{groundM:100,focusGroundM:100,dt:.1});
+ camera.zoom(2);camera.smoothEye=null;
+ const after=camera.groundView(actor,{groundM:100,focusGroundM:100,dt:.1});
+ assert.notDeepEqual(after.eye,before.eye,"shoulder pinch also changes actual camera position");
 });
