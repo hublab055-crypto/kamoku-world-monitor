@@ -733,7 +733,8 @@ export class ExplorerRenderer{
  }
  drawFlyingArrow(vp,actorFacing,light,progress=0,tint=[1,1,1],hand="right"){
    // Wrist rotations may point vertically when aiming; launch along the actor's +Z.
-   if(!bowDrawState(progress).visible)return;
+   // The real flight mesh takes over at release; avoid showing two arrows.
+  if(progress>=.81||!bowDrawState(progress).visible)return;
    this.drawMesh(this.tools.arrow,multiply4(vp,projectileTransform(actorFacing,progress,hand)),light,1,.88,tint);
  }
  drawArticulatedEnemy(vp,light,base,enemy){
