@@ -270,8 +270,15 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
      (unarmed?" / 対応武器なし"+unarmed+"人":"")+(busy?" / 実行不可"+busy+"人":""));
    return {ok:started>0,count:started};
   }
-  function runCommand(command){
-  const c=get(),who=actor();if(!who)return {ok:false};
+  function runCommand(command,person=null){
+  const c=get(),who=person||actor();if(!who)return {ok:false};
+  if(!person&&c.rtsMode&&c.syncMode&&c.squad.selected.size>1&&
+     ["guard","mine","chop","emote"].includes(command)){
+   let count=0;
+   for(const member of c.squad.selectedAgents())if(runCommand(command,member)?.ok)count++;
+   log("🔗 一斉行動「"+(COMMAND_LABELS[command]||command)+"」："+count+"人");
+   return {ok:count>0,count};
+  }
   const item=(gear,hand="right",variant=null)=>executeItem(
    social.useItem(who,gear,c.life,c.squad.frontier),who,c,hand,variant);
   switch(command){
@@ -339,7 +346,15 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function useHand(hand){
   const c=get(),who=actor();if(!who)return;
-  if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1&&social.handItem(who.id,hand)==="bow")return volley();
+  if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1){
+   let count=0;
+   for(const member of c.squad.selectedAgents()){
+    const result=executeItem(social.useHand(member,hand,c.life,c.squad.frontier),member,c,hand);
+    if(result?.ok)count++;
+   }
+   log("🔗 "+(hand==="right"?"右手":"左手")+"の一斉行動："+count+"人");
+   return {ok:count>0,count};
+  }
   return executeItem(social.useHand(who,hand,c.life,c.squad.frontier),who,c,hand);
  }
  function renderConfig(){

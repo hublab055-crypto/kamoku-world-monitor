@@ -2,6 +2,7 @@ import {ExplorerController} from "./controller.mjs";
 import {actionDuration,ATTACK_VARIANTS} from "./actions.mjs";
 import {terrainSurface} from "./geo.mjs";
 import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs";
+import {GroupRegistry,formationOffsets} from "./groups.mjs";
 
 /** Local single-player RTS party and deterministic, editable IF -> THEN rules.
  * No external network, persistent background work or scripted code execution. */
@@ -43,6 +44,7 @@ export class SquadEngine{
    return {id,name,control,auto:false,rules:defaultRules(),rally:{x:control.x,z:control.z},
     task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機"};
   });
+  this.groups=new GroupRegistry(()=>this.agents.map(a=>a.id));
   if(snapshot)this.restore(snapshot);
   this.frontier=new FrontierBridge(this,snapshot?.frontier||null);
  }
@@ -52,12 +54,43 @@ export class SquadEngine{
  selectedAgents(){return this.agents.filter(a=>this.selected.has(a.id));}
  choose(id,{add=false}={}){
   if(!this.get(id))return false;
+  this.groups.activate(null);
   if(!add)this.selected.clear();
   if(add&&this.selected.has(id)&&this.selected.size>1)this.selected.delete(id);
   else this.selected.add(id);
   return true;
  }
- selectAll(){this.selected=new Set(this.agents.map(a=>a.id));}
+ selectAll(){this.groups.activate(null);this.selected=new Set(this.agents.map(a=>a.id));}
+ /** Named groups may overlap; only the active group controls formation and sync selection. */
+ registerGroup(name,members,options={}){
+  const actors=members.map(id=>this.get(id));
+  if(!actors.length||actors.some(a=>!a))throw RangeError("部隊員が不正です");
+  const rally={x:actors.reduce((sum,a)=>sum+a.control.x,0)/actors.length,
+   z:actors.reduce((sum,a)=>sum+a.control.z,0)/actors.length};
+  const group=this.groups.create({name,members,rally,...options});
+  this.selectGroup(group.id);return group;
+ }
+ updateGroup(id,patch){
+  const group=this.groups.update(id,patch);
+  if(this.groups.activeId===id)this.selected=new Set(group.members);
+  return group;
+ }
+ removeGroup(id){return this.groups.remove(id);}
+ selectGroup(id){
+  const group=this.groups.activate(id);
+  if(group)this.selected=new Set(group.members);
+  return group;
+ }
+ activeGroup(){return this.groups.active();}
+ setGroupRally(id,x,z){
+  const g=this.groups.update(id,{rally:{x,z}});
+  this.setRally(g.members,x,z);return g;
+ }
+ rallyGroup(id){
+  const g=this.groups.get(id);
+  if(!g||!g.rally)return 0;
+  return this.orderMove(g.members,g.rally.x,g.rally.z,{formation:g.formation,spacing:g.spacing});
+ }
  setAuto(ids,enabled){
   for(const id of ids){const a=this.get(id);if(a){a.auto=Boolean(enabled);if(!enabled){this.frontier?.cancel(a);a.task=null;}}}
  }
@@ -69,17 +102,27 @@ export class SquadEngine{
   if(!finitePoint({x,z}))throw RangeError("Invalid rally");
   for(const id of ids){const a=this.get(id);if(a)a.rally={x,z};}
  }
- orderMove(ids,x,z){
+ orderMove(ids,x,z,{formation=null,spacing=null}={}){
   if(!finitePoint({x,z}))return 0;
+  const active=this.activeGroup();
+  if(!formation&&active&&ids.length===active.members.length&&
+     ids.every(id=>active.members.includes(id))){
+   ids=active.members;formation=active.formation;spacing=active.spacing;
+  }
   const targets=ids.map(id=>this.get(id)).filter(Boolean);
+  const offsets=formation?formationOffsets(targets.length,formation,spacing??2.4):null;
+  const leader=targets[0]?.control;
+  const dx=x-(leader?.x??x),dz=z-(leader?.z??z);
+  const direction=Math.hypot(dx,dz)>0.01?Math.atan2(dx,dz):(leader?.yaw??0);
+  const sn=Math.sin(direction),cs=Math.cos(direction);
   let moved=0;
   targets.forEach((a,i)=>{
-   const col=i%3-1,row=Math.floor(i/3);
-   const tx=x+(targets.length>1?col*2.4:0),tz=z+(targets.length>1?row*2.4:0);
+   const col=i%3-1,row=Math.floor(i/3),offset=offsets?.[i];
+   const tx=offset?x+offset.x*cs+offset.z*sn:x+(targets.length>1?col*2.4:0);
+   const tz=offset?z-offset.x*sn+offset.z*cs:z+(targets.length>1?row*2.4:0);
    const p=a.control.locationAt(tx,tz),surface=terrainSurface(this.terrain,p.lat,p.lon);
    if(!surface.water&&!surface.river&&a.control.setMoveTarget(tx,tz)){
-    // Canceling an automatic Frontier task clears the controller's waypoint;
-    // reapply the already-validated manual destination afterward.
+    // Reapply after Frontier cancel: cancellation may clear the move target.
     this.frontier?.cancel(a);
     a.control.setMoveTarget(tx,tz);
     a.task=null;a.order="manual";a.cooldown=1.5;a.status="移動指示";moved++;
@@ -215,7 +258,7 @@ export class SquadEngine{
   this.frontier?.rebase();
  }
  snapshot(){
-  return {version:1,frontier:this.frontier?.snapshot(),selected:[...this.selected],
+  return {version:1,frontier:this.frontier?.snapshot(),selected:[...this.selected],groups:this.groups.snapshot(),
    agents:this.agents.map(a=>({id:a.id,auto:a.auto,rules:a.rules.map(r=>({...r})),
     control:a.id==="player"?null:a.control.snapshot(),rally:{...a.rally},status:a.status}))};
  }
@@ -230,5 +273,9 @@ export class SquadEngine{
   }
   this.selected=new Set(Array.isArray(data.selected)?data.selected.filter(id=>this.get(id)):["player"]);
   if(!this.selected.size)this.selected.add("player");
+  this.groups.restore(data.groups);
+  const active=this.activeGroup();
+  if(active&&!(active.members.length===this.selected.size&&active.members.every(id=>this.selected.has(id))))
+   this.groups.activate(null);
  }
 }

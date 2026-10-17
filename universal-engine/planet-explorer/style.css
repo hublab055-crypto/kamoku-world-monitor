@@ -685,3 +685,39 @@ body.immersive{overflow:hidden}
  .archery-mode-bar{bottom:calc(78px + env(safe-area-inset-bottom,0px));padding:2px 4px;gap:3px}
  .archery-mode-bar select,.archery-mode-bar button{min-height:28px;font-size:10px;padding:3px}
 }
+
+/* v0.7u named RTS groups. Compact on phones; management only opens on demand. */
+.group-panel[hidden]{display:none!important}
+.rts-group-picker{display:flex;align-items:center;gap:4px;color:#eefaff;font-size:11px;white-space:nowrap}
+.rts-group-picker select{min-height:36px;max-width:128px;color:#f1fbff;background:#173e53;border:1px solid #6eb1c7;border-radius:7px;font-size:11px}
+.group-panel{position:absolute;z-index:26;top:6px;left:8px;width:min(490px,calc(100% - 16px));
+ max-height:calc(100% - 12px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;
+ background:#0a273bf5;color:#eff9fc;border:1px solid #73bac9;border-radius:12px;
+ box-shadow:0 8px 28px #000b;padding:12px;backdrop-filter:blur(12px)}
+.group-panel .group-header,.group-panel .group-settings,.group-panel .group-buttons{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.group-panel .group-header{justify-content:space-between}
+.group-panel .group-header strong{font-size:15px}
+.group-panel p{font-size:11px;line-height:1.5;color:#c6e5ec}
+.group-panel label{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.group-panel>label{margin:10px 0}
+.group-panel input,.group-panel select,.group-panel button{
+ min-height:35px;max-width:100%;color:#eefaff;background:#173e53;border:1px solid #669db0;
+ border-radius:8px;font-size:12px;padding:6px}
+.group-panel input[type=checkbox]{min-height:18px;width:18px;accent-color:#4ac4be}
+.group-panel input[type=number]{width:67px}
+.group-panel input[type=text]{flex:1;min-width:130px}
+.group-panel .group-settings{margin:10px 0}
+.group-panel .group-roster-title{display:block;font-size:12px;margin:10px 0 5px}
+.group-members{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto}
+.group-member{display:flex;align-items:center;gap:7px;background:#17384abf;border-radius:7px;padding:3px 6px}
+.group-member .group-member-name{flex:1;min-width:0;font-size:12px}
+.group-member button{min-height:28px;padding:2px 8px}
+.group-panel .group-buttons{margin-top:8px}
+.group-panel #group-delete{border-color:#ad7070}
+.group-panel #group-status{color:#abebd7}
+@media(max-width:760px){
+ .rts-group-picker select{max-width:100px}
+ .rts-controls #rts-group-assemble{min-height:33px}
+ .group-panel{left:4px;top:4px;width:calc(100% - 8px);max-height:calc(100% - 8px);padding:9px}
+ .group-panel button{font-size:11px}
+}

@@ -17,6 +17,7 @@ import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs";
+import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 import {bindViewportGestures} from "./viewport-gestures.mjs";
 import {ArrowProjectiles} from "./arrow-projectiles.mjs";
@@ -52,7 +53,7 @@ let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,s
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
-let frontierUI=null,worldUI=null;
+let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属"};
 const keys=new Set(),touches=new Set();
@@ -118,6 +119,8 @@ function init(saved=null){
    };
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
+  if(squad.activeGroup())syncMode=squad.activeGroup().sync;
+  groupUI?.reset();
   frontierUI?.restore(saved?.v0_7i||null);
   void frontierUI?.loadModels(renderer);
   renderer.cameraController=saved?.v0_7c?.camera?
@@ -291,7 +294,8 @@ function updateHUD(){
  $("action-pad").hidden=rtsMode||!isSurface;
   if(rtsMode||!isSurface)setToolMenu(false);
  $("rts-controls").hidden=!rtsMode||!isSurface;
- $("rts-summary").textContent="選択: "+squad.selectedAgents().map(a=>a.name).join("・");
+ groupUI?.refresh();
+ $("rts-summary").textContent=(squad.activeGroup()?"👥 "+squad.activeGroup().name+" / ":"選択: ")+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
  frontierUI?.quick();
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
@@ -1053,7 +1057,7 @@ function toggleRts(){
   setControlMode("tap");
   log("⚓ RTS：人物・敵・資源はタップ、地面はダブルタップで移動。ピンチで拡大縮小。");
  }else{
-  rtsMode=false;rtsMulti=false;rallyPicking=false;
+  rtsMode=false;rtsMulti=false;rallyPicking=false;groupUI?.close();
   setCameraMode(rtsPreviousCamera==="tactical"?"follow":rtsPreviousCamera);
   setControlMode("stick");
  }
@@ -1064,7 +1068,8 @@ $("toolbar-rts").addEventListener("click",toggleRts);
 $("rts-all").addEventListener("click",()=>{squad.selectAll();autoActorId="player";renderAutoEditor();updateHUD();});
 $("rts-multi").addEventListener("click",()=>{rtsMulti=!rtsMulti;updateHUD();});
 $("rts-sync").addEventListener("click",()=>{syncMode=!syncMode;updateHUD();
- log(syncMode?"🔗 シンクロモード：選択中の弓装備者が同時に射撃します。":"🔗 個別操作に戻しました。");});
+ if(squad.activeGroup())squad.updateGroup(squad.activeGroup().id,{sync:syncMode});
+ log(syncMode?"🔗 シンクロモード：対応装備のアバターが同じ行動を行います。":"🔗 個別操作に戻しました。");});
 $("rts-rally").addEventListener("click",()=>{
  rallyPicking=!rallyPicking;updateHUD();
 });
@@ -1082,14 +1087,18 @@ function commandRtsTap(clientX,clientY,shift=false){
    Math.hypot((b.u-u)*rect.width,(b.v-v)*rect.height))[0];
  if(nearest&&!rallyPicking){
   squad.choose(nearest.id,{add:rtsMulti||shift});
-  autoActorId=nearest.id;renderAutoEditor();log(nearest.name+" を選択しました。");updateHUD();
+  autoActorId=nearest.id;renderAutoEditor();
+  if(!$("group-panel").hidden)groupUI?.loadDraft(null);
+  log(nearest.name+" を選択しました。");updateHUD();
   return;
  }
  const hit=renderer.pickGround(clientX,clientY);
  if(!hit){log("地面をタップして指示してください。");return;}
  if(rallyPicking){
-  squad.setRally([...squad.selected],hit.x,hit.z);rallyPicking=false;
-  log("選択した人物の集合地点を設定しました。");
+  if(squad.activeGroup())squad.setGroupRally(squad.activeGroup().id,hit.x,hit.z);
+  else squad.setRally([...squad.selected],hit.x,hit.z);
+  rallyPicking=false;
+  log(squad.activeGroup()?"👥 部隊の集合地点を保存しました。":"選択した人物の集合地点を設定しました。");
  }else{
   const moved=squad.orderMove([...squad.selected],hit.x,hit.z);
   log(moved?moved+"人に移動を指示しました。":"移動不可：水域・急斜面・遠すぎる地点です。");
@@ -1185,6 +1194,13 @@ worldUI=installWorldFeedbackUI({
   }
   return "不明なコマンドです。";
  }
+});
+groupUI=installGroupUI({
+ get:()=>({squad,controller}),notify:log,update:updateHUD,
+ onSelect:id=>{autoActorId=id;renderAutoEditor();},
+ onSync:enabled=>{syncMode=enabled;},
+ onPickRally:()=>{rallyPicking=true;updateHUD();},
+ onAutoEditor:()=>openAutoEditor(false)
 });
 init();requestAnimationFrame(doFrame);
 

@@ -162,10 +162,40 @@
   <button type="button" id="rts-multi" aria-pressed="false">複数選択</button>
    <button type="button" id="rts-sync" aria-pressed="false" title="複数アバターの共同行動を有効にします">🔗 シンクロOFF</button>
   <button type="button" id="rts-rally">集合地点</button>
+  <label class="rts-group-picker">部隊 <select id="rts-group-select" aria-label="登録部隊を呼び出す"><option value="">個別選択</option></select></label>
+  <button type="button" id="rts-group-toggle" aria-expanded="false" aria-controls="group-panel">👥 部隊管理</button>
+  <button type="button" id="rts-group-assemble" title="登録された集合地点へ指定隊形で移動">📣 集合</button>
   <button type="button" id="rts-stop">停止</button>
  <label class="rts-heading-label"><input type="checkbox" id="rts-heading-up"> 進行方向を上に</label>
   <span id="rts-summary">選択: 開拓者</span>
 </div>
+<section id="group-panel" class="group-panel" hidden role="region" aria-label="部隊の登録と隊形編集">
+  <div class="group-header"><strong>👥 部隊管理・隊形</strong><button id="group-close" type="button" aria-label="部隊管理を閉じる">×</button></div>
+  <p>複数選択した人物を登録できます。メンバーの順番が隊形の配置順になります。</p>
+  <label>部隊名 <input id="group-name" type="text" maxlength="24" placeholder="例：第一弓兵隊" autocomplete="off"></label>
+  <div class="group-settings">
+    <label>隊形 <select id="group-formation">
+      <option value="line">━ 横隊</option><option value="column">┃ 縦隊</option>
+      <option value="wedge">⌄ 楔形</option><option value="square">▦ 方陣</option>
+    </select></label>
+    <label>間隔 <input id="group-spacing" type="number" min="1.2" max="8" step="0.2" value="2.4"> m</label>
+    <label class="group-sync"><input id="group-sync" type="checkbox"> 🔗 グループ選択時にシンクロ</label>
+  </div>
+  <strong class="group-roster-title">メンバーと配置順</strong>
+  <div id="group-members" class="group-members" aria-label="部隊員の選択と順番変更"></div>
+  <div class="group-buttons">
+    <button type="button" id="group-new">＋ 新規登録</button>
+    <button type="button" id="group-update">変更を保存</button>
+    <button type="button" id="group-delete">部隊を削除</button>
+  </div>
+  <div class="group-buttons">
+    <button type="button" id="group-rally-here">📍 現在地を集合地点に</button>
+    <button type="button" id="group-rally-pick">🎯 地面で集合地点を指定</button>
+    <button type="button" id="group-form">↔ 隊形に整列</button>
+    <button type="button" id="group-go">📣 集合</button>
+  </div>
+  <p id="group-status" role="status" aria-live="polite">人物を選択して「新規登録」してください。</p>
+</section>
 <div id="auto-panel" class="auto-panel" hidden role="region" aria-label="自動行動条件設定">
   <div class="auto-title"><strong>🤔 条件分岐・自動行動</strong><button id="auto-close" type="button" aria-label="閉じる">×</button></div>
   <p>上から優先順に、最初に成立した IF 条件の THEN 行動を実行します。初期8スロット、人物ごとに保存します。</p>
