@@ -116,6 +116,15 @@ function bowStringGeometry(draw=0){
  beam(nock,[0,-.64,-.018]);
  return b;
 }
+function trainingTargetGeometry(){
+ const b=builder();
+ box(b,0,.05,0,.09,1.55,.10,[.45,.29,.13]);
+ box(b,0,1.11,.12,.86,1.05,.08,[.85,.81,.65]);
+ box(b,0,1.26,.213,.66,.74,.025,[.63,.20,.18]);
+ box(b,0,1.40,.245,.42,.46,.025,[.91,.89,.78]);
+ box(b,0,1.51,.278,.20,.24,.025,[.65,.21,.16]);
+ return b;
+}
 function arrowGeometry(){
  const b=builder(),wood=[.65,.46,.25],steel=[.81,.88,.91],fletch=[.84,.25,.16];
  // Shaft and nock run along +Z: the arrowhead is pointed away from the avatar.
@@ -507,6 +516,8 @@ export class ExplorerRenderer{
   this.tools.shield=new Mesh(gl,shieldGeometry());
   this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
   this.tools.arrow=new Mesh(gl,arrowGeometry());
+  this.practiceTargetMesh=new Mesh(gl,trainingTargetGeometry());
+  this.arrowWorld=null;this.screenArrows=[];this.screenTargets=[];
   this.battle=null;
   // Humanoids now use 12 articulated meshes each; only slime needs a static mesh.
   this.enemyMeshes={slime:new Mesh(gl,enemyGeometry("slime"))};
@@ -598,6 +609,26 @@ export class ExplorerRenderer{
    }
    return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture),
     bookshelf:new Mesh(gl,bookshelf)};
+  }
+  pickArrow(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   let nearest=null,dist=35;
+   for(const arrow of this.screenArrows||[]){
+    if(!arrow.onScreen)continue;
+    const d=Math.hypot(arrow.u*r.width-(clientX-r.left),arrow.v*r.height-(clientY-r.top));
+    if(d<dist){nearest=arrow;dist=d;}
+   }
+   return nearest;
+  }
+  pickTarget(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   let nearest=null,dist=52;
+   for(const target of this.screenTargets||[]){
+    if(!target.onScreen)continue;
+    const d=Math.hypot(target.u*r.width-(clientX-r.left),target.v*r.height-(clientY-r.top));
+    if(d<dist){nearest=target;dist=d;}
+   }
+   return nearest;
   }
   pickResource(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
@@ -736,6 +767,31 @@ export class ExplorerRenderer{
    draw(side+"Thigh",thigh);
    const shin=multiply4(thigh,multiply4(translate(0,-.40,0),rotX(pose[side+"KneeX"])));
    draw(side+"Shin",shin);
+  }
+ }
+ drawPhysicalArrows(vp,light){
+  this.screenArrows=[];this.screenTargets=[];
+  if(!this.arrowWorld)return;
+  for(const target of this.arrowWorld.targets){
+   const model=multiply4(translate(target.x-this.cx,target.y,target.z-this.cz),rotateY(target.yaw));
+   this.drawMesh(this.practiceTargetMesh,multiply4(vp,model),light,1,.86);
+   const p=projectScreen(vp,[target.x-this.cx,target.y+1.6,target.z-this.cz]);
+   if(p)this.screenTargets.push({...p,...target});
+  }
+  for(const shot of [...this.arrowWorld.flying,...this.arrowWorld.embedded]){
+   const moving=Object.hasOwn(shot,"vx"),dir=moving?{x:shot.vx,y:shot.vy,z:shot.vz}:
+    {x:shot.dx,y:shot.dy,z:shot.dz};
+   const len=Math.hypot(dir.x,dir.y,dir.z)||1;
+   const yaw=Math.atan2(dir.x,dir.z),pitch=Math.atan2(dir.y,Math.hypot(dir.x,dir.z));
+   const x=shot.x-this.cx-dir.x/len*.54;
+   const y=shot.y-dir.y/len*.54;
+   const z=shot.z-this.cz-dir.z/len*.54;
+   const model=multiply4(translate(x,y,z),multiply4(rotateY(yaw),rotX(-pitch)));
+   this.drawMesh(this.tools.arrow,multiply4(vp,model),light,1,.96);
+   if(!moving){
+    const p=projectScreen(vp,[shot.x-this.cx,shot.y,shot.z-this.cz]);
+    if(p)this.screenArrows.push({...p,...shot});
+   }
   }
  }
  drawTestEnemies(vp,light,s,radius){
@@ -957,7 +1013,7 @@ export class ExplorerRenderer{
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   const asp=w/h;
   this.actorMarker=null;
-  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
+  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp):this.ground(state,asp,dt);
  }
  orbit(s,asp){
@@ -1045,6 +1101,7 @@ export class ExplorerRenderer{
   this.drawBuildings(vp,light,s,radius,dt);
   this.drawFrontier(vp,light,s,radius);
   this.drawTestEnemies(vp,light,s,radius);
+  this.drawPhysicalArrows(vp,light);
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0),pz);
@@ -1088,7 +1145,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.patch,this.trees,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.gl.deleteProgram(this.program);
  }
