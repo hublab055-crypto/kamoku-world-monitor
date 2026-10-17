@@ -195,16 +195,28 @@ function doFrame(t){
     launchArrow(squad.get("player"),attackInProgress);
    }
    if(running&&battle){
-    battle.advance(dt,controller,attackInProgress);
+    battle.advance(dt,controller,attackInProgress,squad);
+    battle.advanceAllies(dt,squad,{launchArrow:(soldier,target)=>{
+     if(!frontierUI?.hasTacticalArrow(soldier.id))return false;
+     const shot=launchArrow(soldier,{targetId:target.id});
+     if(shot)frontierUI.consumeTacticalArrow(soldier.id);
+     return Boolean(shot);
+    }});
     for(const hit of attackInProgress?.kind==="bow"?[]:battle.resolveAttack(attackInProgress,controller)){
      log("🎯 "+hit.message);
      worldUI?.float({kind:hit.guarded?"guard":"damage",
       text:(hit.guarded?"🛡️ −":"−")+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
     }
-    for(const attack of battle.consumeEnemyHits()){
+    for(const attack of battle.consumeEnemyHits().slice(0,5)){
      log("🛡️ "+attack.message);
-     worldUI?.float({kind:"hurt",text:"−"+attack.damage+" HP",actorId:"player",duration:1.45});
-     renderer.playerHitSeconds=.48;
+     worldUI?.float({kind:"hurt",text:"−"+attack.damage+" HP",
+      actorId:attack.actorId||"player",duration:1.45});
+     if(!attack.actorId||attack.actorId==="player")renderer.playerHitSeconds=.48;
+    }
+    for(const event of battle.consumeTacticalEvents().slice(0,6)){
+     worldUI?.float({kind:event.kind==="heal"?"heal":"damage",
+      text:(event.kind==="heal"?"+":"−")+event.amount,
+      actorId:event.actorId,enemyId:event.enemyId,duration:1.1});
     }
     if(renderer.playerHitSeconds>0)renderer.playerHitSeconds=Math.max(0,renderer.playerHitSeconds-dt);
    }
@@ -277,7 +289,7 @@ function updateHUD(){
  $("walked").textContent=controller.totalDistanceM.toFixed(1)+" m";
  $("jump-state").textContent=controller.jumpY>.01?"空中 "+controller.jumpY.toFixed(2)+" m":"接地";
  $("action-state").textContent=access.inside?"🏠 屋内（小屋 #"+access.inside.id+"）":actions.message;
- $("battle-status").textContent="戦闘テスト：敵 "+(battle?.count()||0)+"体 / HP "+(battle?.playerHp??100)+" / 100";
+ $("battle-status").textContent="味方 "+(squad?.agents?.filter(a=>a.hp>0).length||0)+"/"+(squad?.agents?.length||0)+"人 / 敵 "+(battle?.count()||0)+"体 / 操作者HP "+(battle?.playerHp??100);
   syncDoorUi();
  $("customization-status").textContent=
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
@@ -578,8 +590,7 @@ function confirmOrbitLanding(){
   access.insideId=null;access.pendingDoorId=null;
   squad?.repositionAfterLanding();
   controller.targetAltitude(2.5);
-  renderer.patchKey=null;renderer.interiorBuildingId=null;
-  renderer.orbitPan=null;renderer.lastOrbitCenter=null;
+  renderer.patchKey=null;renderer.orbitPan=null;renderer.lastOrbitCenter=null;renderer.interiorBuildingId=null;
   renderer.cameraController.resetFreeAnchor(controller,
    terrainSurface(terrain,site.lat,site.lon).elevationM);
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
@@ -657,7 +668,7 @@ $("landing-select").addEventListener("change",()=>{
   controller.setLanding(site.lat,site.lon);
   squad?.repositionAfterLanding();
   controller.targetAltitude(15000000);controller.altitudeM=15000000;
-  renderer.patchKey=null;renderer.orbitPan=null;renderer.lastOrbitCenter=null;
+  renderer.patchKey=null;
   renderer.cameraController.resetFreeAnchor(controller,
     Math.max(0,terrainSurface(terrain,controller.lat,controller.lon).elevationM));
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
@@ -815,8 +826,11 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
 }
 $("spawn-enemy").addEventListener("click",()=>{
  const result=battle.spawn(controller,$("enemy-type").value);
- log(result.message);
- updateHUD();
+ log(result.message);updateHUD();
+});
+$("spawn-enemy-unit").addEventListener("click",()=>{
+ const result=battle.spawnUnit(controller,$("enemy-unit-type").value);
+ log(result.message);updateHUD();
 });
 $("clear-test-enemies").addEventListener("click",()=>{
  battle.clear();log("👾 テスト敵を消しました。");updateHUD();
@@ -1043,11 +1057,22 @@ function renderFrontierEditor(actor){
 function renderAutoEditor(){
  if(!squad)return;
  const actor=squad.get(autoActorId)||squad.get("player");
- $("auto-actor").value=actor.id;
+ const actorSelect=$("auto-actor");
+ if(actorSelect.options.length!==squad.agents.length){
+  actorSelect.replaceChildren();
+  for(const a of squad.agents){
+   const option=document.createElement("option");option.value=a.id;
+   option.textContent=a.name+" ("+a.role+")";actorSelect.append(option);
+  }
+ }
+ actorSelect.value=actor.id;
  $("auto-enabled").checked=actor.auto;
  renderFrontierEditor(actor);
  $("auto-actor-list").replaceChildren();
- for(const a of squad.agents){
+ const quickActors=squad.agents.length>14?
+  [...squad.agents.slice(0,8),...squad.agents.filter(a=>a.id===actor.id&&!squad.agents.slice(0,8).includes(a))]:
+  squad.agents;
+ for(const a of quickActors){
   const btn=document.createElement("button");btn.type="button";
   btn.textContent=a.name+" "+(a.auto?"● 自動":"○ 手動")+" / "+a.status;
   btn.className=a.id===actor.id?"current":"";
@@ -1199,11 +1224,13 @@ function updateRtsMarkers(projected){
    root.append(node);rtsNodes.set(agent.id,node);
   }
   const point=projected?.find(p=>p.id===agent.id&&p.onScreen);
-  node.hidden=!point;
-  if(!point)continue;
+  const index=squad.agents.indexOf(agent);
+  node.hidden=!point||(agent.id.startsWith("troop-")&&index%5!==0&&
+   (squad.selected.size>15||!squad.selected.has(agent.id)));
+  if(!point||node.hidden)continue;
   node.style.left=(point.u*100)+"%";node.style.top=(point.v*100)+"%";
   node.classList.toggle("selected",squad.selected.has(agent.id));
-  node.textContent=agent.name+(agent.auto?" ⚙":"");
+  node.textContent=agent.name+(Number.isFinite(agent.hp)?" ♡"+Math.ceil(agent.hp):"")+(agent.auto?" ⚙":"");
  }
 }
 
@@ -1277,6 +1304,17 @@ worldUI=installWorldFeedbackUI({
   return "不明なコマンドです。";
  }
 });
+for(const [id,preset] of [["deploy-party","party"],["deploy-company","company"]]){
+ $(id).addEventListener("click",()=>{
+  try{
+   const deployed=squad.deployPreset(preset);
+   frontierUI?.syncRoster();
+   autoActorId=deployed.ids[0];
+   syncSquadUi();groupUI?.loadDraft(deployed.group);
+   log("👥 "+deployed.group.name+"："+deployed.ids.length+"人を配置しました。");
+  }catch(error){log("部隊編成に失敗："+error.message);}
+ });
+}
 groupUI=installGroupUI({
  get:()=>({squad,controller}),notify:log,update:updateHUD,
  onSelect:id=>{autoActorId=id;renderAutoEditor();},

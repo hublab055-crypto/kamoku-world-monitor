@@ -15,6 +15,7 @@ const sources=Object.freeze({wood:"frontier",stone:"frontier",fiber:"frontier",
  water:"lifestyle",rawFood:"lifestyle",meal:"lifestyle",cup:"lifestyle",bowl:"lifestyle",
  spoon:"lifestyle",bedroll:"lifestyle",tent:"lifestyle",plate:"lifestyle",pot:"lifestyle"});
 const clamp=(n,lo,hi)=>Math.min(hi,Math.max(lo,n));
+const MAX_ROSTER_SOCIAL=80;
 const defaults=()=>["sword","axe","pickaxe","cup","book"];
 export const HANDS=Object.freeze(["right","left"]);
 export const TWO_HANDED_ITEMS=Object.freeze(["spear","greatsword"]);
@@ -46,6 +47,16 @@ export class SocialEquipment {
   this.actors={};this.relations={};this.history=[];this.maxDistance=4;
   for(const id of ["player","scout","artisan"])this.actors[id]={slots:defaults(),selected:0,hands:handDefaults(),arrows:12,specialArrows:{iron:0,fire:0},arrowType:"wood",potions:3,attackMode:"overhead"};
   if(snapshot)this.restore(snapshot);
+ }
+ ensureActor(id,role="sword"){
+  if(this.actors[id])return this.actors[id];
+  if(!/^troop-[1-9][0-9]*$/.test(id||""))return null;
+  const gear={sword:["sword","shield"],spear:["spear","spear"],
+   axe:["axe","shield"],archer:["bow","none"],
+   mage:["none","none"],healer:["none","none"]}[role]||["sword","shield"];
+  return this.actors[id]={slots:defaults(),selected:0,
+   hands:{right:gear[0],left:gear[1]},arrows:24,specialArrows:{iron:0,fire:0},
+   arrowType:"wood",potions:3,attackMode:"overhead"};
  }
  actor(id){return this.actors[id]||null;}
  setAttackMode(id,mode){
@@ -243,6 +254,10 @@ export class SocialEquipment {
  }
  restore(data){
   if(data?.version!==1)return false;
+  for(const id of Object.keys(data.actors||{})){
+   if(/^troop-[1-9][0-9]*$/.test(id)&&Object.keys(this.actors).length<MAX_ROSTER_SOCIAL)
+    this.ensureActor(id);
+  }
   for(const id of Object.keys(this.actors)){
    const a=data.actors?.[id];
    if(!a)continue;

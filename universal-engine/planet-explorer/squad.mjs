@@ -4,6 +4,7 @@ import {taskBowProgress} from "./archery-timing.mjs";
 import {terrainSurface} from "./geo.mjs";
 import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs";
 import {GroupRegistry,formationOffsets} from "./groups.mjs";
+import {TROOP_ROLES,TROOP_PRESETS,MAX_ALLIES,rosterForPreset,tacticalOffsets} from "./tactical-roster.mjs";
 
 /** Local single-player RTS party and deterministic, editable IF -> THEN rules.
  * No external network, persistent background work or scripted code execution. */
@@ -43,8 +44,10 @@ export class SquadEngine{
     control=ExplorerController.fromSnapshot(terrain,saved);
    }
    return {id,name,control,auto:false,rules:defaultRules(),rally:{x:control.x,z:control.z},
-    task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機",formationOverride:false};
+    task:null,cooldown:0,order:"idle",patrolSide:0,status:"待機",formationOverride:false,
+    role:id==="scout"?"archer":"sword",hp:100,maxHp:100,combatCooldown:0};
   });
+  this.nextActorNumber=1;
   this.groups=new GroupRegistry(()=>this.agents.map(a=>a.id));
   if(snapshot)this.restore(snapshot);
   this.frontier=new FrontierBridge(this,snapshot?.frontier||null);
@@ -63,6 +66,33 @@ export class SquadEngine{
  }
  selectAll(){this.groups.activate(null);this.selected=new Set(this.agents.map(a=>a.id));}
  selectedGroups(){return this.groups.selected();}
+ /** Deploy a preset as actual independent actors (not an abstract unit counter). */
+ deployPreset(kind){
+  const plan=TROOP_PRESETS[kind],roles=rosterForPreset(kind);
+  if(this.agents.length+roles.length>MAX_ALLIES)throw RangeError("アバターは最大"+MAX_ALLIES+"人です");
+  const lead=this.get("player").control,offsets=tacticalOffsets(roles,2.4);
+  const newIds=[];
+  for(let i=0;i<roles.length;i++){
+   const role=roles[i],spec=TROOP_ROLES[role],saved=lead.snapshot();
+   const p=offsets[i];
+   saved.x=lead.x+p.x+Math.cos(lead.yaw)*4;
+   saved.z=lead.z+p.z-Math.sin(lead.yaw)*4;
+   saved.moveTarget=null;saved.jumpY=0;saved.jumpV=0;
+   const control=ExplorerController.fromSnapshot(this.terrain,saved);
+   const id="troop-"+this.nextActorNumber++;
+   const index=roles.slice(0,i+1).filter(v=>v===role).length;
+   this.agents.push({id,name:spec.name+index,role,
+    control,auto:false,rules:defaultRules().map(r=>({...r,enabled:false})),
+    rally:{x:control.x,z:control.z},task:null,cooldown:0,order:"idle",
+    patrolSide:0,status:"編成",formationOverride:false,
+    hp:spec.hp,maxHp:spec.hp,combatCooldown:0});
+   this.frontier?.ensureAgent(id);
+   newIds.push(id);
+  }
+  const g=this.registerGroup(plan.name+" "+this.groups.nextId,newIds,
+   {formation:"battleline",spacing:2.4,sync:true,follow:true});
+  return {group:g,ids:newIds,roles};
+ }
  selectGroups(ids){
   const groups=this.groups.activateMany(ids);
   if(groups.length)this.selected=new Set(groups.flatMap(g=>g.members));
@@ -121,7 +151,7 @@ export class SquadEngine{
  orderGroupMove(id,x,z,members=null){
   const g=this.groups.get(id);
   if(!g||!finitePoint({x,z}))return 0;
-  const targets=(members||g.members).map(key=>this.get(key)).filter(Boolean);
+  const targets=(members||g.members).map(key=>this.get(key)).filter(a=>a&&a.hp>0);
   if(!targets.length)return 0;
   if(!g.follow){
    const moved=this.orderMove(targets.map(a=>a.id),x,z,{formation:g.formation,spacing:g.spacing});
@@ -187,17 +217,21 @@ export class SquadEngine{
   for(const id of order){
    const g=this.groups.get(id);
    if(!g?.follow||g.members.length<2)continue;
-   const lead=this.get(g.members[0]);
+   const living=g.members.filter(key=>(this.get(key)?.hp??0)>0);
+   if(living.length<2)continue;
+   const lead=this.get(living[0]);
    if(!lead||lead.formationOverride||claimed.has(lead.id)||!lead.control.nearGround)continue;
    claimed.add(lead.id);
-   const offsets=formationOffsets(g.members.length,g.formation,g.spacing);
+   const offsets=g.formation==="battleline"?
+    tacticalOffsets(living.map(id=>this.get(id)?.role||"sword"),g.spacing):
+    formationOffsets(living.length,g.formation,g.spacing);
    const base=offsets[0],control=lead.control;
    const target=control.moveTarget;
    const dx=(target?.x??control.x)-control.x,dz=(target?.z??control.z)-control.z;
    const yaw=Math.hypot(dx,dz)>.4?Math.atan2(dx,dz):control.yaw;
    const sn=Math.sin(yaw),cs=Math.cos(yaw);
-   for(let i=1;i<g.members.length;i++){
-    const a=this.get(g.members[i]);
+   for(let i=1;i<living.length;i++){
+    const a=this.get(living[i]);
     if(!a||claimed.has(a.id))continue;
     claimed.add(a.id);
     if(allowed&&!allowed.has(a.id))continue;
@@ -242,8 +276,10 @@ export class SquadEngine{
    if(active.follow)return this.orderGroupMove(active.id,x,z);
    ids=active.members;formation=active.formation;spacing=active.spacing;
   }
-  const targets=ids.map(id=>this.get(id)).filter(Boolean);
-  const offsets=formation?formationOffsets(targets.length,formation,spacing??2.4):null;
+  const targets=ids.map(id=>this.get(id)).filter(a=>a&&a.hp>0);
+  const offsets=formation==="battleline"?
+   tacticalOffsets(targets.map(a=>a.role||"sword"),spacing??2.4):
+   formation?formationOffsets(targets.length,formation,spacing??2.4):null;
   const leader=targets[0]?.control;
   const dx=x-(leader?.x??x),dz=z-(leader?.z??z);
   const direction=Math.hypot(dx,dz)>0.01?Math.atan2(dx,dz):(leader?.yaw??0);
@@ -321,11 +357,13 @@ export class SquadEngine{
   dt=clamp(dt,0,.1);
   if(dt>0)this.updateFormationFollowers(dt,null,null,{manualLead});
   for(const a of this.agents){
+   if(a.hp<=0){a.control.clearMoveTarget();a.task=null;a.auto=false;a.status="戦闘不能";continue;}
    if(a.id!=="player"){
     a.control.altitudeM=this.get("player").control.altitudeM;
     a.control.targetAltitudeM=a.control.altitudeM;
    }
    a.cooldown=Math.max(0,a.cooldown-dt);
+   a.combatCooldown=Math.max(0,(a.combatCooldown||0)-dt);
    const frontierBusy=this.frontier?.tick(a,dt,a.id==="player"&&manualLead)||false;
    if(a.task&&["gather_wood","gather_stone"].includes(a.task.kind)){
     a.task.remaining=Math.max(0,a.task.remaining-dt);
@@ -392,21 +430,53 @@ export class SquadEngine{
    a.control.altitudeM=lead.altitudeM;a.control.targetAltitudeM=lead.targetAltitudeM;
    a.task=null;a.order="idle";a.rally={x:a.control.x,z:a.control.z};a.formationOverride=false;
   });
+  // Rebase all additional troops on the newly selected landing location.
+  const extras=this.agents.slice(3);
+  const offsets=tacticalOffsets(extras.map(a=>a.role||"sword"),2.4);
+  extras.forEach((a,i)=>{
+   a.control.setLanding(lead.lat,lead.lon,{allowWater:true});
+   a.control.x+=offsets[i]?.x||0;a.control.z+=offsets[i]?.z||0;
+   const site=a.control.locationAt(a.control.x,a.control.z);
+   a.control.lat=site.lat;a.control.lon=site.lon;
+   a.control.altitudeM=lead.altitudeM;a.control.targetAltitudeM=lead.targetAltitudeM;
+   a.control.clearMoveTarget();a.task=null;a.formationOverride=false;a.order="idle";
+  });
   this.frontier?.rebase();
  }
  snapshot(){
   return {version:1,frontier:this.frontier?.snapshot(),selected:[...this.selected],groups:this.groups.snapshot(),
    agents:this.agents.map(a=>({id:a.id,auto:a.auto,rules:a.rules.map(r=>({...r})),
-    control:a.id==="player"?null:a.control.snapshot(),rally:{...a.rally},status:a.status}))};
+    control:a.id==="player"?null:a.control.snapshot(),rally:{...a.rally},status:a.status,
+    name:a.name,role:a.role,hp:a.hp,maxHp:a.maxHp,combatCooldown:a.combatCooldown}))};
  }
  restore(data){
-  if(!data||data.version!==1||!Array.isArray(data.agents)||data.agents.length!==3)throw Error("Invalid squad save");
+  if(!data||data.version!==1||!Array.isArray(data.agents)||data.agents.length<3||
+    data.agents.length>MAX_ALLIES)throw Error("Invalid squad save");
+  const extra=data.agents.slice(3);
+  this.agents=this.agents.slice(0,3);
+  for(const record of extra){
+   if(!/^troop-[1-9][0-9]*$/.test(record?.id||"")||this.get(record.id)||
+      !TROOP_ROLES[record.role]||typeof record.name!=="string"||record.name.length>32)continue;
+   try{
+    const control=ExplorerController.fromSnapshot(this.terrain,record.control);
+    this.agents.push({id:record.id,name:record.name,role:record.role,control,
+     auto:false,rules:defaultRules(),rally:{x:control.x,z:control.z},
+     task:null,cooldown:0,order:"idle",patrolSide:0,status:"復元",
+     formationOverride:false,hp:TROOP_ROLES[record.role].hp,
+     maxHp:TROOP_ROLES[record.role].hp,combatCooldown:0});
+    this.nextActorNumber=Math.max(this.nextActorNumber,Number(record.id.slice(6))+1);
+   }catch(_){/* Invalid extra roster record ignored. */}
+  }
   for(const a of this.agents){
    const s=data.agents.find(x=>x.id===a.id);
    if(!s||!Array.isArray(s.rules)||s.rules.length!==8||typeof s.auto!=="boolean"||!finitePoint(s.rally))throw Error("Invalid saved actor");
    a.rules=s.rules.map(sanitizeRule);a.auto=s.auto;a.rally={x:s.rally.x,z:s.rally.z};
    if(a.id!=="player")a.control=ExplorerController.fromSnapshot(this.terrain,s.control);
    a.status="復元済み";a.task=null;a.cooldown=0;a.formationOverride=false;
+   if(TROOP_ROLES[s.role])a.role=s.role;
+   if(Number.isFinite(s.maxHp)&&s.maxHp>0&&s.maxHp<=500)a.maxHp=s.maxHp;
+   if(Number.isFinite(s.hp))a.hp=Math.max(0,Math.min(a.maxHp,s.hp));
+   a.combatCooldown=0;
   }
   this.selected=new Set(Array.isArray(data.selected)?data.selected.filter(id=>this.get(id)):["player"]);
   if(!this.selected.size)this.selected.add("player");

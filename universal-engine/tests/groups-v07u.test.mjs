@@ -17,7 +17,7 @@ function setup(save=null){
  return {terrain,player,actions,squad};
 }
 test("four formations create unique positions with preserved registration order",()=>{
- assert.deepEqual(Object.keys(FORMATIONS),["line","column","wedge","square"]);
+ assert.deepEqual(Object.keys(FORMATIONS),["line","column","wedge","square","battleline"]);
  for(const kind of Object.keys(FORMATIONS)){
   const coords=formationOffsets(3,kind,2.4);
   assert.equal(coords.length,3);

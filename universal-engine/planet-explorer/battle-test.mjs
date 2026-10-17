@@ -1,4 +1,5 @@
 import {CONTACT_WEAPONS,contactDamage,sweptWeaponContacts} from "./melee-contact.mjs";
+import {spawnHostileFormation,nearestAliveAlly,stepAlliedCombat} from "./tactical-combat.mjs";
 /** Local battle sandbox. Enemies are test dummies that approach without
  * damaging the player's campaign state. Coordinates use explorer X/Z metres.
  */
@@ -18,13 +19,14 @@ export class BattleTest{
   this.enemies=[];this.nextId=1;this.maxEnemies=10;
   this.lastAttack=null;this.hitStages=new Set();
   this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.playerGuardFactor=.30;this.targetId=null;
+  this.enemyUnits=[];this.nextUnitId=0;this.tacticalEvents=[];
  }
- spawn(controller,type="slime"){
+ spawn(controller,type="slime",{allowLarge=false}={}){
   const config=TEST_ENEMIES[type];
   if(!config)return {ok:false,message:"敵の種類が無効です。"};
   if(!controller||controller.altitudeM>12||controller.jumpY>.01)
    return {ok:false,message:"地表に降りてから敵を出現させてください。"};
-  if(this.enemies.filter(e=>e.hp>0).length>=this.maxEnemies)
+  if(this.enemies.filter(e=>e.hp>0).length>=(allowLarge?80:this.maxEnemies))
    return {ok:false,message:"テスト敵は最大10体です。倒してから追加してください。"};
   const yaw=Number.isFinite(controller.yaw)?controller.yaw:0;
   const side=(this.nextId%3-1)*1.8,front=5.8+this.nextId%3;
@@ -39,17 +41,34 @@ export class BattleTest{
   return {ok:true,enemy,message:"👾 "+config.name+"が前方に出現しました（HP "+config.hp+"）。"};
  }
  /** Animated approach, attack, guard, hit and death in isolated battle sandbox. */
- advance(dt,player,playerAction=null){
+ advance(dt,player,playerAction=null,squad=null){
   if(!Number.isFinite(dt)||dt<0)throw TypeError("Invalid battle timestep");
   if(!player)return;
   const step=clamp(dt,0,.1);
   this.playerGuard=Math.max(0,this.playerGuard-step);
+  // Enemy squads share a target, while lone enemies seek their nearest opponent.
+  const focus=new Map();
+  if(squad){
+   for(const unit of this.enemyUnits){
+    const living=unit.members.map(id=>this.enemies.find(e=>e.id===id&&e.hp>0)).filter(Boolean);
+    if(!living.length)continue;
+    const center={x:living.reduce((n,e)=>n+e.x,0)/living.length,
+     z:living.reduce((n,e)=>n+e.z,0)/living.length};
+    focus.set(unit.id,nearestAliveAlly(center,squad,player,this.playerHp).id);
+   }
+  }
   for(const e of this.enemies){
    if(e.hp<=0){e.anim="death";e.deathTime=(e.deathTime||0)+step;continue;}
    e.animTime=(e.animTime||0)+step;
    e.attackCooldown=Math.max(0,(e.attackCooldown||0)-step);
    e.guardCooldown=Math.max(0,(e.guardCooldown||0)-step);
-   const dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz);
+   let target=squad?nearestAliveAlly(e,squad,player,this.playerHp):{control:player,id:"player"};
+   const focused=e.unitId?focus.get(e.unitId):null;
+   if(focused&&focused!=="player"&&squad?.get(focused)?.hp>0)
+    target={control:squad.get(focused).control,id:focused};
+   else if(focused==="player"&&this.playerHp>0)target={control:player,id:"player"};
+   const aim=target.control;
+   const dx=aim.x-e.x,dz=aim.z-e.z,d=Math.hypot(dx,dz);
    if(d>.001)e.yaw=Math.atan2(dx,dz);
    if(e.anim==="hit"){
     if(e.animTime<(e.hitStun||.34))continue;
@@ -63,12 +82,15 @@ export class BattleTest{
     // Damage only on the animated weapon's impact; never every frame.
     if(e.animTime>=.52&&!e.attackLanded){
      e.attackLanded=true;
-     if(d<3.0&&this.playerHp>0){
+     if(d<3.0&&(target.id==="player"?this.playerHp>0:(squad.get(target.id)?.hp||0)>0)){
       const points=e.type==="orc"?12:e.type==="demon"?14:e.type==="skeleton"?7:8;
-      const dealt=this.playerGuard>0?Math.max(1,Math.round(points*this.playerGuardFactor)):points;
-      this.playerHp=Math.max(0,this.playerHp-dealt);
-      this.enemyHits.push({name:e.name,damage:dealt,hp:this.playerHp,
-       message:e.name+" の攻撃：-"+dealt+" HP"+(this.playerGuard>0?"（ガード）":"")+"（戦闘テストHP "+this.playerHp+"）"});
+      const ally=target.id==="player"?null:squad?.get(target.id);
+      const defending=target.id==="player"?this.playerGuard>0:(ally?.guardTime||0)>0;
+      const dealt=defending?Math.max(1,Math.round(points*(target.id==="player"?this.playerGuardFactor:.35))):points;
+      if(ally){ally.hp=Math.max(0,ally.hp-dealt);if(!ally.hp)ally.status="戦闘不能";}
+      else this.playerHp=Math.max(0,this.playerHp-dealt);
+      this.enemyHits.push({name:e.name,damage:dealt,hp:ally?.hp??this.playerHp,actorId:target.id,
+       message:e.name+" → "+(ally?.name||"プレイヤー")+"：-"+dealt+" HP"+(defending?"（防御）":"")});
      }
     }
     if(e.animTime<1.03)continue;
@@ -76,7 +98,7 @@ export class BattleTest{
    }
    const incoming=playerAction&&["sword","spear","greatsword","axe"].includes(playerAction.kind)&&
     playerAction.time/playerAction.duration<.47&&playerAction.time/playerAction.duration>.09;
-   const facingPlayer=Math.abs(wrap(Math.atan2(e.x-player.x,e.z-player.z)-(player.yaw||0)))<1.25;
+   const facingPlayer=target.id==="player"&&Math.abs(wrap(Math.atan2(e.x-player.x,e.z-player.z)-(player.yaw||0)))<1.25;
    if(incoming&&facingPlayer&&d<3.7&&e.guardCooldown===0&&e.type!=="slime"){
     e.anim="guard";e.animTime=0;e.guardCooldown=2.2;
     // Slow greatsword wind-ups need a longer defensive hold before impact.
@@ -89,13 +111,16 @@ export class BattleTest{
     e.x+=dx/(d||1)*travel;e.z+=dz/(d||1)*travel;
     e.walkPhase=(e.walkPhase||0)+travel*6.5;
     if(e.anim!=="walk"){e.anim="walk";e.animTime=0;}
-   }else if(e.attackCooldown===0&&this.playerHp>0){
+   }else if(e.attackCooldown===0&&(target.id==="player"?this.playerHp>0:(squad?.get(target.id)?.hp||0)>0)){
     e.anim="attack";e.animTime=0;e.attackLanded=false;
    }else if(e.anim!=="idle"){
     e.anim="idle";e.animTime=0;
    }
   }
  }
+ spawnUnit(player,preset="raiders"){return spawnHostileFormation(this,player,preset);}
+ advanceAllies(dt,squad,options={}){stepAlliedCombat(this,squad,dt,options);}
+ consumeTacticalEvents(){return this.tacticalEvents.splice(0);}
  consumeEnemyHits(){return this.enemyHits.splice(0);}
 
  hitArc(player,{range=2.5,arc=Math.PI*.9,damage=18}={}){
@@ -196,5 +221,6 @@ export class BattleTest{
  clear(){
   this.enemies=[];this.lastAttack=null;this.hitStages.clear();
   this.playerHp=100;this.enemyHits=[];this.playerGuard=0;this.playerGuardFactor=.30;this.targetId=null;
+  this.enemyUnits=[];this.nextUnitId=0;this.tacticalEvents=[];
  }
 }

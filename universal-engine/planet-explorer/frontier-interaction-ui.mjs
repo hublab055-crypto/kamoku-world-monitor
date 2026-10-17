@@ -14,6 +14,21 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  const handNames={right:"右手",left:"左手"};
   const twoHanded=new Set(TWO_HANDED_ITEMS);
  const actor=()=>{const c=get();return (c.rtsMode?c.squad?.selectedAgents()[0]:null)||c.squad?.get("player");};
+ function syncRoster(){
+  const c=get();if(!c.squad)return;
+  for(let i=0;i<c.squad.agents.length;i++){
+   const person=c.squad.agents[i];
+   if(!social.actor(person.id))social.ensureActor(person.id,person.role);
+   if(!decks[person.id]){
+    const deck=new ActionSlots();
+    if(person.role==="archer")deck.select(1);
+    if(person.role==="mage"||person.role==="healer")deck.select(3);
+    decks[person.id]=deck;
+   }
+   if(!choice[person.id])choice[person.id]=i%2?"female":"male";
+   if(c.renderer?.glbFor)c.renderer.glbFor[person.id]=choice[person.id];
+  }
+ }
  function equipmentInventory(){const c=get(),who=actor();return c.squad&&who?social.inventoryFor(who,c.life,c.squad.frontier):[];}
  function syncHands(){
   const c=get(),who=actor();if(!c.squad||!who)return;
@@ -117,6 +132,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  }
  function quick(){
   const c=get();if(!c.squad)return;
+  syncRoster();
   const who=actor(),a=social.actor(who.id),deck=decks[who.id];
   if(who.id!==lastActiveActor){
    applyDeck(who,{quiet:true});lastActiveActor=who.id;slotSignature="";
@@ -529,8 +545,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   $("archery-ammo").value=ammoType;$("volley-aim").value=volleyAim;
   $("volley-timing").value=volleyTiming;$("volley-interval").value=String(volleyInterval);
   $("volley-interval-label").hidden=volleyTiming!=="ripple";
-  decks=Object.fromEntries(["player","scout","artisan"].map(id=>
-   [id,new ActionSlots(data?.actionDecks?.[id]||null,social.actor(id))]));
+  decks=Object.fromEntries(get().squad.agents.map(a=>
+   [a.id,new ActionSlots(data?.actionDecks?.[a.id]||null,social.actor(a.id))]));
+  syncRoster();
   lastActiveActor=null;
   choice={player:"male",scout:"female",artisan:"male"};
   for(const id of Object.keys(choice))if(["male","female","classic"].includes(data?.choice?.[id]))choice[id]=data.choice[id];
@@ -692,7 +709,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(e.key.toLowerCase()==="r"){e.preventDefault();useHand("right");}
   if(e.key.toLowerCase()==="l"){e.preventDefault();useHand("left");}
  });
- return {quick,restore,snapshot,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
+ return {quick,restore,snapshot,syncRoster,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
+  hasTacticalArrow:id=>social.arrowCount(id,"wood")>0,
+  consumeTacticalArrow:id=>social.spendArrow(id,"wood"),
   updateTarget,selectTargetAt,isCombat,volley,addRecoveredArrow,
   attackVariantFor:(id,kind)=>social.attackVariant(id,kind)};
 }

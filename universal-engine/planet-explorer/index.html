@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.7w-rts-groups">
+<link rel="stylesheet" href="./style.css?v=0.7y-army-tactics">
 </head>
 <body>
 <header class="site-header">
@@ -19,7 +19,7 @@
       <h1>オリジナルの世界を歩く。</h1>
       <p>v0.7v：木・鉄・火矢、集中／各自／分散照準、一斉／順次発射を追加。v0.7t：シンクロ一斉射撃・直射／曲射・矢の命中・矢の回収・練習用の的を追加。v0.7s：RTS・TPV共通でピンチズーム、資源タップで接近・採集、敵タップでターゲット、地面ダブルタップで移動。v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.7x 任意地点の惑星降下</span>
+    <div class="version-control"><span class="version-tag">v0.7y 冒険者パーティ・50人中隊・敵部隊</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -139,6 +139,11 @@
       <option value="demon">😈 魔族剣士</option>
     </select>
     <button type="button" id="spawn-enemy">👾 敵出現</button>
+    <select id="enemy-unit-type" aria-label="敵の集団編成">
+     <option value="raiders">盗賊小隊（10体）</option>
+     <option value="warband">魔物戦団（18体）</option>
+    </select>
+    <button type="button" id="spawn-enemy-unit">👹 敵部隊を出現</button>
     <button type="button" id="clear-test-enemies">敵を消す</button>
     <span id="battle-status" aria-live="polite">戦闘テスト：敵0体</span>
   </div>
@@ -205,11 +210,16 @@
  <section id="group-panel" class="group-panel" hidden role="region" aria-label="部隊の登録と隊形編集">
   <div class="group-header"><strong>👥 部隊管理・隊形</strong><button id="group-close" type="button" aria-label="部隊管理を閉じる">×</button></div>
   <p>複数選択した人物を登録できます。メンバーの順番が隊形の配置順になります。</p>
+  <div class="group-buttons roster-presets" role="group" aria-label="隊員を増やす編成テンプレート">
+   <button type="button" id="deploy-party">🧭 冒険者パーティ（6人）</button>
+   <button type="button" id="deploy-company">🛡️ 中隊を編成（50人）</button>
+  </div>
+  <p>パーティ：前衛3人＋後衛3人。中隊：槍兵20・剣士10・弓兵10・魔法使い5・回復役5。</p>
   <label>部隊名 <input id="group-name" type="text" maxlength="24" placeholder="例：第一弓兵隊" autocomplete="off"></label>
   <div class="group-settings">
     <label>隊形 <select id="group-formation">
       <option value="line">━ 横隊</option><option value="column">┃ 縦隊</option>
-      <option value="wedge">⌄ 楔形</option><option value="square">▦ 方陣</option>
+      <option value="wedge">⌄ 楔形</option><option value="square">▦ 方陣</option><option value="battleline">⚔️ 前衛・後衛</option>
     </select></label>
     <label>間隔 <input id="group-spacing" type="number" min="1.2" max="8" step="0.2" value="2.4"> m</label>
     <label class="group-sync"><input id="group-sync" type="checkbox"> 🔗 グループ選択時にシンクロ</label>
@@ -533,6 +543,6 @@
   </section>
 </main>
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
-<script type="module" src="./app.mjs?v=0.7w-rts-groups-melee-archery"></script>
+<script type="module" src="./app.mjs?v=0.7y-army-tactics-orbit"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 /** Saved named avatar groups and deterministic, direction-relative formations.
  * No DOM, networking, or executable user scripts; compatible with older saves. */
 export const FORMATIONS=Object.freeze({
- line:"横隊",column:"縦隊",wedge:"楔形",square:"方陣"
+ line:"横隊",column:"縦隊",wedge:"楔形",square:"方陣",battleline:"前衛・後衛"
 });
 const validPoint=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&
  Math.abs(p.x)<1e7&&Math.abs(p.z)<1e7;
@@ -40,7 +40,7 @@ export function formationOffsets(count,formation="line",spacing=2.4){
   return Array.from({length:count},(_,i)=>({x:(i-(count-1)/2)*spacing,z:0}));
  if(formation==="column")
   return Array.from({length:count},(_,i)=>({x:0,z:((count-1)/2-i)*spacing}));
- if(formation==="square"){
+ if(formation==="square"||formation==="battleline"){
   const cols=Math.ceil(Math.sqrt(count)),rows=Math.ceil(count/cols);
   return Array.from({length:count},(_,i)=>({
    x:((i%cols)-(cols-1)/2)*spacing,

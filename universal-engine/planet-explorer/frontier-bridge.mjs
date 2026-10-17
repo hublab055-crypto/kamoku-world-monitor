@@ -35,7 +35,14 @@ export class FrontierBridge {
   if(saved)this.restore(saved);
  }
  attachLife(life){this.life=life;}
- person(id){return this.people[id];}
+ ensureAgent(id){
+  if(this.people[id])return this.people[id];
+  const a=this.squad.get(id);
+  if(!a)return null;
+  return this.people[id]={stamina:100,inventory:bag(),radius:42,
+   origin:{x:a.control.x,z:a.control.z},gathered:0};
+ }
+ person(id){return this.ensureAgent(id);}
  isAction(kind){return FW_ACTIONS.includes(kind);}
  loadKg(id){const inv=this.person(id)?.inventory||{};return Math.round(kinds.reduce((t,k)=>t+inv[k]*FW_WEIGHTS[k],0)*10)/10;}
  available(a){
