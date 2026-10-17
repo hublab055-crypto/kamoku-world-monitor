@@ -1,4 +1,4 @@
-import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP} from "./social-equipment.mjs";
+import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS} from "./social-equipment.mjs";
 import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs";
 import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
 
@@ -11,6 +11,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  let trajectoryMode="auto",practiceTargetId=null;
  let decks=Object.fromEntries(["player","scout","artisan"].map(id=>[id,new ActionSlots()]));
  const handNames={right:"右手",left:"左手"};
+  const twoHanded=new Set(TWO_HANDED_ITEMS);
  const actor=()=>{const c=get();return (c.rtsMode?c.squad?.selectedAgents()[0]:null)||c.squad?.get("player");};
  function equipmentInventory(){const c=get(),who=actor();return c.squad&&who?social.inventoryFor(who,c.life,c.squad.frontier):[];}
  function syncHands(){
@@ -20,7 +21,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    const item=social.handItem(who.id,hand),details=ITEM_MAP.get(item)||ITEM_MAP.get("none");
    const count=social.quantity(who,item,c.life,c.squad.frontier);
    const button=$("hand-"+hand+"-use");
-   button.textContent=(details?.icon||"▫️")+" "+handNames[hand]+"　"+(details?.name||"空");
+   button.textContent=(details?.icon||"▫️")+" "+handNames[hand]+"　"+(details?.name||"空")+(twoHanded.has(item)?"（両手）":"");
    button.title=handNames[hand]+"： "+(details?.name||"空")+"（タップすると使用）";
    button.classList.toggle("unavailable",item==="none"||count<1);
   }
@@ -65,7 +66,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   const deck=decks[who?.id];
   if(!deck||!c.battle||!who)return null;
   const bow=["right","left"].some(h=>social.handItem(who.id,h)==="bow");
-  const range=bow?(trajectoryMode==="direct"?55:145):4;
+  const meleeReach=["right","left"].some(h=>social.handItem(who.id,h)==="spear")?5.5:4;
+   const range=bow?(trajectoryMode==="direct"?55:145):meleeReach;
   const combat=["bow","melee"].includes(deck.current().kind)||bow;
   return combat?deck.resolveTarget(c.battle.enemies,who.control,range):
    c.battle.enemies.find(e=>e.id===deck.manualTargetId&&e.hp>0)||null;
@@ -184,9 +186,9 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    return deployed;
   }
   if(result.kind==="action"){
-   const variant=chosenVariant||(["sword","axe"].includes(result.action)?
+   const variant=chosenVariant||(["sword","spear","greatsword","axe"].includes(result.action)?
     social.attackVariant(who.id,result.action):"overhead");
-   const target=["sword","axe","bow"].includes(result.action)?aimFor(who,c):null;
+   const target=["sword","spear","greatsword","axe","bow"].includes(result.action)?aimFor(who,c):null;
    if(target&&(!c.manualInputActive||who.id!=="player")){
     const desired=Math.atan2(target.x-who.control.x,target.z-who.control.z);
     who.control.turn(Math.atan2(Math.sin(desired-who.control.yaw),Math.cos(desired-who.control.yaw)));
@@ -199,7 +201,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
      const task=c.squad.get(who.id)?.task;
      if(task&&result.action==="bow"){task.targetPoint=targetPoint;task.trajectory=trajectoryMode;}
      if(result.usesArrow)social.spendArrow(who.id);
-     if(c.renderer)c.renderer.actionHand[who.id]=hand;
+     if(c.renderer)c.renderer.actionHand[who.id]=twoHanded.has(result.action)?"right":hand;
     }
     if(!ok)log(who.name+"は行動できません（実行中か地上にいません）。");
     updateHUD();return {ok};
@@ -213,7 +215,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
      c.actions.active.arrowReleased=false;
     }
     if(result.usesArrow)social.spendArrow(who.id);
-    if(c.renderer)c.renderer.actionHand[who.id]=hand;
+    if(c.renderer)c.renderer.actionHand[who.id]=twoHanded.has(result.action)?"right":hand;
    }
    if(!started)log(c.actions.message);
    updateHUD();return {ok:started,message:c.actions.message};
@@ -252,36 +254,46 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   updateHUD();
   return {ok:true,arrows:state.arrows};
  }
- function runCommand(command){
+ /** A synchronized order executes once for every armed selected actor. */
+  function meleeOrder(variant,available){
+   const c=get(),members=c.rtsMode&&c.syncMode?c.squad.selectedAgents():[actor()];
+   let started=0,unarmed=0,busy=0;
+   for(const person of members){
+    const hand=["right","left"].find(h=>available.includes(social.handItem(person.id,h)));
+    if(!hand){unarmed++;continue;}
+    const weapon=social.handItem(person.id,hand);
+    const result=executeItem(social.useItem(person,weapon,c.life,c.squad.frontier),
+     person,c,twoHanded.has(weapon)?"right":hand,variant||social.attackVariant(person.id,weapon));
+    if(result.ok)started++;else busy++;
+   }
+   if(c.rtsMode&&c.syncMode)log("🔗 同期近接攻撃："+started+"人"+
+     (unarmed?" / 対応武器なし"+unarmed+"人":"")+(busy?" / 実行不可"+busy+"人":""));
+   return {ok:started>0,count:started};
+  }
+  function runCommand(command){
   const c=get(),who=actor();if(!who)return {ok:false};
   const item=(gear,hand="right",variant=null)=>executeItem(
    social.useItem(who,gear,c.life,c.squad.frontier),who,c,hand,variant);
   switch(command){
-   case "sweep":{
-    const hand=["right","left"].find(h=>["sword","axe"].includes(social.handItem(who.id,h)));
-    if(!hand){log("⚔️ 剣か斧を装備してください。");return {ok:false};}
-    return item(social.handItem(who.id,hand),hand,"sweep");
-   }
-   case "thrust":{
-    const hand=["right","left"].find(h=>social.handItem(who.id,h)==="sword");
-    if(!hand){log("🗡️ 突きには剣を装備してください。");return {ok:false};}
-    return item("sword",hand,"thrust");
-   }
-   case "shoot":{
+   case "sweep":return meleeOrder("sweep",["sword","axe","spear","greatsword"]);
+    case "thrust":return meleeOrder("thrust",["sword","spear","greatsword"]);
+    case "shoot":{
     if(c.rtsMode&&c.syncMode&&c.squad.selected.size>1)return volley();
     const hand=["right","left"].find(h=>social.handItem(who.id,h)==="bow");
     if(!hand){log("🏹 弓を装備してください。");return {ok:false};}
     return item("bow",hand);
    }
    case "guard":
-    if(!["left","right"].some(h=>social.handItem(who.id,h)==="shield")){
-     log("🛡️ ガードするには盾を装備してください。");return {ok:false};
+    const hasShield=["left","right"].some(h=>social.handItem(who.id,h)==="shield");
+     const hasTwoHanded=twoHanded.has(social.handItem(who.id,"right"));
+     if(!hasShield&&!hasTwoHanded){
+     log("🛡️ ガードには盾か両手武器を装備してください。");return {ok:false};
     }
     if(who.id==="player"){
      if(!c.actions.start("guard",c.controller,c.sample)){
       log(c.actions.message);return {ok:false,message:c.actions.message};
      }
-     c.battle?.guard(1.25);
+     c.battle?.guard(1.25,hasShield?0.30:0.55);
     }else{who.status="🛡️ 防御態勢";who.guardTime=1.2;}
     log("🛡️ ガード！ 次の攻撃を軽減します。");
     updateHUD();return {ok:true};
@@ -388,7 +400,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    for(const hand of ["right","left"]){
     const lbl=document.createElement("label");lbl.textContent=hand==="right"?"右手":"左手";
     const gear=document.createElement("select");
-    for(const id of ["none","sword","shield","axe","bow","pickaxe","book","cup"]){
+    for(const id of ["none","sword","spear","greatsword","shield","axe","bow","pickaxe","book","cup"]){
      const opt=document.createElement("option");opt.value=id;
      opt.textContent=(ITEM_MAP.get(id)?.icon||"▫️")+" "+(ITEM_MAP.get(id)?.name||id);
      gear.append(opt);
