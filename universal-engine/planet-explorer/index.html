@@ -94,6 +94,11 @@
   <button type="button" id="game-console-clear">消去</button>
  </div>
  <div id="game-console-lines" class="game-console-lines" role="log" aria-live="off"></div>
+ <form id="game-console-command-form" class="game-console-command-form">
+  <input id="game-console-command" type="text" maxlength="120"
+   aria-label="コンソールコマンド" placeholder="/help でコマンドを表示" autocomplete="off">
+  <button type="submit" aria-label="コマンド実行">実行</button>
+ </form>
 </section>
 <div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
   <div class="stick-base"><div id="stick-nub" class="stick-nub"></div></div>
