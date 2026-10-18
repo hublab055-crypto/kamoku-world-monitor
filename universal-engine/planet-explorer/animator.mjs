@@ -6,12 +6,13 @@
  * Moving arms and locomotion do not reset when a tool animation starts.
  */
 import {samplePose} from "./rig.mjs";
+import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8i-swim";
 const alpha=(dt,tau)=>1-Math.exp(-Math.max(0,dt)/Math.max(.001,tau));
 const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","sword","spear","greatsword","axe","mine","bow","guard","hit","build",
+ "idle","walk","run","jump","swim","tread","dive","sword","spear","greatsword","axe","mine","bow","guard","hit","build",
  "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
@@ -42,14 +43,16 @@ export class SmoothAnimator {
   if(![dt,phase,speedMps,jumpHeight,progress,faceDirection].every(Number.isFinite)||dt<0)
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
+  const aquatic=isAquaticAction(action);
   const toolAction=["sword","spear","greatsword","axe","mine","bow","guard","hit","build"].includes(action);
   const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;
-  this.state=flight?"jump":toolAction||lifeAction?action:move?(speedMps>6.4?"run":"walk"):"idle";
+  this.state=flight?"jump":aquatic||toolAction||lifeAction?action:move?(speedMps>6.4?"run":"walk"):"idle";
   const locomotion=samplePose({moving:move,phase,jumpHeight:0,action:"idle"});
   let target={...locomotion};
-  if(!flight&&!toolAction&&!lifeAction){
+  if(aquatic&&!flight)target={...locomotion,...swimStroke(action,this.elapsed,move)};
+  if(!flight&&!toolAction&&!lifeAction&&!aquatic){
    // Resting guard pose keeps armed hands slightly forward, without freezing the walk cycle.
    for(const side of ["left","right"]){
     if(["sword","spear","greatsword","axe","pickaxe","bow"].includes(equipped?.[side])){
@@ -141,7 +144,7 @@ export class SmoothAnimator {
   // Fast cuts need low latency so the head-height windup and impact remain visible.
   const tau=action==="greatsword"?Math.max(.115,this.actionTau):
     toolAction&&["sword","spear","axe"].includes(action)?Math.min(.045,this.actionTau):this.actionTau;
-  const a=alpha(elapsed,flight?this.actionTau:this.state==="idle"?.24:toolAction?tau:this.walkTau);
+  const a=alpha(elapsed,flight?this.actionTau:this.state==="idle"?.24:toolAction?tau:aquatic?.16:this.walkTau);
   this.pose=blendPose(this.pose,target,a);
   // Tool attachment switches on immediately at action start and detaches at finish.
   this.pose.tool=toolAction?target.tool:null;
