@@ -92,7 +92,14 @@ export function restVitals(p,{sleep=false}={}){
  if(!Number.isFinite(p.hunger))p.hunger=78;
  const foodCost=sleep?9:1,target=sleep?55:12;
  const gained=Math.min(target,Math.max(0,100-(p.stamina??100)),p.hunger/foodCost*target);
- if(gained<=0)return {ok:false,message:"空腹で回復できません。先に食事をしてください"};
+ if(gained<=0){
+  if(p.hunger>0&&(p.mental??100)<100){
+   p.hunger=clamp(p.hunger-Math.min(p.hunger,foodCost*.25));
+   p.mental=clamp((p.mental??100)+(sleep?14:3));
+   return {ok:true,message:"💤 体力は満タン。休息してメンタルを回復しました"};
+  }
+  return {ok:false,message:"空腹で回復できません。先に食事をしてください"};
+ }
  p.hunger=clamp(p.hunger-foodCost*gained/target);
  p.stamina=clamp((p.stamina??100)+gained);
  p.mental=clamp((p.mental??100)+(sleep?14:3)*gained/target);
