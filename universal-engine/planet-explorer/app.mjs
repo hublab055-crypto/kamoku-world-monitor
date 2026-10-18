@@ -356,7 +356,7 @@ function doFrame(t){
    life.advance(dt,controller.moving);
    renderer.sceneLife=life;
   if(completed){
-    if(completed==="axe"||completed==="mine"){
+    if(completed==="axe"||completed==="mine"||completed==="saw"){
      if(attackInProgress?.resourceNode){
       const node=harvest.visual(attackInProgress.resourceNode);
       const result=node?harvest.hit(node,completed):{ok:false,message:"採集済み"};
@@ -399,6 +399,19 @@ function updateHUD(){
  const g=terrainSurface(terrain,controller.lat,controller.lon);
  const climate=weather.sample(controller.lat,controller.lon,g.elevationM);
  const isSurface=controller.altitudeM<=12;
+  const agent=rtsMode?squad.selectedAgents()?.[0]||squad.get("player"):squad.get("player");
+  const person=squad.frontier.person(agent.id);
+  const hp=agent.id==="player"?(battle?.playerHp??agent.hp):(agent.hp??100);
+  const maxHp=agent.id==="player"?100:(agent.maxHp||100);
+  const hpPct=Math.max(0,Math.min(100,Math.round(hp/maxHp*100)));
+  const stamina=Math.round(person.stamina||0),mental=Math.round(person.mental??100);
+  for(const [id,value] of [["avatar-hp",hpPct],["avatar-stamina",stamina],["avatar-mental",mental]]){
+   $(id).value=value;$(id+"-label").textContent=value+"%";
+  }
+  $("avatar-load").textContent=squad.frontier.loadKg(agent.id).toFixed(1)+"kg";
+  const backpack=Object.entries(person.inventory||{}).filter(([,n])=>n>0)
+   .map(([k,n])=>(resourceNames[k]||k)+" ×"+n);
+  $("avatar-inventory").textContent=backpack.length?backpack.join(" / "):"リュックは空です（共有資材は下の資材欄）";
  $("coords").textContent=controller.lat.toFixed(5)+"°, "+controller.lon.toFixed(5)+"°";
  $("height").textContent=Math.round(controller.altitudeM).toLocaleString("ja-JP")+" m";
  $("ground-height").textContent=Math.round(g.elevationM).toLocaleString("ja-JP")+" m";
@@ -958,11 +971,11 @@ function setControlMode(mode){
 $("mode-stick").addEventListener("click",()=>setControlMode("stick"));
 $("mode-tap").addEventListener("click",()=>setControlMode("tap"));
 $("jump").addEventListener("click",()=>{if(!controller.jump())log("ジャンプは地上でのみ可能です。");});
-for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-mine","mine"],["action-build","build"],["action-dig","dig"],["action-fill","fill"]]){
+for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-saw","saw"],["action-mine","mine"],["action-build","build"],["action-dig","dig"],["action-fill","fill"]]){
   $(button).addEventListener("click",()=>{
-    const node=["axe","mine"].includes(kind)?nearbyWorldResource(kind):null;
-    if(["axe","mine"].includes(kind)&&!node){
-     log(kind==="axe"?"斧：近くの木か低木を選択してください":"つるはし：近くの岩を選択してください");
+    const node=kind==="saw"?(renderer?.resourceNodes||[]).find(n=>n.state==="fallen"&&Math.hypot(n.x-controller.x,n.z-controller.z)<5.2):["axe","mine"].includes(kind)?nearbyWorldResource(kind):null;
+    if(["axe","mine","saw"].includes(kind)&&!node){
+     log(kind==="saw"?"ノコギリ：近くの倒木を選択してください":kind==="axe"?"斧：近くの木か低木を選択してください":"つるはし：近くの岩を選択してください");
      return;
     }
     const started=actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
