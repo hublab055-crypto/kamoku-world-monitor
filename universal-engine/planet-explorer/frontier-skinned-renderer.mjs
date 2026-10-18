@@ -83,7 +83,7 @@ export class SkinnedFrontierAsset{
   const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
   if(kind!==state.kind){state.kind=kind;state.elapsed=0;state.fade=.12;}
   const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
-  const pose=poseFrontierRig(this.rig,kind,state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,{motionProgress,variant,hand});
+  const pose=poseFrontierRig(this.rig,kind,state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,{motionProgress,variant,hand,moving});
   if(state.fade>0&&state.previous){
    const blend=Math.max(0,Math.min(1,1-state.fade/.12));
    pose.world=pose.world.map((matrix,i)=>matrix.map((value,j)=>(state.previous.world?.[i]?.[j]??value)*(1-blend)+value*blend));
