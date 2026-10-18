@@ -175,7 +175,10 @@
    </select>
   </label>
  </div>
- <p id="map-directory-status" role="status" aria-live="polite"></p>
+ <div class="map-directory-status-line">
+  <p id="map-directory-status" role="status" aria-live="polite"></p>
+  <button type="button" id="map-directory-refresh" aria-label="マップ対象一覧を更新">↻ 更新</button>
+ </div>
  <ul id="map-directory-list" class="map-directory-list" aria-label="マップ上の対象"></ul>
  <small>対象の「操作」を押すと動物・人物などを選べます。「向かう」は移動指示です。地面のダブルタップでは一覧や動物の窓を開かず、移動を優先します。</small>
 </section>
