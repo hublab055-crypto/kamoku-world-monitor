@@ -85,3 +85,20 @@ export class ConstructionSystem{
  }
  snapshot(){return {version:1,structures:this.structures.map(s=>({...s}))};}
 }
+
+/** Physical collision with built 2m masonry segments. Character radius 0.35m. */
+export function blockedByStoneWall(from,to,structures=[],radius=.35){
+ const distance=Math.hypot(to.x-from.x,to.z-from.z);
+ const samples=Math.max(1,Math.ceil(distance/.25));
+ for(let j=0;j<=samples;j++){
+  const t=j/samples,x=from.x+(to.x-from.x)*t,z=from.z+(to.z-from.z)*t;
+  for(const wall of structures){
+   if(wall.kind!=="stone-wall"||Math.abs(wall.x-x)>3||Math.abs(wall.z-z)>3)continue;
+   const angle=wall.rotation||0,dx=x-wall.x,dz=z-wall.z;
+   const along=dx*Math.cos(angle)-dz*Math.sin(angle);
+   const across=dx*Math.sin(angle)+dz*Math.cos(angle);
+   if(Math.abs(along)<=1.04+radius&&Math.abs(across)<=.31+radius)return true;
+  }
+ }
+ return false;
+}
