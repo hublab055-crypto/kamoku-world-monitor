@@ -27,6 +27,8 @@ import {bindViewportGestures} from "./viewport-gestures.mjs";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles} from "./arrow-projectiles.mjs";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
+import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
+import {installFaunaUI} from "./fauna-ui.mjs?v=0.8f-panel";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -35,12 +37,13 @@ const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
 const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const WORLD_JOURNAL_KEY="universal-engine:explorer:earthworks:v0.8a";
 const STRUCTURES_JOURNAL_KEY="universal-engine:explorer:construction:v0.8e";
+const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null;
+let constructionUI=null,fauna=null,faunaUI=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -125,6 +128,16 @@ function log(msg){
  const li=document.createElement("li");li.textContent=msg;
  $("log").prepend(li);while($("log").children.length>8)$("log").lastElementChild.remove();
 }
+function saveFaunaJournal(){
+ try{if(fauna)localStorage.setItem(FAUNA_JOURNAL_KEY,JSON.stringify(fauna.snapshot()));}catch(_){}
+}
+function faunaGroundPassable(fx,fz,tx,tz){
+ if(!controller)return false;
+ const sample=(x,z)=>{const p=controller.locationAt(x,z);return terrainSurface(terrain,p.lat,p.lon);};
+ const before=sample(fx,fz),after=sample(tx,tz),step=Math.hypot(tx-fx,tz-fz);
+ return !after.water&&!after.river&&after.elevationM<2800&&
+  Math.abs(after.elevationM-before.elevationM)<=Math.max(.12,step*.74);
+}
 function init(saved=null){
  try{
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;viewportGestures?.cancel();
@@ -146,6 +159,10 @@ function init(saved=null){
    terrain.earthworks=earthworks;
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+  let faunaJournal=null;
+  if(!saved)try{faunaJournal=JSON.parse(localStorage.getItem(FAUNA_JOURNAL_KEY)||"null");}catch(_){}
+  fauna=new FaunaWorld(saved?.v0_8f?.fauna||faunaJournal);
+  controller.mountRiding=Boolean(fauna.mount);controller.walkSpeed=fauna.speed();
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
    actions.worldHarvestEnabled=true;
   battle=new BattleTest();
@@ -170,7 +187,7 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
-   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;
+   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;
    renderer.constructionSystem=constructions;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
@@ -245,6 +262,11 @@ function init(saved=null){
   syncCameraControls();
   rtsMode=false;rtsMulti=false;rallyPicking=false;
   autoActorId=squad.selectedAgents()[0]?.id||"player";
+  if(!faunaUI)faunaUI=installFaunaUI({
+   state:()=>({fauna,controller,actions}),log,save:saveFaunaJournal,
+   refreshHud:updateHUD,passable:faunaGroundPassable
+  });
+  faunaUI.refresh();
   syncSquadUi();
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
@@ -267,6 +289,7 @@ function doFrame(t){
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
+  controller.mountRiding=Boolean(fauna?.mount);controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   squad?.advance(running?dt:0,{manualLead});
   if(running){
@@ -286,7 +309,10 @@ function doFrame(t){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else controller.update(dt,input);
-  if(running){processHarvestOrders();processArrowPickups();}
+  if(running){
+   fauna?.advance(dt,controller,faunaGroundPassable);
+   processHarvestOrders();processArrowPickups();
+  }
   const transition=access.guard(previous,controller);
    if(transition==="enter")log("🏠 ドアを通って小屋に入りました。");
    if(transition==="exit")log("🌿 ドアから小屋の外に出ました。");
@@ -438,6 +464,7 @@ function updateHUD(){
    " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal+" / 土 "+(actions.resources.soil||0);
   lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
+ if(faunaUI&&!$("fauna-panel").hidden)faunaUI.refresh();
  $("control-state").textContent=renderer.cameraController.mode==="free"?"自由カメラ移動":
    controlMode==="stick"?"スティック移動":"ダブルタップ移動"+(controller.moveTarget?"（移動中）":"");
  $("camera-status").textContent=CAMERA_MODES.find(x=>x[0]===renderer.cameraController.mode)?.[1]||"従来";
@@ -505,8 +532,10 @@ $("save").addEventListener("click",()=>{
     v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot(),
     v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()},
      v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()},
-      v0_8e:{schemaVersion:1,construction:constructions.snapshot()}};
+      v0_8e:{schemaVersion:1,construction:constructions.snapshot()},
+       v0_8f:{schemaVersion:1,fauna:fauna.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
+   saveFaunaJournal();
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
@@ -564,7 +593,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
@@ -603,7 +632,7 @@ function launchArrow(agent,plan={}){
  const enemy=battle?.enemies.find(e=>e.id===plan.targetId&&e.hp>0);
  const point=plan.targetPoint|| (enemy?{x:enemy.x,y:terrainAt(enemy.x,enemy.z)+(enemy.height||1.8)*.65,z:enemy.z}:null);
  const shot=projectiles.launch({shooterId:agent.id,actor:agent.control,
-  groundY:terrainAt(agent.control.x,agent.control.z),target:point,mode:plan.trajectory||"auto",
+  groundY:terrainAt(agent.control.x,agent.control.z)+(agent.id==="player"&&fauna?.mount?1.15:0),target:point,mode:plan.trajectory||"auto",
   arrowType:plan.arrowType||"wood"});
  if(!shot)log("矢を発射できませんでした（画面内の矢が多すぎます）。");
  return shot;
@@ -768,6 +797,8 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(arrow){orderArrowPickup(arrow);return;}
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
  if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
+ const animal=renderer.pickAnimal(x,y);
+ if(animal){faunaUI?.open(animal.id);return;}
  if(!rtsMode){
   const hit=renderer.pickLife(x,y);
   if(hit){
@@ -793,7 +824,7 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(constructionUI?.kind)return;
  // Object double-taps must not send unintended ground movement.
  if(frontierUI?.selectTargetAt(x,y)||renderer.pickArrow(x,y)||renderer.pickTarget(x,y)||
-   renderer.pickResource(x,y)||
+   renderer.pickResource(x,y)||renderer.pickAnimal(x,y)||
    screenActorAt(x,y)||renderer.pickLife(x,y)||renderer.pickDoor(x,y))return;
  const ground=renderer.pickGround(x,y);
  if(!ground){log("地面を指定できません。");return;}
@@ -1001,7 +1032,10 @@ function setControlMode(mode){
 }
 $("mode-stick").addEventListener("click",()=>setControlMode("stick"));
 $("mode-tap").addEventListener("click",()=>setControlMode("tap"));
-$("jump").addEventListener("click",()=>{if(!controller.jump())log("ジャンプは地上でのみ可能です。");});
+$("jump").addEventListener("click",()=>{
+ if(fauna?.mount){log("騎乗中はジャンプできません。降馬してから操作してください。");return;}
+ if(!controller.jump())log("ジャンプは地上でのみ可能です。");
+});
 for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["action-saw","saw"],["action-mine","mine"],["action-build","build"],["action-dig","dig"],["action-fill","fill"]]){
   $(button).addEventListener("click",()=>{
     const node=kind==="saw"?(renderer?.resourceNodes||[]).find(n=>n.state==="fallen"&&Math.hypot(n.x-controller.x,n.z-controller.z)<5.2):["axe","mine"].includes(kind)?nearbyWorldResource(kind):null;
@@ -1545,6 +1579,7 @@ groupUI=installGroupUI({
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
 });
+window.addEventListener("pagehide",saveFaunaJournal);
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
