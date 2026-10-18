@@ -30,7 +30,7 @@ test("arbitrary selection handles poles and dateline without invalid values",()=
   assert.ok(p.lon>=-180&&p.lon<180);
  }
 });
-test("explicit sea selection can rebase the landing origin, walking remains blocked",()=>{
+test("explicit sea selection rebases coordinates and lets swimmers move",()=>{
  const planet=new Planet({seed:77});
  const terrain=new Terrain(planet),actor=new ExplorerController(terrain);
  let ocean=null;
@@ -43,5 +43,7 @@ test("explicit sea selection can rebase the landing origin, walking remains bloc
  assert.equal(actor.x,0);assert.equal(actor.z,0);
  actor.altitudeM=2.5;actor.targetAltitude(2.5);
  actor.update(.05,{forward:1});
- assert.equal(actor.blocked,true);
+ assert.equal(actor.blocked,false);
+ assert.ok(Math.hypot(actor.x,actor.z)>0);
+ assert.equal(actor.travelMode,"swim");
 });
