@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {ViewportGestures} from "../planet-explorer/viewport-gestures.mjs";
 import {mapDirectoryEntries,MAP_CATEGORIES,metres} from "../planet-explorer/map-directory.mjs";
+import {installMapDirectoryUI} from "../planet-explorer/map-directory-ui.mjs";
 
 const pointer=(id,x,y,type="touch")=>({pointerId:id,clientX:x,clientY:y,pointerType:type});
 function clockHarness(){
@@ -104,6 +105,7 @@ test("map index groups buildings, animals, characters and actual harvest nodes",
  assert.equal(metres(1200),"1.20km");
 });
 test("published UI wires delayed single tap, object-agnostic ground double tap, and directory opening",()=>{
+ assert.equal(typeof installMapDirectoryUI,"function");
  const html=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
  const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
  const css=readFileSync(new URL("../planet-explorer/style.css",import.meta.url),"utf8");
