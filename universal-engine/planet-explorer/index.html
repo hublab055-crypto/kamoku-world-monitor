@@ -13,6 +13,10 @@
 @keyframes harvest-fx{from{transform:translate(-50%,-50%) scale(.65);opacity:1}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.05);opacity:0}}
 </style>
 <style>
+#construction-line-preview{position:absolute;height:3px;left:0;top:0;pointer-events:none;transform-origin:left center;z-index:13;background:repeating-linear-gradient(90deg,#f8d68b 0px,#f8d68b 12px,transparent 12px,transparent 17px);box-shadow:0 0 9px #f4b648}
+#construction-line-preview[hidden]{display:none}
+</style>
+<style>
 .avatar-vitals{position:absolute;top:53px;left:8px;z-index:7;max-width:170px;background:#111b27ad;color:#fff;border:1px solid #ffffff3a;border-radius:9px;padding:5px 8px;font:11px/1.35 system-ui,sans-serif;pointer-events:auto;backdrop-filter:blur(5px)}
 .avatar-vitals .vital-pair{display:flex;align-items:center;justify-content:space-between;gap:5px}
 .avatar-vitals label{display:flex;align-items:center;gap:3px;white-space:nowrap}
@@ -89,6 +93,7 @@
       <div id="actor-marker" class="actor-marker" hidden aria-label="アバターの地表位置">◆ アバター</div>
       <div id="rts-markers" aria-hidden="true"></div>
       <div id="world-hit-flash" aria-hidden="true"></div>
+      <div id="construction-line-preview" hidden aria-hidden="true"></div>
       <div id="world-fx-layer" class="world-fx-layer" aria-hidden="true"></div>
        <div id="harvest-fx-layer" class="harvest-fx-layer" aria-hidden="true"></div>
       <div class="avatar-vitals" role="group" aria-label="アバターの状態">
