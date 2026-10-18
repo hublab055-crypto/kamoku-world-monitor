@@ -4,18 +4,38 @@
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const noop=()=>{};
 export class ViewportGestures {
-  constructor({onTap=noop,onDoubleTap=noop,onDrag=noop,onPinch=noop,now=()=>Date.now()}={}){
+  constructor({onTap=noop,onDoubleTap=noop,onDrag=noop,onPinch=noop,now=()=>Date.now(),
+    deferTap=false,schedule=(fn,ms)=>setTimeout(fn,ms),unschedule=id=>clearTimeout(id)}={}){
     this.onTap=onTap;this.onDoubleTap=onDoubleTap;
     this.onDrag=onDrag;this.onPinch=onPinch;this.now=now;
+    this.deferTap=deferTap;this.schedule=schedule;this.unschedule=unschedule;this.pendingTap=null;
     this.points=new Map();this.lastTap=null;this.pinchDistance=0;
     this.blockUntilClear=false;
+  }
+  clearPendingTap({deliver=false}={}){
+    const pending=this.pendingTap;
+    if(!pending)return;
+    this.unschedule(pending.id);
+    this.pendingTap=null;
+    if(deliver)this.onTap(pending.point);
+  }
+  queueTap(point){
+    if(!this.deferTap){this.onTap(point);return;}
+    // Defer hit testing and menu opening until the double-tap window closes.
+    const pending={point,id:null};
+    this.pendingTap=pending;
+    pending.id=this.schedule(()=>{
+      if(this.pendingTap!==pending)return;
+      this.pendingTap=null;
+      this.onTap(point);
+    },320);
   }
   down(e){
     if(this.points.has(e.pointerId))return;
     this.points.set(e.pointerId,{x:e.clientX,y:e.clientY,
       startX:e.clientX,startY:e.clientY,moved:false});
     if(this.points.size>1){
-      this.blockUntilClear=true;this.lastTap=null;
+      this.blockUntilClear=true;this.lastTap=null;this.clearPendingTap();
       for(const p of this.points.values())p.moved=true;
       this.pinchDistance=this.span();
     }
@@ -56,14 +76,15 @@ export class ViewportGestures {
     const last=this.lastTap;
     if(last&&now-last.time<=320&&
        distance(point,last)<=28&&last.pointerType===(e.pointerType||"mouse")){
-      this.lastTap=null;this.onDoubleTap(point);
+      this.lastTap=null;this.clearPendingTap();this.onDoubleTap(point);
     }else{
+      this.clearPendingTap({deliver:true});
       this.lastTap={...point,time:now,pointerType:e.pointerType||"mouse"};
-      this.onTap(point);
+      this.queueTap(point);
     }
   }
   cancel(id=null){
-    if(id===null){this.points.clear();this.lastTap=null;this.blockUntilClear=false;this.pinchDistance=0;return;}
+    if(id===null){this.points.clear();this.lastTap=null;this.clearPendingTap();this.blockUntilClear=false;this.pinchDistance=0;return;}
     // A late cancel/lost-capture after a completed tap is not a new gesture.
     if(!this.points.has(id))return;
     this.points.delete(id);this.lastTap=null;
