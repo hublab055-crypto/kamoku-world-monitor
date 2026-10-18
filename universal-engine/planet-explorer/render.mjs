@@ -5,7 +5,8 @@ import {BUILD_KINDS} from "./construction-system.mjs";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs";
 import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
 import {noise3} from "../planet/planet-core.mjs";
-import {faunaGeometry} from "./fauna-geometry.mjs?v=0.8f-fauna";
+import {faunaGeometry} from "./fauna-geometry.mjs?v=0.8g-grazing";
+import {agricultureGeometry} from "./agriculture-geometry.mjs?v=0.8g-crops";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
@@ -518,7 +519,7 @@ export class ExplorerRenderer{
   this.cameraController=new CameraController();
   this.actorMarker=null;
   this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;
-  this.screenAnimals=[];this.fauna=null;
+  this.screenAnimals=[];this.fauna=null;this.farm=null;this.screenFarms=[];this.farmMeshes=new Map();this.animalGrazeMeshes=new Map();
   this.animalMeshes=Object.fromEntries(["horse","cattle","sheep","goat","chicken","dog","cat"].map(k=>
    [k,new Mesh(gl,faunaGeometry(k))]));this.horseTackMeshes=new Map();
    this.fallingTrees=new Map();this.cloudEast=0;this.cloudNorth=0;this.cloudOriginEast=0;this.cloudOriginNorth=0;this.cloudCoverBand=null;
@@ -697,6 +698,34 @@ export class ExplorerRenderer{
    }
    return nearest;
   }
+  drawAgriculture(vp,light,actor,radius){
+   this.screenFarms=[];
+   if(!this.farm)return;
+   for(const p of this.farm.plots){
+    const x=p.x-this.cx,z=p.z-this.cz;
+    if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
+    const coord=geoOffset(actor.origin.lat,actor.origin.lon,p.x,p.z,this.planet.radiusM);
+    const ground=terrainSurface(this.terrain,coord.lat,coord.lon);
+    if(ground.water||ground.river)continue;
+    const stage=Math.round(this.farm.growth(p,this.planet.timeDays)*10);
+    const kind=p.crop||"field",key=kind+":"+stage;
+    if(!this.farmMeshes.has(key))this.farmMeshes.set(key,
+     new Mesh(this.gl,agricultureGeometry(kind,stage/10)));
+    const y=Math.max(0,ground.elevationM);
+    this.drawMesh(this.farmMeshes.get(key),multiply4(vp,translate(x,y+.04,z)),light,1,.86);
+    const screen=projectScreen(vp,[x,y+(kind==="apple"?1.4:.38),z]);
+    if(screen?.onScreen)this.screenFarms.push({...screen,id:p.id});
+   }
+  }
+  pickFarm(clientX,clientY){
+   const rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+   let best=null,range=44;
+   for(const p of this.screenFarms){
+    const d=Math.hypot(p.u*rect.width-(clientX-rect.left),p.v*rect.height-(clientY-rect.top));
+    if(d<range){best=p;range=d;}
+   }
+   return best;
+  }
   drawFauna(vp,light,actor,radius){
    this.screenAnimals=[];
    if(!this.fauna)return;
@@ -720,10 +749,10 @@ export class ExplorerRenderer{
     let mesh=this.animalMeshes[a.kind];
     if(a.kind==="horse"){
      const frame=active?Math.floor((phase%(Math.PI*2)+Math.PI*2)%(Math.PI*2)/(Math.PI*2)*12):0;
-     const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/")+":"+gait+":"+frame+":"+Number(active);
+     const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/")+":"+gait+":"+frame+":"+Number(active)+":"+Number(a.grazing);
      if(!this.horseTackMeshes.has(key)){
       const gaitPhase=frame/12*Math.PI*2;
-      this.horseTackMeshes.set(key,new Mesh(this.gl,faunaGeometry("horse",a.gear,{gait,phase:gaitPhase,moving:active})));
+      this.horseTackMeshes.set(key,new Mesh(this.gl,faunaGeometry("horse",a.gear,{gait,phase:gaitPhase,moving:active,grazing:a.grazing})));
      }
      mesh=this.horseTackMeshes.get(key);
     }
@@ -1384,6 +1413,7 @@ export class ExplorerRenderer{
     multiply4(vp,translate(node.x-this.cx,node.elevationM+.06,node.z-this.cz)),light,1,.95,[.45,1,.55]);
   }
   this.drawBuildings(vp,light,s,radius,dt);
+  this.drawAgriculture(vp,light,s,radius);
   this.drawFauna(vp,light,s,radius);
   this.drawFrontier(vp,light,s,radius);
   this.drawTestEnemies(vp,light,s,radius);
@@ -1437,7 +1467,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...this.horseTackMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
