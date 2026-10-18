@@ -8,7 +8,7 @@ import {TROOP_ROLES,TROOP_PRESETS,MAX_ALLIES,rosterForPreset,tacticalOffsets} fr
 
 /** Local single-player RTS party and deterministic, editable IF -> THEN rules.
  * No external network, persistent background work or scripted code execution. */
-export const RULE_METRICS=Object.freeze(["wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
+export const RULE_METRICS=Object.freeze(["always","wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
 export const RULE_OPERATORS=Object.freeze(["<","<=",">",">=","==","!="]);
 export const RULE_ACTIONS=Object.freeze(["gather_wood","gather_stone","build","move_rally","follow","patrol","wait",...FW_ACTIONS]);
 const TYPES=new Set(RULE_ACTIONS),METRICS=new Set(RULE_METRICS),OPS=new Set(RULE_OPERATORS);
@@ -305,7 +305,7 @@ export class SquadEngine{
  }
  metrics(a){
   const leader=this.get("player").control;
-  return {wood:this.actions.resources.wood,stone:this.actions.resources.stone,
+  return {always:1,wood:this.actions.resources.wood,stone:this.actions.resources.stone,
    houses:this.actions.structures.filter(s=>s.progress>=1).length,
    idle:(!a.task&&!a.control.moveTarget&&!a.control.moving)?1:0,
    distance:Math.hypot(a.control.x-leader.x,a.control.z-leader.z),
@@ -369,7 +369,7 @@ export class SquadEngine{
     a.task.remaining=Math.max(0,a.task.remaining-dt);
     if(!a.task.remaining){
      const key=a.task.kind==="gather_wood"?"wood":"stone";
-     this.actions.resources[key]+=2;
+     if(!this.frontier?.world)this.actions.resources[key]+=2;
      a.task=null;a.status=key==="wood"?"木材 +2":"石材 +2";
      a.cooldown=.35;
     }
@@ -396,8 +396,8 @@ export class SquadEngine{
     }
     if(a.task.remaining===0){
      const kind=a.task.kind.slice("equipped_".length);
-     if(kind==="axe")this.actions.resources.wood+=2;
-     if(kind==="mine")this.actions.resources.stone+=2;
+     if(kind==="axe"&&!this.frontier?.world)this.actions.resources.wood+=2;
+     if(kind==="mine"&&!this.frontier?.world)this.actions.resources.stone+=2;
      a.status=kind==="sword"?"⚔️ 剣を振った":kind==="spear"?"🔱 長槍の攻撃":kind==="greatsword"?"⚔️ 両手剣の攻撃":kind==="axe"?"🪵 木材 +2":kind==="bow"?"🏹 矢を放ちました":"🪨 石材 +2";
      a.task=null;a.cooldown=.5;
     }
