@@ -34,8 +34,11 @@ export function advanceVitals(p,dt,{hp=100,maxHp=100,moving=false,working=false,
  if(damage>0)damageStress(p,damage,maxHp);
  const motion=working?.26:moving?.16:.008;
  if(!externalStamina){
-  if(resting)p.stamina=clamp(p.stamina+9*n);
-  else p.stamina=clamp(p.stamina-motion*n);
+  if(resting){
+   const gain=Math.min(100-p.stamina,9*n,p.hunger*9);
+   p.stamina=clamp(p.stamina+gain);
+   p.hunger=clamp(p.hunger-gain/9);
+  }else p.stamina=clamp(p.stamina-motion*n);
  }
  p.hunger=clamp(p.hunger-(.035+(moving?.025:0)+(working?.025:0))*n);
  let recovered=0;
@@ -87,9 +90,18 @@ export function healVitals(p,hp,maxHp=100,kind="potion",{atChurch=false}={}){
 /** Rest/sleep have distinct effects; food is consumed even when sleeping. */
 export function restVitals(p,{sleep=false}={}){
  if(!Number.isFinite(p.hunger))p.hunger=78;
- const foodCost=sleep?9:1;
- p.hunger=clamp(p.hunger-foodCost);
- p.stamina=clamp((p.stamina??100)+(sleep?55:12));
- p.mental=clamp((p.mental??100)+(sleep?14:3));
+ const foodCost=sleep?9:1,target=sleep?55:12;
+ const gained=Math.min(target,Math.max(0,100-(p.stamina??100)),p.hunger/foodCost*target);
+ if(gained<=0){
+  if(p.hunger>0&&(p.mental??100)<100){
+   p.hunger=clamp(p.hunger-Math.min(p.hunger,foodCost*.25));
+   p.mental=clamp((p.mental??100)+(sleep?14:3));
+   return {ok:true,message:"💤 体力は満タン。休息してメンタルを回復しました"};
+  }
+  return {ok:false,message:"空腹で回復できません。先に食事をしてください"};
+ }
+ p.hunger=clamp(p.hunger-foodCost*gained/target);
+ p.stamina=clamp((p.stamina??100)+gained);
+ p.mental=clamp((p.mental??100)+(sleep?14:3)*gained/target);
  return {ok:true,message:sleep?"🛏️ 睡眠で体力・メンタル回復（空腹消費）":"💤 休憩で体力回復（空腹消費）"};
 }

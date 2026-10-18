@@ -2,13 +2,13 @@ import {ExplorerController} from "./controller.mjs?v=0.8e-stone-wall";
 import {actionDuration,ATTACK_VARIANTS} from "./actions.mjs";
 import {taskBowProgress} from "./archery-timing.mjs";
 import {terrainSurface} from "./geo.mjs";
-import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs?v=0.8e-cargo-mass";
+import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs?v=0.8h-hunger-mental-r2";
 import {GroupRegistry,formationOffsets} from "./groups.mjs";
 import {TROOP_ROLES,TROOP_PRESETS,MAX_ALLIES,rosterForPreset,tacticalOffsets} from "./tactical-roster.mjs";
 
 /** Local single-player RTS party and deterministic, editable IF -> THEN rules.
  * No external network, persistent background work or scripted code execution. */
-export const RULE_METRICS=Object.freeze(["always","wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
+export const RULE_METRICS=Object.freeze(["always","hunger","mental","wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
 export const RULE_OPERATORS=Object.freeze(["<","<=",">",">=","==","!="]);
 export const RULE_ACTIONS=Object.freeze(["gather_wood","gather_stone","build","move_rally","follow","patrol","wait",...FW_ACTIONS]);
 const TYPES=new Set(RULE_ACTIONS),METRICS=new Set(RULE_METRICS),OPS=new Set(RULE_OPERATORS);

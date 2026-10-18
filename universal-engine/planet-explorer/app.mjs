@@ -4,10 +4,10 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8h-marine";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8h-marine";
+import {ExplorerRenderer} from "./render.mjs?v=0.8h-marine-integrated";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
-import {ConstructionSystem,FACILITIES} from "./construction-system.mjs";
+import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {BattleTest} from "./battle-test.mjs";
@@ -16,11 +16,12 @@ import {joystickMovement} from "./stick-input.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
 import {Lifestyle} from "./lifestyle.mjs?v=0.8e-chest-mass";
+import {advanceVitals,eatVitals,healVitals,restVitals,normalizeVitals} from "./character-vitals.mjs?v=0.8h-satiety-rest-r2";
 import {installLifestyleUI} from "./lifestyle-ui.mjs";
 import {createAppearance,restoreAppearance,withOutfit,withAppearanceSlot,OUTFITS} from "./wardrobe.mjs";
 import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
-import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8e-cargo-mass";
+import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 import {bindViewportGestures} from "./viewport-gestures.mjs";
@@ -48,7 +49,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,marine=null;
+let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,vitalsSaveElapsed=0,marine=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
@@ -61,7 +62,7 @@ function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
 }
 function saveLifeJournal(){
- try{localStorage.setItem(LIFE_JOURNAL_KEY,JSON.stringify({life:life.snapshot(),resources:actions.resources}));}
+ try{localStorage.setItem(LIFE_JOURNAL_KEY,JSON.stringify({life:life.snapshot(),resources:actions.resources,vitals:squad?.frontier?.people||null,playerHp:battle?.playerHp??100}));}
  catch(_){log("生活データの自動保存に失敗しました。");}
 }
 const BOOK_JOURNAL_KEY="universal-engine:explorer:reading:v1";
@@ -188,6 +189,8 @@ function init(saved=null){
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
    actions.worldHarvestEnabled=true;
   battle=new BattleTest();
+   const savedHp=saved?.v0_8h?.playerHp;
+   if(Number.isFinite(savedHp))battle.playerHp=clamp(savedHp,0,100);
    projectiles=new ArrowProjectiles(saved?.v0_7t?.projectiles||null);
    syncMode=Boolean(saved?.v0_7t?.syncMode);
    access=new HutAccess(actions,{insideId:saved?.v0_7e?.insideId??null});
@@ -248,6 +251,31 @@ function init(saved=null){
    };
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
+   for(const actor of squad.agents){
+    const p=squad.frontier.person(actor.id),stored=!saved?journal?.vitals?.[actor.id]:null;
+    if(stored)Object.assign(p,normalizeVitals(stored));
+    else if(saved?.v0_7d?.squad?.frontier?.people?.[actor.id]?.hunger===undefined)
+     p.hunger=100-life.stats.hunger;
+   }
+   if(!saved&&Number.isFinite(journal?.playerHp))battle.playerHp=clamp(journal.playerHp,0,100);
+   vitalsSaveElapsed=0;
+   // Keep pre-existing book/kitchen/table/sleep actions in sync with the
+   // new inverted satiety system. No lifestyle item is consumed twice.
+   for(const method of ["use","useItem","useCamp"]){
+    const original=life[method].bind(life);
+    life[method]=(...args)=>{
+     const beforeHunger=life.stats.hunger,beforeStamina=life.stats.stamina;
+     const result=original(...args);
+     if(result?.ok){
+      const p=squad.frontier.person("player");
+      p.hunger=clamp(p.hunger+(beforeHunger-life.stats.hunger),0,100);
+      p.stamina=clamp(p.stamina+(life.stats.stamina-beforeStamina),0,100);
+      if(life.activity==="sleep")p.mental=clamp(p.mental+12,0,100);
+      saveLifeJournal();
+     }
+     return result;
+    };
+   }
    squad.frontier.attachWorld({
     list:(origin,radius)=>{
      const nodes=renderer.resourceNodes||[];
@@ -328,6 +356,7 @@ function doFrame(t){
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
+   const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
   marine?.update(0,controller,terrain);
   controller.boatSpeed=BOATS[marine?.boarded?.kind]?.speed||4.2;
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
@@ -425,6 +454,22 @@ function doFrame(t){
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,controller.moving);
+   if(running){
+    for(const actor of squad.agents){
+     const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
+     const damage=Math.max(0,(hpBefore.get(actor.id)??actualHp)-actualHp);
+     const outcome=advanceVitals(p,dt,{hp:actualHp,maxHp:actor.id==="player"?100:actor.maxHp,
+      moving:Boolean(actor.control.moving),working:Boolean(actor.task||actor.id==="player"&&actions.active),
+      resting:actor.task?.kind==="rest_home",damage,externalStamina:true});
+     if(actor.id==="player")battle.playerHp=outcome.hp;
+     else actor.hp=outcome.hp;
+    }
+    vitalsSaveElapsed+=dt;
+    if(vitalsSaveElapsed>=10){vitalsSaveElapsed=0;saveLifeJournal();}
+   }
+   // Lifestyle uses an inverse hunger gauge: 100 means very hungry.
+   life.stats.hunger=100-squad.frontier.person("player").hunger;
+   life.stats.stamina=squad.frontier.person("player").stamina;
    renderer.sceneLife=life;
   if(completed){
     if(completed==="axe"||completed==="mine"||completed==="saw"){
@@ -475,11 +520,12 @@ function updateHUD(){
   const hp=agent.id==="player"?(battle?.playerHp??agent.hp):(agent.hp??100);
   const maxHp=agent.id==="player"?100:(agent.maxHp||100);
   const hpPct=Math.max(0,Math.min(100,Math.round(hp/maxHp*100)));
-  const stamina=Math.round(person.stamina||0),mental=Math.round(person.mental??100);
-  for(const [id,value] of [["avatar-hp",hpPct],["avatar-stamina",stamina],["avatar-mental",mental]]){
+  const stamina=Math.round(person.stamina||0),mental=Math.round(person.mental??100),hunger=Math.round(person.hunger??78);
+  for(const [id,value] of [["avatar-hp",hpPct],["avatar-stamina",stamina],["avatar-mental",mental],["avatar-hunger",hunger]]){
    $(id).value=value;$(id+"-label").textContent=value+"%";
   }
   $("avatar-load").textContent=squad.frontier.loadKg(agent.id).toFixed(1)+"kg";
+   $("vitals-potion").textContent="🧪 薬 ×"+(person.healingPotions??2);
   const backpack=Object.entries(person.inventory||{}).filter(([,n])=>n>0)
    .map(([k,n])=>(resourceNames[k]||k)+" ×"+n);
   $("avatar-inventory").textContent=backpack.length?backpack.join(" / "):"リュックは空です（共有資材は下の資材欄）";
@@ -591,7 +637,8 @@ $("save").addEventListener("click",()=>{
      v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()},
       v0_8e:{schemaVersion:1,construction:constructions.snapshot()},
        v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
-       v0_8g:{schemaVersion:1,farm:farm.snapshot(),marine:marine.snapshot()}};
+       v0_8g:{schemaVersion:1,farm:farm.snapshot(),marine:marine.snapshot()},
+        v0_8h:{schemaVersion:1,playerHp:battle.playerHp}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
@@ -921,6 +968,66 @@ constructionUI=new ConstructionPlacement({
   updateHUD();saveLifeJournal();
  },log
 });
+function vitalsActor(){
+ return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
+}
+function applyVitalsHeal(kind){
+ const actor=vitalsActor(),p=squad.frontier.person(actor.id);
+ const current=actor.id==="player"?battle.playerHp:actor.hp;
+ const atChurch=constructions.structures.some(site=>site.kind==="church"&&
+  Math.hypot(site.x-actor.control.x,site.z-actor.control.z)<=8);
+ const effect=healVitals(p,current,actor.id==="player"?100:actor.maxHp,kind,{atChurch});
+ if(effect.ok){
+  if(actor.id==="player")battle.playerHp=effect.hp;else actor.hp=effect.hp;
+  worldUI?.float({kind:"heal",text:"+"+Math.round(effect.healed)+" HP",actorId:actor.id,duration:1.4});
+  saveLifeJournal();
+ }
+ $("vitals-action-status").textContent=effect.message;log(actor.name+"："+effect.message);updateHUD();
+}
+function applyVitalsMeal(){
+ const actor=vitalsActor(),p=squad.frontier.person(actor.id);
+ const old=p.hunger;
+ if(old>=99.99){log("満腹です");return;}
+ let food=null,location=null;
+ if((p.inventory.food||0)>0){food="food";location=p.inventory;}
+ else if((life.inventory.meal||0)>0){food="meal";location=life.inventory;}
+ else for(const kind of ["apple","carrot"]){
+  if((actions.resources[kind]||0)>0){food=kind;location=actions.resources;break;}
+ }
+ if(!food&&(life.inventory.rawFood||0)>0){food="rawFood";location=life.inventory;}
+ if(!food){log("食料がありません。料理、リンゴ、ニンジン、採集食材を用意してください");return;}
+ const result=eatVitals(p,{quality:food});
+ if(result.ok){location[food]--;life.stats.hunger=100-p.hunger;saveLifeJournal();}
+ $("vitals-action-status").textContent=result.message;log(result.message);updateHUD();
+}
+$("vitals-brew").addEventListener("click",()=>{
+ const actor=vitalsActor(),p=squad.frontier.person(actor.id);
+ const nearby=constructions.structures.some(site=>site.kind==="apothecary"&&
+  Math.hypot(site.x-actor.control.x,site.z-actor.control.z)<=8);
+ if(!nearby){log("回復薬の調合には薬屋の8m以内へ移動してください");return;}
+ if((life.inventory.water||0)<1||(actions.resources.fiber||0)<3){
+  log("回復薬の調合には水1・繊維3が必要です");return;
+ }
+ if(p.healingPotions>=999){log("回復薬をこれ以上持てません");return;}
+ life.inventory.water--;actions.resources.fiber-=3;p.healingPotions++;
+ log("🌿 薬屋で回復薬を1個調合しました");saveLifeJournal();updateHUD();
+});
+$("vitals-eat").addEventListener("click",applyVitalsMeal);
+for(const type of ["potion","magic","church"])
+ $("vitals-"+type).addEventListener("click",()=>applyVitalsHeal(type));
+$("vitals-rest").addEventListener("click",()=>{
+ const p=squad.frontier.person(vitalsActor().id),effect=restVitals(p);
+ $("vitals-action-status").textContent=effect.message;log(effect.message);saveLifeJournal();updateHUD();
+});
+$("vitals-sleep").addEventListener("click",()=>{
+ const actor=vitalsActor(),control=actor.control;
+ const inHut=actions.structures.some(h=>h.kind==="hut"&&h.progress>=1&&Math.hypot(h.x-control.x,h.z-control.z)<=7);
+ const camp=life.deployments.some(c=>["bedroll","tent"].includes(c.kind)&&
+  Math.hypot(c.x-control.x,c.z-control.z)<=5);
+ if(!inHut&&!camp){log("睡眠には小屋・テント・ベッドロールの近くへ移動してください");return;}
+ const p=squad.frontier.person(actor.id),effect=restVitals(p,{sleep:true});
+ $("vitals-action-status").textContent=effect.message;log(effect.message);saveLifeJournal();updateHUD();
+});
 $("warehouse-deposit").addEventListener("click",()=>{
  if(!controller?.nearGround){log("倉庫に近づいてから収納してください");return;}
  const site=constructions.nearestWarehouse(controller.x,controller.z,8);
@@ -1120,7 +1227,13 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
     }
     const started=actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
      frontierUI?.attackVariantFor("player",kind)||"overhead");
-    if(started&&node)actions.active.resourceNode=node;
+    if(started){
+      const p=squad.frontier.person("player"),cost={
+       sword:3,axe:2,saw:2,mine:4,dig:5,fill:5,build:6
+      }[kind]||1;
+      p.stamina=clamp(p.stamina-cost,0,100);
+     }
+     if(started&&node)actions.active.resourceNode=node;
     if(started&&["dig","fill"].includes(kind))actions.active.earthwork=
       controller.locationAt(controller.x+Math.sin(controller.yaw)*3,controller.z+Math.cos(controller.yaw)*3);
     log(actions.message);
@@ -1322,7 +1435,7 @@ for(const t of ["pointerup","pointercancel","lostpointercapture"]){
 }
 
 /* ⚓ Tactical RTS controls and eight-slot IF -> THEN automation editor. */
-const RTS_METRICS={always:"常に (1)",wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)",stamina:"⚡スタミナ%",load_kg:"🎒重量kg",resource_nearby:"🌿半径内の資源数"};
+const RTS_METRICS={always:"常に (1)",hunger:"🍽️満腹%",mental:"🧠メンタル%",wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)",stamina:"⚡スタミナ%",load_kg:"🎒重量kg",resource_nearby:"🌿半径内の資源数"};
 const RTS_ACTIONS={gather_wood:"木材を採集",gather_stone:"石材を採集",build:"小屋を建築",
  move_rally:"集合地点へ移動",follow:"隊長を追従",patrol:"集合地点付近を巡回",wait:"待機",rest_home:"💤家で100%まで休息",store_chest:"📦チェストに全収納",gather_nearby:"🧺範囲内の資源を全回収"};
 

@@ -1,6 +1,6 @@
 import {terrainSurface} from "./geo.mjs";
 import {hutDoor} from "./buildings.mjs";
-import {normalizeVitals} from "./character-vitals.mjs";
+import {normalizeVitals} from "./character-vitals.mjs?v=0.8h-satiety-rest-r2";
 import {chooseWorkPoint} from "./terrain-collision.mjs?v=0.8e-work-sites";
 
 /** Frontier World living systems in Universal Engine's planetary metre space. */
@@ -130,8 +130,11 @@ export class FrontierBridge {
   if(task.kind==="rest_home"){
    const h=this.home(a);
    if(!this.move(a,h,"💤 "+(h.kind==="hut"?"家":"仮拠点")+"へ帰宅"))return true;
-   p.stamina=cap(p.stamina+dt*9,0,100);
-    p.mental=cap((p.mental??100)+dt*3,0,100);
+   const restored=Math.min(9*dt,100-p.stamina,(p.hunger??78)*9);
+    if(restored<=0&&p.stamina<100){this.finish(a,"空腹で休息できません。食事が必要です");return true;}
+    p.stamina=cap(p.stamina+restored,0,100);
+    p.hunger=cap((p.hunger??78)-restored/9,0,100);
+    p.mental=cap((p.mental??100)+dt*3*(restored>0?1:.2),0,100);
    a.status="💤 休息 "+Math.floor(p.stamina)+"%";
    if(p.stamina>=99.999){p.stamina=100;this.finish(a,"スタミナ100%まで回復");}
   }else if(task.kind==="store_chest"){
