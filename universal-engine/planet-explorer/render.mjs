@@ -1,6 +1,7 @@
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
-import {groundCloudGeometry} from "./ground-clouds.mjs";
+import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs";
+import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
 import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
@@ -514,6 +515,7 @@ export class ExplorerRenderer{
   this.cameraController=new CameraController();
   this.actorMarker=null;
   this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;
+   this.fallingTrees=new Map();this.cloudEast=0;this.cloudNorth=0;this.cloudOriginEast=0;this.cloudOriginNorth=0;this.cloudCoverBand=null;
   this.squad=null;
   this.npcAnimators=new Map();
   const ring=builder();
@@ -1077,6 +1079,57 @@ export class ExplorerRenderer{
   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);gl.uniform1f(this.uInstanced,0);mesh.draw();
  }
 
+ beginTreeFall(node){
+   if(!node||node.kind==="stone"||node.type==="fallen-log"||
+      node.type==="rubble"||this.fallingTrees.has(node.id))return false;
+   if(this.fallingTrees.size>=8)return false;
+   const mesh=new Mesh(this.gl,sceneryPrototype(node.type));
+   this.fallingTrees.set(node.id,{node:{...node},mesh,age:0,yaw:fallingTreeYaw(node.id)});
+   this.patchKey=null;return true;
+  }
+ drawFallingTrees(vp,light,dt){
+   let rebuild=false;
+   for(const [id,fall] of this.fallingTrees){
+    fall.age+=Math.max(0,Math.min(.1,dt));
+    if(fall.age>=TREE_FALL_SECONDS){
+     fall.mesh.destroy();this.fallingTrees.delete(id);rebuild=true;continue;
+    }
+    const node=fall.node;
+    const model=multiply4(translate(node.x-this.cx,node.elevationM,node.z-this.cz),
+      multiply4(rotateY(fall.yaw),
+       multiply4(rotZ(-fallingTreeAngle(fall.age)),scaledMatrix(node.scale||1))));
+    this.drawMesh(fall.mesh,multiply4(vp,model),light,1,.62);
+   }
+   if(rebuild)this.patchKey=null;
+  }
+ renderWeatherClouds(s,geo,radius,vp,light,dt){
+   if(!this.sceneWeather)return;
+   const climate=this.sceneWeather.sample(s.lat,s.lon,
+    Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
+   const wind=cloudWind(climate,s.lat,this.planet.timeDays);
+   const ds=Math.max(0,Math.min(dt,.1));
+   this.cloudEast+=wind.eastMps*ds;this.cloudNorth+=wind.northMps*ds;
+   const band=Math.floor(wind.coverage*6);
+   const moved=Math.hypot(this.cloudEast-this.cloudOriginEast,
+     this.cloudNorth-this.cloudOriginNorth)>185;
+   if((!this.groundClouds||band!==this.cloudCoverBand||moved)&&radius<=9000){
+    const clouds=groundCloudGeometry({seed:this.planet.seed,cx:this.cx,cz:this.cz,radius,
+      baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM,
+      driftEast:this.cloudEast,driftNorth:this.cloudNorth,
+      cloudCover:climate.cloudCover,precipitation:climate.precipitation});
+    this.groundClouds?.destroy();
+    this.groundClouds=clouds.indices.length?new Mesh(this.gl,clouds):null;
+    this.cloudOriginEast=this.cloudEast;this.cloudOriginNorth=this.cloudNorth;
+    this.cloudCoverBand=band;
+   }
+   if(!this.groundClouds)return;
+   const offset=translate(this.cloudEast-this.cloudOriginEast,0,
+     this.cloudNorth-this.cloudOriginNorth);
+   const gl=this.gl;
+   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+   this.drawMesh(this.groundClouds,multiply4(vp,offset),light,wind.opacity,.87);
+   gl.depthMask(true);gl.disable(gl.BLEND);
+  }
  drawInstancedMesh(mesh,vp,light,alpha=1,ambient=.25){
    const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(vp));
    gl.uniform3fv(this.uLight,new Float32Array(light));
@@ -1193,8 +1246,13 @@ export class ExplorerRenderer{
    this.patch=new Mesh(gl,this.groundPatchData);
    const channel=buildRiverWaterPatch(this.terrain,geo,radius);
    this.riverWater=channel.indices.length?new Mesh(gl,channel):null;
+    const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
     const clouds=groundCloudGeometry({seed:this.planet.seed,cx,cz,radius,
-     baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM});
+     baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM,
+     cloudCover:climate?.cloudCover??.55,precipitation:climate?.precipitation??"none",
+     driftEast:this.cloudEast,driftNorth:this.cloudNorth});
+    this.cloudOriginEast=this.cloudEast;this.cloudOriginNorth=this.cloudNorth;
+    this.cloudCoverBand=Math.floor((climate?.cloudCover??.55)*6);
     this.groundClouds=clouds.indices.length?new Mesh(gl,clouds):null;
    const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
    const plan=planWorldScenery({
@@ -1204,7 +1262,7 @@ export class ExplorerRenderer{
      return terrainSurface(this.terrain,pos.lat,pos.lon);
     }
    });
-   const visible=this.resourceHarvest?this.resourceHarvest.visible(plan.trees):plan.trees;
+   const visible=(this.resourceHarvest?this.resourceHarvest.visible(plan.trees):plan.trees).filter(n=>!this.fallingTrees.has(n.id));
    const instanced=buildSceneryInstances({...plan,trees:visible});
    // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
@@ -1240,6 +1298,7 @@ export class ExplorerRenderer{
    if(this.riverWater)this.drawMesh(this.riverWater,vp,light,1,.86);
   for(const mesh of this.meadow)this.drawInstancedMesh(mesh,vp,light,1,.72);
    for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
+   this.drawFallingTrees(vp,light,dt);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
   this.screenResources=[];
@@ -1307,17 +1366,14 @@ export class ExplorerRenderer{
    const screen=projectScreen(vp,camera.actorPos);
    this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
   }
-  // Draw sky volumes with depth testing so mountain peaks occlude the clouds.
-  if(this.groundClouds){
-   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
-   this.drawMesh(this.groundClouds,vp,light,.53,.87);
-   gl.depthMask(true);gl.disable(gl.BLEND);
-  }
+  // Wind-driven sky volumes, behind intervening mountain peaks.
+  this.renderWeatherClouds(s,geo,radius,vp,light,dt);
   return "ground";
  }
  destroy(){
    for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
+   for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
  }
 }
