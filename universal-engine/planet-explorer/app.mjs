@@ -8,6 +8,7 @@ import {ExplorerRenderer} from "./render.mjs?v=0.8d-falling-clouds";
 import {Actions} from "./actions.mjs";
 import {ResourceHarvest} from "./resource-harvest.mjs";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs";
+import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
@@ -39,7 +40,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let buildPlacementKind=null,wallLineStart=null,ignorePlacementClick=false;
+let constructionUI=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -171,6 +172,7 @@ function init(saved=null){
   renderer=new ExplorerRenderer($("world"),planet,terrain);
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;
    renderer.constructionSystem=constructions;
+   if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
     createAppearance(avatarStyle,avatarStyle);
@@ -760,6 +762,7 @@ function handleSceneTap({x,y,shiftKey=false}){
   selectOrbitLanding(x,y);return;
  }
  if(!controller?.nearGround)return;
+ if(constructionUI?.tap(x,y))return;
  const arrow=renderer.pickArrow(x,y);
  if(arrow){orderArrowPickup(arrow);return;}
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
@@ -786,6 +789,7 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
   return;
  }
  if(!controller?.nearGround)return;
+ if(constructionUI?.kind)return;
  // Object double-taps must not send unintended ground movement.
  if(frontierUI?.selectTargetAt(x,y)||renderer.pickArrow(x,y)||renderer.pickTarget(x,y)||
    renderer.pickResource(x,y)||
@@ -802,10 +806,23 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
   else log("移動できない地点です（水域・急斜面・距離を確認してください）。");
  }
 }
+constructionUI=new ConstructionPlacement({
+ canvas:$("world"),system:constructions,kindSelect:$("construction-kind"),
+ toggle:$("construction-mode"),cancel:$("construction-cancel"),status:$("construction-status"),
+ rts:()=>rtsMode,pick:(x,y)=>renderer.pickGround(x,y),
+ surface:(x,z)=>{const p=controller.locationAt(x,z);return {...terrainSurface(terrain,p.lat,p.lon),lat:p.lat,lon:p.lon};},
+ resources:()=>actions.resources,existing:()=>actions.structures.filter(a=>a.progress>=1),
+ commit:()=>{
+  try{localStorage.setItem(STRUCTURES_JOURNAL_KEY,JSON.stringify(constructions.snapshot()));}
+  catch(_){log("建築物の自動保存に失敗しました");}
+  updateHUD();saveLifeJournal();
+ },log
+});
 viewportGestures=bindViewportGestures($("world"),{
  onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
   if(!renderer||!controller)return;
+  if(constructionUI?.dragging())return;
   if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M)renderer.panOrbit(dx,dy);
   else if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
   else renderer.cameraController.rotate(dx,dy);
