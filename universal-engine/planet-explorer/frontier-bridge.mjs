@@ -1,5 +1,6 @@
 import {terrainSurface} from "./geo.mjs";
 import {hutDoor} from "./buildings.mjs";
+import {normalizeVitals} from "./character-vitals.mjs";
 import {chooseWorkPoint} from "./terrain-collision.mjs?v=0.8e-work-sites";
 
 /** Frontier World living systems in Universal Engine's planetary metre space. */
@@ -32,7 +33,7 @@ export class FrontierBridge {
   this.squad=squad;this.life=null;this.events=[];this.world=null;
   const lead=squad.get("player").control;
   this.base={x:lead.x,z:lead.z};
-  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,mental:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0}]));
+  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{...normalizeVitals(),inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0}]));
   this.nodes=generateNodes(squad.terrain,lead,this.base);
   if(saved)this.restore(saved);
  }
@@ -54,7 +55,7 @@ export class FrontierBridge {
   if(this.people[id])return this.people[id];
   const a=this.squad.get(id);
   if(!a)return null;
-  return this.people[id]={stamina:100,mental:100,inventory:bag(),radius:42,
+  return this.people[id]={...normalizeVitals(),inventory:bag(),radius:42,
    origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0};
  }
  person(id){return this.ensureAgent(id);}
@@ -68,7 +69,7 @@ export class FrontierBridge {
   return this.nodes.filter(n=>n.quantity>0&&dist(n,p.origin)<=p.radius);
  }
  metrics(a){
-  return {always:1,stamina:this.person(a.id)?.stamina??100,load_kg:this.loadKg(a.id),
+  return {always:1,hunger:this.person(a.id)?.hunger??78,mental:this.person(a.id)?.mental??100,stamina:this.person(a.id)?.stamina??100,load_kg:this.loadKg(a.id),
    resource_nearby:this.available(a).reduce((n,p)=>n+(this.world?1:p.quantity),0)};
  }
  home(a){
@@ -238,6 +239,8 @@ export class FrontierBridge {
    const s=data.people?.[actor.id],p=this.person(actor.id);if(!s)continue;
    p.stamina=cap(Number.isFinite(s.stamina)?s.stamina:100,0,100);
    p.mental=cap(Number.isFinite(s.mental)?s.mental:100,0,100);
+   p.hunger=cap(Number.isFinite(s.hunger)?s.hunger:78,0,100);
+   p.healingPotions=Number.isSafeInteger(s.healingPotions)?cap(s.healingPotions,0,999):2;
    p.inventory=bag(s.inventory);p.radius=cap(Number(s.radius)||42,5,100);
    p.origin=point(s.origin)?{x:s.origin.x,z:s.origin.z}:{x:actor.control.x,z:actor.control.z};
    p.gathered=Math.max(0,Math.floor(Number(s.gathered)||0));
