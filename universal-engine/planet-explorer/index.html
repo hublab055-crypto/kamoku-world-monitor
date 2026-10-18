@@ -93,6 +93,10 @@
       <div id="orbit-landing-preview" class="orbit-landing-preview" hidden role="group" aria-label="惑星上の降下地点">
         <span id="orbit-landing-coords" class="orbit-landing-coords">📍 地点を選択</span>
         <span id="orbit-landing-terrain" class="orbit-landing-terrain"></span>
+        <label class="orbit-landing-mode">降下先 <select id="landing-water-mode" aria-label="陸上降下か海上降下かを選ぶ">
+          <option value="land" selected>🏝️ 陸地へ降下（安全優先）</option>
+          <option value="sea">🌊 海上に降下（泳いで開始）</option>
+        </select></label>
         <button type="button" id="orbit-landing-confirm" class="primary">↓ この地点へ降下</button>
         <button type="button" id="orbit-landing-clear" aria-label="選択地点を取り消す">✕</button>
       </div>
@@ -140,11 +144,29 @@
     <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
      <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
+    <button type="button" id="marine-toggle" aria-expanded="false" aria-controls="marine-panel">🌊 海・船</button>
     <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
     <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="marine-panel" class="fauna-panel" role="group" aria-label="海上移動・潜水・造船" hidden>
+ <div class="fauna-panel-top"><strong>🌊 海・船・潜水</strong>
+  <button type="button" id="marine-close" aria-label="海・船メニューを閉じる">× 閉じる</button></div>
+ <p id="marine-status" aria-live="polite">🏝️ 陸上</p>
+ <label>酸素 <progress id="marine-oxygen" max="100" value="100"></progress>
+  <strong id="marine-oxygen-label">100%</strong></label>
+ <div class="marine-controls">
+  <button type="button" id="marine-dive">↓ 潜る</button>
+  <label>造船 <select id="marine-boat-kind">
+   <option value="raft">🪵 木のいかだ（木10・繊維6）</option>
+   <option value="canoe">🛶 手こぎ舟（木18・繊維10）</option>
+  </select></label>
+  <button type="button" id="marine-craft">🔨 浜辺で船をクラフト</button>
+  <button type="button" id="marine-board">🛶 乗船する</button>
+  <button type="button" id="marine-leave">🏝️ 上陸・下船</button>
+ </div><small>徒歩から海へ進むと泳ぎ、水面で「潜る」と酸素を消費します。浜辺や入り江から造船して乗船できます。</small>
+</section>
 <section id="fauna-panel" class="fauna-panel" role="dialog" aria-label="野生動物・馬の操作" hidden>
  <div class="fauna-panel-top">
   <strong id="fauna-heading">🐎 動物</strong>
@@ -662,7 +684,7 @@
     <div class="panel">
       <span class="eyebrow">02 / LANDING & EXPLORATION</span>
       <h2>地表の探索</h2>
-      <p class="hint">惑星の宇宙視点で任意の地点を1回タップして選択、「この地点へ降下」で降りられます。惑星をダブルタップするとその地点へ直接降下。着陸後はスティックまたは画面をタップして移動できます。ジャンプ、剣、斧、採掘、建築は画面右側のボタンから。キーボードはWASD、Q/Eを利用できます。</p>
+      <p class="hint">惑星を1回タップしたら「陸地へ降下」か「海上に降下」を選択します。陸地モードでは海上への誤降下を防ぎます。「この地点へ降下」で出発できます。惑星をダブルタップするとその地点へ直接降下。着陸後はスティックまたは画面をタップして移動できます。ジャンプ、剣、斧、採掘、建築は画面右側のボタンから。キーボードはWASD、Q/Eを利用できます。</p>
       <label for="landing-select">着陸エリア</label>
       <select id="landing-select" class="wide-select">
         <option value="28,42" selected>初期大陸候補</option>
