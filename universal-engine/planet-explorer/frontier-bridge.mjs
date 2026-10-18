@@ -1,6 +1,6 @@
 import {terrainSurface} from "./geo.mjs";
 import {hutDoor} from "./buildings.mjs";
-import {normalizeVitals} from "./character-vitals.mjs";
+import {normalizeVitals} from "./character-vitals.mjs?v=0.8h-satiety-rest-r2";
 import {chooseWorkPoint} from "./terrain-collision.mjs?v=0.8e-work-sites";
 
 /** Frontier World living systems in Universal Engine's planetary metre space. */
