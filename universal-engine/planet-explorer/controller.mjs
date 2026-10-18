@@ -1,5 +1,6 @@
 import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {smoothAltitude} from "./descent-visuals.mjs";
+import {walkableSegment,MAX_WALK_SLOPE_DEG} from "./terrain-collision.mjs";
 
 /**
  * Single landing-site geographic authority: the globe camera and streamed ground
@@ -46,7 +47,11 @@ export class ExplorerController {
     if(![x,z].every(Number.isFinite))throw new TypeError("Invalid movement target.");
     if(this.altitudeM>12.01) return false;
     const range=Math.hypot(x-this.x,z-this.z);
-    if(range>.3 && range<=350){this.moveTarget={x,z};return true;}
+    if(range>.3&&range<=350){
+      const sample=this.locationAt(x,z),surface=terrainSurface(this.terrain,sample.lat,sample.lon);
+      if(surface.water||surface.river||surface.elevationM>2800)return false;
+      this.moveTarget={x,z};return true;
+    }
     return false;
   }
   clearMoveTarget(){this.moveTarget=null;}
@@ -91,11 +96,11 @@ export class ExplorerController {
     if(Math.hypot(east,north)<1e-9){this.blocked=false;this.moving=false;return;}
     const x=this.x+east,z=this.z+north;
     const next=geoOffset(this.origin.lat,this.origin.lon,x,z,this.terrain.planet.radiusM);
-    const sample=terrainSurface(this.terrain,next.lat,next.lon);
     const present=terrainSurface(this.terrain,this.lat,this.lon);
-    // Water, steep vertical steps, and terrain > 2800m are blocked for the MVP.
-    const blocked=sample.water||sample.river||sample.elevationM>2800||
-      Math.abs(sample.elevationM-present.elevationM)>Math.max(1.8,Math.hypot(east,north)*1.65);
+    const collision=walkableSegment({x:this.x,z:this.z,y:present.elevationM},{x,z},
+      (tx,tz)=>{const geo=this.locationAt(tx,tz);return terrainSurface(this.terrain,geo.lat,geo.lon);},
+      {maxSlopeDeg:MAX_WALK_SLOPE_DEG});
+    const blocked=!collision.ok;
     this.blocked=blocked;this.moving=!blocked;
     if(blocked && this.moveTarget)this.moveTarget=null;
     if(!blocked){
