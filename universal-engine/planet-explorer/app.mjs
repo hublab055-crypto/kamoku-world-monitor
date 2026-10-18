@@ -171,6 +171,7 @@ function init(saved=null){
   let faunaJournal=null;
   if(!saved)try{faunaJournal=JSON.parse(localStorage.getItem(FAUNA_JOURNAL_KEY)||"null");}catch(_){}
   fauna=new FaunaWorld(saved?.v0_8f?.fauna||faunaJournal);
+  farm=new AgricultureWorld(saved?.v0_8g?.farm||(saved?null:loadFarmJournal()));
   controller.mountRiding=Boolean(fauna.mount);controller.walkSpeed=fauna.speed();
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
    actions.worldHarvestEnabled=true;
@@ -273,9 +274,26 @@ function init(saved=null){
   autoActorId=squad.selectedAgents()[0]?.id||"player";
   if(!faunaUI)faunaUI=installFaunaUI({
    state:()=>({fauna,controller,actions}),log,save:saveFaunaJournal,
-   refreshHud:updateHUD,passable:faunaGroundPassable
+   refreshHud:updateHUD,passable:faunaGroundPassable,onResourcesChange:saveLifeJournal
   });
-  faunaUI.refresh();
+  if(!farmUI)farmUI=installAgricultureUI({
+   get:()=>({farm,controller,planet,harvest,actions}),notify:log,
+   onChange:()=>{saveFarmJournal();saveWorldJournal();saveLifeJournal();updateHUD();},
+   canPlant:(x,z)=>faunaGroundPassable(controller.x,controller.z,x,z),
+   cutLog:lengthM=>{
+    if(fauna?.mount)return {ok:false,message:"製材するには馬から降りてください"};
+    const node=(renderer?.resourceNodes||[]).filter(n=>n.state==="fallen"&&
+     Math.hypot(n.x-controller.x,n.z-controller.z)<5.2)
+     .sort((a,b)=>Math.hypot(a.x-controller.x,a.z-controller.z)-
+      Math.hypot(b.x-controller.x,b.z-controller.z))[0];
+    if(!node)return {ok:false,message:"5.2m以内の倒木を探してください。まず斧で木を倒します"};
+    if(!actions.start("saw",controller,(lat,lon)=>terrainSurface(terrain,lat,lon)))
+     return {ok:false,message:actions.message};
+    actions.active.resourceNode=node;actions.active.cutLengthM=lengthM;
+    return {ok:true,message:"🪚 "+lengthM+"mの切断作業を開始しました"};
+   }
+  });
+  faunaUI.refresh();farmUI.refresh();
   syncSquadUi();
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
@@ -397,7 +415,7 @@ function doFrame(t){
     if(completed==="axe"||completed==="mine"||completed==="saw"){
      if(attackInProgress?.resourceNode){
       const node=harvest.visual(attackInProgress.resourceNode);
-      const result=node?harvest.hit(node,completed):{ok:false,message:"採集済み"};
+      const result=node?(completed==="saw"?harvest.cutLog(node,attackInProgress.cutLengthM||1):harvest.hit(node,completed)):{ok:false,message:"採集済み"};
       if(result.ok)updateHarvestWorld(result,attackInProgress.resourceNode);
       if(!result.ok||result.stage==="collected")cancelHarvestOrder("player");
      }
@@ -474,6 +492,7 @@ function updateHUD(){
   lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  if(faunaUI&&!$("fauna-panel").hidden)faunaUI.refresh();
+ if(farmUI&&!$("farm-panel").hidden)farmUI.refresh();
  $("control-state").textContent=renderer.cameraController.mode==="free"?"自由カメラ移動":
    controlMode==="stick"?"スティック移動":"ダブルタップ移動"+(controller.moveTarget?"（移動中）":"");
  $("camera-status").textContent=CAMERA_MODES.find(x=>x[0]===renderer.cameraController.mode)?.[1]||"従来";
@@ -542,9 +561,10 @@ $("save").addEventListener("click",()=>{
     v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()},
      v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()},
       v0_8e:{schemaVersion:1,construction:constructions.snapshot()},
-       v0_8f:{schemaVersion:1,fauna:fauna.snapshot()}};
+       v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
+       v0_8g:{schemaVersion:1,farm:farm.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-   saveFaunaJournal();
+   saveFaunaJournal();saveFarmJournal();
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
@@ -808,6 +828,8 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
  const animal=renderer.pickAnimal(x,y);
  if(animal){faunaUI?.open(animal.id);return;}
+ const pickedFarm=renderer.pickFarm(x,y);
+ if(pickedFarm){farmUI?.open(pickedFarm.id);return;}
  if(!rtsMode){
   const hit=renderer.pickLife(x,y);
   if(hit){
@@ -1589,6 +1611,7 @@ groupUI=installGroupUI({
  onAutoEditor:()=>openAutoEditor(false)
 });
 window.addEventListener("pagehide",saveFaunaJournal);
+window.addEventListener("pagehide",saveFarmJournal);
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
