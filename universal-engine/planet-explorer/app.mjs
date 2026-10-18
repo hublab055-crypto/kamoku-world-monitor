@@ -827,9 +827,9 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
  if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
  const animal=renderer.pickAnimal(x,y);
- if(animal){faunaUI?.open(animal.id);return;}
+ if(animal){farmUI?.close();faunaUI?.open(animal.id);return;}
  const pickedFarm=renderer.pickFarm(x,y);
- if(pickedFarm){farmUI?.open(pickedFarm.id);return;}
+ if(pickedFarm){faunaUI?.close();farmUI?.open(pickedFarm.id);return;}
  if(!rtsMode){
   const hit=renderer.pickLife(x,y);
   if(hit){
@@ -1610,6 +1610,8 @@ groupUI=installGroupUI({
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
 });
+$("farm-toggle").addEventListener("click",()=>faunaUI?.close());
+$("fauna-toggle").addEventListener("click",()=>farmUI?.close());
 window.addEventListener("pagehide",saveFaunaJournal);
 window.addEventListener("pagehide",saveFarmJournal);
 init();requestAnimationFrame(doFrame);
