@@ -2,8 +2,21 @@
  * Stable seed + world-grid cells, one indexed mesh and one blended WebGL draw.
  */
 const fract=x=>x-Math.floor(x);
+/** Local prevailing wind: tied to latitude, season and current cloud/precipitation.
+ * This is simulated weather, not a real-time meteorological forecast.
+ */
+export function cloudWind(climate={},latitude=0,timeDays=0){
+ const cover=Math.max(0,Math.min(1,Number(climate.cloudCover)||0));
+ const wet=climate.precipitation&&climate.precipitation!=="none";
+ const speed=2.2+cover*5.8+(wet?3.5:0);
+ const heading=(Math.sin(latitude*.024+timeDays*.025)*.68)+
+     (latitude>=0?.42:-.42);
+ return {eastMps:Math.cos(heading)*speed,northMps:Math.sin(heading)*speed,
+  opacity:Math.max(.04,Math.min(.76,.12+cover*.60+(wet?.08:0))),
+  coverage:cover};
+}
 const hash=(x,z,seed)=>fract(Math.sin(x*127.1+z*311.7+seed*19.4)*43758.5453);
-export function groundCloudGeometry({seed=77,cx=0,cz=0,radius=450,baseElevation=300}={}){
+export function groundCloudGeometry({seed=77,cx=0,cz=0,radius=450,baseElevation=300,driftEast=0,driftNorth=0,cloudCover=.55,precipitation="none"}={}){
  const out={positions:[],normals:[],colors:[],indices:[]};
  if(radius>9000)return out;
  const unit=275,reach=Math.max(600,Math.min(radius*1.6,2100));
@@ -26,13 +39,14 @@ export function groundCloudGeometry({seed=77,cx=0,cz=0,radius=450,baseElevation=
   }
  }
  for(let iz=iz0;iz<=iz1;iz++)for(let ix=ix0;ix<=ix1;ix++){
-  const roll=hash(ix,iz,seed);if(roll>.48)continue;
+  const roll=hash(ix,iz,seed);if(roll>Math.max(.06,Math.min(.85,cloudCover*.80+.15)))continue;
   const wx=(ix+.18+hash(ix+3,iz,seed)*.65)*unit;
   const wz=(iz+.17+hash(ix,iz+7,seed)*.65)*unit;
-  const x=wx-cx,z=wz-cz;
+  const x=wx-cx+driftEast,z=wz-cz+driftNorth;
   if(Math.hypot(x,z)>reach)continue;
   const y=baseElevation+280+240*hash(ix-10,iz+9,seed);
-  const cloudColor=[.91+roll*.05,.93+roll*.04,.96];
+  const shade=precipitation!=="none"?.70:1;
+  const cloudColor=[(.91+roll*.05)*shade,(.93+roll*.04)*shade,.96*shade];
   for(let k=0;k<3;k++){
    const ang=k*Math.PI*2/3;
    addPuff(x+Math.cos(ang)*38,y+Math.sin(k*3)*9,z+Math.sin(ang)*20,
