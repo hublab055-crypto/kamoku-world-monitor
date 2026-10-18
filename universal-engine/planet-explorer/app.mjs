@@ -113,6 +113,7 @@ const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
+let cachedResourceArray=null;const resourceByOrigin=new Map();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
  worldUI?.append(msg);
@@ -121,7 +122,7 @@ function log(msg){
 }
 function init(saved=null){
  try{
-  manualHarvest.clear();pendingArrowPickup.clear();viewportGestures?.cancel();
+  manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;viewportGestures?.cancel();
   orbitSelection=null;
   $("orbit-landing-preview").hidden=true;
   $("orbit-pick-marker").hidden=true;
@@ -199,8 +200,16 @@ function init(saved=null){
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
    squad.frontier.attachWorld({
-    list:(origin,radius)=>(renderer.resourceNodes||[]).filter(n=>
-     Math.hypot(n.x-origin.x,n.z-origin.z)<=radius&&harvest.visual(n)),
+    list:(origin,radius)=>{
+     const nodes=renderer.resourceNodes||[];
+     if(cachedResourceArray!==nodes){resourceByOrigin.clear();cachedResourceArray=nodes;}
+     const key=origin.x.toFixed(2)+":"+origin.z.toFixed(2)+":"+radius;
+     if(resourceByOrigin.has(key))return resourceByOrigin.get(key);
+     const radiusSquared=radius*radius;
+     const found=nodes.filter(n=>(n.x-origin.x)**2+(n.z-origin.z)**2<=radiusSquared);
+     if(resourceByOrigin.size>120)resourceByOrigin.clear();
+     resourceByOrigin.set(key,found);return found;
+    },
     hit:(node,kind,agent)=>{
      const current=harvest.visual(node);
      if(!current)return {ok:false,message:"採集済みです"};
