@@ -903,6 +903,66 @@ function confirmOrbitLanding(){
     "🏝️ 陸上への降下を開始します"+(site.movedM?"（海を避け、近隣の陸地へ移動）":""));
  }catch(e){log("地点降下エラー: "+e.message);}
 }
+/** Read-only directory browsing until the player explicitly selects an action. */
+function openMapEntry(entry){
+ if(entry.source==="animal"){
+  const animal=fauna?.get(entry.id);
+  if(!animal)return {ok:false,message:"動物が移動したか見つかりません。リストを更新してください"};
+  mapDirectoryUI?.close();farmUI?.close();faunaUI?.open(animal.id);
+  renderer.mapFocus={x:animal.x,z:animal.z};
+  return {ok:true};
+ }
+ if(entry.source==="person"){
+  const agent=squad?.get(entry.id);
+  if(!agent)return {ok:false,message:"人物が見つかりません。リストを更新してください"};
+  squad.choose(agent.id,{add:false});
+  autoActorId=agent.id;renderAutoEditor();updateHUD();
+  renderer.mapFocus={x:agent.control.x,z:agent.control.z};
+  mapDirectoryUI?.close();
+  return {ok:true,message:"🧍 "+agent.name+"を選択しました"};
+ }
+ if(entry.source==="resource"){
+  const resource=(renderer?.resourceNodes||[]).find(node=>node.id===entry.id);
+  if(!resource)return {ok:false,message:"資源が回収済み、または描画範囲外です。リストを更新してください"};
+  if(!controller?.nearGround)return {ok:false,message:"地表へ降りてから資源を選択してください"};
+  const ordered=commandResourceTap(resource);
+  if(ordered){renderer.mapFocus={x:resource.x,z:resource.z};mapDirectoryUI?.close();}
+  return {ok:ordered,message:ordered?"":"この資源には近づけません"};
+ }
+ if(entry.category==="buildings"){
+  renderer.mapFocus={x:entry.x,z:entry.z};
+  if(entry.source==="hut"&&Math.hypot(entry.x-controller.x,entry.z-controller.z)<7){
+   mapDirectoryUI?.close();tapDoor(entry.entityId);return {ok:true};
+  }
+  return {ok:true,message:entry.icon+" "+entry.title+"をマップ上で強調しました。"+
+    " 「向かう」から近くへ移動できます（約"+Math.round(entry.distanceM)+"m）"};
+ }
+ return {ok:false,message:"この対象には操作がありません"};
+}
+function moveToMapEntry(entry){
+ if(!controller?.nearGround)return {ok:false,message:"地表へ降りてから移動を指示してください"};
+ const canStand=(x,z)=>{const geo=controller.locationAt(x,z),g=terrainSurface(terrain,geo.lat,geo.lon);
+  return !g.water&&!g.river&&g.elevationM<2800;};
+ const reach=entry.category==="buildings"?5:entry.category==="resources"?2.6:0;
+ const destination=reach?chooseWorkPoint(controller,entry,canStand,{reach}):{x:entry.x,z:entry.z};
+ if(!destination)return {ok:false,message:"目標付近に立てる安全な場所がありません"};
+ renderer.mapFocus={x:entry.x,z:entry.z};
+ if(rtsMode){
+  for(const id of squad.selected)cancelHarvestOrder(id);
+  const groups=squad.selectedGroups();
+  const n=groups.length>1?squad.orderGroups(groups.map(g=>g.id),"move",destination):
+   groups.length===1?squad.orderGroupMove(groups[0].id,destination.x,destination.z):
+   squad.orderMove([...squad.selected],destination.x,destination.z);
+  updateHUD();
+  return {ok:Boolean(n),message:n?"📍 "+entry.title+"へ"+n+"人を移動させます":
+   "移動できません（水域・急斜面・距離などを確認してください）"};
+ }
+ cancelHarvestOrder("player");
+ const ok=controller.setMoveTarget(destination.x,destination.z);
+ updateHUD();
+ return {ok,message:ok?"📍 "+entry.title+"の近くへ移動します":
+  "移動できません（水域・急斜面・距離などを確認してください）"};
+}
 function handleSceneTap({x,y,shiftKey=false}){
  if(!renderer)return;
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
@@ -1766,14 +1826,22 @@ groupUI=installGroupUI({
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
 });
-$("farm-toggle").addEventListener("click",()=>{faunaUI?.close();$("marine-panel").hidden=true;});
-$("fauna-toggle").addEventListener("click",()=>{farmUI?.close();$("marine-panel").hidden=true;});
+mapDirectoryUI=installMapDirectoryUI({
+ get:()=>({controller,fauna,squad,renderer,constructions,actions}),
+ onOpen:openMapEntry,onMove:moveToMapEntry,notify:log
+});
+$("viewport-directory").addEventListener("click",()=>{
+ faunaUI?.close();farmUI?.close();
+ $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
+});
+$("farm-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();faunaUI?.close();$("marine-panel").hidden=true;});
+$("fauna-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();farmUI?.close();$("marine-panel").hidden=true;});
 window.addEventListener("pagehide",saveFaunaJournal);
 window.addEventListener("pagehide",saveFarmJournal);
 $("marine-toggle").addEventListener("click",()=>{
  const panel=$("marine-panel");panel.hidden=!panel.hidden;
  $("marine-toggle").setAttribute("aria-expanded",String(!panel.hidden));
- if(!panel.hidden){faunaUI?.close();farmUI?.close();}updateHUD();
+ if(!panel.hidden){mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();}updateHUD();
 });
 $("marine-close").addEventListener("click",()=>{
  $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
