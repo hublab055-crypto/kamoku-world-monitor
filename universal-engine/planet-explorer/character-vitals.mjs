@@ -25,7 +25,7 @@ export function damageStress(p,damage,maxHp=100){
 /** Mutates one actor's saved vitals and returns its new canonical HP.
  * Called once per running simulation frame, AFTER combat and manual actions.
  */
-export function advanceVitals(p,dt,{hp=100,maxHp=100,moving=false,working=false,resting=false,damage=0}={}){
+export function advanceVitals(p,dt,{hp=100,maxHp=100,moving=false,working=false,resting=false,damage=0,externalStamina=false}={}){
  if(!Number.isFinite(dt)||dt<0)throw Error("不正な経過時間です");
  const n=Math.min(dt,.25);
  p.hunger=clamp(Number.isFinite(p.hunger)?p.hunger:78);
@@ -33,8 +33,10 @@ export function advanceVitals(p,dt,{hp=100,maxHp=100,moving=false,working=false,
  p.mental=clamp(Number.isFinite(p.mental)?p.mental:100);
  if(damage>0)damageStress(p,damage,maxHp);
  const motion=working?.26:moving?.16:.008;
- if(resting)p.stamina=clamp(p.stamina+9*n);
- else p.stamina=clamp(p.stamina-motion*n);
+ if(!externalStamina){
+  if(resting)p.stamina=clamp(p.stamina+9*n);
+  else p.stamina=clamp(p.stamina-motion*n);
+ }
  p.hunger=clamp(p.hunger-(.035+(moving?.025:0)+(working?.025:0))*n);
  let recovered=0;
  if(hp>0&&hp<maxHp&&p.stamina>12&&p.hunger>8){
@@ -80,4 +82,14 @@ export function healVitals(p,hp,maxHp=100,kind="potion",{atChurch=false}={}){
  }else if(kind==="potion")p.mental=clamp((p.mental||0)+4);
  return {ok:true,hp:hp+restored,healed:restored,
   message:(kind==="potion"?"🧪 回復薬":kind==="magic"?"✨ 回復魔法":"⛪ 教会で治療")+" HP +"+Math.round(restored)};
+}
+
+/** Rest/sleep have distinct effects; food is consumed even when sleeping. */
+export function restVitals(p,{sleep=false}={}){
+ if(!Number.isFinite(p.hunger))p.hunger=78;
+ const foodCost=sleep?9:1;
+ p.hunger=clamp(p.hunger-foodCost);
+ p.stamina=clamp((p.stamina??100)+(sleep?55:12));
+ p.mental=clamp((p.mental??100)+(sleep?14:3));
+ return {ok:true,message:sleep?"🛏️ 睡眠で体力・メンタル回復（空腹消費）":"💤 休憩で体力回復（空腹消費）"};
 }
