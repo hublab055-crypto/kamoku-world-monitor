@@ -8,7 +8,7 @@ export const FW_ACTIONS=Object.freeze(["rest_home","store_chest","gather_nearby"
 export const FW_PRESET=Object.freeze([
  {enabled:true,metric:"stamina",op:"<=",value:30,action:"rest_home"},
  {enabled:true,metric:"load_kg",op:">=",value:18,action:"store_chest"},
- {enabled:true,metric:"resource_nearby",op:">=",value:1,action:"gather_nearby"}
+ {enabled:true,metric:"always",op:"==",value:1,action:"gather_nearby"}
 ]);
 const kinds=["wood","stone","fiber","food","water"];
 const bagKinds=Object.keys(FW_WEIGHTS);
