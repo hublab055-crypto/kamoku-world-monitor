@@ -819,6 +819,19 @@ constructionUI=new ConstructionPlacement({
   updateHUD();saveLifeJournal();
  },log
 });
+$("warehouse-deposit").addEventListener("click",()=>{
+ if(!controller?.nearGround){log("倉庫に近づいてから収納してください");return;}
+ const site=constructions.nearestWarehouse(controller.x,controller.z,8);
+ if(!site){$("warehouse-status").textContent="8m以内に共同倉庫がありません";return;}
+ const person=squad.frontier.person("player"),kg=squad.frontier.loadKg("player");
+ const result=constructions.depositWarehouse(site.id,person.inventory,kg);
+ if(result.ok){
+  person.massAdjustmentKg=0;
+  try{localStorage.setItem(STRUCTURES_JOURNAL_KEY,JSON.stringify(constructions.snapshot()));}catch(_){}
+  updateHUD();
+ }
+ $("warehouse-status").textContent=result.message;log(result.message);
+});
 viewportGestures=bindViewportGestures($("world"),{
  onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
