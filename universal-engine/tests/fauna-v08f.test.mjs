@@ -109,7 +109,7 @@ test("animal menu and tap picking are connected in the published entrypoint",()=
  for(const id of ["fauna-toggle","fauna-panel","fauna-animal","fauna-approach","fauna-tame",
   "fauna-call","fauna-ride","fauna-unride","fauna-gait","fauna-tack","fauna-mounted-state"])
   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/app\.mjs\?v=0\.8f/);
+ assert.match(html,/app\.mjs\?v=0\.8[fg]/);
  assert.match(app,/installFaunaUI\(/);
  assert.match(app,/renderer\.pickAnimal\(x,y\)/);
  assert.match(render,/drawFauna\(vp,light,s,radius\)/);
