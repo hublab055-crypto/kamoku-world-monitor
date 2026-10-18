@@ -1367,7 +1367,7 @@ export class ExplorerRenderer{
    this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
   }
   // Wind-driven sky volumes, behind intervening mountain peaks.
-  this.renderWeatherClouds(s,geo,radius,vp,light,dt);
+  this.renderWeatherClouds(s,geoOffset(s.origin.lat,s.origin.lon,this.cx,this.cz,this.planet.radiusM),radius,vp,light,dt);
   return "ground";
  }
  destroy(){
