@@ -71,8 +71,12 @@ export class FaunaWorld {
   if(!this.canMount(a))return {ok:false,message:"騎乗には馴致とハミ・手綱・クラが必要です"};
   if(this.range(a,actor)>3.5)return {ok:false,message:"馬の3.5m以内へ近づいてください"};
   if(actor.altitudeM>12.01||actor.jumpY>.01)return {ok:false,message:"地上に立ってから騎乗してください"};
+  actor.clearMoveTarget?.();
+  const location=actor.locationAt?.(a.x,a.z);
+  actor.x=a.x;actor.z=a.z;
+  if(location){actor.lat=location.lat;actor.lon=location.lon;}
   this.mountId=a.id;a.following=false;
-  a.x=actor.x;a.z=actor.z;a.yaw=actor.yaw;
+  a.yaw=actor.yaw;
   return {ok:true,message:"🐎 騎乗しました。剣・槍・弓を使用できます"};
  }
  dismount(actor,canStand=()=>true){
@@ -81,6 +85,12 @@ export class FaunaWorld {
   const dx=Math.cos(actor.yaw)*2.1,dz=-Math.sin(actor.yaw)*2.1;
   if(!canStand(actor.x+dx,actor.z+dz))return {ok:false,message:"降りる場所が危険です。平坦な場所へ移動してください"};
   a.x=actor.x;a.z=actor.z;a.yaw=actor.yaw;this.mountId=null;
+  // Dismount the rider to the side rather than leaving the avatar inside the horse mesh.
+  const sideX=actor.x+dx,sideZ=actor.z+dz;
+  const location=actor.locationAt?.(sideX,sideZ);
+  actor.x=sideX;actor.z=sideZ;
+  if(location){actor.lat=location.lat;actor.lon=location.lon;}
+  actor.clearMoveTarget?.();
   a.following=false;
   return {ok:true,message:"🐎 降馬しました"};
  }
