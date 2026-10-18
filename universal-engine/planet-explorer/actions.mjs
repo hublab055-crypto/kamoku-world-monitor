@@ -7,6 +7,7 @@ export const ATTACK_VARIANTS=Object.freeze(["overhead","sweep","thrust","combo"]
 export function actionDuration(kind,variant="overhead"){
  if(kind==="sword")return variant==="combo"?1.42:.58;
  if(kind==="axe")return variant==="combo"?1.38:.78;
+  if(kind==="saw")return 1.25;
  if(kind==="spear")return variant==="combo"?1.67:variant==="thrust"?.80:variant==="sweep"?1.00:1.12;
  if(kind==="greatsword")return variant==="combo"?2.15:variant==="thrust"?1.08:variant==="sweep"?1.38:1.47;
  return {mine:1.65,dig:1.12,fill:1.25,bow:1.62,guard:1.2,build:4.3}[kind]??0;
@@ -26,7 +27,7 @@ export class Actions {
     this.message="準備完了";
   }
   start(kind, controller, terrainSurface, variant="overhead") {
-    if(!["sword","spear","greatsword","axe","mine","dig","fill","bow","guard","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
+    if(!["sword","spear","greatsword","axe","saw","mine","dig","fill","bow","guard","build"].includes(kind))throw new RangeError("Unknown action: "+kind);
     if(this.active){this.message="動作が完了してから操作してください";return false;}
     if(controller.altitudeM>12.01 || controller.jumpY>.01) {
       this.message="地上に立ってから操作してください";return false;
@@ -55,7 +56,7 @@ export class Actions {
       this.structures.push({id:structureId,x,z,lat:p.lat,lon:p.lon,height:surface.elevationM,progress:0,kind:"hut"});
     }
     this.active={kind,time:0,duration,structureId,variant:move};
-    this.message={sword:"剣で攻撃モーション",spear:"🔱 長槍で攻撃",greatsword:"⚔️ 両手剣で攻撃",axe:"斧で伐採",mine:"つるはしで石を採掘",dig:"シャベルで掘削中",fill:"土を盛っています",bow:"弓を引いて矢を放つ",guard:"盾を構えて防御中",build:"作業小屋を建築中"}[kind];
+    this.message={sword:"剣で攻撃モーション",spear:"🔱 長槍で攻撃",greatsword:"⚔️ 両手剣で攻撃",axe:"斧で伐採",saw:"ノコギリで製材",mine:"つるはしで石を採掘",dig:"シャベルで掘削中",fill:"土を盛っています",bow:"弓を引いて矢を放つ",guard:"盾を構えて防御中",build:"作業小屋を建築中"}[kind];
     return true;
   }
   advance(dt) {
@@ -74,11 +75,11 @@ export class Actions {
     if(completed==="mine"&&!this.worldHarvestEnabled){this.resources.stone+=2;this.resources.clay=(this.resources.clay||0)+1;this.resources.metal=(this.resources.metal||0)+1;}
     this.completed++;
     this.active=null;
-    this.message={sword:"剣の振り終わり",spear:"長槍の攻撃完了",greatsword:"両手剣の攻撃完了",axe:"伐採終了",mine:"採掘終了",dig:"掘削終了",fill:"盛り土終了",bow:"矢を放ちました",guard:"ガード解除",build:"作業小屋が完成"}[completed];
+    this.message={sword:"剣の振り終わり",spear:"長槍の攻撃完了",greatsword:"両手剣の攻撃完了",axe:"伐採終了",saw:"製材終了",mine:"採掘終了",dig:"掘削終了",fill:"盛り土終了",bow:"矢を放ちました",guard:"ガード解除",build:"作業小屋が完成"}[completed];
     return completed;
   }
   getAnimation() {
-    return this.active?{action:["dig","fill"].includes(this.active.kind)?"mine":this.active.kind,progress:this.active.time/this.active.duration,variant:this.active.variant||"overhead"}:
+    return this.active?{action:["dig","fill"].includes(this.active.kind)?"mine":this.active.kind==="saw"?"axe":this.active.kind,progress:this.active.time/this.active.duration,variant:this.active.variant||"overhead"}:
       {action:"idle",progress:0};
   }
   snapshot() {
@@ -94,7 +95,7 @@ export class Actions {
     for(const s of data.structures){
       if(![s.x,s.z,s.height,s.progress,s.id,s.lat,s.lon].every(Number.isFinite)||s.progress<0||s.progress>1)throw Error("Invalid saved building.");
     }
-    if(data.active && (!["sword","spear","greatsword","axe","mine","dig","fill","bow","guard","build"].includes(data.active.kind)||
+    if(data.active && (!["sword","spear","greatsword","axe","saw","mine","dig","fill","bow","guard","build"].includes(data.active.kind)||
        ![data.active.time,data.active.duration].every(Number.isFinite)||
        data.active.time<0||data.active.duration<=0))throw Error("Invalid saved action.");
     x.resources={...x.resources,...data.resources};
