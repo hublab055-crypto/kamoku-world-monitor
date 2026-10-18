@@ -894,3 +894,10 @@ body.immersive{overflow:hidden}
 .fauna-tack{padding:5px 0;border-top:1px solid #ffffff2a;border-bottom:1px solid #ffffff2a}
 .fauna-panel small{display:block;opacity:.77;font-size:10px}
 @media(max-width:600px){.fauna-panel{top:73px;right:5px;max-height:calc(100% - 82px);width:min(292px,calc(100% - 10px))}.fauna-panel button{padding:6px 4px}}
+
+/* v0.8g agriculture shares compact livestock panel styling. */
+.farm-panel{right:min(324px,calc(100% - 16px));width:min(310px,calc(100% - 16px));}
+.farm-panel>button{width:100%;margin:5px 0;}
+.farm-panel input[type="number"]{display:block;width:100%;font:inherit;box-sizing:border-box;border:1px solid #708c87;border-radius:7px;padding:8px;background:#24434b;color:#fff;min-height:36px;}
+.farm-panel .fauna-label{margin-top:8px;}
+@media(max-width:660px){.farm-panel{right:5px;top:73px;width:min(292px,calc(100% - 10px));}}
