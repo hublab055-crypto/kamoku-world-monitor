@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {FaunaWorld,WILD_SPECIES,HORSE_GAITS,TACK} from "../planet-explorer/fauna.mjs";
 import {faunaGeometry} from "../planet-explorer/fauna-geometry.mjs";
 
@@ -99,4 +100,31 @@ test("each wild ancestor has valid self-contained WebGL geometry",()=>{
  const plain=faunaGeometry("horse"),equipped=faunaGeometry("horse",
   {bit:true,reins:true,saddle:true,horseshoes:true});
  assert.ok(equipped.indices.length>plain.indices.length);
+});
+
+test("animal menu and tap picking are connected in the published entrypoint",()=>{
+ const html=readFileSync(new URL("../planet-explorer/index.html",import.meta.url),"utf8");
+ const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
+ const render=readFileSync(new URL("../planet-explorer/render.mjs",import.meta.url),"utf8");
+ for(const id of ["fauna-toggle","fauna-panel","fauna-animal","fauna-approach","fauna-tame",
+  "fauna-call","fauna-ride","fauna-unride","fauna-gait","fauna-tack","fauna-mounted-state"])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/app\.mjs\?v=0\.8f/);
+ assert.match(app,/installFaunaUI\(/);
+ assert.match(app,/renderer\.pickAnimal\(x,y\)/);
+ assert.match(render,/drawFauna\(vp,light,s,radius\)/);
+ assert.match(render,/pickAnimal\(clientX,clientY\)/);
+});
+test("rider velocity, camera height, arrow release and old-save protection are wired",()=>{
+ const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
+ const ctrl=readFileSync(new URL("../planet-explorer/controller.mjs",import.meta.url),"utf8");
+ const render=readFileSync(new URL("../planet-explorer/render.mjs",import.meta.url),"utf8");
+ const bridge=readFileSync(new URL("../planet-explorer/frontier-bridge.mjs",import.meta.url),"utf8");
+ assert.match(app,/controller\.walkSpeed=fauna\?\.speed\(\)/);
+ assert.match(ctrl,/this\.mountRiding\?1200:350/);
+ assert.match(render,/this\.fauna\?\.mount\?1\.15:0/);
+ assert.match(app,/fauna\?\.mount\?1\.15:0/);
+ assert.match(bridge,/mountRiding\?\.025:\.13/);
+ assert.match(app,/v0_8f:\{schemaVersion:1,fauna:fauna\.snapshot\(\)\}/);
+ assert.match(app,/FAUNA_JOURNAL_KEY/);
 });
