@@ -83,7 +83,7 @@ test("zoom target clamps to valid physical range",()=>{
  assert.equal(ctrl.targetAltitude(9e9),50000000);
  assert.throws(()=>ctrl.zoom(-1),/Invalid/);
 });
-test("steep terrain and water are rejected by walking collision",()=>{
+test("land-to-water transition is no longer an impassable barrier for swimmers",()=>{
  const {t}=setup(),ctrl=new ExplorerController(t);
  ctrl.altitudeM=2.5;ctrl.targetAltitude(2.5);
  const old={lat:ctrl.lat,lon:ctrl.lon,x:ctrl.x,z:ctrl.z};
@@ -93,8 +93,8 @@ test("steep terrain and water are rejected by walking collision",()=>{
   return Math.abs(lat-old.lat)+Math.abs(lon-old.lon)<1e-10?s:{...s,water:true};
  };
  ctrl.update(.1,{forward:1});
- assert.equal(ctrl.blocked,true);
- assert.equal(ctrl.x,old.x);assert.equal(ctrl.z,old.z);
+ assert.equal(ctrl.blocked,false);
+ assert.ok(Math.hypot(ctrl.x-old.x,ctrl.z-old.z)>0);
  t.sample=sample;
 });
 test("explorer snapshot restores geographic identity and progress",()=>{
