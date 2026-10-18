@@ -1,6 +1,7 @@
 import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {smoothAltitude} from "./descent-visuals.mjs";
 import {walkableSegment,MAX_WALK_SLOPE_DEG} from "./terrain-collision.mjs?v=0.8c-steep-mountains";
+import {blockedByStoneWall} from "./construction-system.mjs";
 
 /**
  * Single landing-site geographic authority: the globe camera and streamed ground
@@ -100,7 +101,7 @@ export class ExplorerController {
     const collision=walkableSegment({x:this.x,z:this.z,y:present.elevationM},{x,z},
       (tx,tz)=>{const geo=this.locationAt(tx,tz);return terrainSurface(this.terrain,geo.lat,geo.lon);},
       {maxSlopeDeg:MAX_WALK_SLOPE_DEG});
-    const blocked=!collision.ok;
+    const blocked=!collision.ok||blockedByStoneWall({x:this.x,z:this.z},{x,z},this.placedWalls||[]);
     this.blocked=blocked;this.moving=!blocked;
     if(blocked && this.moveTarget)this.moveTarget=null;
     if(!blocked){
