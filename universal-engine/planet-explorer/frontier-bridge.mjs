@@ -3,7 +3,7 @@ import {hutDoor} from "./buildings.mjs";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
 
 /** Frontier World living systems in Universal Engine's planetary metre space. */
-export const FW_WEIGHTS=Object.freeze({wood:3,stone:4,fiber:.5,food:1,water:1,clay:2,metal:3,soil:2});
+export const FW_WEIGHTS=Object.freeze({wood:3,stone:4,fiber:.5,food:1,water:1,clay:2,metal:3,soil:2,ironOre:1,plank:1});
 export const FW_ACTIONS=Object.freeze(["rest_home","store_chest","gather_nearby"]);
 export const FW_PRESET=Object.freeze([
  {enabled:true,metric:"stamina",op:"<=",value:30,action:"rest_home"},
@@ -32,7 +32,7 @@ export class FrontierBridge {
   this.squad=squad;this.life=null;this.events=[];this.world=null;
   const lead=squad.get("player").control;
   this.base={x:lead.x,z:lead.z};
-  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null}]));
+  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0}]));
   this.nodes=generateNodes(squad.terrain,lead,this.base);
   if(saved)this.restore(saved);
  }
@@ -55,11 +55,12 @@ export class FrontierBridge {
   const a=this.squad.get(id);
   if(!a)return null;
   return this.people[id]={stamina:100,inventory:bag(),radius:42,
-   origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null};
+   origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0};
  }
  person(id){return this.ensureAgent(id);}
  isAction(kind){return FW_ACTIONS.includes(kind);}
- loadKg(id){const inv=this.person(id)?.inventory||{};return Math.round(bagKinds.reduce((t,k)=>t+(inv[k]||0)*FW_WEIGHTS[k],0)*10)/10;}
+ loadKg(id){const p=this.person(id),inv=p?.inventory||{};
+   return Math.max(0,Math.round((bagKinds.reduce((t,k)=>t+(inv[k]||0)*FW_WEIGHTS[k],0)+(p?.massAdjustmentKg||0))*100)/100);}
  available(a){
   const p=this.person(a.id);
   if(!p)return [];
@@ -102,8 +103,8 @@ export class FrontierBridge {
  deposit(a,chest=null){
   const inv=this.person(a.id).inventory;
   if(this.world){
-   const result=chest&&this.life?.storeBackpack(chest.id,inv);
-   if(result?.ok)this.world.storageChanged?.(chest);
+   const result=chest&&this.life?.storeBackpack(chest.id,inv,this.loadKg(a.id));
+   if(result?.ok){this.person(a.id).massAdjustmentKg=0;this.world.storageChanged?.(chest);}
    return result?.moved||0;
   }
   const r=this.squad.actions.resources,i=this.life?.inventory;let moved=0;
@@ -176,8 +177,14 @@ export class FrontierBridge {
     task.swingTime=0;
     const result=this.world.hit(node,kind,a);
     p.stamina=cap(p.stamina-(kind==="mine"?4:2),0,100);
-    if(result?.drops)for(const [k,qty] of Object.entries(result.drops))
-     if(bagKinds.includes(k))p.inventory[k]=cap((p.inventory[k]||0)+qty,0,9999);
+    if(result?.drops){
+     const oldMass=bagKinds.reduce((total,k)=>total+(p.inventory[k]||0)*FW_WEIGHTS[k],0);
+     for(const [k,qty] of Object.entries(result.drops))
+      if(bagKinds.includes(k))p.inventory[k]=cap((p.inventory[k]||0)+qty,0,9999);
+     const newMass=bagKinds.reduce((total,k)=>total+(p.inventory[k]||0)*FW_WEIGHTS[k],0);
+     if(Number.isFinite(result.massKg))
+      p.massAdjustmentKg=(p.massAdjustmentKg||0)+(result.massKg-(newMass-oldMass));
+    }
     if(result?.stage==="collected"){p.gathered++;task.target=null;}
     if(!result?.ok){task.failed=[...(task.failed||[]),node.id];task.target=null;}
     a.status=(result?.message||"採集中")+" / 🎒 "+this.loadKg(a.id)+"kg";
@@ -231,6 +238,7 @@ export class FrontierBridge {
    p.inventory=bag(s.inventory);p.radius=cap(Number(s.radius)||42,5,100);
    p.origin=point(s.origin)?{x:s.origin.x,z:s.origin.z}:{x:actor.control.x,z:actor.control.z};
    p.gathered=Math.max(0,Math.floor(Number(s.gathered)||0));
+   p.massAdjustmentKg=Number.isFinite(s.massAdjustmentKg)?Math.max(-500000,Math.min(500000,s.massAdjustmentKg)):0;
     p.chestId=Number.isSafeInteger(s.chestId)&&s.chestId>0?s.chestId:null;
    p.gifts={};
    for(const [id,qty] of Object.entries(s.gifts||{}))if(/^[a-zA-Z]{1,24}$/.test(id)&&Number.isSafeInteger(qty)&&qty>=0&&qty<=9999)p.gifts[id]=qty;
