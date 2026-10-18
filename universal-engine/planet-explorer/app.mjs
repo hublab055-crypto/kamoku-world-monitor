@@ -941,16 +941,14 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
  }
  if(!controller?.nearGround)return;
  if(constructionUI?.kind)return;
- // Object double-taps must not send unintended ground movement.
- if(frontierUI?.selectTargetAt(x,y)||renderer.pickArrow(x,y)||renderer.pickTarget(x,y)||
-   renderer.pickResource(x,y)||renderer.pickAnimal(x,y)||renderer.pickFarm(x,y)||
-   screenActorAt(x,y)||renderer.pickLife(x,y)||renderer.pickDoor(x,y))return;
+ // A double tap orders ground movement even when an animal or building overlaps.
  const ground=renderer.pickGround(x,y);
  if(!ground){log("地面を指定できません。");return;}
  renderer.selectedResource=null;
+ faunaUI?.close();farmUI?.close();mapDirectoryUI?.close();
  if(rtsMode){
   for(const id of squad.selected)cancelHarvestOrder(id);
-  commandRtsTap(x,y,shiftKey);
+  commandRtsTap(x,y,shiftKey,true);
  }else{
   cancelHarvestOrder("player");
   if(controller.setMoveTarget(ground.x,ground.z))log("📍 目的地を設定しました。移動を開始します。");
