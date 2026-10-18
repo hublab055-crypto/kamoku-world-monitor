@@ -24,6 +24,7 @@ import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 import {bindViewportGestures} from "./viewport-gestures.mjs";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles} from "./arrow-projectiles.mjs";
+import {chooseWorkPoint} from "./terrain-collision.mjs";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -60,12 +61,30 @@ function saveWorldJournal(){
  try{localStorage.setItem(WORLD_JOURNAL_KEY,JSON.stringify({resources:harvest.snapshot(),earthworks:earthworks.snapshot()}));}
  catch(_){log("環境の自動保存ができません。ゲームの保存をお試しください。");}
 }
+function emitHarvestEffect(node,result,agent=null){
+ const isRock=node.kind==="stone";
+ worldUI?.float({kind:result.stage==="collected"?"gain":"damage",
+  text:result.stage==="collected"?(isRock?"🪨":"🪵")+" +"+Object.values(result.drops||{}).reduce((a,b)=>a+b,0):
+   result.stage==="felled"?"🌲 倒木":result.stage==="broken"?"💥 砕石":(isRock?"⛏️ −1":"🪓 −1"),
+  actorId:agent?.id||"player",duration:1.1});
+ const host=document.getElementById("harvest-fx-layer");
+ const screen=renderer?.screenResources?.find(n=>n.id===node.id);
+ if(!host||!screen?.onScreen)return;
+ for(let i=0;i<7;i++){
+  const el=document.createElement("span");el.className="harvest-spark"+(isRock?" rock":" wood");
+  el.style.left=(screen.u*100)+"%";el.style.top=(screen.v*100)+"%";
+  el.style.setProperty("--dx",((i%4-1.5)*15)+"px");
+  el.style.setProperty("--dy",(-18-Math.floor(i/4)*22)+"px");
+  host.append(el);setTimeout(()=>el.remove(),700);
+ }
+}
 function updateHarvestWorld(result,node,who="開拓者"){
  if(!result?.ok){log(result?.message||"資源を利用できません");return;}
  for(const [kind,amount] of Object.entries(result.drops||{})){
   actions.resources[kind]=(actions.resources[kind]||0)+amount;
  }
  renderer.patchKey=null;renderer.selectedResource=null;
+ emitHarvestEffect(node,result,squad?.get("player"));
  log(who+"："+result.message);saveWorldJournal();saveLifeJournal();
 }
 function nearbyWorldResource(kind,who=controller){
@@ -156,6 +175,19 @@ function init(saved=null){
   squad=new SquadEngine(terrain,controller,actions,saved?.v0_7d?.squad||null);
   squad.onEquippedImpact=(agent,task)=>{
     if(task.kind==="equipped_bow"){launchArrow(agent,task);return;}
+     if(task.resourceNode){
+      const node=harvest.visual(task.resourceNode),kind=task.kind==="equipped_mine"?"mine":"axe";
+      const result=node?harvest.hit(node,kind):{ok:false,message:"採集済み"};
+      if(result.ok){
+       for(const [k,n] of Object.entries(result.drops||{})){
+        const bag=squad.frontier.person(agent.id).inventory;
+        bag[k]=(bag[k]||0)+n;
+       }
+       emitHarvestEffect(task.resourceNode,result,agent);renderer.patchKey=null;saveWorldJournal();
+      }
+      if(result.stage==="collected"||!result.ok)cancelHarvestOrder(agent.id);
+      return;
+     }
     const weapon=task.kind.slice("equipped_".length);
     const hits=battle?.hitWeapon(agent.control,weapon,task.style||task.variant)||[];
     for(const hit of hits){
@@ -166,6 +198,23 @@ function init(saved=null){
    };
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
+   squad.frontier.attachWorld({
+    list:(origin,radius)=>(renderer.resourceNodes||[]).filter(n=>
+     Math.hypot(n.x-origin.x,n.z-origin.z)<=radius&&harvest.visual(n)),
+    hit:(node,kind,agent)=>{
+     const current=harvest.visual(node);
+     if(!current)return {ok:false,message:"採集済みです"};
+     const result=harvest.hit(current,kind);
+     if(result.ok){renderer.patchKey=null;saveWorldJournal();}
+     return result;
+    },
+    effect:(node,result,agent)=>{
+     if(!result?.ok)return;
+     emitHarvestEffect(node,result,agent);
+     log(agent.name+"："+result.message);
+    },
+    storageChanged:()=>{saveLifeJournal();renderAutoEditor();}
+   });
   if(squad.activeGroup())syncMode=squad.activeGroup().sync;
   groupUI?.reset();
   frontierUI?.restore(saved?.v0_7i||null);
