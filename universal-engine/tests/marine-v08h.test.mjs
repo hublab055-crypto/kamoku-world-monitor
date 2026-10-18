@@ -10,7 +10,7 @@ function coast(){
  const planet={seed:77,radiusM:6371000,gravity:9.8};
  return {planet,sample(lat,lon){
   const water=lon>0;
-  return {water,river:false,elevationM:water?0:35,category:water?"ocean":"plain"};
+  return {water,river:false,elevationM:water?0:150,category:water?"ocean":"plain"};
  }};
 }
 function actor(terrain=coast(),startLon=-.00006){
