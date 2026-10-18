@@ -52,6 +52,10 @@ export function placedBuildingGeometry(kind){
   kind==="warehouse"?[.65,.56,.31]:[.76,.51,.25]);
  if(kind==="smithy")cuboid(g,w+.65,0,0,.52,2,.52,[.48,.47,.44]);
  if(kind==="warehouse")for(const x of [-w-.6,w+.6])cuboid(g,x,0,d+.5,.52,1,.52,[.47,.34,.22]);
+ if(kind==="church"){
+  cuboid(g,0,5.0,0,.12,2.5,.13,[.92,.84,.59]);
+  cuboid(g,0,6.65,0,.64,.16,.14,[.92,.84,.59]);
+ }
  if(kind==="market")for(let i=0;i<3;i++)cuboid(g,-w+i*w,0,d+1.35,.45,1.1,.4,[.60,.39,.23]);
  return g;
 }
