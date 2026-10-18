@@ -120,11 +120,48 @@
     <button type="button" id="viewport-rts" aria-pressed="false" title="人物・敵・資源をタップして選択、地面をダブルタップして移動">⚓ RTS視点</button>
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
     <button type="button" id="viewport-social">💬 話す・贈る</button>
+    <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
     <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
     <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="fauna-panel" class="fauna-panel" role="dialog" aria-label="野生動物・馬の操作" hidden>
+ <div class="fauna-panel-top">
+  <strong id="fauna-heading">🐎 動物</strong>
+  <button type="button" id="fauna-close" aria-label="動物操作パネルを閉じる">× 閉じる</button>
+ </div>
+ <label class="fauna-label" for="fauna-animal">対象の動物</label>
+ <select id="fauna-animal" aria-label="動物を選ぶ"></select>
+ <p id="fauna-details" class="fauna-describe"></p>
+ <div class="fauna-buttons">
+  <button type="button" id="fauna-approach">🚶 近づく</button>
+  <button type="button" id="fauna-tame">♥ なつかせる</button>
+  <button type="button" id="fauna-call">📯 呼ぶ</button>
+ </div>
+ <div id="fauna-tack" class="fauna-tack">
+  <div class="fauna-label">馬具（共有資材から製作・装備）</div>
+  <div class="fauna-buttons">
+   <button type="button" data-tack="bit">＋ ハミ</button>
+   <button type="button" data-tack="reins">＋ 手綱</button>
+   <button type="button" data-tack="saddle">＋ クラ</button>
+   <button type="button" data-tack="horseshoes">＋ 蹄鉄</button>
+  </div>
+ </div>
+ <div class="fauna-buttons">
+  <button type="button" id="fauna-ride" class="primary">🐎 騎乗する</button>
+  <button type="button" id="fauna-unride">↘ 降りる</button>
+ </div>
+ <label class="fauna-label" for="fauna-gait">歩法
+  <select id="fauna-gait" aria-label="馬の歩法">
+   <option value="walk">常歩（7.5m/s）</option>
+   <option value="trot">速歩（10.5m/s）</option>
+   <option value="gallop">駈歩（14.5m/s）</option>
+  </select>
+ </label>
+ <p id="fauna-mounted-state" class="fauna-describe">徒歩</p>
+ <small>動物をタップして選択。野生馬は近くで3回なつかせると馴致できます。馬具3点で騎乗可能、蹄鉄は任意です。剣・槍・弓は既存ボタンで使用。</small>
+</section>
 <div id="page-share-overlay" class="page-share-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="page-share-title">
   <div class="page-share-card">
     <div class="page-share-heading">
