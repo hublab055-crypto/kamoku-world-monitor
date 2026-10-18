@@ -913,6 +913,8 @@ body.immersive{overflow:hidden}
 .map-directory-filters label:last-child{flex:0 0 94px}
 .map-directory-filters input,.map-directory-filters select{width:100%;box-sizing:border-box;margin-top:3px;min-height:36px;border-radius:7px;border:1px solid #708c87;background:#24434b;color:#f5fff6;font:inherit;padding:6px}
 .map-directory-panel #map-directory-status{margin:0;color:#bde5d9;font-size:11px;min-height:20px}
+.map-directory-status-line{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.map-directory-status-line #map-directory-refresh{flex:0 0 auto;padding:4px 8px;min-height:30px;font-size:11px}
 .map-directory-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto;min-height:0;max-height:48dvh;overscroll-behavior:contain}
 .map-directory-item{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px;border:1px solid #45645e;border-radius:8px;background:#1a3339}
 .map-directory-description{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
