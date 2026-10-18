@@ -9,6 +9,7 @@ import {Actions} from "../planet-explorer/actions.mjs";
 import {SquadEngine} from "../planet-explorer/squad.mjs";
 import {Lifestyle} from "../planet-explorer/lifestyle.mjs";
 import {ResourceHarvest} from "../planet-explorer/resource-harvest.mjs";
+import {hutDoor} from "../planet-explorer/buildings.mjs";
 
 const setup=()=>{
  const terrain=new Terrain(new Planet({seed:77})),controller=new ExplorerController(terrain);
@@ -87,7 +88,7 @@ test("chosen named chest is the actual storage destination once backpack is too 
  assert.equal(f.setChest("player",chest.id),true);
  assert.equal(f.start(a,"store_chest",1),true);
  // The actor walks to the hut door; test places it in reach to complete storage.
- const door=f.selectedChest(a).hut;
+ const door=hutDoor(f.selectedChest(a).hut);
  a.control.x=door.x;a.control.z=door.z;
  for(let i=0;i<20&&a.task;i++)f.tick(a,.1);
  assert.equal(f.loadKg("player"),0);
