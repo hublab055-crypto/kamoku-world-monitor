@@ -1,6 +1,6 @@
 import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {smoothAltitude} from "./descent-visuals.mjs";
-import {walkableSegment,MAX_WALK_SLOPE_DEG} from "./terrain-collision.mjs";
+import {walkableSegment,MAX_WALK_SLOPE_DEG} from "./terrain-collision.mjs?v=0.8c-steep-mountains";
 
 /**
  * Single landing-site geographic authority: the globe camera and streamed ground
