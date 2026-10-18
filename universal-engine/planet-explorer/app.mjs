@@ -28,7 +28,9 @@ import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles} from "./arrow-projectiles.mjs";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
 import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
-import {installFaunaUI} from "./fauna-ui.mjs?v=0.8f-panel";
+import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
+import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
+import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -38,12 +40,13 @@ const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const WORLD_JOURNAL_KEY="universal-engine:explorer:earthworks:v0.8a";
 const STRUCTURES_JOURNAL_KEY="universal-engine:explorer:construction:v0.8e";
 const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
+const FARM_JOURNAL_KEY="universal-engine:explorer:agriculture:v0.8g";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null;
+let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -117,7 +120,7 @@ let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
-const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土"};
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
@@ -130,6 +133,12 @@ function log(msg){
 }
 function saveFaunaJournal(){
  try{if(fauna)localStorage.setItem(FAUNA_JOURNAL_KEY,JSON.stringify(fauna.snapshot()));}catch(_){}
+}
+function loadFarmJournal(){
+ try{return JSON.parse(localStorage.getItem(FARM_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
+function saveFarmJournal(){
+ try{if(farm)localStorage.setItem(FARM_JOURNAL_KEY,JSON.stringify(farm.snapshot()));}catch(_){}
 }
 function faunaGroundPassable(fx,fz,tx,tz){
  if(!controller)return false;
@@ -173,7 +182,7 @@ function init(saved=null){
    const journal=!saved?loadLifeJournal():null;
    life=new Lifestyle(saved?.v0_7g||journal?.life||null);
    if(journal?.resources&&!saved){
-    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil"])
+    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
@@ -187,7 +196,7 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
-   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;
+   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;
    renderer.constructionSystem=constructions;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
@@ -824,7 +833,7 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(constructionUI?.kind)return;
  // Object double-taps must not send unintended ground movement.
  if(frontierUI?.selectTargetAt(x,y)||renderer.pickArrow(x,y)||renderer.pickTarget(x,y)||
-   renderer.pickResource(x,y)||renderer.pickAnimal(x,y)||
+   renderer.pickResource(x,y)||renderer.pickAnimal(x,y)||renderer.pickFarm(x,y)||
    screenActorAt(x,y)||renderer.pickLife(x,y)||renderer.pickDoor(x,y))return;
  const ground=renderer.pickGround(x,y);
  if(!ground){log("地面を指定できません。");return;}
