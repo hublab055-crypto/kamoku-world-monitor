@@ -48,7 +48,7 @@ export class ExplorerController {
     if(![x,z].every(Number.isFinite))throw new TypeError("Invalid movement target.");
     if(this.altitudeM>12.01) return false;
     const range=Math.hypot(x-this.x,z-this.z);
-    if(range>.3&&range<=350){
+    if(range>.3&&range<=(this.mountRiding?1200:350)){
       const sample=this.locationAt(x,z),surface=terrainSurface(this.terrain,sample.lat,sample.lon);
       if(surface.water||surface.river||surface.elevationM>2800)return false;
       this.moveTarget={x,z};return true;
