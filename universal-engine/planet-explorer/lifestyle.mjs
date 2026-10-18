@@ -46,6 +46,7 @@ export class Lifestyle {
    for(const key of Object.keys(initialItems))if(Number.isSafeInteger(data.inventory[key])&&data.inventory[key]>=0)
     this.inventory[key]=Math.min(99999,data.inventory[key]);
   }
+  this.chestContents=Object.fromEntries(Object.entries(data?.chestContents||{}).filter(([id,v])=>/^\d+$/.test(id)&&v&&typeof v==="object").slice(0,250));
   this.furnishings=Array.isArray(data?.furnishings)?
    data.furnishings.filter(f=>CATALOG[f.kind]?.inside&&[f.x,f.z,f.buildingId].every(validNumber))
    .map(f=>({...f})).slice(0,250):[];
@@ -76,6 +77,42 @@ export class Lifestyle {
   this.initializedHuts.push(hut.id);
  }
  atHut(hut){if(!hut)return [];this.ensureHut(hut);return this.furnishings.filter(f=>f.buildingId===hut.id);}
+ listChests(huts=[],actor=null,sort="distance"){
+  for(const hut of huts)this.ensureHut(hut);
+  const result=[];
+  for(const f of this.furnishings.filter(f=>f.kind==="chest")){
+   const hut=huts.find(h=>h.id===f.buildingId&&h.progress>=1);
+   if(!hut)continue;
+   const x=hut.x+f.x,z=hut.z+f.z;
+   result.push({id:f.id,name:f.name||"家のチェスト #"+f.id,buildingId:hut.id,
+    x,z,hut,distance:actor?Math.hypot(actor.x-x,actor.z-z):0});
+  }
+  if(sort==="name")result.sort((a,b)=>a.name.localeCompare(b.name,"ja")||a.distance-b.distance);
+  else result.sort((a,b)=>a.distance-b.distance||a.name.localeCompare(b.name,"ja"));
+  return result;
+ }
+ renameChest(id,name){
+  const chest=this.furnishings.find(f=>f.kind==="chest"&&f.id===Number(id)),value=String(name||"").trim();
+  if(!chest||!value||value.length>32)return result(false,"チェスト名は1〜32文字で入力してください");
+  chest.name=value;return result(true,"🧰 チェスト名を「"+value+"」に変更しました");
+ }
+ chestInventory(id){return {...(this.chestContents[String(id)]||{})};}
+ storeBackpack(id,bag){
+  const chest=this.furnishings.find(f=>f.kind==="chest"&&f.id===Number(id));
+  if(!chest)return {ok:false,message:"収納先チェストが見つかりません",moved:0};
+  const next=this.chestInventory(id);let moved=0;
+  for(const [kind,qty] of Object.entries(bag||{})){
+   if(!/^[a-zA-Z]{1,24}$/.test(kind)||!Number.isSafeInteger(qty)||qty<0||qty>9999)continue;
+   if(qty===0)continue;
+   if((next[kind]||0)+qty>999999)return {ok:false,message:"チェストの容量を超えます",moved:0};
+   next[kind]=(next[kind]||0)+qty;moved+=qty;
+  }
+  if(!moved)return {ok:false,message:"リュックは空です",moved:0};
+  this.chestContents[String(id)]=next;
+  for(const k of Object.keys(bag))if(Number.isSafeInteger(bag[k]))bag[k]=0;
+  return {ok:true,message:"🧰 "+(chest.name||"家のチェスト")+"に"+moved+"個収納",moved};
+ }
+
  nearbyCamp(actor,radius=3.5){
   return this.deployments.filter(d=>Math.hypot(actor.x-d.x,actor.z-d.z)<=radius)
    .sort((a,b)=>Math.hypot(actor.x-a.x,actor.z-a.z)-Math.hypot(actor.x-b.x,actor.z-b.z))[0]||null;
@@ -250,7 +287,7 @@ export class Lifestyle {
    this.stats.hunger=clamp(this.stats.hunger-45,0,100);this.stats.stamina=clamp(this.stats.stamina+9,0,100);
    activity("eat");return result(true,"🍽️ ごちそうさま！空腹が回復し、皿が汚れました。");
   }
-  if(action==="store"&&kind==="chest")return result(true,"🧰 チェストには家具と道具を持ち歩けます。持ち物メニューで確認してください。");
+  if(action==="store"&&kind==="chest")return result(true,"🧰 "+(f.name||"家のチェスト #"+f.id)+"：収納品 "+JSON.stringify(this.chestInventory(f.id)));
   return result(false,"この家具では実行できない操作です。");
  }
  useCamp(id,action,actor){
@@ -313,7 +350,7 @@ export class Lifestyle {
   this.readPages.push(tag);this.stats.knowledge=clamp(this.stats.knowledge+.25,0,1e6);
   return true;
  }
- snapshot(){return copy({schemaVersion:1,inventory:this.inventory,furnishings:this.furnishings,
+ snapshot(){return copy({schemaVersion:1,inventory:this.inventory,furnishings:this.furnishings,chestContents:this.chestContents,
   deployments:this.deployments,nextId:this.nextId,initializedHuts:this.initializedHuts,
   stats:this.stats,activity:this.activity,activityFurnitureId:this.activityFurnitureId,
   insideTentId:this.insideTentId,readPages:this.readPages});}
