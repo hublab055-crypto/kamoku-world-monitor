@@ -12,6 +12,7 @@ import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
 import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {oceanWavePatch,fishAt} from "./marine.mjs?v=0.8g-ocean";
+import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8i-swim";
 import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
@@ -867,15 +868,18 @@ export class ExplorerRenderer{
    const face=expression.update(dt);
    const pose=animator.update(dt,{
       moving:s.moving,phase:s.totalDistanceM*2.7,
-      speedMps:s.moving?s.walkSpeed:0,
+      speedMps:s.moving?(s.movementSpeed?.()||s.walkSpeed):0,
       jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,variant:motion.variant||"overhead",
       emotion:expression.preset,faceDirection:face.gazeX*.27,hand:motion?.hand||this.actionHand?.[actorId]||"right",
       equipped:this.handEquipment?.[actorId]||{}
    });
    Object.assign(pose,expressionPoseValues(face));
-   const joints=jointTransformsV2(pose,s.yaw);
+   const wet=isAquaticAction(motion?.action);
+   const pitch=wet?swimmingPresentation(s.travelMode,s.moving,0,this.marine?.depthM||0,this.marineClock).pitch:0;
+   const rigRoot=wet?matrixMultiply(avatarTransform,matrixMultiply(rotateY(s.yaw||0),rotX(pitch))):avatarTransform;
+   const joints=jointTransformsV2(pose,wet?0:s.yaw);
    for(const {mesh,part} of this.rigParts){
-     let m=matrixMultiply(avatarTransform,joints[part.pivot]);
+     let m=matrixMultiply(rigRoot,joints[part.pivot]);
      if(part.faceKind==="lid"){
        const openScale=Math.max(.015,Math.min(1,face.blink));
        m=matrixMultiply(m,[1,0,0,0,0,openScale,0,0,0,0,1,0,0,0,0,1]);
@@ -888,6 +892,7 @@ export class ExplorerRenderer{
      }
      this.drawMesh(mesh,multiply4(vp,m),light,1,.72,tint);
    }
+   if(wet)return; // Hands are paddling, not swinging handheld weapons underwater.
    const equipment=this.handEquipment?.[actorId]||{};
    const activeHand=motion?.hand||this.actionHand?.[actorId]||"right";
     const paired=["spear","greatsword"].includes(equipment.right)&&equipment.left===equipment.right;
@@ -1109,9 +1114,15 @@ export class ExplorerRenderer{
    animation.remaining-=Math.max(0,dt);
    if(animation.remaining<=0)this.socialAnimations.delete(id);
   }
+  const aquatic=isAquaticAction(motion?.action);
   const rig=this.animatedGlb[sex];
+  // Imported rigs without semantic limb joints cannot execute swim strokes.
+  // Show the procedural swimmer instead of an upright, motionless GLB.
+  if(aquatic&&(!rig||!["leftshoulder","rightshoulder","lefthip","righthip"]
+    .every(name=>rig.rig?.nodes?.some(node=>node.name?.toLowerCase()===name))))return false;
   if(rig){
-   const characterTransform=multiply4(transform,rotateY(unit.yaw||0));
+   const pitch=aquatic?swimmingPresentation(unit.travelMode,unit.moving,0,this.marine?.depthM||0,this.marineClock).pitch:0;
+   const characterTransform=multiply4(transform,multiply4(rotateY(unit.yaw||0),rotX(pitch)));
    let drawn=true;
    try{rig.draw(vp,characterTransform,light,id,dt,{
     moving:Boolean(unit.moving),motion:motion?.action||"idle",
@@ -1127,10 +1138,10 @@ export class ExplorerRenderer{
     this.glbStatuses[sex]={animated:false,reason:String(error.message||error)};
     drawn=false;
    }finally{this.gl.useProgram(this.program);}
-   if(drawn)this.drawSkinnedHandEquipment(rig,id,vp,characterTransform,light,motion);
+   if(drawn&&!aquatic)this.drawSkinnedHandEquipment(rig,id,vp,characterTransform,light,motion);
    return drawn;
   }
-  const meshes=this.glbMeshes[sex];if(!meshes?.length)return false;
+  const meshes=this.glbMeshes[sex];if(!meshes?.length||aquatic)return false;
   const mvp=multiply4(vp,multiply4(transform,rotateY(unit.yaw||0)));
   for(const mesh of meshes)this.drawMesh(mesh,mvp,light,1,.83);
   return true;
@@ -1441,8 +1452,9 @@ export class ExplorerRenderer{
   const currentSurface=terrainSurface(this.terrain,s.lat,s.lon);
   const ground=currentSurface.elevationM;
   const waterY=Number.isFinite(currentSurface.waterLevelM)?currentSurface.waterLevelM:0;
-  const feet=s.travelMode==="dive"?waterY-Math.min(this.marine?.depthM||0,12):
-    s.travelMode==="swim"?waterY-.16:s.travelMode==="boat"?waterY+.18:Math.max(ground,0);
+  const marinePose=["swim","dive"].includes(s.travelMode)?
+    swimmingPresentation(s.travelMode,s.moving,waterY,this.marine?.depthM||0,this.marineClock):null;
+  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+.38:Math.max(ground,0));
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
@@ -1452,7 +1464,7 @@ export class ExplorerRenderer{
    target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
    fovDeg:64,heightM:8,marker:false
   }:this.cameraController.groundView(s,{
-    cx:this.cx,cz:this.cz,groundM:feet,focusGroundM:focusGround,dt
+    cx:this.cx,cz:this.cz,groundM:marinePose?.action==="swim"||marinePose?.action==="tread"?waterY-1:feet,focusGroundM:focusGround,dt
   });
   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
     lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
@@ -1499,10 +1511,12 @@ export class ExplorerRenderer{
   // The grounded avatar remains at real scale even when the observer ascends.
   const transform=translate(px,feet+(s.jumpY||0)+(this.fauna?.mount?1.15:0),pz);
   const lifeAction=this.sceneLife?.activity;
-  const baseMotion=lifeAction&&lifeAction!=="idle"?
+  const baseMotion=marinePose?
+   {action:marinePose.action,progress:0}:
+   lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
   const hitActive=(this.playerHitSeconds||0)>0;
-  const hitMotion=hitActive&&!["sword","spear","greatsword","axe","bow","guard"].includes(baseMotion.action);
+  const hitMotion=!marinePose&&hitActive&&!["sword","spear","greatsword","axe","bow","guard"].includes(baseMotion.action);
   const playerMotion=hitMotion?
    {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
    baseMotion;
