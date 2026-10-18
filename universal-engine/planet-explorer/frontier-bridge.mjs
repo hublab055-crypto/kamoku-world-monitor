@@ -7,7 +7,7 @@ export const FW_WEIGHTS=Object.freeze({wood:3,stone:4,fiber:.5,food:1,water:1,cl
 export const FW_ACTIONS=Object.freeze(["rest_home","store_chest","gather_nearby"]);
 export const FW_PRESET=Object.freeze([
  {enabled:true,metric:"stamina",op:"<=",value:30,action:"rest_home"},
- {enabled:true,metric:"load_kg",op:">=",value:18,action:"store_chest"},
+ {enabled:true,metric:"load_kg",op:">",value:18,action:"store_chest"},
  {enabled:true,metric:"always",op:"==",value:1,action:"gather_nearby"}
 ]);
 const kinds=["wood","stone","fiber","food","water"];
@@ -68,7 +68,7 @@ export class FrontierBridge {
  }
  metrics(a){
   return {always:1,stamina:this.person(a.id)?.stamina??100,load_kg:this.loadKg(a.id),
-   resource_nearby:this.available(a).reduce((n,p)=>n+p.quantity,0)};
+   resource_nearby:this.available(a).reduce((n,p)=>n+(this.world?1:p.quantity),0)};
  }
  home(a){
   const built=this.squad.actions.structures.filter(b=>b.kind==="hut"&&b.progress>=1);
