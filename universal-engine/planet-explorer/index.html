@@ -82,7 +82,7 @@
   <span class="camera-active-label" id="camera-status">追従（三人称）</span>
 </div>
 <div class="canvas-wrap">
-      <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。地面ダブルタップで移動。人物・敵・資源は1回タップ。"></canvas>
+      <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。ダブルタップで地面へ移動、シングルタップで対象を選択。"></canvas>
       <div id="descent-atmosphere" class="descent-atmosphere" aria-hidden="true">
         <div class="descent-glow"></div>
         <div class="descent-clouds"></div>
@@ -143,6 +143,7 @@
     <button type="button" id="viewport-rts" aria-pressed="false" title="人物・敵・資源をタップして選択、地面をダブルタップして移動">⚓ RTS視点</button>
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
     <button type="button" id="viewport-social">💬 話す・贈る</button>
+    <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
      <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
     <button type="button" id="marine-toggle" aria-expanded="false" aria-controls="marine-panel">🌊 海・船</button>
@@ -151,6 +152,33 @@
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="map-directory-panel" class="fauna-panel map-directory-panel" role="dialog" aria-label="周辺マップの対象一覧" hidden>
+ <div class="fauna-panel-top">
+  <strong>🗺️ マップの対象一覧</strong>
+  <button type="button" id="map-directory-close" aria-label="マップ一覧を閉じる">× 閉じる</button>
+ </div>
+ <div id="map-directory-tabs" class="map-directory-tabs" role="group" aria-label="一覧の分類">
+  <button type="button" data-map-category="buildings" aria-pressed="false">🏠 建物</button>
+  <button type="button" data-map-category="animals" aria-pressed="true">🐎 動物</button>
+  <button type="button" data-map-category="people" aria-pressed="false">🧍 人物</button>
+  <button type="button" data-map-category="resources" aria-pressed="false">🌲 資源</button>
+ </div>
+ <div class="map-directory-filters">
+  <label>名前で探す
+   <input id="map-directory-filter" type="search" placeholder="名前・種類" autocomplete="off" aria-label="対象名で絞り込む">
+  </label>
+  <label>検索範囲
+   <select id="map-directory-radius" aria-label="検索範囲">
+    <option value="100">100m</option>
+    <option value="450" selected>450m</option>
+    <option value="1200">1200m</option>
+   </select>
+  </label>
+ </div>
+ <p id="map-directory-status" role="status" aria-live="polite"></p>
+ <ul id="map-directory-list" class="map-directory-list" aria-label="マップ上の対象"></ul>
+ <small>対象の「操作」を押すと動物・人物などを選べます。「向かう」は移動指示です。地面のダブルタップでは一覧や動物の窓を開かず、移動を優先します。</small>
+</section>
 <section id="marine-panel" class="fauna-panel" role="group" aria-label="海上移動・潜水・造船" hidden>
  <div class="fauna-panel-top"><strong>🌊 海・船・潜水</strong>
   <button type="button" id="marine-close" aria-label="海・船メニューを閉じる">× 閉じる</button></div>
@@ -741,6 +769,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8i-visible-swimming"></script>
+<script type="module" src="./app.mjs?v=0.8j-map-directory-tap-priority"></script>
 </body>
 </html>
