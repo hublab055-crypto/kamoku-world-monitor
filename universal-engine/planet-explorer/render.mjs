@@ -567,7 +567,7 @@ export class ExplorerRenderer{
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
-  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
+  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
    this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
@@ -1349,9 +1349,14 @@ export class ExplorerRenderer{
  }
  drawMarineSurface(vp,light,s,dt){
   const wet=s.travelMode==="swim"||s.travelMode==="dive"||s.travelMode==="boat";
-  const now=(this.planet.timeDays||0)*86400;
+  this.marineClock+=Math.min(.1,Math.max(0,dt));
+  const now=this.marineClock;
   // Rebuild a small wave mesh only 3 times/s; do not regenerate whole continents.
-  if((wet||this.marine?.nearby(s,65).length)&&
+  const nearWater=wet||[[0,0],[45,0],[-45,0],[0,45],[0,-45]].some(([x,z])=>{
+    const point=geoOffset(s.origin.lat,s.origin.lon,s.x+x,s.z+z,this.planet.radiusM);
+    return terrainSurface(this.terrain,point.lat,point.lon).water;
+  });
+  if(nearWater&&
       (this.lastWaveAt<0||now-this.lastWaveAt>.34)){
    const patch=oceanWavePatch(this.terrain,s.origin,s.x,s.z,now,
     {radius:105,cells:24});
@@ -1373,11 +1378,11 @@ export class ExplorerRenderer{
    this.drawMesh(mesh,multiply4(vp,transform),light,1,.73);
   }
   if(!["swim","dive","boat"].includes(s.travelMode))return;
-  const fish=fishAt(this.planet.seed,s.x,s.z,(this.planet.timeDays||0)*86400);
+  const fish=fishAt(this.planet.seed,s.x,s.z,this.marineClock);
   for(const f of fish){
    const geo=geoOffset(s.origin.lat,s.origin.lon,f.x,f.z,this.planet.radiusM);
    if(!terrainSurface(this.terrain,geo.lat,geo.lon).water)continue;
-   const transform=multiply4(translate(f.x-this.cx,-f.depthM, f.z-this.cz),rotateY(f.yaw));
+   const transform=multiply4(translate(f.x-this.cx,s.travelMode==="dive"?-f.depthM:.14, f.z-this.cz),rotateY(f.yaw));
    this.drawMesh(this.fishMesh,multiply4(vp,transform),light,1,.86);
   }
  }
