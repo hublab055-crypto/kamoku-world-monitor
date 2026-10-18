@@ -16,13 +16,13 @@ import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8i-swi
 import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
-import {SmoothAnimator} from "./animator.mjs";
+import {SmoothAnimator} from "./animator.mjs?v=0.8i-swimming";
 import {makeJointCovers} from "./joint-covers.mjs";
 import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
 import {rotZ} from "./rig.mjs";
 import {CameraController} from "./camera-controller.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8i-swimming";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
