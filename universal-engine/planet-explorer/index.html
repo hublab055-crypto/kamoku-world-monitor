@@ -6,6 +6,12 @@
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
 <link rel="stylesheet" href="./style.css?v=0.7y-army-tactics">
+<style>
+.harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
+.harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
+.harvest-spark.rock{background:#e7ecf5;box-shadow:0 0 8px #9ab8d3}
+@keyframes harvest-fx{from{transform:translate(-50%,-50%) scale(.65);opacity:1}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.05);opacity:0}}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -72,6 +78,7 @@
       <div id="rts-markers" aria-hidden="true"></div>
       <div id="world-hit-flash" aria-hidden="true"></div>
       <div id="world-fx-layer" class="world-fx-layer" aria-hidden="true"></div>
+       <div id="harvest-fx-layer" class="harvest-fx-layer" aria-hidden="true"></div>
       <div class="viewport-overlay">
         <div>高度 <strong id="height">-- m</strong></div>
         <div class="coords" id="coords">--°, --°</div>
@@ -256,7 +263,14 @@
     <label>設定対象 <select id="auto-actor" aria-label="自動行動を設定する人物"><option value="player">開拓者</option><option value="scout">斥候</option><option value="artisan">職人</option></select></label>
     <label class="auto-toggle"><input type="checkbox" id="auto-enabled"> 自動行動 ON</label>
   </div>
-  <div id="auto-actor-list" class="auto-actor-list" aria-label="各人物の状態"></div>
+  <div class="auto-chest-settings" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:7px 0">
+ <label>📦 収納先 <select id="auto-chest-target" aria-label="収納先チェスト"><option value="">近くのチェスト（自動）</option></select></label>
+ <label>並べ替え <select id="auto-chest-sort" aria-label="チェストを並べ替える"><option value="distance">現在地から近い順</option><option value="name">名前順</option></select></label>
+ <label>チェスト名 <input id="auto-chest-name" maxlength="32" placeholder="例：木材倉庫" aria-label="チェストの名前"></label>
+ <button type="button" id="auto-chest-rename">名前変更</button>
+ <span id="auto-chest-contents" aria-live="polite"></span>
+ </div>
+ <div id="auto-actor-list" class="auto-actor-list" aria-label="各人物の状態"></div>
   <div id="auto-rule-list" class="auto-rule-list" aria-label="優先順位つき条件スロット"></div>
   <div class="auto-footer">
     <button type="button" id="auto-rally">今の地点を集合地点に</button>
@@ -552,6 +566,6 @@
   </section>
 </main>
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
-<script type="module" src="./app.mjs?v=0.8b-river-valley"></script>
+<script type="module" src="./app.mjs?v=0.8c-slope-gather-clouds"></script>
 </body>
 </html>
