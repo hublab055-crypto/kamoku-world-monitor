@@ -60,7 +60,10 @@ export class ViewportGestures {
     }
     if(this.blockUntilClear)return;
     if(distance(p,{x:p.startX,y:p.startY})>10)p.moved=true;
-    if(p.moved)this.onDrag(dx,dy);
+    if(p.moved){
+      // Beginning a camera drag cancels a tentative object selection.
+      this.lastTap=null;this.clearPendingTap();this.onDrag(dx,dy);
+    }
   }
   up(e){
     const p=this.points.get(e.pointerId);
