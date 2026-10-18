@@ -544,7 +544,7 @@ export class ExplorerRenderer{
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.cameraController=new CameraController();
   this.actorMarker=null;
-  this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;
+  this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;this.mapFocus=null;
   this.screenAnimals=[];this.fauna=null;this.farm=null;this.screenFarms=[];this.farmMeshes=new Map();this.animalGrazeMeshes=new Map();
   this.animalMeshes=Object.fromEntries(["horse","cattle","sheep","goat","chicken","dog","cat"].map(k=>
    [k,new Mesh(gl,faunaGeometry(k))]));this.horseTackMeshes=new Map();
@@ -1499,6 +1499,15 @@ export class ExplorerRenderer{
    const node=this.resourceNodes?.find(n=>n.id===this.selectedResource.id);
    if(node)this.drawMesh(this.selectionRing,
     multiply4(vp,translate(node.x-this.cx,node.elevationM+.06,node.z-this.cz)),light,1,.95,[.45,1,.55]);
+  }
+  if(this.mapFocus&&Number.isFinite(this.mapFocus.x)&&Number.isFinite(this.mapFocus.z)){
+   const focus=this.mapFocus,x=focus.x-this.cx,z=focus.z-this.cz;
+   if(Math.abs(x)<=radius&&Math.abs(z)<=radius){
+    const geo=geoOffset(s.origin.lat,s.origin.lon,focus.x,focus.z,this.planet.radiusM);
+    const ground=terrainSurface(this.terrain,geo.lat,geo.lon);
+    if(!ground.water&&!ground.river)this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,ground.elevationM+.07,z)),light,1,.97,[.28,.98,1]);
+   }
   }
   this.drawBuildings(vp,light,s,radius,dt);
   this.drawAgriculture(vp,light,s,radius);
