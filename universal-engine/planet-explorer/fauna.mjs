@@ -20,7 +20,7 @@ const initial=()=>[
  ["goat",-67,29],["goat",-76,35],["chicken",30,-35],["chicken",36,-39],
  ["dog",82,-57],["cat",29,55]
 ].map(([kind,x,z],i)=>({id:"fauna-"+(i+1),kind,x,z,homeX:x,homeZ:z,yaw:(i*2.4)%6.28,
- tame:false,trust:0,following:false,stamina:100,gear:{bit:false,reins:false,saddle:false,horseshoes:false}}));
+ tame:false,trust:0,following:false,stamina:100,hunger:62,grazing:false,gear:{bit:false,reins:false,saddle:false,horseshoes:false}}));
 export class FaunaWorld {
  constructor(saved=null){
   this.animals=initial();this.selectedId=null;this.mountId=null;this.gait="trot";this.elapsed=0;
@@ -31,6 +31,7 @@ export class FaunaWorld {
     for(const key of ["x","z","yaw","stamina","trust"])
      if(Number.isFinite(source[key]))dest[key]=key==="stamina"?clamp(source[key],0,100):source[key];
     dest.tame=Boolean(source.tame);dest.following=Boolean(source.following&&dest.tame);
+    if(Number.isFinite(source.hunger))dest.hunger=clamp(source.hunger,0,100);
     if(dest.kind==="horse")for(const key of Object.keys(TACK))dest.gear[key]=Boolean(source.gear?.[key]);
    }
    this.mountId=this.animals.some(a=>a.id===saved.mountId&&a.kind==="horse"&&a.tame)?saved.mountId:null;
@@ -47,10 +48,10 @@ export class FaunaWorld {
   if(!a)return {ok:false,message:"動物が見つかりません"};
   if(this.range(a,actor)>3.6)return {ok:false,message:"動物から3.6m以内へ近づいてください"};
   if(a.tame)return {ok:true,message:WILD_SPECIES[a.kind].name+"はすでに人になれています"};
-  if(a.kind!=="horse")return {ok:false,message:"この動物の家畜化・飼育は次期拡張です"};
+  if(!["horse","cattle","sheep","goat","chicken"].includes(a.kind))return {ok:false,message:"この動物の家畜化はまだできません"};
   a.trust=Math.min(3,a.trust+1);
-  if(a.trust>=3){a.tame=true;a.following=true;return {ok:true,message:"🐎 野生馬がなつきました。呼ぶ・馬具装備が使えます"};}
-  return {ok:true,message:"🐎 馬との信頼 "+a.trust+"/3。もう一度『なつかせる』を試してください"};
+  if(a.trust>=3){a.tame=true;a.following=true;return {ok:true,message:WILD_SPECIES[a.kind].icon+" "+WILD_SPECIES[a.kind].name+"がなつきました。呼ぶ・給餌ができます"};}
+  return {ok:true,message:WILD_SPECIES[a.kind].icon+" 信頼 "+a.trust+"/3。もう一度『なつかせる』を試してください"};
  }
  equip(id,part,actor,resources){
   const a=this.get(id),spec=TACK[part];
@@ -101,6 +102,24 @@ export class FaunaWorld {
   a.following=true;
   return {ok:true,message:"📯 "+WILD_SPECIES[a.kind].name+"を呼びました"};
  }
+ feed(id,food,actor,resources){
+  const a=this.get(id);
+  if(!a)return {ok:false,message:"動物が見つかりません"};
+  if(this.range(a,actor)>3.8)return {ok:false,message:"給餌するには動物の3.8m以内へ近づいてください"};
+  const diets={
+   horse:["straw","carrot","apple"],cattle:["straw","carrot","apple"],
+   sheep:["straw","carrot"],goat:["straw","carrot","apple"],
+   chicken:["wheat"],dog:[],cat:[]
+  };
+  if(!diets[a.kind]?.includes(food))return {ok:false,message:"この動物には選択した餌を与えられません"};
+  if(!resources||!Number.isSafeInteger(resources[food])||resources[food]<1)
+   return {ok:false,message:"餌がありません。畑・果樹から収穫してください"};
+  if(a.hunger>=99)return {ok:false,message:"お腹がいっぱいです"};
+  resources[food]--;a.hunger=clamp(a.hunger+(food==="straw"?26:food==="wheat"?20:40),0,100);
+  a.grazing=false;
+  return {ok:true,message:WILD_SPECIES[a.kind].icon+" "+WILD_SPECIES[a.kind].name+"に"+
+   ({straw:"麦わら",carrot:"ニンジン",apple:"リンゴ",wheat:"小麦"}[food])+"を与えました（満腹度 "+Math.round(a.hunger)+"%）"};
+ }
  setGait(gait){
   if(!Object.hasOwn(HORSE_GAITS,gait))return false;
   this.gait=gait;return true;
@@ -119,8 +138,16 @@ export class FaunaWorld {
    ridden.stamina=clamp(ridden.stamina+(actor.moving?-fatigue*(ridden.gear.horseshoes?.86:1):.38)*dt,0,100);
   }
   for(let i=0;i<this.animals.length;i++){
-   const a=this.animals[i];if(a===ridden)continue;
+   const a=this.animals[i];
+   a.grazing=false;
+   a.hunger=clamp(a.hunger-.024*dt,0,100);
+   if(a===ridden)continue;
+   if(["horse","cattle","sheep","goat","chicken"].includes(a.kind)&&
+    !a.following&&a.hunger<91&&Math.sin(this.elapsed*.75+i*2.1)>.05){
+    a.grazing=true;a.hunger=clamp(a.hunger+.30*dt,0,100);
+   }
    const dx=actor.x-a.x,dz=actor.z-a.z,distance=Math.hypot(dx,dz);
+   if(a.grazing)continue;
    if(a.following&&a.tame&&distance>3.3){
     const speed=a.kind==="horse"?6.8:3.1;
     this.step(a,dx,dz,Math.min(speed*dt,Math.max(0,distance-2.8)),passable);
@@ -144,6 +171,6 @@ export class FaunaWorld {
  snapshot(){
   return {version:1,mountId:this.mountId,gait:this.gait,
    animals:this.animals.map(a=>({id:a.id,kind:a.kind,x:a.x,z:a.z,yaw:a.yaw,stamina:a.stamina,trust:a.trust,
-    tame:a.tame,following:a.following,gear:{...a.gear}}))};
+    tame:a.tame,following:a.following,hunger:a.hunger,gear:{...a.gear}}))};
  }
 }
