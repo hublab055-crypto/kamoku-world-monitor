@@ -92,8 +92,8 @@ export class FrontierBridge {
   a.task=null;a.control.clearMoveTarget();a.cooldown=.4;a.status=text;
   this.events.push(a.name+"："+text);if(this.events.length>12)this.events.shift();
  }
- move(a,p,label){
-  if(dist(a.control,p)<=2.2){a.control.clearMoveTarget();return true;}
+ move(a,p,label,stopRange=2.2){
+  if(dist(a.control,p)<=stopRange){a.control.clearMoveTarget();return true;}
   if(!a.control.moveTarget||dist(a.control.moveTarget,p)>1.4){
    if(!a.control.setMoveTarget(p.x,p.z)){this.finish(a,"到達できない場所");return false;}
   }
@@ -158,7 +158,7 @@ export class FrontierBridge {
       task.failed=[...(task.failed||[]),node.id].slice(-80);task.target=null;
       a.status="急斜面の資源をスキップ";return true;
      }
-     const moving=this.move(a,stand,"🚶 "+(kind==="axe"?"木へ接近":"岩へ接近"));
+     const moving=this.move(a,stand,"🚶 "+(kind==="axe"?"木へ接近":"岩へ接近"),.38);
      if(!moving){
       task.wait=(task.wait||0)+dt;
       if(task.wait>8){
