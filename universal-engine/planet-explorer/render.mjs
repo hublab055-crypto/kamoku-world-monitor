@@ -5,6 +5,7 @@ import {BUILD_KINDS} from "./construction-system.mjs";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs";
 import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
 import {noise3} from "../planet/planet-core.mjs";
+import {faunaGeometry} from "./fauna-geometry.mjs?v=0.8f-fauna";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
 import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
@@ -517,6 +518,9 @@ export class ExplorerRenderer{
   this.cameraController=new CameraController();
   this.actorMarker=null;
   this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;
+  this.screenAnimals=[];this.fauna=null;
+  this.animalMeshes=Object.fromEntries(["horse","cattle","sheep","goat","chicken","dog","cat"].map(k=>
+   [k,new Mesh(gl,faunaGeometry(k))]));this.horseTackMeshes=new Map();
    this.fallingTrees=new Map();this.cloudEast=0;this.cloudNorth=0;this.cloudOriginEast=0;this.cloudOriginNorth=0;this.cloudCoverBand=null;
   this.squad=null;
   this.npcAnimators=new Map();
@@ -681,6 +685,43 @@ export class ExplorerRenderer{
     if(d<dist){nearest=target;dist=d;}
    }
    return nearest;
+  }
+  pickAnimal(clientX,clientY){
+   const rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+   const u=(clientX-rect.left)/rect.width,v=(clientY-rect.top)/rect.height;
+   let nearest=null,range=56;
+   for(const a of this.screenAnimals||[]){
+    if(!a.onScreen)continue;
+    const d=Math.hypot((a.u-u)*rect.width,(a.v-v)*rect.height);
+    if(d<range){range=d;nearest=a;}
+   }
+   return nearest;
+  }
+  drawFauna(vp,light,actor,radius){
+   this.screenAnimals=[];
+   if(!this.fauna)return;
+   for(const a of this.fauna.animals){
+    const x=a.x-this.cx,z=a.z-this.cz;
+    if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
+    const geo=geoOffset(actor.origin.lat,actor.origin.lon,a.x,a.z,this.planet.radiusM);
+    const surf=terrainSurface(this.terrain,geo.lat,geo.lon);
+    if(surf.water||surf.river)continue;
+    const y=Math.max(0,surf.elevationM),height=a.kind==="horse"||a.kind==="cattle"?2.0:a.kind==="chicken"?.8:1.4;
+    const projected=projectScreen(vp,[x,y+height,z]);
+    if(projected?.onScreen)this.screenAnimals.push({...projected,id:a.id,kind:a.kind});
+    const active=a.following||this.fauna.mountId===a.id;
+    const bounce=active?.025*Math.sin((actor.totalDistanceM||0)*5):0;
+    const model=multiply4(translate(x,y+bounce,z),rotateY(a.yaw));
+    let mesh=this.animalMeshes[a.kind];
+    if(a.kind==="horse"){
+     const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/");
+     if(!this.horseTackMeshes.has(key))this.horseTackMeshes.set(key,new Mesh(this.gl,faunaGeometry("horse",a.gear)));
+     mesh=this.horseTackMeshes.get(key);
+    }
+    this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
+    if(this.fauna.selectedId===a.id)this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,y+.05,z)),light,1,.90,[.78,.92,.42]);
+   }
   }
   pickResource(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
@@ -1168,7 +1209,7 @@ export class ExplorerRenderer{
    if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
-  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
+  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
  }
  orbit(s,asp,dt=1/60){
@@ -1334,12 +1375,13 @@ export class ExplorerRenderer{
     multiply4(vp,translate(node.x-this.cx,node.elevationM+.06,node.z-this.cz)),light,1,.95,[.45,1,.55]);
   }
   this.drawBuildings(vp,light,s,radius,dt);
+  this.drawFauna(vp,light,s,radius);
   this.drawFrontier(vp,light,s,radius);
   this.drawTestEnemies(vp,light,s,radius);
   this.drawPhysicalArrows(vp,light);
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
-  const transform=translate(px,feet+(s.jumpY||0),pz);
+  const transform=translate(px,feet+(s.jumpY||0)+(this.fauna?.mount?1.15:0),pz);
   const lifeAction=this.sceneLife?.activity;
   const baseMotion=lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
@@ -1386,7 +1428,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...this.horseTackMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
