@@ -42,8 +42,9 @@ export function groundCloudGeometry({seed=77,cx=0,cz=0,radius=450,baseElevation=
   const roll=hash(ix,iz,seed);if(roll>Math.max(.06,Math.min(.85,cloudCover*.80+.15)))continue;
   const wx=(ix+.18+hash(ix+3,iz,seed)*.65)*unit;
   const wz=(iz+.17+hash(ix,iz+7,seed)*.65)*unit;
-  const x=wx-cx+driftEast,z=wz-cz+driftNorth;
-  if(Math.hypot(x,z)>reach)continue;
+  const baseX=wx-cx,baseZ=wz-cz;
+  if(Math.hypot(baseX,baseZ)>reach)continue;
+  const x=baseX+driftEast,z=baseZ+driftNorth;
   const y=baseElevation+280+240*hash(ix-10,iz+9,seed);
   const shade=precipitation!=="none"?.70:1;
   const cloudColor=[(.91+roll*.05)*shade,(.93+roll*.04)*shade,.96*shade];
