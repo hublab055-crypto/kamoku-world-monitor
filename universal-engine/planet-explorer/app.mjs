@@ -2,9 +2,9 @@ import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
-import {ExplorerController} from "./controller.mjs?v=0.8e-stone-wall";
+import {ExplorerController} from "./controller.mjs?v=0.8h-marine";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8e-building-geometry";
+import {ExplorerRenderer} from "./render.mjs?v=0.8h-marine";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs";
@@ -1654,10 +1654,31 @@ groupUI=installGroupUI({
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
 });
-$("farm-toggle").addEventListener("click",()=>faunaUI?.close());
-$("fauna-toggle").addEventListener("click",()=>farmUI?.close());
+$("farm-toggle").addEventListener("click",()=>{faunaUI?.close();$("marine-panel").hidden=true;});
+$("fauna-toggle").addEventListener("click",()=>{farmUI?.close();$("marine-panel").hidden=true;});
 window.addEventListener("pagehide",saveFaunaJournal);
 window.addEventListener("pagehide",saveFarmJournal);
+$("marine-toggle").addEventListener("click",()=>{
+ const panel=$("marine-panel");panel.hidden=!panel.hidden;
+ $("marine-toggle").setAttribute("aria-expanded",String(!panel.hidden));
+ if(!panel.hidden){faunaUI?.close();farmUI?.close();}updateHUD();
+});
+$("marine-close").addEventListener("click",()=>{
+ $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
+});
+for(const [id,act] of [
+ ["marine-craft",()=>marine.craft($("marine-boat-kind").value,controller,terrain,actions.resources)],
+ ["marine-board",()=>marine.board(controller,terrain)],
+ ["marine-leave",()=>marine.leave(controller,terrain)],
+ ["marine-dive",()=>marine.dive(controller,terrain)]
+]){
+ $(id).addEventListener("click",()=>{
+  const result=act();log(result.message);
+  if(result.ok){renderer.patchKey=null;saveMarineJournal();saveLifeJournal();}
+  updateHUD();
+ });
+}
+window.addEventListener("pagehide",saveMarineJournal);
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
