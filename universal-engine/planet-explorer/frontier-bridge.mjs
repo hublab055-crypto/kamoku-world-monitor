@@ -1,19 +1,21 @@
 import {terrainSurface} from "./geo.mjs";
 import {hutDoor} from "./buildings.mjs";
+import {chooseWorkPoint} from "./terrain-collision.mjs";
 
 /** Frontier World living systems in Universal Engine's planetary metre space. */
-export const FW_WEIGHTS=Object.freeze({wood:3,stone:4,fiber:.5,food:1,water:1});
+export const FW_WEIGHTS=Object.freeze({wood:3,stone:4,fiber:.5,food:1,water:1,clay:2,metal:3,soil:2});
 export const FW_ACTIONS=Object.freeze(["rest_home","store_chest","gather_nearby"]);
 export const FW_PRESET=Object.freeze([
  {enabled:true,metric:"stamina",op:"<=",value:30,action:"rest_home"},
  {enabled:true,metric:"load_kg",op:">=",value:18,action:"store_chest"},
  {enabled:true,metric:"resource_nearby",op:">=",value:1,action:"gather_nearby"}
 ]);
-const kinds=Object.keys(FW_WEIGHTS);
+const kinds=["wood","stone","fiber","food","water"];
+const bagKinds=Object.keys(FW_WEIGHTS);
 const cap=(n,a,b)=>Math.max(a,Math.min(b,n));
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.z);
-const bag=b=>Object.fromEntries(kinds.map(k=>[k,cap(Math.floor(Number(b?.[k])||0),0,9999)]));
+const bag=b=>Object.fromEntries(bagKinds.map(k=>[k,cap(Math.floor(Number(b?.[k])||0),0,9999)]));
 function generateNodes(terrain,control,base){
  const found=[];
  for(let i=0;i<48;i++){
@@ -27,30 +29,45 @@ function generateNodes(terrain,control,base){
 }
 export class FrontierBridge {
  constructor(squad,saved=null){
-  this.squad=squad;this.life=null;this.events=[];
+  this.squad=squad;this.life=null;this.events=[];this.world=null;
   const lead=squad.get("player").control;
   this.base={x:lead.x,z:lead.z};
-  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0}]));
+  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null}]));
   this.nodes=generateNodes(squad.terrain,lead,this.base);
   if(saved)this.restore(saved);
  }
  attachLife(life){this.life=life;}
+ attachWorld(adapter){this.world=adapter;}
+ setChest(id,chestId){
+  const p=this.person(id);if(!p)return false;
+  if(chestId!==null&&(!Number.isSafeInteger(Number(chestId))||Number(chestId)<=0))return false;
+  p.chestId=chestId===null?null:Number(chestId);return true;
+ }
+ chests(a,sort="distance"){
+  return this.life?.listChests(this.squad.actions.structures.filter(b=>b.kind==="hut"&&b.progress>=1),a.control,sort)||[];
+ }
+ selectedChest(a){
+  const choices=this.chests(a),wanted=this.person(a.id)?.chestId;
+  return choices.find(c=>c.id===wanted)||choices[0]||null;
+ }
  ensureAgent(id){
   if(this.people[id])return this.people[id];
   const a=this.squad.get(id);
   if(!a)return null;
   return this.people[id]={stamina:100,inventory:bag(),radius:42,
-   origin:{x:a.control.x,z:a.control.z},gathered:0};
+   origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null};
  }
  person(id){return this.ensureAgent(id);}
  isAction(kind){return FW_ACTIONS.includes(kind);}
- loadKg(id){const inv=this.person(id)?.inventory||{};return Math.round(kinds.reduce((t,k)=>t+inv[k]*FW_WEIGHTS[k],0)*10)/10;}
+ loadKg(id){const inv=this.person(id)?.inventory||{};return Math.round(bagKinds.reduce((t,k)=>t+(inv[k]||0)*FW_WEIGHTS[k],0)*10)/10;}
  available(a){
   const p=this.person(a.id);
-  return p?this.nodes.filter(n=>n.quantity>0&&dist(n,p.origin)<=p.radius):[];
+  if(!p)return [];
+  if(this.world)return (this.world.list(p.origin,p.radius)||[]).filter(n=>n?.id&&["wood","stone"].includes(n.kind)&&dist(n,p.origin)<=p.radius);
+  return this.nodes.filter(n=>n.quantity>0&&dist(n,p.origin)<=p.radius);
  }
  metrics(a){
-  return {stamina:this.person(a.id)?.stamina??100,load_kg:this.loadKg(a.id),
+  return {always:1,stamina:this.person(a.id)?.stamina??100,load_kg:this.loadKg(a.id),
    resource_nearby:this.available(a).reduce((n,p)=>n+p.quantity,0)};
  }
  home(a){
@@ -63,12 +80,12 @@ export class FrontierBridge {
   const x=this.squad.actions.resources,i=this.life?.inventory||{};
   return {wood:x.wood||0,stone:x.stone||0,fiber:x.fiber||0,food:i.rawFood||0,water:i.water||0};
  }
- hasItems(a){return kinds.some(k=>(this.person(a.id)?.inventory[k]||0)>0);}
+ hasItems(a){return bagKinds.some(k=>(this.person(a.id)?.inventory[k]||0)>0);}
  cancel(a){
   if(this.isAction(a.task?.kind)){a.task=null;a.control.clearMoveTarget();}
  }
  start(a,kind,slot=0){
-  if(!this.isAction(kind)||kind==="store_chest"&&!this.hasItems(a)||kind==="gather_nearby"&&!this.available(a).length)return false;
+  if(!this.isAction(kind)||kind==="store_chest"&&(!this.hasItems(a)||this.world&&!this.selectedChest(a))||kind==="gather_nearby"&&!this.available(a).length)return false;
   a.control.clearMoveTarget();a.task={kind,slot,target:null};a.order="frontier";return true;
  }
  finish(a,text){
@@ -82,13 +99,17 @@ export class FrontierBridge {
   }
   a.status=label;return false;
  }
- deposit(a){
-  const inv=this.person(a.id).inventory,r=this.squad.actions.resources,i=this.life?.inventory;
-  let moved=0;
+ deposit(a,chest=null){
+  const inv=this.person(a.id).inventory;
+  if(this.world){
+   const result=chest&&this.life?.storeBackpack(chest.id,inv);
+   if(result?.ok)this.world.storageChanged?.(chest);
+   return result?.moved||0;
+  }
+  const r=this.squad.actions.resources,i=this.life?.inventory;let moved=0;
   for(const k of kinds){
    const n=inv[k];if(!n)continue;
-   if(k==="food"||k==="water"){
-    if(!i)continue;
+   if(k==="food"||k==="water"){if(!i)continue;
     const dest=k==="food"?"rawFood":"water";i[dest]=(i[dest]||0)+n;
    }else r[k]=(r[k]||0)+n;
    inv[k]=0;moved+=n;
@@ -111,11 +132,13 @@ export class FrontierBridge {
    if(p.stamina>=99.999){p.stamina=100;this.finish(a,"スタミナ100%まで回復");}
   }else if(task.kind==="store_chest"){
    if(!this.hasItems(a)){this.finish(a,"全収納完了");return true;}
-   const h=this.home(a);
-   if(!this.move(a,h,"📦 チェストへ運搬"))return true;
-   const n=this.deposit(a);
-   this.finish(a,n?"📦 "+n+"個を収納":"収納先を利用できません");
-  }else if(task.kind==="gather_nearby"){
+   const chest=this.world?this.selectedChest(a):null;
+   if(this.world&&!chest){this.finish(a,"家にチェストを設置してください");return true;}
+   const h=chest?{...hutDoor(chest.hut),kind:"chest"}:this.home(a);
+   if(!this.move(a,h,"📦 "+(chest?.name||"チェスト")+"へ運搬"))return true;
+   const n=this.deposit(a,chest);
+   this.finish(a,n?"📦 "+(chest?.name||"チェスト")+"に"+n+"個収納":"収納先を利用できません");
+   }else if(task.kind==="gather_nearby"){
    let node=this.nodes.find(n=>n.id===task.target&&n.quantity>0);
    if(node&&!this.available(a).includes(node))node=null;
    if(!node){
@@ -163,6 +186,7 @@ export class FrontierBridge {
    p.inventory=bag(s.inventory);p.radius=cap(Number(s.radius)||42,5,100);
    p.origin=point(s.origin)?{x:s.origin.x,z:s.origin.z}:{x:actor.control.x,z:actor.control.z};
    p.gathered=Math.max(0,Math.floor(Number(s.gathered)||0));
+    p.chestId=Number.isSafeInteger(s.chestId)&&s.chestId>0?s.chestId:null;
    p.gifts={};
    for(const [id,qty] of Object.entries(s.gifts||{}))if(/^[a-zA-Z]{1,24}$/.test(id)&&Number.isSafeInteger(qty)&&qty>=0&&qty<=9999)p.gifts[id]=qty;
   }
