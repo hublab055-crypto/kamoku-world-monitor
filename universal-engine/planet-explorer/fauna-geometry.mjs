@@ -50,17 +50,17 @@ export function faunaGeometry(kind,gear={},pose={}){
  }
  const neckZ=bodyD*.41;
  cube(m,0,shoulder*.65,neckZ,scale*.37,shoulder*.60,scale*.38,coat);
- cube(m,0,shoulder*1.09,neckZ+scale*.17,scale*.47,shoulder*.27,scale*.55,coat);
- cube(m,0,shoulder*1.00,neckZ+scale*.45,scale*.34,shoulder*.13,scale*.28,wolf?dark:pale);
+ cube(m,0,shoulder*1.09-headDrop,neckZ+scale*.17+headForward,scale*.47,shoulder*.27,scale*.55,coat);
+ cube(m,0,shoulder*1.00-headDrop,neckZ+scale*.45+headForward,scale*.34,shoulder*.13,scale*.28,wolf?dark:pale);
  for(const x of [-scale*.19,scale*.19]){
-  spike(m,x,shoulder*1.23,neckZ+scale*.11,small?.18:.26,scale*.11,coat);
-  cube(m,x*.7,shoulder*1.17,neckZ+scale*.39,scale*.055,.055,.047,dark);
+  spike(m,x,shoulder*1.23-headDrop,neckZ+scale*.11+headForward,small?.18:.26,scale*.11,coat);
+  cube(m,x*.7,shoulder*1.17-headDrop,neckZ+scale*.39+headForward,scale*.055,.055,.047,dark);
  }
  cube(m,0,shoulder*.70,-bodyD*.57,scale*.12,small?.35:.58,scale*.12,dark);
  if(kind==="horse"){
   // Mane along the crest and dark lower legs/hooves.
   for(let z=0;z<4;z++)spike(m,0,shoulder*(.96+z*.055),.17+z*.16,.17,scale*.12,dark);
-  if(gear.bit)cube(m,0,shoulder*1.02,neckZ+scale*.57,scale*.41,.055,.05,[.77,.78,.76]);
+  if(gear.bit)cube(m,0,shoulder*1.02-headDrop,neckZ+scale*.57+headForward,scale*.41,.055,.05,[.77,.78,.76]);
   if(gear.reins){cube(m,scale*.19,shoulder*.66,neckZ+scale*.43,.03,.68,.035,dark);
    cube(m,-scale*.19,shoulder*.66,neckZ+scale*.43,.03,.68,.035,dark);}
   if(gear.saddle){cube(m,0,shoulder*.96,-.20,scale*.63,.11,.61,[.24,.17,.13]);
