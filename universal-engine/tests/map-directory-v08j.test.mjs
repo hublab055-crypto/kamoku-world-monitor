@@ -59,6 +59,14 @@ test("pinch and explicit cancel discard pending selection",()=>{
  g.down(pointer(4,42,55));g.up(pointer(4,42,55));
  g.cancel();wait(500);assert.deepEqual(events,[]);
 });
+test("camera drag after one quick tap cancels a pending animal selection",()=>{
+ const {g,events,wait}=clockHarness();
+ g.down(pointer(1,25,30));g.up(pointer(1,25,30));
+ wait(70);
+ g.down(pointer(2,25,30));g.move(pointer(2,47,41));g.up(pointer(2,47,41));
+ wait(420);
+ assert.deepEqual(events,[]);
+});
 const context=()=>({
  controller:{x:0,z:0},
  fauna:{animals:[{id:"h1",kind:"horse",x:15,z:0,tame:true,grazing:true},
