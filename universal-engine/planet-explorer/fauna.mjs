@@ -102,6 +102,14 @@ export class FaunaWorld {
   a.following=true;
   return {ok:true,message:"📯 "+WILD_SPECIES[a.kind].name+"を呼びました"};
  }
+ pasture(id,actor){
+  const a=this.get(id);
+  if(!a||!a.tame)return {ok:false,message:"飼いならした動物を選択してください"};
+  if(this.mountId===id)return {ok:false,message:"先に馬から降りてください"};
+  if(this.range(a,actor)>6)return {ok:false,message:"放牧には動物の6m以内へ近づいてください"};
+  a.following=false;
+  return {ok:true,message:WILD_SPECIES[a.kind].icon+" 放牧しました。草を食んで過ごします。呼ぶと再び追従します"};
+ }
  feed(id,food,actor,resources){
   const a=this.get(id);
   if(!a)return {ok:false,message:"動物が見つかりません"};
