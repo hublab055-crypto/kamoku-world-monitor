@@ -20,7 +20,7 @@ function spike(m,x,y,z,h,r,c,n=6){
   tri(m,[x+r*Math.cos(a),y,z+r*Math.sin(a)],[x+r*Math.cos(b),y,z+r*Math.sin(b)],[x,y+h,z],c);
  }
 }
-export function faunaGeometry(kind,gear={}){
+export function faunaGeometry(kind,gear={},pose={}){
  const m=mesh(),coat={
   horse:[.53,.37,.22],cattle:[.38,.24,.17],sheep:[.77,.70,.57],goat:[.57,.46,.33],
   chicken:[.66,.31,.16],dog:[.47,.50,.49],cat:[.53,.50,.38]
@@ -39,8 +39,14 @@ export function faunaGeometry(kind,gear={}){
  const bodyD=kind==="horse"?1.55:kind==="cattle"?1.56:1.18;
  cube(m,0,shoulder*.48,-.07,scale*.69,shoulder*.56,bodyD,coat);
  for(const x of [-scale*.23,scale*.23])for(const z of [-bodyD*.37,bodyD*.37]){
-  cube(m,x,.08,z,scale*.17,shoulder*.40,scale*.19,coat);
-  if(kind==="horse")cube(m,x,0,z,scale*.20,.13,scale*.20,dark);
+  const legIndex=(x>0?1:0)+(z>0?2:0);
+  const phase=(pose.phase||0)+(pose.gait==="trot"?(legIndex===0||legIndex===3?0:Math.PI):
+    pose.gait==="gallop"?(z>0?0:Math.PI*.7)+(x>0?.4:0):legIndex*Math.PI*.5);
+  const swing=kind==="horse"&&pose.moving?Math.sin(phase)*(pose.gait==="gallop"?.29:pose.gait==="trot"?.21:.13):0;
+  const lift=Math.max(0,Math.cos(phase))*(pose.moving?.09:0);
+  const legZ=z+swing;
+  cube(m,x,.08+lift,legZ,scale*.17,shoulder*.40,scale*.19,coat);
+  if(kind==="horse")cube(m,x,lift,legZ,scale*.20,.13,scale*.20,dark);
  }
  const neckZ=bodyD*.41;
  cube(m,0,shoulder*.65,neckZ,scale*.37,shoulder*.60,scale*.38,coat);
