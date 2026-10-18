@@ -1150,7 +1150,7 @@ for(const t of ["pointerup","pointercancel","lostpointercapture"]){
 }
 
 /* ⚓ Tactical RTS controls and eight-slot IF -> THEN automation editor. */
-const RTS_METRICS={wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)",stamina:"⚡スタミナ%",load_kg:"🎒重量kg",resource_nearby:"🌿半径内の資源数"};
+const RTS_METRICS={always:"常に (1)",wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)",stamina:"⚡スタミナ%",load_kg:"🎒重量kg",resource_nearby:"🌿半径内の資源数"};
 const RTS_ACTIONS={gather_wood:"木材を採集",gather_stone:"石材を採集",build:"小屋を建築",
  move_rally:"集合地点へ移動",follow:"隊長を追従",patrol:"集合地点付近を巡回",wait:"待機",rest_home:"💤家で100%まで休息",store_chest:"📦チェストに全収納",gather_nearby:"🧺範囲内の資源を全回収"};
 
@@ -1169,7 +1169,7 @@ function renderFrontierEditor(actor){
    const button=event.target.closest("button[data-fw]");if(!button)return;
    const id=autoActorId;
    if(button.dataset.fw==="preset"){
-    squad.frontier.applyPreset(id);$("auto-status").textContent="優先1：30%以下→100%まで休息 / 2：18kg以上→全収納 / 3：範囲内全回収（4〜8は維持）";
+    squad.frontier.applyPreset(id);$("auto-status").textContent="優先1：30%以下→100%まで休息 / 2：18kg以上→指定チェストに全収納 / 3：「常に」範囲内全回収（4〜8は維持）";
    }
    if(button.dataset.fw==="origin")squad.frontier.setOrigin(id);
    renderAutoEditor();
@@ -1179,6 +1179,19 @@ function renderFrontierEditor(actor){
   });
  }
  const fw=squad.frontier.person(actor.id),home=squad.frontier.home(actor);
+  const chestSelect=$("auto-chest-target"),chests=squad.frontier.chests(actor,$("auto-chest-sort").value);
+  chestSelect.replaceChildren();
+  const fallback=document.createElement("option");fallback.value="";fallback.textContent="現在地に近いチェストを自動選択";
+  chestSelect.append(fallback);
+  for(const chest of chests){
+   const option=document.createElement("option");option.value=String(chest.id);
+   option.textContent=chest.name+" / 約"+Math.round(chest.distance)+"m / 小屋 #"+chest.buildingId;
+   chestSelect.append(option);
+  }
+  chestSelect.value=fw.chestId&&chests.some(c=>c.id===fw.chestId)?String(fw.chestId):"";
+  const selected=chests.find(c=>c.id===Number(chestSelect.value));
+  $("auto-chest-name").value=selected?.name||"";
+  $("auto-chest-contents").textContent=selected?"収納数 "+Object.values(life.chestInventory(selected.id)).reduce((a,b)=>a+b,0)+"個":(chests.length?"収納先：自動":"※まず小屋とチェストを設置してください");
  const stored=squad.frontier.stored();
  panel.querySelector('[data-fw="stats"]').textContent="⚡ "+fw.stamina.toFixed(1)+"% / 🎒 "+squad.frontier.loadKg(actor.id)+"kg / 🌲 資源"+squad.frontier.metrics(actor).resource_nearby+" / "+(home.kind==="hut"?"🏠家":"⛺仮拠点")+" / 収納:木"+stored.wood+" 石"+stored.stone+" 食材"+stored.food;
  panel.querySelector('[data-fw="radius"]').value=fw.radius;
@@ -1244,6 +1257,22 @@ $("toolbar-auto").addEventListener("click",()=>openAutoEditor(true));
 $("auto-close").addEventListener("click",()=>openAutoEditor(false));
 $("auto-actor").addEventListener("change",()=>{
  autoActorId=$("auto-actor").value;squad.choose(autoActorId);renderAutoEditor();updateHUD();
+});
+$("auto-chest-target").addEventListener("change",()=>{
+  const id=$("auto-chest-target").value;
+  squad.frontier.setChest(autoActorId,id?Number(id):null);
+  const chosen=squad.frontier.chests(squad.get(autoActorId)).find(c=>c.id===Number(id));
+  $("auto-chest-name").value=chosen?.name||"";
+  $("auto-chest-contents").textContent=chosen?"収納済み "+JSON.stringify(life.chestInventory(chosen.id)):"";
+});
+$("auto-chest-sort").addEventListener("change",renderAutoEditor);
+$("auto-chest-rename").addEventListener("click",()=>{
+  const id=$("auto-chest-target").value,oldName=$("auto-chest-name").value;
+  const chest=id&&squad.frontier.chests(squad.get(autoActorId)).find(c=>c.id===Number(id));
+  if(!chest){$("auto-status").textContent="名前変更するチェストを選択してください";return;}
+  const result=life.renameChest(chest.id,oldName);
+  $("auto-status").textContent=result.message;
+  if(result.ok){saveLifeJournal();renderAutoEditor();}
 });
 $("auto-enabled").addEventListener("change",()=>{
  squad.setAuto([autoActorId],$("auto-enabled").checked);
