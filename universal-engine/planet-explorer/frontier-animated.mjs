@@ -1,4 +1,5 @@
 import {samplePose} from "./rig.mjs";
+import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8i-swim";
 /** GLB2 skeletal/morph animation data. Pure module; no DOM/WebGL dependency.
  * Supports glTF node hierarchy, inverse bind matrices, skin weights, two morph targets,
  * LINEAR/STEP/CUBICSPLINE animation samples, and separate face/body playback.
@@ -212,6 +213,36 @@ const qmul=(a,b)=>[
  a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],
  a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]
 ];
+/** Standard named GLB joints receive procedural swim, tread and dive strokes.
+ * The original animation tracks still supply face and any unrecognized joints.
+ */
+export function applyAquaticRigPose(rig,poses,action,time,moving=true){
+ if(!isAquaticAction(action)||!Number.isFinite(time))return false;
+ const index=new Map(rig.nodes.map((n,i)=>[(n.name||"").toLowerCase(),i]));
+ if(!["rightshoulder","leftshoulder","rightelbow","leftelbow","lefthip","righthip"].every(name=>index.has(name)))
+  return false;
+ const pose=swimStroke(action,time,moving);
+ for(const [name,id] of index){
+  const joint=poses[id];
+  if(!joint)continue;
+  if(name==="waist"){
+   joint.rotation=qmul(qx(pose.torsoX),qy(pose.torsoY));
+  }else{
+   for(const side of ["left","right"]){
+    const keys={
+     [side+"shoulder"]:qmul(qz(pose[side+"ShoulderZ"]),qx(pose[side+"ShoulderX"])),
+     [side+"elbow"]:qx(pose[side+"ElbowX"]),
+     [side+"wrist"]:qx(pose[side+"WristX"]),
+     [side+"hip"]:qx(pose[side+"HipX"]),
+     [side+"knee"]:qx(pose[side+"KneeX"]),
+     [side+"ankle"]:qx(pose[side+"AnkleX"])
+    };
+    if(keys[name])joint.rotation=keys[name];
+   }
+  }
+ }
+ return true;
+}
 /** Override semantic humanoid joints when a weapon uses procedural staging.
  * Works for standard named GLBs without requiring new exported clips.
  * Unknown/imported skeletons retain their original animation.
@@ -261,6 +292,8 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
    if(val)target[track.path]=val;
   }
  }
+ if(isAquaticAction(bodyKind))
+  applyAquaticRigPose(rig,pose,bodyKind,time,opts.moving!==false);
  if(Number.isFinite(opts.motionProgress))
   applyWeaponRigPose(rig,pose,bodyKind,opts.motionProgress,opts.variant||"overhead",opts.hand||"right");
  const world=Array(rig.nodes.length),inProgress=new Set(),parents=Array(rig.nodes.length).fill(-1);

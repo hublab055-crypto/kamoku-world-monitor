@@ -1,4 +1,4 @@
-import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=0.8i-swimming";
 const VS="#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nout vec3 vColor,vNormal;\nout vec2 vUv;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;\n gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}";
 const FS="#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n fragColor=vec4(vColor*texel.rgb*(.6+.4*sun),1.0);\n}";
 function compile(gl,type,src){
@@ -83,7 +83,7 @@ export class SkinnedFrontierAsset{
   const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
   if(kind!==state.kind){state.kind=kind;state.elapsed=0;state.fade=.12;}
   const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
-  const pose=poseFrontierRig(this.rig,kind,state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,{motionProgress,variant,hand});
+  const pose=poseFrontierRig(this.rig,kind,state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,{motionProgress,variant,hand,moving});
   if(state.fade>0&&state.previous){
    const blend=Math.max(0,Math.min(1,1-state.fade/.12));
    pose.world=pose.world.map((matrix,i)=>matrix.map((value,j)=>(state.previous.world?.[i]?.[j]??value)*(1-blend)+value*blend));
