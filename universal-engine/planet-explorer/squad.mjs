@@ -1,8 +1,8 @@
-import {ExplorerController} from "./controller.mjs?v=0.8c-climb";
+import {ExplorerController} from "./controller.mjs?v=0.8e-stone-wall";
 import {actionDuration,ATTACK_VARIANTS} from "./actions.mjs";
 import {taskBowProgress} from "./archery-timing.mjs";
 import {terrainSurface} from "./geo.mjs";
-import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs?v=0.8c-physical-work-r2";
+import {FrontierBridge,FW_ACTIONS} from "./frontier-bridge.mjs?v=0.8e-cargo-mass";
 import {GroupRegistry,formationOffsets} from "./groups.mjs";
 import {TROOP_ROLES,TROOP_PRESETS,MAX_ALLIES,rosterForPreset,tacticalOffsets} from "./tactical-roster.mjs";
 
