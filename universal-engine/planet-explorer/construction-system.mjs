@@ -9,7 +9,8 @@ export const FACILITIES=Object.freeze({
  apothecary:{name:"薬屋",wood:11,stone:7,metal:1,footprint:6,color:[.24,.52,.37]},
  bookshop:{name:"本屋",wood:13,stone:6,metal:1,footprint:6,color:[.31,.40,.58]},
  "magic-shop":{name:"魔法店",wood:13,stone:8,metal:3,footprint:7,color:[.41,.28,.59]},
- market:{name:"マーケット",wood:18,stone:9,metal:1,footprint:9,color:[.58,.32,.22]}
+ market:{name:"マーケット",wood:18,stone:9,metal:1,footprint:9,color:[.58,.32,.22]},
+ church:{name:"教会",wood:18,stone:22,metal:2,footprint:9,color:[.74,.72,.65]}
 });
 export const BUILD_KINDS=Object.freeze(["stone-wall",...Object.keys(FACILITIES)]);
 export const WALL_LENGTH_M=2;
