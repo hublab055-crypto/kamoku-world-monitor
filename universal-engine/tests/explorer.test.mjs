@@ -143,5 +143,18 @@ test("globe and ground renderer submit real indexed 3D triangles",()=>{
  assert.ok(calls.uploaded>8);
  assert.ok(calls.draws>=3);
  assert.ok(calls.instanced>100,"dense nature should use hardware instancing");
+ // A felled tree gets its own temporary rotating mesh, then returns to
+ // the normal shared scenery batches after its fall has completed.
+ const tree=renderer.resourceNodes.find(n=>n.kind==="wood"&&n.type!=="fallen-log");
+ assert.ok(tree,"a harvestable tree should be visible");
+ assert.equal(renderer.beginTreeFall(tree),true);
+ assert.equal(renderer.beginTreeFall(tree),false,"repeated hits don't duplicate a fall");
+ assert.equal(renderer.fallingTrees.size,1);
+ renderer.sceneWeather=new Weather(p);
+ const oldEast=renderer.cloudEast,oldNorth=renderer.cloudNorth;
+ renderer.frame(ctrl,.1);
+ assert.ok(renderer.cloudEast!==oldEast||renderer.cloudNorth!==oldNorth,"the weather wind must move the cloud deck");
+ for(let i=0;i<18;i++)renderer.frame(ctrl,.1);
+ assert.equal(renderer.fallingTrees.size,0);
  renderer.destroy();
 });
