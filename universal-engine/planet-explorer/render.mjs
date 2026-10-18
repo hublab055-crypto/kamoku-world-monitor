@@ -719,8 +719,12 @@ export class ExplorerRenderer{
     const model=multiply4(translate(x,y+bounce,z),multiply4(rotateY(a.yaw),rotX(pitch)));
     let mesh=this.animalMeshes[a.kind];
     if(a.kind==="horse"){
-     const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/");
-     if(!this.horseTackMeshes.has(key))this.horseTackMeshes.set(key,new Mesh(this.gl,faunaGeometry("horse",a.gear)));
+     const frame=active?Math.floor((phase%(Math.PI*2)+Math.PI*2)%(Math.PI*2)/(Math.PI*2)*12):0;
+     const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/")+":"+gait+":"+frame+":"+Number(active);
+     if(!this.horseTackMeshes.has(key)){
+      const gaitPhase=frame/12*Math.PI*2;
+      this.horseTackMeshes.set(key,new Mesh(this.gl,faunaGeometry("horse",a.gear,{gait,phase:gaitPhase,moving:active})));
+     }
      mesh=this.horseTackMeshes.get(key);
     }
     this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
