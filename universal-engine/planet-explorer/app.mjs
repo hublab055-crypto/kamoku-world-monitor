@@ -644,6 +644,7 @@ function processHarvestOrders(){
   if(!current){cancelHarvestOrder(id);continue;}
   const ctl=agent.control,dist=Math.hypot(ctl.x-node.x,ctl.z-node.z);
   if(dist>2.6){
+   if(ctl.blocked){cancelHarvestOrder(id);log(agent.name+"：急斜面・地形障害のため採集地点へ進めません");continue;}
    if(!ctl.moveTarget){
     const destination=order.work;
     if(!destination||!ctl.setMoveTarget(destination.x,destination.z)){
