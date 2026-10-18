@@ -24,7 +24,8 @@ import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
-import {bindViewportGestures} from "./viewport-gestures.mjs";
+import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-single-v-double";
+import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles} from "./arrow-projectiles.mjs";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
@@ -49,7 +50,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,vitalsSaveElapsed=0,marine=null;
+let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,vitalsSaveElapsed=0,marine=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
@@ -1042,7 +1043,7 @@ $("warehouse-deposit").addEventListener("click",()=>{
  $("warehouse-status").textContent=result.message;log(result.message);
 });
 viewportGestures=bindViewportGestures($("world"),{
- onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
+ deferTap:true,onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
   if(!renderer||!controller)return;
   if(constructionUI?.dragging())return;
@@ -1625,7 +1626,7 @@ $("rts-stop").addEventListener("click",()=>{
  for(const id of squad.selected)cancelHarvestOrder(id);
  squad.halt([...squad.selected]);renderAutoEditor();updateHUD();log("選択した人物の移動と自動行動を停止しました。");
 });
-function commandRtsTap(clientX,clientY,shift=false){
+function commandRtsTap(clientX,clientY,shift=false,groundOnly=false){
  const rect=$("world").getBoundingClientRect();
  if(!rect.width||!rect.height)return;
  const u=(clientX-rect.left)/rect.width,v=(clientY-rect.top)/rect.height;
@@ -1633,7 +1634,7 @@ function commandRtsTap(clientX,clientY,shift=false){
   .filter(p=>p.onScreen&&Math.hypot((p.u-u)*rect.width,(p.v-v)*rect.height)<42)
   .sort((a,b)=>Math.hypot((a.u-u)*rect.width,(a.v-v)*rect.height)-
    Math.hypot((b.u-u)*rect.width,(b.v-v)*rect.height))[0];
- if(nearest&&!rallyPicking){
+ if(nearest&&!rallyPicking&&!groundOnly){
   squad.choose(nearest.id,{add:rtsMulti||shift});
   autoActorId=nearest.id;renderAutoEditor();
   if(!$("group-panel").hidden)groupUI?.loadDraft(null);
@@ -1705,7 +1706,7 @@ quickToggle.addEventListener("click",()=>setQuickMenu(quickPanel.hidden));
 toolToggle.addEventListener("click",()=>setToolMenu(toolPanel.hidden));
 doorToggle.addEventListener("click",()=>setDoorMenu(doorPanel.hidden));
 quickPanel.addEventListener("click",e=>{
- if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu"))setQuickMenu(false);
+ if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu,#viewport-directory"))setQuickMenu(false);
 });
 toolPanel.addEventListener("click",e=>{if(e.target.closest("button"))setToolMenu(false);});
 doorPanel.addEventListener("click",e=>{if(e.target.closest("button"))setDoorMenu(false);});
