@@ -1,6 +1,8 @@
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
 import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-drift";
+import {BUILD_KINDS} from "./construction-system.mjs";
+import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs";
 import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
 import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
@@ -581,6 +583,8 @@ export class ExplorerRenderer{
   this.dishMeshes={};
   for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
   this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
+  this.placedMeshes=Object.fromEntries(BUILD_KINDS.map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
+  this.constructionSystem=null;
   this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
    this.fwResourceMeshes={};
    const colors={wood:[.40,.24,.15],stone:[.54,.59,.62],fiber:[.27,.64,.35],food:[.80,.31,.23],water:[.22,.59,.84]};
@@ -1025,6 +1029,16 @@ export class ExplorerRenderer{
   for(const mesh of meshes)this.drawMesh(mesh,mvp,light,1,.83);
   return true;
  }
+ drawPlacedStructures(vp,light,s,radius){
+   if(!this.constructionSystem)return;
+   for(const site of this.constructionSystem.structures){
+    if(Math.abs(site.x-s.x)>radius||Math.abs(site.z-s.z)>radius)continue;
+    const mesh=this.placedMeshes[site.kind];if(!mesh)continue;
+    const model=multiply4(translate(site.x-this.cx,site.height,site.z-this.cz),
+      rotateY(site.rotation||0));
+    this.drawMesh(mesh,multiply4(vp,model),light,1,.72);
+   }
+ }
  drawFrontier(vp,light,s,radius){
    if(!this.sceneFrontier)return;
    for(const n of this.sceneFrontier.nodes){
@@ -1300,6 +1314,7 @@ export class ExplorerRenderer{
    for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
    this.drawFallingTrees(vp,light,dt);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
+   this.drawPlacedStructures(vp,light,s,radius);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
   this.screenResources=[];
   const farPick=cameraMode==="tactical"&&camera.heightM>70;
@@ -1371,7 +1386,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
