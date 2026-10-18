@@ -5,24 +5,36 @@ export class ConstructionPlacement {
  constructor({canvas,system,kindSelect,toggle,cancel,status,rts,pick,surface,resources,existing,commit,log}){
   Object.assign(this,{canvas,system,kindSelect,toggle,cancel,status,rts,pick,surface,resources,existing,commit,log});
   this.kind=null;this.start=null;this.pointer=null;
+  this.preview=canvas.parentElement?.querySelector?.("#construction-line-preview")||null;
   toggle.addEventListener("click",()=>this.setKind(kindSelect.value));
   cancel.addEventListener("click",()=>this.setKind(null));
   kindSelect.addEventListener("change",()=>{if(this.kind)this.setKind(kindSelect.value)});
   canvas.addEventListener("pointerdown",e=>{
    this.pointer=this.kind==="stone-wall"&&rts()?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;
   });
+  canvas.addEventListener("pointermove",e=>{
+   if(!this.pointer||!this.preview||this.kind!=="stone-wall"||!this.rts())return;
+   const bounds=canvas.getBoundingClientRect(),dx=e.clientX-this.pointer.x,dy=e.clientY-this.pointer.y;
+   this.preview.hidden=false;
+   this.preview.style.left=(this.pointer.x-bounds.left)+"px";
+   this.preview.style.top=(this.pointer.y-bounds.top)+"px";
+   this.preview.style.width=Math.hypot(dx,dy)+"px";
+   this.preview.style.transform="translateY(-50%) rotate("+Math.atan2(dy,dx)+"rad)";
+  });
   canvas.addEventListener("pointerup",e=>{
    const p=this.pointer;this.pointer=null;
+   if(this.preview)this.preview.hidden=true;
    if(!p||p.id!==e.pointerId||!this.kind||!rts())return;
    if(Math.hypot(p.x-e.clientX,p.y-e.clientY)<12)return;
    const start=pick(p.x,p.y),end=pick(e.clientX,e.clientY);
    if(!start||!end){this.show("地面の始点と終点を選択してください");return;}
    this.start=null;this.placeLine(start,end);
   });
-  canvas.addEventListener("pointercancel",()=>{this.pointer=null});
+  canvas.addEventListener("pointercancel",()=>{this.pointer=null;if(this.preview)this.preview.hidden=true});
  }
  setKind(kind){
   this.kind=kind||null;this.start=null;
+  if(this.preview)this.preview.hidden=true;
   this.cancel.hidden=!kind;
   this.toggle.setAttribute("aria-pressed",String(Boolean(kind)));
   this.show(!kind?"配置終了":this.rts()&&kind==="stone-wall"?
