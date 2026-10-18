@@ -2,6 +2,7 @@
  * The seed-generated nodes remain immutable; only damage and removed node IDs
  * are saved. No save migration or network dependency required.
  */
+import {RESOURCE_PROFILES,harvestYield} from "./resource-economy.mjs";
 const TYPES={
  pine:{hp:3,tool:"axe",drop:{wood:3,fiber:1}},
  broadleaf:{hp:3,tool:"axe",drop:{wood:4,fiber:1}},
@@ -12,6 +13,9 @@ const TYPES={
  birch:{hp:2,tool:"axe",drop:{wood:3,fiber:1}},
  shrub:{hp:1,tool:"axe",drop:{wood:1,fiber:3}},
  boulder:{hp:4,tool:"mine",drop:{stone:4,clay:1}},
+ pebble:{hp:1,tool:"mine",drop:{stone:1}},
+ "iron-deposit":{hp:9,tool:"mine",drop:{ironOre:50}},
+ "large-oak":{hp:7,tool:"axe",drop:{wood:75,fiber:5}},
  "fallen-log":{hp:1,tool:"axe",drop:{wood:3,fiber:1}},
  rubble:{hp:1,tool:"mine",drop:{stone:3}}
 };
@@ -32,8 +36,8 @@ export class ResourceHarvest {
  visual(node){
   const s=this.states.get(node.id);
   if(s?.state==="removed")return null;
-  if(s?.state==="fallen")return {...node,type:"fallen-log",name:"倒木",kind:"wood",state:"fallen"};
-  if(s?.state==="rubble")return {...node,type:"rubble",name:"砕石",kind:"stone",state:"rubble"};
+  if(s?.state==="fallen")return {...node,type:"fallen-log",sourceType:node.sourceType||node.type,name:"倒木",kind:"wood",state:"fallen"};
+  if(s?.state==="rubble")return {...node,type:"rubble",sourceType:node.sourceType||node.type,name:"砕石",kind:"stone",state:"rubble"};
   return {...node,damage:(TYPES[node.type]?.hp||3)-(s?.hp??(TYPES[node.type]?.hp||3))};
  }
  visible(nodes){return nodes.map(n=>this.visual(n)).filter(Boolean);}
@@ -45,10 +49,13 @@ export class ResourceHarvest {
   if(current?.state==="removed")return {ok:false,message:"資源は既に回収されました"};
   const variant=current?.state==="fallen"?"fallen-log":current?.state==="rubble"?"rubble":node.type;
   const spec=TYPES[variant];
-  if(!spec||spec.tool!==tool)return {ok:false,message:tool==="axe"?"斧で伐採できる木や低木を選択してください":"つるはしで砕ける岩を選択してください"};
+  if(!spec||!(spec.tool===tool||tool==="saw"&&spec.tool==="axe"&&current?.state==="fallen"))
+  return {ok:false,message:tool==="saw"?"ノコギリは倒木に使用してください":tool==="axe"?"斧で伐採できる木を選択してください":"つるはしで砕ける岩を選択してください"};
   if(current?.state==="fallen"||current?.state==="rubble"){
    this.states.set(node.id,{state:"removed",hp:0});
-   return {ok:true,stage:"collected",drops:{...spec.drop},message:variant==="rubble"?"🪨 砕石を回収しました":"🪵 倒木を丸太・枝として回収しました"};
+   const yieldData=harvestYield(node,{saw:tool==="saw"});
+   return {ok:true,stage:"collected",...yieldData,
+    message:(variant==="rubble"?"🪨 採石":"🪵 木材")+" "+yieldData.massKg+"kgを回収"+(tool==="saw"?"（板材）":"")};
   }
   const hp=Math.max(0,(current?.hp??spec.hp)-1);
   if(hp>0){
