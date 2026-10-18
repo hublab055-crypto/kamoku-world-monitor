@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8f-fauna-ui">
+<link rel="stylesheet" href="./style.css?v=0.8g-farming-ui">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -121,6 +121,7 @@
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
     <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
+     <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
     <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
     <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
@@ -161,6 +162,36 @@
  </label>
  <p id="fauna-mounted-state" class="fauna-describe">徒歩</p>
  <small>動物をタップして選択。野生馬は近くで3回なつかせると馴致できます。馬具3点で騎乗可能、蹄鉄は任意です。剣・槍・弓は既存ボタンで使用。</small>
+</section>
+<section id="farm-panel" class="fauna-panel farm-panel" role="dialog" aria-label="畑・果樹・製材" hidden>
+ <div class="fauna-panel-top">
+  <strong>🌾 農業・果樹・製材</strong>
+  <button type="button" id="farm-close">× 閉じる</button>
+ </div>
+ <p id="farm-status" class="fauna-describe">種と畑を準備しています</p>
+ <button type="button" id="farm-till">🪏 正面3mの土を耕す</button>
+ <label class="fauna-label" for="farm-plot">作業する畑
+  <select id="farm-plot" aria-label="畑を選択"></select>
+ </label>
+ <p id="farm-plot-status" class="fauna-describe"></p>
+ <label class="fauna-label" for="farm-crop">栽培する作物
+  <select id="farm-crop">
+   <option value="wheat">🌾 小麦（6日・麦わら）</option>
+   <option value="carrot">🥕 ニンジン（4日）</option>
+   <option value="apple">🍎 リンゴの果樹（16日、再収穫12日）</option>
+  </select>
+ </label>
+ <div class="fauna-buttons">
+  <button type="button" id="farm-sow">🌱 種をまく</button>
+  <button type="button" id="farm-harvest">🌾 収穫する</button>
+ </div>
+ <div class="fauna-label">🪵 倒木の製材</div>
+ <label class="fauna-label" for="farm-cut-length">切断する長さ（メートル）
+  <input id="farm-cut-length" type="number" inputmode="decimal" min="0.1" max="12" step="0.1" value="1.0">
+ </label>
+ <button type="button" id="farm-saw">🪚 近くの倒木を指定長で切る</button>
+ <p id="farm-timber" class="fauna-describe"></p>
+ <small>耕す・種まき・収穫は降馬して行います。作物は惑星時間で育ち、果樹は再収穫できます。ノコギリで切るたびに残りの丸太が短くなります。</small>
 </section>
 <div id="page-share-overlay" class="page-share-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="page-share-title">
   <div class="page-share-card">
@@ -660,6 +691,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8f-wild-animals-horseback"></script>
+<script type="module" src="./app.mjs?v=0.8g-agriculture-feed-timber"></script>
 </body>
 </html>
