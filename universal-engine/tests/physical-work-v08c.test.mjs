@@ -69,6 +69,7 @@ test("always gather automatically targets real nodes, switches axe/pick and fill
  f.applyPreset("player");
  const p=f.person("player");p.radius=30;p.stamina=100;a.auto=true;
  assert.equal(a.rules[2].metric,"always");
+ a.rules[1].enabled=false; // Test complete resource cycling without higher-priority 18kg storage.
  assert.equal(f.start(a,"gather_nearby",2),true);
  for(let i=0;i<90&&a.task;i++)f.tick(a,.2);
  assert.equal(harvest.visual(tree),null);
