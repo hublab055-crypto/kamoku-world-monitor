@@ -167,6 +167,7 @@ export class FrontierBridge {
       }
       return true;
      }
+     if(dist(a.control,node)>2.6)return true; // never swing from beyond tool reach
     }
     a.control.clearMoveTarget();
     a.status=kind==="axe"?"🪓 木に斧を振っています":"⛏️ 岩を採掘しています";
