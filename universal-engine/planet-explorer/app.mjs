@@ -340,8 +340,12 @@ function doFrame(t){
    renderer.sceneLife=life;
   if(completed){
     if(completed==="axe"||completed==="mine"){
-     if(attackInProgress?.resourceNode)
-      updateHarvestWorld(harvest.hit(attackInProgress.resourceNode,completed),attackInProgress.resourceNode);
+     if(attackInProgress?.resourceNode){
+      const node=harvest.visual(attackInProgress.resourceNode);
+      const result=node?harvest.hit(node,completed):{ok:false,message:"採集済み"};
+      if(result.ok)updateHarvestWorld(result,attackInProgress.resourceNode);
+      if(!result.ok||result.stage==="collected")cancelHarvestOrder("player");
+     }
      else log("採集対象がありません。木や石をタップするか、近づいて道具を使用してください。");
     }else if(completed==="dig"||completed==="fill")doEarthwork(completed,attackInProgress?.earthwork);
     else log(actions.message);
@@ -604,51 +608,53 @@ function cancelHarvestOrder(id){
 }
 function commandResourceTap(resource){
  if(!controller.nearGround||!resource)return false;
- const selected=rtsMode?squad.selectedAgents():[squad.get("player")];
- let count=0;
- for(const a of selected){
-  if(!a)continue;
-  const range=Math.hypot(a.control.x-resource.x,a.control.z-resource.z);
-  const moved=range<=2.6||Boolean(squad.orderMove([a.id],resource.x,resource.z));
-  if(!moved)continue;
-  if(range<=2.6){
-   squad.frontier?.cancel(a);a.control.clearMoveTarget();
-   a.task=null;a.cooldown=1.5;
-  }
-  manualHarvest.set(a.id,{id:resource.id,kind:resource.kind,x:resource.x,z:resource.z});
-  a.manualHarvest=true;count++;
+ const selected=rtsMode?squad.selectedAgents():[squad.get("player")];let count=0;
+ for(const agent of selected){
+  if(!agent)continue;
+  const control=agent.control;
+  const canStand=(x,z)=>{const p=control.locationAt(x,z),g=terrainSurface(terrain,p.lat,p.lon);
+   return !g.water&&!g.river&&g.elevationM<2800;};
+  const work=chooseWorkPoint(control,resource,canStand,{reach:2.6});
+  if(!work){log(agent.name+"：斜面が急で資源へ接近できません");continue;}
+  const range=Math.hypot(control.x-resource.x,control.z-resource.z);
+  if(range>2.6&&!control.setMoveTarget(work.x,work.z)){log("資源まで移動できません");continue;}
+  squad.frontier?.cancel(agent);
+  if(range<=2.6)control.clearMoveTarget();
+  manualHarvest.set(agent.id,{id:resource.id,kind:resource.kind,x:resource.x,z:resource.z,work});
+  agent.manualHarvest=true;agent.cooldown=0;count++;
  }
- if(count){
-  renderer.selectedResource=resource;
-  log("🧺 "+resource.name+"に接近して"+(resource.kind==="stone"?"採掘":"伐採")+"："+
-   count+"人へ指示しました。");
- }else log("資源まで移動できません。近くの資源を選択してください。");
+ if(count){renderer.selectedResource=resource;
+  log("🧺 "+resource.name+"へ移動し、"+(resource.kind==="stone"?"つるはしで採掘":"斧で伐採")+"："+count+"人");}
  return count>0;
 }
 function processHarvestOrders(){
  for(const [id,order] of [...manualHarvest]){
-  const agent=squad?.get(id);
-  if(!agent||!agent.control.nearGround){cancelHarvestOrder(id);continue;}
-  const dist=Math.hypot(agent.control.x-order.x,agent.control.z-order.z);
+  const agent=squad?.get(id);if(!agent||!agent.control.nearGround){cancelHarvestOrder(id);continue;}
+  const node=renderer.resourceNodes.find(n=>n.id===order.id);
+  const current=node?harvest.visual(node):null;
+  if(!current){cancelHarvestOrder(id);continue;}
+  const ctl=agent.control,dist=Math.hypot(ctl.x-node.x,ctl.z-node.z);
   if(dist>2.6){
-   if(!agent.control.moveTarget){
-    cancelHarvestOrder(id);log(agent.name+"：資源に到達できず採集を終了しました。");
+   if(!ctl.moveTarget){
+    const destination=order.work;
+    if(!destination||!ctl.setMoveTarget(destination.x,destination.z)){
+     cancelHarvestOrder(id);log(agent.name+"：斜面のため到達できません");continue;
+    }
    }
    continue;
   }
-  agent.control.clearMoveTarget();
-  const kind=order.kind==="stone"?"mine":"axe";
+  ctl.clearMoveTarget();
+  const kind=node.kind==="stone"?"mine":"axe";
   if(id==="player"){
    if(actions.active)continue;
    if(!actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon)))continue;
-    actions.active.resourceNode=renderer.resourceNodes.find(n=>n.id===order.id)||{...order,type:order.kind==="stone"?"boulder":"pine"};
+   actions.active.resourceNode=node;
   }else{
-   if(agent.task||!squad.performEquippedAction(id,kind))continue;
-    const node=renderer.resourceNodes.find(n=>n.id===order.id)||{...order,type:order.kind==="stone"?"boulder":"pine"};
-    updateHarvestWorld(harvest.hit(node,kind),node,agent.name);
+   if(agent.task||agent.cooldown>0)continue;
+   if(!squad.performEquippedAction(id,kind))continue;
+   agent.task.resourceNode=node; // hit only when axe/pick motion reaches impact
   }
-  cancelHarvestOrder(id);
-  log(agent.name+"："+(kind==="mine"?"採掘":"伐採")+"を開始しました。");
+  log(agent.name+"："+(kind==="mine"?"⛏️ 採掘":"🪓 伐採")+"を実行");
  }
 }
 function screenActorAt(x,y){
