@@ -113,7 +113,7 @@ export class ExplorerController {
         const t=k/segments,g=this.locationAt(this.x+east*t,this.z+north*t);
         const sample=terrainSurface(this.terrain,g.lat,g.lon);
         if(sailing?!wet(sample):(!wet(sample)&&(sample.elevationM>2800||
-            (wet(present)&&sample.elevationM>3.5)))){
+            (wet(present)&&sample.elevationM-(present.waterLevelM??0)>3.5)))){
           ok=false;break;
         }
       }
