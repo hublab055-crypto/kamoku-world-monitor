@@ -79,6 +79,7 @@ test("always gather automatically targets real nodes, switches axe/pick and fill
 });
 test("chosen named chest is the actual storage destination once backpack is too heavy",()=>{
  const {squad,actions,life}=setup(),a=squad.get("player"),f=squad.frontier;
+ a.auto=true;
  actions.structures.push({id:1,kind:"hut",x:a.control.x,z:a.control.z,progress:1});
  const chest=life.listChests(actions.structures,a.control)[0];
  assert.ok(chest);
