@@ -8,7 +8,7 @@ import {TROOP_ROLES,TROOP_PRESETS,MAX_ALLIES,rosterForPreset,tacticalOffsets} fr
 
 /** Local single-player RTS party and deterministic, editable IF -> THEN rules.
  * No external network, persistent background work or scripted code execution. */
-export const RULE_METRICS=Object.freeze(["always","wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
+export const RULE_METRICS=Object.freeze(["always","hunger","mental","wood","stone","houses","idle","distance","walked","stamina","load_kg","resource_nearby"]);
 export const RULE_OPERATORS=Object.freeze(["<","<=",">",">=","==","!="]);
 export const RULE_ACTIONS=Object.freeze(["gather_wood","gather_stone","build","move_rally","follow","patrol","wait",...FW_ACTIONS]);
 const TYPES=new Set(RULE_ACTIONS),METRICS=new Set(RULE_METRICS),OPS=new Set(RULE_OPERATORS);
