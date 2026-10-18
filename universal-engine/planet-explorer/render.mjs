@@ -709,9 +709,14 @@ export class ExplorerRenderer{
     const y=Math.max(0,surf.elevationM),height=a.kind==="horse"||a.kind==="cattle"?2.0:a.kind==="chicken"?.8:1.4;
     const projected=projectScreen(vp,[x,y+height,z]);
     if(projected?.onScreen)this.screenAnimals.push({...projected,id:a.id,kind:a.kind});
-    const active=a.following||this.fauna.mountId===a.id;
-    const bounce=active?.025*Math.sin((actor.totalDistanceM||0)*5):0;
-    const model=multiply4(translate(x,y+bounce,z),rotateY(a.yaw));
+    const mounted=this.fauna.mountId===a.id;
+    const active=mounted?Boolean(actor.moving):Boolean(a.following);
+    const gait=mounted?this.fauna.gait:"walk";
+    const frequency=gait==="gallop"?12:gait==="trot"?8:4;
+    const phase=this.fauna.elapsed*frequency;
+    const bounce=active?(gait==="gallop"?.085:.035)*Math.abs(Math.sin(phase)):0;
+    const pitch=active?(gait==="gallop"?.065:.022)*Math.sin(phase):0;
+    const model=multiply4(translate(x,y+bounce,z),multiply4(rotateY(a.yaw),rotX(pitch)));
     let mesh=this.animalMeshes[a.kind];
     if(a.kind==="horse"){
      const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/");
