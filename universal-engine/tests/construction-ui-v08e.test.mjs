@@ -5,7 +5,7 @@ import {ConstructionPlacement} from "../planet-explorer/construction-ui.mjs";
 function element(value=""){
  const handlers={};return {value,hidden:false,textContent:"",pressed:false,
    handlers,addEventListener:(type,fn)=>{handlers[type]=fn;},
-   setAttribute:(name,value)=>{if(name==="aria-pressed")this.pressed=value;}};
+   setAttribute:(name,value)=>{if(name==="aria-pressed")handlers.pressed=value;}};
 }
 function harness(rtsMode=false){
  const canvas=element(),toggle=element(),cancel=element(),status=element(),kindSelect=element("stone-wall");
