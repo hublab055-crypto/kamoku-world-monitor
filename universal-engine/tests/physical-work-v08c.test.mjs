@@ -86,6 +86,7 @@ test("chosen named chest is the actual storage destination once backpack is too 
  f.attachWorld({list:()=>[],hit:()=>({ok:false}),storageChanged:()=>{}});
  f.person("player").inventory={wood:8,stone:1,food:0,water:0,fiber:0,metal:0,clay:0,soil:0};
  assert.ok(f.loadKg("player")>18);
+ f.applyPreset("player");
  assert.equal(f.setChest("player",chest.id),true);
  assert.equal(f.start(a,"store_chest",1),true);
  // The actor walks to the hut door; test places it in reach to complete storage.
