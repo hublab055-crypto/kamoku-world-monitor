@@ -19,6 +19,8 @@ const available=(materials,cost)=>Object.entries(cost).every(([k,n])=>(materials
 export class ConstructionSystem{
  constructor(saved=null){
   this.structures=[];
+  this.warehouseStocks=Object.fromEntries(Object.entries(saved?.warehouseStocks||{}).filter(([id,v])=>/^\d+$/.test(id)&&v&&typeof v==="object"));
+  this.warehouseWeightKg=Object.fromEntries(Object.entries(saved?.warehouseWeightKg||{}).filter(([id,v])=>/^\d+$/.test(id)&&Number.isFinite(v)&&v>=0));
   this.nextId=1;
   if(saved){
    if(saved.version!==1||!Array.isArray(saved.structures)||saved.structures.length>3000)
@@ -83,7 +85,31 @@ export class ConstructionSystem{
   for(const site of candidates){site.id=this.nextId++;this.structures.push(site);}
   return {ok:true,created:candidates,cost,message:"🧱 石壁を"+count+"区画設置しました"};
  }
- snapshot(){return {version:1,structures:this.structures.map(s=>({...s}))};}
+ nearestWarehouse(x,z,maxDistance=8){
+  return this.structures.filter(s=>s.kind==="warehouse")
+   .sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z))
+   .find(s=>Math.hypot(s.x-x,s.z-z)<=maxDistance)||null;
+ }
+ depositWarehouse(id,bag,massKg=0){
+  const warehouse=this.structures.find(s=>s.id===Number(id)&&s.kind==="warehouse");
+  if(!warehouse)return {ok:false,message:"共同倉庫がありません"};
+  const current={...(this.warehouseStocks[String(id)]||{})};
+  let moved=0;
+  for(const [key,qty] of Object.entries(bag||{})){
+   if(!/^[a-zA-Z]{1,24}$/.test(key)||!Number.isSafeInteger(qty)||qty<0||qty>9999)
+    return {ok:false,message:"収納資材に不正な値があります"};
+   if((current[key]||0)+qty>999999)return {ok:false,message:"倉庫の収納上限を超えました"};
+   current[key]=(current[key]||0)+qty;moved+=qty;
+  }
+  if(!moved)return {ok:false,message:"リュックは空です"};
+  this.warehouseStocks[String(id)]=current;
+  this.warehouseWeightKg[String(id)]=(this.warehouseWeightKg[String(id)]||0)+Math.max(0,Number(massKg)||0);
+  for(const key of Object.keys(bag))bag[key]=0;
+  return {ok:true,message:"🏢 共同倉庫に"+moved+"個（"+massKg+"kg）収納",moved};
+ }
+ snapshot(){return {version:1,structures:this.structures.map(s=>({...s})),
+  warehouseStocks:JSON.parse(JSON.stringify(this.warehouseStocks)),
+  warehouseWeightKg:{...this.warehouseWeightKg}};}
 }
 
 /** Physical collision with built 2m masonry segments. Character radius 0.35m. */
