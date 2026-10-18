@@ -12,6 +12,17 @@
 .harvest-spark.rock{background:#e7ecf5;box-shadow:0 0 8px #9ab8d3}
 @keyframes harvest-fx{from{transform:translate(-50%,-50%) scale(.65);opacity:1}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.05);opacity:0}}
 </style>
+<style>
+.avatar-vitals{position:absolute;top:53px;left:8px;z-index:7;max-width:170px;background:#111b27ad;color:#fff;border:1px solid #ffffff3a;border-radius:9px;padding:5px 8px;font:11px/1.35 system-ui,sans-serif;pointer-events:auto;backdrop-filter:blur(5px)}
+.avatar-vitals .vital-pair{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.avatar-vitals label{display:flex;align-items:center;gap:3px;white-space:nowrap}
+.avatar-vitals progress{width:48px;height:6px;accent-color:#82c8a2}
+.avatar-vitals strong{font-size:10px}
+.avatar-vitals details{max-width:166px;margin-top:3px}
+.avatar-vitals summary{cursor:pointer}
+.avatar-vitals #avatar-inventory{max-height:94px;overflow:auto;overflow-wrap:anywhere}
+@media(max-width:600px){.avatar-vitals{top:44px;left:3px;max-width:146px;padding:4px 5px}.avatar-vitals progress{width:35px}}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -80,7 +91,13 @@
       <div id="world-hit-flash" aria-hidden="true"></div>
       <div id="world-fx-layer" class="world-fx-layer" aria-hidden="true"></div>
        <div id="harvest-fx-layer" class="harvest-fx-layer" aria-hidden="true"></div>
-      <div class="viewport-overlay">
+      <div class="avatar-vitals" role="group" aria-label="アバターの状態">
+ <div class="vital-pair"><label>❤️ HP <progress id="avatar-hp" max="100" value="100"></progress></label><strong id="avatar-hp-label">100%</strong></div>
+ <div class="vital-pair"><label>⚡ 体力 <progress id="avatar-stamina" max="100" value="100"></progress></label><strong id="avatar-stamina-label">100%</strong></div>
+ <div class="vital-pair"><label>🧠 メンタル <progress id="avatar-mental" max="100" value="100"></progress></label><strong id="avatar-mental-label">100%</strong></div>
+ <details><summary>🎒 <span id="avatar-load">0kg</span>・持ち物</summary><div id="avatar-inventory">所持品なし</div></details>
+ </div>
+ <div class="viewport-overlay">
         <div>高度 <strong id="height">-- m</strong></div>
         <div class="coords" id="coords">--°, --°</div>
         <div id="descent-phase" class="descent-phase" aria-label="降下段階">宇宙空間</div>
@@ -163,9 +180,19 @@
     <button type="button" id="action-sword">剣</button>
     <button type="button" id="action-axe">斧</button>
     <button type="button" id="action-mine">採掘</button>
+    <button type="button" id="action-saw">🪚 ノコギリ</button>
     <button type="button" id="action-dig" title="正面3m・半径14mを約1.5m掘る。土を回収">🪏 掘る</button>
     <button type="button" id="action-fill" title="土×1を使って正面3mを盛る">🟫 盛り土</button>
     <button type="button" id="action-build">建築</button>
+    <label>建設する <select id="construction-kind" aria-label="石壁または建築施設を選択">
+     <option value="stone-wall">🧱 石壁 2m</option><option value="warehouse">🏢 共同倉庫</option>
+     <option value="general-store">🛍️ 日用品商店</option><option value="smithy">⚒️ 鍛冶屋</option>
+     <option value="apothecary">🌿 薬屋</option><option value="bookshop">📚 本屋</option>
+     <option value="magic-shop">🔮 魔法店</option><option value="market">🏪 マーケット</option>
+    </select></label>
+    <button type="button" id="construction-mode">📍 配置開始</button>
+    <button type="button" id="construction-cancel" hidden>配置終了</button>
+    <span id="construction-status" aria-live="polite"></span>
     <select id="enemy-type" aria-label="出現させる敵">
       <option value="slime">🟢 スライム</option>
       <option value="goblin">👺 ゴブリン</option>
@@ -589,6 +616,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8d-falling-trees-weather-clouds"></script>
+<script type="module" src="./app.mjs?v=0.8e-material-construction-vitals"></script>
 </body>
 </html>
