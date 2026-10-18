@@ -32,7 +32,7 @@ export function installAgricultureUI({get,notify,onChange,canPlant,cutLog}){
    "🪚 製材済 "+pieces.length+"本 ／ 最近："+pieces.slice(-3).map(p=>p.lengthM.toFixed(2)+"m").join("・"):
    "🪵 伐採した倒木をノコギリで切り分けられます";
  }
- function open(){panel.hidden=false;$("farm-toggle").setAttribute("aria-expanded","true");refresh();}
+ function open(id){if(id)selected=id;panel.hidden=false;$("farm-toggle").setAttribute("aria-expanded","true");refresh();}
  function close(){panel.hidden=true;$("farm-toggle").setAttribute("aria-expanded","false");}
  function act(fn){
   try{const r=fn();notify(r.message);if(r.ok){onChange();refresh();}return r;}catch(error){notify("農作業エラー："+error.message);}
