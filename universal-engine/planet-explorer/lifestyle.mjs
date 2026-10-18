@@ -46,6 +46,7 @@ export class Lifestyle {
    for(const key of Object.keys(initialItems))if(Number.isSafeInteger(data.inventory[key])&&data.inventory[key]>=0)
     this.inventory[key]=Math.min(99999,data.inventory[key]);
   }
+  this.chestWeightsKg=Object.fromEntries(Object.entries(data?.chestWeightsKg||{}).filter(([id,v])=>/^\d+$/.test(id)&&Number.isFinite(v)&&v>=0));
   this.chestContents=Object.fromEntries(Object.entries(data?.chestContents||{}).filter(([id,v])=>/^\d+$/.test(id)&&v&&typeof v==="object").slice(0,250));
   this.furnishings=Array.isArray(data?.furnishings)?
    data.furnishings.filter(f=>CATALOG[f.kind]?.inside&&[f.x,f.z,f.buildingId].every(validNumber))
@@ -97,7 +98,7 @@ export class Lifestyle {
   chest.name=value;return result(true,"🧰 チェスト名を「"+value+"」に変更しました");
  }
  chestInventory(id){return {...(this.chestContents[String(id)]||{})};}
- storeBackpack(id,bag){
+ storeBackpack(id,bag,realMassKg=null){
   const chest=this.furnishings.find(f=>f.kind==="chest"&&f.id===Number(id));
   if(!chest)return {ok:false,message:"収納先チェストが見つかりません",moved:0};
   const next=this.chestInventory(id);let moved=0;
@@ -109,6 +110,8 @@ export class Lifestyle {
   }
   if(!moved)return {ok:false,message:"リュックは空です",moved:0};
   this.chestContents[String(id)]=next;
+  const mass=Number.isFinite(realMassKg)&&realMassKg>=0?realMassKg:moved;
+  this.chestWeightsKg[String(id)]=(this.chestWeightsKg[String(id)]||0)+mass;
   for(const k of Object.keys(bag))if(Number.isSafeInteger(bag[k]))bag[k]=0;
   return {ok:true,message:"🧰 "+(chest.name||"家のチェスト")+"に"+moved+"個収納",moved};
  }
@@ -350,7 +353,7 @@ export class Lifestyle {
   this.readPages.push(tag);this.stats.knowledge=clamp(this.stats.knowledge+.25,0,1e6);
   return true;
  }
- snapshot(){return copy({schemaVersion:1,inventory:this.inventory,furnishings:this.furnishings,chestContents:this.chestContents,
+ snapshot(){return copy({schemaVersion:1,inventory:this.inventory,furnishings:this.furnishings,chestContents:this.chestContents,chestWeightsKg:this.chestWeightsKg,
   deployments:this.deployments,nextId:this.nextId,initializedHuts:this.initializedHuts,
   stats:this.stats,activity:this.activity,activityFurnitureId:this.activityFurnitureId,
   insideTentId:this.insideTentId,readPages:this.readPages});}
