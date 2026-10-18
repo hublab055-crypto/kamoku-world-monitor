@@ -15,7 +15,7 @@ export function walkableSegment(from,to,heightAt,{maxSlopeDeg=MAX_WALK_SLOPE_DEG
    return {ok:false,reason:"water-or-impassable",at:point};
   const horizontal=Math.hypot(point.x-previous.x,point.z-previous.z);
   const rise=sample.elevationM-previous.height;
-  if(Math.abs(rise)>Math.max(maxStepM,horizontal*tangent))
+  if(Math.abs(rise)>Math.min(maxStepM,horizontal*tangent+.07))
    return {ok:false,reason:"steep-slope",at:point,slopeDeg:Math.atan2(Math.abs(rise),horizontal)*180/Math.PI};
   previous={...point,height:sample.elevationM};
  }
