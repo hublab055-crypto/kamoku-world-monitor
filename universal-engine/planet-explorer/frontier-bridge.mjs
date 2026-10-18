@@ -139,6 +139,50 @@ export class FrontierBridge {
    const n=this.deposit(a,chest);
    this.finish(a,n?"📦 "+(chest?.name||"チェスト")+"に"+n+"個収納":"収納先を利用できません");
    }else if(task.kind==="gather_nearby"){
+   if(this.world){
+    const candidates=this.available(a);
+    let node=candidates.find(n=>n.id===task.target);
+    if(!node||task.failed?.includes(node.id)){
+     node=candidates.filter(n=>!task.failed?.includes(n.id))
+      .sort((x,y)=>dist(x,a.control)-dist(y,a.control))[0];
+     task.target=node?.id||null;task.swingTime=0;task.wait=0;a.control.clearMoveTarget();
+    }
+    if(!node){this.finish(a,"設定半径内の資源を全回収しました");return true;}
+    const kind=node.kind==="stone"?"mine":"axe";
+    if(dist(a.control,node)>2.6){
+     const stand=chooseWorkPoint(a.control,node,(x,z)=>{
+      const g=a.control.locationAt(x,z),surface=terrainSurface(this.squad.terrain,g.lat,g.lon);
+      return !surface.water&&!surface.river&&surface.elevationM<2800;
+     });
+     if(!stand){
+      task.failed=[...(task.failed||[]),node.id].slice(-80);task.target=null;
+      a.status="急斜面の資源をスキップ";return true;
+     }
+     const moving=this.move(a,stand,"🚶 "+(kind==="axe"?"木へ接近":"岩へ接近"));
+     if(!moving){
+      task.wait=(task.wait||0)+dt;
+      if(task.wait>8){
+       task.failed=[...(task.failed||[]),node.id].slice(-80);
+       task.target=null;task.wait=0;a.control.clearMoveTarget();
+      }
+      return true;
+     }
+    }
+    a.control.clearMoveTarget();
+    a.status=kind==="axe"?"🪓 木に斧を振っています":"⛏️ 岩を採掘しています";
+    task.swingKind=kind;task.swingTime=(task.swingTime||0)+dt;
+    if(task.swingTime<(kind==="axe"?.78:1.65))return true;
+    task.swingTime=0;
+    const result=this.world.hit(node,kind,a);
+    p.stamina=cap(p.stamina-(kind==="mine"?4:2),0,100);
+    if(result?.drops)for(const [k,qty] of Object.entries(result.drops))
+     if(bagKinds.includes(k))p.inventory[k]=cap((p.inventory[k]||0)+qty,0,9999);
+    if(result?.stage==="collected"){p.gathered++;task.target=null;}
+    if(!result?.ok){task.failed=[...(task.failed||[]),node.id];task.target=null;}
+    a.status=(result?.message||"採集中")+" / 🎒 "+this.loadKg(a.id)+"kg";
+    this.world.effect?.(node,result,a);
+    return true;
+   }
    let node=this.nodes.find(n=>n.id===task.target&&n.quantity>0);
    if(node&&!this.available(a).includes(node))node=null;
    if(!node){
