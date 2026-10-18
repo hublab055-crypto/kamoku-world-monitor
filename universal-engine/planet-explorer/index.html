@@ -27,6 +27,12 @@
 .avatar-vitals #avatar-inventory{max-height:94px;overflow:auto;overflow-wrap:anywhere}
 @media(max-width:600px){.avatar-vitals{top:44px;left:3px;max-width:146px;padding:4px 5px}.avatar-vitals progress{width:35px}}
 </style>
+<style>
+.vital-action-buttons{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:4px 0}
+.vital-action-buttons button{font-size:10px;padding:3px;border-radius:5px}
+.vitals-actions[open]{max-width:166px}
+#vitals-action-status{font-size:10px;display:block;max-width:163px;overflow-wrap:anywhere}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -100,6 +106,18 @@
  <div class="vital-pair"><label>❤️ HP <progress id="avatar-hp" max="100" value="100"></progress></label><strong id="avatar-hp-label">100%</strong></div>
  <div class="vital-pair"><label>⚡ 体力 <progress id="avatar-stamina" max="100" value="100"></progress></label><strong id="avatar-stamina-label">100%</strong></div>
  <div class="vital-pair"><label>🧠 メンタル <progress id="avatar-mental" max="100" value="100"></progress></label><strong id="avatar-mental-label">100%</strong></div>
+ <div class="vital-pair"><label>🍽️ 満腹 <progress id="avatar-hunger" max="100" value="78"></progress></label><strong id="avatar-hunger-label">78%</strong></div>
+ <details class="vitals-actions"><summary>🍲 食事・休息・治療</summary>
+  <div class="vital-action-buttons">
+   <button type="button" id="vitals-eat" title="手持ちの料理や果実を食べる">🍽️ 食べる</button>
+   <button type="button" id="vitals-rest" title="その場で少し休む">💤 休む</button>
+   <button type="button" id="vitals-sleep" title="小屋やテント・寝床の近くで寝る">🛏️ 寝る</button>
+   <button type="button" id="vitals-potion" title="回復薬を1個消費しHPを45回復">🧪 薬</button>
+   <button type="button" id="vitals-magic" title="メンタル20を消費しHPを38回復">✨ 魔法</button>
+   <button type="button" id="vitals-church" title="教会の8m以内でHPと体力・メンタルを回復">⛪ 教会</button>
+  </div>
+  <span id="vitals-action-status" role="status" aria-live="polite"></span>
+ </details>
  <details><summary>🎒 <span id="avatar-load">0kg</span>・持ち物</summary><div id="avatar-inventory">所持品なし</div></details>
  </div>
  <div class="viewport-overlay">
@@ -700,6 +718,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8g-agriculture-feed-timber"></script>
+<script type="module" src="./app.mjs?v=0.8h-hunger-vitals-healing"></script>
 </body>
 </html>
