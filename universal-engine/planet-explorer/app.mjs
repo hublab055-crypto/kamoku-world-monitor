@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8c-climb";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8c-cloud-physical";
+import {ExplorerRenderer} from "./render.mjs?v=0.8d-falling-clouds";
 import {Actions} from "./actions.mjs";
 import {ResourceHarvest} from "./resource-harvest.mjs";
 import {Earthworks} from "./earthworks.mjs";
