@@ -1,6 +1,6 @@
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
-import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs";
+import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-drift";
 import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
 import {noise3} from "../planet/planet-core.mjs";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
