@@ -91,3 +91,18 @@ test("church is buildable, drawn and reachable for treatment",()=>{
  assert.equal(near,true);
  assert.equal(c.structures.some(x=>x.kind==="church"&&Math.hypot(x.x-75,x.z-4)<=8),false);
 });
+
+test("sleep and AI rest cannot create stamina out of zero hunger",()=>{
+ const empty={...normalizeVitals(),hunger:0,stamina:10,mental:30};
+ const result=restVitals(empty,{sleep:true});
+ assert.equal(result.ok,false);
+ assert.equal(empty.stamina,10);
+ const almost={...normalizeVitals(),hunger:1,stamina:10,mental:30};
+ restVitals(almost,{sleep:true});
+ assert.ok(almost.stamina>10&&almost.stamina<65);
+ assert.equal(almost.hunger,0);
+ const peaceful={...normalizeVitals(),hunger:40,stamina:100,mental:45};
+ assert.equal(restVitals(peaceful).ok,true);
+ assert.ok(peaceful.mental>45);
+ assert.ok(peaceful.hunger<40);
+});
