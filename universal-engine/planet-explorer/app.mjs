@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8h-marine";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8i-swimming";
+import {ExplorerRenderer} from "./render.mjs?v=0.8j-map-focus";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -975,9 +975,9 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
  if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
  const animal=renderer.pickAnimal(x,y);
- if(animal){farmUI?.close();faunaUI?.open(animal.id);return;}
+ if(animal){mapDirectoryUI?.close();farmUI?.close();faunaUI?.open(animal.id);return;}
  const pickedFarm=renderer.pickFarm(x,y);
- if(pickedFarm){faunaUI?.close();farmUI?.open(pickedFarm.id);return;}
+ if(pickedFarm){mapDirectoryUI?.close();faunaUI?.close();farmUI?.open(pickedFarm.id);return;}
  if(!rtsMode){
   const hit=renderer.pickLife(x,y);
   if(hit){
