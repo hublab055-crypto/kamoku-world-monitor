@@ -26,7 +26,7 @@ test("Frontier World mechanics extend the original 8-slot per-actor RTS model",(
  assert.deepEqual(a.rules.slice(0,3).map(r=>[r.metric,r.op,r.value,r.action]),[
   ["stamina","<=",30,"rest_home"],
   ["load_kg",">=",18,"store_chest"],
-  ["resource_nearby",">=",1,"gather_nearby"]
+  ["always","==",1,"gather_nearby"]
  ]);
  assert.equal(a.rules[4].action,"wait");
  assert.equal(squad.get("player").rules[0].metric,"wood");
