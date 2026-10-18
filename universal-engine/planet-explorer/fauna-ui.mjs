@@ -31,6 +31,7 @@ export function installFaunaUI({state,log,save,refreshHud,passable,onResourcesCh
   $("fauna-tame").disabled=a.tame||!["horse","cattle","sheep","goat","chicken"].includes(a.kind);
   $("fauna-feed").disabled=!["horse","cattle","sheep","goat","chicken"].includes(a.kind);
   $("fauna-call").disabled=!a.tame||Boolean(fauna.mount);
+  $("fauna-pasture").disabled=!a.tame||Boolean(fauna.mount)||!a.following;
   $("fauna-ride").disabled=Boolean(fauna.mount)||!fauna.canMount(a);
   $("fauna-unride").disabled=!fauna.mount;
   $("fauna-gait").value=fauna.gait;
@@ -54,6 +55,7 @@ export function installFaunaUI({state,log,save,refreshHud,passable,onResourcesCh
     {ok:false,message:"水域・急斜面などのため移動できません"};
   }else if(kind==="tame")result=fauna.tame(a.id,controller);
   else if(kind==="call")result=fauna.call(a.id,controller);
+  else if(kind==="pasture")result=fauna.pasture(a.id,controller);
   else if(kind==="feed")result=fauna.feed(a.id,$("fauna-feed-food").value,controller,actions?.resources);
   else if(kind==="equip")result=fauna.equip(a.id,part,controller,actions?.resources);
   else if(kind==="ride")result=fauna.board(a.id,controller);
@@ -66,7 +68,7 @@ export function installFaunaUI({state,log,save,refreshHud,passable,onResourcesCh
  $("fauna-toggle").addEventListener("click",()=>panel.hidden?open():close());
  $("fauna-close").addEventListener("click",close);
  select.addEventListener("change",()=>{ctx().fauna?.select(select.value);refresh();});
- for(const k of ["approach","tame","call","feed","ride","unride"])
+ for(const k of ["approach","tame","call","pasture","feed","ride","unride"])
   $("fauna-"+k).addEventListener("click",()=>command(k));
  $("fauna-tack").addEventListener("click",e=>{
   const btn=e.target.closest("button[data-tack]");if(btn)command("equip",btn.dataset.tack);
