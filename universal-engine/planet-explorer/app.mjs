@@ -62,6 +62,7 @@ function saveWorldJournal(){
  catch(_){log("環境の自動保存ができません。ゲームの保存をお試しください。");}
 }
 function emitHarvestEffect(node,result,agent=null){
+ if(result.stage==="felled")renderer?.beginTreeFall(node);
  const isRock=node.kind==="stone";
  worldUI?.float({kind:result.stage==="collected"?"gain":"damage",
   text:result.stage==="collected"?(isRock?"🪨":"🪵")+" +"+Object.values(result.drops||{}).reduce((a,b)=>a+b,0):
@@ -162,7 +163,7 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
-   renderer.resourceHarvest=harvest;
+   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
     createAppearance(avatarStyle,avatarStyle);
