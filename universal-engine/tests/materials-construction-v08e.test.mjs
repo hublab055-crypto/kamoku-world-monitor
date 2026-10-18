@@ -101,3 +101,23 @@ test("real inventory chest can store measured mass alongside legacy item counts"
  assert.equal(restored.chestWeightsKg[String(chest.id)],80);
  assert.equal(restored.chestInventory(chest.id).wood,75);
 });
+
+test("shared warehouse accepts a nearby backpack and retains material stock and kilograms",()=>{
+ const c=new ConstructionSystem(),materials={wood:60,stone:40,metal:10};
+ const surface=()=>({lat:28,lon:41,elevationM:300});
+ const result=c.place("warehouse",8,12,surface,materials);
+ assert.equal(result.ok,true);
+ const site=c.nearestWarehouse(8,16);
+ assert.equal(site?.id,result.created[0].id);
+ assert.equal(c.nearestWarehouse(80,100),null);
+ const bag={wood:75,fiber:5,ironOre:0};
+ const deposited=c.depositWarehouse(site.id,bag,80);
+ assert.equal(deposited.ok,true);
+ assert.equal(deposited.moved,80);
+ assert.equal(bag.wood,0);assert.equal(bag.fiber,0);
+ assert.equal(c.warehouseStocks[String(site.id)].wood,75);
+ assert.equal(c.warehouseWeightKg[String(site.id)],80);
+ const restored=new ConstructionSystem(c.snapshot());
+ assert.equal(restored.warehouseStocks[String(site.id)].wood,75);
+ assert.equal(restored.warehouseWeightKg[String(site.id)],80);
+});
