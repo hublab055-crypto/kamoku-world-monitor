@@ -960,6 +960,18 @@ function applyVitalsMeal(){
  if(result.ok){location[food]--;life.stats.hunger=100-p.hunger;saveLifeJournal();}
  $("vitals-action-status").textContent=result.message;log(result.message);updateHUD();
 }
+$("vitals-brew").addEventListener("click",()=>{
+ const actor=vitalsActor(),p=squad.frontier.person(actor.id);
+ const nearby=constructions.structures.some(site=>site.kind==="apothecary"&&
+  Math.hypot(site.x-actor.control.x,site.z-actor.control.z)<=8);
+ if(!nearby){log("回復薬の調合には薬屋の8m以内へ移動してください");return;}
+ if((life.inventory.water||0)<1||(actions.resources.fiber||0)<3){
+  log("回復薬の調合には水1・繊維3が必要です");return;
+ }
+ if(p.healingPotions>=999){log("回復薬をこれ以上持てません");return;}
+ life.inventory.water--;actions.resources.fiber-=3;p.healingPotions++;
+ log("🌿 薬屋で回復薬を1個調合しました");saveLifeJournal();updateHUD();
+});
 $("vitals-eat").addEventListener("click",applyVitalsMeal);
 for(const type of ["potion","magic","church"])
  $("vitals-"+type).addEventListener("click",()=>applyVitalsHeal(type));
@@ -1171,7 +1183,13 @@ for(const [button,kind] of [["action-sword","sword"],["action-axe","axe"],["acti
     }
     const started=actions.start(kind,controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
      frontierUI?.attackVariantFor("player",kind)||"overhead");
-    if(started&&node)actions.active.resourceNode=node;
+    if(started){
+      const p=squad.frontier.person("player"),cost={
+       sword:3,axe:2,saw:2,mine:4,dig:5,fill:5,build:6
+      }[kind]||1;
+      p.stamina=clamp(p.stamina-cost,0,100);
+     }
+     if(started&&node)actions.active.resourceNode=node;
     if(started&&["dig","fill"].includes(kind))actions.active.earthwork=
       controller.locationAt(controller.x+Math.sin(controller.yaw)*3,controller.z+Math.cos(controller.yaw)*3);
     log(actions.message);
