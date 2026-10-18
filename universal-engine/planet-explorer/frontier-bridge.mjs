@@ -32,7 +32,7 @@ export class FrontierBridge {
   this.squad=squad;this.life=null;this.events=[];this.world=null;
   const lead=squad.get("player").control;
   this.base={x:lead.x,z:lead.z};
-  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0}]));
+  this.people=Object.fromEntries(squad.agents.map(a=>[a.id,{stamina:100,mental:100,inventory:bag(),radius:42,origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0}]));
   this.nodes=generateNodes(squad.terrain,lead,this.base);
   if(saved)this.restore(saved);
  }
@@ -54,7 +54,7 @@ export class FrontierBridge {
   if(this.people[id])return this.people[id];
   const a=this.squad.get(id);
   if(!a)return null;
-  return this.people[id]={stamina:100,inventory:bag(),radius:42,
+  return this.people[id]={stamina:100,mental:100,inventory:bag(),radius:42,
    origin:{x:a.control.x,z:a.control.z},gathered:0,chestId:null,massAdjustmentKg:0};
  }
  person(id){return this.ensureAgent(id);}
@@ -120,6 +120,7 @@ export class FrontierBridge {
  tick(a,dt,manual=false){
   const p=this.person(a.id);if(!p)return false;
   p.stamina=cap(p.stamina-(a.control.moving?.13*dt:.008*dt),0,100);
+  p.mental=cap((p.mental??100)+(p.stamina<25?-.20:.035)*dt,0,100);
   if(!a.auto||manual){this.cancel(a);return false;}
   if(!this.isAction(a.task?.kind))return false;
   const task=a.task;
@@ -129,6 +130,7 @@ export class FrontierBridge {
    const h=this.home(a);
    if(!this.move(a,h,"💤 "+(h.kind==="hut"?"家":"仮拠点")+"へ帰宅"))return true;
    p.stamina=cap(p.stamina+dt*9,0,100);
+    p.mental=cap((p.mental??100)+dt*3,0,100);
    a.status="💤 休息 "+Math.floor(p.stamina)+"%";
    if(p.stamina>=99.999){p.stamina=100;this.finish(a,"スタミナ100%まで回復");}
   }else if(task.kind==="store_chest"){
@@ -235,6 +237,7 @@ export class FrontierBridge {
   for(const actor of this.squad.agents){
    const s=data.people?.[actor.id],p=this.person(actor.id);if(!s)continue;
    p.stamina=cap(Number.isFinite(s.stamina)?s.stamina:100,0,100);
+   p.mental=cap(Number.isFinite(s.mental)?s.mental:100,0,100);
    p.inventory=bag(s.inventory);p.radius=cap(Number(s.radius)||42,5,100);
    p.origin=point(s.origin)?{x:s.origin.x,z:s.origin.z}:{x:actor.control.x,z:actor.control.z};
    p.gathered=Math.max(0,Math.floor(Number(s.gathered)||0));
