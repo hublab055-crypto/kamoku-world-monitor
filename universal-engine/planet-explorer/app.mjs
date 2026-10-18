@@ -29,6 +29,7 @@ import {ArrowProjectiles} from "./arrow-projectiles.mjs";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
 import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8f-panel";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8g-ocean";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -38,13 +39,21 @@ const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const WORLD_JOURNAL_KEY="universal-engine:explorer:earthworks:v0.8a";
 const STRUCTURES_JOURNAL_KEY="universal-engine:explorer:construction:v0.8e";
 const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
+const MARINE_JOURNAL_KEY="universal-engine:explorer:marine:v0.8g";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null;
+let constructionUI=null,fauna=null,faunaUI=null,marine=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
+function saveMarineJournal(){
+ try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
+ catch(_){log("船の保存に失敗しました");}
+}
+function loadMarineJournal(){
+ try{return JSON.parse(localStorage.getItem(MARINE_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
 }
@@ -159,6 +168,9 @@ function init(saved=null){
    terrain.earthworks=earthworks;
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+  marine=new MarineWorld(saved?.v0_8g?.marine||(!saved?loadMarineJournal():null));
+  marine.update(0,controller,terrain);
+  controller.boatSpeed=BOATS[marine.boarded?.kind]?.speed||4.2;
   let faunaJournal=null;
   if(!saved)try{faunaJournal=JSON.parse(localStorage.getItem(FAUNA_JOURNAL_KEY)||"null");}catch(_){}
   fauna=new FaunaWorld(saved?.v0_8f?.fauna||faunaJournal);
@@ -187,7 +199,7 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
-   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;
+   renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.marine=marine;
    renderer.constructionSystem=constructions;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
@@ -289,7 +301,9 @@ function doFrame(t){
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
-  controller.mountRiding=Boolean(fauna?.mount);controller.walkSpeed=fauna?.speed()??5;
+  marine?.update(0,controller,terrain);
+  controller.boatSpeed=BOATS[marine?.boarded?.kind]?.speed||4.2;
+  controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   squad?.advance(running?dt:0,{manualLead});
   if(running){
@@ -309,6 +323,7 @@ function doFrame(t){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else controller.update(dt,input);
+  marine?.update(running?dt:0,controller,terrain);
   if(running){
    fauna?.advance(dt,controller,faunaGroundPassable);
    processHarvestOrders();processArrowPickups();
@@ -490,7 +505,21 @@ function updateHUD(){
   $("rts-sync").textContent=syncMode?"🔗 シンクロON":"🔗 シンクロOFF";
  $("rts-rally").setAttribute("aria-pressed",String(rallyPicking));
  $("rts-rally").textContent=rallyPicking?"地面をタップ":"集合地点";
- $("walk-status").textContent=controller.blocked?"通行不可：水域または急斜面":isSurface?(g.water?"🌊 海面：水泳・船は未実装":g.river?"河川：移動制限あり":g.elevationM>2800?"高山：徒歩移動不可":"歩行可能"):"降下中／宇宙視点";
+ $("walk-status").textContent=controller.blocked?"通行不可：海岸・急斜面など":isSurface?({
+  boat:"🛶 航海中",swim:"🏊 水泳中",dive:"🤿 潜水中"
+ }[controller.travelMode]|| (g.elevationM>2800?"高山：徒歩移動不可":"歩行可能")):"降下中／宇宙視点";
+ if(marine){
+  $("marine-status").textContent=({walk:"🏝️ 陸上",swim:"🏊 水泳",dive:"🤿 潜水 "+marine.depthM.toFixed(1)+"m",
+    boat:"🛶 "+(BOATS[marine.boarded?.kind]?.name||"航海中")})[controller.travelMode]||
+   "🌊 海洋";
+  $("marine-oxygen").value=marine.oxygen;
+  $("marine-oxygen-label").textContent=Math.round(marine.oxygen)+"%";
+  $("marine-dive").disabled=!isSurface||controller.travelMode==="boat"||controller.travelMode==="walk";
+  $("marine-dive").textContent=marine.diving?"↑ 水面へ浮上":"↓ 潜る";
+  $("marine-board").disabled=!isSurface||Boolean(marine.boarded);
+  $("marine-leave").disabled=!isSurface||!marine.boarded;
+  $("marine-craft").disabled=!isSurface;
+ }
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
  $("walk-note").textContent=renderer.cameraController.mode==="free"?
@@ -533,9 +562,10 @@ $("save").addEventListener("click",()=>{
     v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()},
      v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()},
       v0_8e:{schemaVersion:1,construction:constructions.snapshot()},
-       v0_8f:{schemaVersion:1,fauna:fauna.snapshot()}};
+       v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
+       v0_8g:{schemaVersion:1,marine:marine.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
-   saveFaunaJournal();
+   saveFaunaJournal();saveMarineJournal();
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
@@ -754,26 +784,37 @@ function updateOrbitLandingMarker(info){
  marker.style.left=(info.u*100).toFixed(3)+"%";
  marker.style.top=(info.v*100).toFixed(3)+"%";
 }
+function updateOrbitSelection(){
+ if(!orbitSelection)return;
+ const mode=$("landing-water-mode").value;
+ const site=resolveLanding(terrain,orbitSelection.pickedLat,orbitSelection.pickedLon,mode);
+ orbitSelection.site=site.ok?site:null;
+ renderer.selectedLanding=site.ok?{lat:site.lat,lon:site.lon}:
+  {lat:orbitSelection.pickedLat,lon:orbitSelection.pickedLon};
+ const coords=(v,pos,neg)=>Math.abs(v).toFixed(3)+"°"+(v>=0?pos:neg);
+ const lat=site.ok?site.lat:orbitSelection.pickedLat,lon=site.ok?site.lon:orbitSelection.pickedLon;
+ $("orbit-landing-coords").textContent="📍 "+coords(lat,"N","S")+" / "+coords(lon,"E","W");
+ const sample=site.ok?terrainSurface(terrain,lat,lon):null;
+ $("orbit-landing-terrain").textContent=!site.ok?site.message:
+  (site.mode==="sea"?"🌊 海上・泳いで開始":"🏝️ 陸上・標高"+Math.round(sample.elevationM)+"m")+
+  (site.movedM?" ／ 安全な陸地へ"+Math.round(site.movedM/1000)+"km補正":"");
+ $("orbit-landing-confirm").disabled=!site.ok;
+ $("orbit-landing-preview").hidden=false;
+}
 function selectOrbitLanding(x,y){
  const geo=renderer?.pickOrbit(x,y);
  if(!geo)return false;
- const ground=terrainSurface(terrain,geo.lat,geo.lon);
- orbitSelection={...geo,water:ground.water,river:ground.river,elevationM:ground.elevationM,category:ground.category};
- renderer.selectedLanding={lat:geo.lat,lon:geo.lon};
- const coord=(v,pos,neg)=>Math.abs(v).toFixed(3)+"°"+(v>=0?pos:neg);
- $("orbit-landing-coords").textContent="📍 "+coord(geo.lat,"N","S")+" / "+coord(geo.lon,"E","W");
- const terrainLabel=ground.water?"🌊 海面（遊泳・船は未実装）":
-  ground.river?"🏞 河川付近":("🏞 "+ground.category+" / 標高"+Math.round(ground.elevationM)+"m");
- $("orbit-landing-terrain").textContent=terrainLabel;
- $("orbit-landing-preview").hidden=false;
- updateHUD();
- return true;
+ orbitSelection={pickedLat:geo.lat,pickedLon:geo.lon,site:null};
+ updateOrbitSelection();updateHUD();return true;
 }
+$("landing-water-mode").addEventListener("change",updateOrbitSelection);
 function confirmOrbitLanding(){
- if(!orbitSelection)return;
+ if(!orbitSelection?.site)return;
  try{
-  const site=orbitSelection;
-  controller.setLanding(site.lat,site.lon,{allowWater:true});
+  const site=orbitSelection.site;
+  marine.boardedId=null;marine.diving=false;marine.depthM=0;marine.oxygen=100;
+  controller.setLanding(site.lat,site.lon,{allowWater:site.mode==="sea"});
+  marine.update(0,controller,terrain);
   access.insideId=null;access.pendingDoorId=null;
   squad?.repositionAfterLanding();
   controller.targetAltitude(2.5);
@@ -781,9 +822,9 @@ function confirmOrbitLanding(){
   renderer.cameraController.resetFreeAnchor(controller,
    terrainSurface(terrain,site.lat,site.lon).elevationM);
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
-  clearOrbitSelection();updateHUD();
-  log(site.water?"🌊 指定した海面へ降下します。水泳・船移動は未実装です。":
-   "📍 指定した緯度・経度へ降下します。地表でTPV・RTS操作が使えます。");
+  clearOrbitSelection();updateHUD();saveMarineJournal();
+  log(site.mode==="sea"?"🌊 海上降下：水面に出ました。泳ぐ・潜る・船で航海できます。":
+    "🏝️ 陸上への降下を開始します"+(site.movedM?"（海を避け、近隣の陸地へ移動）":""));
  }catch(e){log("地点降下エラー: "+e.message);}
 }
 function handleSceneTap({x,y,shiftKey=false}){
@@ -882,7 +923,11 @@ $("landing-select").addEventListener("change",()=>{
  const p=$("landing-select").value.split(",").map(Number);
  try{
   const site=findLand(terrain,p[0],p[1]);
-  controller.setLanding(site.lat,site.lon);
+  const safe=resolveLanding(terrain,site.lat,site.lon,"land");
+  if(!safe.ok)throw new Error(safe.message);
+  marine.boardedId=null;marine.diving=false;
+  controller.setLanding(safe.lat,safe.lon);
+  marine.update(0,controller,terrain);
   squad?.repositionAfterLanding();
   controller.targetAltitude(15000000);controller.altitudeM=15000000;
   renderer.patchKey=null;renderer.orbitPan=null;renderer.orbitFocus=null;renderer.lastOrbitCenter=null;
@@ -1579,6 +1624,27 @@ groupUI=installGroupUI({
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
 });
+$("marine-toggle").addEventListener("click",()=>{
+ $("marine-panel").hidden=!$("marine-panel").hidden;
+ $("marine-toggle").setAttribute("aria-expanded",String(!$("marine-panel").hidden));
+ updateHUD();
+});
+$("marine-close").addEventListener("click",()=>{
+ $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
+});
+for(const [id,action] of [["marine-craft",()=>{
+ return marine.craft($("marine-boat-kind").value,controller,terrain,actions.resources);
+}],["marine-board",()=>marine.board(controller,terrain)],
+ ["marine-leave",()=>marine.leave(controller,terrain)],
+ ["marine-dive",()=>marine.dive(controller,terrain)]]){
+ $(id).addEventListener("click",()=>{
+  const result=action();
+  log(result.message);
+  if(result.ok){renderer.patchKey=null;saveMarineJournal();saveLifeJournal();}
+  updateHUD();
+ });
+}
+window.addEventListener("pagehide",saveMarineJournal);
 window.addEventListener("pagehide",saveFaunaJournal);
 init();requestAnimationFrame(doFrame);
 
