@@ -7,6 +7,7 @@ import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {ExplorerRenderer} from "./render.mjs?v=0.8d-falling-clouds";
 import {Actions} from "./actions.mjs";
 import {ResourceHarvest} from "./resource-harvest.mjs";
+import {ConstructionSystem,FACILITIES} from "./construction-system.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
@@ -32,11 +33,13 @@ const PRE_FRONTIER_SAVE_KEY="universal-engine:explorer:v0.7g";
 const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
 const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const WORLD_JOURNAL_KEY="universal-engine:explorer:earthworks:v0.8a";
+const STRUCTURES_JOURNAL_KEY="universal-engine:explorer:construction:v0.8e";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
-let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks;
+let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
+let buildPlacementKind=null,wallLineStart=null,ignorePlacementClick=false;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function loadLifeJournal(){
  try{return JSON.parse(localStorage.getItem(LIFE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -110,7 +113,7 @@ let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
-const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",soil:"🟫 土"};
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
@@ -135,6 +138,9 @@ function init(saved=null){
    // even when the player later lands on another continent.
    terrain.landscapeAnchor=findLand(terrain);
    const restoredWorld=saved?.v0_8a||(saved?null:loadWorldJournal());
+   let constructionSnapshot=saved?.v0_8e?.construction||null;
+   if(!constructionSnapshot&&!saved)try{constructionSnapshot=JSON.parse(localStorage.getItem(STRUCTURES_JOURNAL_KEY)||"null");}catch(_){}
+   constructions=new ConstructionSystem(constructionSnapshot);
    earthworks=new Earthworks(restoredWorld?.earthworks||null);
    terrain.earthworks=earthworks;
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
@@ -149,7 +155,7 @@ function init(saved=null){
    const journal=!saved?loadLifeJournal():null;
    life=new Lifestyle(saved?.v0_7g||journal?.life||null);
    if(journal?.resources&&!saved){
-    for(const k of ["wood","stone","fiber","clay","metal","soil"])
+    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
@@ -164,6 +170,7 @@ function init(saved=null){
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;
+   renderer.constructionSystem=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
     createAppearance(avatarStyle,avatarStyle);
@@ -481,7 +488,8 @@ $("save").addEventListener("click",()=>{
    v0_7d:{schemaVersion:1,squad:squad.snapshot()},v0_7e:access.snapshot(),
     v0_7f:books.snapshot(),v0_7g:life.snapshot(),v0_7i:frontierUI?.snapshot(),
     v0_7t:{schemaVersion:1,syncMode,projectiles:projectiles.snapshot()},
-     v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()}};
+     v0_8a:{schemaVersion:1,resources:harvest.snapshot(),earthworks:earthworks.snapshot()},
+      v0_8e:{schemaVersion:1,construction:constructions.snapshot()}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -540,7 +548,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
