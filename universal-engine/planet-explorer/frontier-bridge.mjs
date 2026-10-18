@@ -119,7 +119,7 @@ export class FrontierBridge {
  }
  tick(a,dt,manual=false){
   const p=this.person(a.id);if(!p)return false;
-  p.stamina=cap(p.stamina-(a.control.moving?.13*dt:.008*dt),0,100);
+  p.stamina=cap(p.stamina-(a.control.moving?(a.control.mountRiding?.025:.13)*dt:.008*dt),0,100);
   p.mental=cap((p.mental??100)+(p.stamina<25?-.20:.035)*dt,0,100);
   if(!a.auto||manual){this.cancel(a);return false;}
   if(!this.isAction(a.task?.kind))return false;
