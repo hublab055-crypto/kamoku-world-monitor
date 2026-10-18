@@ -48,8 +48,9 @@ export function faunaGeometry(kind,gear={},pose={}){
   cube(m,x,.08+lift,legZ,scale*.17,shoulder*.40,scale*.19,coat);
   if(kind==="horse")cube(m,x,lift,legZ,scale*.20,.13,scale*.20,dark);
  }
- const neckZ=bodyD*.41;
- cube(m,0,shoulder*.65,neckZ,scale*.37,shoulder*.60,scale*.38,coat);
+ const neckZ=bodyD*.41,headDrop=pose.grazing?shoulder*.58:0;
+ const headForward=pose.grazing?scale*.32:0;
+ cube(m,0,shoulder*.65-headDrop*.45,neckZ+headForward*.5,scale*.37,shoulder*.60,scale*.38,coat);
  cube(m,0,shoulder*1.09-headDrop,neckZ+scale*.17+headForward,scale*.47,shoulder*.27,scale*.55,coat);
  cube(m,0,shoulder*1.00-headDrop,neckZ+scale*.45+headForward,scale*.34,shoulder*.13,scale*.28,wolf?dark:pale);
  for(const x of [-scale*.19,scale*.19]){
