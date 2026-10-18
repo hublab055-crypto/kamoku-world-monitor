@@ -267,6 +267,7 @@ function doFrame(t){
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
+  for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   squad?.advance(running?dt:0,{manualLead});
   if(running){
    for(const a of squad?.agents||[]){
