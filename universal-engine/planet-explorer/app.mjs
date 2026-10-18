@@ -247,6 +247,23 @@ function init(saved=null){
    }
    if(!saved&&Number.isFinite(journal?.playerHp))battle.playerHp=clamp(journal.playerHp,0,100);
    vitalsSaveElapsed=0;
+   // Keep pre-existing book/kitchen/table/sleep actions in sync with the
+   // new inverted satiety system. No lifestyle item is consumed twice.
+   for(const method of ["use","useItem","useCamp"]){
+    const original=life[method].bind(life);
+    life[method]=(...args)=>{
+     const beforeHunger=life.stats.hunger,beforeStamina=life.stats.stamina;
+     const result=original(...args);
+     if(result?.ok){
+      const p=squad.frontier.person("player");
+      p.hunger=clamp(p.hunger+(beforeHunger-life.stats.hunger),0,100);
+      p.stamina=clamp(p.stamina+(life.stats.stamina-beforeStamina),0,100);
+      if(life.activity==="sleep")p.mental=clamp(p.mental+12,0,100);
+      saveLifeJournal();
+     }
+     return result;
+    };
+   }
    squad.frontier.attachWorld({
     list:(origin,radius)=>{
      const nodes=renderer.resourceNodes||[];
@@ -493,6 +510,7 @@ function updateHUD(){
    $(id).value=value;$(id+"-label").textContent=value+"%";
   }
   $("avatar-load").textContent=squad.frontier.loadKg(agent.id).toFixed(1)+"kg";
+   $("vitals-potion").textContent="🧪 薬 ×"+(person.healingPotions??2);
   const backpack=Object.entries(person.inventory||{}).filter(([,n])=>n>0)
    .map(([k,n])=>(resourceNames[k]||k)+" ×"+n);
   $("avatar-inventory").textContent=backpack.length?backpack.join(" / "):"リュックは空です（共有資材は下の資材欄）";
@@ -909,6 +927,54 @@ constructionUI=new ConstructionPlacement({
   catch(_){log("建築物の自動保存に失敗しました");}
   updateHUD();saveLifeJournal();
  },log
+});
+function vitalsActor(){
+ return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
+}
+function applyVitalsHeal(kind){
+ const actor=vitalsActor(),p=squad.frontier.person(actor.id);
+ const current=actor.id==="player"?battle.playerHp:actor.hp;
+ const atChurch=constructions.structures.some(site=>site.kind==="church"&&
+  Math.hypot(site.x-actor.control.x,site.z-actor.control.z)<=8);
+ const effect=healVitals(p,current,actor.id==="player"?100:actor.maxHp,kind,{atChurch});
+ if(effect.ok){
+  if(actor.id==="player")battle.playerHp=effect.hp;else actor.hp=effect.hp;
+  worldUI?.float({kind:"heal",text:"+"+Math.round(effect.healed)+" HP",actorId:actor.id,duration:1.4});
+  saveLifeJournal();
+ }
+ $("vitals-action-status").textContent=effect.message;log(actor.name+"："+effect.message);updateHUD();
+}
+function applyVitalsMeal(){
+ const actor=vitalsActor(),p=squad.frontier.person(actor.id);
+ const old=p.hunger;
+ if(old>=99.99){log("満腹です");return;}
+ let food=null,location=null;
+ if((p.inventory.food||0)>0){food="food";location=p.inventory;}
+ else if((life.inventory.meal||0)>0){food="meal";location=life.inventory;}
+ else for(const kind of ["apple","carrot"]){
+  if((actions.resources[kind]||0)>0){food=kind;location=actions.resources;break;}
+ }
+ if(!food&&(life.inventory.rawFood||0)>0){food="rawFood";location=life.inventory;}
+ if(!food){log("食料がありません。料理、リンゴ、ニンジン、採集食材を用意してください");return;}
+ const result=eatVitals(p,{quality:food});
+ if(result.ok){location[food]--;life.stats.hunger=100-p.hunger;saveLifeJournal();}
+ $("vitals-action-status").textContent=result.message;log(result.message);updateHUD();
+}
+$("vitals-eat").addEventListener("click",applyVitalsMeal);
+for(const type of ["potion","magic","church"])
+ $("vitals-"+type).addEventListener("click",()=>applyVitalsHeal(type));
+$("vitals-rest").addEventListener("click",()=>{
+ const p=squad.frontier.person(vitalsActor().id),effect=restVitals(p);
+ $("vitals-action-status").textContent=effect.message;log(effect.message);saveLifeJournal();updateHUD();
+});
+$("vitals-sleep").addEventListener("click",()=>{
+ const actor=vitalsActor(),control=actor.control;
+ const inHut=actions.structures.some(h=>h.kind==="hut"&&h.progress>=1&&Math.hypot(h.x-control.x,h.z-control.z)<=7);
+ const camp=life.deployments.some(c=>["bedroll","tent"].includes(c.kind)&&
+  Math.hypot(c.x-control.x,c.z-control.z)<=5);
+ if(!inHut&&!camp){log("睡眠には小屋・テント・ベッドロールの近くへ移動してください");return;}
+ const p=squad.frontier.person(actor.id),effect=restVitals(p,{sleep:true});
+ $("vitals-action-status").textContent=effect.message;log(effect.message);saveLifeJournal();updateHUD();
 });
 $("warehouse-deposit").addEventListener("click",()=>{
  if(!controller?.nearGround){log("倉庫に近づいてから収納してください");return;}
