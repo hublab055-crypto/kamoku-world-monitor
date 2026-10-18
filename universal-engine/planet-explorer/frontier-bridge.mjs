@@ -1,6 +1,6 @@
 import {terrainSurface} from "./geo.mjs";
 import {hutDoor} from "./buildings.mjs";
-import {chooseWorkPoint} from "./terrain-collision.mjs";
+import {chooseWorkPoint} from "./terrain-collision.mjs?v=0.8e-work-sites";
 
 /** Frontier World living systems in Universal Engine's planetary metre space. */
 export const FW_WEIGHTS=Object.freeze({wood:3,stone:4,fiber:.5,food:1,water:1,clay:2,metal:3,soil:2,ironOre:1,plank:1});
