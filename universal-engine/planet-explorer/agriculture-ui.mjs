@@ -5,7 +5,7 @@ export function installAgricultureUI({get,notify,onChange,canPlant,cutLog}){
  const plotSelect=$("farm-plot");
  let selected=null;
  function refresh(){
-  const {farm,controller,planet,harvest}=get();
+  const {farm,controller,planet,harvest,actions}=get();
   if(!farm||!controller||!planet)return;
   const choice=selected;
   plotSelect.replaceChildren();
