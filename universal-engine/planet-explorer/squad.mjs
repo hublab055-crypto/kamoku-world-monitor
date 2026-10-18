@@ -381,7 +381,7 @@ export class SquadEngine{
     if(weapon==="bow"&&!a.task.impacted&&progress>=.81){
      a.task.impacted=true;this.onEquippedImpact?.(a,a.task);
     }
-    if(["sword","spear","greatsword","axe"].includes(weapon)){
+    if(["sword","spear","greatsword","axe","mine"].includes(weapon)){
      const combo=a.task.variant==="combo";
      const styles=combo?(weapon==="spear"?["sweep","thrust"]:
       weapon==="greatsword"||weapon==="axe"?["overhead","sweep"]:
@@ -416,7 +416,8 @@ export class SquadEngine{
   return key?.startsWith("equipped_")?{action:key.slice("equipped_".length),
    progress:key==="equipped_bow"?taskBowProgress(a.task):1-a.task.remaining/a.task.duration,
    hand:a.task.hand||"right",variant:a.task.variant||"overhead"}:
-   this.frontier?.isAction(key)?{action:key==="gather_nearby"?"axe":"idle",progress:.5}:
+   this.frontier?.isAction(key)?{action:key==="gather_nearby"?(a.task.swingTime>0?(a.task.swingKind||"axe"):"idle"):"idle",
+    progress:key==="gather_nearby"?Math.min(1,(a.task.swingTime||0)/(a.task.swingKind==="mine"?1.65:.78)):.5}:
    key?{action:key==="gather_wood"?"axe":"mine",progress:1-a.task.remaining/a.task.duration}:
    {action:"idle",progress:0};
  }
