@@ -61,14 +61,14 @@ export class ResourceHarvest {
   const spec=TYPES[variant];
   if(!spec||!(spec.tool===tool||tool==="saw"&&spec.tool==="axe"&&current?.state==="fallen"))
   return {ok:false,message:tool==="saw"?"ノコギリは倒木に使用してください":tool==="axe"?"斧で伐採できる木を選択してください":"つるはしで砕ける岩を選択してください"};
-  if(current?.state==="fallen"&&tool==="saw")return this.cutLog(node,1);
   if(current?.state==="fallen"||current?.state==="rubble"){
    this.states.set(node.id,{state:"removed",hp:0});
-   const yieldData=harvestYield(node);
+   const yieldData=harvestYield(node,{saw:tool==="saw"});
    const cut=this.cuts.get(node.id);
    if(cut&&current.state==="fallen"){
     const remaining=Math.max(0,1-cut.doneCm/logLengthCm(node));
-    yieldData.drops.wood=Math.max(0,(yieldData.drops.wood||0)-cut.plankAwarded);
+    const product=tool==="saw"?"plank":"wood";
+    yieldData.drops[product]=Math.max(0,(yieldData.drops[product]||0)-cut.plankAwarded);
     yieldData.massKg=Math.round(yieldData.massKg*remaining*100)/100;
     this.cuts.delete(node.id);
    }
