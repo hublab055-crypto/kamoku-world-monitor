@@ -1374,7 +1374,9 @@ export class ExplorerRenderer{
   if(!this.marine)return;
   for(const boat of this.marine.nearby(s,Math.min(radius,1300))){
    const mesh=this.boatMeshes[boat.kind];if(!mesh)continue;
-   const transform=multiply4(translate(boat.x-this.cx,.06,boat.z-this.cz),rotateY(boat.yaw));
+   const location=terrainSurface(this.terrain,boat.lat,boat.lon);
+   const waterY=Number.isFinite(location.waterLevelM)?location.waterLevelM:0;
+   const transform=multiply4(translate(boat.x-this.cx,waterY+.06,boat.z-this.cz),rotateY(boat.yaw));
    this.drawMesh(mesh,multiply4(vp,transform),light,1,.73);
   }
   if(!["swim","dive","boat"].includes(s.travelMode))return;
@@ -1438,8 +1440,9 @@ export class ExplorerRenderer{
   const px=s.x-this.cx,pz=s.z-this.cz;
   const currentSurface=terrainSurface(this.terrain,s.lat,s.lon);
   const ground=currentSurface.elevationM;
-  const feet=s.travelMode==="dive"?-Math.min(this.marine?.depthM||0,12):
-    s.travelMode==="swim"?-.16:Math.max(ground,0);
+  const waterY=Number.isFinite(currentSurface.waterLevelM)?currentSurface.waterLevelM:0;
+  const feet=s.travelMode==="dive"?waterY-Math.min(this.marine?.depthM||0,12):
+    s.travelMode==="swim"?waterY-.16:s.travelMode==="boat"?waterY+.18:Math.max(ground,0);
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
