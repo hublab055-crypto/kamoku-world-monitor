@@ -1438,6 +1438,55 @@ export class ExplorerRenderer{
   const bounce=.07*Math.sin(this.marineClock*2.3);
   this.drawMesh(this.fishingFloat,multiply4(vp,translate(fx,waterY+.10+bounce,fz)),light,1,.88);
  }
+ drawShipboardObjects(vp,light,s,waterY){
+  this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
+  const board=this.marine?.shipboard,boat=this.marine?.boarded;
+  if(boat?.kind!=="sailing_ship"||board?.shipId!==boat.id)return;
+  const zone=board.player.zone;
+  const d=SHIP_DOOR[zone],pos=shipLocalToWorld(s.x,s.z,boat.yaw,d.x,d.z);
+  const y=waterY+(zone==="cabin"?.47:1.45);
+  const hinge=multiply4(translate(pos.x-this.cx,y,pos.z-this.cz),rotateY(boat.yaw));
+  const model=multiply4(hinge,multiply4(translate(-.53,0,0),
+   multiply4(rotateY(-board.doorProgress*1.3),translate(.53,0,0))));
+  this.drawMesh(this.shipDoorMesh,multiply4(vp,model),light,1,.88);
+  const point=projectScreen(vp,[pos.x-this.cx,y+1.05,pos.z-this.cz]);
+  if(point?.onScreen)this.screenShipDoor={...point,type:"door"};
+  if(zone==="deck"){
+   const wheel=shipLocalToWorld(s.x,s.z,boat.yaw,SHIP_HELM.x,SHIP_HELM.z);
+   const screen=projectScreen(vp,[wheel.x-this.cx,waterY+2.47,wheel.z-this.cz]);
+   if(screen?.onScreen)this.screenShipHelm={...screen,type:"helm"};
+  }
+ }
+ pickShipboard(clientX,clientY){
+  const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+  let best=null,range=44;
+  for(const p of [...this.screenShipCrew,this.screenShipDoor,this.screenShipHelm]){
+   if(!p)continue;
+   const d=Math.hypot(p.u*r.width-(clientX-r.left),p.v*r.height-(clientY-r.top));
+   if(d<range){best=p;range=d;}
+  }
+  return best;
+ }
+ pickShipboardFloor(clientX,clientY){
+  if(!this.pickVP||this.marine?.boarded?.kind!=="sailing_ship")return null;
+  const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+  const boat=this.marine.boarded,board=this.marine.shipboard;
+  if(board?.shipId!==boat.id)return null;
+  const cabin=board.player.zone==="cabin";
+  const xMax=cabin?1.64:2.28,zMax=cabin?2.08:7.45,y=cabin?.46:1.65;
+  const here=this.marine.nearby(this.controller,20).find(b=>b.id===boat.id);
+  if(!here)return null;
+  const corners=[[-xMax,-zMax],[xMax,-zMax],[xMax,zMax],[-xMax,zMax]];
+  const vertices=corners.flatMap(([x,z])=>{
+   const v=shipLocalToWorld(here.x,here.z,boat.yaw,x,z);
+   return [v.x-this.cx,y,v.z-this.cz];
+  });
+  const nx=((clientX-r.left)/r.width)*2-1,ny=1-((clientY-r.top)/r.height)*2;
+  const hit=pickSurface(vertices,[0,1,2,0,2,3],this.pickVP,nx,ny);
+  if(!hit)return null;
+  const p=shipWorldToLocal(here.x-this.cx,here.z-this.cz,boat.yaw,hit[0],hit[2]);
+  return isShipWalkable(p.x,p.z,cabin?"cabin":"deck")?p:null;
+ }
  drawMarineWildlife(vp,light,s,radius){
   if(!this.marine)return;
   for(const boat of this.marine.nearby(s,Math.min(radius,1300))){
