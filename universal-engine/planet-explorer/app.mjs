@@ -198,6 +198,9 @@ function init(saved=null){
    books=new BookCollection(saved?.v0_7f||loadBookJournal());
    const journal=!saved?loadLifeJournal():null;
    life=new Lifestyle(saved?.v0_7g||journal?.life||null);
+  if(marine.cabinId){
+   life.activity=({bed:"sleep",chair:"sit",table:"eat",bookshelf:"read",kitchen:"cook"})[marine.cabinActivity]||"idle";
+  }
    if(journal?.resources&&!saved){
     for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple","fish"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
@@ -2000,7 +2003,9 @@ for(const [id,angle] of [["marine-steer-left",-Math.PI/15],["marine-steer-right"
 }
 // Living quarters are attached to the moving ship; entering never stops cruise.
 $("marine-cabin-toggle").addEventListener("click",()=>{
- const result=marine.cabinId?marine.exitCabin():marine.enterCabin();
+ const wasInside=Boolean(marine.cabinId);
+ const result=wasInside?marine.exitCabin():marine.enterCabin();
+ if(result.ok){life.activity="idle";life.activityFurnitureId=null;}
  log(result.message);
  if(result.ok){
   renderer.cameraController.smoothEye=null;
