@@ -368,6 +368,9 @@ function doFrame(t){
   if(onShip){
    for(const message of marine.shipboard.advance(running?dt:0,
     renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input))log(message);
+   if(marine.shipboard.player.moving&&life.activity!=="idle"){
+    life.activity="idle";life.activityFurnitureId=null;marine.cabinActivity="idle";
+   }
   }
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
@@ -2113,10 +2116,16 @@ $("marine-sail-trim").addEventListener("input",()=>{
 $("marine-sail-trim").addEventListener("change",()=>{
  shipAction(()=>marine.setSails(Number($("marine-sail-trim").value)/100));
 });
-$("marine-cruise").addEventListener("click",()=>shipAction(()=>marine.setCruise(!marine.boarded?.cruise)));
+$("marine-cruise").addEventListener("click",()=>shipAction(()=>
+ marine.boarded?.kind==="sailing_ship"&&!marine.shipboard.canHelm()?
+ {ok:false,message:"操舵担当がまだ舵輪にいません"}:
+ marine.setCruise(!marine.boarded?.cruise)));
 $("marine-anchor").addEventListener("click",()=>shipAction(()=>marine.setAnchor(!marine.boarded?.anchor)));
 for(const [id,angle] of [["marine-steer-left",-Math.PI/15],["marine-steer-right",Math.PI/15]]){
- $(id).addEventListener("click",()=>shipAction(()=>marine.steer(angle,controller)));
+ $(id).addEventListener("click",()=>shipAction(()=>
+  marine.boarded?.kind==="sailing_ship"&&!marine.shipboard.canHelm()?
+   {ok:false,message:"操舵担当が舵輪にいません。乗組員を割り当ててください"}:
+   marine.steer(angle,controller)));
 }
 // Helm and shipboard actions are local to the moving vessel.
 const onboardAction=fn=>{
