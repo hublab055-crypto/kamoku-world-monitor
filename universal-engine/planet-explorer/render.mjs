@@ -152,6 +152,26 @@ export function fishGeometry(){
  triangle(b,[-.03,.05,.03],[.16,.31,.02],[.23,.05,.03],fin);
  return b;
 }
+export function divingEquipmentGeometry(kind){
+ const b=builder(),steel=[.46,.58,.62],cloth=[.21,.32,.42],gold=[.78,.68,.22];
+ if(kind==="snorkel"){
+  for(const x of [-.2,.2])box(b,x,.08,-.18,.19,.08,.42,[.21,.56,.74]);
+  box(b,.30,1.45,-.01,.038,.44,.038,[.75,.81,.89]);
+ }else if(kind==="scuba"){
+  for(const x of [-.17,.17])box(b,x,.68,-.26,.14,.90,.15,steel);
+  box(b,0,.68,-.38,.38,.11,.06,cloth);
+  box(b,0,1.6,.11,.26,.12,.12,[.45,.78,.92]);
+  for(const x of [-.19,.19])box(b,x,.03,-.18,.20,.08,.44,[.20,.52,.65]);
+ }else if(kind==="suit"){
+  box(b,0,.72,0,.47,.68,.35,[.30,.38,.42]);
+  box(b,0,1.40,0,.35,.43,.36,[.41,.50,.54]);
+  box(b,0,1.50,.32,.24,.19,.025,gold);
+  for(const x of [-.62,.62])box(b,x,.89,0,.13,.55,.18,steel);
+  for(const x of [-.22,.22])box(b,x,.14,0,.17,.55,.25,[.40,.49,.52]);
+  box(b,0,.82,-.43,.34,.87,.23,steel);
+ }
+ return b;
+}
 export function submergedSiteGeometry(kind){
  const b=builder(),wood=[.38,.22,.10],stone=[.38,.51,.49],gold=[.93,.73,.20];
  if(kind==="wreck"){
@@ -176,6 +196,14 @@ export function submergedSiteGeometry(kind){
   }
   cone(b,0,.7,0,4.3,1.25,[.25,.80,.83],8);
  }
+ return b;
+}
+export function deepWaterFishGeometry(){
+ const b=builder(),glow=[.37,.94,.75],fin=[.18,.55,.72];
+ triangle(b,[-.45,0,0],[.22,.28,0],[.68,0,0],glow);
+ triangle(b,[-.45,0,0],[.68,0,0],[.22,-.28,0],fin);
+ triangle(b,[-.45,0,0],[-.79,.40,0],[-.79,-.40,0],glow);
+ box(b,.40,.10,.09,.06,.06,.06,[.96,.89,.24]);
  return b;
 }
 // Local equipment geometries are in metres; character forward is +Z.
@@ -663,6 +691,9 @@ export class ExplorerRenderer{
    this.fishingFloat=new Mesh(gl,float);
   this.fishMesh=new Mesh(gl,fishGeometry());
   this.seabedMesh=null;this.seabedAnchor=null;this.screenUnderseaSites=[];
+  this.divingEquipmentModels=Object.fromEntries(["snorkel","scuba","suit"]
+   .map(kind=>[kind,new Mesh(gl,divingEquipmentGeometry(kind))]));
+  this.deepFishMesh=new Mesh(gl,deepWaterFishGeometry());
   this.underseaModels=Object.fromEntries(Object.keys(SEA_SITE_TYPES)
    .map(kind=>[kind,new Mesh(gl,submergedSiteGeometry(kind))]));
   this.placedMeshes=Object.fromEntries(BUILD_KINDS.map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
@@ -1555,12 +1586,14 @@ export class ExplorerRenderer{
    this.drawMesh(mesh,multiply4(vp,transform),light,1,.73);
   }
   if(!["swim","dive","boat"].includes(s.travelMode))return;
-  const fish=fishAt(this.planet.seed,s.x,s.z,this.marineClock);
+  const deep=s.travelMode==="dive"&&(this.marine?.depthM||0)>7;
+  const fish=fishAt(this.planet.seed,s.x,s.z,this.marineClock,deep?17:11);
   for(const f of fish){
    const geo=geoOffset(s.origin.lat,s.origin.lon,f.x,f.z,this.planet.radiusM);
    if(!terrainSurface(this.terrain,geo.lat,geo.lon).water)continue;
-   const transform=multiply4(translate(f.x-this.cx,s.travelMode==="dive"?-f.depthM:.14, f.z-this.cz),rotateY(f.yaw));
-   this.drawMesh(this.fishMesh,multiply4(vp,transform),light,1,.86);
+   const fishY=s.travelMode==="dive"?-(this.marine?.depthM||0)+Math.sin(this.marineClock*.7+f.kind)*2+.3:.14;
+   const transform=multiply4(translate(f.x-this.cx,fishY,f.z-this.cz),rotateY(f.yaw));
+   this.drawMesh(deep?this.deepFishMesh:this.fishMesh,multiply4(vp,transform),light,1,.86);
   }
  }
  ground(s,asp,dt=1/60){
@@ -1717,6 +1750,11 @@ export class ExplorerRenderer{
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
+  const gearModel=this.divingEquipmentModels[this.marine?.diveGear];
+  if(gearModel&&s.travelMode!=="boat"){
+   const gearTransform=multiply4(transform,multiply4(rotateY(viewS.yaw||0),rotX(marinePose?.pitch||0)));
+   this.drawMesh(gearModel,multiply4(vp,gearTransform),light,1,.84);
+  }
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
   const actors=this.squad?.agents||[];
@@ -1761,7 +1799,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
