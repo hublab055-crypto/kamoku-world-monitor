@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8m-ship-cabin-visuals";
+import {ExplorerRenderer} from "./render.mjs?v=0.8m-cabin-visuals-r4";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -33,7 +33,7 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8m-ship-life-navigation-r3";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8m-ship-life-navigation-r4";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8m-fishing-r3";
 
 const $=id=>document.getElementById(id);
