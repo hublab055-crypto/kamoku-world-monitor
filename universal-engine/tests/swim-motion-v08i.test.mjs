@@ -29,7 +29,8 @@ test("crawling stroke actually moves opposite arms and alternating legs over tim
   }
   assert.notEqual(a.leftShoulderX,b.leftShoulderX);
   assert.notEqual(a.rightHipX,b.rightHipX);
-  assert.ok(a.leftHipX*a.rightHipX<=0);
+  if(mode==="breast")assert.equal(a.leftHipX,a.rightHipX,"breaststroke uses a symmetric frog kick");
+  else assert.ok(a.leftHipX*a.rightHipX<=0);
  }
 });
 test("procedural articulated rigs animate treading and swimming, even if stationary",()=>{
