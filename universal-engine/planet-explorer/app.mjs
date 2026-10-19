@@ -364,11 +364,22 @@ function doFrame(t){
  if(controller&&renderer){
   const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
   const ship=marine?.boarded;
-  // Cruise supplies forward power while manual steering stays authoritative.
-  const travelInput=marine?.cabinId?
-   {forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0}:
-   running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
-    ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
+  const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
+  if(onShip){
+   for(const message of marine.shipboard.advance(running?dt:0,
+    renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input))log(message);
+  }
+  const helming=onShip&&marine.shipboard.canHelm();
+  // When walking on deck, input belongs to the pedestrian, not the hull.
+  // With an NPC at the wheel, the ship follows its cruise/course instructions.
+  const travelInput=onShip?{
+    forward:running&&helming&&ship.cruise&&!ship.anchor?1:helming&&marine.shipboard.helmId==="player"?input.forward:0,
+    strafe:0,
+    turn:helming&&marine.shipboard.helmId==="player"?input.turn:0
+   }:marine?.cabinId?
+    {forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0}:
+    running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
+     ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
@@ -378,7 +389,6 @@ function doFrame(t){
   controller.boatSpeed=marine?.sailingSpeed()??4.2;
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
-  const onShip=marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   // Crew use the local vessel walk map, never inland auto-harvest while afloat.
   squad?.advance(onShip?0:running?dt:0,{manualLead});
   if(running){
@@ -396,7 +406,9 @@ function doFrame(t){
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,marine?.cabinId?0:input.forward,marine?.cabinId?0:input.strafe);
-   controller.update(dt,{forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0});
+   controller.update(dt,onShip?{...travelInput,turn:0}:{
+    forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
+   });
   }else controller.update(dt,travelInput);
   marine?.update(running?dt:0,controller,terrain);
   if(onShip){
