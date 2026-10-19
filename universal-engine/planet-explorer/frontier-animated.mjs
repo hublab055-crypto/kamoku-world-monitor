@@ -1,5 +1,5 @@
 import {samplePose} from "./rig.mjs";
-import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8i-swim";
+import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8o-four-strokes";
 /** GLB2 skeletal/morph animation data. Pure module; no DOM/WebGL dependency.
  * Supports glTF node hierarchy, inverse bind matrices, skin weights, two morph targets,
  * LINEAR/STEP/CUBICSPLINE animation samples, and separate face/body playback.
