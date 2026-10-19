@@ -1,6 +1,6 @@
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
-import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing";
+import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing-r2";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
