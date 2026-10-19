@@ -957,3 +957,10 @@ body.immersive{overflow:hidden}
  font-size:11px;white-space:normal;line-height:1.35}
 #marine-voyage-progress{width:100%;height:11px}
 #marine-fishing-status{min-height:20px}
+
+/* v0.8n interactive onboard companion and helm console */
+#marine-crew-controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:#cae6d7}
+#marine-crew-controls select{width:100%;min-height:35px;box-sizing:border-box}
+#marine-crew-controls button{font-size:11px;min-height:38px;padding:5px 6px;line-height:1.25}
+#marine-shipboard-status{min-height:40px;white-space:normal}
+#marine-helm-member,#marine-talk-member{touch-action:manipulation}
