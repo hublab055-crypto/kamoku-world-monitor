@@ -26,6 +26,9 @@ export class ShipFishing{
   this.casts=Number.isSafeInteger(saved?.casts)?Math.min(1e9,Math.max(0,saved.casts)):0;
   this.caught=Number.isSafeInteger(saved?.caught)?Math.min(1e9,Math.max(0,saved.caught)):0;
   this.lastCatch=Object.hasOwn(FISH_CATALOG,saved?.lastCatch)?saved.lastCatch:null;
+  this.history=Array.isArray(saved?.history)?saved.history.slice(-60)
+   .filter(c=>Object.hasOwn(FISH_CATALOG,c?.kind)&&Number.isSafeInteger(c?.cast)&&c.cast>0)
+   .map(c=>({kind:c.kind,cast:c.cast,weightKg:FISH_CATALOG[c.kind].weightKg})):[];
   this.message="";
  }
  cast({water=false,aboard=false,inCabin=false}={}){
@@ -64,6 +67,8 @@ export class ShipFishing{
   this.lastCatch=kind;
   this.casting=false;this.hook=null;this.hookLeft=0;this.elapsed=0;
   this.caught++;
+  this.history.push({kind,cast:this.casts,weightKg:detail.weightKg});
+  if(this.history.length>60)this.history.shift();
   return {ok:true,kind,weightKg:detail.weightKg,message:detail.icon+" "+detail.name+"を釣りました（約"+detail.weightKg+"kg）。魚×1を取得"};
  }
  stop(){
@@ -72,5 +77,6 @@ export class ShipFishing{
   return {ok:true,message:"🎣 仕掛けを回収して釣りを終えました"};
  }
  snapshot(){return {version:1,casting:this.casting,elapsed:this.elapsed,nextBite:this.nextBite,
-  hook:this.hook,hookLeft:this.hookLeft,casts:this.casts,caught:this.caught,lastCatch:this.lastCatch};}
+  hook:this.hook,hookLeft:this.hookLeft,casts:this.casts,caught:this.caught,lastCatch:this.lastCatch,
+   history:this.history.map(c=>({...c}))};}
 }
