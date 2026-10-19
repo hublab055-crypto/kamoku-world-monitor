@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {spawnSync} from "node:child_process";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES,oceanFloorDepth,
  seabedPatch,seaSitesNear} from "../planet-explorer/ocean-exploration.mjs";
 import {swimStroke,swimmingPresentation} from "../planet-explorer/swim-motion.mjs";
@@ -88,4 +89,22 @@ test("diving equipment, deep-sea fish and undersea exploration controls are pres
   assert.ok(html.includes('id="'+id+'"'),id);
   assert.ok(js.includes('"'+id+'"'),id);
  }
+});
+
+test("full game entry modules parse without JavaScript syntax errors",()=>{
+ for(const file of ["app.mjs","marine.mjs","render.mjs","swim-motion.mjs","ocean-exploration.mjs",
+  "animator.mjs","frontier-animated.mjs","frontier-skinned-renderer.mjs"]){
+  const uri=new URL("../planet-explorer/"+file,import.meta.url);
+  const result=spawnSync(process.execPath,["--check",uri.pathname],{encoding:"utf8"});
+  assert.equal(result.status,0,file+": "+result.stderr);
+ }
+});
+test("ocean site cache avoids repeated global geology sampling during rendering",()=>{
+ const m=new MarineWorld(),ctrl=player();let sampled=0;
+ const counting={planet:terrain.planet,sample:(...args)=>{sampled++;return terrain.sample(...args);}};
+ const first=m.sitesNear(ctrl,counting,140);
+ const n=sampled;assert.ok(n>0);
+ const second=m.sitesNear(ctrl,counting,140);
+ assert.deepEqual(first,second);
+ assert.ok(sampled-n<=2,"the cache must avoid rescanning site cells on every render frame");
 });
