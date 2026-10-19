@@ -397,7 +397,7 @@ function doFrame(t){
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   // Crew use the local vessel walk map, never inland auto-harvest while afloat.
-  squad?.advance(onShip?0:running?dt:0,{manualLead});
+  if(!onShip)squad?.advance(running?dt:0,{manualLead});
   if(running){
    for(const a of squad?.agents||[]){
     if(a.id==="player")continue;
@@ -518,13 +518,14 @@ function doFrame(t){
     }
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
-   life.advance(dt,marine?.cabinId?false:controller.moving);
+   life.advance(dt,onShip?marine.shipboard.player.moving:controller.moving);
    if(running){
     for(const actor of squad.agents){
      const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
      const damage=Math.max(0,(hpBefore.get(actor.id)??actualHp)-actualHp);
      const outcome=advanceVitals(p,dt,{hp:actualHp,maxHp:actor.id==="player"?100:actor.maxHp,
-      moving:Boolean(actor.control.moving),working:Boolean(actor.task||actor.id==="player"&&actions.active),
+      moving:Boolean(onShip?(marine.shipboard.member(actor.id)?.moving||false):actor.control.moving),
+       working:Boolean(!onShip&&(actor.task||actor.id==="player"&&actions.active)),
       resting:actor.task?.kind==="rest_home",damage,externalStamina:true});
      if(actor.id==="player")battle.playerHp=outcome.hp;
      else actor.hp=outcome.hp;
