@@ -3,7 +3,8 @@ export const SHIP_FURNITURE=Object.freeze({
  bed:{name:"船室のベッド",icon:"🛏️",activity:"sleep"},
  chair:{name:"船室の椅子",icon:"🪑",activity:"sit"},
  table:{name:"船室の食卓",icon:"🍽️",activity:"eat"},
- bookshelf:{name:"船室の本棚",icon:"📚",activity:"read"}
+ bookshelf:{name:"船室の本棚",icon:"📚",activity:"read"},
+ kitchen:{name:"船室の調理台",icon:"🍳",activity:"cook"}
 });
 export const FISH_CATALOG=Object.freeze({
  aji:{name:"アジ",icon:"🐟",weightKg:.24},
