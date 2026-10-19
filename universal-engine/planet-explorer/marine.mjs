@@ -306,7 +306,7 @@ export class MarineWorld{
   controller.travelMode=mode;
   const spec=this.gear;
   controller.waterSpeedFactor=mode==="dive"?spec.speed:
-   mode==="swim"?(SWIM_STYLES[this.swimStyle]?.speed||1)*spec.speed:1;
+   mode==="swim"?(SWIM_STYLES[this.swimStyle]?.speed??1)*spec.speed:1;
   this._floorDepth=(mode==="swim"||mode==="dive")?oceanFloorDepth(terrain,controller.lat,controller.lon):0;
   this.justCompletedLap=false;
   if(!this.boarded&&this.cabinId)this.cabinId=null;
