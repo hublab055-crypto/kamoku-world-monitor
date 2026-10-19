@@ -2,9 +2,9 @@ import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
-import {ExplorerController} from "./controller.mjs?v=0.8h-marine";
+import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8j-map-focus";
+import {ExplorerRenderer} from "./render.mjs?v=0.8k-two-mast-ship";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -27,13 +27,13 @@ import {installFrontierInteractions} from "./frontier-interaction-ui.mjs";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
-import {ArrowProjectiles} from "./arrow-projectiles.mjs";
+import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
 import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8g-ocean";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8k-helm-cruise";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -181,7 +181,7 @@ function init(saved=null){
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   marine=new MarineWorld(saved?.v0_8g?.marine||(!saved?loadMarineJournal():null));
   marine.update(0,controller,terrain);
-  controller.boatSpeed=BOATS[marine.boarded?.kind]?.speed||4.2;
+  controller.boatSpeed=marine.sailingSpeed();
   let faunaJournal=null;
   if(!saved)try{faunaJournal=JSON.parse(localStorage.getItem(FAUNA_JOURNAL_KEY)||"null");}catch(_){}
   fauna=new FaunaWorld(saved?.v0_8f?.fauna||faunaJournal);
@@ -353,13 +353,17 @@ function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
   const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const ship=marine?.boarded;
+  // Cruise supplies forward power while manual steering stays authoritative.
+  const travelInput=ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
+   ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
   marine?.update(0,controller,terrain);
-  controller.boatSpeed=BOATS[marine?.boarded?.kind]?.speed||4.2;
+  controller.boatSpeed=marine?.sailingSpeed()??4.2;
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   squad?.advance(running?dt:0,{manualLead});
@@ -379,7 +383,7 @@ function doFrame(t){
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
    controller.update(dt,{forward:0,strafe:0,turn:0});
-  }else controller.update(dt,input);
+  }else controller.update(dt,travelInput);
   marine?.update(running?dt:0,controller,terrain);
   if(running){
    fauna?.advance(dt,controller,faunaGroundPassable);
@@ -872,7 +876,8 @@ function updateOrbitSelection(){
  $("orbit-landing-coords").textContent="📍 "+coords(lat,"N","S")+" / "+coords(lon,"E","W");
  const sample=site.ok?terrainSurface(terrain,lat,lon):null;
  $("orbit-landing-terrain").textContent=!site.ok?site.message:
-  (site.mode==="sea"?"🌊 海上・泳いで開始":"🏝️ 陸上・標高"+Math.round(sample.elevationM)+"m")+
+  (site.mode==="sea-ship"?"⛵ 中型帆船の甲板から開始":
+  site.mode==="sea"?"🌊 海上・泳いで開始":"🏝️ 陸上・標高"+Math.round(sample.elevationM)+"m")+
   (site.movedM?" ／ 安全な陸地へ"+Math.round(site.movedM/1000)+"km補正":"");
  $("orbit-landing-confirm").disabled=!site.ok;
  $("orbit-landing-preview").hidden=false;
@@ -888,8 +893,17 @@ function confirmOrbitLanding(){
  if(!orbitSelection?.site)return;
  try{
   const site=orbitSelection.site;
+  // Validate capacity before changing the player's current landing location.
+  if(site.mode==="sea-ship"&&marine.boats.length>=64&&
+   !marine.nearby({origin:{lat:site.lat,lon:site.lon},x:0,z:0,terrain},14)
+     .some(b=>b.kind==="sailing_ship"))
+   throw Error("船の上限64隻です。別の船を利用してください");
   marine.boardedId=null;marine.diving=false;marine.depthM=0;marine.oxygen=100;
-  controller.setLanding(site.lat,site.lon,{allowWater:site.mode==="sea"});
+  controller.setLanding(site.lat,site.lon,{allowWater:site.mode==="sea"||site.mode==="sea-ship"});
+  if(site.mode==="sea-ship"){
+   const started=marine.spawnLandingShip(controller,terrain);
+   if(!started.ok)throw Error(started.message);
+  }
   marine.update(0,controller,terrain);
   access.insideId=null;access.pendingDoorId=null;
   squad?.repositionAfterLanding();
@@ -899,7 +913,8 @@ function confirmOrbitLanding(){
    terrainSurface(terrain,site.lat,site.lon).elevationM);
   $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
   clearOrbitSelection();updateHUD();saveMarineJournal();
-  log(site.mode==="sea"?"🌊 海上降下：水面に出ました。泳ぐ・潜る・船で航海できます。":
+  log(site.mode==="sea-ship"?"⛵ 中型帆船の甲板に到着しました。操船パネルで舵・帆・巡航・投錨を操作できます。":
+   site.mode==="sea"?"🌊 海上降下：水面に出ました。泳ぐ・潜る・船で航海できます。":
     "🏝️ 陸上への降下を開始します"+(site.movedM?"（海を避け、近隣の陸地へ移動）":""));
  }catch(e){log("地点降下エラー: "+e.message);}
 }
