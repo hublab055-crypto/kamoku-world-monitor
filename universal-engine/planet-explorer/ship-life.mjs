@@ -24,6 +24,7 @@ export class ShipFishing{
   this.hookLeft=Number.isFinite(saved?.hookLeft)?Math.max(0,Math.min(45,saved.hookLeft)):0;
   this.casts=Number.isSafeInteger(saved?.casts)?Math.min(1e9,Math.max(0,saved.casts)):0;
   this.caught=Number.isSafeInteger(saved?.caught)?Math.min(1e9,Math.max(0,saved.caught)):0;
+  this.lastCatch=Object.hasOwn(FISH_CATALOG,saved?.lastCatch)?saved.lastCatch:null;
   this.message="";
  }
  cast({water=false,aboard=false,inCabin=false}={}){
@@ -59,7 +60,7 @@ export class ShipFishing{
   const kind=this.hook,detail=FISH_CATALOG[kind];
   // The catch becomes normal food materials that can be used by ship's table.
   inventory.fish=(inventory.fish||0)+1;
-  inventory[kind]=(inventory[kind]||0)+1;
+  this.lastCatch=kind;
   this.casting=false;this.hook=null;this.hookLeft=0;this.elapsed=0;
   this.caught++;
   return {ok:true,kind,weightKg:detail.weightKg,message:detail.icon+" "+detail.name+"を釣りました（約"+detail.weightKg+"kg）。魚×1を取得"};
@@ -70,5 +71,5 @@ export class ShipFishing{
   return {ok:true,message:"🎣 仕掛けを回収して釣りを終えました"};
  }
  snapshot(){return {version:1,casting:this.casting,elapsed:this.elapsed,nextBite:this.nextBite,
-  hook:this.hook,hookLeft:this.hookLeft,casts:this.casts,caught:this.caught};}
+  hook:this.hook,hookLeft:this.hookLeft,casts:this.casts,caught:this.caught,lastCatch:this.lastCatch};}
 }
