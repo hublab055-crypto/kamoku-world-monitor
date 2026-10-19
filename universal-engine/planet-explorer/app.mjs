@@ -355,7 +355,7 @@ function doFrame(t){
   const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
   const ship=marine?.boarded;
   // Cruise supplies forward power while manual steering stays authoritative.
-  const travelInput=ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
+  const travelInput=running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
    ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
   const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
@@ -382,7 +382,7 @@ function doFrame(t){
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
    renderer.cameraController.pan(dt,input.forward,input.strafe);
-   controller.update(dt,{forward:0,strafe:0,turn:0});
+   controller.update(dt,{forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0});
   }else controller.update(dt,travelInput);
   marine?.update(running?dt:0,controller,terrain);
   if(running){
