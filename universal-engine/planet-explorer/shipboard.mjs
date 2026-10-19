@@ -129,8 +129,8 @@ export class ShipboardWorld{
   const next=this.member(id);
   if(!next)return result(false,"船にいる仲間を選択してください");
   if(id==="player"&&!this.canHelm("player")){
-   this.player.goal={...SHIP_HELM,zone:"deck",action:"helm"};
    if(this.player.zone==="cabin")return result(false,"甲板へ出てから舵輪に向かってください");
+   this.player.goal={...SHIP_HELM,zone:"deck",action:"helm"};
    return result(true,"🧭 舵輪に向かっています。到着すると操舵を交代します",{walking:true});
   }
   if(id!=="player"){
@@ -167,20 +167,37 @@ export class ShipboardWorld{
   }else this.move(p,input,delta);
   for(let i=0;i<this.crew.length;i++){
    const c=this.crew[i];c.moving=false;
-   if(c.id===this.helmId){c.zone="deck";c.x=SHIP_HELM.x;c.z=SHIP_HELM.z;c.yaw=0;c.task="steer";continue;}
+   if(c.id===this.helmId){
+    c.zone="deck";c.x=SHIP_HELM.x;c.z=SHIP_HELM.z;
+    c.yaw=0;c.task="steer";c.goal=null;c.nextZone=null;continue;
+   }
    const period=5.5+i%4*1.7,epoch=Math.floor(this.elapsed/period);
-   if(c.phase!==epoch||!c.goal){
+   if((c.phase!==epoch||!c.goal)&&!c.nextZone){
     c.phase=epoch;
-    const cabin=i%3===1?epoch%3===1:i%3===2?epoch%4!==0:epoch%6===2;
-    c.zone=cabin?"cabin":"deck";
-    // Automatic crew movement uses doorway transitions, never walks through walls.
-    c.x=clamp(c.x,-1.15,1.15);c.z=clamp(c.z,cabin?-1.75:-2.3,cabin?1.75:4.1);
-    c.goal=cabin?{x:.95*Math.sin(epoch+i*2),z:1.55*Math.cos(epoch+i)}:
+    const destination=i%3===1?epoch%3===1?"cabin":"deck":
+     i%3===2?epoch%4!==0?"cabin":"deck":epoch%6===2?"cabin":"deck";
+    const target=destination==="cabin"?
+     {x:.95*Math.sin(epoch+i*2),z:1.55*Math.cos(epoch+i)}:
      {x:Math.sin(epoch+i*1.9)*1.35,z:Math.cos(epoch*.9+i)*3.4};
+    if(c.zone!==destination){
+     c.nextZone=destination;c.afterDoor=target;
+     c.goal={...SHIP_DOOR[c.zone]};
+    }else c.goal=target;
     c.task=epoch%4===0?"fish":epoch%4===1?"talk":epoch%4===2?"rest":"walk";
    }
+   if(!c.goal)continue;
    const dx=c.goal.x-c.x,dz=c.goal.z-c.z,d=Math.hypot(dx,dz);
-   if(d>.12)this.move(c,{forward:1,strafe:0,turn:0},delta,{dx:dx/d,dz:dz/d},1.15);
+   if(d>.17){
+    this.move(c,{forward:1,strafe:0,turn:0},delta,{dx:dx/d,dz:dz/d},1.15);
+    continue;
+   }
+   c.moving=false;
+   if(c.nextZone){
+    this.doorOpen=true;
+    const next=c.nextZone,exit=SHIP_DOOR[next];
+    c.zone=next;c.x=exit.x;c.z=exit.z;
+    c.nextZone=null;c.goal=c.afterDoor||null;c.afterDoor=null;
+   }else c.goal=null;
   }
   return events;
  }
