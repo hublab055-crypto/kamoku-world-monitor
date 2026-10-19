@@ -127,7 +127,7 @@ export class MarineWorld{
    controller.x=existing.x;controller.z=existing.z;
    controller.lat=vessel.lat;controller.lon=vessel.lon;controller.yaw=vessel.yaw;
   }
-  controller.travelMode="boat";controller.clearMoveTarget();
+  controller.travelMode="boat";controller.boatOceanOnly=true;controller.clearMoveTarget();
   controller.boatSpeed=this.sailingSpeed(vessel);
   return {ok:true,boat:vessel,message:"⛵ 外洋用中型帆船の甲板に降下しました。帆・舵・巡航と下船を操作できます"};
  }
@@ -173,6 +173,7 @@ export class MarineWorld{
  update(dt,controller,terrain){
   const mode=this.mode(controller,terrain);
   controller.travelMode=mode;
+  controller.boatOceanOnly=this.boarded?.kind==="sailing_ship";
   // A vessel under cruising sail keeps its course when its captain jumps
   // into the water. Never advance the currently boarded boat twice.
   if(dt>0){
@@ -241,6 +242,7 @@ export class MarineWorld{
   if(this.boats.length>=64)return fail("船の設置上限です");
   const point=this.launchPoint(controller,terrain);
   if(!point)return fail("浜辺・入り江・川岸の近く（32m以内）へ移動してください");
+  if(kind==="sailing_ship"&&(!point.s.water||point.s.river))return fail("中型帆船の進水には外洋につながる海岸が必要です");
   if(Object.entries(spec.cost).some(([key,n])=>(resources[key]||0)<n))
    return fail("資材不足："+Object.entries(spec.cost).map(([key,n])=>key+" "+n).join("、"));
   if(this.nearby(controller,9).some(b=>Math.hypot(b.x-point.x,b.z-point.z)<5))
@@ -259,6 +261,7 @@ export class MarineWorld{
   this.boardedId=nearest.id;this.diving=false;this.depthM=0;
   controller.x=nearest.x;controller.z=nearest.z;controller.lat=nearest.lat;controller.lon=nearest.lon;
   controller.yaw=nearest.yaw;controller.moveTarget=null;controller.travelMode="boat";
+  controller.boatOceanOnly=nearest.kind==="sailing_ship";
   controller.boatSpeed=this.sailingSpeed(this.boarded);
   return {ok:true,message:"🛶 乗船しました。スティックまたはダブルタップで航海できます"};
  }
@@ -269,11 +272,11 @@ export class MarineWorld{
    const geo=controller.locationAt(x,z),s=terrainSurface(terrain,geo.lat,geo.lon);
    if(validLand(s)){
     this.boardedId=null;controller.x=x;controller.z=z;controller.lat=geo.lat;controller.lon=geo.lon;
-    controller.travelMode="walk";controller.clearMoveTarget();
+    controller.travelMode="walk";controller.boatOceanOnly=false;controller.clearMoveTarget();
     return {ok:true,message:"🏝️ 浜辺に上陸しました"};
    }
   }
-  this.boardedId=null;controller.travelMode="swim";controller.clearMoveTarget();
+  this.boardedId=null;controller.travelMode="swim";controller.boatOceanOnly=false;controller.clearMoveTarget();
   return {ok:true,message:"🌊 船から水面へ降りました。泳いで岸へ向かえます"};
  }
  snapshot(){return {version:1,boats:this.boats.map(b=>({...b})),nextId:this.nextId,
