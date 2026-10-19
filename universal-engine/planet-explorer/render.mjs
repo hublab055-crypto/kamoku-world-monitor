@@ -1408,7 +1408,7 @@ export class ExplorerRenderer{
    const x=cx+Math.cos(yaw)*f.x+Math.sin(yaw)*f.z,
     z=cz-Math.sin(yaw)*f.x+Math.cos(yaw)*f.z;
    const screen=projectScreen(vp,[x,waterY+(f.kind==="bookshelf"?1.7:1.20),z]);
-   if(screen?.onScreen)this.screenMarineFurniture.push({...screen,kind:f.kind});
+   if(f.kind!=="lamp"&&screen?.onScreen)this.screenMarineFurniture.push({...screen,kind:f.kind});
   }
  }
  pickMarineFurniture(clientX,clientY){
