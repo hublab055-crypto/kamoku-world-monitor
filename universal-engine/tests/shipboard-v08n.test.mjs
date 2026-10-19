@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {spawnSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
 import {ShipboardWorld,isShipWalkable,shipLocalToWorld,shipWorldToLocal,
  SHIP_DOOR,SHIP_HELM,deckHalfWidth} from "../planet-explorer/shipboard.mjs";
 import {MarineWorld} from "../planet-explorer/marine.mjs";
@@ -143,4 +145,13 @@ test("app, index and renderer provide operational helm/crew UI with deck-walking
  assert.ok(render.includes("pickShipboard(clientX,clientY)"));
  assert.ok(render.includes("pickShipboardFloor(clientX,clientY)"));
  assert.ok(render.includes("this.screenShipCrew.push("));
+});
+
+test("browser JavaScript modules parse cleanly before Safari loads them",()=>{
+ const base=new URL("../planet-explorer/",import.meta.url);
+ for(const filename of ["app.mjs","render.mjs","marine.mjs","shipboard.mjs","ship-cabin-geometry.mjs"]){
+  const filenameOnDisk=fileURLToPath(new URL(filename,base));
+  const p=spawnSync(process.execPath,["--check",filenameOnDisk],{encoding:"utf8"});
+  assert.equal(p.status,0,filename+" syntax error: "+p.stderr);
+ }
 });
