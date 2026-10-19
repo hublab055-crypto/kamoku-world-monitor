@@ -88,7 +88,10 @@ export class MarineWorld{
   if(data?.version===1&&Array.isArray(data.boats)){
    this.boats=data.boats.slice(0,64).filter(b=>Object.hasOwn(BOATS,b.kind)&&
     [b.lat,b.lon,b.yaw].every(Number.isFinite)&&Math.abs(b.lat)<=90&&Math.abs(b.lon)<=180)
-    .map(b=>({id:String(b.id),kind:b.kind,lat:b.lat,lon:b.lon,yaw:b.yaw}));
+    .map(b=>({id:String(b.id),kind:b.kind,lat:b.lat,lon:b.lon,yaw:b.yaw,
+     sailTrim:b.kind==="sailing_ship"&&Number.isFinite(b.sailTrim)?Math.max(0,Math.min(1,b.sailTrim)):.65,
+     cruise:b.kind==="sailing_ship"&&Boolean(b.cruise),
+     anchor:b.kind==="sailing_ship"&&Boolean(b.anchor)}));
    this.nextId=Math.max(1,...this.boats.map(b=>Number(b.id.replace(/^boat-/,""))||0))+1;
    this.boardedId=this.boats.some(b=>b.id===data.boardedId)?data.boardedId:null;
    this.oxygen=Number.isFinite(data.oxygen)?Math.max(0,Math.min(100,data.oxygen)):100;
@@ -97,6 +100,70 @@ export class MarineWorld{
   }
  }
  get boarded(){return this.boats.find(b=>b.id===this.boardedId)||null;}
+ /** Sail speed is a fraction of the game-tuned hull speed; dropped anchor halts it. */
+ sailingSpeed(boat=this.boarded){
+  if(!boat)return 4.2;
+  if(boat.kind!=="sailing_ship")return BOATS[boat.kind]?.speed||4.2;
+  return boat.anchor?0:BOATS.sailing_ship.speed*Math.max(0,Math.min(1,boat.sailTrim||0));
+ }
+ /** Spawn at an explicitly chosen ocean coordinate without using crafting resources.
+  * Reuse an existing ocean-going ship at the same landing point to avoid duplicates.
+  */
+ spawnLandingShip(controller,terrain){
+  const surface=terrainSurface(terrain,controller.lat,controller.lon);
+  if(!surface.water||surface.river)return fail("中型帆船での降下は海上でのみ可能です");
+  if(this.boardedId)return fail("ほかの船に乗船中です。先に降りてください");
+  const existing=this.nearby(controller,14)
+   .find(b=>b.kind==="sailing_ship"&&terrainSurface(terrain,b.lat,b.lon).water);
+  if(!existing&&this.boats.length>=64)return fail("船が64隻あるため、新しい中型帆船を配置できません");
+  const vessel=existing?this.boats.find(b=>b.id===existing.id):{
+   id:"boat-"+this.nextId++,kind:"sailing_ship",lat:controller.lat,lon:controller.lon,
+   yaw:controller.yaw,sailTrim:.65,cruise:false,anchor:false
+  };
+  if(!existing)this.boats.push(vessel);
+  this.boardedId=vessel.id;this.diving=false;this.depthM=0;this.oxygen=100;
+  // Spawn at the helm; this is a transport, not an infinite source of materials.
+  if(existing){
+   controller.x=existing.x;controller.z=existing.z;
+   controller.lat=vessel.lat;controller.lon=vessel.lon;controller.yaw=vessel.yaw;
+  }
+  controller.travelMode="boat";controller.clearMoveTarget();
+  controller.boatSpeed=this.sailingSpeed(vessel);
+  return {ok:true,boat:vessel,message:"⛵ 外洋用中型帆船の甲板に降下しました。帆・舵・巡航と下船を操作できます"};
+ }
+ setSails(trim){
+  const boat=this.boarded;
+  if(boat?.kind!=="sailing_ship")return fail("帆の調整は中型帆船に乗っている間だけ可能です");
+  if(!Number.isFinite(trim)||trim<0||trim>1)return fail("帆の開き具合は0〜100%を指定してください");
+  boat.sailTrim=Math.round(trim*100)/100;
+  if(boat.sailTrim===0)boat.cruise=false;
+  return {ok:true,message:"⛵ 帆の開き具合を"+Math.round(boat.sailTrim*100)+"%に調整しました"};
+ }
+ setCruise(enabled){
+  const boat=this.boarded;
+  if(boat?.kind!=="sailing_ship")return fail("巡航は中型帆船に乗っている間だけ操作できます");
+  if(enabled){
+   if(boat.anchor)return fail("錨を上げてから巡航してください");
+   if(boat.sailTrim<=0)return fail("帆を開いてから巡航してください");
+  }
+  boat.cruise=Boolean(enabled);
+  return {ok:true,message:boat.cruise?"⛵ 巡航開始。帆走しながら舵を操作できます":
+   "⛵ 自動巡航を解除しました"};
+ }
+ setAnchor(enabled){
+  const boat=this.boarded;
+  if(boat?.kind!=="sailing_ship")return fail("投錨は中型帆船に乗っている間だけ操作できます");
+  boat.anchor=Boolean(enabled);
+  if(boat.anchor)boat.cruise=false;
+  return {ok:true,message:boat.anchor?"⚓ 投錨しました。船を停止します":"⚓ 揚錨しました。帆を張って航海できます"};
+ }
+ steer(deltaRadians,controller){
+  const boat=this.boarded;
+  if(boat?.kind!=="sailing_ship")return fail("舵は中型帆船に乗っている間だけ操作できます");
+  if(!Number.isFinite(deltaRadians)||Math.abs(deltaRadians)>Math.PI/2)return fail("舵角が不正です");
+  controller.clearMoveTarget();controller.turn(deltaRadians);boat.yaw=controller.yaw;
+  return {ok:true,message:"🧭 船首の向きを"+Math.round(((boat.yaw*180/Math.PI)%360+360)%360)+"°に変更しました"};
+ }
  mode(controller,terrain){
   if(this.boarded)return "boat";
   const water=isWater(terrainSurface(terrain,controller.lat,controller.lon));
@@ -106,6 +173,26 @@ export class MarineWorld{
  update(dt,controller,terrain){
   const mode=this.mode(controller,terrain);
   controller.travelMode=mode;
+  // A vessel under cruising sail keeps its course when its captain jumps
+  // into the water. Never advance the currently boarded boat twice.
+  if(dt>0){
+   for(const vessel of this.boats){
+    if(vessel.id===this.boardedId||vessel.kind!=="sailing_ship"||
+       !vessel.cruise||vessel.anchor||vessel.sailTrim<=0)continue;
+    const speed=BOATS.sailing_ship.speed*vessel.sailTrim,travel=Math.min(dt,.25)*speed;
+    const steps=Math.max(1,Math.ceil(travel/1.5));
+    let latitude=vessel.lat,longitude=vessel.lon,blocked=false;
+    for(let i=0;i<steps;i++){
+     const next=geoOffset(latitude,longitude,Math.sin(vessel.yaw)*travel/steps,
+      Math.cos(vessel.yaw)*travel/steps,terrain.planet.radiusM);
+     const area=terrainSurface(terrain,next.lat,next.lon);
+     if(!area.water||area.river){blocked=true;break;}
+     latitude=next.lat;longitude=next.lon;
+    }
+    vessel.lat=latitude;vessel.lon=longitude;
+    if(blocked)vessel.cruise=false;
+   }
+  }
   if(mode==="boat"){
    const boat=this.boarded,geo=controller.locationAt(controller.x,controller.z);
    boat.lat=geo.lat;boat.lon=geo.lon;boat.yaw=controller.yaw;
@@ -159,7 +246,8 @@ export class MarineWorld{
   if(this.nearby(controller,9).some(b=>Math.hypot(b.x-point.x,b.z-point.z)<5))
    return fail("近くに船があります。少し離して造船してください");
   for(const [key,n] of Object.entries(spec.cost))resources[key]-=n;
-  const boat={id:"boat-"+this.nextId++,kind,lat:point.geo.lat,lon:point.geo.lon,yaw:controller.yaw};
+  const boat={id:"boat-"+this.nextId++,kind,lat:point.geo.lat,lon:point.geo.lon,yaw:controller.yaw,
+   sailTrim:kind==="sailing_ship"?.65:1,cruise:false,anchor:false};
   this.boats.push(boat);
   return {ok:true,boat,message:"🛶 "+spec.name+"を進水しました。『乗船』で航海できます"};
  }
@@ -171,11 +259,11 @@ export class MarineWorld{
   this.boardedId=nearest.id;this.diving=false;this.depthM=0;
   controller.x=nearest.x;controller.z=nearest.z;controller.lat=nearest.lat;controller.lon=nearest.lon;
   controller.yaw=nearest.yaw;controller.moveTarget=null;controller.travelMode="boat";
+  controller.boatSpeed=this.sailingSpeed(this.boarded);
   return {ok:true,message:"🛶 乗船しました。スティックまたはダブルタップで航海できます"};
  }
  leave(controller,terrain){
   if(!this.boarded)return fail("乗船中ではありません");
-  const now=this.launchPoint(controller,terrain); // keep boat at sea
   for(let d=2;d<=24;d+=2)for(let i=0;i<32;i++){
    const a=i*2*Math.PI/32,x=controller.x+Math.cos(a)*d,z=controller.z+Math.sin(a)*d;
    const geo=controller.locationAt(x,z),s=terrainSurface(terrain,geo.lat,geo.lon);
