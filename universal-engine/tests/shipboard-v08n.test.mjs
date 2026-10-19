@@ -102,6 +102,24 @@ test("NPCs roam deck/cabin independently, positions and helm recover from save",
  assert.equal(copy.crew.length,2);
  assert.equal(copy.crew.find(c=>c.id==="scout").zone,crew.zone);
 });
+test("roaming crew change decks only through the real ship door",()=>{
+ const board=new ShipboardWorld();board.init("boat-1",["scout","artisan"]);
+ const person=board.member("artisan");
+ let switches=0;
+ for(let i=0;i<1800;i++){
+  const before={x:person.x,z:person.z,zone:person.zone};
+  board.advance(.08,{});
+  assert.ok(isShipWalkable(person.x,person.z,person.zone),"NPC left legal deck or cabin");
+  if(person.zone!==before.zone){
+   switches++;
+   const door=SHIP_DOOR[before.zone];
+   assert.ok(Math.hypot(before.x-door.x,before.z-door.z)<.32,
+    "NPC entered ship compartment without reaching doorway");
+   assert.equal(board.doorOpen,true);
+  }
+ }
+ assert.ok(switches>=2,"crew should visit both deck and accommodation");
+});
 test("ship relative coordinate transform correctly moves crew with rotated hull",()=>{
  for(const angle of [0,Math.PI/2,Math.PI,Math.PI*1.7]){
   const w=shipLocalToWorld(500,250,angle,1.3,-4.8);
