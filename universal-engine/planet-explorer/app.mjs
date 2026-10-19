@@ -258,6 +258,10 @@ function init(saved=null){
   // The two existing companions board alongside the player on a sea-ship start.
   if(marine.boarded?.kind==="sailing_ship"){
    marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
+   if(marine.cabinId&&marine.shipboard.player.zone!=="cabin"){
+    // v0.8m saved only "inside cabin", without a vessel-relative position.
+    marine.shipboard.player.zone="cabin";marine.shipboard.player.x=0;marine.shipboard.player.z=1.65;
+   }
    if(!marine.shipboard.member(marine.shipboard.helmId))marine.shipboard.assignHelm("scout");
   }
   renderer.squad=squad;
