@@ -153,6 +153,7 @@ export class ShipboardWorld{
   this.elapsed+=delta;
   this.doorProgress=clamp(this.doorProgress+(this.doorOpen?delta*3:-delta*3),0,1);
   const p=this.player,events=[];
+  if(p.goal&&Math.abs(input.forward||0)+Math.abs(input.strafe||0)+Math.abs(input.turn||0)>.12)p.goal=null;
   if(this.helmId==="player"){
    p.zone="deck";p.x=SHIP_HELM.x;p.z=SHIP_HELM.z;p.moving=false;p.goal=null;
   }else if(p.goal){
