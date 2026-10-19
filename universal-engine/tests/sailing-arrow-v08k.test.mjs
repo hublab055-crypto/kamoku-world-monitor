@@ -123,6 +123,29 @@ test("mid-voyage disembarking to the ocean keeps cruising ship; it can be reboar
  assert.equal(boarded.ok,true,boarded.message);
  assert.equal(m.boardedId,id);
 });
+test("sailboat navigation can target distant ocean up to 6km, never shallow river",()=>{
+ const t=coast(),c=actor(t),m=new MarineWorld();
+ c.setLanding(0,.04,{allowWater:true});
+ assert.ok(m.spawnLandingShip(c,t).ok);
+ assert.equal(c.boatOceanOnly,true);
+ assert.equal(c.setMoveTarget(800,0),true);
+ assert.equal(c.setMoveTarget(6500,0),false);
+ assert.equal(m.leave(c,t).ok,true);
+ assert.equal(c.boatOceanOnly,false);
+ c.setLanding(0,-.04);
+ assert.equal(c.setMoveTarget(800,0),false,"walker range must remain unchanged");
+ const terrain={planet:t.planet,sample(lat,lon){
+  const sea=lon>.0015,river=lon>0&&!sea;
+  return {water:sea,river,elevationM:sea||river?0:150,category:sea?"ocean":river?"river":"plain"};
+ }};
+ const ocean=actor(terrain);
+ ocean.setLanding(0,.002,{allowWater:true});
+ const ship=new MarineWorld();
+ assert.ok(ship.spawnLandingShip(ocean,terrain).ok);
+ ocean.yaw=-Math.PI/2;ocean.boatSpeed=ship.sailingSpeed();
+ for(let i=0;i<150;i++)ocean.update(.1,{forward:1});
+ assert.ok(ocean.lon>.0015,"ship must not sail into an inland river");
+});
 test("ocean ship model is visibly more detailed than canoe, and all reefing meshes are valid",()=>{
  const models=[sailingShipGeometry(0),sailingShipGeometry(.5),sailingShipGeometry(1)];
  for(const mesh of models){
