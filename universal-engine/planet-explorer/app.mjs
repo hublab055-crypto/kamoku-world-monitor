@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8k-two-mast-ship";
+import {ExplorerRenderer} from "./render.mjs?v=0.8m-ship-cabin-visuals";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -33,7 +33,7 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8k-helm-cruise-r2";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8m-ship-life-navigation";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -127,11 +127,11 @@ function doEarthwork(mode,site){
 }
 let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,syncMode=false,autoActorId="player";
 let controlMode="stick",stick={x:0,y:0},stickPointer=null;
-let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0;
+let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0,voyageSaveElapsed=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
-const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ"};
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
@@ -199,7 +199,7 @@ function init(saved=null){
    const journal=!saved?loadLifeJournal():null;
    life=new Lifestyle(saved?.v0_7g||journal?.life||null);
    if(journal?.resources&&!saved){
-    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple"])
+    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple","fish"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
