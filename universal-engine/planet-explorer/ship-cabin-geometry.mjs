@@ -22,6 +22,7 @@ export const CABIN_FURNITURE=Object.freeze([
  {kind:"chair",x:.82,z:.89,yaw:Math.PI},
  {kind:"table",x:.08,z:.72,yaw:0},
  {kind:"bookshelf",x:1.15,z:-1.44,yaw:0},
+ {kind:"kitchen",x:-1.16,z:1.45,yaw:0},
  {kind:"lamp",x:-.05,z:-1.79,yaw:0}
 ]);
 export function shipCabinGeometry(){
