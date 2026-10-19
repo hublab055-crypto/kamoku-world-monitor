@@ -1,4 +1,6 @@
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
+import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
@@ -85,6 +87,9 @@ export class MarineWorld{
  constructor(data=null){
   this.boats=[];this.nextId=1;this.boardedId=null;
   this.diving=false;this.depthM=0;this.oxygen=100;
+  this.cabinId=null;this.cabinActivity="idle";
+  this.fishing=new ShipFishing(data?.fishing);
+  this.voyage=new VoyageLog(data?.voyage);this.justCompletedLap=false;
   if(data?.version===1&&Array.isArray(data.boats)){
    this.boats=data.boats.slice(0,64).filter(b=>Object.hasOwn(BOATS,b.kind)&&
     [b.lat,b.lon,b.yaw].every(Number.isFinite)&&Math.abs(b.lat)<=90&&Math.abs(b.lon)<=180)
@@ -94,6 +99,8 @@ export class MarineWorld{
      anchor:b.kind==="sailing_ship"&&Boolean(b.anchor)}));
    this.nextId=Math.max(1,...this.boats.map(b=>Number(b.id.replace(/^boat-/,""))||0))+1;
    this.boardedId=this.boats.some(b=>b.id===data.boardedId)?data.boardedId:null;
+   this.cabinId=data.cabinId===this.boardedId&&this.boats.find(b=>b.id===data.cabinId)?.kind==="sailing_ship"?data.cabinId:null;
+   this.cabinActivity=this.cabinId&&Object.keys(SHIP_FURNITURE).includes(data.cabinActivity)?data.cabinActivity:"idle";
    this.oxygen=Number.isFinite(data.oxygen)?Math.max(0,Math.min(100,data.oxygen)):100;
    this.diving=Boolean(data.diving&&!this.boardedId);
    this.depthM=this.diving&&Number.isFinite(data.depthM)?Math.max(0,Math.min(12,data.depthM)):0;
@@ -128,6 +135,8 @@ export class MarineWorld{
    controller.lat=vessel.lat;controller.lon=vessel.lon;controller.yaw=vessel.yaw;
   }
   controller.travelMode="boat";controller.boatOceanOnly=true;controller.clearMoveTarget();
+  this.cabinId=null;this.cabinActivity="idle";this.fishing.stop();
+  this.voyage=new VoyageLog(null,{lat:vessel.lat,lon:vessel.lon});
   controller.boatSpeed=this.sailingSpeed(vessel);
   return {ok:true,boat:vessel,message:"⛵ 外洋用中型帆船の甲板に降下しました。帆・舵・巡航と下船を操作できます"};
  }
@@ -164,6 +173,45 @@ export class MarineWorld{
   controller.clearMoveTarget();controller.turn(deltaRadians);boat.yaw=controller.yaw;
   return {ok:true,message:"🧭 船首の向きを"+Math.round(((boat.yaw*180/Math.PI)%360+360)%360)+"°に変更しました"};
  }
+ /** Cabin is ship-relative, so sleeping and sitting remain valid while sailing. */
+ enterCabin(){
+  const boat=this.boarded;
+  if(boat?.kind!=="sailing_ship")return fail("中型帆船に乗っている間だけ船室に入れます");
+  this.cabinId=boat.id;this.cabinActivity="idle";this.fishing.stop();
+  return {ok:true,message:"🚪 甲板から船室へ入りました。ベッド・椅子・食卓・本棚が使えます"};
+ }
+ exitCabin(){
+  if(!this.cabinId)return fail("船室には入っていません");
+  this.cabinId=null;this.cabinActivity="idle";
+  return {ok:true,message:"⛵ 船室から甲板へ出ました。釣りや操船ができます"};
+ }
+ cabinUse(kind){
+  if(!this.cabinId||this.cabinId!==this.boardedId)return fail("まず船室に入ってください");
+  const spec=SHIP_FURNITURE[kind];
+  if(!spec)return fail("船室にその家具はありません");
+  this.cabinActivity=kind;
+  return {ok:true,kind,message:spec.icon+" "+spec.name+"を使います"};
+ }
+ castLine(controller,terrain){
+  const surface=terrainSurface(terrain,controller.lat,controller.lon);
+  const boat=this.boarded;
+  const atWater=isWater(surface)||(boat&&boat.kind==="sailing_ship");
+  if(!atWater){
+   // Shore casting is possible if there is navigable water less than 15 m away.
+   let coast=false;
+   for(let r=3;r<=15&&!coast;r+=3)for(let i=0;i<16;i++){
+    const a=i*2*Math.PI/16,p=controller.locationAt(controller.x+Math.cos(a)*r,
+     controller.z+Math.sin(a)*r);
+    if(isWater(terrainSurface(terrain,p.lat,p.lon))){coast=true;break;}
+   }
+   if(!coast)return fail("釣りには海岸または船の甲板が必要です");
+  }
+  if(!boat&&isWater(surface))return fail("水泳中は釣れません。浜辺か船へ移動してください");
+  return this.fishing.cast({water:true,aboard:Boolean(boat),inCabin:Boolean(this.cabinId)});
+ }
+ tickFishing(dt,seed){return this.fishing.advance(dt,seed);}
+ reelFish(resources){return this.fishing.reel(resources);}
+ stopFishing(){return this.fishing.stop();}
  mode(controller,terrain){
   if(this.boarded)return "boat";
   const water=isWater(terrainSurface(terrain,controller.lat,controller.lon));
@@ -173,6 +221,8 @@ export class MarineWorld{
  update(dt,controller,terrain){
   const mode=this.mode(controller,terrain);
   controller.travelMode=mode;
+  this.justCompletedLap=false;
+  if(!this.boarded&&this.cabinId)this.cabinId=null;
   controller.boatOceanOnly=this.boarded?.kind==="sailing_ship";
   // A vessel under cruising sail keeps its course when its captain jumps
   // into the water. Never advance the currently boarded boat twice.
@@ -197,6 +247,7 @@ export class MarineWorld{
   if(mode==="boat"){
    const boat=this.boarded,geo=controller.locationAt(controller.x,controller.z);
    boat.lat=geo.lat;boat.lon=geo.lon;boat.yaw=controller.yaw;
+   if(boat.kind==="sailing_ship"&&dt>0)this.justCompletedLap=this.voyage.advance(boat.lat,boat.lon,terrain.planet.radiusM);
    this.oxygen=Math.min(100,this.oxygen+dt*14);this.depthM=0;
   }else if(mode==="dive"){
    this.depthM=Math.min(12,this.depthM+dt*1.4);
@@ -258,7 +309,7 @@ export class MarineWorld{
   const nearest=this.nearby(controller,32)[0];
   if(!nearest)return fail("32m以内に船がありません");
   if(!isWater(terrainSurface(terrain,nearest.lat,nearest.lon)))return fail("船が陸上にあります");
-  this.boardedId=nearest.id;this.diving=false;this.depthM=0;
+  this.boardedId=nearest.id;this.diving=false;this.depthM=0;this.cabinId=null;this.cabinActivity="idle";
   controller.x=nearest.x;controller.z=nearest.z;controller.lat=nearest.lat;controller.lon=nearest.lon;
   controller.yaw=nearest.yaw;controller.moveTarget=null;controller.travelMode="boat";
   controller.boatOceanOnly=nearest.kind==="sailing_ship";
@@ -267,6 +318,8 @@ export class MarineWorld{
  }
  leave(controller,terrain){
   if(!this.boarded)return fail("乗船中ではありません");
+  if(this.cabinId)return fail("船室から甲板へ出てから下船してください");
+  this.fishing.stop();
   for(let d=2;d<=24;d+=2)for(let i=0;i<32;i++){
    const a=i*2*Math.PI/32,x=controller.x+Math.cos(a)*d,z=controller.z+Math.sin(a)*d;
    const geo=controller.locationAt(x,z),s=terrainSurface(terrain,geo.lat,geo.lon);
@@ -280,5 +333,7 @@ export class MarineWorld{
   return {ok:true,message:"🌊 船から水面へ降りました。泳いで岸へ向かえます"};
  }
  snapshot(){return {version:1,boats:this.boats.map(b=>({...b})),nextId:this.nextId,
-  boardedId:this.boardedId,diving:this.diving,depthM:this.depthM,oxygen:this.oxygen};}
+  boardedId:this.boardedId,diving:this.diving,depthM:this.depthM,oxygen:this.oxygen,
+  cabinId:this.cabinId,cabinActivity:this.cabinActivity,
+  fishing:this.fishing.snapshot(),voyage:this.voyage.snapshot()};}
 }
