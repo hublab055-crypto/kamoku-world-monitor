@@ -1441,7 +1441,8 @@ export class ExplorerRenderer{
  drawShipboardObjects(vp,light,s,waterY){
   this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
   const board=this.marine?.shipboard,boat=this.marine?.boarded;
-  if(boat?.kind!=="sailing_ship"||board?.shipId!==boat.id)return;
+  if(boat?.kind!=="sailing_ship"||board?.shipId!==boat.id){this.shipFloorCenter=null;return;}
+  this.shipFloorCenter={x:s.x,z:s.z,yaw:boat.yaw};
   const zone=board.player.zone;
   const d=SHIP_DOOR[zone],pos=shipLocalToWorld(s.x,s.z,boat.yaw,d.x,d.z);
   const y=waterY+(zone==="cabin"?.47:1.45);
@@ -1474,7 +1475,7 @@ export class ExplorerRenderer{
   if(board?.shipId!==boat.id)return null;
   const cabin=board.player.zone==="cabin";
   const xMax=cabin?1.64:2.28,zMax=cabin?2.08:7.45,y=cabin?.46:1.65;
-  const here=this.marine.nearby(this.controller,20).find(b=>b.id===boat.id);
+  const here=this.shipFloorCenter;
   if(!here)return null;
   const corners=[[-xMax,-zMax],[xMax,-zMax],[xMax,zMax],[-xMax,zMax]];
   const vertices=corners.flatMap(([x,z])=>{
