@@ -33,7 +33,8 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8m-ship-life-navigation-r4";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8n-walkable-deck";
+import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8m-fishing-r3";
 
 const $=id=>document.getElementById(id);
@@ -254,6 +255,11 @@ function init(saved=null){
       text:(hit.guarded?"🛡️ −":"−")+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
     }
    };
+  // The two existing companions board alongside the player on a sea-ship start.
+  if(marine.boarded?.kind==="sailing_ship"){
+   marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
+   if(!marine.shipboard.member(marine.shipboard.helmId))marine.shipboard.assignHelm("scout");
+  }
   renderer.squad=squad;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
    for(const actor of squad.agents){
@@ -364,7 +370,7 @@ function doFrame(t){
    running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
     ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
+  const manualLead=!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -372,7 +378,9 @@ function doFrame(t){
   controller.boatSpeed=marine?.sailingSpeed()??4.2;
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
-  squad?.advance(running?dt:0,{manualLead});
+  const onShip=marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
+  // Crew use the local vessel walk map, never inland auto-harvest while afloat.
+  squad?.advance(onShip?0:running?dt:0,{manualLead});
   if(running){
    for(const a of squad?.agents||[]){
     if(a.id==="player")continue;
@@ -391,6 +399,20 @@ function doFrame(t){
    controller.update(dt,{forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0});
   }else controller.update(dt,travelInput);
   marine?.update(running?dt:0,controller,terrain);
+  if(onShip){
+   // Keep the squad's world-space controls co-located with moving ship for RTS,
+   // interaction radius and inherited outfit/character identity.
+   for(const a of squad.agents.slice(1)){
+    const onboard=marine.shipboard.member(a.id);
+    if(!onboard)continue;
+    const place=shipLocalToWorld(controller.x,controller.z,controller.yaw,onboard.x,onboard.z);
+    a.control.x=place.x;a.control.z=place.z;
+    const geo=controller.locationAt(place.x,place.z);
+    a.control.lat=geo.lat;a.control.lon=geo.lon;
+    a.control.yaw=controller.yaw+onboard.yaw;
+    a.control.moveTarget=null;a.control.travelMode="boat";
+   }
+  }
   if(running){
    const fishingEvent=marine?.tickFishing(dt,planet.seed);
    if(fishingEvent)log(fishingEvent.message);
@@ -965,6 +987,7 @@ function confirmOrbitLanding(){
   marine.update(0,controller,terrain);
   access.insideId=null;access.pendingDoorId=null;
   squad?.repositionAfterLanding();
+  if(marine.boarded?.kind==="sailing_ship")marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
   controller.targetAltitude(2.5);
   renderer.patchKey=null;renderer.setOrbitLandingFocus(site.lat,site.lon);renderer.interiorBuildingId=null;
   renderer.cameraController.resetFreeAnchor(controller,
