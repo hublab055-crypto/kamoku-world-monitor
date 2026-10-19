@@ -19,7 +19,7 @@ export function swimStroke(action,time=0,moving=true){
  }else if(isTread){
   armL=-.49+s*.22;armR=-.49-s*.22;
   zL=-.52;zR=.52;elbowL=-.58-.11*c;elbowR=-.58+.11*c;
-  hipL=-.42+.19*s;hipR=-.42-.19*s;kneeL=.75+.21*c;kneeR=.75-.21*c;
+  hipL=.19*s;hipR=-.19*s;kneeL=.75+.21*c;kneeR=.75-.21*c;
  }else if(mode==="breast"){
   // Symmetric pull-and-reach and frog kick, alternating the pull/push cycle.
   armL=-1.15+.75*c;armR=armL;
@@ -53,13 +53,13 @@ export function swimStroke(action,time=0,moving=true){
  };
 }
 /** Match body orientation and waterline to selected stroke. Legacy 5-arg calls remain valid. */
-export function swimmingPresentation(travelMode,moving,waterY=0,depthM=0,time=0,style="crawl",seabed=false){
+export function swimmingPresentation(travelMode,moving,waterY=0,depthM=0,time=0,style=null,seabed=false){
  if(![waterY,depthM,time].every(Number.isFinite))throw new TypeError("Invalid water presentation");
  const t=Math.max(0,time),mode=["crawl","breast","back","tread"].includes(style)?style:"crawl";
  if(travelMode==="swim"){
   if(!moving||mode==="tread")return {pitch:0,baseY:waterY-1.27+.055*sin(t*3.5),action:"tread"};
   return {pitch:mode==="back"?-1.22:mode==="breast"?1.15:1.28,
-    baseY:waterY-(mode==="back"?.31:.28)+.035*sin(t*11),action:mode};
+    baseY:waterY-(mode==="back"?.31:.28)+.035*sin(t*11),action:style===null?"swim":mode};
  }
  if(travelMode==="dive"){
   if(seabed)return {pitch:0,baseY:waterY-clamp(depthM,0,100)-.05,action:"seabed"};
