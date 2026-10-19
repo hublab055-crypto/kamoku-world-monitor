@@ -993,12 +993,64 @@ function moveToMapEntry(entry){
  return {ok,message:ok?"📍 "+entry.title+"の近くへ移動します":
   "移動できません（水域・急斜面・距離などを確認してください）"};
 }
+/** Ship cabin commands work while under sail and use existing vitals/items. */
+function useShipFurniture(kind){
+ if(!marine?.cabinId){log("船室に入ってから家具を使ってください");return;}
+ const p=squad.frontier.person("player"),meal=life.inventory.meal||0;
+ if(kind==="table"&&!meal){log("🍽️ 料理がありません。まず船室の調理台で魚料理を作ってください");return;}
+ if(kind==="kitchen"&&((actions.resources.fish||0)<1||(actions.resources.wood||0)<1)){
+  log("🍳 魚を調理するには釣った魚×1と薪（木材）×1が必要です");return;
+ }
+ const result=marine.cabinUse(kind);
+ if(!result.ok){log(result.message);return;}
+ let effect=result;
+ if(kind==="bed"){
+  effect=restVitals(p,{sleep:true});
+  if(effect.ok){life.activity="sleep";life.activityFurnitureId=null;}
+ }else if(kind==="chair"){
+  effect=restVitals(p);
+  if(effect.ok){life.activity="sit";life.activityFurnitureId=null;}
+ }else if(kind==="table"){
+  effect=eatVitals(p,{quality:"meal"});
+  if(effect.ok){
+   life.inventory.meal--;
+   life.inventory.dirtyPlate=(life.inventory.dirtyPlate||0)+1;
+   life.activity="eat";life.activityFurnitureId=null;
+  }
+ }else if(kind==="kitchen"){
+  actions.resources.fish--;actions.resources.wood--;life.inventory.meal++;
+  life.activity="cook";life.activityFurnitureId=null;
+  effect={ok:true,message:"🍳 魚×1と薪×1で魚料理を作りました。食卓で食べられます"};
+ }else if(kind==="bookshelf"){
+  const progress=marine.voyage.progress(terrain.planet.radiusM),page=Math.floor(progress.distanceM/5000);
+  const newPage=life.readPage("航海日誌",page);
+  if(newPage)p.mental=clamp((p.mental||0)+1.5,0,100);
+  life.activity="read";life.activityFurnitureId=null;
+  effect={ok:true,message:"📚 航海日誌：出航後 "+
+   (progress.distanceM/1000).toFixed(1)+"kmを航行。現在 "+
+   controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°。"+
+   (newPage?" 新しい航路を記録しました。":" この海域の記録を読み返しました。")};
+  if(books.carried?.length>0)openBookLibrary();
+ }
+ if(!effect.ok)marine.cabinActivity="idle";
+ else{
+  if(kind==="bed")life.stats.stamina=p.stamina;
+  if(kind==="bed"||kind==="chair")life.stats.hunger=100-p.hunger;
+  saveLifeJournal();saveMarineJournal();
+ }
+ log(effect.message);updateHUD();
+}
 function handleSceneTap({x,y,shiftKey=false}){
  if(!renderer)return;
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   selectOrbitLanding(x,y);return;
  }
  if(!controller?.nearGround)return;
+ if(marine?.cabinId){
+  const furniture=renderer.pickMarineFurniture(x,y);
+  if(furniture)useShipFurniture(furniture.kind);
+  return;
+ }
  if(constructionUI?.tap(x,y))return;
  const arrow=renderer.pickArrow(x,y);
  if(arrow){orderArrowPickup(arrow);return;}
@@ -1025,6 +1077,7 @@ function handleSceneTap({x,y,shiftKey=false}){
 }
 function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(!renderer)return;
+ if(marine?.cabinId)return; // Leave cabin before ordering ground movement.
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   if(selectOrbitLanding(x,y))confirmOrbitLanding();
   return;
