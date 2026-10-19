@@ -13,7 +13,7 @@ import {pickOrbitalGeo} from "./orbit-landing.mjs";
 import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {oceanWavePatch,fishAt} from "./marine.mjs?v=0.8k-sailing-ship";
 import {sailingShipGeometry} from "./sailing-ship-geometry.mjs?v=0.8k-ship-deck";
-import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8m-living-cabin";
+import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8m-living-cabin-r2";
 import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8i-swim";
 import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
@@ -1507,7 +1507,7 @@ export class ExplorerRenderer{
   const waterY=Number.isFinite(currentSurface.waterLevelM)?currentSurface.waterLevelM:0;
   const marinePose=["swim","dive"].includes(s.travelMode)?
     swimmingPresentation(s.travelMode,s.moving,waterY,this.marine?.depthM||0,this.marineClock):null;
-  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId?.length? .4:this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
+  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
