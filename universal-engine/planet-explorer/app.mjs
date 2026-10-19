@@ -769,7 +769,7 @@ function orderArrowPickup(arrow){
  if(distance>3.0){
   if(!squad.orderMove([who.id],arrow.x,arrow.z)){log("矢の位置まで移動できません。");return;}
   pendingArrowPickup.set(who.id,arrow.id);
-  log("➶ "+who.name+"が矢の回収地点に向かいます。");
+  log("➶ "+who.name+"が矢の回収地点に向かいます（残り約"+Math.ceil(arrow.recoverLeft??ARROW_RECOVERY_SECONDS)+"秒）。");
  }else collectArrow(who,arrow.id);
 }
 function collectArrow(who,id){
@@ -783,7 +783,7 @@ function collectArrow(who,id){
 function processArrowPickups(){
  for(const [id,arrowId] of [...pendingArrowPickup]){
   const who=squad?.get(id),arrow=projectiles?.embedded.find(a=>a.id===arrowId);
-  if(!who||!arrow){pendingArrowPickup.delete(id);continue;}
+  if(!who||!arrow){pendingArrowPickup.delete(id);if(who)log("➶ 回収予定の矢は回収済み、または期限切れで消えました。");continue;}
   if(Math.hypot(who.control.x-arrow.x,who.control.z-arrow.z)<=3){
    who.control.clearMoveTarget();collectArrow(who,arrowId);
   }else if(!who.control.moveTarget)pendingArrowPickup.delete(id);
