@@ -2,7 +2,7 @@ import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
-import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm";
+import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {ExplorerRenderer} from "./render.mjs?v=0.8k-two-mast-ship";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
@@ -33,7 +33,7 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8k-helm-cruise";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8k-helm-cruise-r2";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
