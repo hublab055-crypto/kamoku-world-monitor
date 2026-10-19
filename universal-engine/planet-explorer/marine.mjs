@@ -11,8 +11,13 @@ export function resolveLanding(terrain,lat,lon,mode="land"){
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90)
   return fail("降下地点の座標が不正です");
  const first=terrainSurface(terrain,lat,lon);
- if(mode==="sea"){
-  return isWater(first)?{ok:true,lat,lon,mode:"sea",movedM:0}:fail("海上降下は海・川の上を選択してください");
+ if(mode==="sea"||mode==="sea-ship"){
+  if(mode==="sea-ship")
+   return first.water&&!first.river?
+    {ok:true,lat,lon,mode:"sea-ship",movedM:0}:
+    fail("帆船での降下は海の上を指定してください（川・陸地は不可）");
+  return isWater(first)?{ok:true,lat,lon,mode:"sea",movedM:0}:
+   fail("海上降下は海・川の上を選択してください");
  }
  if(mode!=="land")return fail("降下方式が不正です");
  if(validLand(first))return {ok:true,lat,lon,mode:"land",movedM:0};
@@ -34,7 +39,8 @@ export function resolveLanding(terrain,lat,lon,mode="land"){
 
 export const BOATS=Object.freeze({
  raft:{name:"木のいかだ",cost:{wood:10,fiber:6},speed:4.2},
- canoe:{name:"手こぎ舟",cost:{wood:18,fiber:10},speed:6.8}
+ canoe:{name:"手こぎ舟",cost:{wood:18,fiber:10},speed:6.8},
+ sailing_ship:{name:"外洋用中型帆船",cost:{wood:85,plank:45,fiber:45,metal:8},speed:8.5,deckY:1.65}
 });
 export function waveHeight(x,z,seconds,wind=1){
  const v=Math.max(0,Math.min(2,Number.isFinite(wind)?wind:1));
