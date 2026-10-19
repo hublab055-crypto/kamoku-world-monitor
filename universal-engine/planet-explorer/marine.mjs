@@ -95,6 +95,7 @@ export class MarineWorld{
   this.targetDepthM=Number.isFinite(data?.targetDepthM)?Math.max(0,data.targetDepthM):4;
   this.salvagedSites=new Set(Array.isArray(data?.salvagedSites)?data.salvagedSites.slice(0,5000).filter(x=>typeof x==="string"):[]);
   this.scannedSites=new Set(Array.isArray(data?.scannedSites)?data.scannedSites.slice(0,5000).filter(x=>typeof x==="string"):[]);
+  this._siteCache=null;
   this.cabinId=null;this.cabinActivity="idle";
   this.fishing=new ShipFishing(data?.fishing);
   this.voyage=new VoyageLog(data?.voyage);this.justCompletedLap=false;
@@ -150,7 +151,18 @@ export class MarineWorld{
   this._floorDepth>0&&this._floorDepth-this.depthM<=1.5;}
  sitesNear(controller,terrain,radius=420){
   if(!isWater(terrainSurface(terrain,controller.lat,controller.lon)))return [];
-  return seaSitesNear(terrain,controller.lat,controller.lon,radius);
+  const r=Math.max(20,Math.min(420,radius)),R=terrain.planet.radiusM;
+  const cache=this._siteCache;
+  const drift=cache?geoLocal(cache.lat,cache.lon,controller.lat,controller.lon,R):null;
+  if(!cache||r+24>cache.radius||Math.hypot(drift.eastM,drift.northM)>18){
+   this._siteCache={lat:controller.lat,lon:controller.lon,radius:r+36,
+    sites:seaSitesNear(terrain,controller.lat,controller.lon,r+36)};
+  }
+  return this._siteCache.sites.map(site=>{
+   const offset=geoLocal(controller.lat,controller.lon,site.lat,site.lon,R);
+   return {...site,eastM:offset.eastM,northM:offset.northM,
+    distanceM:Math.hypot(offset.eastM,offset.northM)};
+  }).filter(s=>s.distanceM<=r).sort((a,b)=>a.distanceM-b.distanceM);
  }
  scan(controller,terrain){
   if(!this.diving)return fail("潜水中に海底を調査してください");
