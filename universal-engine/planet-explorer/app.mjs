@@ -598,6 +598,21 @@ function updateHUD(){
   $("marine-board").disabled=!isSurface||Boolean(marine.boarded);
   $("marine-leave").disabled=!isSurface||!marine.boarded;
   $("marine-craft").disabled=!isSurface;
+  const helm=marine.boarded,ship=helm?.kind==="sailing_ship";
+  $("marine-sail-controls").hidden=!ship;
+  if(ship){
+   const degrees=Math.round((((helm.yaw||0)*180/Math.PI)%360+360)%360);
+   const sail=Math.round(helm.sailTrim*100);
+   const speed=marine.sailingSpeed(helm);
+   $("marine-sail-value").textContent=sail+"%";
+   if(document.activeElement!==$("marine-sail-trim"))$("marine-sail-trim").value=String(sail);
+   $("marine-helm-status").textContent="方位 "+degrees+"° ／ 帆 "+sail+"% ／ "+(controller.moving?speed.toFixed(1):"0.0")+
+    " m/s ／ "+(helm.anchor?"投錨中":helm.cruise?"巡航中":"手動操船");
+   $("marine-cruise").textContent=helm.cruise?"■ 巡航停止":"▶ 巡航開始";
+   $("marine-anchor").textContent=helm.anchor?"⚓ 揚錨する":"⚓ 投錨する";
+   $("marine-cruise").setAttribute("aria-pressed",String(helm.cruise));
+   $("marine-anchor").setAttribute("aria-pressed",String(helm.anchor));
+  }
  }
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
@@ -1872,6 +1887,24 @@ for(const [id,act] of [
   if(result.ok){renderer.patchKey=null;saveMarineJournal();saveLifeJournal();}
   updateHUD();
  });
+}
+// Ship helm is always enabled on deck, including while the vessel is moving.
+const shipAction=fn=>{
+ const result=fn();
+ log(result.message);
+ if(result.ok){controller.boatSpeed=marine.sailingSpeed();saveMarineJournal();}
+ updateHUD();
+};
+$("marine-sail-trim").addEventListener("input",()=>{
+ $("marine-sail-value").textContent=$("marine-sail-trim").value+"%";
+});
+$("marine-sail-trim").addEventListener("change",()=>{
+ shipAction(()=>marine.setSails(Number($("marine-sail-trim").value)/100));
+});
+$("marine-cruise").addEventListener("click",()=>shipAction(()=>marine.setCruise(!marine.boarded?.cruise)));
+$("marine-anchor").addEventListener("click",()=>shipAction(()=>marine.setAnchor(!marine.boarded?.anchor)));
+for(const [id,angle] of [["marine-steer-left",-Math.PI/15],["marine-steer-right",Math.PI/15]]){
+ $(id).addEventListener("click",()=>shipAction(()=>marine.steer(angle,controller)));
 }
 window.addEventListener("pagehide",saveMarineJournal);
 init();requestAnimationFrame(doFrame);
