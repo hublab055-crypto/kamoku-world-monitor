@@ -943,3 +943,17 @@ body.immersive{overflow:hidden}
 .marine-helm-buttons button{min-width:0;min-height:38px;font-size:12px;padding:5px}
 .marine-helm-buttons button[aria-pressed=true]{background:#2b776d;border-color:#a7ebd2}
 .marine-sail-controls small{color:#cee0d5}
+
+/* v0.8m — compact shipboard living, fishing and voyage progress. */
+.marine-activity-section{display:flex;flex-direction:column;gap:7px;margin:9px 0 6px;
+ padding:9px;border:1px solid rgba(148,206,206,.5);border-radius:9px;background:rgba(17,51,59,.66)}
+.marine-activity-section[hidden],.marine-activity-actions[hidden]{display:none!important}
+.marine-activity-section>strong{font-size:13px;color:#e4f7ed}
+.marine-activity-section>p{margin:0;font-size:11px;line-height:1.5;color:#cce6e1}
+.marine-activity-section>small{font-size:10px;color:#c2dfd4;line-height:1.5}
+.marine-activity-section>button{min-height:39px;font-size:12px}
+.marine-activity-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.marine-activity-actions button{min-width:0;min-height:38px;padding:6px 5px;
+ font-size:11px;white-space:normal;line-height:1.35}
+#marine-voyage-progress{width:100%;height:11px}
+#marine-fishing-status{min-height:20px}
