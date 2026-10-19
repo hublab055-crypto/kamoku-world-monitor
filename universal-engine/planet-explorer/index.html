@@ -200,6 +200,40 @@
   <button type="button" id="marine-board">🛶 乗船する</button>
   <button type="button" id="marine-leave">🏝️ 上陸・下船・海面へ</button>
  </div>
+ <section class="marine-activity-section" id="marine-diving-controls" aria-label="水泳・潜水・海底探索">
+  <strong>🏊 泳法・潜水装備・海底調査</strong>
+  <label for="marine-swim-style">泳ぎ方
+   <select id="marine-swim-style">
+    <option value="crawl">クロール（速い）</option>
+    <option value="breast">平泳ぎ（長距離）</option>
+    <option value="back">背泳ぎ（ゆっくり）</option>
+    <option value="tread">立ち泳ぎ（停止）</option>
+   </select>
+  </label>
+  <label for="marine-gear-equip">使用する装備
+   <select id="marine-gear-equip">
+    <option value="none">素潜り</option>
+    <option value="snorkel">足ひれ・シュノーケル</option>
+    <option value="scuba">アクアラング</option>
+    <option value="suit">海底作業用潜水服</option>
+   </select>
+  </label>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-equip">🤿 装備変更</button>
+   <button type="button" id="marine-gear-craft">🔨 選択装備をクラフト</button>
+   <button type="button" id="marine-descend">↓ さらに5m潜る</button>
+   <button type="button" id="marine-ascend">↑ 5m浮上</button>
+  </div>
+  <p id="marine-depth-status" role="status">潜水装備と深度を準備しています</p>
+  <p id="marine-gear-inventory">装備：素潜り</p>
+  <strong>🏛️ 海底の発見</strong>
+  <p id="marine-discovery-status" role="status" aria-live="polite">水中で周辺を調査できます</p>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-scan">🔎 周囲を調査する</button>
+   <button type="button" id="marine-salvage">⚒️ 発見物を回収する</button>
+  </div>
+  <small>海底の沈没船、財宝、古代遺跡、竜人文明遺跡は惑星の同じ座標に配置されます。近づいて深度を合わせると調査・回収できます。</small>
+ </section>
  <section id="marine-sail-controls" class="marine-sail-controls" aria-label="帆船の操船" hidden>
   <strong>⛵ 中型帆船・操船</strong>
   <p id="marine-helm-status" role="status" aria-live="polite">舵・帆を準備しています</p>
@@ -835,6 +869,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8n-moving-shipboard"></script>
+<script type="module" src="./app.mjs?v=0.8o-ocean-exploration"></script>
 </body>
 </html>

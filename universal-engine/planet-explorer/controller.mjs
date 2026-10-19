@@ -63,7 +63,7 @@ export class ExplorerController {
     if(this.altitudeM>12.01||this.jumpY>.001||this.jumpV!==0||this.travelMode!=="walk")return false;
     this.jumpV=5.6;return true;
   }
-  movementSpeed(){return this.travelMode==="boat"?this.boatSpeed:this.travelMode==="swim"?2.3:this.travelMode==="dive"?1.55:this.walkSpeed;}
+  movementSpeed(){return this.travelMode==="boat"?this.boatSpeed:this.travelMode==="swim"?2.3*(Number.isFinite(this.waterSpeedFactor)?this.waterSpeedFactor:1):this.travelMode==="dive"?1.55*(this.waterSpeedFactor||1):this.walkSpeed;}
   update(dt,{forward=0,strafe=0,turn=0}={}){
     if(!Number.isFinite(dt)||dt<0)throw new TypeError("Invalid frame delta");
     dt=clamp(dt,0,.1);

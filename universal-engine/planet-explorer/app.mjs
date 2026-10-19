@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8m-cabin-visuals-r4";
+import {ExplorerRenderer} from "./render.mjs?v=0.8o-seabed-visuals";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -33,7 +33,8 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8n-walkable-deck";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8o-deep-sea";
+import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8m-fishing-r3";
 
@@ -133,7 +134,7 @@ let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0,vo
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
-const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚"};
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚",ancientCoins:"🪙 古代金貨",dragonRelic:"🐉 竜人文明遺物"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
@@ -204,7 +205,7 @@ function init(saved=null){
    life.activity=({bed:"sleep",chair:"sit",table:"eat",bookshelf:"read",kitchen:"cook"})[marine.cabinActivity]||"idle";
   }
    if(journal?.resources&&!saved){
-    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple","fish"])
+    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple","fish","ancientCoins","dragonRelic"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
@@ -634,7 +635,8 @@ function updateHUD(){
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
    (EXPRESSIONS.find(x=>x[0]===renderer.expression.preset)?.[1]||renderer.expression.preset);
  $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone+
-   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal+" / 土 "+(actions.resources.soil||0);
+   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal+" / 土 "+(actions.resources.soil||0)+
+   " / 🪙古代金貨 "+(actions.resources.ancientCoins||0)+" / 🐉遺物 "+(actions.resources.dragonRelic||0);
   lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  if(faunaUI&&!$("fauna-panel").hidden)faunaUI.refresh();
@@ -671,8 +673,27 @@ function updateHUD(){
   $("marine-status").textContent=({walk:"🏝️ 陸上",swim:"🏊 水泳",dive:"🤿 潜水 "+marine.depthM.toFixed(1)+"m",
     boat:"🛶 "+(BOATS[marine.boarded?.kind]?.name||"航海中")})[controller.travelMode]||
    "🌊 海洋";
+  $("marine-oxygen").max=marine.gear.air;
   $("marine-oxygen").value=marine.oxygen;
-  $("marine-oxygen-label").textContent=Math.round(marine.oxygen)+"%";
+  $("marine-oxygen-label").textContent=Math.round(marine.oxygen)+"/"+marine.gear.air;
+  if(document.activeElement!==$("marine-swim-style"))$("marine-swim-style").value=marine.swimStyle;
+  if(document.activeElement!==$("marine-gear-equip"))$("marine-gear-equip").value=marine.diveGear;
+  $("marine-depth-status").textContent="水深 "+marine.depthM.toFixed(1)+"m / 目標 "+
+   marine.targetDepthM.toFixed(1)+"m / 海底 "+marine._floorDepth?.toFixed(1)+"m / 装備限界 "+
+   marine.gear.maxDepth+"m"+(marine.seabedWalking?" / 海底作業中":"");
+  $("marine-gear-inventory").textContent="所有装備："+marine.ownedGear.map(k=>DIVE_GEAR[k].name).join("・");
+  $("marine-descend").disabled=!isSurface||!marine.diving;
+  $("marine-ascend").disabled=!isSurface||!marine.diving;
+  $("marine-scan").disabled=!isSurface||!marine.diving;
+  $("marine-salvage").disabled=!isSurface||!marine.diving;
+  if(!$("marine-panel").hidden){
+   const near=marine.sitesNear(controller,terrain,180)[0];
+   $("marine-discovery-status").textContent=near?
+    SEA_SITE_TYPES[near.kind].symbol+" "+near.name+" / 距離 "+
+    near.distanceM.toFixed(0)+"m / 水深 "+near.depthM.toFixed(0)+"m"+
+    (marine.salvagedSites.has(near.id)?"（回収済み）":""):
+    "近くの海底遺跡・沈没船を捜索できます";
+  }
   $("marine-dive").disabled=!isSurface||controller.travelMode==="boat"||controller.travelMode==="walk";
   $("marine-dive").textContent=marine.diving?"↑ 水面へ浮上":"↓ 潜る";
   $("marine-board").disabled=!isSurface||Boolean(marine.boarded);
@@ -2092,6 +2113,29 @@ $("farm-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();faunaUI?.
 $("fauna-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();farmUI?.close();$("marine-panel").hidden=true;});
 window.addEventListener("pagehide",saveFaunaJournal);
 window.addEventListener("pagehide",saveFarmJournal);
+$("marine-swim-style").addEventListener("change",()=>{
+ const r=marine.setSwimStyle($("marine-swim-style").value);
+ log(r.message);if(r.ok)saveMarineJournal();updateHUD();
+});
+function operateDive(fn){
+ const r=fn();log(r.message);
+ if(r.ok){saveMarineJournal();saveLifeJournal();updateHUD();}
+ return r;
+}
+$("marine-equip").addEventListener("click",()=>operateDive(()=>
+ marine.equipGear($("marine-gear-equip").value,controller)));
+$("marine-gear-craft").addEventListener("click",()=>operateDive(()=>
+ marine.craftGear($("marine-gear-equip").value,actions.resources)));
+$("marine-descend").addEventListener("click",()=>operateDive(()=>
+ marine.adjustDepth(5,controller,terrain)));
+$("marine-ascend").addEventListener("click",()=>operateDive(()=>
+ marine.adjustDepth(-5,controller,terrain)));
+$("marine-scan").addEventListener("click",()=>operateDive(()=>
+ marine.scan(controller,terrain)));
+$("marine-salvage").addEventListener("click",()=>{
+ const result=operateDive(()=>marine.salvage(controller,terrain,actions.resources));
+ if(result.ok)worldUI?.float({kind:"gain",text:"🏛️ 発見物を回収！",actorId:"player",duration:2});
+});
 $("marine-toggle").addEventListener("click",()=>{
  const panel=$("marine-panel");panel.hidden=!panel.hidden;
  $("marine-toggle").setAttribute("aria-expanded",String(!panel.hidden));
