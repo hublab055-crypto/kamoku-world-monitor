@@ -134,7 +134,7 @@ let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0,vo
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
 const lastNpcStatus=new Map();
-const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚"};
+const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚",ancientCoins:"🪙 古代金貨",dragonRelic:"🐉 竜人文明遺物"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
 let viewportGestures=null,orbitSelection=null;
@@ -205,7 +205,7 @@ function init(saved=null){
    life.activity=({bed:"sleep",chair:"sit",table:"eat",bookshelf:"read",kitchen:"cook"})[marine.cabinActivity]||"idle";
   }
    if(journal?.resources&&!saved){
-    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple","fish"])
+    for(const k of ["wood","stone","fiber","clay","metal","ironOre","plank","soil","wheat","straw","carrot","apple","fish","ancientCoins","dragonRelic"])
      if(Number.isSafeInteger(journal.resources[k])&&journal.resources[k]>=0)actions.resources[k]=journal.resources[k];
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
@@ -635,7 +635,8 @@ function updateHUD(){
    (OUTFITS.find(x=>x.id===appearance.presetId)?.name||appearance.presetId)+"・"+
    (EXPRESSIONS.find(x=>x[0]===renderer.expression.preset)?.[1]||renderer.expression.preset);
  $("materials").textContent="木 "+actions.resources.wood+" / 石 "+actions.resources.stone+
-   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal+" / 土 "+(actions.resources.soil||0);
+   " / 繊維 "+actions.resources.fiber+" / 粘土 "+actions.resources.clay+" / 金属 "+actions.resources.metal+" / 土 "+(actions.resources.soil||0)+
+   " / 🪙古代金貨 "+(actions.resources.ancientCoins||0)+" / 🐉遺物 "+(actions.resources.dragonRelic||0);
   lifeUI?.updateStats();
  $("building-count").textContent=String(actions.structures.filter(b=>b.progress>=1).length);
  if(faunaUI&&!$("fauna-panel").hidden)faunaUI.refresh();
