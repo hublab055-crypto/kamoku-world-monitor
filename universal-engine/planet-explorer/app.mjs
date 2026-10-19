@@ -1998,6 +1998,33 @@ $("marine-anchor").addEventListener("click",()=>shipAction(()=>marine.setAnchor(
 for(const [id,angle] of [["marine-steer-left",-Math.PI/15],["marine-steer-right",Math.PI/15]]){
  $(id).addEventListener("click",()=>shipAction(()=>marine.steer(angle,controller)));
 }
+// Living quarters are attached to the moving ship; entering never stops cruise.
+$("marine-cabin-toggle").addEventListener("click",()=>{
+ const result=marine.cabinId?marine.exitCabin():marine.enterCabin();
+ log(result.message);
+ if(result.ok){
+  renderer.cameraController.smoothEye=null;
+  renderer.cameraController.smoothTarget=null;
+  saveMarineJournal();
+ }
+ updateHUD();
+});
+$("marine-cabin-furniture").addEventListener("click",event=>{
+ const button=event.target.closest("button[data-cabin-action]");
+ if(button)useShipFurniture(button.dataset.cabinAction);
+});
+$("marine-fish-cast").addEventListener("click",()=>shipAction(()=>marine.castLine(controller,terrain)));
+$("marine-fish-stop").addEventListener("click",()=>shipAction(()=>marine.stopFishing()));
+$("marine-fish-reel").addEventListener("click",()=>{
+ const result=marine.reelFish(actions.resources);
+ log(result.message);
+ if(result.ok){
+  worldUI?.float({kind:"gain",text:"🐟 魚 +1",actorId:"player",duration:1.6});
+  saveLifeJournal();
+  saveMarineJournal();
+ }
+ updateHUD();
+});
 window.addEventListener("pagehide",saveMarineJournal);
 init();requestAnimationFrame(doFrame);
 
