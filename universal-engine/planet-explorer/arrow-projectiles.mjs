@@ -3,6 +3,8 @@ import {ARROW_TYPES,arrowTypeValid} from "./social-equipment.mjs";
  * Flight is stepped (with swept intersection tests) and resolved only on impact.
  * Coordinates are local x/z metres and absolute terrain y metres. */
 const GRAVITY=9.81;
+/** Real in-game seconds after impact in which a landed arrow can be recovered. */
+export const ARROW_RECOVERY_SECONDS=90;
 const vecLength=v=>Math.hypot(v.x,v.y,v.z);
 const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,x));
@@ -108,6 +110,12 @@ export class ArrowProjectiles{
    burn.remaining=Math.max(0,burn.remaining-active);
    if(burn.remaining<=1e-8)this.burning.splice(this.burning.indexOf(burn),1);
   }
+  // Recovery time only advances with the simulation clock, never during pause.
+  // Filter in one sweep to bound memory and renderer work in long sessions.
+  for(const stuck of this.embedded){
+   stuck.recoverLeft=Math.max(0,(Number.isFinite(stuck.recoverLeft)?stuck.recoverLeft:ARROW_RECOVERY_SECONDS)-dt);
+  }
+  this.embedded=this.embedded.filter(stuck=>stuck.recoverLeft>0);
   // Embedded enemy arrows follow the moving target until it disappears.
   for(const stuck of this.embedded){
    if(stuck.surface!=="enemy"||!stuck.offset)continue;
@@ -168,7 +176,7 @@ export class ArrowProjectiles{
     const direction=unit({x:arrow.vx,y:arrow.vy,z:arrow.vz});
     const stuck={id:arrow.id,ownerId:arrow.ownerId,arrowType:arrow.arrowType||"wood",x:impact.point.x,
      y:impact.point.y,z:impact.point.z,dx:direction.x,dy:direction.y,dz:direction.z,
-     surface:impact.kind,objectId:impact.obj?.id??null};
+     surface:impact.kind,objectId:impact.obj?.id??null,recoverLeft:ARROW_RECOVERY_SECONDS};
     if(impact.kind==="enemy"){
      const enemy=impact.obj;
      stuck.offset={x:stuck.x-enemy.x,y:stuck.y-groundHeight(enemy.x,enemy.z),z:stuck.z-enemy.z};
@@ -204,8 +212,11 @@ export class ArrowProjectiles{
   this.flying=(saved.flying||[]).filter(a=>coords(a)&&
    ["vx","vy","vz","age"].every(k=>finite(a[k]))).slice(0,64).map(a=>({
     ...a,arrowType:arrowTypeValid(a.arrowType)?a.arrowType:"wood"}));
-  this.embedded=(saved.embedded||[]).filter(coords).slice(-160).map(a=>({
-   ...a,arrowType:arrowTypeValid(a.arrowType)?a.arrowType:"wood"}));
+  this.embedded=(saved.embedded||[]).filter(coords)
+   .filter(a=>!Number.isFinite(a.recoverLeft)||a.recoverLeft>0)
+   .slice(-160).map(a=>({...a,
+    recoverLeft:finite(a.recoverLeft)?clamp(a.recoverLeft,0,ARROW_RECOVERY_SECONDS):ARROW_RECOVERY_SECONDS,
+    arrowType:arrowTypeValid(a.arrowType)?a.arrowType:"wood"}));
   this.burning=(saved.burning||[]).filter(b=>coords(b)&&finite(b.remaining)&&b.remaining>0)
    .slice(-32).map(b=>({...b,remaining:clamp(b.remaining,0,3),tick:clamp(b.tick||0,0,1)}));
   this.targets=(saved.targets||[]).filter(coords).slice(0,12).map(a=>({...a}));
