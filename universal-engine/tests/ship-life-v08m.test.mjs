@@ -120,6 +120,23 @@ test("geodesic progression crosses +180/-180 cleanly and records an actual plane
  assert.ok(Math.abs(resumed.longitudeTurns-1)<1e-6);
  assert.ok(seaDistance({lat:0,lon:179.99},{lat:0,lon:-179.99},radius)<3000);
 });
+test("full live MarineWorld voyage preserves ship identity through longitude wrap and homecoming",()=>{
+ const t=coast(),{c,m}=offshore(t);
+ const id=m.boardedId,original={lat:c.lat,lon:c.lon};
+ const circumference=planetCircumference(radius);
+ let laps=0;
+ for(let i=1;i<=1024;i++){
+  const next=geoOffset(c.origin.lat,c.origin.lon,circumference*i/1024,0,radius);
+  c.x=circumference*i/1024;c.z=0;c.lat=next.lat;c.lon=next.lon;
+  m.update(.1,c,t);
+  if(m.justCompletedLap)laps++;
+ }
+ assert.equal(laps,1);
+ assert.equal(m.voyage.laps,1);
+ assert.equal(m.boardedId,id);
+ assert.ok(seaDistance(original,{lat:c.lat,lon:c.lon},radius)<2);
+ assert.ok(m.nearby(c,5).some(b=>b.id===id));
+});
 test("short coastal trips and artificial teleports cannot fake globe circumnavigation",()=>{
  const start={lat:0,lon:10},v=new VoyageLog(null,start);
  for(let i=0;i<100;i++){
