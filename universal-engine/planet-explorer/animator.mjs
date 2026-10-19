@@ -6,7 +6,7 @@
  * Moving arms and locomotion do not reset when a tool animation starts.
  */
 import {samplePose} from "./rig.mjs";
-import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8i-swim";
+import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8o-four-strokes";
 const alpha=(dt,tau)=>1-Math.exp(-Math.max(0,dt)/Math.max(.001,tau));
 const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
