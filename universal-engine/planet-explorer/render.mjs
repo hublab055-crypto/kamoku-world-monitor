@@ -1662,26 +1662,35 @@ export class ExplorerRenderer{
   const actors=this.squad?.agents||[];
   this.screenActors=[];
   for(const agent of actors){
-   const unit=agent.control;
-   const elevation=Math.max(0,terrainSurface(this.terrain,unit.lat,unit.lon).elevationM);
+   const base=agent.control,crewPose=onboard?shipboard.member(agent.id):null;
+   if(onboard&&agent.id!=="player"&&(!crewPose||crewPose.zone!==person.zone))continue;
+   const world=crewPose?shipLocalToWorld(s.x,s.z,s.yaw,crewPose.x,crewPose.z):null;
+   const unit=crewPose?{...base,x:world.x,z:world.z,yaw:s.yaw+crewPose.yaw,
+    moving:crewPose.moving,totalDistanceM:shipboard.elapsed*1.2,movementSpeed:()=>1.15}:base;
+   const elevation=crewPose?waterY+(crewPose.zone==="cabin"?.46:1.65):
+    Math.max(0,terrainSurface(this.terrain,unit.lat,unit.lon).elevationM);
    const x=unit.x-this.cx,z=unit.z-this.cz;
    if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
-   const projected=projectScreen(vp,[x,elevation+(unit.jumpY||0)+1.8,z]);
-   if(projected)this.screenActors.push({...projected,id:agent.id,name:agent.name});
-   if(this.squad.selected.has(agent.id)){
-    this.drawMesh(this.selectionRing,multiply4(vp,translate(x,elevation+(unit.jumpY||0),z)),light,1,.85);
+   const projected=projectScreen(vp,[x,elevation+(unit.jumpY||0)+1.6,z]);
+   if(projected?.onScreen){
+    this.screenActors.push({...projected,id:agent.id,name:agent.name});
+    if(crewPose&&agent.id!=="player")
+     this.screenShipCrew.push({...projected,id:agent.id,name:agent.name,type:"crew"});
    }
-   if(agent.id==="player"||Math.abs(x)>radius||Math.abs(z)>radius)continue;
+   if(this.squad.selected.has(agent.id))
+    this.drawMesh(this.selectionRing,multiply4(vp,translate(x,elevation+(unit.jumpY||0),z)),light,1,.85);
+   if(agent.id==="player")continue;
    if(!this.npcAnimators.has(agent.id))
     this.npcAnimators.set(agent.id,{animator:new SmoothAnimator(),expression:new ExpressionController()});
    const ctx=this.npcAnimators.get(agent.id);
    const model=translate(x,elevation+(unit.jumpY||0),z);
-   // High-detail for small parties; lightweight joint rigs for large companies.
+   const motion=crewPose?{action:crewPose.task==="rest"?"sit":"idle",progress:0}:
+    this.squad.getMotion(agent);
    const highDetail=actors.length<=16||actors.indexOf(agent)<10||
     (this.squad.selected.size<=6&&this.squad.selected.has(agent.id));
-   if(!highDetail||!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light,dt,this.squad.getMotion(agent),agent.id))
+   if(!highDetail||!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light,dt,motion,agent.id))
     this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
-     this.squad.getMotion(agent),agent.id==="scout"?[.65,.86,1]:[1,.78,.65],agent.id);
+     motion,agent.id==="scout"?[.65,.86,1]:[1,.78,.65],agent.id);
   }
   if(camera.marker){
    const screen=projectScreen(vp,camera.actorPos);
