@@ -267,10 +267,14 @@ export class MarineWorld{
   return {ok:true,message:this.diving?"🤿 潜水開始。酸素ゲージに注意してください":"🌊 水面へ浮上しました"};
  }
  nearby(controller,limit=30){
+  // Always compute nearby vessels from CURRENT geodetic coordinates.
+  // A fixed-origin inverse geodesic fails after crossing half the planet.
+  const here={lat:controller.lat,lon:controller.lon};
   return this.boats.map(boat=>{
-   const m=geoLocal(controller.origin.lat,controller.origin.lon,boat.lat,boat.lon,controller.terrain.planet.radiusM);
-   const range=Math.hypot(m.eastM-controller.x,m.northM-controller.z);
-   return {...boat,x:m.eastM,z:m.northM,range};
+   const m=geoLocal(here.lat,here.lon,boat.lat,boat.lon,controller.terrain.planet.radiusM);
+   const x=controller.x+m.eastM,z=controller.z+m.northM;
+   const range=Math.hypot(m.eastM,m.northM);
+   return {...boat,x,z,range};
   }).filter(b=>b.range<=limit).sort((a,b)=>a.range-b.range);
  }
  launchPoint(controller,terrain){
