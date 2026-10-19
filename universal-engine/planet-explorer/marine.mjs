@@ -2,6 +2,7 @@ import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
 import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing-r3";
 import {ShipboardWorld} from "./shipboard.mjs?v=0.8n-crew-walking";
+import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES,seaSitesNear,oceanFloorDepth} from "./ocean-exploration.mjs?v=0.8o-seabed";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
@@ -88,6 +89,12 @@ export class MarineWorld{
  constructor(data=null){
   this.boats=[];this.nextId=1;this.boardedId=null;
   this.diving=false;this.depthM=0;this.oxygen=100;
+  this.swimStyle=SWIM_STYLES[data?.swimStyle]?data.swimStyle:"crawl";
+  this.ownedGear=Array.isArray(data?.ownedGear)?[...new Set(["none",...data.ownedGear.filter(x=>DIVE_GEAR[x])])]:["none"];
+  this.diveGear=this.ownedGear.includes(data?.diveGear)?data.diveGear:"none";
+  this.targetDepthM=Number.isFinite(data?.targetDepthM)?Math.max(0,data.targetDepthM):4;
+  this.salvagedSites=new Set(Array.isArray(data?.salvagedSites)?data.salvagedSites.slice(0,5000).filter(x=>typeof x==="string"):[]);
+  this.scannedSites=new Set(Array.isArray(data?.scannedSites)?data.scannedSites.slice(0,5000).filter(x=>typeof x==="string"):[]);
   this.cabinId=null;this.cabinActivity="idle";
   this.fishing=new ShipFishing(data?.fishing);
   this.voyage=new VoyageLog(data?.voyage);this.justCompletedLap=false;
@@ -103,12 +110,69 @@ export class MarineWorld{
    this.boardedId=this.boats.some(b=>b.id===data.boardedId)?data.boardedId:null;
    this.cabinId=data.cabinId===this.boardedId&&this.boats.find(b=>b.id===data.cabinId)?.kind==="sailing_ship"?data.cabinId:null;
    this.cabinActivity=this.cabinId&&Object.keys(SHIP_FURNITURE).includes(data.cabinActivity)?data.cabinActivity:"idle";
-   this.oxygen=Number.isFinite(data.oxygen)?Math.max(0,Math.min(100,data.oxygen)):100;
+   this.oxygen=Number.isFinite(data.oxygen)?Math.max(0,Math.min(DIVE_GEAR[this.diveGear].air,data.oxygen)):DIVE_GEAR[this.diveGear].air;
    this.diving=Boolean(data.diving&&!this.boardedId);
-   this.depthM=this.diving&&Number.isFinite(data.depthM)?Math.max(0,Math.min(12,data.depthM)):0;
+   this.depthM=this.diving&&Number.isFinite(data.depthM)?Math.max(0,Math.min(DIVE_GEAR[this.diveGear].maxDepth,data.depthM)):0;
   }
  }
  get boarded(){return this.boats.find(b=>b.id===this.boardedId)||null;}
+ get gear(){return DIVE_GEAR[this.diveGear];}
+ setSwimStyle(style){
+  if(!SWIM_STYLES[style])return fail("泳法を選び直してください");
+  this.swimStyle=style;
+  return {ok:true,message:"🏊 "+SWIM_STYLES[style].name+"に切り替えました"};
+ }
+ craftGear(gear,resources){
+  const spec=DIVE_GEAR[gear];
+  if(!spec||gear==="none")return fail("製作する潜水装備を選択してください");
+  if(this.ownedGear.includes(gear))return fail("既に所有している潜水装備です");
+  if(Object.entries(spec.cost).some(([k,n])=>(resources[k]||0)<n))
+   return fail("材料が足りません："+Object.entries(spec.cost).map(([k,n])=>k+" ×"+n).join("・"));
+  for(const [k,n] of Object.entries(spec.cost))resources[k]-=n;
+  this.ownedGear.push(gear);
+  return {ok:true,message:"🔨 "+spec.name+"を製作しました"};
+ }
+ equipGear(gear,controller){
+  if(!this.ownedGear.includes(gear))return fail("まだ製作していない装備です");
+  if(this.diving||controller.travelMode==="dive")return fail("装備変更は水面または陸上で行ってください");
+  this.diveGear=gear;this.oxygen=DIVE_GEAR[gear].air;
+  return {ok:true,message:"🤿 "+DIVE_GEAR[gear].name+"を装備しました"};
+ }
+ adjustDepth(delta,controller,terrain){
+  if(!this.diving||this.boarded)return fail("海面から潜水を開始してください");
+  if(!Number.isFinite(delta))return fail("深度の指定が不正です");
+  const floor=oceanFloorDepth(terrain,controller.lat,controller.lon);
+  this.targetDepthM=Math.max(0,Math.min(this.gear.maxDepth,floor>0?Math.max(0,floor-1):0,this.targetDepthM+delta));
+  if(this.targetDepthM<.5){this.diving=false;this.depthM=0;}
+  return {ok:true,message:"🤿 目標深度 "+this.targetDepthM.toFixed(1)+"m"};
+ }
+ get seabedWalking(){return this.diving&&this.diveGear==="suit"&&this.depthM>0&&
+  this._floorDepth>0&&this._floorDepth-this.depthM<=1.5;}
+ sitesNear(controller,terrain,radius=420){
+  if(!isWater(terrainSurface(terrain,controller.lat,controller.lon)))return [];
+  return seaSitesNear(terrain,controller.lat,controller.lon,radius);
+ }
+ scan(controller,terrain){
+  if(!this.diving)return fail("潜水中に海底を調査してください");
+  const site=this.sitesNear(controller,terrain,110).find(s=>s.distanceM<=60&&
+   Math.abs(s.depthM-this.depthM)<24);
+  if(!site)return fail("60m以内・現在の深度付近に調査対象がありません");
+  this.scannedSites.add(site.id);
+  return {ok:true,site,message:SEA_SITE_TYPES[site.kind].symbol+" "+site.name+
+   "を発見。距離 "+site.distanceM.toFixed(1)+"m / 水深 "+site.depthM.toFixed(1)+"m"};
+ }
+ salvage(controller,terrain,resources){
+  if(!this.diving)return fail("海底で潜水してから調査してください");
+  const site=this.sitesNear(controller,terrain,25)[0];
+  if(!site||site.distanceM>7)return fail("調査対象の7m以内へ移動してください");
+  if(Math.abs(site.depthM-this.depthM)>3)return fail("目標の水深 "+site.depthM.toFixed(1)+"m まで潜ってください");
+  if(this.salvagedSites.has(site.id))return fail("この場所の発見物は回収済みです");
+  this.salvagedSites.add(site.id);this.scannedSites.add(site.id);
+  const found=SEA_SITE_TYPES[site.kind];
+  for(const [k,n] of Object.entries(found.loot))resources[k]=(resources[k]||0)+n;
+  return {ok:true,site,loot:found.loot,message:found.symbol+" "+site.name+"を調査・回収しました！ "+
+   Object.entries(found.loot).map(([k,n])=>k+" +"+n).join("、")};
+ }
  /** Sail speed is a fraction of the game-tuned hull speed; dropped anchor halts it. */
  sailingSpeed(boat=this.boarded){
   if(!boat)return 4.2;
@@ -234,12 +298,16 @@ export class MarineWorld{
  mode(controller,terrain){
   if(this.boarded)return "boat";
   const water=isWater(terrainSurface(terrain,controller.lat,controller.lon));
-  if(!water){this.diving=false;this.depthM=0;return "walk";}
+  if(!water){this.diving=false;this.depthM=0;this.targetDepthM=4;return "walk";}
   return this.diving?"dive":"swim";
  }
  update(dt,controller,terrain){
   const mode=this.mode(controller,terrain);
   controller.travelMode=mode;
+  const spec=this.gear;
+  controller.waterSpeedFactor=mode==="dive"?spec.speed:
+   mode==="swim"?(SWIM_STYLES[this.swimStyle]?.speed||1)*spec.speed:1;
+  this._floorDepth=(mode==="swim"||mode==="dive")?oceanFloorDepth(terrain,controller.lat,controller.lon):0;
   this.justCompletedLap=false;
   if(!this.boarded&&this.cabinId)this.cabinId=null;
   controller.boatOceanOnly=this.boarded?.kind==="sailing_ship";
@@ -267,22 +335,27 @@ export class MarineWorld{
    const boat=this.boarded,geo=controller.locationAt(controller.x,controller.z);
    boat.lat=geo.lat;boat.lon=geo.lon;boat.yaw=controller.yaw;
    if(boat.kind==="sailing_ship"&&dt>0)this.justCompletedLap=this.voyage.advance(boat.lat,boat.lon,terrain.planet.radiusM);
-   this.oxygen=Math.min(100,this.oxygen+dt*14);this.depthM=0;
+   this.oxygen=Math.min(spec.air,this.oxygen+dt*14);this.depthM=0;
   }else if(mode==="dive"){
-   this.depthM=Math.min(12,this.depthM+dt*1.4);
-   this.oxygen=Math.max(0,this.oxygen-dt*8);
-   if(this.oxygen===0){this.diving=false;this.depthM=0;}
+   const safeDepth=Math.min(spec.maxDepth,Math.max(0,this._floorDepth-1));
+   const goal=Math.min(safeDepth,this.targetDepthM);
+   const step=Math.max(0,dt)*1.8;
+   this.depthM=goal>this.depthM?Math.min(goal,this.depthM+step):Math.max(goal,this.depthM-step);
+   this.oxygen=Math.max(0,this.oxygen-dt*spec.drain);
+   if(this.oxygen===0){this.diving=false;this.depthM=0;this.targetDepthM=4;}
   }else{
    this.depthM=Math.max(0,this.depthM-dt*2);
-   this.oxygen=Math.min(100,this.oxygen+dt*18);
+   this.oxygen=Math.min(spec.air,this.oxygen+dt*(this.diveGear==="none"?18:4));
   }
   return mode;
  }
  dive(controller,terrain){
   if(this.boarded)return fail("船から降りてから潜ってください");
   if(!isWater(terrainSurface(terrain,controller.lat,controller.lon)))return fail("潜水は水面で開始してください");
+  if(this.oxygen<=0)return fail("空気が不足しています。水面で補給してください");
   this.diving=!this.diving;
-  if(!this.diving)this.depthM=0;
+  if(this.diving)this.targetDepthM=Math.min(4,this.gear.maxDepth);
+  else{this.depthM=0;this.targetDepthM=4;}
   return {ok:true,message:this.diving?"🤿 潜水開始。酸素ゲージに注意してください":"🌊 水面へ浮上しました"};
  }
  nearby(controller,limit=30){
@@ -359,6 +432,9 @@ export class MarineWorld{
  }
  snapshot(){return {version:1,boats:this.boats.map(b=>({...b})),nextId:this.nextId,
   boardedId:this.boardedId,diving:this.diving,depthM:this.depthM,oxygen:this.oxygen,
+  swimStyle:this.swimStyle,diveGear:this.diveGear,ownedGear:[...this.ownedGear],
+  targetDepthM:this.targetDepthM,scannedSites:[...this.scannedSites].slice(-5000),
+  salvagedSites:[...this.salvagedSites].slice(-5000),
   cabinId:this.cabinId,cabinActivity:this.cabinActivity,
   fishing:this.fishing.snapshot(),voyage:this.voyage.snapshot(),
   shipboard:this.shipboard.snapshot()};}
