@@ -355,10 +355,12 @@ function doFrame(t){
   const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
   const ship=marine?.boarded;
   // Cruise supplies forward power while manual steering stays authoritative.
-  const travelInput=running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
-   ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
+  const travelInput=marine?.cabinId?
+   {forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0}:
+   running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
+    ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1;
+  const manualLead=!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -381,10 +383,23 @@ function doFrame(t){
   }
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
-   renderer.cameraController.pan(dt,input.forward,input.strafe);
+   renderer.cameraController.pan(dt,marine?.cabinId?0:input.forward,marine?.cabinId?0:input.strafe);
    controller.update(dt,{forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0});
   }else controller.update(dt,travelInput);
   marine?.update(running?dt:0,controller,terrain);
+  if(running){
+   const fishingEvent=marine?.tickFishing(dt,planet.seed);
+   if(fishingEvent)log(fishingEvent.message);
+   if(marine?.justCompletedLap){
+    log("🌐 惑星一周達成！ 出発地点の海域に戻りました（"+marine.voyage.laps+"周）");
+    worldUI?.float({kind:"gain",text:"🌐 世界一周！",actorId:"player",duration:4});
+    saveMarineJournal();
+   }
+   if(marine?.boarded?.kind==="sailing_ship"){
+    voyageSaveElapsed+=dt;
+    if(voyageSaveElapsed>10){voyageSaveElapsed=0;saveMarineJournal();}
+   }
+  }
   if(running){
    fauna?.advance(dt,controller,faunaGroundPassable);
    processHarvestOrders();processArrowPickups();
@@ -458,7 +473,7 @@ function doFrame(t){
     }
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
-   life.advance(dt,controller.moving);
+   life.advance(dt,marine?.cabinId?false:controller.moving);
    if(running){
     for(const actor of squad.agents){
      const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
