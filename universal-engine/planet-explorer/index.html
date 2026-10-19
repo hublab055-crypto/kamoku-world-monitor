@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8j-map-directory-r3">
+<link rel="stylesheet" href="./style.css?v=0.8k-sailing-r1">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -95,7 +95,8 @@
         <span id="orbit-landing-terrain" class="orbit-landing-terrain"></span>
         <label class="orbit-landing-mode">降下先 <select id="landing-water-mode" aria-label="陸上降下か海上降下かを選ぶ">
           <option value="land" selected>🏝️ 陸地へ降下（安全優先）</option>
-          <option value="sea">🌊 海上に降下（泳いで開始）</option>
+          <option value="sea">🏊 海面に降下（泳いで開始）</option>
+          <option value="sea-ship">⛵ 中型帆船の甲板に降下（外洋）</option>
         </select></label>
         <button type="button" id="orbit-landing-confirm" class="primary">↓ この地点へ降下</button>
         <button type="button" id="orbit-landing-clear" aria-label="選択地点を取り消す">✕</button>
@@ -193,11 +194,26 @@
   <label>造船 <select id="marine-boat-kind">
    <option value="raft">🪵 木のいかだ（木10・繊維6）</option>
    <option value="canoe">🛶 手こぎ舟（木18・繊維10）</option>
+   <option value="sailing_ship">⛵ 中型帆船（木85・板45・繊維45・金属8）</option>
   </select></label>
   <button type="button" id="marine-craft">🔨 浜辺で船をクラフト</button>
   <button type="button" id="marine-board">🛶 乗船する</button>
-  <button type="button" id="marine-leave">🏝️ 上陸・下船</button>
- </div><small>徒歩から海へ進むと泳ぎ、水面で「潜る」と酸素を消費します。浜辺や入り江から造船して乗船できます。</small>
+  <button type="button" id="marine-leave">🏝️ 上陸・下船・海面へ</button>
+ </div>
+ <section id="marine-sail-controls" class="marine-sail-controls" aria-label="帆船の操船" hidden>
+  <strong>⛵ 中型帆船・操船</strong>
+  <p id="marine-helm-status" role="status" aria-live="polite">舵・帆を準備しています</p>
+  <label for="marine-sail-trim">帆の開き具合 <output id="marine-sail-value" for="marine-sail-trim">65%</output></label>
+  <input type="range" id="marine-sail-trim" min="0" max="100" step="5" value="65" aria-label="帆の開き具合">
+  <div class="marine-helm-buttons">
+   <button type="button" id="marine-steer-left" title="左舵12度">↶ 左舵</button>
+   <button type="button" id="marine-steer-right" title="右舵12度">↷ 右舵</button>
+   <button type="button" id="marine-cruise">▶ 巡航開始</button>
+   <button type="button" id="marine-anchor">⚓ 投錨する</button>
+  </div>
+  <small>操船はスティック・WASD・ダブルタップでも可能。巡航中は手動で舵を切りながら進みます。海面へ降りても巡航中の船は進み続けるため、再乗船は船の近くで行ってください。</small>
+ </section>
+ <small>海への降下では水面か帆船の甲板を選択。帆船は外洋航行向け。航行中にも操船や上陸・飛び込み・再乗船ができます。矢は着弾後90秒間だけ回収できます。</small>
 </section>
 <section id="fauna-panel" class="fauna-panel" role="dialog" aria-label="野生動物・馬の操作" hidden>
  <div class="fauna-panel-top">
@@ -772,6 +788,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8j-map-directory-r3"></script>
+<script type="module" src="./app.mjs?v=0.8k-sailing-r1"></script>
 </body>
 </html>
