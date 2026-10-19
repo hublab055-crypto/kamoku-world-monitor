@@ -33,7 +33,8 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8m-ship-life-navigation";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8m-ship-life-navigation-r3";
+import {FISH_CATALOG} from "./ship-life.mjs?v=0.8m-fishing-r3";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -654,7 +655,7 @@ function updateHUD(){
    "🐟 アタリ！引き上げてください（残り"+Math.ceil(fishing.hookLeft)+"秒）":
    fishing.casting?"🎣 アタリ待ち… 約"+Math.ceil(Math.max(0,fishing.nextBite-fishing.elapsed))+"秒":
     "釣果 "+fishing.caught+"匹／魚の所持数 "+(actions.resources.fish||0)+
-    "匹。甲板または浜辺で仕掛けを投げられます";
+    "匹。直近の釣果："+(FISH_CATALOG[fishing.lastCatch]?.name||"なし")+". 甲板・浜辺で釣れます";
  }
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
