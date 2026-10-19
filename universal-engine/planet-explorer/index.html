@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8m-ship-cabin-r4">
+<link rel="stylesheet" href="./style.css?v=0.8n-shipboard-crew">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -213,6 +213,24 @@
   </div>
   <small>操船はスティック・WASD・ダブルタップでも可能。巡航中は手動で舵を切りながら進みます。海面へ降りても巡航中の船は進み続けるため、再乗船は船の近くで行ってください。</small>
  </section>
+ <section id="marine-crew-controls" class="marine-activity-section" aria-label="乗組員と船内歩行" hidden>
+  <strong>🧑‍✈️ 乗組員・甲板歩行</strong>
+  <p id="marine-shipboard-status" aria-live="polite">乗組員を準備しています</p>
+  <label for="marine-helm-member">舵輪の担当者
+   <select id="marine-helm-member" aria-label="操舵する人物を選ぶ"></select>
+  </label>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-helm-assign">🧭 操舵担当を交代</button>
+   <button type="button" id="marine-helm-walk">🚶 舵輪へ歩く</button>
+   <button type="button" id="marine-ship-door">🚪 扉を開く</button>
+   <button type="button" id="marine-ship-passage">🚶 扉を通る</button>
+  </div>
+  <label for="marine-talk-member">話しかける相手
+   <select id="marine-talk-member" aria-label="会話する乗組員を選ぶ"></select>
+  </label>
+  <button type="button" id="marine-talk">💬 仲間と話す</button>
+  <small>スティックで甲板・船室を歩行、ダブルタップで船内の移動地点を指定。扉まで歩いて開閉できます。舵輪に立つ人物だけが操船し、ほかの仲間は船内外を自律行動します。</small>
+ </section>
  <section id="marine-cabin-controls" class="marine-activity-section" aria-label="帆船の船室" hidden>
   <strong>🛏️ 船室・居住空間</strong>
   <p id="marine-cabin-status" role="status">甲板にいます</p>
@@ -224,7 +242,7 @@
    <button type="button" data-cabin-action="bookshelf">📚 本棚・航海日誌</button>
    <button type="button" data-cabin-action="kitchen">🍳 魚を調理する</button>
   </div>
-  <small>航行中も船室で休み、食事や読書ができます。船室内の家具は3Dモデルを直接タップしても使えます。</small>
+  <small>航行中も船室で休み、食事や読書ができます。扉から移動でき、家具は3Dモデルを直接タップしても使えます。</small>
  </section>
  <section id="marine-fishing-controls" class="marine-activity-section" aria-label="釣り・水産資源">
   <strong>🎣 釣り</strong>
@@ -817,6 +835,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8m-circumnavigation-cabin-r4"></script>
+<script type="module" src="./app.mjs?v=0.8n-moving-shipboard"></script>
 </body>
 </html>
