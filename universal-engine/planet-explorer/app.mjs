@@ -2092,7 +2092,11 @@ for(const [id,act] of [
 ]){
  $(id).addEventListener("click",()=>{
   const result=act();log(result.message);
-  if(result.ok){renderer.patchKey=null;saveMarineJournal();saveLifeJournal();}
+  if(result.ok){
+   if(marine.boarded?.kind==="sailing_ship")
+    marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
+   renderer.patchKey=null;saveMarineJournal();saveLifeJournal();
+  }
   updateHUD();
  });
 }
@@ -2114,6 +2118,35 @@ $("marine-anchor").addEventListener("click",()=>shipAction(()=>marine.setAnchor(
 for(const [id,angle] of [["marine-steer-left",-Math.PI/15],["marine-steer-right",Math.PI/15]]){
  $(id).addEventListener("click",()=>shipAction(()=>marine.steer(angle,controller)));
 }
+// Helm and shipboard actions are local to the moving vessel.
+const onboardAction=fn=>{
+ const result=fn();log(result.message);
+ if(result.ok)saveMarineJournal();
+ updateHUD();return result;
+};
+$("marine-helm-assign").addEventListener("click",()=>{
+ onboardAction(()=>marine.shipboard.assignHelm($("marine-helm-member").value));
+});
+$("marine-helm-walk").addEventListener("click",()=>{
+ onboardAction(()=>marine.shipboard.assignHelm("player"));
+});
+$("marine-ship-door").addEventListener("click",()=>{
+ onboardAction(()=>marine.shipboard.toggleDoor());
+});
+$("marine-ship-passage").addEventListener("click",()=>{
+ const board=marine.shipboard;
+ if(!board.doorOpen){log("🚪 まず船室の扉を開いてください");return;}
+ const result=onboardAction(()=>board.player.zone==="cabin"?marine.exitCabin():marine.enterCabin());
+ if(result.ok){
+  life.activity="idle";life.activityFurnitureId=null;
+  renderer.cameraController.smoothEye=null;renderer.cameraController.smoothTarget=null;
+ }
+});
+$("marine-talk").addEventListener("click",()=>{
+ const id=$("marine-talk-member").value,name=squad.get(id)?.name||"仲間";
+ const result=onboardAction(()=>marine.shipboard.talk(id,name));
+ if(result.ok&&result.speech)worldUI?.speak(id,result.speech);
+});
 // Living quarters are attached to the moving ship; entering never stops cruise.
 $("marine-cabin-toggle").addEventListener("click",()=>{
  const wasInside=Boolean(marine.cabinId);
