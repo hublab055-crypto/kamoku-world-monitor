@@ -569,6 +569,25 @@ function doFrame(t){
  }
  requestAnimationFrame(doFrame);
 }
+function refreshShipCrewChoices(){
+ const board=marine?.shipboard;
+ if(!board?.active||!squad)return;
+ const members=[{id:"player",name:squad.get("player")?.name||"自分"},
+  ...board.crew.filter(c=>squad.get(c.id)).map(c=>({id:c.id,name:squad.get(c.id).name}))];
+ const key=members.map(c=>c.id+":"+c.name).join("|");
+ for(const id of ["marine-helm-member","marine-talk-member"]){
+  const field=$(id);
+  if(field.dataset.roster!==key){
+   const old=field.value;
+   field.replaceChildren(...members.filter(c=>id!=="marine-talk-member"||c.id!=="player")
+    .map(c=>{const option=document.createElement("option");option.value=c.id;
+     option.textContent=(c.id==="player"?"🧍 ":"👥 ")+c.name;return option;}));
+   field.dataset.roster=key;
+   if([...field.options].some(o=>o.value===old))field.value=old;
+   else field.value=id==="marine-helm-member"?board.helmId:members[1]?.id||"";
+  }
+ }
+}
 function updateHUD(){
  const g=terrainSurface(terrain,controller.lat,controller.lon);
  const climate=weather.sample(controller.lat,controller.lon,g.elevationM);
@@ -665,6 +684,20 @@ function updateHUD(){
    $("marine-anchor").textContent=helm.anchor?"⚓ 揚錨する":"⚓ 投錨する";
    $("marine-cruise").setAttribute("aria-pressed",String(helm.cruise));
    $("marine-anchor").setAttribute("aria-pressed",String(helm.anchor));
+  }
+  const board=marine.shipboard;
+  $("marine-crew-controls").hidden=!ship;
+  if(ship){
+   refreshShipCrewChoices();
+   const pilot=squad.get(board.helmId)?.name||"不在";
+   const p=board.player,zone=p.zone==="cabin"?"🛏️ 船室":"⛵ 甲板";
+   $("marine-shipboard-status").textContent=zone+" ／ 操舵 "+pilot+
+    " ／ 仲間 "+board.crew.length+"人 ／ 船内位置 X"+p.x.toFixed(1)+
+    " Z"+p.z.toFixed(1)+" ／ "+(p.moving?"歩行中":"停止中");
+   $("marine-ship-door").textContent=board.doorOpen?"🚪 扉を閉める":"🚪 扉を開く";
+   $("marine-ship-passage").textContent=p.zone==="cabin"?"🚶 甲板へ出る":"🚶 船室へ入る";
+   $("marine-helm-assign").disabled=false;
+   $("marine-helm-walk").disabled=board.helmId==="player"||p.zone==="cabin";
   }
   const cabin=Boolean(marine.cabinId&&ship);
   $("marine-cabin-controls").hidden=!ship;
