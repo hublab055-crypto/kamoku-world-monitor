@@ -67,6 +67,8 @@ test("fishing advances only with supplied simulation dt and gives exactly one fi
  const saved=new MarineWorld(m.snapshot());
  assert.equal(saved.fishing.caught,1);
  assert.equal(saved.fishing.lastCatch,catch1.kind);
+ assert.equal(saved.fishing.history.length,1);
+ assert.equal(saved.fishing.history[0].kind,catch1.kind);
 });
 test("hooked fish eventually escape unless reeled in and fishing state saves",()=>{
  const f=new ShipFishing();
