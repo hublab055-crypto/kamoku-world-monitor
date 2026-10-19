@@ -1,6 +1,7 @@
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
 import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing-r3";
+import {ShipboardWorld} from "./shipboard.mjs?v=0.8n-crew-walking";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
@@ -90,6 +91,7 @@ export class MarineWorld{
   this.cabinId=null;this.cabinActivity="idle";
   this.fishing=new ShipFishing(data?.fishing);
   this.voyage=new VoyageLog(data?.voyage);this.justCompletedLap=false;
+  this.shipboard=new ShipboardWorld(data?.shipboard);
   if(data?.version===1&&Array.isArray(data.boats)){
    this.boats=data.boats.slice(0,64).filter(b=>Object.hasOwn(BOATS,b.kind)&&
     [b.lat,b.lon,b.yaw].every(Number.isFinite)&&Math.abs(b.lat)<=90&&Math.abs(b.lon)<=180)
@@ -136,6 +138,7 @@ export class MarineWorld{
   }
   controller.travelMode="boat";controller.boatOceanOnly=true;controller.clearMoveTarget();
   this.cabinId=null;this.cabinActivity="idle";this.fishing.stop();
+  this.shipboard.init(vessel.id,["scout","artisan"]);
   this.voyage=new VoyageLog(null,{lat:vessel.lat,lon:vessel.lon});
   controller.boatSpeed=this.sailingSpeed(vessel);
   return {ok:true,boat:vessel,message:"⛵ 外洋用中型帆船の甲板に降下しました。帆・舵・巡航と下船を操作できます"};
@@ -177,13 +180,29 @@ export class MarineWorld{
  enterCabin(){
   const boat=this.boarded;
   if(boat?.kind!=="sailing_ship")return fail("中型帆船に乗っている間だけ船室に入れます");
+  if(this.shipboard.active&&this.shipboard.shipId===boat.id){
+   if(!this.shipboard.doorOpen){
+    const opened=this.shipboard.toggleDoor();
+    if(!opened.ok)return opened;
+   }
+   const passage=this.shipboard.passage();
+   if(!passage.ok)return passage;
+  }
   this.cabinId=boat.id;this.cabinActivity="idle";this.fishing.stop();
   return {ok:true,message:"🚪 甲板から船室へ入りました。ベッド・椅子・食卓・本棚が使えます"};
  }
  exitCabin(){
   if(!this.cabinId)return fail("船室には入っていません");
+  if(this.shipboard.active&&this.shipboard.shipId===this.boardedId){
+   if(!this.shipboard.doorOpen){
+    const opened=this.shipboard.toggleDoor();
+    if(!opened.ok)return opened;
+   }
+   const passage=this.shipboard.passage();
+   if(!passage.ok)return passage;
+  }
   this.cabinId=null;this.cabinActivity="idle";
-  return {ok:true,message:"⛵ 船室から甲板へ出ました。釣りや操船ができます"};
+  return {ok:true,message:"⛵ 扉を通って甲板へ出ました。釣りや操船ができます"};
  }
  cabinUse(kind){
   if(!this.cabinId||this.cabinId!==this.boardedId)return fail("まず船室に入ってください");
@@ -314,6 +333,7 @@ export class MarineWorld{
   if(!nearest)return fail("32m以内に船がありません");
   if(!isWater(terrainSurface(terrain,nearest.lat,nearest.lon)))return fail("船が陸上にあります");
   this.boardedId=nearest.id;this.diving=false;this.depthM=0;this.cabinId=null;this.cabinActivity="idle";
+  if(nearest.kind==="sailing_ship"){this.shipboard.init(nearest.id,["scout","artisan"]);this.shipboard.embark();}
   controller.x=nearest.x;controller.z=nearest.z;controller.lat=nearest.lat;controller.lon=nearest.lon;
   controller.yaw=nearest.yaw;controller.moveTarget=null;controller.travelMode="boat";
   controller.boatOceanOnly=nearest.kind==="sailing_ship";
@@ -324,6 +344,7 @@ export class MarineWorld{
   if(!this.boarded)return fail("乗船中ではありません");
   if(this.cabinId)return fail("船室から甲板へ出てから下船してください");
   this.fishing.stop();
+  if(this.shipboard.active)this.shipboard.leave();
   for(let d=2;d<=24;d+=2)for(let i=0;i<32;i++){
    const a=i*2*Math.PI/32,x=controller.x+Math.cos(a)*d,z=controller.z+Math.sin(a)*d;
    const geo=controller.locationAt(x,z),s=terrainSurface(terrain,geo.lat,geo.lon);
@@ -339,5 +360,6 @@ export class MarineWorld{
  snapshot(){return {version:1,boats:this.boats.map(b=>({...b})),nextId:this.nextId,
   boardedId:this.boardedId,diving:this.diving,depthM:this.depthM,oxygen:this.oxygen,
   cabinId:this.cabinId,cabinActivity:this.cabinActivity,
-  fishing:this.fishing.snapshot(),voyage:this.voyage.snapshot()};}
+  fishing:this.fishing.snapshot(),voyage:this.voyage.snapshot(),
+  shipboard:this.shipboard.snapshot()};}
 }
