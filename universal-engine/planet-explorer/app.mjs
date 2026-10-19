@@ -1118,12 +1118,50 @@ function useShipFurniture(kind){
  }
  log(effect.message);updateHUD();
 }
+/** Ship actions are resolved in vessel coordinates, independent of global terrain. */
+function interactOnShip(hit){
+ const board=marine?.shipboard;
+ if(!board?.active||!marine.boarded)return false;
+ let result=null;
+ if(hit.type==="crew"){
+  const name=squad.get(hit.id)?.name||hit.name||"仲間";
+  result=board.talk(hit.id,name);
+  if(!result.ok){
+   const crew=board.member(hit.id);
+   if(crew?.zone===board.player.zone){
+    const distance=Math.hypot(crew.x-board.player.x,crew.z-board.player.z);
+    if(distance>3.5){
+     const target={x:crew.x+Math.sin(crew.yaw||0)*1.8,z:crew.z+Math.cos(crew.yaw||0)*1.8};
+     result=board.setDestination(target.x,target.z);
+     if(result.ok)result.message="🚶 "+name+"に近づきます。近くで再びタップすると会話できます";
+    }
+   }
+  }
+  if(result?.ok&&result.speech)worldUI?.speak(hit.id,result.speech);
+ }else if(hit.type==="door"){
+  result=board.toggleDoor();
+ }else if(hit.type==="helm"){
+  result=board.assignHelm("player");
+ }else return false;
+ log(result.message);
+ if(result.ok)saveMarineJournal();
+ updateHUD();return true;
+}
 function handleSceneTap({x,y,shiftKey=false}){
  if(!renderer)return;
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   selectOrbitLanding(x,y);return;
  }
  if(!controller?.nearGround)return;
+ if(marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId){
+  const target=renderer.pickShipboard(x,y);
+  if(target&&interactOnShip(target))return;
+  if(marine.shipboard.player.zone==="cabin"){
+   const furniture=renderer.pickMarineFurniture(x,y);
+   if(furniture)useShipFurniture(furniture.kind);
+  }
+  return; // Ocean terrain under the hull is not a harvest/movement target.
+ }
  if(marine?.cabinId){
   const furniture=renderer.pickMarineFurniture(x,y);
   if(furniture)useShipFurniture(furniture.kind);
@@ -1155,7 +1193,13 @@ function handleSceneTap({x,y,shiftKey=false}){
 }
 function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(!renderer)return;
- if(marine?.cabinId)return; // Leave cabin before ordering ground movement.
+ if(marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId){
+  const floor=renderer.pickShipboardFloor(x,y);
+  const result=floor?marine.shipboard.setDestination(floor.x,floor.z):
+   {ok:false,message:"甲板・船室の歩ける床を指定してください"};
+  log(result.message);if(result.ok)saveMarineJournal();updateHUD();return;
+ }
+ if(marine?.cabinId)return;
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   if(selectOrbitLanding(x,y))confirmOrbitLanding();
   return;
