@@ -1430,11 +1430,14 @@ export class ExplorerRenderer{
  }
  drawFishingActivity(vp,light,s,waterY){
   if(!this.marine?.fishing?.casting||this.marine.cabinId||s.altitudeM>12)return;
-  const rodX=s.x-this.cx+Math.cos(s.yaw)*.50,rodZ=s.z-this.cz+Math.sin(s.yaw)*.50;
+  const p=this.marine.shipboard?.shipId===this.marine.boardedId?this.marine.shipboard.player:null;
+  const position=p?shipLocalToWorld(s.x,s.z,s.yaw,p.x,p.z):{x:s.x,z:s.z};
+  const heading=s.yaw+(p?.yaw||0);
+  const rodX=position.x-this.cx+Math.cos(heading)*.50,rodZ=position.z-this.cz+Math.sin(heading)*.50;
   const rodBase=multiply4(translate(rodX,waterY+(this.marine.boarded?1.65:.25),rodZ),rotX(-.4));
   this.drawMesh(this.fishingRod,multiply4(vp,rodBase),light,1,.82);
-  const distance=5.2,fx=s.x-this.cx+Math.sin(s.yaw)*distance,
-   fz=s.z-this.cz+Math.cos(s.yaw)*distance;
+  const distance=5.2,fx=position.x-this.cx+Math.sin(heading)*distance,
+   fz=position.z-this.cz+Math.cos(heading)*distance;
   const bounce=.07*Math.sin(this.marineClock*2.3);
   this.drawMesh(this.fishingFloat,multiply4(vp,translate(fx,waterY+.10+bounce,fz)),light,1,.88);
  }
