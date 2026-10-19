@@ -1175,7 +1175,15 @@ function interactOnShip(hit){
   }
   if(result?.ok&&result.speech)worldUI?.speak(hit.id,result.speech);
  }else if(hit.type==="door"){
-  result=board.toggleDoor();
+  // First tap opens the visible door; next tap walks through the opening.
+  if(!board.doorOpen)result=board.toggleDoor();
+  else{
+   result=board.player.zone==="cabin"?marine.exitCabin():marine.enterCabin();
+   if(result.ok){
+    life.activity="idle";life.activityFurnitureId=null;
+    renderer.cameraController.smoothEye=null;renderer.cameraController.smoothTarget=null;
+   }
+  }
  }else if(hit.type==="helm"){
   result=board.assignHelm("player");
  }else return false;
