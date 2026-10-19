@@ -14,6 +14,7 @@ import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {oceanWavePatch,fishAt} from "./marine.mjs?v=0.8k-sailing-ship";
 import {sailingShipGeometry} from "./sailing-ship-geometry.mjs?v=0.8k-ship-deck";
 import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8m-living-cabin-r2";
+import {shipLocalToWorld,shipWorldToLocal,isShipWalkable,SHIP_HELM,SHIP_DOOR} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8i-swim";
 import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
@@ -619,6 +620,11 @@ export class ExplorerRenderer{
   this.boatMeshes={raft:new Mesh(gl,boatGeometry("raft")),canoe:new Mesh(gl,boatGeometry("canoe"))};
    this.sailingShipMeshes=[0,.5,1].map(trim=>new Mesh(gl,sailingShipGeometry(trim)));
    this.shipCabinShell=new Mesh(gl,shipCabinGeometry());
+   const shipDoor=builder();
+   box(shipDoor,0,0,0,.53,1.69,.07,[.40,.24,.12]);
+   box(shipDoor,.37,.81,.085,.052,.14,.035,[.91,.72,.38]);
+   this.shipDoorMesh=new Mesh(gl,shipDoor);
+   this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.screenMarineFurniture=[];
    const rod=builder();
    box(rod,0,.05,0,.019,2.8,.019,[.53,.35,.16]);
@@ -1501,7 +1507,15 @@ export class ExplorerRenderer{
    this.patchKey=key;this.cx=cx;this.cz=cz;
    this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
   }
-  const px=s.x-this.cx,pz=s.z-this.cz;
+  const shipboard=this.marine?.shipboard;
+  const onboard=Boolean(this.marine?.boarded?.kind==="sailing_ship"&&
+   shipboard?.shipId===this.marine.boardedId);
+  const person=onboard?shipboard.player:null;
+  const worldPerson=person?shipLocalToWorld(s.x,s.z,s.yaw,person.x,person.z):{x:s.x,z:s.z};
+  const viewS=person?{...s,x:worldPerson.x,z:worldPerson.z,
+   yaw:s.yaw+person.yaw,moving:person.moving,
+   totalDistanceM:shipboard.elapsed*2.6,movementSpeed:()=>2.65}:s;
+  const px=viewS.x-this.cx,pz=viewS.z-this.cz;
   const currentSurface=terrainSurface(this.terrain,s.lat,s.lon);
   const ground=currentSurface.elevationM;
   const waterY=Number.isFinite(currentSurface.waterLevelM)?currentSurface.waterLevelM:0;
@@ -1513,7 +1527,7 @@ export class ExplorerRenderer{
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
   const room=this.sceneActions?.structures.find(b=>b.id===this.interiorBuildingId&&b.progress>=1);
   const cabinActive=Boolean(this.marine?.cabinId&&this.marine.boarded?.id===this.marine.cabinId);
-  const camYaw=s.yaw||0;
+  const camYaw=viewS.yaw||0;
   const camera=room?{
    eye:[room.x-this.cx+1.5,room.height+8.1,room.z-this.cz+4.4],
    target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
@@ -1522,7 +1536,7 @@ export class ExplorerRenderer{
    eye:[px+Math.cos(camYaw)*4.4+Math.sin(camYaw)*5.8,waterY+6.9,
     pz-Math.sin(camYaw)*4.4+Math.cos(camYaw)*5.8],
    target:[px,waterY+1.55,pz],fovDeg:58,heightM:6,marker:false
-  }:this.cameraController.groundView(s,{
+  }:this.cameraController.groundView(viewS,{
     cx:this.cx,cz:this.cz,groundM:marinePose?.action==="swim"||marinePose?.action==="tread"?waterY-1:feet,focusGroundM:focusGround,dt
   });
   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
@@ -1573,6 +1587,7 @@ export class ExplorerRenderer{
   this.drawFauna(vp,light,s,radius);
   this.drawMarineWildlife(vp,light,s,radius);
   this.drawShipCabin(vp,light,s,waterY);
+  this.drawShipboardObjects(vp,light,s,waterY);
   this.drawFishingActivity(vp,light,s,waterY);
   this.drawFrontier(vp,light,s,radius);
   this.drawTestEnemies(vp,light,s,radius);
@@ -1591,8 +1606,8 @@ export class ExplorerRenderer{
    {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
    baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
-  if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,s,light,dt,playerMotion,'player'))
-   this.drawArticulated(vp,transform,s,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
+  if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
+   this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   // Each companion has a separate controller and animator. Screen-space
   // projections are used for tap selection in the overhead RTS view.
   const actors=this.squad?.agents||[];
@@ -1628,7 +1643,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.fishingRod,this.fishingFloat,...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
