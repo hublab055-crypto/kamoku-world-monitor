@@ -628,6 +628,30 @@ function updateHUD(){
    $("marine-cruise").setAttribute("aria-pressed",String(helm.cruise));
    $("marine-anchor").setAttribute("aria-pressed",String(helm.anchor));
   }
+  const cabin=Boolean(marine.cabinId&&ship);
+  $("marine-cabin-controls").hidden=!ship;
+  $("marine-cabin-furniture").hidden=!cabin;
+  $("marine-cabin-toggle").textContent=cabin?"🚪 船室から甲板へ出る":"🚪 船室に入る";
+  $("marine-cabin-status").textContent=cabin?
+   "🚢 船室内・"+(marine.cabinActivity==="idle"?"生活設備が使えます":marine.cabinActivity+"を使用"):
+   "⛵ 甲板上。航海中にも入室できます";
+  $("marine-voyage-controls").hidden=!ship;
+  if(ship){
+   const p=marine.voyage.progress(terrain.planet.radiusM);
+   $("marine-voyage-status").textContent="航行 "+
+    (p.distanceM/1000).toFixed(1)+"km ／ 経度方向の進捗 "+p.percent.toFixed(1)+
+    "% ／ 一周達成 "+p.laps+"回 ／ "+controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
+   $("marine-voyage-progress").value=p.percent;
+  }
+  const fishing=marine.fishing;
+  $("marine-fish-cast").disabled=!isSurface||cabin||fishing.casting||controller.travelMode==="swim"||controller.travelMode==="dive";
+  $("marine-fish-reel").disabled=!isSurface||cabin||!fishing.hook;
+  $("marine-fish-stop").disabled=!fishing.casting;
+  $("marine-fishing-status").textContent=fishing.hook?
+   "🐟 アタリ！引き上げてください（残り"+Math.ceil(fishing.hookLeft)+"秒）":
+   fishing.casting?"🎣 アタリ待ち… 約"+Math.ceil(Math.max(0,fishing.nextBite-fishing.elapsed))+"秒":
+    "釣果 "+fishing.caught+"匹／魚の所持数 "+(actions.resources.fish||0)+
+    "匹。甲板または浜辺で仕掛けを投げられます";
  }
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
