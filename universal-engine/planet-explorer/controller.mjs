@@ -15,7 +15,7 @@ export class ExplorerController {
     this.x=0;this.z=0;this.lat=site.lat;this.lon=site.lon;
     this.yaw=0;this.altitudeM=16000000;this.targetAltitudeM=16000000;
     this.walkSpeed=5;this.totalDistanceM=0;this.blocked=false;
-    this.jumpY=0;this.jumpV=0;this.moving=false;this.moveTarget=null;this.travelMode="walk";this.boatSpeed=4.2;
+    this.jumpY=0;this.jumpV=0;this.moving=false;this.moveTarget=null;this.travelMode="walk";this.boatSpeed=4.2;this.boatOceanOnly=false;
   }
   get nearGround(){return this.altitudeM<=12.01}
   setLanding(lat,lon,{allowWater=false}={}){
@@ -50,10 +50,10 @@ export class ExplorerController {
     if(![x,z].every(Number.isFinite))throw new TypeError("Invalid movement target.");
     if(this.altitudeM>12.01) return false;
     const range=Math.hypot(x-this.x,z-this.z);
-    if(range>.3&&range<=(this.mountRiding?1200:350)){
+    if(range>.3&&range<=(this.travelMode==="boat"?6000:this.mountRiding?1200:350)){
       const sample=this.locationAt(x,z),surface=terrainSurface(this.terrain,sample.lat,sample.lon);
       if(surface.elevationM>2800||
-        (this.travelMode==="boat"&&!(surface.water||surface.river)))return false;
+        (this.travelMode==="boat"&&(!(surface.water||surface.river)||this.boatOceanOnly&&surface.river)))return false;
       this.moveTarget={x,z};return true;
     }
     return false;
@@ -112,7 +112,7 @@ export class ExplorerController {
       for(let k=1;k<=segments;k++){
         const t=k/segments,g=this.locationAt(this.x+east*t,this.z+north*t);
         const sample=terrainSurface(this.terrain,g.lat,g.lon);
-        if(sailing?!wet(sample):(!wet(sample)&&(sample.elevationM>2800||
+        if(sailing?(!wet(sample)||this.boatOceanOnly&&sample.river):(!wet(sample)&&(sample.elevationM>2800||
             (wet(present)&&sample.elevationM-(present.waterLevelM??0)>3.5)))){
           ok=false;break;
         }
