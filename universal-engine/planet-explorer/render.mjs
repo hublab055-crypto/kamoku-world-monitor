@@ -96,7 +96,8 @@ class InstancedMesh extends Mesh{
   gl.bindVertexArray(this.vao);
   const buffer=gl.createBuffer();this.buffers.push(buffer);
   gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-  gl.bufferData(gl.ARRAY_BUFFER,transforms,gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER,transforms,gl.DYNAMIC_DRAW);
+  this.instanceBuffer=buffer;
   gl.enableVertexAttribArray(3);gl.vertexAttribPointer(3,4,gl.FLOAT,false,24,0);
   gl.vertexAttribDivisor(3,1);
   gl.enableVertexAttribArray(4);gl.vertexAttribPointer(4,2,gl.FLOAT,false,24,16);
@@ -108,6 +109,12 @@ class InstancedMesh extends Mesh{
   if(!this.supported){super.draw();return;}
   const gl=this.gl;gl.bindVertexArray(this.vao);
   gl.drawElementsInstanced(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0,this.instanceCount);
+ }
+ updateTransforms(transforms){
+  if(transforms.length!==this.instanceCount*6)throw new RangeError("Instance count mismatch");
+  if(!this.supported||!this.instanceBuffer||typeof this.gl.bufferSubData!=="function")return;
+  this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.instanceBuffer);
+  this.gl.bufferSubData(this.gl.ARRAY_BUFFER,0,transforms);
  }
 }
 
@@ -629,7 +636,7 @@ export class ExplorerRenderer{
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
-  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.settlementId="pioneer";this.sceneryStats=null;this.patchKey=null;
+  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.sceneryStats=null;this.patchKey=null;
    this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
@@ -1628,7 +1635,7 @@ export class ExplorerRenderer{
   const resolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution,this.settlementId].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
-   this.patch?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor])mesh.destroy();
+   this.patch?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
    this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    this.patch=new Mesh(gl,this.groundPatchData);
    const channel=buildRiverWaterPatch(this.terrain,geo,radius);
@@ -1661,8 +1668,22 @@ export class ExplorerRenderer{
    this.meadow=instanced.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
    this.settlement=scenery.settlement.map(g=>new Mesh(gl,g));
    this.settlementDecor=[];
-   if(plan.people.length)this.settlementDecor.push(new Mesh(gl,
-    settlementResidentsGeometry(plan.people,heightAt)));
+   this.residentMeshes=[];
+   // One moving crowd draw call per clothing variant rather than per person.
+   for(let clothing=0;clothing<6;clothing++){
+    const residents=plan.people.filter(p=>p.clothing===clothing);
+    if(!residents.length)continue;
+    const prototype=settlementResidentsGeometry([{id:"prototype",x:0,z:0,clothing}],()=>0);
+    const transforms=new Float32Array(residents.length*6);
+    for(let i=0;i<residents.length;i++){
+     const p=residents[i],k=i*6;
+     transforms.set([p.localX,p.elevationM,p.localZ,1,
+      Math.cos(p.facing),Math.sin(p.facing)],k);
+    }
+    const mesh=new InstancedMesh(gl,prototype,transforms);
+    mesh.residents=residents;mesh.dynamicTransforms=transforms;
+    this.residentMeshes.push(mesh);
+   }
    if(plan.landmark)this.settlementDecor.push(new Mesh(gl,observationTowerGeometry({
     x:plan.landmark.localX,z:plan.landmark.localZ,y:plan.landmark.elevationM
    })));
@@ -1731,6 +1752,21 @@ export class ExplorerRenderer{
    this.drawFallingTrees(vp,light,dt);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
+   // Residents stroll gently along lanes; movement is local and deterministic.
+   for(const mesh of this.residentMeshes){
+    for(let i=0;i<mesh.residents.length;i++){
+     const resident=mesh.residents[i],a=this.marineClock*.55+i*1.4+resident.clothing;
+     const dx=Math.sin(a)*.65,dz=Math.cos(a)*.55,k=i*6;
+     mesh.dynamicTransforms[k]=resident.localX+dx;
+     mesh.dynamicTransforms[k+1]=resident.elevationM+Math.max(0,Math.sin(a*4))*.035;
+     mesh.dynamicTransforms[k+2]=resident.localZ+dz;
+     mesh.dynamicTransforms[k+3]=1;
+     mesh.dynamicTransforms[k+4]=Math.cos(a+Math.PI*.5);
+     mesh.dynamicTransforms[k+5]=Math.sin(a+Math.PI*.5);
+    }
+    mesh.updateTransforms(mesh.dynamicTransforms);
+    this.drawInstancedMesh(mesh,vp,light,1,.72);
+   }
    this.drawPlacedStructures(vp,light,s,radius);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
   this.screenResources=[];
@@ -1837,7 +1873,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
