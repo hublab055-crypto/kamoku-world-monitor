@@ -3,7 +3,7 @@ import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
-import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {findLand,terrainSurface} from "./geo.mjs?v=0.8p-island-height";
 import {ExplorerRenderer} from "./render.mjs?v=0.8p-islands-fishing";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
