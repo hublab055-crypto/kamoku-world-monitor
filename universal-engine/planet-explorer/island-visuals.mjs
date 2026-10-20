@@ -1,5 +1,5 @@
 import {islandCenters} from "../planet/island-archipelago.mjs?v=0.8p-islands";
-import {geoOffset,geoNormal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {geoOffset,geoNormal,terrainSurface} from "./geo.mjs?v=0.8p-island-height";
 /** Additional small island geometry for the globe's very coarse mainland grid.
  * All island vertices are queried from the EXACT same sampler as the walkable islands.
  */
