@@ -33,6 +33,7 @@ import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8e-sized-resources";
 import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
+import {observationTowerGeometry,settlementResidentsGeometry} from "./settlement-geometry.mjs?v=0.8r-towns";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -628,7 +629,7 @@ export class ExplorerRenderer{
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
-  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
+  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.settlementId="pioneer";this.sceneryStats=null;this.patchKey=null;
    this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
@@ -1624,10 +1625,10 @@ export class ExplorerRenderer{
   const snap=radius<2200?110:radius<6500?600:3000;
   const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
   const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
-  const resolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution].join("/");
+  const resolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution,this.settlementId].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
-   this.patch?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement])mesh.destroy();
+   this.patch?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor])mesh.destroy();
    this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    this.patch=new Mesh(gl,this.groundPatchData);
    const channel=buildRiverWaterPatch(this.terrain,geo,radius);
@@ -1642,7 +1643,7 @@ export class ExplorerRenderer{
     this.groundClouds=clouds.indices.length?new Mesh(gl,clouds):null;
    const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
    const plan=planWorldScenery({
-    seed:this.planet.seed,cx,cz,radius,groundAt:heightAt,
+    seed:this.planet.seed,cx,cz,radius,groundAt:heightAt,settlementId:this.settlementId,
     biomeAt:(wx,wz)=>{
      const pos=geoOffset(s.origin.lat,s.origin.lon,wx,wz,this.planet.radiusM);
      return terrainSurface(this.terrain,pos.lat,pos.lon);
@@ -1659,6 +1660,12 @@ export class ExplorerRenderer{
    this.trees=instanced.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
    this.meadow=instanced.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
    this.settlement=scenery.settlement.map(g=>new Mesh(gl,g));
+   this.settlementDecor=[];
+   if(plan.people.length)this.settlementDecor.push(new Mesh(gl,
+    settlementResidentsGeometry(plan.people,heightAt)));
+   if(plan.landmark)this.settlementDecor.push(new Mesh(gl,observationTowerGeometry({
+    x:plan.landmark.localX,z:plan.landmark.localZ,y:plan.landmark.elevationM
+   })));
    this.patchKey=key;this.cx=cx;this.cz=cz;
    this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
   }
@@ -1723,6 +1730,7 @@ export class ExplorerRenderer{
    for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
    this.drawFallingTrees(vp,light,dt);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
+   for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
    this.drawPlacedStructures(vp,light,s,radius);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
   this.screenResources=[];
@@ -1829,7 +1837,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
