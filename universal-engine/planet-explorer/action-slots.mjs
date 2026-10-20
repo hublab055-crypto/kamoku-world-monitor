@@ -1,4 +1,4 @@
-import {normalizeEquipmentHands} from "./social-equipment.mjs";
+import {normalizeEquipmentHands} from "./social-equipment.mjs?v=0.8q-rod";
 /** Five configurable action decks, distinct from item inventory.
  * Pure state module, snapshots compatible with old five-item quick slots.
  */
@@ -20,7 +20,7 @@ export const COMMAND_LABELS=Object.freeze({
  build:"🔨 建築",rest:"💤 休む",talk:"💬 話す",gift:"🎁 プレゼント",
  emote:"🙂 エモート",follow:"👣 ついてきて",inventory:"🎒 持ち物",
  book:"📖 読書",config:"⚙️ 設定"});
-const allowedHands=new Set(["none","sword","spear","greatsword","shield","axe","bow","pickaxe","hammer","book","cup"]);
+const allowedHands=new Set(["none","sword","spear","greatsword","shield","axe","bow","pickaxe","hammer","book","cup","fishingRod"]);
 const legacyKind=id=>id==="bow"?"bow":id==="sword"||id==="axe"?"melee":id==="pickaxe"?"work":id==="book"?"system":"social";
 const clean=(slot,kind="melee")=>{
  const def=DECK_KINDS[DECK_KINDS[slot?.kind]?slot.kind:kind],selected=DECK_KINDS[slot?.kind]?slot.kind:kind;
