@@ -15,7 +15,7 @@ import {oceanWavePatch,fishAt} from "./marine.mjs?v=0.8k-sailing-ship";
 import {sailingShipGeometry} from "./sailing-ship-geometry.mjs?v=0.8k-ship-deck";
 import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8m-living-cabin-r2";
 import {shipLocalToWorld,shipWorldToLocal,isShipWalkable,SHIP_HELM,SHIP_DOOR} from "./shipboard.mjs?v=0.8n-crew-walking";
-import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8o-styles";
+import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8q-splash";
 import {SEA_SITE_TYPES,seabedPatch} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
 import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
@@ -957,7 +957,9 @@ export class ExplorerRenderer{
    });
    Object.assign(pose,expressionPoseValues(face));
    const wet=isAquaticAction(motion?.action);
-   const pitch=wet?swimmingPresentation(s.travelMode,s.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
+   const splash=motion.action==="splash"&&this.marine?.entrySeconds>0;
+   const pitch=splash?.50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8:
+    wet?swimmingPresentation(s.travelMode,s.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
    const rigRoot=wet?matrixMultiply(avatarTransform,matrixMultiply(rotateY(s.yaw||0),rotX(pitch))):avatarTransform;
    const joints=jointTransformsV2(pose,wet?0:s.yaw);
    for(const {mesh,part} of this.rigParts){
@@ -1203,7 +1205,9 @@ export class ExplorerRenderer{
   if(aquatic&&(!rig||!["leftshoulder","rightshoulder","lefthip","righthip"]
     .every(name=>rig.rig?.nodes?.some(node=>node.name?.toLowerCase()===name))))return false;
   if(rig){
-   const pitch=aquatic?swimmingPresentation(unit.travelMode,unit.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
+   const splash=motion.action==="splash"&&this.marine?.entrySeconds>0;
+   const pitch=splash?.50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8:
+    aquatic?swimmingPresentation(unit.travelMode,unit.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
    const characterTransform=multiply4(transform,multiply4(rotateY(unit.yaw||0),rotX(pitch)));
    let drawn=true;
    try{rig.draw(vp,characterTransform,light,id,dt,{
@@ -1668,8 +1672,12 @@ export class ExplorerRenderer{
   const currentSurface=terrainSurface(this.terrain,s.lat,s.lon);
   const ground=currentSurface.elevationM;
   const waterY=Number.isFinite(currentSurface.waterLevelM)?currentSurface.waterLevelM:0;
-  const marinePose=["swim","dive"].includes(s.travelMode)?
+  let marinePose=["swim","dive"].includes(s.travelMode)?
     swimmingPresentation(s.travelMode,s.moving,waterY,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking):null;
+  if(s.travelMode==="swim"&&this.marine?.entrySeconds>0){
+   const p=1-this.marine.entrySeconds/this.marine.entryDuration;
+   marinePose={action:"splash",pitch:.50+.8*p,baseY:waterY-1.12+1.8*Math.sin(Math.PI*p)};
+  }
   const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
