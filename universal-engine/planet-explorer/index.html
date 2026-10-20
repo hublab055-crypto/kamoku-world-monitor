@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8n-shipboard-crew">
+<link rel="stylesheet" href="./style.css?v=0.8r-settlements">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -201,6 +201,7 @@
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
     <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
+     <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
      <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
@@ -258,6 +259,17 @@
  <div class="marine-activity-actions"><button type="button" id="map-route-go" disabled>📍 ここへ移動</button>
  <button type="button" id="map-route-clear">✕ 選択解除</button></div>
  <small>現在地からの移動指示です。歩行は350m、乗船は最大6kmなど、既存の移動制限・海陸判定に従います。瞬間移動ではありません。</small>
+</section>
+<section id="settlement-travel-panel" class="fauna-panel settlement-travel-panel" role="dialog"
+ aria-label="街・村を訪れる" hidden>
+ <div class="fauna-panel-top"><strong>🏘️ 旅の案内所</strong>
+  <button type="button" id="settlement-travel-close" aria-label="旅の案内所を閉じる">× 閉じる</button></div>
+ <p class="settlement-travel-lead">行き先を選んで、そこに暮らす人々の街や村へ来訪できます。</p>
+ <ul id="settlement-travel-list" class="settlement-travel-list" aria-label="訪問できる街と村"></ul>
+ <div id="settlement-travel-preview" class="settlement-travel-preview" aria-live="polite"></div>
+ <p id="settlement-travel-status" class="settlement-travel-status" role="status" aria-live="polite"></p>
+ <button type="button" id="settlement-travel-go" class="primary" disabled>訪れる</button>
+ <small>来訪はワールド内の登録地点への移動です。短距離の徒歩・航海指示は「目的地マップ」を利用してください。</small>
 </section>
 <section id="marine-panel" class="fauna-panel" role="group" aria-label="海上移動・潜水・造船" hidden>
  <div class="fauna-panel-top"><strong>🌊 海・船・潜水</strong>
@@ -966,6 +978,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8q-gear-dive-route"></script>
+<script type="module" src="./app.mjs?v=0.8r-settlements"></script>
 </body>
 </html>
