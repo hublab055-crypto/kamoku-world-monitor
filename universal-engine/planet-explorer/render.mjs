@@ -21,13 +21,13 @@ import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mj
 import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
-import {SmoothAnimator} from "./animator.mjs?v=0.8p-fishing-motion";
+import {SmoothAnimator} from "./animator.mjs?v=0.8q-splash";
 import {makeJointCovers} from "./joint-covers.mjs";
 import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8p-fishing-motion";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splash";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
