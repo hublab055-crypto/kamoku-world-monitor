@@ -2,7 +2,7 @@
  * Pure model: proximity is evaluated in the same metre-space as SquadEngine.
  */
 export const ITEM_OPTIONS=Object.freeze([
- ["none","— 空き","▫️"],["sword","剣","⚔️"],["spear","長槍（両手）","🔱"],["greatsword","両手剣","⚔️"],["shield","盾","🛡️"],["potion","回復薬","🧪"],["axe","斧","🪓"],["bow","弓","🏹"],["arrow","矢","➶"],
+ ["none","— 空き","▫️"],["sword","剣","⚔️"],["spear","長槍（両手）","🔱"],["greatsword","両手剣","⚔️"],["shield","盾","🛡️"],["potion","回復薬","🧪"],["axe","斧","🪓"],["bow","弓","🏹"],["arrow","矢","➶"],["fishingRod","釣竿","🎣"],
  ["pickaxe","つるはし","⛏️"],["book","本","📖"],["cup","コップ","🥛"],
  ["bowl","椀","🥣"],["spoon","スプーン","🥄"],["meal","料理","🍲"],
  ["water","水","💧"],["wood","木材","🪵"],["stone","石","🪨"],
@@ -39,7 +39,7 @@ export const ARROW_TYPES=Object.freeze({
  fire:{name:"火矢",icon:"🔥",damage:17}
 });
 export const arrowTypeValid=type=>Object.hasOwn(ARROW_TYPES,type);
-const permanent=new Set(["sword","spear","greatsword","shield","axe","pickaxe","bow","book"]);
+const permanent=new Set(["sword","spear","greatsword","shield","axe","pickaxe","bow","book","fishingRod"]);
 const handDefaults=()=>({right:"sword",left:"axe"});
 export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
@@ -207,6 +207,7 @@ export class SocialEquipment {
   }
   if(permanent.has(item)){
    if(item==="book")return {ok:true,kind:"book"};
+   if(item==="fishingRod")return {ok:true,kind:"fishing",item};
    if(item==="bow"){
     const type=this.actor(actor.id).arrowType||"wood";
     return this.arrowCount(actor.id,type)>0?
