@@ -198,7 +198,7 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
-  townUI?.close(true);
+  townUI?.close(true);$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
    settlementLocations=null;
@@ -389,7 +389,8 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const input=$("book-overlay").hidden&&$("life-overlay").hidden&&!townLife.inside?inputVector():{forward:0,strafe:0,turn:0};
+  const input=$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  if(townLife.inside)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
   const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
@@ -411,7 +412,7 @@ function doFrame(t){
     running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
      ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
+  const manualLead=!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -435,11 +436,11 @@ function doFrame(t){
   }
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
-   renderer.cameraController.pan(dt,marine?.cabinId?0:input.forward,marine?.cabinId?0:input.strafe);
+   renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside?0:input.forward,marine?.cabinId||townLife.inside?0:input.strafe);
    controller.update(dt,onShip?{...travelInput,turn:0}:{
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
-  }else controller.update(dt,travelInput);
+  }else controller.update(dt,townLife.inside?{forward:0,strafe:0,turn:0}:travelInput);
   marine?.update(running?dt:0,controller,terrain);
   if(onShip){
    // Keep the squad's world-space controls co-located with moving ship for RTS,
@@ -1113,7 +1114,7 @@ function confirmOrbitLanding(){
   }
   marine.update(0,controller,terrain);
   access.insideId=null;access.pendingDoorId=null;
-  townLife.leave();renderer.townInterior=null;townUI?.close(true);
+  townLife.leave();renderer.townInterior=null;townUI?.close(true);$("town-interior-exit").hidden=true;$("town-interior-exit").hidden=true;
   squad?.repositionAfterLanding();
   if(marine.boarded?.kind==="sailing_ship")marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
   controller.targetAltitude(2.5);
@@ -2245,16 +2246,21 @@ groupUI=installGroupUI({
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
 });
+function syncTownState(){
+ const room=townLife.inside;
+ const building=room?townLife.find(room.townId,room.buildingId,"village"):null;
+ renderer.townInterior=building?{type:building.type,title:building.title,pose:room.pose}:null;
+ $("town-interior-exit").hidden=!building;
+ if(room){controller.clearMoveTarget();renderer.mapFocus=null;}
+ saveTownJournal();saveLifeJournal();updateHUD();
+}
 townUI=installTownInteractionUI({
  get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays}),
- onChange:()=>{
-  const room=townLife.inside;
-  const building=room?townLife.find(room.townId,room.buildingId,"village"):null;
-  renderer.townInterior=building?{type:building.type,title:building.title}:null;
-  if(room){controller.clearMoveTarget();renderer.mapFocus=null;}
-  saveTownJournal();saveLifeJournal();updateHUD();
- },
- onNotice:log
+ onChange:syncTownState,onNotice:log
+});
+$("town-interior-exit").addEventListener("click",()=>{
+ const result=townLife.leave();
+ if(result.ok){syncTownState();log(result.message);townUI?.refresh();}
 });
 $("viewport-town").addEventListener("click",()=>{
  settlementTravelUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
