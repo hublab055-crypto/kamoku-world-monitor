@@ -2170,7 +2170,7 @@ quickToggle.addEventListener("click",()=>setQuickMenu(quickPanel.hidden));
 toolToggle.addEventListener("click",()=>setToolMenu(toolPanel.hidden));
 doorToggle.addEventListener("click",()=>setDoorMenu(doorPanel.hidden));
 quickPanel.addEventListener("click",e=>{
- if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu,#viewport-directory"))setQuickMenu(false);
+ if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu,#viewport-directory,#viewport-town,#viewport-settlements"))setQuickMenu(false);
 });
 toolPanel.addEventListener("click",e=>{if(e.target.closest("button"))setToolMenu(false);});
 doorPanel.addEventListener("click",e=>{if(e.target.closest("button"))setDoorMenu(false);});
@@ -2244,6 +2244,21 @@ groupUI=installGroupUI({
  onSync:enabled=>{syncMode=enabled;},
  onPickRally:()=>{rallyPicking=true;updateHUD();},
  onAutoEditor:()=>openAutoEditor(false)
+});
+townUI=installTownInteractionUI({
+ get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays}),
+ onChange:()=>{
+  const room=townLife.inside;
+  const building=room?townLife.find(room.townId,room.buildingId,"village"):null;
+  renderer.townInterior=building?{type:building.type,title:building.title}:null;
+  if(room){controller.clearMoveTarget();renderer.mapFocus=null;}
+  saveTownJournal();saveLifeJournal();updateHUD();
+ },
+ onNotice:log
+});
+$("viewport-town").addEventListener("click",()=>{
+ settlementTravelUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
+ faunaUI?.close();farmUI?.close();$("marine-panel").hidden=true;
 });
 mapDirectoryUI=installMapDirectoryUI({
  get:()=>({controller,fauna,squad,renderer,constructions,actions}),
