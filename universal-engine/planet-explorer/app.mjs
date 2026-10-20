@@ -37,6 +37,7 @@ import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8p-islands-reel
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
+import {mapToWorld,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -137,7 +138,7 @@ const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚",ancientCoins:"🪙 古代金貨",dragonRelic:"🐉 竜人文明遺物"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
-let viewportGestures=null,orbitSelection=null;
+let viewportGestures=null,orbitSelection=null,pendingWaterEntry=null;
 let cachedResourceArray=null;const resourceByOrigin=new Map();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
@@ -696,6 +697,15 @@ function updateHUD(){
     (marine.salvagedSites.has(near.id)?"（回収済み）":""):
     "近くの海底遺跡・沈没船を捜索できます";
   }
+  const wetHud=isSurface&&["swim","dive"].includes(controller.travelMode);
+  $("marine-swim-hud").hidden=!wetHud;
+  $("marine-swim-hud-status").textContent=controller.travelMode==="dive"?
+   "🤿 "+marine.depthM.toFixed(1)+"m / O₂ "+Math.round(marine.oxygen):
+   "🌊 水面 / O₂ "+Math.round(marine.oxygen);
+  $("marine-hud-dive").disabled=!wetHud||marine.diving;
+  $("marine-hud-down").disabled=!wetHud||!marine.diving;
+  $("marine-hud-up").disabled=!wetHud||!marine.diving;
+  $("marine-hud-surface").disabled=!wetHud||!marine.diving;
   $("marine-dive").disabled=!isSurface||controller.travelMode==="boat"||controller.travelMode==="walk";
   $("marine-dive").textContent=marine.diving?"↑ 水面へ浮上":"↓ 潜る";
   $("marine-board").disabled=!isSurface||Boolean(marine.boarded);
@@ -746,6 +756,12 @@ function updateHUD(){
    $("marine-voyage-progress").value=p.percent;
   }
   const fishing=marine.fishing;
+  $("fishing-reel-hud").hidden=!fishing.casting||!isSurface;
+  $("fishing-hud-state").textContent=fishing.hook?"🐟 ヒット！":
+   fishing.casting?"🎣 "+Math.round(100*fishing.approach)+"% 接近":"🎣 仕掛け待機";
+  $("fishing-hud-line").textContent="糸 "+(fishing.lineOutM||0).toFixed(1)+"m";
+  $("fishing-mini-reel").setAttribute("aria-valuenow",String(fishing.casting?Math.round(100*(1-
+   fishing.lineOutM/(3+fishing.power*26))):0));
   $("marine-fish-cast").disabled=!isSurface||cabin||fishing.casting||controller.travelMode==="swim"||controller.travelMode==="dive";
   $("marine-fish-reel").disabled=!isSurface||cabin||!fishing.casting;
   $("marine-fish-stop").disabled=!fishing.casting;
@@ -1275,13 +1291,45 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(resource){commandResourceTap(resource);return;}
  if(rtsMode&&rallyPicking)commandRtsTap(x,y,shiftKey);
 }
+function offerSeaEntry(hit){
+ if(!hit)return false;
+ const at=controller.locationAt(hit.x,hit.z);
+ const water=terrainSurface(terrain,at.lat,at.lon);
+ if(!water.water&&!water.river)return false;
+ const max=marine.boarded?32:14;
+ const distance=Math.hypot(hit.x-controller.x,hit.z-controller.z);
+ if(distance>max){log("🌊 水面へ飛び込むには"+max+"m以内の水面を指定してください");return true;}
+ if(controller.travelMode==="dive"){log("🤿 潜水中です。浮上ボタンで水面へ戻れます");return true;}
+ const alreadySwimming=controller.travelMode==="swim";
+ pendingWaterEntry=alreadySwimming?{kind:"dive"}:{kind:"jump",x:hit.x,z:hit.z};
+ $("water-entry-title").textContent=alreadySwimming?"🤿 潜水しますか？":"🌊 飛び込みますか？";
+ $("water-entry-description").textContent=alreadySwimming?
+  "酸素を確認して水中へ潜ります。":"飛び込むと、跳躍モーションの後に水面で泳ぎ始めます。";
+ $("water-entry-accept").textContent=alreadySwimming?"🤿 潜水する":"🏊 飛び込む";
+ $("water-entry-confirm").hidden=false;
+ return true;
+}
+function dismissSeaEntry(){pendingWaterEntry=null;$("water-entry-confirm").hidden=true;}
+$("water-entry-cancel").addEventListener("click",dismissSeaEntry);
+$("water-entry-accept").addEventListener("click",()=>{
+ const request=pendingWaterEntry;dismissSeaEntry();
+ if(!request)return;
+ const result=request.kind==="dive"?marine.dive(controller,terrain):
+  marine.jumpIntoWater(controller,terrain,request);
+ log(result.message);
+ if(result.ok){renderer.patchKey=null;saveMarineJournal();updateHUD();}
+});
 function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(!renderer)return;
  if(marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId){
   const floor=renderer.pickShipboardFloor(x,y);
-  const result=floor?marine.shipboard.setDestination(floor.x,floor.z):
-   {ok:false,message:"甲板・船室の歩ける床を指定してください"};
-  log(result.message);if(result.ok)saveMarineJournal();updateHUD();return;
+  if(floor){
+   const result=marine.shipboard.setDestination(floor.x,floor.z);
+   log(result.message);if(result.ok)saveMarineJournal();updateHUD();return;
+  }
+  if(marine.cabinId)return;
+  if(offerSeaEntry(renderer.pickGround(x,y)))return;
+  log("甲板・船室の歩ける床、または海面をダブルタップしてください");return;
  }
  if(marine?.cabinId)return;
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
@@ -1293,6 +1341,7 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
  // A double tap orders ground movement even when an animal or building overlaps.
  const ground=renderer.pickGround(x,y);
  if(!ground){log("地面を指定できません。");return;}
+ if(offerSeaEntry(ground))return;
  renderer.selectedResource=null;
  faunaUI?.close();farmUI?.close();mapDirectoryUI?.close();
  if(rtsMode){
@@ -2082,7 +2131,17 @@ lifeUI=installLifestyleUI({
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal,
  showSpeech:(id,text)=>worldUI?.speak(id,text),
- showEffect:effect=>worldUI?.float(effect)
+ showEffect:effect=>worldUI?.float(effect),
+ onFish:()=>{
+  if(marine.fishing.casting){
+   $("fishing-reel-hud").hidden=false;
+   return {ok:true,message:"🎣 巻き取りダイヤルを表示しました"};
+  }
+  const power=Number($("marine-fish-power").value)/100;
+  const r=marine.castLine(controller,terrain,power);
+  if(r.ok){saveMarineJournal();$("fishing-reel-hud").hidden=false;}
+  return r;
+ }
 });
 worldUI=installWorldFeedbackUI({
  getRenderer:()=>renderer,getController:()=>controller,
@@ -2127,6 +2186,15 @@ $("farm-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();faunaUI?.
 $("fauna-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();farmUI?.close();$("marine-panel").hidden=true;});
 window.addEventListener("pagehide",saveFaunaJournal);
 window.addEventListener("pagehide",saveFarmJournal);
+for(const [id,fn] of [
+ ["marine-hud-dive",()=>marine.dive(controller,terrain)],
+ ["marine-hud-down",()=>marine.adjustDepth(5,controller,terrain)],
+ ["marine-hud-up",()=>marine.adjustDepth(-5,controller,terrain)],
+ ["marine-hud-surface",()=>marine.dive(controller,terrain)]
+])$(id).addEventListener("click",()=>{
+ const r=fn();log(r.message);
+ if(r.ok){saveMarineJournal();updateHUD();}
+});
 $("marine-swim-style").addEventListener("change",()=>{
  const r=marine.setSwimStyle($("marine-swim-style").value);
  log(r.message);if(r.ok)saveMarineJournal();updateHUD();
