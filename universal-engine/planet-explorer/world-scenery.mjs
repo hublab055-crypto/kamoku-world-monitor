@@ -3,6 +3,8 @@
  * All world coordinates are metres from the current landing origin. Visual props
  * are not save-game structures and must not be exposed as interactive huts.
  */
+import {settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+
 export const VILLAGE_SITES = Object.freeze([
   {type:"lodge",x:54,z:44,angle:.12},
   {type:"cabin",x:104,z:28,angle:-.25},
@@ -22,10 +24,10 @@ export function sceneryHash(ix,iz,seed=0){
   // Hashing fixed integer cell IDs keeps scenery stationary across LOD changes.
   return frac(Math.sin(ix*127.1+iz*311.7+seed*19.19)*43758.5453);
 }
-function clearOfBuildings(x,z){
-  if(Math.hypot(x,z)<14)return false; // clear the landing pad
-  if(x>0&&x<57&&Math.abs(z-x*.55)<6)return false; // village path
-  for(const site of VILLAGE_SITES){
+function clearOfBuildings(x,z,sites=VILLAGE_SITES,clearing=0){
+  if(Math.hypot(x,z)<(clearing?Math.min(clearing,155):14))return false; // roads and town square
+  if(!clearing&&x>0&&x<57&&Math.abs(z-x*.55)<6)return false; // pioneer path
+  for(const site of sites){
     const half=site.type==="barn"||site.type==="stable"||site.type==="lodge"?18:12;
     if(Math.abs(x-site.x)<half&&Math.abs(z-site.z)<half)return false;
   }
@@ -47,9 +49,13 @@ export function patchSceneryHeight(patch,x,z){
  * of assets/network and reproducible for a planet seed.
  */
 export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
-    groundAt=()=>300, biomeAt=()=>({water:false,river:false,category:"forest",elevationM:300})}={}){
-  const trees=[],grass=[],buildings=[];
-  if(radius>4100)return {trees,grass,buildings};
+    groundAt=()=>300, biomeAt=()=>({water:false,river:false,category:"forest",elevationM:300}),
+    settlementId="pioneer"}={}){
+  const trees=[],grass=[],buildings=[],people=[];
+  const layout=settlementLayout(settlementId);
+  const sites=layout.buildings.length?layout.buildings:VILLAGE_SITES;
+  const allowed=(x,z)=>clearOfBuildings(x,z,sites,layout.clearing);
+  if(radius>4100)return {trees,grass,buildings,people,landmark:null};
   const reach=Math.min(radius*.87,850);
   // A consistent cell grid: no popping/random reshuffle when panning.
   const cell=17; // Retain every existing world cell and tree ID.
@@ -60,7 +66,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     const jitter=sceneryHash(ix,iz,seed),choice=sceneryHash(ix+31,iz-17,seed);
     const ax=(ix+.15+jitter*.7)*cell,az=(iz+.15+choice*.7)*cell;
     const x=ax-cx,z=az-cz;
-    if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+    if(x*x+z*z>reach*reach||!allowed(ax,az))continue;
     const distance=Math.hypot(x,z),roll=sceneryHash(ix-11,iz+29,seed);
     // Reject distant LOD first: don't run expensive geographical sampling
     // thousands of times for trees that won't be generated.
@@ -81,7 +87,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         noiseB=sceneryHash(ix*5-slot*11,iz*19+slot*3,seed);
       const wx=slot?(ix+((gx%4)+.18+noiseA*.64)/4)*cell:ax;
       const wz=slot?(iz+(Math.floor(gx/4)+.18+noiseB*.64)/3)*cell:az;
-      if(slot&&!clearOfBuildings(wx,wz))continue;
+      if(slot&&!allowed(wx,wz))continue;
       // Exclude the narrow starter-valley stream from subcell trees too.
       // Outside that corridor, avoid the many expensive biome lookups.
       if(slot&&wx>65&&wx<230){
@@ -116,7 +122,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         const a=sceneryHash(ix+1103,iz-771,seed),b=sceneryHash(ix-321,iz+613,seed);
         if(a>.86)continue;
         const ax=(ix+.14+a*.70)*stride,az=(iz+.14+b*.70)*stride,x=ax-cx,z=az-cz;
-        if(x*x+z*z>reach*reach||!clearOfBuildings(ax,az))continue;
+        if(x*x+z*z>reach*reach||!allowed(ax,az))continue;
         if(ax>65&&ax<230){
          const moisture=biomeAt(ax,az);
          if(moisture.water||moisture.river)continue;
@@ -134,7 +140,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
           const wx=(ix+((q%4)+.20+h*.60)/4)*stride;
           const wz=(iz+(Math.floor(q/4)+.20+v*.60)/3)*stride;
           const lx=wx-cx,lz=wz-cz;
-          if(lx*lx+lz*lz>reach*reach||!clearOfBuildings(wx,wz))continue;
+          if(lx*lx+lz*lz>reach*reach||!allowed(wx,wz))continue;
           const bladeY=groundAt(lx,lz);
           if(bladeY<.15||bladeY>2800)continue;
           grass.push({x:lx,z:lz,y:bladeY,scale:.24+.64*h,
@@ -142,12 +148,28 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         }
       }
   }
-  for(const site of VILLAGE_SITES){
+  for(const site of sites){
     const x=site.x-cx,z=site.z-cz;
     if(Math.abs(x)>radius*.96||Math.abs(z)>radius*.96)continue;
     const y=groundAt(x,z);
     if(y<5||y>2800)continue;
+    if(settlementId!=="pioneer"){
+      const ground=biomeAt(site.x,site.z);
+      if(ground.water||ground.river)continue;
+    }
     buildings.push({...site,localX:x,localZ:z,elevationM:y});
   }
-  return {trees,grass,buildings};
+  for(const resident of layout.residents){
+    const x=resident.x-cx,z=resident.z-cz;
+    if(Math.abs(x)>radius*.95||Math.abs(z)>radius*.95)continue;
+    const ground=biomeAt(resident.x,resident.z);
+    if(ground.water||ground.river)continue;
+    people.push({...resident,localX:x,localZ:z,elevationM:groundAt(x,z)});
+  }
+  const marker=layout.landmark;
+  const landmark=marker&&Math.abs(marker.x-cx)<radius*.9&&Math.abs(marker.z-cz)<radius*.9&&
+    !biomeAt(marker.x,marker.z).water?{
+    localX:marker.x-cx,localZ:marker.z-cz,
+    elevationM:groundAt(marker.x-cx,marker.z-cz)}:null;
+  return {trees,grass,buildings,people,landmark};
 }
