@@ -551,7 +551,7 @@ export function heldItemTransform(kind){
  const grip=translate(0,-.155,.05);
  // Blades point ahead at rest, instead of hanging downward from the wrist.
  // A bow retains its vertical shape while the arrow points ahead.
- return kind==="bow"||kind==="shield"?grip:multiply4(grip,rotX(Math.PI/2));
+ return ["bow","shield","fishingRod"].includes(kind)?grip:multiply4(grip,rotX(Math.PI/2));
 }
 function sphereGeometry(terrain,planet){
  const ground=builder(),clouds=builder(),R=600,resLat=64,resLon=128;
@@ -687,6 +687,7 @@ export class ExplorerRenderer{
    box(rod,0,.05,0,.019,2.8,.019,[.53,.35,.16]);
    box(rod,0,2.63,0,.009,.38,.009,[.82,.80,.71]);
    this.fishingRod=new Mesh(gl,rod);
+   this.tools.fishingRod=new Mesh(gl,rod);
    const float=builder();
    cone(float,0,0,0,.23,.13,[.90,.22,.15],8);
    box(float,0,-.13,0,.08,.13,.08,[.96,.94,.74]);
@@ -958,7 +959,7 @@ export class ExplorerRenderer{
    Object.assign(pose,expressionPoseValues(face));
    const wet=isAquaticAction(motion?.action);
    const splash=motion.action==="splash"&&this.marine?.entrySeconds>0;
-   const pitch=splash?.50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8:
+   const pitch=splash ? .50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8 :
     wet?swimmingPresentation(s.travelMode,s.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
    const rigRoot=wet?matrixMultiply(avatarTransform,matrixMultiply(rotateY(s.yaw||0),rotX(pitch))):avatarTransform;
    const joints=jointTransformsV2(pose,wet?0:s.yaw);
@@ -1206,7 +1207,7 @@ export class ExplorerRenderer{
     .every(name=>rig.rig?.nodes?.some(node=>node.name?.toLowerCase()===name))))return false;
   if(rig){
    const splash=motion.action==="splash"&&this.marine?.entrySeconds>0;
-   const pitch=splash?.50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8:
+   const pitch=splash ? .50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8 :
     aquatic?swimmingPresentation(unit.travelMode,unit.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
    const characterTransform=multiply4(transform,multiply4(rotateY(unit.yaw||0),rotX(pitch)));
    let drawn=true;
@@ -1505,7 +1506,8 @@ export class ExplorerRenderer{
   const cast=this.marine.fishing.castMotion||0,reel=this.marine.fishing.reelTurns||0;
   const pitch=-.35-.55*Math.sin(Math.PI*cast)+.20*Math.sin(reel*Math.PI*2);
   const rodBase=multiply4(translate(rodX,waterY+(this.marine.boarded?1.65:.25),rodZ),rotX(pitch));
-  this.drawMesh(this.fishingRod,multiply4(vp,rodBase),light,1,.82);
+  if(!Object.values(this.handEquipment?.player||{}).includes("fishingRod"))
+   this.drawMesh(this.fishingRod,multiply4(vp,rodBase),light,1,.82);
   const distance=this.marine.fishing.lineOutM||5.2,fx=position.x-this.cx+Math.sin(heading)*distance,
    fz=position.z-this.cz+Math.cos(heading)*distance;
   const bounce=.07*Math.sin(this.marineClock*2.3);
@@ -1739,8 +1741,8 @@ export class ExplorerRenderer{
    if(Math.abs(x)<=radius&&Math.abs(z)<=radius){
     const geo=geoOffset(s.origin.lat,s.origin.lon,focus.x,focus.z,this.planet.radiusM);
     const ground=terrainSurface(this.terrain,geo.lat,geo.lon);
-    if(!ground.water&&!ground.river)this.drawMesh(this.selectionRing,
-     multiply4(vp,translate(x,ground.elevationM+.07,z)),light,1,.97,[.28,.98,1]);
+    this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,ground.water||ground.river?.1:ground.elevationM+.07,z)),light,1,.97,[.28,.98,1]);
    }
   }
   this.drawBuildings(vp,light,s,radius,dt);
