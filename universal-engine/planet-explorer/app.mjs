@@ -1148,6 +1148,10 @@ function openMapEntry(entry){
   renderer.mapFocus={x:animal.x,z:animal.z};
   return {ok:true};
  }
+ if(entry.source==="resident"){
+  renderer.mapFocus={x:entry.x,z:entry.z};
+  return {ok:true,message:"🧑 街の住民（"+entry.subtitle+"）を地図上で強調しました"};
+ }
  if(entry.source==="person"){
   const agent=squad?.get(entry.id);
   if(!agent)return {ok:false,message:"人物が見つかりません。リストを更新してください"};
