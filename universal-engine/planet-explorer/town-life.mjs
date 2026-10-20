@@ -98,9 +98,24 @@ export class TownLife{
    return result(false,"この施設は屋内に入れません");
   const near=this.canInteract(townId,actor,building,{radius:9});
   if(!near.ok)return near;
-  this.inside={townId,buildingId};
+  this.inside={townId,buildingId,pose:{x:0,z:2.4,yaw:0,moving:false}};
   actor.clearMoveTarget?.();
   return result(true,"🚪 "+building.title+"に入りました。室内を見学できます。",{building});
+ }
+ walk(dt,{forward=0,strafe=0,turn=0}={}){
+  if(!this.inside)return false;
+  const p=this.inside.pose;
+  if(!p||!Number.isFinite(dt)||dt<0)return false;
+  const step=limit(dt,0,.1),turnRate=1.75;
+  const f=limit(Number(forward)||0,-1,1),side=limit(Number(strafe)||0,-1,1);
+  p.yaw+=limit(Number(turn)||0,-1,1)*step*turnRate;
+  const mag=Math.max(1,Math.hypot(f,side));
+  const dx=(Math.sin(p.yaw)*f+Math.cos(p.yaw)*side)*2.5*step/mag;
+  const dz=(Math.cos(p.yaw)*f-Math.sin(p.yaw)*side)*2.5*step/mag;
+  const nextX=limit(p.x+dx,-3.55,3.55),nextZ=limit(p.z+dz,-3.0,3.5);
+  p.moving=Math.hypot(nextX-p.x,nextZ-p.z)>.001;
+  p.x=nextX;p.z=nextZ;
+  return p.moving;
  }
  leave(){
   if(!this.inside)return result(false,"屋外にいます");
