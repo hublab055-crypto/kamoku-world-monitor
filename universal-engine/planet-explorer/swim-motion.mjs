@@ -1,7 +1,7 @@
 /** Four independent swimming strokes, standing treading, free diving and seabed walking.
  * Pure 60-FPS-compatible semantic joint poses shared by GLBs and articulated avatars.
  */
-export const AQUATIC_ACTIONS=Object.freeze(["swim","crawl","breast","back","tread","dive","seabed"]);
+export const AQUATIC_ACTIONS=Object.freeze(["swim","crawl","breast","back","tread","dive","seabed","splash"]);
 export const isAquaticAction=action=>AQUATIC_ACTIONS.includes(action);
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const sin=Math.sin,cos=Math.cos;
@@ -13,7 +13,12 @@ export function swimStroke(action,time=0,moving=true){
  const phase=t*(isTread?3.3:mode==="breast"?5.2:mode==="back"?6.4:mode==="seabed"?4.1:7.1);
  const s=sin(phase),c=cos(phase),opp=sin(phase+Math.PI),o=Math.max(0,s),k=Math.max(0,-s);
  let armL,armR,elbowL,elbowR,hipL,hipR,kneeL,kneeR,zL=-.23,zR=.23;
- if(walk){
+ if(mode==="splash"){
+  // Hands extend over the head, elbows locked, knees tuck at water entry.
+  armL=-2.0;armR=-2.0;elbowL=-.18;elbowR=-.18;
+  hipL=.38;hipR=.38;kneeL=.46;kneeR=.46;
+  zL=-.15;zR=.15;
+ }else if(walk){
   armL=-.15-s*.32;armR=-.15+s*.32;elbowL=-.15;elbowR=-.15;
   hipL=s*.38;hipR=-s*.38;kneeL=o*.54;kneeR=k*.54;
  }else if(isTread){
