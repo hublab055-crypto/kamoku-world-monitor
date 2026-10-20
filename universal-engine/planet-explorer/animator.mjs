@@ -44,7 +44,7 @@ export class SmoothAnimator {
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
   const aquatic=isAquaticAction(action);
-  const toolAction=["sword","spear","greatsword","axe","mine","bow","guard","hit","build"].includes(action);
+  const toolAction=["sword","spear","greatsword","axe","mine","bow","fish","guard","hit","build"].includes(action);
   const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;
