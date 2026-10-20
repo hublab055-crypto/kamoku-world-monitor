@@ -148,7 +148,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         }
       }
   }
-  for(const site of sites){
+  for(const [index,site] of sites.entries()){
     const x=site.x-cx,z=site.z-cz;
     if(Math.abs(x)>radius*.96||Math.abs(z)>radius*.96)continue;
     const y=groundAt(x,z);
@@ -157,7 +157,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
       const ground=biomeAt(site.x,site.z);
       if(ground.water||ground.river)continue;
     }
-    buildings.push({...site,localX:x,localZ:z,elevationM:y});
+    buildings.push({...site,id:"village-"+index,localX:x,localZ:z,elevationM:y});
   }
   for(const resident of layout.residents){
     const x=resident.x-cx,z=resident.z-cz;
