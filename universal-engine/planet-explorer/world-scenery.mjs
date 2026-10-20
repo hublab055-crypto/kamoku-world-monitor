@@ -53,7 +53,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     settlementId="pioneer"}={}){
   const trees=[],grass=[],buildings=[],people=[];
   const layout=settlementLayout(settlementId);
-  const sites=layout.buildings.length?layout.buildings:VILLAGE_SITES;
+  const sites=settlementId==="pioneer"?VILLAGE_SITES:layout.buildings;
   const allowed=(x,z)=>clearOfBuildings(x,z,sites,layout.clearing);
   if(radius>4100)return {trees,grass,buildings,people,landmark:null};
   const reach=Math.min(radius*.87,850);
