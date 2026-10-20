@@ -34,7 +34,7 @@ export class Terrain {
       Math.abs((((longitude - (-120 + 11 * Math.sin((latitude + 9) * 0.08)) + 540) % 360) - 180)),
       Math.abs((((longitude - (48 + 13 * Math.sin((latitude - 20) * 0.045)) + 540) % 360) - 180))
     );
-    const river = !water && Math.abs(latitude) < 49 && heightM < 1600 && channel < 0.7;
+    const river = !water && islandM===0 && Math.abs(latitude) < 49 && heightM < 1600 && channel < 0.7;
     const polar = Math.abs(latitude);
     const category = water ? "ocean" :
       islandM>0 ? "island" :
