@@ -3,6 +3,7 @@ import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
 import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {ShipboardWorld} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES,seaSitesNear,oceanFloorDepth} from "./ocean-exploration.mjs?v=0.8o-seabed";
+import {islandCenters} from "../planet/island-archipelago.mjs?v=0.8p-islands";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
@@ -115,6 +116,25 @@ export class MarineWorld{
    this.diving=Boolean(data.diving&&!this.boardedId);
    this.depthM=this.diving&&Number.isFinite(data.depthM)?Math.max(0,Math.min(DIVE_GEAR[this.diveGear].maxDepth,data.depthM)):0;
   }
+ }
+ /** Scan only actual islands defined by the same terrain sampler as the globe.
+  * An empty return is expected in empty open ocean. Never teleport boats. */
+ findNearestIsland(controller,terrain,limitM=180000){
+  const here=terrainSurface(terrain,controller.lat,controller.lon);
+  if(here.category==="island")return {ok:true,distanceM:0,message:"🏝️ 現在は居住・建築できる島の陸上です"};
+  let nearest=null;
+  for(const center of islandCenters(terrain.planet.seed)){
+   const d=geoLocal(controller.lat,controller.lon,center.lat,center.lon,terrain.planet.radiusM);
+   const range=Math.hypot(d.eastM,d.northM);
+   if(range>limitM+center.radiusM||range<0)continue;
+   if(terrain.sample(center.lat,center.lon).category!=="island")continue;
+   if(!nearest||range<nearest.range)nearest={...center,range,eastM:d.eastM,northM:d.northM};
+  }
+  if(!nearest)return fail("🌊 この海域の周囲"+Math.round(limitM/1000)+"km以内に島は見つかりません。外洋を航行中です");
+  const heading=(Math.atan2(nearest.eastM,nearest.northM)*180/Math.PI+360)%360;
+  return {ok:true,site:nearest,distanceM:nearest.range,
+   bearingDeg:heading,message:"🏝️ 島を発見！ 方位 "+Math.round(heading)+"°、中心まで "+
+   (nearest.range/1000).toFixed(1)+"km。海岸へ近づけば上陸・建築できます"};
  }
  get boarded(){return this.boats.find(b=>b.id===this.boardedId)||null;}
  get gear(){return DIVE_GEAR[this.diveGear];}
