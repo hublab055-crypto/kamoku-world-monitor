@@ -1114,7 +1114,7 @@ function confirmOrbitLanding(){
   }
   marine.update(0,controller,terrain);
   access.insideId=null;access.pendingDoorId=null;
-  townLife.leave();renderer.townInterior=null;townUI?.close(true);$("town-interior-exit").hidden=true;$("town-interior-exit").hidden=true;
+  townLife.leave();renderer.townInterior=null;townUI?.close(true);$("town-interior-exit").hidden=true;
   squad?.repositionAfterLanding();
   if(marine.boarded?.kind==="sailing_ship")marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
   controller.targetAltitude(2.5);
@@ -1143,7 +1143,7 @@ function visitSettlement(place){
   controller.setLanding(actual.lat,actual.lon);
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
   access.insideId=null;access.pendingDoorId=null;
-  townLife.leave();renderer.townInterior=null;townUI?.close(true);
+  townLife.leave();renderer.townInterior=null;townUI?.close(true);$("town-interior-exit").hidden=true;
   squad?.repositionAfterLanding();
   marine.update(0,controller,terrain);
   activeSettlementId=actual.id;renderer.settlementId=actual.id;
