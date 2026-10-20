@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8s-townlife">
+<link rel="stylesheet" href="./style.css?v=0.8t-railway-timetable">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -78,7 +78,7 @@
       <h1>オリジナルの世界を歩く。</h1>
       <p>v0.7v：木・鉄・火矢、集中／各自／分散照準、一斉／順次発射を追加。v0.7t：シンクロ一斉射撃・直射／曲射・矢の命中・矢の回収・練習用の的を追加。v0.7s：RTS・TPV共通でピンチズーム、資源タップで接近・採集、敵タップでターゲット、地面ダブルタップで移動。v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.8f 野生動物7種・騎乗・馬具</span>
+    <div class="version-control"><span class="version-tag">v0.8t 都市環状線・時刻表</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -202,6 +202,7 @@
     <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
      <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
+    <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
@@ -272,6 +273,46 @@
  <button type="button" id="settlement-travel-go" class="primary" disabled>訪れる</button>
  <small>来訪はワールド内の登録地点への移動です。短距離の徒歩・航海指示は「目的地マップ」を利用してください。</small>
 </section>
+<section id="railway-panel" class="fauna-panel railway-panel" role="dialog"
+ aria-label="環状線の運行情報と時刻表" hidden>
+ <div class="fauna-panel-top"><strong>🚂 都市環状線・時刻表</strong>
+  <button type="button" id="railway-close" aria-label="鉄道メニューを閉じる">× 閉じる</button></div>
+ <div class="railway-clock-line"><strong id="railway-clock">惑星標準時 --:--</strong>
+  <span id="railway-route">環状線</span></div>
+ <section class="railway-station-card" aria-label="現在の駅">
+  <strong id="railway-station-name">🚉 駅を確認中</strong>
+  <span id="railway-station-detail"></span>
+ </section>
+ <div id="railway-live-status" class="railway-live-status" aria-label="列車の現在位置"></div>
+ <div class="railway-table-wrap">
+  <table class="railway-timetable">
+   <caption>この駅の次発列車</caption>
+   <thead><tr><th>発</th><th>方向</th><th>次駅</th><th>あと</th><th></th></tr></thead>
+   <tbody id="railway-timetable-body"></tbody>
+  </table>
+ </div>
+ <div class="railway-board-controls">
+  <label for="railway-carriage">乗る車両
+   <select id="railway-carriage">
+    <option value="passenger" selected>💺 旅客車</option>
+    <option value="locomotive">🚂 機関車・運転台</option>
+    <option value="tender">🪨 炭水車</option>
+    <option value="freight">📦 貨車</option>
+   </select>
+  </label>
+  <button type="button" id="railway-board" disabled>列車の到着を待ってください</button>
+  <button type="button" id="railway-alight" disabled hidden>🚉 この駅で降りる</button>
+ </div>
+ <p id="railway-status" role="status" aria-live="polite">時刻表の「駅で待つ」を押すと、ホームへ移動して到着時刻で一時停止します。</p>
+ <small>列車は惑星時間で常時運行します。走行中は降車できず、次駅到着時に自動で時間が停止します。</small>
+</section>
+<aside id="railway-onboard-hud" class="railway-onboard-hud" aria-label="乗車中の列車" hidden>
+ <strong id="railway-onboard-title">🚂 乗車中</strong>
+ <span id="railway-onboard-detail">次駅を確認中</span>
+ <progress id="railway-onboard-progress" max="100" value="0" aria-label="次駅までの進捗"></progress>
+ <div><button type="button" id="railway-hud-open">🕒 時刻表・車両</button>
+  <button type="button" id="railway-hud-alight" disabled>🚉 降りる</button></div>
+</aside>
 <button type="button" id="town-interior-exit" class="town-interior-exit" hidden
  aria-label="建物の外に出る">🚪 外へ</button>
 <section id="town-interaction-panel" class="fauna-panel town-interaction-panel" role="dialog"
@@ -816,8 +857,8 @@
       </select>
       <button id="next-day" type="button">＋1日</button>
       <button id="next-season" type="button">＋90日</button>
-      <button id="save" type="button">💾 v0.7g保存（家具含む）</button>
-      <button id="restore" type="button">📂 v0.7g復元</button>
+      <button id="save" type="button">💾 v0.8t保存</button>
+      <button id="restore" type="button">📂 v0.8t復元</button>
        <button id="import-v07d-save" type="button" title="旧v0.7dセーブを上書きせず取り込む">v0.7dデータ読込</button>
       <button id="import-v07c-save" type="button" title="旧v0.7cセーブを読み取りのみで取り込み">v0.7cデータ読込</button>
       <button id="import-v07b-save" type="button" title="v0.7bのセーブを読み取り専用で取り込みます">v0.7bデータ読込</button>
@@ -990,6 +1031,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8s-townlife"></script>
+<script type="module" src="./app.mjs?v=0.8t-railway-timetable"></script>
 </body>
 </html>

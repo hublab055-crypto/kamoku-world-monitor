@@ -4,6 +4,7 @@
  * are not save-game structures and must not be exposed as interactive huts.
  */
 import {settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+import {stationById} from "./railway.mjs?v=0.8t-timetable";
 
 export const VILLAGE_SITES = Object.freeze([
   {type:"lodge",x:54,z:44,angle:.12},
@@ -54,7 +55,9 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   const trees=[],grass=[],buildings=[],people=[];
   const layout=settlementLayout(settlementId);
   const sites=settlementId==="pioneer"?VILLAGE_SITES:layout.buildings;
-  const allowed=(x,z)=>clearOfBuildings(x,z,sites,layout.clearing);
+  const railStation=stationById(settlementId);
+  const allowed=(x,z)=>clearOfBuildings(x,z,sites,layout.clearing)&&
+   !(railStation&&Math.abs(x-railStation.site.x)<15&&Math.abs(z-railStation.site.z)<79);
   if(radius>4100)return {trees,grass,buildings,people,landmark:null};
   const reach=Math.min(radius*.87,850);
   // A consistent cell grid: no popping/random reshuffle when panning.

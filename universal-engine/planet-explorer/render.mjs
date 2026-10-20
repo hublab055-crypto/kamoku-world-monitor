@@ -34,6 +34,7 @@ import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifes
 import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8e-sized-resources";
 import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
+import {railwayStationGeometry,steamTrainGeometry,trainInteriorGeometry} from "./railway-geometry.mjs?v=0.8t-timetable";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -637,6 +638,9 @@ export class ExplorerRenderer{
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
+   this.railway=null;this.trainInterior=null;this.trainClock=0;
+   this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
+   this.railwayTrainMesh=new Mesh(gl,steamTrainGeometry());this.trainRoomMeshes=new Map();
    this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
@@ -788,7 +792,7 @@ export class ExplorerRenderer{
   }
   pickTownTarget(clientX,clientY){
    const rect=this.canvas.getBoundingClientRect();
-   if(!rect.width||!rect.height||this.townInterior)return null;
+   if(!rect.width||!rect.height||this.townInterior||this.trainInterior)return null;
    let nearest=null,best=36;
    for(const target of [...this.screenTownResidents,...this.screenTownBuildings]){
     if(!target.onScreen)continue;
@@ -1393,8 +1397,29 @@ export class ExplorerRenderer{
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
   this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  if(this.trainInterior)return this.renderTrainInterior(asp,dt);
   if(this.townInterior)return this.renderTownInterior(asp);
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
+ }
+ renderTrainInterior(asp,dt=1/60){
+  const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
+  if(!this.trainRoomMeshes.has(kind))
+   this.trainRoomMeshes.set(kind,new Mesh(gl,trainInteriorGeometry(kind)));
+  this.trainClock+=Math.min(.1,Math.max(0,dt));
+  const moving=this.trainInterior.mode==="travel",sway=moving?Math.sin(this.trainClock*3.4)*.11:0;
+  gl.clearColor(.055,.075,.073,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const vp=multiply4(perspective(55*DEG,asp,.1,90),
+   lookAt([9+sway,7.1,11],[0,1.25,-.1]));
+  this.pickVP=null;
+  this.drawMesh(this.trainRoomMeshes.get(kind),vp,[.55,.88,.42],1,.84);
+  if(!this.townIndoorAvatarMesh){
+   const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
+   this.townIndoorAvatarMesh=new Mesh(gl,g);
+  }
+  const pose={locomotive:{x:0,z:1.4},tender:{x:0,z:4.2},passenger:{x:0,z:2.2},freight:{x:0,z:4.4}}[kind];
+  const model=multiply4(translate(pose.x,moving?.025*Math.sin(this.trainClock*6):0,pose.z),rotateY(Math.PI));
+  this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
+  return "train-interior";
  }
  renderTownInterior(asp){
   const gl=this.gl,kind=this.townInterior.type||"cabin";
@@ -1785,6 +1810,19 @@ export class ExplorerRenderer{
    this.drawFallingTrees(vp,light,dt);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
+   const railStation=this.railway?.station(this.settlementId);
+   if(railStation){
+    const x=railStation.site.x-this.cx,z=railStation.site.z-this.cz;
+    const y=patchSceneryHeight(this.groundPatchData,x,z);
+    const stationModel=multiply4(translate(x,y,z),rotateY(railStation.site.yaw||0));
+    this.drawMesh(this.railwayStationMesh,multiply4(vp,stationModel),light,1,.72);
+    const stopped=this.railway.stoppedAt(this.settlementId,this.planet.timeDays)[0];
+    if(stopped){
+     const trainYaw=(railStation.site.yaw||0)+(stopped.service.direction<0?Math.PI:0);
+     const trainModel=multiply4(translate(x,y+.18,z),rotateY(trainYaw));
+     this.drawMesh(this.railwayTrainMesh,multiply4(vp,trainModel),light,1,.78);
+    }
+   }
    if(this.settlementId!=="pioneer"&&this.settlementId!=="wilderness"){
     const range=cameraMode==="tactical"?120:42;
     for(const site of this.townSites){
@@ -1921,7 +1959,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),this.townIndoorAvatarMesh,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

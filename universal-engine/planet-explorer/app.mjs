@@ -30,6 +30,8 @@ import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8r-t
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
+import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8t-timetable";
+import {installRailwayUI} from "./railway-ui.mjs?v=0.8t-timetable";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
@@ -55,14 +57,22 @@ const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
 const FARM_JOURNAL_KEY="universal-engine:explorer:agriculture:v0.8g";
 const MARINE_JOURNAL_KEY="universal-engine:explorer:marine:v0.8g";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
+const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null;
+let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null;
+function saveRailwayJournal(){
+ try{if(railway)localStorage.setItem(RAILWAY_JOURNAL_KEY,JSON.stringify(railway.snapshot()));}
+ catch(_){log("鉄道の乗車記録を保存できませんでした");}
+}
+function loadRailwayJournal(){
+ try{return JSON.parse(localStorage.getItem(RAILWAY_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
 function saveTownJournal(){
  try{localStorage.setItem(TOWN_JOURNAL_KEY,JSON.stringify(townLife.snapshot()));}
  catch(_){log("街の記録の保存に失敗しました");}
@@ -198,6 +208,7 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
+  railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   townUI?.close(true);$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
@@ -241,6 +252,8 @@ function init(saved=null){
   renderer=new ExplorerRenderer($("world"),planet,terrain);
    renderer.settlementId=activeSettlementId;
    renderer.townInterior=null;
+   renderer.railway=railway;
+   renderer.trainInterior=railway.boarded?railway.status(planet.timeDays):null;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
    if(constructionUI)constructionUI.system=constructions;
@@ -389,7 +402,8 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const input=$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const onTrain=Boolean(railway?.boarded);
+  const input=!onTrain&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(townLife.inside)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
   const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
@@ -403,7 +417,7 @@ function doFrame(t){
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
   // With an NPC at the wheel, the ship follows its cruise/course instructions.
-  const travelInput=onShip?{
+  const travelInput=onTrain?{forward:0,strafe:0,turn:0}:onShip?{
     forward:running&&helming&&ship.cruise&&!ship.anchor?1:helming&&marine.shipboard.helmId==="player"?input.forward:0,
     strafe:0,
     turn:helming&&marine.shipboard.helmId==="player"?input.turn:0
@@ -412,7 +426,7 @@ function doFrame(t){
     running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
      ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
+  const manualLead=!onTrain&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -421,7 +435,7 @@ function doFrame(t){
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   // Crew use the local vessel walk map, never inland auto-harvest while afloat.
-  if(!onShip)squad?.advance(running?dt:0,{manualLead});
+  if(!onShip&&!onTrain)squad?.advance(running?dt:0,{manualLead});
   if(running){
    for(const a of squad?.agents||[]){
     if(a.id==="player")continue;
@@ -440,7 +454,7 @@ function doFrame(t){
    controller.update(dt,onShip?{...travelInput,turn:0}:{
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
-  }else controller.update(dt,townLife.inside?{forward:0,strafe:0,turn:0}:travelInput);
+  }else controller.update(dt,townLife.inside||onTrain?{forward:0,strafe:0,turn:0}:travelInput);
   marine?.update(running?dt:0,controller,terrain);
   if(onShip){
    // Keep the squad's world-space controls co-located with moving ship for RTS,
@@ -542,7 +556,7 @@ function doFrame(t){
     }
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
-   life.advance(dt,onShip?marine.shipboard.player.moving:controller.moving);
+   life.advance(dt,onTrain?false:onShip?marine.shipboard.player.moving:controller.moving);
    if(running){
     for(const actor of squad.agents){
      const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
@@ -575,6 +589,10 @@ function doFrame(t){
     saveLifeJournal();
    }
   if(running)universe.advance(dt);
+  for(const event of railway?.advance(planet.timeDays)||[]){
+   if(event.type==="arrival")handleRailwayArrival(event);
+  }
+  renderer.trainInterior=railway?.boarded?railway.status(planet.timeDays):null;
   try{
    const next=renderer.frame(controller,dt);
    updateActorMarker(renderer.actorMarker);
@@ -585,7 +603,7 @@ function doFrame(t){
    $("world-hit-flash").style.opacity=String(Math.min(.85,Math.max(0,(renderer.playerHitSeconds||0)/.48))*.83);
    if(next!==displayMode){
     displayMode=next;
-    $("mode").textContent=next==="orbit"?"宇宙・惑星モード":"地表メッシュモード";
+    $("mode").textContent=next==="orbit"?"宇宙・惑星モード":next==="train-interior"?"列車内モード":"地表メッシュモード";
     if(next==="ground")log("地表詳細メッシュへ移行。同じ緯度・経度を使用しています。");
    }
   }catch(e){
@@ -815,8 +833,10 @@ function updateHUD(){
   rtsMode?"RTS：人物・敵・資源は1回タップ、地面はダブルタップで移動指示。2本指で拡大縮小。":
    controlMode==="tap"?"地面をダブルタップで移動。1本指ドラッグで視点回転、2本指で拡大縮小。":
   "スティック/WASDで移動。地面をダブルタップで目的地設定、2本指ピンチで拡大縮小。";
+ railwayUI?.refresh();
 }
 function setAltitude(m){
+ if(railway?.boarded){log("🚂 列車を降りてから高度を変更してください。");return;}
  controller.targetAltitude(m);
  log(m<=12?"着陸地点へ降下します。":"高度 "+Math.round(m).toLocaleString("ja-JP")+"m を目標にします。");
 }
@@ -831,8 +851,14 @@ $("orbit-landing-confirm").addEventListener("click",confirmOrbitLanding);
 $("orbit-landing-clear").addEventListener("click",clearOrbitSelection);
 $("zoom-in").addEventListener("click",()=>controller.zoom(.35));
 $("zoom-out").addEventListener("click",()=>controller.zoom(2.8));
-$("next-day").addEventListener("click",()=>{planet.advance(1);log("惑星時間を1日進めました。");updateHUD();});
-$("next-season").addEventListener("click",()=>{planet.advance(90);log("惑星時間を90日進めました。");updateHUD();});
+$("next-day").addEventListener("click",()=>{
+ if(railway?.boarded){log("🚂 乗車中は次駅への到着を待ってください。");return;}
+ planet.advance(1);log("惑星時間を1日進めました。");updateHUD();
+});
+$("next-season").addEventListener("click",()=>{
+ if(railway?.boarded){log("🚂 乗車中は次駅への到着を待ってください。");return;}
+ planet.advance(90);log("惑星時間を90日進めました。");updateHUD();
+});
 $("play").addEventListener("click",()=>{
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
@@ -850,10 +876,10 @@ $("save").addEventListener("click",()=>{
        v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
        v0_8g:{schemaVersion:1,farm:farm.snapshot(),marine:marine.snapshot()},
         v0_8h:{schemaVersion:1,playerHp:battle.playerHp},
-         v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot()};
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();
+         v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot()};
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();
-  log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
+  log("v0.8t：街・生活・船・鉄道の乗車状態を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
 $("restore").addEventListener("click",()=>{
@@ -910,7 +936,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
@@ -1098,6 +1124,7 @@ function selectOrbitLanding(x,y){
 $("landing-water-mode").addEventListener("change",updateOrbitSelection);
 function confirmOrbitLanding(){
  if(!orbitSelection?.site)return;
+ if(railway?.boarded){log("🚂 列車を降りてから別の地点へ降下してください。");return;}
  try{
   const site=orbitSelection.site;
   // Validate capacity before changing the player's current landing location.
@@ -1129,8 +1156,9 @@ function confirmOrbitLanding(){
  }catch(e){log("地点降下エラー: "+e.message);}
 }
 /** Planetary travel to named settlements. The local waypoint map is unaffected. */
-function visitSettlement(place){
+function visitSettlement(place,{byRail=false}={}){
  if(!place||!destinationById(place.id))return {ok:false,message:"未登録の行き先です"};
+ if(railway?.boarded&&!byRail)return {ok:false,message:"列車を降りてから別の街へ移動してください"};
  try{
   const actual=(settlementLocations||=settlementDestinations(terrain)).find(d=>d.id===place.id);
   if(!actual)return {ok:false,message:"行き先が見つかりません"};
@@ -1155,6 +1183,68 @@ function visitSettlement(place){
   saveMarineJournal();updateHUD();
   return {ok:true,message:"🏘️ "+actual.name+"に到着。住居や市場を探索できます。"};
  }catch(error){return {ok:false,message:"来訪できませんでした: "+error.message};}
+}
+function placeAtRailwayPlatform(stationId){
+ const station=stationById(stationId);if(!station)return false;
+ controller.x=station.site.x+5.8;controller.z=station.site.z;controller.yaw=-Math.PI*.5;
+ const geo=controller.locationAt(controller.x,controller.z);
+ controller.lat=geo.lat;controller.lon=geo.lon;controller.travelMode="walk";
+ controller.altitudeM=2.5;controller.targetAltitude(2.5);controller.clearMoveTarget();
+ squad?.repositionAfterLanding();renderer.patchKey=null;renderer.mapFocus=null;
+ renderer.cameraController.resetFreeAnchor(controller,
+  terrainSurface(terrain,controller.lat,controller.lon).elevationM);
+ return true;
+}
+function waitForRailwayDeparture(departure){
+ const station=stationById(activeSettlementId),now=absoluteMinutes(planet.timeDays);
+ if(!station||departure?.stationId!==station.id)return {ok:false,message:"この街には選択した列車の駅がありません"};
+ if(railway?.boarded)return {ok:false,message:"すでに列車内です"};
+ if(controller.altitudeM>12)return {ok:false,message:"地表へ降下してから駅へ向かってください"};
+ if(marine?.boarded)return {ok:false,message:"船を降りてから駅へ向かってください"};
+ if(fauna?.mount)return {ok:false,message:"馬から降りてから駅へ向かってください"};
+ if(access.insideId||townLife.inside||marine?.cabinId)return {ok:false,message:"建物・船室の外へ出てから駅へ向かってください"};
+ placeAtRailwayPlatform(station.id);
+ const target=Math.max(now,departure.arrivalMinute+.25);
+ planet.timeDays=target/1440;running=false;simWorld.clock.paused=true;
+ renderer.trainInterior=null;updateHUD();
+ return {ok:true,message:"🚉 "+station.name+"へ移動。"+departure.serviceName+"（"+
+  departure.directionName+"）が停車中です。時間を停止しました。"};
+}
+function boardRailwayTrain(serviceId,carriage){
+ const station=stationById(activeSettlementId);
+ if(!station)return {ok:false,message:"この街には環状線の駅がありません"};
+ if(Math.hypot(controller.x-station.site.x,controller.z-station.site.z)>24)
+  return {ok:false,message:"先に時刻表の「駅で待つ」でホームへ向かってください"};
+ const result=railway.board(station.id,planet.timeDays,carriage,serviceId);
+ if(!result.ok)return result;
+ controller.clearMoveTarget();townUI?.close(true);settlementTravelUI?.close();
+ renderer.townInterior=null;renderer.trainInterior=railway.status(planet.timeDays);
+ $("town-interior-exit").hidden=true;
+ running=true;simWorld.clock.paused=false;saveRailwayJournal();updateHUD();
+ return {...result,message:"🚂 "+result.message+"。発車後、次駅到着時に自動停止します。"};
+}
+function alightRailwayTrain(){
+ const result=railway.alight(planet.timeDays);if(!result.ok)return result;
+ activeSettlementId=result.stationId;renderer.settlementId=result.stationId;
+ renderer.trainInterior=null;placeAtRailwayPlatform(result.stationId);
+ saveRailwayJournal();updateHUD();
+ return {...result,message:"🚉 "+result.message+"。ホームに降りました。"};
+}
+function changeRailwayCarriage(carriage){
+ const result=railway.changeCarriage(carriage,planet.timeDays);
+ if(result.ok){renderer.trainInterior=railway.status(planet.timeDays);saveRailwayJournal();updateHUD();}
+ return result;
+}
+function handleRailwayArrival(event){
+ if(!railway?.boarded)return;
+ // Snap to the first crossed arrival and pause, even at ultra-fast planet time.
+ planet.timeDays=(event.minute+.25)/1440;running=false;simWorld.clock.paused=true;
+ const result=visitSettlement(destinationById(event.stationId),{byRail:true});
+ if(!result.ok){log("🚂 到着処理エラー: "+result.message);return;}
+ placeAtRailwayPlatform(event.stationId);
+ renderer.trainInterior=railway.status(planet.timeDays);saveRailwayJournal();
+ log("🚉 "+event.station.name+"に到着。時間を停止しました。降車するか、再生して次駅へ進めます。");
+ updateHUD();
 }
 /** Read-only directory browsing until the player explicitly selects an action. */
 function openMapEntry(entry){
@@ -2003,7 +2093,7 @@ function openAutoEditor(open){
  $("viewport-auto").setAttribute("aria-expanded",String(open));
  if(open){renderAutoEditor();$("auto-status").textContent="選択中の人物の条件を編集できます。";}
 }
-$("viewport-auto").addEventListener("click",()=>openAutoEditor($("auto-panel").hidden));
+$("viewport-auto").addEventListener("click",()=>{railwayUI?.close();openAutoEditor($("auto-panel").hidden);});
 $("toolbar-auto").addEventListener("click",()=>openAutoEditor(true));
 $("auto-close").addEventListener("click",()=>openAutoEditor(false));
 $("auto-actor").addEventListener("change",()=>{
@@ -2171,7 +2261,7 @@ quickToggle.addEventListener("click",()=>setQuickMenu(quickPanel.hidden));
 toolToggle.addEventListener("click",()=>setToolMenu(toolPanel.hidden));
 doorToggle.addEventListener("click",()=>setDoorMenu(doorPanel.hidden));
 quickPanel.addEventListener("click",e=>{
- if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu,#viewport-directory,#viewport-town,#viewport-settlements"))setQuickMenu(false);
+ if(e.target.closest("#viewport-rts,#viewport-auto,#viewport-books,#viewport-life,#viewport-menu,#viewport-directory,#viewport-town,#viewport-settlements,#viewport-railway"))setQuickMenu(false);
 });
 toolPanel.addEventListener("click",e=>{if(e.target.closest("button"))setToolMenu(false);});
 doorPanel.addEventListener("click",e=>{if(e.target.closest("button"))setDoorMenu(false);});
@@ -2263,7 +2353,7 @@ $("town-interior-exit").addEventListener("click",()=>{
  if(result.ok){syncTownState();log(result.message);townUI?.refresh();}
 });
 $("viewport-town").addEventListener("click",()=>{
- settlementTravelUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
+ settlementTravelUI?.close();railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
  faunaUI?.close();farmUI?.close();$("marine-panel").hidden=true;
 });
 mapDirectoryUI=installMapDirectoryUI({
@@ -2275,13 +2365,22 @@ settlementTravelUI=installSettlementTravelUI({
  onTravel:visitSettlement,notify:log
 });
 $("viewport-settlements").addEventListener("click",()=>{
- mapDirectoryUI?.close();routeMapUI?.close();faunaUI?.close();farmUI?.close();
+ railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();faunaUI?.close();farmUI?.close();
  $("marine-panel").hidden=true;
+});
+railwayUI=installRailwayUI({
+ get:()=>({railway,timeDays:planet.timeDays,stationId:activeSettlementId,controller}),
+ onWait:waitForRailwayDeparture,onBoard:boardRailwayTrain,onAlight:alightRailwayTrain,
+ onChangeCarriage:changeRailwayCarriage,notify:log,
+ onOpen:()=>{
+  settlementTravelUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
+  townUI?.close(true);faunaUI?.close();farmUI?.close();$("marine-panel").hidden=true;
+ }
 });
 routeMapUI=installRouteMapUI({
  getController:()=>controller,getTerrain:()=>terrain,
  onOpen:()=>{
-  settlementTravelUI?.close();mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();
+  settlementTravelUI?.close();railwayUI?.close();mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();
   $("marine-panel").hidden=true;
  },
  onGo:(goal,preview)=>{
@@ -2299,12 +2398,12 @@ routeMapUI=installRouteMapUI({
  notify:log
 });
 $("viewport-directory").addEventListener("click",()=>{
- settlementTravelUI?.close();routeMapUI?.close();
+ settlementTravelUI?.close();railwayUI?.close();routeMapUI?.close();
  faunaUI?.close();farmUI?.close();
  $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
 });
-$("farm-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();faunaUI?.close();$("marine-panel").hidden=true;});
-$("fauna-toggle").addEventListener("click",()=>{mapDirectoryUI?.close();farmUI?.close();$("marine-panel").hidden=true;});
+$("farm-toggle").addEventListener("click",()=>{railwayUI?.close();mapDirectoryUI?.close();faunaUI?.close();$("marine-panel").hidden=true;});
+$("fauna-toggle").addEventListener("click",()=>{railwayUI?.close();mapDirectoryUI?.close();farmUI?.close();$("marine-panel").hidden=true;});
 window.addEventListener("pagehide",saveFaunaJournal);
 window.addEventListener("pagehide",saveFarmJournal);
 for(const [id,fn] of [
@@ -2340,6 +2439,7 @@ $("marine-salvage").addEventListener("click",()=>{
  if(result.ok)worldUI?.float({kind:"gain",text:"🏛️ 発見物を回収！",actorId:"player",duration:2});
 });
 $("marine-toggle").addEventListener("click",()=>{
+ railwayUI?.close();
  const panel=$("marine-panel");panel.hidden=!panel.hidden;
  $("marine-toggle").setAttribute("aria-expanded",String(!panel.hidden));
  if(!panel.hidden){mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();}updateHUD();
@@ -2493,7 +2593,7 @@ $("fishing-hud-stop").addEventListener("click",()=>{
  const result=marine.stopFishing();log(result.message);
  if(result.ok)saveMarineJournal();updateHUD();
 });
-window.addEventListener("pagehide",saveMarineJournal);
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();});
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */

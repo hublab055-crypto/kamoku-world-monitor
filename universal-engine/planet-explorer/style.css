@@ -1006,3 +1006,47 @@ body.immersive{overflow:hidden}
 .town-interior-exit{position:absolute;z-index:27;bottom:14px;right:14px;color:#fff;background:#31536b;border:1px solid #9bcfe0;border-radius:10px;min-height:42px;padding:8px 14px;font:bold 13px system-ui;box-shadow:0 3px 12px #14252ba8}
 .town-interior-exit[hidden]{display:none!important}
 @media(max-width:600px){.town-interior-exit{bottom:10px;right:10px;min-height:38px}}
+
+/* v0.8t — live steam-rail board, timetable and onboard controls. */
+.railway-panel{top:70px;right:8px;width:min(520px,calc(100% - 16px));max-height:calc(100% - 80px);
+ display:flex;flex-direction:column;gap:8px;overflow:auto;overscroll-behavior:contain}
+.railway-panel[hidden],.railway-onboard-hud[hidden]{display:none!important}
+.railway-clock-line{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:8px;
+ background:linear-gradient(120deg,#243b3b,#3b3023);border:1px solid #887453}
+.railway-clock-line strong{font-size:15px;color:#fff0c5;font-variant-numeric:tabular-nums}
+.railway-clock-line span{font-size:10px;color:#d9d4c3;line-height:1.4}
+.railway-station-card{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:8px;
+ background:#18333b;border:1px solid #4e7478}
+.railway-station-card strong{font-size:13px;color:#e5f6ef}.railway-station-card span{font-size:11px;color:#c8dfda}
+.railway-live-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.railway-live-status article{display:flex;flex-direction:column;gap:4px;padding:7px;border-radius:7px;
+ background:#202d32;border:1px solid #4a5a5c;min-width:0}
+.railway-live-status strong{font-size:11px;color:#f3dfb4}.railway-live-status span{font-size:10px;line-height:1.4;color:#d4e2df}
+.railway-table-wrap{overflow-x:auto;border:1px solid #536567;border-radius:8px;background:#15282d}
+.railway-timetable{width:100%;border-collapse:collapse;font-size:10px;white-space:nowrap}
+.railway-timetable caption{text-align:left;padding:7px 8px;font-weight:700;color:#e7e0ca;background:#273a3c}
+.railway-timetable th,.railway-timetable td{padding:6px 5px;text-align:left;border-top:1px solid #3c5153}
+.railway-timetable th{color:#bcd4cf;font-weight:600}.railway-timetable td:first-child{font-weight:800;color:#ffe0a5;font-variant-numeric:tabular-nums}
+.railway-timetable button{min-height:30px;padding:4px 7px;font-size:10px;background:#5c4829;border-color:#a88d5d}
+.railway-board-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
+.railway-board-controls label{display:flex;flex-direction:column;gap:3px;color:#cee2dd;font-size:10px}
+.railway-board-controls select{width:100%;min-height:38px}.railway-board-controls button{min-height:38px;font-size:11px;padding:5px}
+.railway-board-controls #railway-alight{grid-column:1/-1;background:#315c4e;border-color:#87c4a9}
+.railway-panel #railway-status{min-height:2.8em;margin:0;color:#d8edca;font-size:11px;line-height:1.4}
+.railway-panel>small{font-size:10px;line-height:1.4;color:#bed1cd}
+.railway-onboard-hud{position:absolute;z-index:28;left:50%;bottom:12px;transform:translateX(-50%);
+ width:min(470px,calc(100% - 18px));box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;
+ gap:4px 10px;padding:9px 11px;border-radius:11px;border:1px solid #d0ac6a;color:#fff;
+ background:linear-gradient(120deg,#1b292dF2,#493821F2);box-shadow:0 5px 20px #071015b8;backdrop-filter:blur(6px)}
+.railway-onboard-hud strong{font-size:12px;color:#ffe7b5}.railway-onboard-hud span{grid-column:1/-1;font-size:11px;color:#e0ece8}
+.railway-onboard-hud progress{grid-column:1;width:100%;height:8px;accent-color:#d59c42;align-self:center}
+.railway-onboard-hud>div{grid-column:2;grid-row:1 / span 3;display:flex;flex-direction:column;gap:4px}
+.railway-onboard-hud button{font-size:10px;min-height:29px;padding:3px 7px;white-space:nowrap}
+@media(max-width:600px){
+ .railway-panel{top:68px;right:5px;width:min(355px,calc(100% - 10px));max-height:calc(100% - 74px)}
+ .railway-live-status{grid-template-columns:1fr}.railway-timetable th,.railway-timetable td{padding:5px 4px}
+ .railway-timetable th:nth-child(2),.railway-timetable td:nth-child(2){display:none}
+ .railway-board-controls{grid-template-columns:1fr}.railway-board-controls #railway-alight{grid-column:auto}
+ .railway-onboard-hud{bottom:7px;padding:7px 8px;gap:3px 6px}.railway-onboard-hud>div{grid-column:1/-1;grid-row:auto;flex-direction:row}
+ .railway-onboard-hud>div button{flex:1}.railway-onboard-hud progress{grid-column:1/-1}
+}
