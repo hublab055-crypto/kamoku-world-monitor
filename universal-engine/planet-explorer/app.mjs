@@ -1113,6 +1113,7 @@ function confirmOrbitLanding(){
   }
   marine.update(0,controller,terrain);
   access.insideId=null;access.pendingDoorId=null;
+  townLife.leave();renderer.townInterior=null;townUI?.close(true);
   squad?.repositionAfterLanding();
   if(marine.boarded?.kind==="sailing_ship")marine.shipboard.init(marine.boardedId,squad.agents.slice(1).map(a=>a.id));
   controller.targetAltitude(2.5);
@@ -1141,6 +1142,7 @@ function visitSettlement(place){
   controller.setLanding(actual.lat,actual.lon);
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
   access.insideId=null;access.pendingDoorId=null;
+  townLife.leave();renderer.townInterior=null;townUI?.close(true);
   squad?.repositionAfterLanding();
   marine.update(0,controller,terrain);
   activeSettlementId=actual.id;renderer.settlementId=actual.id;
@@ -1164,7 +1166,8 @@ function openMapEntry(entry){
  }
  if(entry.source==="resident"){
   renderer.mapFocus={x:entry.x,z:entry.z};
-  return {ok:true,message:"🧑 街の住民（"+entry.subtitle+"）を地図上で強調しました"};
+  mapDirectoryUI?.close();townUI?.open(entry);
+  return {ok:true,message:"🧑 街の住民に話しかける準備ができました"};
  }
  if(entry.source==="person"){
   const agent=squad?.get(entry.id);
@@ -1185,6 +1188,10 @@ function openMapEntry(entry){
  }
  if(entry.category==="buildings"){
   renderer.mapFocus={x:entry.x,z:entry.z};
+  if(entry.source==="village"&&activeSettlementId!=="pioneer"&&activeSettlementId!=="wilderness"){
+   mapDirectoryUI?.close();townUI?.open(entry);
+   return {ok:true,message:"🏠 "+entry.title+"：近くで入室・買い物できます"};
+  }
   if(entry.source==="hut"&&Math.hypot(entry.x-controller.x,entry.z-controller.z)<7){
    mapDirectoryUI?.close();tapDoor(entry.entityId);return {ok:true};
   }
@@ -1194,6 +1201,7 @@ function openMapEntry(entry){
  return {ok:false,message:"この対象には操作がありません"};
 }
 function moveToMapEntry(entry){
+ if(townLife.inside)return {ok:false,message:"建物の中です。まず外へ出てください"};
  if(!controller?.nearGround)return {ok:false,message:"地表へ降りてから移動を指示してください"};
  const canStand=(x,z)=>{const geo=controller.locationAt(x,z),g=terrainSurface(terrain,geo.lat,geo.lon);
   return !g.water&&!g.river&&g.elevationM<2800;};
@@ -1303,6 +1311,7 @@ function interactOnShip(hit){
 }
 function handleSceneTap({x,y,shiftKey=false}){
  if(!renderer)return;
+ if(townLife.inside){townUI?.open();return;}
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   selectOrbitLanding(x,y);return;
  }
@@ -1330,6 +1339,10 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(animal){mapDirectoryUI?.close();farmUI?.close();faunaUI?.open(animal.id);return;}
  const pickedFarm=renderer.pickFarm(x,y);
  if(pickedFarm){mapDirectoryUI?.close();faunaUI?.close();farmUI?.open(pickedFarm.id);return;}
+ if(!rtsMode){
+  const townHit=renderer.pickTownTarget(x,y);
+  if(townHit){mapDirectoryUI?.close();townUI?.open(townHit);return;}
+ }
  if(!rtsMode){
   const hit=renderer.pickLife(x,y);
   if(hit){
@@ -1375,6 +1388,7 @@ $("water-entry-accept").addEventListener("click",()=>{
 });
 function handleSceneDoubleTap({x,y,shiftKey=false}){
  if(!renderer)return;
+ if(townLife.inside){townUI?.open();return;}
  if(marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId){
   const floor=renderer.pickShipboardFloor(x,y);
   if(floor){
