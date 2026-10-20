@@ -12,7 +12,7 @@ const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","swim","tread","dive","sword","spear","greatsword","axe","mine","bow","guard","hit","build",
+ "idle","walk","run","jump","swim","tread","dive","sword","spear","greatsword","axe","mine","bow","fish","guard","hit","build",
  "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
