@@ -1,10 +1,10 @@
-import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS,ARROW_TYPES} from "./social-equipment.mjs";
-import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs";
+import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS,ARROW_TYPES} from "./social-equipment.mjs?v=0.8q-rod";
+import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs?v=0.8q-rod-deck";
 import {applyBowHold} from "./archery-timing.mjs";
 import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
 
 /** Browser UI adapter; domain logic lives in SocialEquipment. */
-export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,saveLifeJournal,showSpeech=()=>{},showEffect=()=>{}}){
+export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,saveLifeJournal,showSpeech=()=>{},showEffect=()=>{},onFish=()=>({ok:false,message:"釣りを準備できません"})}){
  const $=id=>document.getElementById(id);
  let social=new SocialEquipment(),headingUp=false,choice={player:"male",scout:"female",artisan:"male"};
  let modelSource="standard",modelQuality="auto",modelLoadId=0;
@@ -179,6 +179,13 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  function executeItem(result,who,c,hand="right",chosenVariant=null,shotOptions=null){
   if(!result.ok){log(result.message);return result;}
   if(result.kind==="book"){openBookLibrary();return result;}
+  if(result.kind==="fishing"){
+   if(who.id!=="player")return {ok:false,message:"釣り竿の使用は現在プレイヤーのみ対応"};
+   const r=onFish(who,hand);
+   if(r?.message)log(r.message);
+   updateHUD();
+   return r;
+  }
   if(result.kind==="guard"){c.battle?.guard();log(result.message);return result;}
   if(result.kind==="heal"){
    const healed=c.battle?.heal(result.amount)||0;
