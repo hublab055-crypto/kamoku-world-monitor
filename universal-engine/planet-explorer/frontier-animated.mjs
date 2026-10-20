@@ -1,4 +1,4 @@
-import {samplePose} from "./rig.mjs";
+import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8o-four-strokes";
 /** GLB2 skeletal/morph animation data. Pure module; no DOM/WebGL dependency.
  * Supports glTF node hierarchy, inverse bind matrices, skin weights, two morph targets,
@@ -248,7 +248,7 @@ export function applyAquaticRigPose(rig,poses,action,time,moving=true){
  * Unknown/imported skeletons retain their original animation.
  */
 export function applyWeaponRigPose(rig,poses,action,progress,variant="overhead",hand="right"){
- if(!["sword","spear","greatsword","axe","bow","guard","hit"].includes(action)||!Number.isFinite(progress))return false;
+ if(!["sword","spear","greatsword","axe","bow","fish","guard","hit"].includes(action)||!Number.isFinite(progress))return false;
  const index=new Map(rig.nodes.map((n,i)=>[(n.name||"").toLowerCase(),i]));
  if(!["rightshoulder","leftshoulder","rightelbow","leftelbow","waist"].every(n=>index.has(n)))return false;
  const motion=samplePose({action,progress,variant});

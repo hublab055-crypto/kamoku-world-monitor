@@ -5,14 +5,14 @@
  * Semantics are intentionally small; rig-v2 maps pose values to joint matrices.
  * Moving arms and locomotion do not reset when a tool animation starts.
  */
-import {samplePose} from "./rig.mjs";
+import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8o-four-strokes";
 const alpha=(dt,tau)=>1-Math.exp(-Math.max(0,dt)/Math.max(.001,tau));
 const smooth=(a,b,t)=>a+(b-a)*t;
 const angle=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 const range=(v,min,max)=>Math.min(max,Math.max(min,v));
 export const ANIMATION_STATES=Object.freeze([
- "idle","walk","run","jump","swim","tread","dive","sword","spear","greatsword","axe","mine","bow","guard","hit","build",
+ "idle","walk","run","jump","swim","tread","dive","sword","spear","greatsword","axe","mine","bow","fish","guard","hit","build",
  "sit","stand","sleep","rest","read","eat","serve","cook","wash","warm"
 ]);
 export function blendPose(from,to,weight){
@@ -44,7 +44,7 @@ export class SmoothAnimator {
     throw TypeError("Invalid animation update");
   const elapsed=Math.min(dt,.25),flight=jumpHeight>.01||action==="jump";
   const aquatic=isAquaticAction(action);
-  const toolAction=["sword","spear","greatsword","axe","mine","bow","guard","hit","build"].includes(action);
+  const toolAction=["sword","spear","greatsword","axe","mine","bow","fish","guard","hit","build"].includes(action);
   const lifeAction=["sit","sleep","rest","read","eat","serve","cook","wash","warm"].includes(action);
   const speed=Math.min(1,Math.abs(speedMps)/5);
   const move=moving&&speed>.01&&!flight;

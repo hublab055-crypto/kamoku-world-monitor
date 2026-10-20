@@ -68,6 +68,19 @@ export function samplePose({phase=0,moving=false,jumpHeight=0,action="idle",prog
     pose.torsoX=.06;
     return pose;
   }
+  if(action==="fish"){
+    // Casting lifts the rod; after the lure lands, clockwise reel turns
+    // animate the left hand around the fishing reel.
+    const lift=clamp(progress,0,1),crank=progress>1?Math.sin((progress-1)*2):0;
+    pose.torsoX=-.11*Math.sin(lift*Math.PI);
+    pose.rightShoulderX=-.72-.62*Math.sin(lift*Math.PI);
+    pose.rightElbowX=-.76-.17*Math.sin(lift*Math.PI);
+    pose.rightWristX=.1;
+    pose.leftShoulderX=-.60-.14*crank;
+    pose.leftElbowX=-.93-.22*crank;
+    pose.leftWristX=.32*crank;
+    return pose;
+  }
   if(action==="hit"){
     // Quick stagger and recovery, without moving the actual player controller.
     const shock=Math.sin(Math.PI*clamp(progress,0,1));

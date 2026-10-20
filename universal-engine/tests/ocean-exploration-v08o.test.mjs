@@ -23,10 +23,9 @@ test("four swim styles alter speed and limb strokes, including symmetric breasts
 });
 test("scuba and hard diving suit must be crafted before equipping, costs are paid once",()=>{
  const m=new MarineWorld(),ctrl=player(),r={metal:40,fiber:45,plank:10,wood:5};
- assert.equal(m.equipGear("scuba",ctrl).ok,false);
- assert.equal(m.craftGear("scuba",r).ok,true);
- assert.equal(r.metal,32);assert.equal(r.fiber,35);
- assert.equal(m.craftGear("scuba",r).ok,false);
+ assert.ok(m.ownedGear.includes("scuba"),"starter scuba tank in inventory");
+ assert.equal(m.craftGear("scuba",r).ok,false,"already owned");
+ assert.equal(r.metal,40);assert.equal(r.fiber,45);
  assert.equal(m.equipGear("scuba",ctrl).ok,true);
  assert.equal(m.oxygen,DIVE_GEAR.scuba.air);
  assert.equal(m.craftGear("suit",r).ok,true);

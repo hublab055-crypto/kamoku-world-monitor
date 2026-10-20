@@ -7,7 +7,7 @@ import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./
 import {noise3} from "../planet/planet-core.mjs";
 import {faunaGeometry} from "./fauna-geometry.mjs?v=0.8g-grazing";
 import {agricultureGeometry} from "./agriculture-geometry.mjs?v=0.8g-crops";
-import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
+import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs?v=0.8p-fishing-motion";
 import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
 import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
@@ -18,15 +18,16 @@ import {shipLocalToWorld,shipWorldToLocal,isShipWalkable,SHIP_HELM,SHIP_DOOR} fr
 import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8o-styles";
 import {SEA_SITE_TYPES,seabedPatch} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
+import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
-import {SmoothAnimator} from "./animator.mjs?v=0.8o-four-strokes";
+import {SmoothAnimator} from "./animator.mjs?v=0.8p-fishing-motion";
 import {makeJointCovers} from "./joint-covers.mjs";
 import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
-import {rotZ} from "./rig.mjs";
+import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8o-four-strokes";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8p-fishing-motion";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
@@ -624,6 +625,7 @@ export class ExplorerRenderer{
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
   this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");this.uInstanced=gl.getUniformLocation(pg,"uInstanced");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
+  this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.sceneryStats=null;this.patchKey=null;
@@ -1408,6 +1410,7 @@ export class ExplorerRenderer{
   const cs=Math.cos(spin),ss=Math.sin(spin),x=cs*sun.x+ss*sun.z,z=-ss*sun.x+cs*sun.z;
   const ct=Math.cos(tilt),st=Math.sin(tilt),light=[x,ct*sun.y-st*z,st*sun.y+ct*z];
   this.drawMesh(this.globe,vp,light,1,.14);
+  this.drawMesh(this.globeIslands,vp,light,1,.56);
   // The global globe is coarse (degrees per triangle). Refine only the
   // visible landing neighbourhood as we move toward the cloud deck.
   const tier=orbitalTerrainTier(s.altitudeM);
@@ -1495,12 +1498,20 @@ export class ExplorerRenderer{
   const position=p?shipLocalToWorld(s.x,s.z,s.yaw,p.x,p.z):{x:s.x,z:s.z};
   const heading=s.yaw+(p?.yaw||0);
   const rodX=position.x-this.cx+Math.cos(heading)*.50,rodZ=position.z-this.cz+Math.sin(heading)*.50;
-  const rodBase=multiply4(translate(rodX,waterY+(this.marine.boarded?1.65:.25),rodZ),rotX(-.4));
+  const cast=this.marine.fishing.castMotion||0,reel=this.marine.fishing.reelTurns||0;
+  const pitch=-.35-.55*Math.sin(Math.PI*cast)+.20*Math.sin(reel*Math.PI*2);
+  const rodBase=multiply4(translate(rodX,waterY+(this.marine.boarded?1.65:.25),rodZ),rotX(pitch));
   this.drawMesh(this.fishingRod,multiply4(vp,rodBase),light,1,.82);
-  const distance=5.2,fx=position.x-this.cx+Math.sin(heading)*distance,
+  const distance=this.marine.fishing.lineOutM||5.2,fx=position.x-this.cx+Math.sin(heading)*distance,
    fz=position.z-this.cz+Math.cos(heading)*distance;
   const bounce=.07*Math.sin(this.marineClock*2.3);
   this.drawMesh(this.fishingFloat,multiply4(vp,translate(fx,waterY+.10+bounce,fz)),light,1,.88);
+  // Fish approaches the float before the hit, then stays near the lure.
+  const seek=this.marine.fishing.approach||0;
+  const fishX=fx+Math.cos(heading)*Math.max(.6,9*(1-seek)),fishZ=fz+Math.sin(heading)*Math.max(.6,9*(1-seek));
+  const fishY=waterY-1.1-.2*Math.sin(this.marineClock*2);
+  const fishTransform=multiply4(translate(fishX,fishY,fishZ),rotateY(heading+this.marineClock*.12));
+  this.drawMesh(this.fishMesh,multiply4(vp,fishTransform),light,1,.87);
  }
  drawShipboardObjects(vp,light,s,waterY){
   this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
@@ -1740,6 +1751,9 @@ export class ExplorerRenderer{
   const lifeAction=this.sceneLife?.activity;
   const baseMotion=marinePose?
    {action:marinePose.action,progress:0}:
+   this.marine?.fishing?.casting?
+   {action:"fish",progress:(this.marine.fishing.castMotion<1?this.marine.fishing.castMotion:
+    1+this.marine.fishing.reelTurns*2*Math.PI)}:
    lifeAction&&lifeAction!=="idle"?
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
   const hitActive=(this.playerHitSeconds||0)>0;
@@ -1799,7 +1813,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

@@ -1,4 +1,5 @@
 import { clamp, noise3, normalAt } from "./planet-core.mjs";
+import {islandHeight} from "./island-archipelago.mjs?v=0.8p-islands";
 
 /** Sampled procedural terrain. Height is relative to mean sea level, in metres. */
 export class Terrain {
@@ -24,15 +25,19 @@ export class Terrain {
       const hill = b * 270 + c * 180;
       heightM = Math.max(2, continent * 2400 + hill + mountains);
     }
+    // Real additional land: the same sample drives walking, construction and orbital art.
+    const islandM=heightM<0?islandHeight(seed,latitude,longitude,this.planet.radiusM):0;
+    if(islandM>0)heightM=islandM;
     const water = heightM < 0;
     // Stylized drainage indicator, not full river flow/erosion routing.
     const channel = Math.min(
       Math.abs((((longitude - (-120 + 11 * Math.sin((latitude + 9) * 0.08)) + 540) % 360) - 180)),
       Math.abs((((longitude - (48 + 13 * Math.sin((latitude - 20) * 0.045)) + 540) % 360) - 180))
     );
-    const river = !water && Math.abs(latitude) < 49 && heightM < 1600 && channel < 0.7;
+    const river = !water && islandM===0 && Math.abs(latitude) < 49 && heightM < 1600 && channel < 0.7;
     const polar = Math.abs(latitude);
     const category = water ? "ocean" :
+      islandM>0 ? "island" :
       river ? "river" :
       heightM > 2300 ? "mountain" :
       heightM > 1300 ? "highland" :

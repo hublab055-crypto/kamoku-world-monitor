@@ -1,12 +1,13 @@
-import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8p-island-height";
 import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
-import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing-r3";
+import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {ShipboardWorld} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES,seaSitesNear,oceanFloorDepth} from "./ocean-exploration.mjs?v=0.8o-seabed";
+import {islandCenters} from "../planet/island-archipelago.mjs?v=0.8p-islands";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
-const validLand = s => !isWater(s) && s.elevationM >= 1 && s.elevationM < 2800;
+const validLand = s => !isWater(s) && s.elevationM >= (s.category==="island"?.1:1) && s.elevationM < 2800;
 const fail = message => ({ok:false,message});
 
 /** Never convert a sea click into an unsafe land spawn.
@@ -90,7 +91,7 @@ export class MarineWorld{
   this.boats=[];this.nextId=1;this.boardedId=null;
   this.diving=false;this.depthM=0;this.oxygen=100;
   this.swimStyle=SWIM_STYLES[data?.swimStyle]?data.swimStyle:"crawl";
-  this.ownedGear=Array.isArray(data?.ownedGear)?[...new Set(["none",...data.ownedGear.filter(x=>DIVE_GEAR[x])])]:["none"];
+  this.ownedGear=Array.isArray(data?.ownedGear)?[...new Set(["none","scuba",...data.ownedGear.filter(x=>DIVE_GEAR[x])])]:["none","scuba"];
   this.diveGear=this.ownedGear.includes(data?.diveGear)?data.diveGear:"none";
   this.targetDepthM=Number.isFinite(data?.targetDepthM)?Math.max(0,data.targetDepthM):4;
   this.salvagedSites=new Set(Array.isArray(data?.salvagedSites)?data.salvagedSites.slice(0,5000).filter(x=>typeof x==="string"):[]);
@@ -115,6 +116,25 @@ export class MarineWorld{
    this.diving=Boolean(data.diving&&!this.boardedId);
    this.depthM=this.diving&&Number.isFinite(data.depthM)?Math.max(0,Math.min(DIVE_GEAR[this.diveGear].maxDepth,data.depthM)):0;
   }
+ }
+ /** Scan only actual islands defined by the same terrain sampler as the globe.
+  * An empty return is expected in empty open ocean. Never teleport boats. */
+ findNearestIsland(controller,terrain,limitM=180000){
+  const here=terrainSurface(terrain,controller.lat,controller.lon);
+  if(here.category==="island")return {ok:true,distanceM:0,message:"🏝️ 現在は居住・建築できる島の陸上です"};
+  let nearest=null;
+  for(const center of islandCenters(terrain.planet.seed)){
+   const d=geoLocal(controller.lat,controller.lon,center.lat,center.lon,terrain.planet.radiusM);
+   const range=Math.hypot(d.eastM,d.northM);
+   if(range>limitM+center.radiusM||range<0)continue;
+   if(terrain.sample(center.lat,center.lon).category!=="island")continue;
+   if(!nearest||range<nearest.range)nearest={...center,range,eastM:d.eastM,northM:d.northM};
+  }
+  if(!nearest)return fail("🌊 この海域の周囲"+Math.round(limitM/1000)+"km以内に島は見つかりません。外洋を航行中です");
+  const heading=(Math.atan2(nearest.eastM,nearest.northM)*180/Math.PI+360)%360;
+  return {ok:true,site:nearest,distanceM:nearest.range,
+   bearingDeg:heading,message:"🏝️ 島を発見！ 方位 "+Math.round(heading)+"°、中心まで "+
+   (nearest.range/1000).toFixed(1)+"km。海岸へ近づけば上陸・建築できます"};
  }
  get boarded(){return this.boats.find(b=>b.id===this.boardedId)||null;}
  get gear(){return DIVE_GEAR[this.diveGear];}
@@ -287,7 +307,7 @@ export class MarineWorld{
   this.cabinActivity=kind;
   return {ok:true,kind,message:spec.icon+" "+spec.name+"を使います"};
  }
- castLine(controller,terrain){
+ castLine(controller,terrain,power=.65){
   const surface=terrainSurface(terrain,controller.lat,controller.lon);
   const boat=this.boarded;
   const atWater=isWater(surface)||(boat&&boat.kind==="sailing_ship");
@@ -302,10 +322,11 @@ export class MarineWorld{
    if(!coast)return fail("釣りには海岸または船の甲板が必要です");
   }
   if(!boat&&isWater(surface))return fail("水泳中は釣れません。浜辺か船へ移動してください");
-  return this.fishing.cast({water:true,aboard:Boolean(boat),inCabin:Boolean(this.cabinId)});
+  return this.fishing.cast({water:true,aboard:Boolean(boat),inCabin:Boolean(this.cabinId),power});
  }
  tickFishing(dt,seed){return this.fishing.advance(dt,seed);}
  reelFish(resources){return this.fishing.reel(resources);}
+ turnFishingDial(radians,resources){return this.fishing.turnReel(radians,resources);}
  stopFishing(){return this.fishing.stop();}
  mode(controller,terrain){
   if(this.boarded)return "boat";
