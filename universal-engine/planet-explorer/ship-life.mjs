@@ -45,7 +45,7 @@ export class ShipFishing{
   this.power=Math.max(.1,Math.min(1,Number.isFinite(power)?power:.65));
   this.lineOutM=3+this.power*26;this.approach=0;this.reelTurns=0;this.castMotion=0;
   this.phase="casting";
-  this.casts++;this.nextBite=5+Math.floor(hash(this.casts*5.2)*11)+this.power*5;
+  this.casts++;this.nextBite=6+Math.floor(hash(this.casts*5.2)*11);
   return {ok:true,power:this.power,distanceM:this.lineOutM,
    message:"🎣 パワー "+Math.round(this.power*100)+"% で "+this.lineOutM.toFixed(1)+"m 投げました！"};
  }
