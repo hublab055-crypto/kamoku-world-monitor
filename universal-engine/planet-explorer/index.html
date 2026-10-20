@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8r-settlements">
+<link rel="stylesheet" href="./style.css?v=0.8s-townlife">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -202,6 +202,7 @@
     <button type="button" id="viewport-social">💬 話す・贈る</button>
     <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
      <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
+    <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
      <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
@@ -270,6 +271,15 @@
  <p id="settlement-travel-status" class="settlement-travel-status" role="status" aria-live="polite"></p>
  <button type="button" id="settlement-travel-go" class="primary" disabled>訪れる</button>
  <small>来訪はワールド内の登録地点への移動です。短距離の徒歩・航海指示は「目的地マップ」を利用してください。</small>
+</section>
+<section id="town-interaction-panel" class="fauna-panel town-interaction-panel" role="dialog"
+ aria-label="街の住人・商店・建物" hidden>
+ <div class="fauna-panel-top"><strong id="town-interaction-title">🏘️ 街の生活</strong>
+  <button type="button" id="town-interaction-close" aria-label="街の生活メニューを閉じる">× 閉じる</button></div>
+ <p id="town-interaction-detail" class="town-interaction-detail">住民に話しかけたり、お店で買い物ができます。</p>
+ <div id="town-interaction-actions" class="town-interaction-actions"></div>
+ <p id="town-interaction-status" role="status" aria-live="polite">近づいて交流してください。</p>
+ <small>🗺️ マップ一覧で人物・建物を選ぶと、遠くの対象も確認できます。会話・売買・入室は一定距離以内のみです。</small>
 </section>
 <section id="marine-panel" class="fauna-panel" role="group" aria-label="海上移動・潜水・造船" hidden>
  <div class="fauna-panel-top"><strong>🌊 海・船・潜水</strong>
@@ -978,6 +988,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8r-settlements"></script>
+<script type="module" src="./app.mjs?v=0.8s-townlife"></script>
 </body>
 </html>
