@@ -28,6 +28,8 @@ import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8r-towns";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
+import {TownLife} from "./town-life.mjs?v=0.8s-towns";
+import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
@@ -52,6 +54,7 @@ const STRUCTURES_JOURNAL_KEY="universal-engine:explorer:construction:v0.8e";
 const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
 const FARM_JOURNAL_KEY="universal-engine:explorer:agriculture:v0.8g";
 const MARINE_JOURNAL_KEY="universal-engine:explorer:marine:v0.8g";
+const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
@@ -59,6 +62,14 @@ const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
+let townLife=new TownLife(),townUI=null;
+function saveTownJournal(){
+ try{localStorage.setItem(TOWN_JOURNAL_KEY,JSON.stringify(townLife.snapshot()));}
+ catch(_){log("街の記録の保存に失敗しました");}
+}
+function loadTownJournal(){
+ try{return JSON.parse(localStorage.getItem(TOWN_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
  catch(_){log("船の保存に失敗しました");}
@@ -186,6 +197,8 @@ function init(saved=null){
    terrain.earthworks=earthworks;
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+  townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
+  townUI?.close(true);
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
    settlementLocations=null;
@@ -227,6 +240,7 @@ function init(saved=null){
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
    renderer.settlementId=activeSettlementId;
+   renderer.townInterior=null;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
    if(constructionUI)constructionUI.system=constructions;
@@ -375,7 +389,7 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const input=$("book-overlay").hidden&&$("life-overlay").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const input=$("book-overlay").hidden&&$("life-overlay").hidden&&!townLife.inside?inputVector():{forward:0,strafe:0,turn:0};
   const ship=marine?.boarded;
   const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
@@ -835,8 +849,8 @@ $("save").addEventListener("click",()=>{
        v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
        v0_8g:{schemaVersion:1,farm:farm.snapshot(),marine:marine.snapshot()},
         v0_8h:{schemaVersion:1,playerHp:battle.playerHp},
-         v0_8r:{schemaVersion:1,destinationId:activeSettlementId}};
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));
+         v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot()};
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -895,7 +909,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
