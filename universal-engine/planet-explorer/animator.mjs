@@ -5,7 +5,7 @@
  * Semantics are intentionally small; rig-v2 maps pose values to joint matrices.
  * Moving arms and locomotion do not reset when a tool animation starts.
  */
-import {samplePose} from "./rig.mjs";
+import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8o-four-strokes";
 const alpha=(dt,tau)=>1-Math.exp(-Math.max(0,dt)/Math.max(.001,tau));
 const smooth=(a,b,t)=>a+(b-a)*t;
