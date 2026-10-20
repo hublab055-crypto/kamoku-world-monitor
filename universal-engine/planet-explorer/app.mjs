@@ -1,6 +1,6 @@
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
-import {Terrain} from "../planet/terrain-engine.mjs";
+import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
@@ -36,7 +36,7 @@ import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
 import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8p-islands-reel";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
-import {FISH_CATALOG} from "./ship-life.mjs?v=0.8m-fishing-r3";
+import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -2258,7 +2258,12 @@ function dialReelTurn(angle){
  if(result.ok&&result.kind!=="reeling"&&result.kind!=="hold"){saveLifeJournal();saveMarineJournal();}
  if(result.ok&&FISH_CATALOG[result.kind])
   worldUI?.float({kind:"gain",text:"🐟 魚 +1",actorId:"player",duration:1.6});
- updateHUD();
+ if(result.ok&&result.kind==="reeling"){
+  const fishing=marine.fishing;
+  $("marine-fish-distance").textContent="糸："+fishing.lineOutM.toFixed(1)+"m";
+  $("marine-fish-line-progress").value=Math.max(0,Math.round(100*
+   (1-fishing.lineOutM/(3+fishing.power*26))));
+ }else updateHUD();
  return result;
 }
 const reelDial=$("marine-reel-dial");
@@ -2283,7 +2288,7 @@ reelDial.addEventListener("pointermove",e=>{
  e.preventDefault();
 });
 for(const event of ["pointerup","pointercancel","lostpointercapture"])
- reelDial.addEventListener(event,()=>{dialActive=false;dialLast=null;});
+ reelDial.addEventListener(event,()=>{if(dialActive)saveMarineJournal();dialActive=false;dialLast=null;});
 reelDial.addEventListener("keydown",e=>{
  if(!["ArrowRight","ArrowDown","ArrowUp","Enter"," "].includes(e.key))return;
  e.preventDefault();dialAngle+=45;
@@ -2291,17 +2296,6 @@ reelDial.addEventListener("keydown",e=>{
  dialReelTurn(Math.PI/4);
 });
 $("marine-fish-reel").addEventListener("click",()=>dialReelTurn(Math.PI*2));
-/* Original single-action reel remains in ShipFishing for older saves/APIs. */
-if(false)reelDial.addEventListener("deprecated-reel",()=>{
- const result=marine.reelFish(actions.resources);
- log(result.message);
- if(result.ok){
-  worldUI?.float({kind:"gain",text:"🐟 魚 +1",actorId:"player",duration:1.6});
-  saveLifeJournal();
-  saveMarineJournal();
- }
- updateHUD();
-});
 window.addEventListener("pagehide",saveMarineJournal);
 init();requestAnimationFrame(doFrame);
 
