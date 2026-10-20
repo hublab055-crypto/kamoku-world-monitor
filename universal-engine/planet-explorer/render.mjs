@@ -1712,6 +1712,12 @@ export class ExplorerRenderer{
   }else this.drawMesh(this.patch,vp,light,1,.58);
   if(this.riverWater)this.drawMesh(this.riverWater,vp,light,1,.86);
   this.drawMarineSurface(vp,light,s,dt);
+  if(s.travelMode==="swim"&&this.marine?.entrySeconds>0){
+   const p=1-this.marine.entrySeconds/this.marine.entryDuration,spread=.55+2.1*p;
+   const size=[spread,0,0,0,0,1,0,0,0,0,spread,0,0,0,0,1];
+   const ripple=multiply4(translate(s.x-this.cx,waterY+.07,s.z-this.cz),size);
+   this.drawMesh(this.selectionRing,multiply4(vp,ripple),light,1,.94,[.60,.91,1]);
+  }
   this.drawSeabed(vp,light,s);
   for(const mesh of this.meadow)this.drawInstancedMesh(mesh,vp,light,1,.72);
    for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
