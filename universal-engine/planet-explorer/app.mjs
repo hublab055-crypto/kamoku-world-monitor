@@ -1112,6 +1112,33 @@ function confirmOrbitLanding(){
     "🏝️ 陸上への降下を開始します"+(site.movedM?"（海を避け、近隣の陸地へ移動）":""));
  }catch(e){log("地点降下エラー: "+e.message);}
 }
+/** Planetary travel to named settlements. The local waypoint map is unaffected. */
+function visitSettlement(place){
+ if(!place||!destinationById(place.id))return {ok:false,message:"未登録の行き先です"};
+ try{
+  const actual=(settlementLocations||=settlementDestinations(terrain)).find(d=>d.id===place.id);
+  if(!actual)return {ok:false,message:"行き先が見つかりません"};
+  const ground=terrainSurface(terrain,actual.lat,actual.lon);
+  if(ground.water||ground.river||ground.elevationM>=2800)
+   return {ok:false,message:"安全な着陸地がありません"};
+  marine.boardedId=null;marine.cabinId=null;marine.cabinActivity="idle";
+  marine.diving=false;marine.depthM=0;marine.targetDepthM=4;marine.oxygen=100;
+  marine.fishing?.stop();
+  controller.setLanding(actual.lat,actual.lon);
+  controller.altitudeM=2.5;controller.targetAltitude(2.5);
+  access.insideId=null;access.pendingDoorId=null;
+  squad?.repositionAfterLanding();
+  marine.update(0,controller,terrain);
+  activeSettlementId=actual.id;renderer.settlementId=actual.id;
+  renderer.patchKey=null;renderer.interiorBuildingId=null;renderer.mapFocus=null;
+  renderer.cameraController.resetFreeAnchor(controller,ground.elevationM);
+  $("landing").textContent=controller.lat.toFixed(3)+"°, "+controller.lon.toFixed(3)+"°";
+  routeMapUI?.close();mapDirectoryUI?.close();farmUI?.close();faunaUI?.close();
+  $("marine-panel").hidden=true;
+  saveMarineJournal();updateHUD();
+  return {ok:true,message:"🏘️ "+actual.name+"に到着。住居や市場を探索できます。"};
+ }catch(error){return {ok:false,message:"来訪できませんでした: "+error.message};}
+}
 /** Read-only directory browsing until the player explicitly selects an action. */
 function openMapEntry(entry){
  if(entry.source==="animal"){
@@ -2190,10 +2217,18 @@ mapDirectoryUI=installMapDirectoryUI({
  get:()=>({controller,fauna,squad,renderer,constructions,actions}),
  onOpen:openMapEntry,onMove:moveToMapEntry,notify:log
 });
+settlementTravelUI=installSettlementTravelUI({
+ getDestinations:()=>settlementLocations||=settlementDestinations(terrain),
+ onTravel:visitSettlement,notify:log
+});
+$("viewport-settlements").addEventListener("click",()=>{
+ mapDirectoryUI?.close();routeMapUI?.close();faunaUI?.close();farmUI?.close();
+ $("marine-panel").hidden=true;
+});
 routeMapUI=installRouteMapUI({
  getController:()=>controller,getTerrain:()=>terrain,
  onOpen:()=>{
-  mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();
+  settlementTravelUI?.close();mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();
   $("marine-panel").hidden=true;
  },
  onGo:(goal,preview)=>{
@@ -2211,7 +2246,7 @@ routeMapUI=installRouteMapUI({
  notify:log
 });
 $("viewport-directory").addEventListener("click",()=>{
- routeMapUI?.close();
+ settlementTravelUI?.close();routeMapUI?.close();
  faunaUI?.close();farmUI?.close();
  $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
 });
