@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
-import {ExplorerRenderer} from "./render.mjs?v=0.8o-seabed-visuals";
+import {ExplorerRenderer} from "./render.mjs?v=0.8p-islands-fishing";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -33,7 +33,7 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8o-deep-sea";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8p-islands-reel";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8m-fishing-r3";
@@ -618,7 +618,7 @@ function updateHUD(){
  $("coords").textContent=controller.lat.toFixed(5)+"°, "+controller.lon.toFixed(5)+"°";
  $("height").textContent=Math.round(controller.altitudeM).toLocaleString("ja-JP")+" m";
  $("ground-height").textContent=Math.round(g.elevationM).toLocaleString("ja-JP")+" m";
- $("biome").textContent=({ocean:"海",river:"川",forest:"森林",mountain:"山",
+ $("biome").textContent=({ocean:"海",river:"川",island:"🏝️ 島",forest:"森林",mountain:"山",
     "mountain-range":"山脈",hills:"丘陵",highland:"高地",plain:"平野",plains:"平野",
     grassland:"草原",valley:"谷",canyon:"渓谷",coast:"海岸",tundra:"ツンドラ"}[g.landform||g.category]||g.landform||g.category);
  $("temp").textContent=climate.temperatureC.toFixed(1)+" °C";
@@ -745,11 +745,23 @@ function updateHUD(){
   }
   const fishing=marine.fishing;
   $("marine-fish-cast").disabled=!isSurface||cabin||fishing.casting||controller.travelMode==="swim"||controller.travelMode==="dive";
-  $("marine-fish-reel").disabled=!isSurface||cabin||!fishing.hook;
+  $("marine-fish-reel").disabled=!isSurface||cabin||!fishing.casting;
   $("marine-fish-stop").disabled=!fishing.casting;
+  const total=3+(fishing.power||.65)*26;
+  const progress=fishing.casting?Math.round(100*(1-(fishing.lineOutM||0)/total)):0;
+  $("marine-fish-line-progress").value=Math.max(0,Math.min(100,progress));
+  $("marine-reel-dial").setAttribute("aria-valuenow",String(Math.max(0,Math.min(100,progress))));
+  $("marine-reel-dial").setAttribute("aria-valuetext",fishing.casting?
+    "残り "+fishing.lineOutM.toFixed(1)+"メートル":"仕掛けを投げる前");
+  $("marine-fish-phase").textContent=fishing.hook?"🐟 ヒット！":
+   fishing.casting?fishing.castMotion<1?"🎣 キャスト中":
+    "🐟 魚が近づく "+Math.round(100*fishing.approach)+"%":"投げる準備";
+  $("marine-fish-distance").textContent="糸："+(fishing.lineOutM||0).toFixed(1)+"m";
+  if(document.activeElement!==$("marine-fish-power"))$("marine-fish-power-label").textContent=
+   $("marine-fish-power").value+"%";
   $("marine-fishing-status").textContent=fishing.hook?
-   "🐟 アタリ！引き上げてください（残り"+Math.ceil(fishing.hookLeft)+"秒）":
-   fishing.casting?"🎣 アタリ待ち… 約"+Math.ceil(Math.max(0,fishing.nextBite-fishing.elapsed))+"秒":
+   "🐟 ヒット！ダイヤルを時計回りに回して巻き取る（残り"+Math.ceil(fishing.hookLeft)+"秒）":
+   fishing.casting?"🎣 魚が近寄る… 約"+Math.ceil(Math.max(0,fishing.nextBite-fishing.elapsed))+"秒":
     "釣果 "+fishing.caught+"匹／魚の所持数 "+(actions.resources.fish||0)+
     "匹。直近の釣果："+(FISH_CATALOG[fishing.lastCatch]?.name||"なし")+". 甲板・浜辺で釣れます";
  }
@@ -2230,9 +2242,57 @@ $("marine-cabin-furniture").addEventListener("click",event=>{
  const button=event.target.closest("button[data-cabin-action]");
  if(button)useShipFurniture(button.dataset.cabinAction);
 });
-$("marine-fish-cast").addEventListener("click",()=>shipAction(()=>marine.castLine(controller,terrain)));
+$("marine-fish-power").addEventListener("input",()=>{
+ $("marine-fish-power-label").textContent=$("marine-fish-power").value+"%";
+});
+$("marine-find-island").addEventListener("click",()=>{
+ const r=marine.findNearestIsland(controller,terrain,180000);
+ log(r.message);$("marine-island-status").textContent=r.message;
+});
+$("marine-fish-cast").addEventListener("click",()=>shipAction(()=>
+ marine.castLine(controller,terrain,Number($("marine-fish-power").value)/100)));
 $("marine-fish-stop").addEventListener("click",()=>shipAction(()=>marine.stopFishing()));
-$("marine-fish-reel").addEventListener("click",()=>{
+function dialReelTurn(angle){
+ const result=marine.turnFishingDial(Math.max(0,Math.min(angle,Math.PI*5)),actions.resources);
+ if(!result.ok||result.kind!=="reeling"&&result.kind!=="hold")log(result.message);
+ if(result.ok&&result.kind!=="reeling"&&result.kind!=="hold"){saveLifeJournal();saveMarineJournal();}
+ if(result.ok&&FISH_CATALOG[result.kind])
+  worldUI?.float({kind:"gain",text:"🐟 魚 +1",actorId:"player",duration:1.6});
+ updateHUD();
+ return result;
+}
+const reelDial=$("marine-reel-dial");
+let dialAngle=0,dialLast=null,dialActive=false;
+const pointerAngle=e=>{
+ const r=reelDial.getBoundingClientRect();
+ return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));
+};
+reelDial.addEventListener("pointerdown",e=>{
+ if(!marine?.fishing?.casting)return;
+ dialActive=true;dialLast=pointerAngle(e);
+ try{reelDial.setPointerCapture(e.pointerId);}catch(_){}
+ e.preventDefault();
+});
+reelDial.addEventListener("pointermove",e=>{
+ if(!dialActive)return;
+ const next=pointerAngle(e),delta=Math.atan2(Math.sin(next-dialLast),Math.cos(next-dialLast));
+ dialLast=next;
+ dialAngle+=delta*180/Math.PI;
+ reelDial.style.setProperty("--dial-angle",dialAngle.toFixed(1)+"deg");
+ if(delta>.005)dialReelTurn(delta);
+ e.preventDefault();
+});
+for(const event of ["pointerup","pointercancel","lostpointercapture"])
+ reelDial.addEventListener(event,()=>{dialActive=false;dialLast=null;});
+reelDial.addEventListener("keydown",e=>{
+ if(!["ArrowRight","ArrowDown","ArrowUp","Enter"," "].includes(e.key))return;
+ e.preventDefault();dialAngle+=45;
+ reelDial.style.setProperty("--dial-angle",dialAngle+"deg");
+ dialReelTurn(Math.PI/4);
+});
+$("marine-fish-reel").addEventListener("click",()=>dialReelTurn(Math.PI*2));
+/* Original single-action reel remains in ShipFishing for older saves/APIs. */
+if(false)reelDial.addEventListener("deprecated-reel",()=>{
  const result=marine.reelFish(actions.resources);
  log(result.message);
  if(result.ok){
