@@ -33,7 +33,7 @@ import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8e-sized-resources";
 import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
-import {observationTowerGeometry,settlementResidentsGeometry} from "./settlement-geometry.mjs?v=0.8r-towns";
+import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -636,7 +636,7 @@ export class ExplorerRenderer{
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
-  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.sceneryStats=null;this.patchKey=null;
+  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
    this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
   this.avatarStyle="pioneer";
@@ -785,6 +785,18 @@ export class ExplorerRenderer{
    }
    return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture),
     bookshelf:new Mesh(gl,bookshelf)};
+  }
+  pickTownTarget(clientX,clientY){
+   const rect=this.canvas.getBoundingClientRect();
+   if(!rect.width||!rect.height||this.townInterior)return null;
+   let nearest=null,best=36;
+   for(const target of [...this.screenTownResidents,...this.screenTownBuildings]){
+    if(!target.onScreen)continue;
+    const distance=Math.hypot(target.u*rect.width-(clientX-rect.left),
+     target.v*rect.height-(clientY-rect.top));
+    if(distance<best){nearest=target;best=distance;}
+   }
+   return nearest;
   }
   pickArrow(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
@@ -1380,8 +1392,21 @@ export class ExplorerRenderer{
    if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
-  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];
+  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  if(this.townInterior)return this.renderTownInterior(asp);
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
+ }
+ renderTownInterior(asp){
+  const gl=this.gl,kind=this.townInterior.type||"cabin";
+  if(!this.townRoomMeshes.has(kind))
+   this.townRoomMeshes.set(kind,new Mesh(gl,townInteriorGeometry(kind)));
+  gl.clearColor(.08,.13,.15,1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const vp=multiply4(perspective(55*DEG,asp,.1,90),
+   lookAt([8,6.6,10],[0,1.0,-.2]));
+  this.pickVP=null;
+  this.drawMesh(this.townRoomMeshes.get(kind),vp,[.5,.9,.45],1,.86);
+  return "town-interior";
  }
  orbit(s,asp,dt=1/60){
   this.pickVP=null;
@@ -1661,6 +1686,7 @@ export class ExplorerRenderer{
    // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
    this.resourceNodes=visible;
+   this.townSites=plan.buildings;
    this.sceneryStats={trees:visible.filter(n=>n.kind==="wood").length,
     rocks:visible.filter(n=>n.kind==="stone").length,
     grass:plan.grass.length,buildings:plan.buildings.length};
@@ -1752,6 +1778,15 @@ export class ExplorerRenderer{
    this.drawFallingTrees(vp,light,dt);
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
+   if(this.settlementId!=="pioneer"&&this.settlementId!=="wilderness"){
+    const range=cameraMode==="tactical"?120:42;
+    for(const site of this.townSites){
+     if(Math.hypot(site.x-s.x,site.z-s.z)>range)continue;
+     const spot=projectScreen(vp,[site.localX,site.elevationM+2.4,site.localZ]);
+     if(spot?.onScreen)this.screenTownBuildings.push({...spot,x:site.x,z:site.z,
+       source:"village",id:site.id});
+    }
+   }
    // Residents stroll gently along lanes; movement is local and deterministic.
    for(const mesh of this.residentMeshes){
     for(let i=0;i<mesh.residents.length;i++){
@@ -1766,6 +1801,12 @@ export class ExplorerRenderer{
     }
     mesh.updateTransforms(mesh.dynamicTransforms);
     this.drawInstancedMesh(mesh,vp,light,1,.72);
+    for(const person of mesh.residents){
+     if(Math.hypot(person.x-s.x,person.z-s.z)>25)continue;
+     const p=projectScreen(vp,[person.localX,person.elevationM+2.0,person.localZ]);
+     if(p?.onScreen)this.screenTownResidents.push({...p,id:person.id,
+      source:"resident",x:person.x,z:person.z});
+    }
    }
    this.drawPlacedStructures(vp,light,s,radius);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
@@ -1873,7 +1914,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
