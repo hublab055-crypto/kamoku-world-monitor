@@ -90,6 +90,7 @@ export class MarineWorld{
  constructor(data=null){
   this.boats=[];this.nextId=1;this.boardedId=null;
   this.diving=false;this.depthM=0;this.oxygen=100;
+  this.entrySeconds=0;this.entryDuration=1.25;
   this.swimStyle=SWIM_STYLES[data?.swimStyle]?data.swimStyle:"crawl";
   this.ownedGear=Array.isArray(data?.ownedGear)?[...new Set(["none","scuba",...data.ownedGear.filter(x=>DIVE_GEAR[x])])]:["none","scuba"];
   this.diveGear=this.ownedGear.includes(data?.diveGear)?data.diveGear:"none";
@@ -166,6 +167,31 @@ export class MarineWorld{
   this.targetDepthM=Math.max(0,Math.min(this.gear.maxDepth,floor>0?Math.max(0,floor-1):0,this.targetDepthM+delta));
   if(this.targetDepthM<.5){this.diving=false;this.depthM=0;}
   return {ok:true,message:"🤿 目標深度 "+this.targetDepthM.toFixed(1)+"m"};
+ }
+ /** Water entry is a player choice, not a side effect of a ground tap.
+  * From a deck, leave the moving vessel in place. From a shore, permit only a nearby dive.
+  */
+ jumpIntoWater(controller,terrain,target){
+  if(this.cabinId||this.shipboard?.player?.zone==="cabin"&&this.boarded)
+   return fail("🚪 船室から甲板へ出てから飛び込んでください");
+  if(!controller.nearGround)return fail("地表・甲板へ降りてから飛び込んでください");
+  if(!Number.isFinite(target?.x)||!Number.isFinite(target?.z))return fail("飛び込む水面の位置が不正です");
+  const length=Math.hypot(target.x-controller.x,target.z-controller.z);
+  const max=this.boarded?32:14;
+  if(length>max)return fail("飛び込み地点が遠すぎます（"+max+"m以内で指定）");
+  const point=controller.locationAt(target.x,target.z),surface=terrainSurface(terrain,point.lat,point.lon);
+  if(!isWater(surface))return fail("飛び込みは海面・河面を指定してください");
+  if(!this.boarded&&!validLand(terrainSurface(terrain,controller.lat,controller.lon))&&
+    controller.travelMode!=="swim")return fail("飛び込みは岸辺または船の甲板から行えます");
+  if(!this.boarded&&controller.travelMode==="swim")return fail("すでに泳いでいます。「潜水」ボタンを使ってください");
+  if(this.boarded){this.fishing.stop();if(this.shipboard.active)this.shipboard.leave();}
+  this.boardedId=null;this.cabinId=null;this.cabinActivity="idle";
+  this.diving=false;this.depthM=0;this.targetDepthM=4;
+  controller.x=target.x;controller.z=target.z;controller.lat=point.lat;controller.lon=point.lon;
+  controller.travelMode="swim";controller.boatOceanOnly=false;
+  controller.clearMoveTarget();controller.moving=false;
+  this.entrySeconds=this.entryDuration;
+  return {ok:true,message:"💦 海へ飛び込みました！ 水面で泳ぎ、↓ 潜水で海底に潜れます"};
  }
  get seabedWalking(){return this.diving&&this.diveGear==="suit"&&this.depthM>0&&
   this._floorDepth>0&&this._floorDepth-this.depthM<=1.5;}
@@ -342,6 +368,7 @@ export class MarineWorld{
    mode==="swim"?(SWIM_STYLES[this.swimStyle]?.speed??1)*spec.speed:1;
   this._floorDepth=(mode==="swim"||mode==="dive")?oceanFloorDepth(terrain,controller.lat,controller.lon):0;
   this.justCompletedLap=false;
+  if(dt>0&&this.entrySeconds>0)this.entrySeconds=Math.max(0,this.entrySeconds-dt);
   if(!this.boarded&&this.cabinId)this.cabinId=null;
   controller.boatOceanOnly=this.boarded?.kind==="sailing_ship";
   // A vessel under cruising sail keeps its course when its captain jumps
@@ -438,7 +465,7 @@ export class MarineWorld{
   const nearest=this.nearby(controller,32)[0];
   if(!nearest)return fail("32m以内に船がありません");
   if(!isWater(terrainSurface(terrain,nearest.lat,nearest.lon)))return fail("船が陸上にあります");
-  this.boardedId=nearest.id;this.diving=false;this.depthM=0;this.cabinId=null;this.cabinActivity="idle";
+  this.boardedId=nearest.id;this.diving=false;this.depthM=0;this.entrySeconds=0;this.cabinId=null;this.cabinActivity="idle";
   if(nearest.kind==="sailing_ship"){this.shipboard.init(nearest.id,["scout","artisan"]);this.shipboard.embark();}
   controller.x=nearest.x;controller.z=nearest.z;controller.lat=nearest.lat;controller.lon=nearest.lon;
   controller.yaw=nearest.yaw;controller.moveTarget=null;controller.travelMode="boat";
