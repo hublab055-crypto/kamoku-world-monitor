@@ -1,6 +1,6 @@
 import {mapToWorld,worldToMap,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
 /** Small actionable overhead chart. Computes tiles only on demand, never per animation frame. */
-export function installRouteMapUI({getController,getTerrain,onGo,notify=()=>{}}){
+export function installRouteMapUI({getController,getTerrain,onGo,onOpen=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const panel=$("map-route-panel"),canvas=$("route-map-canvas"),status=$("map-route-status");
  const zoom=$("map-route-range"),go=$("map-route-go");
@@ -64,6 +64,7 @@ export function installRouteMapUI({getController,getTerrain,onGo,notify=()=>{}})
   paint();
  }
  function open(){
+  onOpen();
   panel.hidden=false;active=true;chosen=null;go.disabled=true;
   $("viewport-route-map").setAttribute("aria-expanded","true");
   zoom.value=getController()?.travelMode==="boat"?"1200":"160";
