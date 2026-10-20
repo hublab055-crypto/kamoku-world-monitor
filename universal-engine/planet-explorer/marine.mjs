@@ -1,6 +1,6 @@
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
 import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
-import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8m-fishing-r3";
+import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {ShipboardWorld} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES,seaSitesNear,oceanFloorDepth} from "./ocean-exploration.mjs?v=0.8o-seabed";
 
@@ -90,7 +90,7 @@ export class MarineWorld{
   this.boats=[];this.nextId=1;this.boardedId=null;
   this.diving=false;this.depthM=0;this.oxygen=100;
   this.swimStyle=SWIM_STYLES[data?.swimStyle]?data.swimStyle:"crawl";
-  this.ownedGear=Array.isArray(data?.ownedGear)?[...new Set(["none",...data.ownedGear.filter(x=>DIVE_GEAR[x])])]:["none"];
+  this.ownedGear=Array.isArray(data?.ownedGear)?[...new Set(["none","scuba",...data.ownedGear.filter(x=>DIVE_GEAR[x])])]:["none","scuba"];
   this.diveGear=this.ownedGear.includes(data?.diveGear)?data.diveGear:"none";
   this.targetDepthM=Number.isFinite(data?.targetDepthM)?Math.max(0,data.targetDepthM):4;
   this.salvagedSites=new Set(Array.isArray(data?.salvagedSites)?data.salvagedSites.slice(0,5000).filter(x=>typeof x==="string"):[]);
@@ -287,7 +287,7 @@ export class MarineWorld{
   this.cabinActivity=kind;
   return {ok:true,kind,message:spec.icon+" "+spec.name+"を使います"};
  }
- castLine(controller,terrain){
+ castLine(controller,terrain,power=.65){
   const surface=terrainSurface(terrain,controller.lat,controller.lon);
   const boat=this.boarded;
   const atWater=isWater(surface)||(boat&&boat.kind==="sailing_ship");
@@ -302,10 +302,11 @@ export class MarineWorld{
    if(!coast)return fail("釣りには海岸または船の甲板が必要です");
   }
   if(!boat&&isWater(surface))return fail("水泳中は釣れません。浜辺か船へ移動してください");
-  return this.fishing.cast({water:true,aboard:Boolean(boat),inCabin:Boolean(this.cabinId)});
+  return this.fishing.cast({water:true,aboard:Boolean(boat),inCabin:Boolean(this.cabinId),power});
  }
  tickFishing(dt,seed){return this.fishing.advance(dt,seed);}
  reelFish(resources){return this.fishing.reel(resources);}
+ turnFishingDial(radians,resources){return this.fishing.turnReel(radians,resources);}
  stopFishing(){return this.fishing.stop();}
  mode(controller,terrain){
   if(this.boarded)return "boat";
