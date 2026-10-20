@@ -2,6 +2,7 @@
  * Listing is read-only: looking at the map never orders a unit or changes a target.
  */
 import {VILLAGE_SITES} from "./world-scenery.mjs";
+import {settlementLayout} from "./settlements.mjs?v=0.8r-towns";
 import {WILD_SPECIES} from "./fauna.mjs?v=0.8f-animals";
 import {FACILITIES} from "./construction-system.mjs";
 
@@ -43,6 +44,12 @@ export function mapDirectoryEntries(context,{category="animals",radiusM=450,sear
   add({id:a.id,source:"person",category,x:p.x,z:p.z,icon:"🧍",
    title:a.name||a.id,subtitle:a.id==="player"?"プレイヤー":a.auto?"自動行動":"人物"});
  }
+ if(category==="people"&&renderer?.settlementId&&renderer.settlementId!=="pioneer"){
+  for(const resident of settlementLayout(renderer.settlementId).residents){
+   add({id:resident.id,source:"resident",category,x:resident.x,z:resident.z,
+    icon:"🧑",title:"街の住民",subtitle:resident.activity+"中"});
+  }
+ }
  if(category==="buildings"){
   for(const b of constructions?.structures||[]){
    add({id:"built-"+b.id,entityId:b.id,source:"construction",category,x:b.x,z:b.z,
@@ -54,8 +61,10 @@ export function mapDirectoryEntries(context,{category="animals",radiusM=450,sear
    add({id:"hut-"+b.id,entityId:b.id,source:"hut",category,x:b.x,z:b.z,
     icon:"🏠",title:label(b.kind),subtitle:"自分の建築物 #"+b.id});
   }
-  for(let i=0;i<VILLAGE_SITES.length;i++){
-   const b=VILLAGE_SITES[i];
+  const sites=!renderer?.settlementId||renderer.settlementId==="pioneer"?VILLAGE_SITES:
+   settlementLayout(renderer.settlementId).buildings;
+  for(let i=0;i<sites.length;i++){
+   const b=sites[i];
    add({id:"village-"+i,source:"village",category,x:b.x,z:b.z,
     icon:b.type==="stable"?"🐴":"🏘️",title:label(b.type),subtitle:"村の施設"});
   }
