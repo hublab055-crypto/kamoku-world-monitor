@@ -15,8 +15,8 @@ export function swimStroke(action,time=0,moving=true){
  let armL,armR,elbowL,elbowR,hipL,hipR,kneeL,kneeR,zL=-.23,zR=.23;
  if(mode==="splash"){
   // Hands extend over the head, elbows locked, knees tuck at water entry.
-  armL=-2.0;armR=-2.0;elbowL=-.18;elbowR=-.18;
-  hipL=.38;hipR=.38;kneeL=.46;kneeR=.46;
+  armL=-1.88+.11*s;armR=-1.88-.11*s;elbowL=-.18-.12*c;elbowR=-.18+.12*c;
+  hipL=.30+.08*s;hipR=-hipL;kneeL=.46+.09*c;kneeR=.46-.09*c;
   zL=-.15;zR=.15;
  }else if(walk){
   armL=-.15-s*.32;armR=-.15+s*.32;elbowL=-.15;elbowR=-.15;
