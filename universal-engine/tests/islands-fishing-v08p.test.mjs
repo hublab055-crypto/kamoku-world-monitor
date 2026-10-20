@@ -6,6 +6,7 @@ import {Terrain} from "../planet/terrain-engine.mjs";
 import {islandCenters,islandHeight} from "../planet/island-archipelago.mjs";
 import {globeIslandGeometry} from "../planet-explorer/island-visuals.mjs";
 import {MarineWorld} from "../planet-explorer/marine.mjs";
+import {geoOffset,terrainSurface} from "../planet-explorer/geo.mjs";
 import {ShipFishing} from "../planet-explorer/ship-life.mjs";
 import {samplePose} from "../planet-explorer/rig.mjs";
 
@@ -102,4 +103,38 @@ test("island radar, casting gauge, reel dial, starter aqualung and globe rendere
  assert.match(render,/globeIslandGeometry/);
  assert.match(render,/drawMesh\(this\.globeIslands/);
  assert.match(marine,/\["none","scuba"/);
+});
+
+test("an offshore boat can actually land and begin inhabiting an island beach",()=>{
+ let target=null;
+ for(const island of islandCenters(planet.seed)){
+  if(terrain.sample(island.lat,island.lon).category!=="island")continue;
+  for(let i=0;i<8&&!target;i++){
+   const a=i*Math.PI/4;
+   const point=d=>geoOffset(island.lat,island.lon,Math.cos(a)*d,Math.sin(a)*d,planet.radiusM);
+   let lo=0,hi=island.radiusM*1.75;
+   const far=point(hi);
+   if(!terrain.sample(far.lat,far.lon).water)continue;
+   for(let n=0;n<20;n++){
+    const m=(lo+hi)/2,p=point(m);
+    if(terrain.sample(p.lat,p.lon).water)hi=m;else lo=m;
+   }
+   const atSea=point(hi+7);
+   if(!terrain.sample(atSea.lat,atSea.lon).water)continue;
+   target=atSea;
+  }
+  if(target)break;
+ }
+ assert.ok(target,"at least one real coast must border navigable sea");
+ const boat={id:"boat-1",kind:"canoe",lat:target.lat,lon:target.lon,yaw:0};
+ const marine=new MarineWorld();marine.boats.push(boat);marine.boardedId=boat.id;
+ const ctrl={lat:target.lat,lon:target.lon,x:0,z:0,travelMode:"boat",yaw:0,
+   locationAt(x,z){return geoOffset(target.lat,target.lon,x,z,planet.radiusM);},
+   clearMoveTarget(){this.moveTarget=null;}};
+ const result=marine.leave(ctrl,terrain);
+ assert.equal(result.ok,true,result.message);
+ assert.equal(ctrl.travelMode,"walk",result.message);
+ const surface=terrainSurface(terrain,ctrl.lat,ctrl.lon);
+ assert.equal(surface.water,false);
+ assert.equal(surface.category,"island");
 });
