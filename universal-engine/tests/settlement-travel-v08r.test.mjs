@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {DESTINATIONS,destinationById,settlementLayout} from "../planet-explorer/settlements.mjs";
+import {DESTINATIONS,destinationById,settlementLayout,settlementDestinations} from "../planet-explorer/settlements.mjs";
+import {Planet} from "../planet/planet-core.mjs";
+import {Terrain} from "../planet/terrain-engine.mjs";
+import {ExplorerController} from "../planet-explorer/controller.mjs";
+import {terrainSurface} from "../planet-explorer/geo.mjs";
 import {planWorldScenery,VILLAGE_SITES} from "../planet-explorer/world-scenery.mjs";
 import {observationTowerGeometry,settlementResidentsGeometry} from "../planet-explorer/settlement-geometry.mjs";
 import {installSettlementTravelUI} from "../planet-explorer/settlement-travel-ui.mjs";
@@ -13,6 +17,23 @@ test("travel desk has unique named destinations and original tower city",()=>{
  assert.equal(destinationById("tower").name,"塔の街ルミナス");
  assert.equal(destinationById("missing"),null);
  for(const city of DESTINATIONS)assert.ok(city.icon&&city.description&&city.region);
+});
+test("each settlement resolves to traversable land on the current planet",()=>{
+ const planet=new Planet({seed:77,name:"Terra Nova"}),terrain=new Terrain(planet);
+ const locations=settlementDestinations(terrain);
+ assert.equal(locations.length,DESTINATIONS.length);
+ const controller=new ExplorerController(terrain);
+ const coordinates=new Set();
+ for(const p of locations){
+  const land=terrainSurface(terrain,p.lat,p.lon);
+  assert.ok(!land.water&&!land.river&&land.elevationM<2800,p.name);
+  controller.setLanding(p.lat,p.lon);
+  assert.equal(controller.travelMode,"walk");
+  assert.equal(controller.x,0);
+  assert.equal(controller.z,0);
+  coordinates.add(p.lat.toFixed(3)+"/"+p.lon.toFixed(3));
+ }
+ assert.equal(coordinates.size,locations.length);
 });
 test("settlement layouts are deterministic, populated and specific to each region",()=>{
  const city=settlementLayout("tower");
