@@ -2126,23 +2126,26 @@ lifeUI=installLifestyleUI({
   getEquipmentInventory:()=>frontierUI?.equipmentInventory()||[],
   onEquipHand:(kind,hand)=>frontierUI?.equipHandFromInventory(kind,hand)||{ok:false,message:"まだ装備できません。"}
  });
- frontierUI=installFrontierInteractions({
+function castFromEquippedRod(power=Number($("marine-fish-power").value)/100){
+ const hands=renderer?.handEquipment?.player||{};
+ if(!Object.values(hands).includes("fishingRod"))
+  return {ok:false,message:"🎣 釣竿を持ち物画面から右手・左手に装備して「使う」を押してください"};
+ if(marine.fishing.casting){
+  $("fishing-reel-hud").hidden=false;
+  return {ok:true,message:"🎣 巻き取りダイヤルを表示しました"};
+ }
+ const r=marine.castLine(controller,terrain,power);
+ if(r.ok){saveMarineJournal();$("fishing-reel-hud").hidden=false;}
+ return r;
+}
+frontierUI=installFrontierInteractions({
  get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,projectiles,rtsMode,syncMode,
   manualInputActive:Math.abs(stick.x)+Math.abs(stick.y)>.16||["w","a","s","d","ArrowUp","ArrowDown"].some(k=>keys.has(k)||touches.has(k)),
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal,
  showSpeech:(id,text)=>worldUI?.speak(id,text),
  showEffect:effect=>worldUI?.float(effect),
- onFish:()=>{
-  if(marine.fishing.casting){
-   $("fishing-reel-hud").hidden=false;
-   return {ok:true,message:"🎣 巻き取りダイヤルを表示しました"};
-  }
-  const power=Number($("marine-fish-power").value)/100;
-  const r=marine.castLine(controller,terrain,power);
-  if(r.ok){saveMarineJournal();$("fishing-reel-hud").hidden=false;}
-  return r;
- }
+ onFish:()=>castFromEquippedRod()
 });
 worldUI=installWorldFeedbackUI({
  getRenderer:()=>renderer,getController:()=>controller,
@@ -2341,8 +2344,7 @@ $("marine-find-island").addEventListener("click",()=>{
  const r=marine.findNearestIsland(controller,terrain,180000);
  log(r.message);$("marine-island-status").textContent=r.message;
 });
-$("marine-fish-cast").addEventListener("click",()=>shipAction(()=>
- marine.castLine(controller,terrain,Number($("marine-fish-power").value)/100)));
+$("marine-fish-cast").addEventListener("click",()=>shipAction(()=>castFromEquippedRod()));
 $("marine-fish-stop").addEventListener("click",()=>shipAction(()=>marine.stopFishing()));
 function dialReelTurn(angle){
  const result=marine.turnFishingDial(Math.max(0,Math.min(angle,Math.PI*5)),actions.resources);
