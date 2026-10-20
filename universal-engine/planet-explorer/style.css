@@ -1001,3 +1001,8 @@ body.immersive{overflow:hidden}
  .town-interaction-panel{top:68px;right:5px;width:min(335px,calc(100% - 10px));max-height:calc(100% - 74px)}
  .town-trade-line button{padding:5px 6px}
 }
+
+/* Safe indoor exit stays visible even when the interaction menu is collapsed. */
+.town-interior-exit{position:absolute;z-index:27;bottom:14px;right:14px;color:#fff;background:#31536b;border:1px solid #9bcfe0;border-radius:10px;min-height:42px;padding:8px 14px;font:bold 13px system-ui;box-shadow:0 3px 12px #14252ba8}
+.town-interior-exit[hidden]{display:none!important}
+@media(max-width:600px){.town-interior-exit{bottom:10px;right:10px;min-height:38px}}
