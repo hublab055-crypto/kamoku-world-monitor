@@ -64,6 +64,7 @@ export function landformAt(terrain,lat,lon,base=terrain.sample(lat,lon)){
  const flow=noise3(n[0]*61,n[1]*61,n[2]*61,seed+811);
  const moisture=noise3(n[0]*22,n[1]*22,n[2]*22,seed+821);
  if(base.water)return "ocean";
+ if(base.category==="island")return "island";
  if(base.river)return "river";
  if(base.category==="coast")return "coast";
  if(base.category==="mountain")return ridges>.07?"mountain-range":"mountain";
@@ -119,7 +120,8 @@ export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
         s.elevationM>1550?[0.47,0.46,0.41] :
         s.elevationM<85?[0.75,0.70,0.48] :
         s.landform==="river"?[.10,.37,.63] :
-        s.landform==="coast"?[.77,.71,.51] :
+        s.landform==="island"?[.62,.66,.37] :
+    s.landform==="coast"?[.77,.71,.51] :
         s.landform==="mountain-range"||s.landform==="mountain"?[.44,.46,.40] :
         s.landform==="canyon"?[.53,.35,.25] :
         s.landform==="grassland"?[.49,.59,.27] :
