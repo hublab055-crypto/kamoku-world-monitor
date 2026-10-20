@@ -33,6 +33,22 @@
 .vitals-actions[open]{max-width:166px}
 #vitals-action-status{font-size:10px;display:block;max-width:163px;overflow-wrap:anywhere}
 </style>
+<style>
+.marine-fish-gauge{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:5px 0}
+.marine-fish-gauge input{flex:1;min-width:100px;accent-color:#75d3f7}
+.marine-reel-wrap{display:flex;align-items:center;gap:12px;margin:8px 0;flex-wrap:wrap}
+.marine-reel-dial{position:relative;width:112px;height:112px;flex:none;border-radius:50%;border:7px solid #607f8d;
+ background:radial-gradient(circle at 42% 37%,#d4e8e6 0%,#91b8c2 18%,#264657 67%,#16303d 100%);
+ box-shadow:inset 0 0 0 3px #b4d6db,0 3px 13px #0008;touch-action:none;user-select:none;cursor:grab}
+.marine-reel-dial:focus-visible{outline:3px solid #ffc86c;outline-offset:3px}
+.marine-reel-dial:active{cursor:grabbing}
+.marine-reel-arm{position:absolute;inset:0;display:block;transform:rotate(var(--dial-angle,0deg));pointer-events:none}
+.marine-reel-arm::before{content:"";position:absolute;left:calc(50% - 4px);top:8px;width:8px;height:46px;border-radius:5px;background:#dfc179;box-shadow:0 0 4px #0008}
+.marine-reel-arm::after{content:"";position:absolute;left:calc(50% - 11px);top:7px;width:22px;height:22px;background:#252c30;border:3px solid #f5de99;border-radius:50%}
+.marine-reel-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px;pointer-events:none}
+.marine-fish-readout{max-width:185px;min-width:125px;font-size:12px}
+.marine-fish-readout progress{display:block;width:100%;accent-color:#70dfb3}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -199,6 +215,7 @@
   <button type="button" id="marine-craft">🔨 浜辺で船をクラフト</button>
   <button type="button" id="marine-board">🛶 乗船する</button>
   <button type="button" id="marine-leave">🏝️ 上陸・下船・海面へ</button>
+  <button type="button" id="marine-find-island">🔭 周囲の島を探す</button>
  </div>
  <section class="marine-activity-section" id="marine-diving-controls" aria-label="水泳・潜水・海底探索">
   <strong>🏊 泳法・潜水装備・海底調査</strong>
@@ -281,12 +298,31 @@
  <section id="marine-fishing-controls" class="marine-activity-section" aria-label="釣り・水産資源">
   <strong>🎣 釣り</strong>
   <p id="marine-fishing-status" role="status" aria-live="polite">海岸か船の甲板から釣りができます</p>
+  <label class="marine-fish-gauge" for="marine-fish-power">投げる強さ
+   <input id="marine-fish-power" type="range" min="10" max="100" step="5" value="65" aria-label="釣り竿を投げる強さ">
+   <output id="marine-fish-power-label" for="marine-fish-power">65%</output>
+  </label>
+  <div class="marine-reel-wrap">
+   <div id="marine-reel-dial" class="marine-reel-dial" role="slider" tabindex="0"
+    aria-label="釣り糸の巻き取りダイヤル。時計回りにドラッグ、矢印キーでも操作"
+    aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="未投入">
+    <span class="marine-reel-arm" id="marine-reel-arm"></span>
+    <span class="marine-reel-center">🎣</span>
+   </div>
+   <div class="marine-fish-readout">
+    <strong id="marine-fish-phase">投げる準備</strong>
+    <span id="marine-fish-distance">糸：0.0m</span>
+    <label for="marine-fish-line-progress">巻き取り進捗</label>
+    <progress id="marine-fish-line-progress" max="100" value="0"></progress>
+    <small>ダイヤルを時計回りに回すと、アタリ前でも巻き取れます。</small>
+   </div>
+  </div>
   <div class="marine-activity-actions">
-   <button type="button" id="marine-fish-cast">🎣 釣りを始める</button>
-   <button type="button" id="marine-fish-reel">🐟 引き上げる</button>
+   <button type="button" id="marine-fish-cast">🎣 ゲージの強さで投げる</button>
+   <button type="button" id="marine-fish-reel">↻ 少し巻き取る</button>
    <button type="button" id="marine-fish-stop">✕ 終える</button>
   </div>
-  <small>一定時間待つと魚が掛かります。引き上げれば持ち物の食材になり、船室の食卓でも食べられます。</small>
+  <small>強さを決めてキャスト → 魚がウキへ近づく → ヒットしたらダイヤルを回して巻き取る。ヒット前に糸を回収することもできます。</small>
  </section>
  <section id="marine-voyage-controls" class="marine-activity-section" aria-label="航海の記録" hidden>
   <strong>🌐 惑星一周・航海日誌</strong>
@@ -869,6 +905,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8o-ocean-exploration"></script>
+<script type="module" src="./app.mjs?v=0.8p-islands-fishing"></script>
 </body>
 </html>
