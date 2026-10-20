@@ -13,7 +13,6 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   return node;
  };
  function close(force=false){
-  if(!force&&get().town.inside){setStatus("🚪 先に「外へ出る」を選んでください");return;}
   panel.hidden=true;toggle.setAttribute("aria-expanded","false");
  }
  function setStatus(message){status.textContent=message;}
@@ -39,7 +38,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   title.textContent=(chosen.kind==="resident"?"🧑 ":"🏠 ")+chosen.title;
   const distance=Math.hypot(controller.x-chosen.x,controller.z-chosen.z);
   const near=town.canInteract(townId,controller,chosen,{radius:chosen.kind==="resident"?6:9});
-  detail.textContent=inside?"屋内で見学中 / 所持 "+town.coins+" コイン":
+  detail.textContent=inside?"屋内で歩行できます（スティック・WASD）。退出は「外へ出る」 / 所持 "+town.coins+" コイン":
    (chosen.kind==="resident"?"住民の行動："+chosen.activity+" / ":"施設："+(TOWN_NAMES[chosen.type]||"")+" / ")+
    "距離 "+distance.toFixed(1)+"m / "+(near.ok?"交流できます":"近づいて操作してください")+
    " / 所持 "+town.coins+" コイン";
