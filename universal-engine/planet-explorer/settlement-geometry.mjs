@@ -79,3 +79,43 @@ export function settlementResidentsGeometry(residents=[],heightAt=()=>0){
  }
  return b;
 }
+
+/** Isolated, cutaway furnished interior rendered when entering a town property. */
+export function townInteriorGeometry(kind="cabin"){
+ const b=fresh(),floor=[.58,.44,.29],wall=[.73,.66,.51],timber=[.32,.22,.15];
+ const market=["market","workshop","granary","stable"].includes(kind);
+ block(b,0,-.22,0,4.9,.26,4.5,floor);
+ // Open front wall for a clear isometric view; furnished 3D room is independent of terrain.
+ block(b,-4.75,0,0,.24,3.3,4.5,wall);
+ block(b,4.75,0,0,.24,3.3,4.5,wall);
+ block(b,0,0,-4.28,4.9,3.3,.24,wall);
+ for(const x of [-4.1,4.1])block(b,x,0,-3.95,.18,3.2,.18,timber);
+ for(const x of [-3.4,3.4])block(b,x,0,3.9,.18,1.1,.18,timber);
+ // Window mullions and furniture create a real sense of an occupied building.
+ for(const x of [-3,2.8]){
+  block(b,x,1.5,-4.01,.70,.90,.06,[.45,.72,.76]);
+  block(b,x,1.5,-3.92,.06,.94,.09,timber);
+  block(b,x,1.93,-3.92,.73,.06,.09,timber);
+ }
+ if(market){
+  block(b,1.3,0,1.5,2.6,1.10,.8,[.52,.34,.21]);
+  block(b,1.3,1.05,1.5,2.7,.13,.91,[.78,.56,.31]);
+  for(let i=0;i<4;i++){
+   block(b,-3.65+i*.62,.45,-3.2,.24,.7,.38,
+    [ [.64,.27,.2],[.24,.58,.29],[.74,.55,.16],[.26,.43,.69]][i]);
+  }
+  block(b,-2.6,0,0,.75,1.7,.7,timber);
+  block(b,-2.6,1.7,0,.8,.12,.8,[.71,.52,.29]);
+ }else{
+  block(b,-2.5,0,-2.3,1.35,.65,.9,[.39,.29,.22]); // bed
+  block(b,-2.5,.65,-2.45,1.28,.18,.70,[.86,.78,.57]);
+  block(b,1.1,0,-.2,1.4,1.20,1.08,timber); // table
+  block(b,1.1,1.20,-.2,1.55,.12,1.16,[.66,.48,.28]);
+  block(b,2.2,0,2.5,.55,.70,.50,timber); // chair
+  block(b,-3.7,0,1.6,.60,2.5,.46,[.44,.29,.17]); // shelf
+  for(let i=0;i<3;i++)block(b,-3.7,1.0+i*.6,1.2,.60,.10,.5,[.7,.5,.3]);
+ }
+ // Decorative lantern
+ block(b,0,2.58,-3.45,.20,.45,.18,[.95,.78,.41]);
+ return b;
+}
