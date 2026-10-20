@@ -38,6 +38,7 @@ import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.
 import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {mapToWorld,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
+import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -54,7 +55,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,vitalsSaveElapsed=0,marine=null;
+let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,vitalsSaveElapsed=0,marine=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
@@ -2178,7 +2179,28 @@ mapDirectoryUI=installMapDirectoryUI({
  get:()=>({controller,fauna,squad,renderer,constructions,actions}),
  onOpen:openMapEntry,onMove:moveToMapEntry,notify:log
 });
+routeMapUI=installRouteMapUI({
+ getController:()=>controller,getTerrain:()=>terrain,
+ onOpen:()=>{
+  mapDirectoryUI?.close();faunaUI?.close();farmUI?.close();
+  $("marine-panel").hidden=true;
+ },
+ onGo:(goal,preview)=>{
+  if(controller.altitudeM>12)return {ok:false,message:"地表へ降下してから移動を指示してください"};
+  if(marine.cabinId)return {ok:false,message:"🚪 船室から甲板へ出て航路を指定してください"};
+  const valid=routePreview(controller,terrain,goal.x,goal.z);
+  if(!valid.ok)return valid;
+  cancelHarvestOrder("player");
+  const ok=controller.setMoveTarget(goal.x,goal.z);
+  if(ok)renderer.mapFocus={x:goal.x,z:goal.z};
+  updateHUD();
+  return {ok,message:ok?"📍 マップの目的地まで移動を開始します（直線移動・障害物では停止）":
+   "移動できません。距離、船の航行可能海域、陸地を確認してください"};
+ },
+ notify:log
+});
 $("viewport-directory").addEventListener("click",()=>{
+ routeMapUI?.close();
  faunaUI?.close();farmUI?.close();
  $("marine-panel").hidden=true;$("marine-toggle").setAttribute("aria-expanded","false");
 });
@@ -2336,36 +2358,43 @@ function dialReelTurn(angle){
  }else updateHUD();
  return result;
 }
-const reelDial=$("marine-reel-dial");
-let dialAngle=0,dialLast=null,dialActive=false;
-const pointerAngle=e=>{
- const r=reelDial.getBoundingClientRect();
- return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));
-};
-reelDial.addEventListener("pointerdown",e=>{
- if(!marine?.fishing?.casting)return;
- dialActive=true;dialLast=pointerAngle(e);
- try{reelDial.setPointerCapture(e.pointerId);}catch(_){}
- e.preventDefault();
-});
-reelDial.addEventListener("pointermove",e=>{
- if(!dialActive)return;
- const next=pointerAngle(e),delta=Math.atan2(Math.sin(next-dialLast),Math.cos(next-dialLast));
- dialLast=next;
- dialAngle+=delta*180/Math.PI;
- reelDial.style.setProperty("--dial-angle",dialAngle.toFixed(1)+"deg");
- if(delta>.005)dialReelTurn(delta);
- e.preventDefault();
-});
-for(const event of ["pointerup","pointercancel","lostpointercapture"])
- reelDial.addEventListener(event,()=>{if(dialActive)saveMarineJournal();dialActive=false;dialLast=null;});
-reelDial.addEventListener("keydown",e=>{
- if(!["ArrowRight","ArrowDown","ArrowUp","Enter"," "].includes(e.key))return;
- e.preventDefault();dialAngle+=45;
- reelDial.style.setProperty("--dial-angle",dialAngle+"deg");
- dialReelTurn(Math.PI/4);
-});
+const reelDials=[$("marine-reel-dial"),$("fishing-mini-reel")];
+let dialAngle=0;
+for(const dial of reelDials){
+ let active=false,last=null;
+ const pointerAngle=e=>{
+  const r=dial.getBoundingClientRect();
+  return Math.atan2(e.clientY-(r.top+r.height/2),e.clientX-(r.left+r.width/2));
+ };
+ const rotate=delta=>{
+  dialAngle+=delta*180/Math.PI;
+  for(const target of reelDials)target.style.setProperty("--dial-angle",dialAngle.toFixed(1)+"deg");
+  if(delta>.005)dialReelTurn(delta);
+ };
+ dial.addEventListener("pointerdown",e=>{
+  if(!marine?.fishing?.casting)return;
+  active=true;last=pointerAngle(e);
+  try{dial.setPointerCapture(e.pointerId);}catch(_){}
+  e.preventDefault();
+ });
+ dial.addEventListener("pointermove",e=>{
+  if(!active)return;
+  const next=pointerAngle(e),delta=Math.atan2(Math.sin(next-last),Math.cos(next-last));
+  last=next;rotate(delta);e.preventDefault();
+ });
+ for(const type of ["pointerup","pointercancel","lostpointercapture"])
+  dial.addEventListener(type,()=>{if(active)saveMarineJournal();active=false;last=null;});
+ dial.addEventListener("keydown",e=>{
+  if(!["ArrowRight","ArrowDown","ArrowUp","Enter"," "].includes(e.key))return;
+  e.preventDefault();rotate(Math.PI/4);
+ });
+}
 $("marine-fish-reel").addEventListener("click",()=>dialReelTurn(Math.PI*2));
+$("fishing-hud-reel").addEventListener("click",()=>dialReelTurn(Math.PI*2));
+$("fishing-hud-stop").addEventListener("click",()=>{
+ const result=marine.stopFishing();log(result.message);
+ if(result.ok)saveMarineJournal();updateHUD();
+});
 window.addEventListener("pagehide",saveMarineJournal);
 init();requestAnimationFrame(doFrame);
 
