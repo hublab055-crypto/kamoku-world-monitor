@@ -26,6 +26,8 @@ import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.8q-rod-use";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
+import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8r-towns";
+import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
@@ -55,7 +57,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,vitalsSaveElapsed=0,marine=null;
+let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
@@ -184,6 +186,9 @@ function init(saved=null){
    terrain.earthworks=earthworks;
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+   activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
+   if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
+   settlementLocations=null;
   marine=new MarineWorld(saved?.v0_8g?.marine||(!saved?loadMarineJournal():null));
   marine.update(0,controller,terrain);
   controller.boatSpeed=marine.sailingSpeed();
@@ -221,6 +226,7 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+   renderer.settlementId=activeSettlementId;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
    if(constructionUI)constructionUI.system=constructions;
@@ -828,7 +834,8 @@ $("save").addEventListener("click",()=>{
       v0_8e:{schemaVersion:1,construction:constructions.snapshot()},
        v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
        v0_8g:{schemaVersion:1,farm:farm.snapshot(),marine:marine.snapshot()},
-        v0_8h:{schemaVersion:1,playerHp:battle.playerHp}};
+        v0_8h:{schemaVersion:1,playerHp:battle.playerHp},
+         v0_8r:{schemaVersion:1,destinationId:activeSettlementId}};
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();
   log("v0.7i：GLB割当・会話/プレゼント・5枠装備・RTSカメラを保存しました。旧v0.7gのデータは保持。");
@@ -1083,8 +1090,9 @@ function confirmOrbitLanding(){
    !marine.nearby({origin:{lat:site.lat,lon:site.lon},x:0,z:0,terrain},14)
      .some(b=>b.kind==="sailing_ship"))
    throw Error("船の上限64隻です。別の船を利用してください");
-  marine.boardedId=null;marine.diving=false;marine.depthM=0;marine.oxygen=100;
+  marine.boardedId=null;marine.cabinId=null;marine.cabinActivity="idle";marine.diving=false;marine.depthM=0;marine.oxygen=100;
   controller.setLanding(site.lat,site.lon,{allowWater:site.mode==="sea"||site.mode==="sea-ship"});
+   activeSettlementId="wilderness";renderer.settlementId=activeSettlementId;
   if(site.mode==="sea-ship"){
    const started=marine.spawnLandingShip(controller,terrain);
    if(!started.ok)throw Error(started.message);
