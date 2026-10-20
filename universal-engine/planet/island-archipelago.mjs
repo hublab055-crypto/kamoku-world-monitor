@@ -23,13 +23,13 @@ export function islandCenters(seed){
  return result;
 }
 /** Positive height inside an island footprint, zero outside. */
-export function islandHeight(seed,lat,lon){
+export function islandHeight(seed,lat,lon,planetRadiusM=R){
  const row=Math.floor((lat+90)/STEP),col=Math.floor((lon+180)/STEP);
  let best=0;
  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
   const site=islandCenter(seed,row+dr,col+dc);if(!site)continue;
   const longitude=((lon-site.lon+540)%360)-180;
-  const dx=longitude*DEG*R*Math.cos(site.lat*DEG),dz=(lat-site.lat)*DEG*R;
+  const dx=longitude*DEG*planetRadiusM*Math.cos(site.lat*DEG),dz=(lat-site.lat)*DEG*planetRadiusM;
   const angle=Math.atan2(dz,dx);
   const radius=site.radiusM*(.94+.09*Math.sin(angle*5+seed)+.07*Math.cos(angle*7+seed*.11));
   const n=Math.hypot(dx,dz)/radius;
