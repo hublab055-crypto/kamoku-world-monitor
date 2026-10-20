@@ -82,6 +82,7 @@ test("dive controls and sea prompt, map chart, compact reel HUD and equipped rod
  const base=new URL("../planet-explorer/",import.meta.url);
  const html=readFileSync(new URL("index.html",base),"utf8"),
   app=readFileSync(new URL("app.mjs",base),"utf8"),
+  map=readFileSync(new URL("map-route-ui.mjs",base),"utf8"),
   social=readFileSync(new URL("frontier-interaction-ui.mjs",base),"utf8"),
   render=readFileSync(new URL("render.mjs",base),"utf8");
  for(const id of ["water-entry-confirm","water-entry-accept","water-entry-cancel",
@@ -89,7 +90,7 @@ test("dive controls and sea prompt, map chart, compact reel HUD and equipped rod
   "marine-hud-surface","fishing-reel-hud","fishing-mini-reel","fishing-hud-stop",
   "viewport-route-map","map-route-panel","route-map-canvas","map-route-go"]){
   assert.ok(html.includes('id="'+id+'"'),id);
-  assert.ok(app.includes('"'+id+'"')||id==="route-map-canvas"||id==="map-route-go"||id==="map-route-panel",id);
+  assert.ok(app.includes('"'+id+'"')||map.includes('"'+id+'"'),id);
  }
  assert.match(social,/result\.kind==="fishing"/);
  assert.match(app,/onFish:\(\)=>/);
