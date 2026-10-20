@@ -188,7 +188,7 @@ export class MarineWorld{
   this.boardedId=null;this.cabinId=null;this.cabinActivity="idle";
   this.diving=false;this.depthM=0;this.targetDepthM=4;
   controller.x=target.x;controller.z=target.z;controller.lat=point.lat;controller.lon=point.lon;
-  controller.travelMode="swim";controller.boatOceanOnly=false;
+  controller.travelMode="swim";controller.boatOceanOnly=false;controller.jumpY=0;controller.jumpV=0;
   controller.clearMoveTarget();controller.moving=false;
   this.entrySeconds=this.entryDuration;
   return {ok:true,message:"💦 海へ飛び込みました！ 水面で泳ぎ、↓ 潜水で海底に潜れます"};
