@@ -7,7 +7,7 @@ import {islandCenters} from "../planet/island-archipelago.mjs?v=0.8p-islands";
 
 /** Ocean gameplay uses the same terrain sampler as collision and the orbit picker. */
 export const isWater = s => Boolean(s?.water || s?.river);
-const validLand = s => !isWater(s) && s.elevationM >= 1 && s.elevationM < 2800;
+const validLand = s => !isWater(s) && s.elevationM >= (s.category==="island"?.1:1) && s.elevationM < 2800;
 const fail = message => ({ok:false,message});
 
 /** Never convert a sea click into an unsafe land spawn.
