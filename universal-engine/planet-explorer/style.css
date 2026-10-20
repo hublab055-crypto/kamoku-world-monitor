@@ -982,3 +982,22 @@ body.immersive{overflow:hidden}
  .settlement-travel-panel{top:68px;right:5px;width:min(330px,calc(100% - 10px));max-height:calc(100% - 73px)}
  .settlement-travel-list{max-height:36dvh}
 }
+
+/* v0.8s — NPC dialogue, local shops, and enterable 3D rooms. */
+.town-interaction-panel{top:70px;right:8px;width:min(385px,calc(100% - 16px));max-height:calc(100% - 80px);display:flex;flex-direction:column;gap:8px;overflow:auto}
+.town-interaction-panel[hidden]{display:none!important}
+.town-interaction-detail{font-size:12px;line-height:1.55;color:#d1e7e2;margin:0}
+.town-interaction-actions{display:flex;flex-direction:column;gap:7px;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.town-interaction-actions>strong{font-size:13px}
+.town-interaction-topics{display:grid;grid-template-columns:1fr;gap:6px}
+.town-interaction-panel #town-interaction-status{margin:0;color:#bce9ce;font-size:12px;line-height:1.5;min-height:2.8em}
+.town-trade-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:5px;padding:6px;background:#1a343d;border:1px solid #4b696b;border-radius:8px}
+.town-trade-line span{font-size:12px;grid-column:1;min-width:0;overflow-wrap:anywhere}
+.town-trade-line small{font-size:10px;grid-column:1}
+.town-trade-line button{font-size:11px;grid-row:1 / span 2;padding:6px 8px}
+.town-trade-line button:nth-last-child(2){grid-column:2}
+.town-trade-line button:last-child{grid-column:3}
+@media(max-width:600px){
+ .town-interaction-panel{top:68px;right:5px;width:min(335px,calc(100% - 10px));max-height:calc(100% - 74px)}
+ .town-trade-line button{padding:5px 6px}
+}
