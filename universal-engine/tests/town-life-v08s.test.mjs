@@ -77,6 +77,19 @@ test("entry requires proximity and can be exited without teleporting or corrupti
  assert.equal(actor.x,shop.x);
  assert.notEqual(original.x,actor.x);
 });
+test("indoor movement uses local room coordinates and never changes world position",()=>{
+ const town=new TownLife(),id="village-"+market(),shop=town.find("tower",id,"village");
+ const actor=makeActor(shop.x,shop.z);
+ assert.equal(town.enter("tower",id,actor).ok,true);
+ const worldX=actor.x,worldZ=actor.z,pose=town.inside.pose;
+ assert.equal(town.walk(.08,{forward:1}),true);
+ assert.notEqual(pose.z,2.4);
+ assert.equal(actor.x,worldX);assert.equal(actor.z,worldZ);
+ for(let i=0;i<300;i++)town.walk(.1,{forward:1,strafe:1,turn:0});
+ assert.ok(Math.abs(pose.x)<=3.55&&pose.z<=3.5&&pose.z>=-3);
+ assert.equal(town.leave().ok,true);
+ assert.equal(town.walk(.1,{forward:1}),false);
+});
 test("town room is indexed 3D geometry for shops and residences",()=>{
  for(const kind of ["market","cabin","workshop","lodge"]){
   const mesh=townInteriorGeometry(kind);
