@@ -614,6 +614,8 @@ function updateHUD(){
    $("vitals-potion").textContent="🧪 薬 ×"+(person.healingPotions??2);
   const backpack=Object.entries(person.inventory||{}).filter(([,n])=>n>0)
    .map(([k,n])=>(resourceNames[k]||k)+" ×"+n);
+  if(agent.id==="player"&&marine?.ownedGear?.includes("scuba"))
+   backpack.push("🤿 アクアラング ×1"+(marine.diveGear==="scuba"?"（装備中）":"（手持ち）"));
   $("avatar-inventory").textContent=backpack.length?backpack.join(" / "):"リュックは空です（共有資材は下の資材欄）";
  $("coords").textContent=controller.lat.toFixed(5)+"°, "+controller.lon.toFixed(5)+"°";
  $("height").textContent=Math.round(controller.altitudeM).toLocaleString("ja-JP")+" m";
