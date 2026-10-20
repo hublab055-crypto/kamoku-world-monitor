@@ -7,7 +7,7 @@ import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./
 import {noise3} from "../planet/planet-core.mjs";
 import {faunaGeometry} from "./fauna-geometry.mjs?v=0.8g-grazing";
 import {agricultureGeometry} from "./agriculture-geometry.mjs?v=0.8g-crops";
-import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs";
+import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs?v=0.8p-fishing-motion";
 import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
 import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
@@ -21,13 +21,13 @@ import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mj
 import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
-import {SmoothAnimator} from "./animator.mjs?v=0.8o-four-strokes";
+import {SmoothAnimator} from "./animator.mjs?v=0.8p-fishing-motion";
 import {makeJointCovers} from "./joint-covers.mjs";
 import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
-import {rotZ} from "./rig.mjs";
+import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8o-four-strokes";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8p-fishing-motion";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
