@@ -1,5 +1,6 @@
 import {noise3} from "../planet/planet-core.mjs";
 import {frontierValleyAt} from "./landscape-relief.mjs";
+import {regionalLandformAt} from "./regional-landforms.mjs";
 
 /** Coordinates and terrain queries shared by orbital and ground views.
  * Native planet latitude/longitude and metres; all render-scale decisions are adapters.
@@ -97,11 +98,15 @@ export function terrainSurface(terrain,lat,lon){
   // Apply the playable river valley after planetary geomorphology and before
   // player earthworks. Surface, camera, picking and movement share this height.
   const regional=frontierValleyAt(terrain,lat,lon,Math.max(.1,base.elevationM+detail*taper+relief));
+  const extended=regionalLandformAt(terrain,lat,lon,
+    regional?.elevationM??Math.max(.1,base.elevationM+detail*taper+relief));
   const deformation=terrain.earthworks?.deltaAt(lat,lon)||0;
-  return {...base,landform:regional?.landform||landform,
-    river:Boolean(base.river||regional?.river),
-    waterLevelM:regional?.waterLevelM??null,
-    elevationM:Math.max(.1,(regional?.elevationM??base.elevationM+detail*taper+relief)+deformation)};
+  return {...base,landform:extended?.landform||regional?.landform||landform,
+    river:Boolean(base.river||regional?.river||extended?.river),
+    lake:Boolean(extended?.lake),
+    waterLevelM:extended?.waterLevelM??regional?.waterLevelM??null,
+    elevationM:Math.max(.1,(extended?.elevationM??regional?.elevationM??
+      base.elevationM+detail*taper+relief)+deformation)};
 }
 export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
   if(!Number.isFinite(radiusM)||radiusM<15||radiusM>150000||!Number.isSafeInteger(resolution)||resolution<4||resolution>128) throw new RangeError("Invalid patch resolution or radius");
@@ -116,6 +121,8 @@ export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
       const h=s.water ? 0 : s.elevationM;
       vertices.push(eastM,h,northM); heights.push(h);
       const c=s.water?[0.09,0.36,0.62] :
+        s.landform==="lake"?[.13,.40,.58] :
+        s.landform==="lakeshore"?[.67,.68,.42] :
         s.elevationM>2400?[0.85,0.86,0.83] :
         s.elevationM>1550?[0.47,0.46,0.41] :
         s.elevationM<85?[0.75,0.70,0.48] :
