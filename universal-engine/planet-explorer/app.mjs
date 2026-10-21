@@ -28,6 +28,7 @@ import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8r-towns";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
+import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8t-timetable";
@@ -162,7 +163,7 @@ const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚",ancientCoins:"🪙 古代金貨",dragonRelic:"🐉 竜人文明遺物"};
 const keys=new Set(),touches=new Set();
 const manualHarvest=new Map(),pendingArrowPickup=new Map();
-let viewportGestures=null,orbitSelection=null,pendingWaterEntry=null;
+let viewportGestures=null,orbitSelection=null,pendingWaterEntry=null,orbitalCitiesUI=null;
 let cachedResourceArray=null;const resourceByOrigin=new Map();
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(msg){
@@ -190,6 +191,7 @@ function init(saved=null){
  try{
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;viewportGestures?.cancel();
   orbitSelection=null;
+  orbitalCitiesUI?.reset();
   $("orbit-landing-preview").hidden=true;
   $("orbit-pick-marker").hidden=true;
   if(renderer)renderer.destroy();
@@ -595,6 +597,8 @@ function doFrame(t){
   renderer.trainInterior=railway?.boarded?railway.status(planet.timeDays):null;
   try{
    const next=renderer.frame(controller,dt);
+   orbitalCitiesUI?.setActive(next==="orbit");
+   if(next==="orbit")orbitalCitiesUI?.frame(renderer.orbitCityMarkers(orbitalCitiesUI.destinations));
    updateActorMarker(renderer.actorMarker);
    updateOrbitLandingMarker(renderer.screenLanding);
    updateDescentOverlay(controller.altitudeM);
