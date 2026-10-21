@@ -78,9 +78,35 @@ export function landformAt(terrain,lat,lon,base=terrain.sample(lat,lon)){
 /** One authoritative height sampler for both sphere and high-detail ground meshes.
  * Fine details are spherical noise: no seam at the longitude wrap or tile border.
  */
+/** Carved coastal lagoon; terrain, boat collision, picking and renderer use one sampler. */
+export function serenoteHarborSurface(terrain,lat,lon,base){
+ const anchor=terrain.harborAnchor;
+ if(!anchor)return null;
+ let dlon=lon-anchor.lon;dlon=((dlon+540)%360)-180;
+ const east=dlon*111195*Math.cos(anchor.lat*DEG),north=(lat-anchor.lat)*111195;
+ const wave=10*Math.sin(east/180)+4*Math.sin(east/45);
+ const shore=161+wave;
+ // The open bay extends beyond the visible coastline; curved boundaries soften edges.
+ if(Math.abs(east)>4800||north< -2100||north>9000)return null;
+ const lateral=clamp((4800-Math.abs(east))/1500,0,1);
+ const south=clamp((north+2100)/1000,0,1);
+ const strength=lateral*south;
+ if(north>=shore&&strength>.95)return {...base,water:true,river:false,lake:false,
+  category:"ocean",landform:"ocean",waterLevelM:0,elevationM:0};
+ const cityWeight=clamp((2400-Math.abs(east))/1050,0,1)*
+  clamp((north+1500)/650,0,1)*clamp((shore-north+900)/300,0,1);
+ if(cityWeight<=0)return null;
+ // Low, dry harbour terrace with shallow sloping beach at its northern edge.
+ const flatHeight=north>shore-65?1.5+3.5*clamp((shore-north)/65,0,1):5;
+ const t=cityWeight*cityWeight*(3-2*cityWeight);
+ return {...base,water:false,river:false,lake:false,category:"coast",
+  landform:"coast",waterLevelM:0,elevationM:Math.max(.1,base.elevationM*(1-t)+flatHeight*t)};
+}
 export function terrainSurface(terrain,lat,lon){
-  const base=terrain.sample(lat,lon),landform=landformAt(terrain,lat,lon,base);
-  if(base.water)return {...base,landform,elevationM:0};
+ const base=terrain.sample(lat,lon),landform=landformAt(terrain,lat,lon,base);
+ const port=serenoteHarborSurface(terrain,lat,lon,base);
+ if(port)return port;
+ if(base.water)return {...base,landform,elevationM:0};
   const n=geoNormal(lat,lon),seed=terrain.planet.seed;
   const reliefFactor=base.category==="mountain"?1.8:base.category==="highland"?1.45:1;
    // Spherical hills/ridges/gullies; collision, movement and scenery share this elevation.
