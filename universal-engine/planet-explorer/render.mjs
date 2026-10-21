@@ -6,6 +6,7 @@ import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-
 import {BUILD_KINDS} from "./construction-system.mjs?v=0.8h-church";
 import {OWNER_BUILDING_KINDS} from "./owner-world.mjs";
 import {ownerRoadGeometry} from "./owner-road-geometry.mjs";
+import {ownerPrimitiveGeometry} from "./owner-primitive-geometry.mjs?v=0.8y-solids";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs?v=0.8h-church";
 import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
 import {noise3} from "../planet/planet-core.mjs";
@@ -141,6 +142,7 @@ class InstancedMesh extends Mesh{
 
 const builder=()=>({positions:[],normals:[],colors:[],indices:[]});
 const rotateY=a=>{const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]};
+const scale3=(x,y,z)=>[x,0,0,0,0,y,0,0,0,0,z,0,0,0,0,1];
 function triangle(b,a,c,d,col){
  const n=norm(cross(sub(c,a),sub(d,a))),k=b.positions.length/3;
  b.positions.push(...a,...c,...d);b.normals.push(...n,...n,...n);b.colors.push(...col,...col,...col);b.indices.push(k,k+1,k+2);
@@ -746,6 +748,7 @@ export class ExplorerRenderer{
    .map(kind=>[kind,new Mesh(gl,submergedSiteGeometry(kind))]));
   this.placedMeshes=Object.fromEntries([...new Set([...BUILD_KINDS,...OWNER_BUILDING_KINDS])].map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
    this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;
+   this.ownerPrimitiveMeshes=Object.fromEntries(["cube","cylinder","sphere","cone"].map(kind=>[kind,new Mesh(gl,ownerPrimitiveGeometry(kind))]));
   this.constructionSystem=null;
   this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
    this.fwResourceMeshes={};
@@ -1325,6 +1328,19 @@ export class ExplorerRenderer{
     const mesh=this.placedMeshes[building.kind];
     if(mesh)this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
     if(this.ownerSelectedId===building.id)this.drawMesh(this.selectionRing,multiply4(vp,translate(x,height+.15,z)),light,1,.98,[.95,.77,.18]);
+   }
+   for(const part of this.ownerWorld.primitives||[]){
+    const p=geoLocal(s.origin.lat,s.origin.lon,part.lat,part.lon,this.planet.radiusM);
+    if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)continue;
+    const site=terrainSurface(this.terrain,part.lat,part.lon);
+    if(site.water||site.river)continue;
+    const x=p.eastM-this.cx,z=p.northM-this.cz;
+    const transform=multiply4(translate(x,site.elevationM+part.offsetY,z),
+     multiply4(rotateY(part.rotation),scale3(part.width,part.height,part.depth)));
+    const mesh=this.ownerPrimitiveMeshes[part.shape];
+    if(mesh)this.drawMesh(mesh,multiply4(vp,transform),light,1,.82,part.color);
+    if(this.ownerSelectedId===part.id)this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,site.elevationM+.13,z)),light,1,.98,[.95,.77,.18]);
    }
  }
  drawFrontier(vp,light,s,radius){
@@ -2296,7 +2312,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayJailMesh,this.railGuardMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayJailMesh,this.railGuardMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
