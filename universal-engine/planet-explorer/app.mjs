@@ -1079,8 +1079,11 @@ function screenActorAt(x,y){
 function clearOrbitSelection(){
  orbitSelection=null;
  if(renderer)renderer.selectedLanding=null;
+ orbitalCitiesUI?.clearChoice();
  $("orbit-landing-preview").hidden=true;
  $("orbit-pick-marker").hidden=true;
+ $("landing-water-mode").closest("label").hidden=false;
+ $("orbit-landing-confirm").textContent="↓ この地点へ降下";
 }
 function updateDescentOverlay(altitudeM){
  const state=descentVisuals(altitudeM);
@@ -1103,6 +1106,20 @@ function updateOrbitLandingMarker(info){
 }
 function updateOrbitSelection(){
  if(!orbitSelection)return;
+ if(orbitSelection.cityId){
+  const chosen=destinationById(orbitSelection.cityId),site=orbitSelection.site;
+  renderer.selectedLanding={lat:site.lat,lon:site.lon};
+  $("orbit-landing-coords").textContent=chosen.icon+" "+chosen.name;
+  $("orbit-landing-terrain").textContent="🏘️ "+chosen.region+"へ降下 / 座標 "+
+   site.lat.toFixed(3)+"°, "+site.lon.toFixed(3)+"°";
+  $("landing-water-mode").closest("label").hidden=true;
+  $("orbit-landing-confirm").disabled=false;
+  $("orbit-landing-confirm").textContent="↓ この都市へ降下";
+  $("orbit-landing-preview").hidden=false;
+  return;
+ }
+ $("landing-water-mode").closest("label").hidden=false;
+ $("orbit-landing-confirm").textContent="↓ この地点へ降下";
  const mode=$("landing-water-mode").value;
  const site=resolveLanding(terrain,orbitSelection.pickedLat,orbitSelection.pickedLon,mode);
  orbitSelection.site=site.ok?site:null;
@@ -1122,13 +1139,35 @@ function updateOrbitSelection(){
 function selectOrbitLanding(x,y){
  const geo=renderer?.pickOrbit(x,y);
  if(!geo)return false;
+ // Ordinary land/sea/ship descent stays unchanged even after a city preview.
+ orbitalCitiesUI?.clearChoice();
  orbitSelection={pickedLat:geo.lat,pickedLon:geo.lon,site:null};
  updateOrbitSelection();updateHUD();return true;
+}
+function selectOrbitCity(place){
+ if(!controller||controller.altitudeM<=ORBIT_GROUND_CUTOFF_M)
+  return {ok:false,message:"宇宙から惑星を表示して都市を選んでください"};
+ const selected=(settlementLocations||=settlementDestinations(terrain)).find(d=>d.id===place?.id);
+ if(!selected)return {ok:false,message:"都市の座標がありません"};
+ const sample=terrainSurface(terrain,selected.lat,selected.lon);
+ if(sample.water||sample.river||sample.elevationM>=2800)
+  return {ok:false,message:"都市の安全な着陸地が見つかりません"};
+ orbitSelection={cityId:selected.id,pickedLat:selected.lat,pickedLon:selected.lon,
+  site:{ok:true,lat:selected.lat,lon:selected.lon,mode:"land"}};
+ renderer.setOrbitLandingFocus(selected.lat,selected.lon);
+ updateOrbitSelection();updateHUD();
+ return {ok:true};
 }
 $("landing-water-mode").addEventListener("change",updateOrbitSelection);
 function confirmOrbitLanding(){
  if(!orbitSelection?.site)return;
  if(railway?.boarded){log("🚂 列車を降りてから別の地点へ降下してください。");return;}
+ if(orbitSelection.cityId){
+  const result=visitSettlement(destinationById(orbitSelection.cityId));
+  if(result.ok)clearOrbitSelection();
+  log(result.message);
+  return;
+ }
  try{
   const site=orbitSelection.site;
   // Validate capacity before changing the player's current landing location.
