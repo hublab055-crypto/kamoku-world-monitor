@@ -1568,7 +1568,7 @@ export class ExplorerRenderer{
    const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
    this.townIndoorAvatarMesh=new Mesh(gl,g);
   }
-  const pose={locomotive:{x:0,z:1.4},tender:{x:0,z:4.2},passenger:{x:0,z:2.2},freight:{x:0,z:4.4}}[kind];
+
   const person=this.trainInterior.pose||{x:0,z:1.4,yaw:0};
   const model=multiply4(translate(person.x,moving?.025*Math.sin(this.trainClock*6):0,person.z),rotateY(person.yaw||0));
   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
