@@ -103,12 +103,13 @@ export function terrainSurface(terrain,lat,lon){
   const alpineVillage=mountainVillageReliefAt(terrain,lat,lon,
     extended?.elevationM??regional?.elevationM??Math.max(.1,base.elevationM+detail*taper+relief));
   const deformation=terrain.earthworks?.deltaAt(lat,lon)||0;
+  const uneditedHeight=Math.max(.1,(alpineVillage?.elevationM??extended?.elevationM??regional?.elevationM??
+      base.elevationM+detail*taper+relief)+deformation);
   return {...base,landform:alpineVillage?.landform||extended?.landform||regional?.landform||landform,
     river:Boolean(base.river||regional?.river||extended?.river),
     lake:Boolean(extended?.lake),
     waterLevelM:extended?.waterLevelM??regional?.waterLevelM??null,
-    elevationM:Math.max(.1,(alpineVillage?.elevationM??extended?.elevationM??regional?.elevationM??
-      base.elevationM+detail*taper+relief)+deformation)};
+    elevationM:terrain.ownerWorld?.heightAt(lat,lon,uneditedHeight)??uneditedHeight};
 }
 export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
   if(!Number.isFinite(radiusM)||radiusM<15||radiusM>150000||!Number.isSafeInteger(resolution)||resolution<4||resolution>128) throw new RangeError("Invalid patch resolution or radius");

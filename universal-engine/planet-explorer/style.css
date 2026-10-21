@@ -1110,3 +1110,25 @@ body.immersive{overflow:hidden}
  .railway-view-controls{gap:3px;padding-top:4px}
  .railway-onboard-hud .railway-camera-buttons button{min-height:31px}
 }
+
+/* v0.8w: compact owner editor floats over the playable world on touch and desktop. */
+.owner-panel{position:absolute;z-index:51;right:9px;top:52px;width:min(340px,calc(100% - 18px));
+ max-height:calc(100% - 65px);overflow:auto;overscroll-behavior:contain;padding:12px;
+ border:1px solid #638c9c;border-radius:12px;background:#102c3bed;
+ color:#e6f6ff;box-shadow:0 8px 24px #0008;display:grid;gap:8px;
+ -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px)}
+.owner-panel[hidden]{display:none}
+.owner-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.owner-panel-head strong{font-size:12px}
+.owner-panel-head button{min-height:26px;padding:3px 9px}
+.owner-panel label{display:grid;gap:3px;color:#c1e5ef;font-size:11px}
+.owner-panel select{width:100%;background:#e8f2f5;min-height:34px;padding:5px 8px}
+.owner-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.owner-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.owner-panel button{min-height:30px;padding:5px 7px}
+.owner-panel small{font-size:10px;color:#bdd7e2;line-height:1.45}
+.owner-panel #owner-status,.owner-selected{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.owner-panel #owner-status{color:#f8e8aa;border-top:1px solid #436b7d;padding-top:6px}
+.owner-danger{background:#673f43;color:#fff4f0;border-color:#b77777}
+@media(max-width:600px){.owner-panel{top:43px;max-height:calc(100% - 50px);width:min(285px,calc(100% - 12px));right:6px;padding:9px;gap:5px}
+ .owner-panel select{min-height:30px}.owner-panel button{font-size:11px}}

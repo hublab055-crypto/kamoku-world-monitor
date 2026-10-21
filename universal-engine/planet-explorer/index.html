@@ -214,6 +214,7 @@
     <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
      <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
     <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
+    <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
@@ -224,6 +225,23 @@
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="owner-panel" class="owner-panel" role="region" aria-label="オーナー用ワールドエディター" hidden>
+ <div class="owner-panel-head"><strong>🏗️ オーナーモード・地形と街の編集</strong><button id="owner-close" type="button" aria-label="編集モードを閉じる">×</button></div>
+ <label>編集ツール <select id="owner-tool">
+  <option value="select">🔍 建物を選択</option><option value="building">🏠 建物を配置</option>
+  <option value="move">↔️ 建物を移動</option><option value="delete">🗑️ 建物を削除</option>
+  <option value="road">🛣️ 道を引く</option><option value="raise">⛰️ 地面を上げる</option>
+  <option value="lower">🪏 地面を下げる</option><option value="flatten">📐 地面を整地</option>
+ </select></label>
+ <label>建物 <select id="owner-building" aria-label="配置する建物"></select></label>
+ <div class="owner-fields"><label>ブラシ半径 <select id="owner-radius"><option value="8">8m</option><option value="20" selected>20m</option><option value="50">50m</option><option value="100">100m</option><option value="200">200m</option></select></label>
+ <label>道路の幅 <select id="owner-road-width"><option value="3">3m</option><option value="5" selected>5m</option><option value="8">8m</option><option value="12">12m</option></select></label></div>
+ <div id="owner-selected" class="owner-selected">建物未選択</div>
+ <div class="owner-buttons"><button type="button" id="owner-rotate">↻ 22.5°回転</button><button type="button" id="owner-undo">↶ 戻す</button><button type="button" id="owner-redo">↷ やり直し</button><button type="button" id="owner-cancel">× 選択解除</button></div>
+ <button type="button" id="owner-erase" class="owner-danger">🗑️ オーナー編集だけ消去</button>
+ <small>地面をタップして編集。道路は始点と終点を順にタップ。資材は消費しません。変更内容はこのブラウザの保存データに保持され、オンライン上の管理者権限ではありません。</small>
+ <span id="owner-status" role="status" aria-live="polite">地上でオーナーモードを選択してください</span>
+</section>
 <section id="map-directory-panel" class="fauna-panel map-directory-panel" role="dialog" aria-label="周辺マップの対象一覧" hidden>
  <div class="fauna-panel-top">
   <strong>🗺️ マップの対象一覧</strong>
@@ -868,6 +886,7 @@
     <div class="toolbar" id="viewport-toolbar">
       <button id="zoom-in" type="button">＋ 拡大</button>
       <button id="toolbar-rts" type="button">⚓ RTS視点</button>
+      <button id="toolbar-owner" type="button" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナーモード</button>
       <button id="toolbar-auto" type="button">🤔 条件分岐設定</button>
        <button id="toolbar-books" type="button">📚 本棚・読書</button>
        <button id="toolbar-life" type="button">🛠️ 家具・テント・食器</button>
@@ -1056,6 +1075,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8w-alpine-horizon"></script>
+<script type="module" src="./app.mjs?v=0.8x-owner-editor"></script>
 </body>
 </html>

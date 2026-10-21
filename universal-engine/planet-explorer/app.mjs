@@ -10,6 +10,8 @@ import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
+import {OwnerWorld} from "./owner-world.mjs";
+import {installOwnerEditor} from "./owner-editor-ui.mjs";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";
@@ -55,6 +57,7 @@ const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
 const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
 const WORLD_JOURNAL_KEY="universal-engine:explorer:earthworks:v0.8a";
 const STRUCTURES_JOURNAL_KEY="universal-engine:explorer:construction:v0.8e";
+const OWNER_JOURNAL_KEY="universal-engine:explorer:owner:v0.8w";
 const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
 const FARM_JOURNAL_KEY="universal-engine:explorer:agriculture:v0.8g";
 const MARINE_JOURNAL_KEY="universal-engine:explorer:marine:v0.8g";
@@ -65,6 +68,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
+let ownerWorld=null,ownerUI=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null;
@@ -112,6 +116,11 @@ function saveWorldJournal(){
  try{localStorage.setItem(WORLD_JOURNAL_KEY,JSON.stringify({resources:harvest.snapshot(),earthworks:earthworks.snapshot()}));}
  catch(_){log("環境の自動保存ができません。ゲームの保存をお試しください。");}
 }
+function saveOwnerJournal(){
+ try{if(ownerWorld)localStorage.setItem(OWNER_JOURNAL_KEY,JSON.stringify(ownerWorld.snapshot()));}
+ catch(_){log("オーナー編集の自動保存に失敗しました");}
+}
+function loadOwnerJournal(){try{return JSON.parse(localStorage.getItem(OWNER_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function emitHarvestEffect(node,result,agent=null){
  if(result.stage==="felled")renderer?.beginTreeFall(node);
  const isRock=node.kind==="stone";
@@ -208,6 +217,9 @@ function init(saved=null){
    constructions=new ConstructionSystem(constructionSnapshot);
    earthworks=new Earthworks(restoredWorld?.earthworks||null);
    terrain.earthworks=earthworks;
+   ownerWorld=new OwnerWorld(saved?.v0_8w?.owner||(!saved?loadOwnerJournal():null));
+   terrain.ownerWorld=ownerWorld;
+   ownerUI?.reset();
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
@@ -261,6 +273,7 @@ function init(saved=null){
    renderer.trainInterior=railway.boarded?railway.status(planet.timeDays):null;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
+   renderer.ownerWorld=ownerWorld;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
@@ -889,8 +902,9 @@ $("save").addEventListener("click",()=>{
        v0_8f:{schemaVersion:1,fauna:fauna.snapshot()},
        v0_8g:{schemaVersion:1,farm:farm.snapshot(),marine:marine.snapshot()},
         v0_8h:{schemaVersion:1,playerHp:battle.playerHp},
-         v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot()};
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();
+         v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot(),
+         v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()}};
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveOwnerJournal();
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();
   log("v0.8t：街・生活・船・鉄道の乗車状態を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -1473,6 +1487,7 @@ function handleSceneTap({x,y,shiftKey=false}){
   if(furniture)useShipFurniture(furniture.kind);
   return;
  }
+ if(ownerUI?.tap(x,y))return;
  if(constructionUI?.tap(x,y))return;
  const arrow=renderer.pickArrow(x,y);
  if(arrow){orderArrowPickup(arrow);return;}
@@ -1548,6 +1563,7 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
   return;
  }
  if(!controller?.nearGround)return;
+ if(ownerUI?.active){ownerUI.tap(x,y);return;}
  if(constructionUI?.kind)return;
  // A double tap orders ground movement even when an animal or building overlaps.
  const ground=renderer.pickGround(x,y);
@@ -1575,6 +1591,11 @@ constructionUI=new ConstructionPlacement({
   catch(_){log("建築物の自動保存に失敗しました");}
   updateHUD();saveLifeJournal();
  },log
+});
+ownerUI=installOwnerEditor({
+ getWorld:()=>ownerWorld,getTerrain:()=>terrain,getController:()=>controller,getRenderer:()=>renderer,
+ onEnter:()=>constructionUI?.setKind(null),
+ onCommit:()=>{if(renderer)renderer.patchKey=null;saveOwnerJournal();},log
 });
 function vitalsActor(){
  return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
