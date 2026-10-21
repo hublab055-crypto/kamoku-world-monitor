@@ -1155,3 +1155,26 @@ body.immersive{overflow:hidden}
 .fog-choice{display:flex;flex-direction:column;gap:5px;min-width:180px}
 .fog-choice select{width:100%;min-height:42px}
 .fog-choice small{font-size:11px;font-weight:500;color:#bedbe8;line-height:1.45}
+
+/* v0.8y — compact touch-friendly construction palette, save slots and harbor ticket office. */
+.save-slots-panel{min-width:min(320px,100%);border:1px solid rgba(167,185,190,.38);
+ border-radius:8px;padding:.4rem .6rem;background:rgba(21,29,33,.75);color:#e5eced}
+.save-slots-panel summary{cursor:pointer;font-weight:650}
+#save-slot-list{display:grid;gap:.45rem;padding:.4rem 0}
+.save-slot-row{display:flex;flex-wrap:wrap;align-items:center;gap:.32rem;padding:.35rem;
+ border:1px solid rgba(172,178,164,.3);border-radius:6px}
+.save-slot-row input{flex:1 1 110px;min-width:92px;max-width:180px}
+.save-slot-row small{flex-basis:100%;font-size:.75rem;opacity:.85}
+.save-slot-row button{min-height:32px}
+.owner-primitives{display:grid;gap:.55rem;min-width:0;padding:.6rem;
+ border:1px solid rgba(184,184,160,.45);border-radius:7px}
+.owner-primitives legend{font-weight:650}
+.owner-primitives label{display:flex;flex-direction:column;gap:.22rem}
+.owner-primitives input[type="number"]{max-width:100%;width:95px}
+.owner-primitives .owner-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem}
+.owner-primitives input[type="color"]{width:55px;height:35px}
+.railway-staff-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.5rem 0}
+.railway-staff-controls span{flex-basis:100%}
+#harbor-panel{max-height:min(88vh,750px);overflow:auto}
+#harbor-panel p{margin:.4rem 0}
+#harbor-panel .railway-staff-controls button{flex:1 1 132px;min-height:36px}
