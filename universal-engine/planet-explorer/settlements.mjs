@@ -1,7 +1,7 @@
 /** Fictional settlements with reproducible local layouts and planetary addresses.
  * Destination browsing is separate from short-range waypoint navigation.
  */
-import {findLand,geoOffset,terrainSurface} from "./geo.mjs?v=0.8w-alpine-horizon";
+import {findLand,geoOffset,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 
 export const DESTINATIONS=Object.freeze([
  {id:"pioneer",name:"開拓者の集落",region:"はじまりの谷",icon:"⛺",kind:"hamlet",lat:28,lon:42,
