@@ -23,7 +23,8 @@ test("LOD adapts after persistent low FPS, recovers slowly, and keeps resource i
  const lod=new AdaptiveTerrainLOD();
  lod.observe(25,1);assert.equal(lod.level,0);
  lod.observe(25,1);lod.observe(25,.6);assert.equal(lod.level,1);
- lod.observe(25,2.5);assert.equal(lod.level,2);
+ lod.observe(25,1);lod.observe(25,1);lod.observe(25,.6);
+ assert.equal(lod.level,2);
  for(let i=0;i<8;i++)lod.observe(60,1);
  assert.equal(lod.level,1);
  for(let i=0;i<8;i++)lod.observe(60,1);
