@@ -2,7 +2,7 @@ import {absoluteMinutes,formatClock,formatCountdown,nextDepartures,routeSummary,
  RAIL_CARRIAGES,RAILWAY_LOOP_KM,stationById} from "./railway.mjs?v=0.8t-timetable";
 
 /** Timetable, live train board and the compact onboard HUD. */
-export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,onOpen=()=>{},notify=()=>{}}){
+export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,onCamera=()=>({ok:false}),onWalls=()=>({ok:false}),onTalk=()=>({ok:false}),onOpen=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const panel=$("railway-panel"),toggle=$("viewport-railway"),body=$("railway-timetable-body");
  const status=$("railway-status"),board=$("railway-board"),carriage=$("railway-carriage");
@@ -52,6 +52,25 @@ export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,o
     formatCountdown(state.nextArrivalMinute-absoluteMinutes(timeDays))+"）";
   $("railway-onboard-progress").value=state.mode==="travel"?Math.round(state.progress*100):0;
   $("railway-hud-alight").disabled=state.mode!=="stopped";
+  for(const button of document.querySelectorAll("[data-rail-camera]"))
+   button.setAttribute("aria-pressed",String(button.dataset.railCamera===state.camera));
+  $("railway-wall-toggle").textContent=state.hideWalls?"🧱 壁を表示":"🧱 壁を隠す";
+  $("railway-wall-toggle").setAttribute("aria-pressed",String(state.hideWalls));
+  const people=$("railway-people"),names=get().companions||[];
+  const manifest=railway.people(names),signature=state.carriage+":"+names.join("|");
+  if(people.dataset.manifest!==signature){
+   people.replaceChildren();
+   for(const actor of manifest){
+    const option=document.createElement("option");option.value=actor.id;
+    option.textContent=actor.kind==="companion"?"🤝 "+actor.name:"🧑 "+actor.name;people.append(option);
+   }
+   people.dataset.manifest=signature;
+  }
+  $("railway-talk").disabled=state.camera!=="interior"||!manifest.length;
+  $("railway-people-controls").hidden=state.camera!=="interior";
+  $("railway-experience-status").textContent=state.camera==="interior"?
+   "車内で歩けます。位置："+state.pose.x.toFixed(1)+"m / "+state.pose.z.toFixed(1)+"m。話す相手へ近づいてください":
+   ({follow:"列車を追いかけるカメラ",fixed:"線路沿いの定点カメラ",rts:"上空から列車と線路を見る"}[state.camera]||"");
  }
  function refresh(){
   const {railway,timeDays,stationId,controller}=get(),station=stationById(stationId),boarded=railway.boarded;
@@ -100,5 +119,16 @@ export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,o
   notify(status.textContent);refresh();
  });
  $("railway-hud-open").addEventListener("click",open);
+ $("railway-view-controls").addEventListener("click",event=>{
+  const camera=event.target.closest("button[data-rail-camera]");
+  let result;
+  if(camera)result=onCamera(camera.dataset.railCamera);
+  else if(event.target.closest("#railway-wall-toggle"))result=onWalls();
+  else if(event.target.closest("#railway-talk"))result=onTalk($("railway-people").value);
+  else return;
+  setStatus(result?.message||"列車の操作に失敗しました");
+  if(result?.message)notify(result.message);
+  refresh();
+ });
  return {open,close,refresh,setStatus,get isOpen(){return !panel.hidden;}};
 }
