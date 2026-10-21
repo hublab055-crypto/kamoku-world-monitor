@@ -40,7 +40,7 @@ export function installOrbitalCitiesUI({getDestinations,onSelect,onFree,notify=(
   selectedId=id;syncSelected();hint.textContent="📍 "+place.name+"：下の「この都市へ降下」で確定";
   menu.hidden=true;toggle.setAttribute("aria-expanded","false");
  }
- function clearChoice(){selectedId=null;syncSelected();}
+ function clearChoice(){selectedId=null;syncSelected();hint.textContent="🌐 地表をタップして自由降下もできます";}
  function goFree(){
   if(!enabled)return;
   clearChoice();onFree();menu.hidden=true;
