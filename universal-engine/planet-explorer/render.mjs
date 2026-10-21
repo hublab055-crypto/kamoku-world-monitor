@@ -28,6 +28,7 @@ import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrob
 import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
+import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD,buildDistantTerrainRing} from "./atmosphere-lod.mjs";
 import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splash";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
@@ -64,8 +65,19 @@ export function multiply4(a,b){
  for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];
  return out;
 }
-const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","layout(location=3) in vec4 aInstance;","layout(location=4) in vec2 aFacing;","uniform mat4 uMvp;uniform float uInstanced;","out vec3 vN;out vec3 vC;","void main(){"," vec3 p=aPos,n=aNorm;"," if(uInstanced>0.5){","  float c=aFacing.x,s=aFacing.y;","  p=vec3((aPos.x*c+aPos.z*s)*aInstance.w,aPos.y*aInstance.w,(-aPos.x*s+aPos.z*c)*aInstance.w)+aInstance.xyz;","  n=vec3(aNorm.x*c+aNorm.z*s,aNorm.y,-aNorm.x*s+aNorm.z*c);"," }"," vN=n;vC=aColor;gl_Position=uMvp*vec4(p,1.0);","}"].join("\n");
-const FRAG=["#version 300 es","precision highp float;","in vec3 vN; in vec3 vC;","uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;uniform vec3 uTint;","out vec4 fragColor;","void main(){float b=max(dot(normalize(vN),normalize(uLight)),0.0);fragColor=vec4(vC*uTint*(uAmbient+(1.0-uAmbient)*b),uAlpha);}"].join("\n");
+const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","layout(location=3) in vec4 aInstance;","layout(location=4) in vec2 aFacing;","uniform mat4 uMvp;uniform float uInstanced;","out vec3 vN;out vec3 vC;out float vDepth;","void main(){"," vec3 p=aPos,n=aNorm;"," if(uInstanced>0.5){","  float c=aFacing.x,s=aFacing.y;","  p=vec3((aPos.x*c+aPos.z*s)*aInstance.w,aPos.y*aInstance.w,(-aPos.x*s+aPos.z*c)*aInstance.w)+aInstance.xyz;","  n=vec3(aNorm.x*c+aNorm.z*s,aNorm.y,-aNorm.x*s+aNorm.z*c);"," }"," vN=n;vC=aColor;gl_Position=uMvp*vec4(p,1.0);vDepth=gl_Position.w;","}"].join("\n");
+const FRAG=["#version 300 es","precision highp float;",
+"in vec3 vN;in vec3 vC;in float vDepth;",
+"uniform vec3 uLight;uniform float uAlpha;uniform float uAmbient;uniform vec3 uTint;",
+"uniform vec3 uFogParams;uniform vec3 uFogColor;",
+"out vec4 fragColor;",
+"void main(){",
+" float b=max(dot(normalize(vN),normalize(uLight)),0.0);",
+" vec3 lit=vC*uTint*(uAmbient+(1.0-uAmbient)*b);",
+" float f=clamp((vDepth-uFogParams.x)/max(1.0,uFogParams.y-uFogParams.x),0.0,1.0);",
+" float haze=f*f*(3.0-2.0*f)*uFogParams.z;",
+" fragColor=vec4(mix(lit,uFogColor,haze),uAlpha);",
+"}"].join("\n");
 function shader(gl,mode,src){
  const sh=gl.createShader(mode);gl.shaderSource(sh,src);gl.compileShader(sh);
  if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error("Shader compile: "+gl.getShaderInfoLog(sh));
@@ -614,6 +626,7 @@ export class ExplorerRenderer{
   if(!gl)throw Error("WebGL2が利用できません。対応ブラウザを利用してください。");
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.cameraController=new CameraController();
+  this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
   this.actorMarker=null;
   this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;this.mapFocus=null;
   this.screenAnimals=[];this.fauna=null;this.farm=null;this.screenFarms=[];this.farmMeshes=new Map();this.animalGrazeMeshes=new Map();
@@ -636,11 +649,12 @@ export class ExplorerRenderer{
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
   this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");this.uInstanced=gl.getUniformLocation(pg,"uInstanced");
+  this.uFogParams=gl.getUniformLocation(pg,"uFogParams");this.uFogColor=gl.getUniformLocation(pg,"uFogColor");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
-  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
+  this.patch=null;this.horizonMesh=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
    this.railway=null;this.trainInterior=null;this.trainClock=0;
    this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
    this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
@@ -736,6 +750,8 @@ export class ExplorerRenderer{
   this.orbitPan=null;this.lastOrbitCenter=null;this.orbitFocus=null;
   gl.enable(gl.DEPTH_TEST);
  }
+ setFogMode(mode){this.fogMode=normalizeFogMode(mode);return this.fogMode;}
+ reportFPS(fps,elapsedSeconds){return this.adaptiveTerrainLOD.observe(fps,elapsedSeconds);}
  setAvatarStyle(id){
    if(!["pioneer","scout","artisan"].includes(id))throw new RangeError("Unknown avatar style");
    this.setAppearance(createAppearance(id,id));
@@ -1403,6 +1419,7 @@ export class ExplorerRenderer{
   const inOrbit=state.altitudeM>ORBIT_GROUND_CUTOFF_M;
   gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,inOrbit?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0])); // no fog in space or interiors
   const asp=w/h;
   this.actorMarker=null;
   if(!inOrbit){
