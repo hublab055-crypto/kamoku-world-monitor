@@ -43,7 +43,7 @@ import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scene
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
-import {railwayStationGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8x-rail-safety";
+import {railwayStationGeometry,railwayConcourseGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8y-station";
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8x-rail-safety";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -669,6 +669,7 @@ export class ExplorerRenderer{
   this.passengerSteamerMesh=new Mesh(gl,passengerSteamerGeometry());
   this.ferryCabinMesh=new Mesh(gl,passengerSteamerInteriorGeometry());
    this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
+   this.railwayConcourseMesh=new Mesh(gl,railwayConcourseGeometry());
    this.railwayJailMesh=new Mesh(gl,railwayJailGeometry());
    this.railGuardMesh=new Mesh(gl,settlementResidentsGeometry([{id:"rail-guard",x:0,z:0,clothing:5}],()=>0));
    this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
@@ -1320,6 +1321,18 @@ export class ExplorerRenderer{
     this.drawMesh(mesh,multiply4(vp,model),light,1,.72);
    }
  }
+ renderRailwayConcourse(asp){
+  const gl=this.gl;
+  gl.clearColor(.07,.09,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const vp=multiply4(perspective(57*DEG,asp,.25,1000),lookAt([15,12,17],[0,1.8,-1]));
+  this.pickVP=null;
+  this.drawMesh(this.railwayConcourseMesh,vp,[.43,.86,.73],1,.87);
+  // Stationmaster and arriving passengers are anchored to the ticket window.
+  for(const [x,z] of [[-4.0,-6.9],[1.3,4.4],[-4.2,4.0]]){
+   this.drawMesh(this.railGuardMesh,multiply4(vp,translate(x,0,z)),[.43,.86,.73],1,.84);
+  }
+  return "railway-concourse";
+ }
  renderFerryInterior(asp,dt){
   const gl=this.gl,p=this.ferry?.pose||{x:0,z:0};
   this.trainClock+=Math.max(0,Math.min(.10,dt));
@@ -1507,6 +1520,8 @@ export class ExplorerRenderer{
   }
   this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
+  if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
+   return this.renderRailwayConcourse(asp);
   if(this.trainInterior?.camera==="interior"||this.trainInterior&&!this.trainInterior.camera)return this.renderTrainInterior(asp,dt);
   if(this.trainInterior&&this.railJourney)return this.renderRailJourney(asp,dt);
   if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
@@ -2346,7 +2361,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
