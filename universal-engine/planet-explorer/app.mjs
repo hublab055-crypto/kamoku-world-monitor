@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8v-alpine-horizon";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8v-alpine-horizon";
-import {ExplorerRenderer} from "./render.mjs?v=0.8v-alpine-horizon";
+import {ExplorerRenderer} from "./render.mjs?v=0.8w-atmosphere";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -50,6 +50,7 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
+const FOG_MODE_KEY="universal-engine:explorer:fog:v1";
 const PRE_FRONTIER_SAVE_KEY="universal-engine:explorer:v0.7g";
 const V07D_SAVE_KEY="universal-engine:explorer:v0.7d";
 const LIFE_JOURNAL_KEY="universal-engine:explorer:life:v1";
@@ -253,6 +254,9 @@ function init(saved=null){
   simWorld.addSystem("solar-time",(_world,dt)=>planet.advance(dt*Number($("days-per-second").value)*.02));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+  try{renderer.setFogMode(localStorage.getItem(FOG_MODE_KEY)||"auto");}
+  catch(_){renderer.setFogMode("auto");}
+  $("fog-mode").value=renderer.fogMode;
    renderer.settlementId=activeSettlementId;
    renderer.townInterior=null;
    renderer.railway=railway;
@@ -627,7 +631,12 @@ function doFrame(t){
   if(t-lastHud>240){
    updateHUD();
    const fps=frameTime?Math.round(frameCount/frameTime):0;
-   $("fps").textContent=fps+" fps";frameTime=0;frameCount=0;lastHud=t;
+   renderer.reportFPS(fps,frameTime);
+   $("fps").textContent=fps+" fps";
+   $("fog-detail").textContent=(renderer.fogMode==="off"?"フォグなし":({auto:"自動",light:"軽量",realistic:"リアル"}[renderer.fogMode]||""))+
+     " / "+["高精細","中精細","軽量"][renderer.adaptiveTerrainLOD.level]+
+     (renderer.fogMode==="off"?"":" / 視程 約"+Math.round((renderer.lastFog?.endM||0)/100)/10+"km");
+   frameTime=0;frameCount=0;lastHud=t;
   }
  }
  requestAnimationFrame(doFrame);
@@ -1780,6 +1789,11 @@ function setCameraMode(mode){
  }catch(e){log("カメラ設定失敗: "+e.message)}
 }
 $("camera-mode").addEventListener("change",()=>setCameraMode($("camera-mode").value));
+$("fog-mode").addEventListener("change",()=>{
+ const mode=renderer.setFogMode($("fog-mode").value);
+ try{localStorage.setItem(FOG_MODE_KEY,mode);}catch(_){}
+ log("遠景フォグ："+({off:"OFF",light:"軽量",realistic:"リアル",auto:"自動"}[mode]||mode));
+});
 $("camera-distance").addEventListener("input",()=>{
  renderer.cameraController.setValue("distanceM",Number($("camera-distance").value));
  syncCameraControls();
