@@ -42,6 +42,7 @@ test("live board reports stops, segment progress, next station and ETA",()=>{
 
 test("boarding is stop-gated, arrival survives a skipped frame, and alighting is station-gated",()=>{
  const railway=new RailwaySystem();
+ assert.equal(railway.enterConcourse("tower").ok,true);
  assert.equal(railway.buyTicket("tower","meadow","aurora-out",at(0,6,0)).ok,true);
  assert.equal(railway.enterPlatform("tower","aurora-out").ok,true);
  assert.equal(railway.board("tower",at(0,6,31),"passenger","aurora-out").ok,false);
@@ -58,6 +59,7 @@ test("boarding is stop-gated, arrival survives a skipped frame, and alighting is
 
 test("onboard service and chosen carriage survive save and restore",()=>{
  const railway=new RailwaySystem();
+ assert.equal(railway.enterConcourse("tower").ok,true);
  assert.equal(railway.buyTicket("tower","capital","aurora-out",at(0,6,0)).ok,true);
  assert.equal(railway.enterPlatform("tower","aurora-out").ok,true);
  assert.equal(railway.board("tower",at(0,6,5),"freight","aurora-out").ok,true);
@@ -95,5 +97,5 @@ test("browser wiring exposes timetable, waiting, carriage selection and onboard 
  assert.match(app,/railwayUI=installRailwayUI/);assert.match(app,/v0_8t:railway\.snapshot\(\)/);
  assert.match(app,/handleRailwayArrival/);assert.match(render,/steamTrainGeometry/);
  assert.match(render,/renderTrainInterior/);assert.match(css,/\.railway-timetable/);
- assert.match(html,/app\.mjs\?v=0\.8x-rail-safety/);
+ assert.match(html,/app\.mjs\?v=0\.8z-owner-crossing/);
 });

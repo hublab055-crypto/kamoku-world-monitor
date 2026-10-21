@@ -26,6 +26,7 @@ test("ticket purchase and platform validation are required before boarding",()=>
  const trip=railwayJourney("aurora-out","tower","capital");
  assert.equal(trip.stops,2);assert.ok(trip.distanceKm>3);
  assert.equal(ticketFare("aurora-out","tower","capital"),Math.ceil(trip.distanceKm*8));
+ assert.equal(rail.enterConcourse("tower").ok,true);
  const bought=rail.buyTicket("tower","capital","aurora-out",at(0,6));
  assert.equal(bought.ok,true);assert.equal(rail.balance,Infinity);
  assert.equal(rail.board("tower",at(0,6,5),"passenger","aurora-out").ok,false);

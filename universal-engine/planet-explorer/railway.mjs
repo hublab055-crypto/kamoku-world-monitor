@@ -14,13 +14,13 @@ export const RAILWAY_DWELL_MINUTES=30;
 const freezeSite=site=>Object.freeze({...site});
 export const RAIL_STATIONS=Object.freeze([
  Object.freeze({id:"tower",name:"ルミナス中央駅",townName:"塔の街ルミナス",icon:"🗼",
-  platform:1,site:freezeSite({x:0,z:-94,yaw:0})}),
+  platform:1,site:freezeSite({x:0,z:-94,yaw:0}),crossing:freezeSite({x:0,z:0,yaw:0})}),
  Object.freeze({id:"meadow",name:"フロウベル駅",townName:"草原の村 フロウベル",icon:"🌾",
-  platform:1,site:freezeSite({x:0,z:-72,yaw:0})}),
+  platform:1,site:freezeSite({x:0,z:-72,yaw:0}),crossing:freezeSite({x:0,z:0,yaw:0})}),
  Object.freeze({id:"capital",name:"アルディナス中央駅",townName:"王都アルディナス",icon:"🏰",
-  platform:1,site:freezeSite({x:0,z:-94,yaw:0})}),
+  platform:1,site:freezeSite({x:0,z:-94,yaw:0}),crossing:freezeSite({x:0,z:0,yaw:0})}),
  Object.freeze({id:"port",name:"セレノート港駅",townName:"港町セレノート",icon:"⚓",
-  platform:1,site:freezeSite({x:0,z:-84,yaw:0})})
+  platform:1,site:freezeSite({x:0,z:-84,yaw:0}),crossing:freezeSite({x:0,z:0,yaw:0})})
 ]);
 
 // Clockwise segment i connects station i to station i+1.

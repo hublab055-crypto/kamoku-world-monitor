@@ -1,6 +1,6 @@
 /** Local-space mesh primitives for user-placed stone walls and facilities. */
 import {FACILITIES} from "./construction-system.mjs?v=0.8h-church";
-import {OWNER_FACILITIES} from "./owner-world.mjs";
+import {OWNER_FACILITIES} from "./owner-world.mjs?v=0.8z-prefabs";
 const fresh=()=>({positions:[],normals:[],colors:[],indices:[]});
 function triangle(g,a,b,c,col){
  const u=b.map((v,i)=>v-a[i]),w=c.map((v,i)=>v-a[i]);

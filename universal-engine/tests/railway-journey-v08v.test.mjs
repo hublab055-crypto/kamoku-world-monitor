@@ -66,6 +66,7 @@ test("passenger corridor walls can be hidden and have open windows",()=>{
 });
 test("players can walk inside a carriage, speak nearby, and switch camera without moving stations",()=>{
  const rail=new RailwaySystem();
+ assert.equal(rail.enterConcourse("tower").ok,true);
  assert.equal(rail.buyTicket("tower","meadow","aurora-out",at(0,6)).ok,true);
  assert.equal(rail.enterPlatform("tower","aurora-out").ok,true);
  assert.equal(rail.board("tower",at(0,6,5),"passenger","aurora-out").ok,true);

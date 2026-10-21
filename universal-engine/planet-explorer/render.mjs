@@ -4,7 +4,7 @@ import {regionalLakeMesh} from "./regional-landforms.mjs";
 import {buildDistantLandscape} from "./distant-landscape.mjs";
 import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-drift";
 import {BUILD_KINDS} from "./construction-system.mjs?v=0.8h-church";
-import {OWNER_BUILDING_KINDS} from "./owner-world.mjs";
+import {OWNER_BUILDING_KINDS} from "./owner-world.mjs?v=0.8z-prefabs";
 import {ownerRoadGeometry} from "./owner-road-geometry.mjs";
 import {ownerPrimitiveGeometry} from "./owner-primitive-geometry.mjs?v=0.8y-solids";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs?v=0.8h-church";
@@ -45,7 +45,7 @@ import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInterior
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {railwayStationGeometry,railwayConcourseGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8y-station";
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
-import {trackGeometry,trackFenceGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8x-rail-safety";
+import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -675,6 +675,7 @@ export class ExplorerRenderer{
    this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
    this.railConnectingRod=new Mesh(gl,connectingRodGeometry());
    this.railSmokePuff=new Mesh(gl,steamPuffGeometry());
+   this.railCrossingMesh=new Mesh(gl,trackCrossingGeometry());
    this.railJourneyPatch=null;this.railJourneyTrack=null;this.railJourneyTrees=[];
    this.railJourneyGrass=[];this.railJourneyOrigin=null;this.railJourneyGeo=null;
    this.railJourneyData=null;this.railJourney=null;this.railCameraFixed=null;
@@ -2192,7 +2193,7 @@ export class ExplorerRenderer{
       sleepers.push({x,z,y});
      }
      const track=trackGeometry(sleepers);
-     const fence=trackFenceGeometry(sleepers,{gateZ:railStation.site.z});
+     const fence=trackFenceGeometry(sleepers,{gateZ:railStation.site.z,crossings:[railStation.crossing.z]});
      this.stationTrackMesh=track.indices.length?new Mesh(gl,track):null;
      this.stationFenceMesh=fence.indices.length?new Mesh(gl,fence):null;
      this.stationTrackId=this.settlementId;
@@ -2201,6 +2202,13 @@ export class ExplorerRenderer{
      multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.82);
     if(this.stationFenceMesh)this.drawMesh(this.stationFenceMesh,
      multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.84);
+    if(railStation.crossing){
+     const crossingGeo=geoOffset(s.origin.lat,s.origin.lon,railStation.crossing.x,railStation.crossing.z,this.planet.radiusM);
+     const crossingY=Math.max(0,terrainSurface(this.terrain,crossingGeo.lat,crossingGeo.lon).elevationM)+.04;
+     const crossingModel=multiply4(translate(railStation.crossing.x-this.cx,crossingY,
+      railStation.crossing.z-this.cz),rotateY(railStation.crossing.yaw||0));
+     this.drawMesh(this.railCrossingMesh,multiply4(vp,crossingModel),light,1,.91);
+    }
     const x=railStation.site.x-this.cx,z=railStation.site.z-this.cz;
     const y=patchSceneryHeight(this.groundPatchData,x,z);
     const stationModel=multiply4(translate(x,y,z),rotateY(railStation.site.yaw||0));

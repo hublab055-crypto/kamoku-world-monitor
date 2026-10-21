@@ -1,5 +1,5 @@
 import {absoluteMinutes,formatClock,formatCountdown,nextDepartures,routeSummary,
- RAIL_CARRIAGES,RAILWAY_LOOP_KM,stationById} from "./railway.mjs?v=0.8y-station";
+ RAIL_CARRIAGES,RAILWAY_LOOP_KM,stationById} from "./railway.mjs?v=0.8z-crossing";
 
 /** Timetable, live train board and the compact onboard HUD. */
 export function installRailwayUI({get,onWait,onEnterStation=()=>({ok:false}),onExitStation=()=>({ok:false}),onSkipArrival=()=>({ok:false}),onBuyTicket=()=>({ok:false}),onBoard,onAlight,onChangeCarriage,onCamera=()=>({ok:false}),onWalls=()=>({ok:false}),onTalk=()=>({ok:false}),onOpen=()=>{},notify=()=>{}}){

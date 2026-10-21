@@ -1,6 +1,6 @@
 /** Touch-first local owner editor. Taps are routed ahead of gameplay picking. */
 import {terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {OWNER_BUILDING_KINDS,OWNER_FACILITIES} from "./owner-world.mjs?v=0.8y-primitives";
+import {OWNER_BUILDING_KINDS,OWNER_FACILITIES} from "./owner-world.mjs?v=0.8z-prefabs";
 import {FACILITIES} from "./construction-system.mjs";
 export function installOwnerEditor({getWorld,getTerrain,getController,getRenderer,onEnter,onCommit,log}){
  const $=id=>document.getElementById(id);
@@ -9,6 +9,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  const status=$("owner-status"),selected=$("owner-selected");
  const shape=$("owner-shape"),width3=$("owner-size-x"),height3=$("owner-size-y"),
   depth3=$("owner-size-z"),offset3=$("owner-elevation"),color3=$("owner-color"),group3=$("owner-group");
+ const prefabGroup=$("owner-prefab-group"),prefabName=$("owner-prefab-name"),prefabList=$("owner-prefab-list");
  const rgb=()=>[1,3,5].map(n=>parseInt(color3.value.slice(n,n+2),16)/255);
  const hex=color=>"#"+color.map(c=>Math.round(c*255).toString(16).padStart(2,"0")).join("");
  const primitiveParams=()=>({width:Number(width3.value),height:Number(height3.value),
@@ -17,9 +18,18 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  const populate=part=>{
   shape.value=part.shape;width3.value=part.width;height3.value=part.height;
   depth3.value=part.depth;offset3.value=part.offsetY;color3.value=hex(part.color);group3.value=part.group;
+  if(part.group){prefabGroup.value=part.group;if(!prefabName.value)prefabName.value=part.group;}
  };
  let active=false,selectedId=null,roadStart=null,moveAwaiting=false;
  const notice=message=>{status.textContent=message;log(message);};
+ function refreshPrefabs(preferred=""){
+  const previous=preferred||prefabList.value,items=getWorld()?.prefabs||[];
+  const options=items.map(prefab=>{const option=document.createElement("option");option.value=prefab.name;
+   option.textContent=prefab.name+"（"+prefab.parts.length+"パーツ）";return option;});
+  if(!options.length){const empty=document.createElement("option");empty.value="";empty.textContent="未保存";options.push(empty);}
+  prefabList.replaceChildren(...options);
+  if(items.some(prefab=>prefab.name===previous))prefabList.value=previous;
+ }
  const sync=()=>{
   panel.hidden=!active;toggle.setAttribute("aria-pressed",String(active));
   toolbar.setAttribute("aria-pressed",String(active));toggle.textContent=active?"✏️ 編集中":"🏗️ オーナー";
@@ -33,7 +43,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  };
  const finish=result=>{
   notice(result.message);
-  if(result.ok){onCommit();const renderer=getRenderer();if(renderer)renderer.ownerSelectedId=selectedId;}
+  if(result.ok){refreshPrefabs(result.name);onCommit();const renderer=getRenderer();if(renderer)renderer.ownerSelectedId=selectedId;}
   return true;
  };
  const ground=(x,y)=>{
@@ -76,6 +86,11 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
    if(result.ok){selectedId=result.id;getRenderer().ownerSelectedId=selectedId;sync();}
    return finish(result);
   }
+  if(name==="prefab"){
+   const result=world.placePrefab(prefabList.value,p);
+   if(result.ok){selectedId=result.ids[0]||null;getRenderer().ownerSelectedId=selectedId;sync();}
+   return finish(result);
+  }
   if(name==="building"){
    const result=world.place(building.value,p);
    if(result.ok){selectedId=result.id;getRenderer().ownerSelectedId=selectedId;sync();}
@@ -98,6 +113,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  tool.addEventListener("change",()=>{roadStart=null;moveAwaiting=false;
   if(tool.value==="road")notice("道路：始点 → 終点をタップ。次の区間も続けて敷設できます");
   else if(tool.value==="move")notice("移動：まず建物を選択し、続けて移動先をタップ");
+  else if(tool.value==="prefab")notice(prefabList.value?"保存建築物「"+prefabList.value+"」の配置地点をタップ":"先に保存建築物を選んでください");
   else notice("ツールを変更しました。地面をタップしてください");
  });
  $("owner-rotate").addEventListener("click",()=>{
@@ -107,6 +123,22 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  $("owner-primitive-apply").addEventListener("click",()=>{
   if(!selectedPart()){notice("先に建築パーツを選択してください");return;}
   finish(getWorld().changePrimitive(selectedId,{...primitiveParams(),shape:shape.value}));
+ });
+ group3.addEventListener("input",()=>{prefabGroup.value=group3.value;if(!prefabName.value)prefabName.value=group3.value;});
+ $("owner-prefab-save").addEventListener("click",()=>{
+  const world=getWorld(),name=prefabName.value.trim(),exists=world.prefabs.some(prefab=>prefab.name===name);
+  if(exists&&!window.confirm("保存建築物「"+name+"」を現在のグループ内容で上書きしますか？"))return;
+  finish(world.savePrefab(prefabGroup.value,name,{replace:exists}));
+ });
+ $("owner-prefab-use").addEventListener("click",()=>{
+  if(!prefabList.value){notice("先に建築物を保存してください");return;}
+  tool.value="prefab";roadStart=null;moveAwaiting=false;
+  notice("📦 「"+prefabList.value+"」を配置する地面をタップしてください");
+ });
+ $("owner-prefab-delete").addEventListener("click",()=>{
+  const name=prefabList.value;if(!name){notice("削除する保存建築物がありません");return;}
+  if(!window.confirm("保存建築物「"+name+"」を一覧から削除しますか？\nすでに配置した建物は残ります。"))return;
+  finish(getWorld().deletePrefab(name));
  });
  $("owner-undo").addEventListener("click",()=>{endWork();sync();finish(getWorld().undo());});
  $("owner-redo").addEventListener("click",()=>{endWork();sync();finish(getWorld().redo());});
@@ -120,6 +152,6 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
   return opt;
  });
  building.replaceChildren(...options);
- sync();
- return {get active(){return active;},tap,reset(){endWork();sync();},setActive:enable};
+ refreshPrefabs();sync();
+ return {get active(){return active;},tap,reset(){endWork();refreshPrefabs();sync();},setActive:enable};
 }

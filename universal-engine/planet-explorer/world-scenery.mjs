@@ -4,8 +4,8 @@
  * are not save-game structures and must not be exposed as interactive huts.
  */
 import {settlementLayout} from "./settlements.mjs?v=0.8w-alpine-horizon";
-import {stationById} from "./railway.mjs?v=0.8x-rail-safety";
-import {keepResidentOffRail} from "./railway-security.mjs?v=0.8x-rail-safety";
+import {stationById} from "./railway.mjs?v=0.8z-crossing";
+import {keepResidentOffRail} from "./railway-security.mjs?v=0.8z-crossing";
 
 export const VILLAGE_SITES = Object.freeze([
   {type:"lodge",x:54,z:44,angle:.12},

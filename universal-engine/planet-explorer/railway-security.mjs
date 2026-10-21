@@ -1,7 +1,8 @@
-import {stationById} from "./railway.mjs?v=0.8x-rail-safety";
+import {stationById} from "./railway.mjs?v=0.8z-crossing";
 
 export const RAIL_CORRIDOR_HALF_WIDTH=2.65;
 export const RAIL_CORRIDOR_HALF_LENGTH=380;
+export const RAIL_CROSSING_HALF_LENGTH=4.8;
 export const RAIL_WARNING_WINDOW_SECONDS=30;
 export const RAIL_WARNING_INTERVAL_SECONDS=4;
 export const RAIL_WARNING_LIMIT=3;
@@ -18,13 +19,22 @@ function worldAt(station,local){
   z:station.site.z-s*local.x+c*local.z};
 }
 
-/** True only between the two safety fences, not on the passenger platform. */
+/** The signed crossing strip is public roadway, so walking straight across it is legal. */
+export function isRailwayCrossing(stationId,x,z,{margin=0}={}){
+ const station=stationById(stationId);
+ if(!station?.crossing||![x,z,margin].every(Number.isFinite))return false;
+ const local=localAt(station,x,z),crossing=localAt(station,station.crossing.x,station.crossing.z);
+ return Math.abs(local.x-crossing.x)<=RAIL_CORRIDOR_HALF_WIDTH+1.4+margin&&
+  Math.abs(local.z-crossing.z)<=RAIL_CROSSING_HALF_LENGTH+margin;
+}
+
+/** True only between the two safety fences, excluding the public level crossing. */
 export function isRailRestricted(stationId,x,z,{margin=0}={}){
  const station=stationById(stationId);
  if(!station||![x,z,margin].every(Number.isFinite))return false;
  const local=localAt(station,x,z);
  return Math.abs(local.x)<RAIL_CORRIDOR_HALF_WIDTH+margin&&
-  Math.abs(local.z)<RAIL_CORRIDOR_HALF_LENGTH+margin;
+  Math.abs(local.z)<RAIL_CORRIDOR_HALF_LENGTH+margin&&!isRailwayCrossing(stationId,x,z,{margin});
 }
 
 /** Move ambient residents to the town side of the fence without moving the player. */

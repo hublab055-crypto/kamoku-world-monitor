@@ -55,9 +55,10 @@ export function trackGeometry(rows,{density=2.9}={}){
  return b;
 }
 /** Terrain-following safety fence on both sides of an urban rail corridor. */
-export function trackFenceGeometry(rows,{halfWidth=3.15,postSpacing=7,gateZ=null,gateHalf=3.2}={}){
+export function trackFenceGeometry(rows,{halfWidth=3.15,postSpacing=7,gateZ=null,gateHalf=3.2,crossings=[]}={}){
  const b=fresh();if(!rows||rows.length<2)return b;
  const steel=[.31,.35,.34],warning=[.84,.65,.19];
+ const crossingAt=z=>crossings.some(value=>Number.isFinite(value)&&Math.abs(z-value)<gateHalf+1.8);
  let carried=0;
  for(let i=1;i<rows.length;i++){
   const a=rows[i-1],c=rows[i],dx=c.x-a.x,dz=c.z-a.z,len=Math.hypot(dx,dz);
@@ -67,7 +68,7 @@ export function trackFenceGeometry(rows,{halfWidth=3.15,postSpacing=7,gateZ=null
    const p={x:a.x+nx*halfWidth,y:a.y+.05,z:a.z+nz*halfWidth};
    const q={x:c.x+nx*halfWidth,y:c.y+.05,z:c.z+nz*halfWidth};
    const midpoint=(a.z+c.z)/2;
-   const gate=side===1&&Number.isFinite(gateZ)&&Math.abs(midpoint-gateZ)<gateHalf;
+   const gate=crossingAt(midpoint)||(side===1&&Number.isFinite(gateZ)&&Math.abs(midpoint-gateZ)<gateHalf);
    if(!gate){
     beam(b,{...p,y:p.y+.70},{...q,y:q.y+.70},.045,.09,steel);
     beam(b,{...p,y:p.y+1.38},{...q,y:q.y+1.38},.045,.09,steel);
@@ -77,13 +78,31 @@ export function trackFenceGeometry(rows,{halfWidth=3.15,postSpacing=7,gateZ=null
   while(d<=len){
    const t=d/len,z=a.z+(c.z-a.z)*t,y=a.y+(c.y-a.y)*t;
    for(const side of [-1,1]){
-    if(side===1&&Number.isFinite(gateZ)&&Math.abs(z-gateZ)<gateHalf)continue;
+    if(crossingAt(z)||(side===1&&Number.isFinite(gateZ)&&Math.abs(z-gateZ)<gateHalf))continue;
     const x=a.x+(c.x-a.x)*t+nx*halfWidth,pz=z+nz*halfWidth;
     block(b,x,y+.02,pz,.085,1.58,.085,Math.abs(z-(gateZ||0))<gateHalf+postSpacing?warning:steel);
    }
    d+=postSpacing;
   }
   carried=(len-(d-postSpacing))%postSpacing;
+ }
+ return b;
+}
+
+/** Road deck, warning posts and raised barriers for a walkable public level crossing. */
+export function trackCrossingGeometry(){
+ const b=fresh(),timber=[.48,.34,.20],road=[.28,.29,.28],yellow=[.91,.69,.12],white=[.88,.87,.78],red=[.78,.16,.12];
+ block(b,0,-.08,0,12,.10,4.7,road);
+ for(let z=-4.1;z<=4.1;z+=.82)block(b,0,.02,z,3.25,.13,.31,timber);
+ // Bright edge blocks make the intended safe walking strip readable from RTS view.
+ for(const z of [-4.55,4.55])for(let x=-11;x<=11;x+=2.2)
+  block(b,x,.03,z,.82,.10,.13,Math.round((x+11)/2.2)%2?white:yellow);
+ for(const x of [-6.2,6.2]){
+  block(b,x,.02,-3.25,.12,2.65,.12,yellow);
+  block(b,x,2.12,-3.25,.55,.18,.12,white);
+  block(b,x-.42,2.45,-3.25,.12,.12,.12,red);block(b,x+.42,2.45,-3.25,.12,.12,.12,red);
+  // Raised barrier arms: visible but do not obstruct the road.
+  block(b,x+(x<0?-.9:.9),1.86,-3.25,1.05,.09,.09,yellow);
  }
  return b;
 }

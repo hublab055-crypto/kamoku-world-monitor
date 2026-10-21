@@ -1130,26 +1130,30 @@ body.immersive{overflow:hidden}
 }
 
 /* v0.8w: compact owner editor floats over the playable world on touch and desktop. */
-.owner-panel{position:absolute;z-index:51;right:9px;top:52px;width:min(340px,calc(100% - 18px));
- max-height:calc(100% - 65px);overflow:auto;overscroll-behavior:contain;padding:12px;
+.owner-panel{position:absolute;z-index:51;right:7px;top:50px;width:min(278px,calc(100% - 14px));
+ max-height:calc(100dvh - 58px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:8px;
  border:1px solid #638c9c;border-radius:12px;background:#102c3bed;
- color:#e6f6ff;box-shadow:0 8px 24px #0008;display:grid;gap:8px;
+ color:#e6f6ff;box-shadow:0 8px 24px #0008;display:grid;gap:5px;
  -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px)}
 .owner-panel[hidden]{display:none}
-.owner-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.owner-panel-head{position:sticky;top:-8px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:6px;
+ margin:-8px -8px 2px;padding:7px 8px;background:#102c3bf5;border-bottom:1px solid #436b7d}
 .owner-panel-head strong{font-size:12px}
-.owner-panel-head button{min-height:26px;padding:3px 9px}
+.owner-panel-head button{min-height:24px;padding:2px 7px}
 .owner-panel label{display:grid;gap:3px;color:#c1e5ef;font-size:11px}
-.owner-panel select{width:100%;background:#e8f2f5;min-height:34px;padding:5px 8px}
-.owner-fields{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.owner-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.owner-panel button{min-height:30px;padding:5px 7px}
+.owner-panel .owner-compact-row{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:5px}
+.owner-panel select{width:100%;min-width:0;background:#e8f2f5;min-height:28px;padding:3px 5px;font-size:11px}
+.owner-panel input{min-width:0;max-width:100%;min-height:27px;padding:3px 5px}
+.owner-fields{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.owner-buttons{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.owner-panel button{min-height:27px;padding:3px 5px;font-size:10px}
 .owner-panel small{font-size:10px;color:#bdd7e2;line-height:1.45}
 .owner-panel #owner-status,.owner-selected{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
 .owner-panel #owner-status{color:#f8e8aa;border-top:1px solid #436b7d;padding-top:6px}
 .owner-danger{background:#673f43;color:#fff4f0;border-color:#b77777}
-@media(max-width:600px){.owner-panel{top:43px;max-height:calc(100% - 50px);width:min(285px,calc(100% - 12px));right:6px;padding:9px;gap:5px}
- .owner-panel select{min-height:30px}.owner-panel button{font-size:11px}}
+@media(max-width:600px){.owner-panel{top:42px;max-height:calc(100dvh - 48px);width:min(244px,calc(100% - 10px));right:5px;padding:7px;gap:4px}
+ .owner-panel-head{top:-7px;margin:-7px -7px 2px;padding:6px 7px}.owner-panel-head strong{font-size:11px}
+ .owner-panel select{min-height:27px}.owner-panel button{font-size:10px}}
 
 /* v0.8w atmospheric distance fog controls */
 .fog-choice{display:flex;flex-direction:column;gap:5px;min-width:180px}
@@ -1166,13 +1170,14 @@ body.immersive{overflow:hidden}
 .save-slot-row input{flex:1 1 110px;min-width:92px;max-width:180px}
 .save-slot-row small{flex-basis:100%;font-size:.75rem;opacity:.85}
 .save-slot-row button{min-height:32px}
-.owner-primitives{display:grid;gap:.55rem;min-width:0;padding:.6rem;
- border:1px solid rgba(184,184,160,.45);border-radius:7px}
-.owner-primitives legend{font-weight:650}
-.owner-primitives label{display:flex;flex-direction:column;gap:.22rem}
-.owner-primitives input[type="number"]{max-width:100%;width:95px}
-.owner-primitives .owner-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem}
-.owner-primitives input[type="color"]{width:55px;height:35px}
+.owner-primitives,.owner-prefabs{min-width:0;border:1px solid rgba(184,184,160,.45);border-radius:7px;background:#173847b8}
+.owner-primitives summary,.owner-prefabs summary{cursor:pointer;padding:5px 6px;font-size:11px;font-weight:650;list-style-position:inside}
+.owner-detail-body{display:grid;gap:5px;padding:2px 6px 7px}
+.owner-primitives label,.owner-prefabs label{display:flex;flex-direction:column;gap:2px}
+.owner-primitives input[type="number"]{width:100%}
+.owner-primitives .owner-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.owner-primitives input[type="color"]{width:48px;height:29px;padding:1px}
+.owner-prefab-buttons{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:4px}
 .railway-staff-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.5rem 0}
 .railway-staff-controls span{flex-basis:100%}
 #harbor-panel{max-height:min(88vh,750px);overflow:auto}
