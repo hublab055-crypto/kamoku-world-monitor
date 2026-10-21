@@ -2407,6 +2407,10 @@ settlementTravelUI=installSettlementTravelUI({
  getDestinations:()=>settlementLocations||=settlementDestinations(terrain),
  onTravel:visitSettlement,notify:log
 });
+orbitalCitiesUI=installOrbitalCitiesUI({
+ getDestinations:()=>settlementLocations||=settlementDestinations(terrain),
+ onSelect:selectOrbitCity,onFree:clearOrbitSelection,notify:log
+});
 $("viewport-settlements").addEventListener("click",()=>{
  railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();faunaUI?.close();farmUI?.close();
  $("marine-panel").hidden=true;
