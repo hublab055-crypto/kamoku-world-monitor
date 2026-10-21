@@ -10,6 +10,7 @@ import {agricultureGeometry} from "./agriculture-geometry.mjs?v=0.8g-crops";
 import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs?v=0.8p-fishing-motion";
 import {pickSurface} from "./picking.mjs";
 import {pickOrbitalGeo} from "./orbit-landing.mjs";
+import {projectOrbitalCities} from "./orbital-city-markers.mjs?v=0.8u-city-globe";
 import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {oceanWavePatch,fishAt} from "./marine.mjs?v=0.8k-sailing-ship";
 import {sailingShipGeometry} from "./sailing-ship-geometry.mjs?v=0.8k-ship-deck";
@@ -802,6 +803,11 @@ export class ExplorerRenderer{
    }
    return nearest;
   }
+  orbitCityMarkers(locations=[]){
+   return this.orbitVP&&this.orbitCamera?
+    projectOrbitalCities(locations,{viewProjection:this.orbitVP,
+     camera:this.orbitCamera,radius:this.R,spinOffsetDeg:this.orbitOffsetDeg||0}):[];
+  }
   pickArrow(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
    let nearest=null,dist=35;
@@ -1391,7 +1397,7 @@ export class ExplorerRenderer{
   const asp=w/h;
   this.actorMarker=null;
   if(!inOrbit){
-   this.orbitVP=null;this.screenLanding=null;
+   this.orbitVP=null;this.orbitCamera=null;this.screenLanding=null;
    this.orbitFocus=null;this.orbitPan=null;this.lastOrbitCenter=null;
    if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
@@ -1470,7 +1476,7 @@ export class ExplorerRenderer{
   const view=lookAt(camera,[0,0,0],Math.abs(n[1])>.95?[0,0,1]:[0,1,0]);
   const vp=multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
     Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
-  this.orbitVP=vp;this.orbitOffsetDeg=offset;
+  this.orbitVP=vp;this.orbitCamera=camera;this.orbitOffsetDeg=offset;
   const landingPoint=this.selectedLanding?
    geoNormal(this.selectedLanding.lat,this.selectedLanding.lon+offset).map(v=>v*(R+.7)):null;
   // A marker on the far side of the planet must not shine through the globe.
