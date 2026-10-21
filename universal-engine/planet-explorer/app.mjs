@@ -445,6 +445,51 @@ function init(saved=null){
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
+function updateHarborUI(){
+ const panel=$("harbor-panel");if(!panel||!ferry||!planet||!controller)return;
+ const inPort=activeSettlementId==="port",terminal=$("harbor-terminal").value,
+  pose=ferryLocation(planet.timeDays),next=ferryDepartures(terminal,planet.timeDays,1)[0],
+  aboard=Boolean(ferry.boarded);
+ const clock=m=>String(Math.floor((m%1440+1440)%1440/60)).padStart(2,"0")+":"+
+  String(Math.floor((m%60+60)%60)).padStart(2,"0");
+ $("harbor-schedule").textContent=!inPort?"この街には旅客船ターミナルがありません":
+  "🚢 "+(pose.mode==="stopped"?(WHARVES.find(w=>w.id===pose.dockId)?.name||"港")+"に停泊中":
+  "湾内を航海中 "+Math.round(pose.progress*100)+"%")+" ／ 次便 "+clock(next.departureMinute)+
+  " 発（あと"+Math.ceil(Math.max(0,next.countdownMinutes))+"分）";
+ $("harbor-status").textContent=aboard?
+  "🚢 客船で航海中。行先："+WHARVES.find(w=>w.id===ferry.boarded.destinationId)?.name+
+  "。船内を歩けます。停泊したら下船してください。":
+  !inPort?"港町「セレノート」に向かってください":
+  ferry.checkedIn?"🎫 改札通過済み。客船の到着を待って乗船してください":
+  ferry.ticket?"🎫 乗船券があります。桟橋の改札を通ってください":
+  ferry.terminalId?"🧑‍✈️ 乗船窓口で切符を購入してください":"⚓ 桟橋を選び、乗船窓口に入ってください";
+ for(const id of ["harbor-approach","harbor-office","harbor-buy","harbor-gate","harbor-wait"])
+  $(id).disabled=!inPort||aboard||controller.altitudeM>12;
+ $("harbor-buy").disabled||=ferry.terminalId!==terminal;
+ $("harbor-gate").disabled||=!ferry.ticket||ferry.terminalId!==terminal;
+ $("harbor-wait").disabled||=!ferry.checkedIn;
+ $("harbor-board").disabled=!inPort||aboard||!ferry.checkedIn||
+  pose.mode!=="stopped"||pose.dockId!==terminal;
+ $("harbor-alight").disabled=!aboard||pose.mode!=="stopped"||pose.dockId!==ferry.boarded.destinationId;
+ $("harbor-talk").disabled=!aboard;
+}
+function harborAction(fn){
+ const result=fn();log(result?.message||"港で操作できませんでした");
+ if(result?.ok){saveFerryJournal();updateHUD();}
+ return result;
+}
+function walkToHarborWharf(id){
+ if(activeSettlementId!=="port"||ferry.boarded||railway.boarded||marine.boarded||
+  railwaySecurity?.wanted||railwaySecurity?.jailed)
+  return {ok:false,message:"港町の地上で、乗り物を降りてから桟橋へ向かってください"};
+ const wharf=WHARVES.find(w=>w.id===id);if(!wharf)return {ok:false,message:"桟橋を選択してください"};
+ controller.x=wharf.x;controller.z=130;
+ const geo=controller.locationAt(controller.x,controller.z);
+ controller.lat=geo.lat;controller.lon=geo.lon;controller.travelMode="walk";
+ controller.altitudeM=2.5;controller.targetAltitude(2.5);controller.clearMoveTarget();
+ squad.repositionAfterLanding();renderer.patchKey=null;
+ return {ok:true,message:"⚓ "+wharf.name+"の旅客ターミナル入口に到着しました"};
+}
 function inputVector(){
  const on=k=>keys.has(k)||touches.has(k);
  const axes=controlMode==="stick"?joystickMovement(stick):{forward:0,strafe:0};
@@ -2883,6 +2928,59 @@ $("fishing-hud-stop").addEventListener("click",()=>{
  const result=marine.stopFishing();log(result.message);
  if(result.ok)saveMarineJournal();updateHUD();
 });
+// Ferry route ticket, quay turnstile, boarding, walking, and passenger dialogue.
+$("viewport-harbor").addEventListener("click",()=>{
+ const panel=$("harbor-panel");panel.hidden=!panel.hidden;
+ $("viewport-harbor").setAttribute("aria-expanded",String(!panel.hidden));
+ if(!panel.hidden){railwayUI?.close();settlementTravelUI?.close();updateHUD();}
+});
+$("harbor-close").addEventListener("click",()=>{
+ $("harbor-panel").hidden=true;$("viewport-harbor").setAttribute("aria-expanded","false");
+});
+$("harbor-terminal").addEventListener("change",updateHUD);
+$("harbor-approach").addEventListener("click",()=>harborAction(()=>
+ walkToHarborWharf($("harbor-terminal").value)));
+$("harbor-office").addEventListener("click",()=>harborAction(()=>{
+ const id=$("harbor-terminal").value,w=WHARVES.find(x=>x.id===id);
+ if(!w||activeSettlementId!=="port"||Math.hypot(controller.x-w.x,controller.z-130)>35)
+  return {ok:false,message:"選択した桟橋の入口まで移動してください"};
+ return ferry.enterTerminal(id);
+}));
+$("harbor-buy").addEventListener("click",()=>harborAction(()=>
+ ferry.purchase(planet.timeDays,amount=>railway.charge(amount))));
+$("harbor-gate").addEventListener("click",()=>harborAction(()=>ferry.passGate()));
+$("harbor-wait").addEventListener("click",()=>harborAction(()=>{
+ const terminal=$("harbor-terminal").value,location=ferryLocation(planet.timeDays);
+ if(!ferry.checkedIn||ferry.terminalId!==terminal)
+  return {ok:false,message:"乗船券を購入して改札を通ってから港員に話してください"};
+ if(location.mode==="stopped"&&location.dockId===terminal)
+  return {ok:true,message:"🧑‍✈️ 港員「客船はすでに停泊しています。乗船できます。」"};
+ const arrival=ferryDockArrival(terminal,planet.timeDays);
+ if(arrival===null)return {ok:false,message:"時刻表を確認できません"};
+ planet.timeDays=(arrival+.2)/1440;running=false;simWorld.clock.paused=true;
+ return {ok:true,message:"🧑‍✈️ 港員「客船が入港しました。停泊中は時間を停止します。」"};
+}));
+$("harbor-board").addEventListener("click",()=>harborAction(()=>{
+ if(activeSettlementId!=="port")return {ok:false,message:"港町で乗船してください"};
+ if($("harbor-terminal").value!==ferry.terminalId)return {ok:false,message:"窓口と乗り場が異なります"};
+ const result=ferry.board(planet.timeDays);
+ if(result.ok){controller.clearMoveTarget();townUI?.close(true);running=true;simWorld.clock.paused=false;}
+ return result;
+}));
+$("harbor-alight").addEventListener("click",()=>harborAction(()=>{
+ const result=ferry.alight(planet.timeDays);
+ if(!result.ok)return result;
+ const wharf=WHARVES.find(w=>w.id===result.terminalId);
+ controller.x=wharf.x;controller.z=130;controller.travelMode="walk";
+ const geo=controller.locationAt(controller.x,controller.z);controller.lat=geo.lat;controller.lon=geo.lon;
+ controller.altitudeM=2.5;controller.targetAltitude(2.5);controller.clearMoveTarget();
+ squad.repositionAfterLanding();renderer.patchKey=null;
+ $("harbor-terminal").value=result.terminalId;
+ return result;
+}));
+let ferryDialogue=0;
+$("harbor-talk").addEventListener("click",()=>harborAction(()=>
+ ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();});
 init();requestAnimationFrame(doFrame);
 
