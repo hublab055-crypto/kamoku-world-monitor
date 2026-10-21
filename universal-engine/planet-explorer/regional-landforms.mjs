@@ -42,7 +42,7 @@ export function regionalLandformAt(terrain,lat,lon,elevationM){
   alpine*peak+easternRange*(950+1050*eastCrest);
  // Incised gorge between the northern ridges: no hard tile boundaries.
  const gorgeX=-3800+730*Math.sin(z/3100);
- const gorge=Math.exp(-((x-gorgeX)/410)**2)*smooth(2600,5100,z)*
+ const gorge=Math.exp(-Math.pow((x-gorgeX)/410,2))*smooth(2600,5100,z)*
   (1-smooth(14500,21000,z))*fade;
  elevation-=Math.min(360,Math.max(115,elevation*.19))*gorge;
  let landform=alpine>.45||easternRange>.6?"mountain-range":
