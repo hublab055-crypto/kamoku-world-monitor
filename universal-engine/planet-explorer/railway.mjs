@@ -199,6 +199,12 @@ export class RailwaySystem{
   this.ticket=source?.schemaVersion===2&&source.ticket&&serviceById(source.ticket.serviceId)&&
    stationById(source.ticket.originId)&&stationById(source.ticket.destinationId)?{...source.ticket}:null;
   this.concourse=source?.schemaVersion===2&&stationById(source.concourse)?source.concourse:null;
+  this.concoursePose={x:0,z:8,yaw:0};
+  if(this.concourse&&source?.concoursePose&&
+   [source.concoursePose.x,source.concoursePose.z,source.concoursePose.yaw].every(Number.isFinite)){
+   this.concoursePose={x:Math.max(-7.7,Math.min(7.7,source.concoursePose.x)),
+    z:Math.max(-10.4,Math.min(10.4,source.concoursePose.z)),yaw:source.concoursePose.yaw};
+  }
   this.platform=source?.schemaVersion===2&&source.platform&&stationById(source.platform.stationId)&&
    serviceById(source.platform.serviceId)?{...source.platform}:null;
   const saved=source?.boarded;
@@ -226,10 +232,19 @@ export class RailwaySystem{
  enterConcourse(stationId){
   if(!stationById(stationId))return {ok:false,message:"駅が見つかりません"};
   if(this.boarded)return {ok:false,message:"乗車中は駅構内に入れません"};
-  this.concourse=stationId;
+  this.concourse=stationId;this.concoursePose={x:0,z:8,yaw:0};
   return {ok:true,message:"🚉 "+stationById(stationId).name+"の駅舎へ入りました。駅員と話し、切符を購入できます"};
  }
  leaveConcourse(){this.concourse=null;this.platform=null;return {ok:true,message:"🚪 駅舎の外に出ました"};}
+ walkConcourse(dt,input={}){
+  if(!this.concourse||this.platform||this.boarded)return false;
+  const pace=Math.max(0,Math.min(dt,.08))*2.8,
+   forward=Number(input.forward)||0,strafe=Number(input.strafe)||0,turn=Number(input.turn)||0;
+  this.concoursePose.x=Math.max(-7.7,Math.min(7.7,this.concoursePose.x+strafe*pace));
+  this.concoursePose.z=Math.max(-10.4,Math.min(10.4,this.concoursePose.z+forward*pace));
+  this.concoursePose.yaw+=turn*dt;
+  return Math.hypot(forward,strafe)>.04;
+ }
  buyTicket(originId,destinationId,serviceId,timeDays=0){
   if(this.concourse!==originId)return {ok:false,message:"駅舎に入り、駅員の窓口から切符を購入してください"};
   if(this.boarded)return {ok:false,message:"乗車中は新しい切符を購入できません"};
@@ -359,7 +374,7 @@ export class RailwaySystem{
  snapshot(){
   return {schemaVersion:2,testFunds:this.testFunds,coins:this.coins,
    ticket:this.ticket?{...this.ticket}:null,platform:this.platform?{...this.platform}:null,
-   concourse:this.concourse,
+   concourse:this.concourse,concoursePose:{...this.concoursePose},
    boarded:this.boarded?{
    serviceId:this.boarded.serviceId,carriage:this.boarded.carriage,
    lastStationId:this.boarded.lastStationId,destinationId:this.boarded.destinationId,
