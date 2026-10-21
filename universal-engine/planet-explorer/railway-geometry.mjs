@@ -99,6 +99,38 @@ export function railwayStationGeometry(){
  return b;
 }
 
+/** Cutaway walk-in station hall: ticket counter, clerk space, turnstile and waiting benches. */
+export function railwayConcourseGeometry(){
+ const b=fresh(),stone=[.55,.54,.49],wood=[.48,.32,.21],walls=[.76,.70,.57],steel=[.29,.37,.38],glass=[.49,.72,.76];
+ block(b,0,-.3,0,9,.32,12,stone);
+ block(b,0,0,-11.8,9,5.8,.24,walls);
+ for(const x of [-8.8,8.8]){
+  block(b,x,0,0,.2,1.4,12,walls);
+  block(b,x,3.8,0,.2,2,12,walls);
+  for(let z=-10.4;z<11;z+=3.5)
+   block(b,x,1.45,z,.12,2.3,.22,wood);
+ }
+ // Ticket-office window and ledge, visibly staffed from behind.
+ block(b,-4.1,.1,-5.8,4.2,1.05,.6,wood);
+ block(b,-4.1,1.15,-6,4.2,.15,.6,[.76,.58,.36]);
+ block(b,-4.1,1.9,-6.4,4.6,1.50,.06,glass);
+ for(const x of [-7,-1.2])block(b,x,1.90,-6.35,.08,1.6,.10,wood);
+ // Turnstile between the ticket hall and the waiting platform.
+ for(const x of [3.6,5.6,7.6]){
+  block(b,x,0,-6.1,.17,1.1,1.85,steel);
+  block(b,x,1.0,-6.0,.38,.10,1.85,[.76,.70,.43]);
+  block(b,x,.8,-5.3,1.1,.08,.12,steel);
+ }
+ block(b,5.6,3.1,-6.2,3,.35,.21,[.28,.48,.51]);
+ // Open hall benches face the windowed side of the building.
+ for(let z of [2,6,10])for(const x of [-4.5,2.2]){
+  block(b,x,.3,z,2.0,.45,.5,wood);
+  block(b,x,.74,z-.38,2,.85,.16,wood);
+  for(const side of [-1.7,1.7])block(b,x+side,0,z,.15,.70,.38,steel);
+ }
+ for(const x of [-6,0,6])block(b,x,5.0,0,.35,.38,.35,[.95,.80,.45]);
+ return b;
+}
 export function steamTrainGeometry(){
  const b=fresh(),iron=[.12,.17,.16],red=[.62,.16,.11],brass=[.82,.61,.20],
   passenger=[.22,.42,.32],freight=[.46,.29,.16],roofColor=[.19,.22,.21];
