@@ -3,7 +3,7 @@
  * All world coordinates are metres from the current landing origin. Visual props
  * are not save-game structures and must not be exposed as interactive huts.
  */
-import {settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+import {settlementLayout} from "./settlements.mjs?v=0.8w-alpine-horizon";
 import {stationById} from "./railway.mjs?v=0.8t-timetable";
 
 export const VILLAGE_SITES = Object.freeze([
