@@ -34,7 +34,7 @@ import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splas
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
-import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8e-sized-resources";
+import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8w-alpine-horizon";
 import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {railwayStationGeometry,steamTrainGeometry,trainInteriorGeometry} from "./railway-geometry.mjs?v=0.8t-timetable";
