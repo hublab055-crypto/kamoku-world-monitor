@@ -1,4 +1,4 @@
-import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8v-alpine-horizon";
+import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
 import {regionalLakeMesh} from "./regional-landforms.mjs";
 import {buildDistantLandscape} from "./distant-landscape.mjs";
