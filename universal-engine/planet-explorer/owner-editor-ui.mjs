@@ -7,6 +7,17 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  const panel=$("owner-panel"),toggle=$("viewport-owner"),toolbar=$("toolbar-owner");
  const tool=$("owner-tool"),building=$("owner-building"),radius=$("owner-radius"),width=$("owner-road-width");
  const status=$("owner-status"),selected=$("owner-selected");
+ const shape=$("owner-shape"),width3=$("owner-size-x"),height3=$("owner-size-y"),
+  depth3=$("owner-size-z"),offset3=$("owner-elevation"),color3=$("owner-color"),group3=$("owner-group");
+ const rgb=()=>[1,3,5].map(n=>parseInt(color3.value.slice(n,n+2),16)/255);
+ const hex=color=>"#"+color.map(c=>Math.round(c*255).toString(16).padStart(2,"0")).join("");
+ const options=()=>({width:Number(width3.value),height:Number(height3.value),
+  depth:Number(depth3.value),offsetY:Number(offset3.value),color:rgb(),group:group3.value});
+ const selectedPart=()=>getWorld()?.primitives.find(p=>p.id===selectedId)||null;
+ const populate=part=>{
+  shape.value=part.shape;width3.value=part.width;height3.value=part.height;
+  depth3.value=part.depth;offset3.value=part.offsetY;color3.value=hex(part.color);group3.value=part.group;
+ };
  let active=false,selectedId=null,roadStart=null,moveAwaiting=false;
  const notice=message=>{status.textContent=message;log(message);};
  const sync=()=>{
@@ -41,20 +52,30 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
   if(!p){notice("地上の地面をタップしてください");return true;}
   const name=tool.value;
   if(name==="select"||name==="move"||name==="delete"){
-   const hit=world.nearest(p,16);
+   const buildingHit=world.nearest(p,16),partHit=world.nearestPrimitive(p,16);
+   const dx=value=>value?Math.hypot((value.lat-p.lat)*111195,
+     (value.lon-p.lon)*111195*Math.cos(p.lat*Math.PI/180)):Infinity;
+   const hit=dx(partHit)<dx(buildingHit)?partHit:buildingHit;
    if(name==="move"&&selectedId){
     if(p.surface.water||p.surface.river){notice("水上へは建物を移動できません");return true;}
-    const result=world.move(selectedId,p);moveAwaiting=false;return finish(result);
+    const result=selectedPart()?world.movePrimitive(selectedId,p):world.move(selectedId,p);
+    moveAwaiting=false;return finish(result);
    }
    if(!hit){notice("近くにオーナー配置の建物がありません");return true;}
    selectedId=hit.id;getRenderer().ownerSelectedId=hit.id;sync();
-   if(name==="delete"){const r=world.remove(hit.id);selectedId=null;getRenderer().ownerSelectedId=null;sync();return finish(r);}
+   if(name==="delete"){const r=selectedPart()?world.removePrimitive(hit.id):world.remove(hit.id);selectedId=null;getRenderer().ownerSelectedId=null;sync();return finish(r);}
    moveAwaiting=name==="move";
-   const title=(OWNER_FACILITIES[hit.kind]||FACILITIES[hit.kind])?.name||hit.kind;
+   if(hit.shape)populate(hit);
+   const title=hit.shape?"🧱 "+hit.shape:(OWNER_FACILITIES[hit.kind]||FACILITIES[hit.kind])?.name||hit.kind;
    notice(moveAwaiting?"📍 "+title+"を選択。移動先の地面をタップ":"🏠 "+title+" #"+hit.id+" を選択。回転・移動・削除できます");
    return true;
   }
   if(p.surface.water||p.surface.river){notice("水面・河川ではこの編集はできません");return true;}
+  if(name==="primitive"){
+   const result=world.placePrimitive(shape.value,p,options());
+   if(result.ok){selectedId=result.id;getRenderer().ownerSelectedId=selectedId;sync();}
+   return finish(result);
+  }
   if(name==="building"){
    const result=world.place(building.value,p);
    if(result.ok){selectedId=result.id;getRenderer().ownerSelectedId=selectedId;sync();}
@@ -81,7 +102,11 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  });
  $("owner-rotate").addEventListener("click",()=>{
   if(!selectedId){notice("先に選択ツールで建物をタップしてください");return;}
-  finish(getWorld().rotate(selectedId));
+  finish(selectedPart()?getWorld().rotatePrimitive(selectedId):getWorld().rotate(selectedId));
+ });
+ $("owner-primitive-apply").addEventListener("click",()=>{
+  if(!selectedPart()){notice("先に建築パーツを選択してください");return;}
+  finish(getWorld().changePrimitive(selectedId,{...options(),shape:shape.value}));
  });
  $("owner-undo").addEventListener("click",()=>{endWork();sync();finish(getWorld().undo());});
  $("owner-redo").addEventListener("click",()=>{endWork();sync();finish(getWorld().redo());});
