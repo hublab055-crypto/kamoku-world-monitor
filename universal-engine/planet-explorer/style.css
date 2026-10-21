@@ -1110,3 +1110,8 @@ body.immersive{overflow:hidden}
  .railway-view-controls{gap:3px;padding-top:4px}
  .railway-onboard-hud .railway-camera-buttons button{min-height:31px}
 }
+
+/* v0.8w atmospheric distance fog controls */
+.fog-choice{display:flex;flex-direction:column;gap:5px;min-width:180px}
+.fog-choice select{width:100%;min-height:42px}
+.fog-choice small{font-size:11px;font-weight:500;color:#bedbe8;line-height:1.45}
