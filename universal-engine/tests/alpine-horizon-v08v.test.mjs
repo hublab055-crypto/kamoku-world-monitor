@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs";
 import {findLand,geoOffset,terrainSurface,samplePatch} from "../planet-explorer/geo.mjs";
-import {regionalLakeMesh,regionalLake} from "../planet-explorer/regional-landforms.mjs";
+import {regionalLakeMesh,regionalLake,mountainVillageReliefAt} from "../planet-explorer/regional-landforms.mjs";
+import {settlementDestinations} from "../planet-explorer/settlements.mjs";
 import {buildDistantLandscape,HORIZON_RADII_M} from "../planet-explorer/distant-landscape.mjs";
 
 const setup=()=>{
@@ -61,4 +62,19 @@ test("distant geodesic terrain mesh has a natural curved horizon and finite colo
  assert.ok(far.positions.every(Number.isFinite));
  assert.ok(far.colors.every(c=>Number.isFinite(c)&&c>=0&&c<=1));
  assert.equal(far.outerRadiusM,47000);
+});
+
+test("mountain village keeps its safe clearing and gains a high ridgeline",()=>{
+ const {terrain}=setup();
+ const places=settlementDestinations(terrain);
+ const village=places.find(p=>p.id==="mountain");
+ assert.ok(village&&terrain.alpineVillageAnchor);
+ assert.deepEqual(terrain.alpineVillageAnchor,{lat:village.lat,lon:village.lon});
+ const radius=terrain.planet.radiusM;
+ const near=mountainVillageReliefAt(terrain,village.lat,village.lon,800);
+ const target=geoOffset(village.lat,village.lon,4100,2400,radius);
+ const alpine=mountainVillageReliefAt(terrain,target.lat,target.lon,800);
+ assert.ok(Math.abs(near.elevationM-800)<1e-5,"keep settlement centre unchanged");
+ assert.ok(alpine.elevationM>1900,"elevated mountain ridge beyond village");
+ assert.equal(alpine.landform,"mountain-range");
 });
