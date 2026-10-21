@@ -26,7 +26,7 @@ import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.8q-rod-use";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
-import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8r-towns";
+import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8w-alpine-horizon";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
