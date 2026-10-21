@@ -322,6 +322,11 @@
  <section class="railway-station-card" aria-label="現在の駅">
   <strong id="railway-station-name">🚉 駅を確認中</strong>
   <span id="railway-station-detail"></span>
+   <div class="railway-staff-controls">
+    <button type="button" id="railway-enter-station">🚉 駅舎に入る</button>
+    <button type="button" id="railway-exit-station" hidden>🚪 駅舎から出る</button>
+    <span id="railway-concourse-status">駅舎に入って駅員の窓口へお進みください。</span>
+   </div>
  </section>
  <div id="railway-live-status" class="railway-live-status" aria-label="列車の現在位置"></div>
  <div class="railway-table-wrap">
@@ -337,7 +342,8 @@
    <select id="railway-destination" disabled><option value="">先に列車を選択</option></select>
   </label>
   <button type="button" id="railway-buy-ticket" disabled>切符を購入</button>
-  <button type="button" id="railway-platform" disabled>🚉 改札を通ってホームへ</button>
+  <button type="button" id="railway-platform" disabled>🎫 改札を通ってホームへ</button>
+   <button type="button" id="railway-skip-arrival" disabled>🧑‍✈️ 駅員に話す：列車到着まで時間を進める</button>
   <span id="railway-ticket-status">時刻表から乗る列車を選んでください。</span>
  </section>
  <div class="railway-board-controls">
@@ -353,7 +359,7 @@
   <button type="button" id="railway-alight" disabled hidden>🚉 この駅で降りる</button>
  </div>
  <p id="railway-status" role="status" aria-live="polite">列車と行先を選び、切符を購入してから改札を通ってください。</p>
- <small>列車は惑星時間で連続運行します。ホームからのみ乗車でき、走行中は降車できません。</small>
+ <small>駅舎に入る → 駅員から切符を購入 → 改札 → ホームで待つ。駅員に話しかけた時だけ到着まで時間を進められます。走行中は降車できません。</small>
 </section>
 <aside id="railway-onboard-hud" class="railway-onboard-hud" aria-label="乗車中の列車" hidden>
  <strong id="railway-onboard-title">🚂 乗車中</strong>
