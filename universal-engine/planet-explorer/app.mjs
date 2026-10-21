@@ -256,6 +256,7 @@ function init(saved=null){
    renderer.settlementId=activeSettlementId;
    renderer.townInterior=null;
    renderer.railway=railway;
+    renderer.railwayLocations=settlementLocations||=settlementDestinations(terrain);
    renderer.trainInterior=railway.boarded?railway.status(planet.timeDays):null;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
