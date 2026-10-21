@@ -198,6 +198,7 @@ export class RailwaySystem{
   this.coins=Number.isFinite(source?.coins)?Math.max(0,source.coins):240;
   this.ticket=source?.schemaVersion===2&&source.ticket&&serviceById(source.ticket.serviceId)&&
    stationById(source.ticket.originId)&&stationById(source.ticket.destinationId)?{...source.ticket}:null;
+  this.concourse=source?.schemaVersion===2&&stationById(source.concourse)?source.concourse:null;
   this.platform=source?.schemaVersion===2&&source.platform&&stationById(source.platform.stationId)&&
    serviceById(source.platform.serviceId)?{...source.platform}:null;
   const saved=source?.boarded;
@@ -222,7 +223,15 @@ export class RailwaySystem{
   if(this.coins<amount)return {ok:false,message:"所持金が足りません（必要 "+amount+"G）"};
   this.coins-=amount;return {ok:true,balance:this.coins};
  }
+ enterConcourse(stationId){
+  if(!stationById(stationId))return {ok:false,message:"駅が見つかりません"};
+  if(this.boarded)return {ok:false,message:"乗車中は駅構内に入れません"};
+  this.concourse=stationId;
+  return {ok:true,message:"🚉 "+stationById(stationId).name+"の駅舎へ入りました。駅員と話し、切符を購入できます"};
+ }
+ leaveConcourse(){this.concourse=null;this.platform=null;return {ok:true,message:"🚪 駅舎の外に出ました"};}
  buyTicket(originId,destinationId,serviceId,timeDays=0){
+  if(this.concourse!==originId)return {ok:false,message:"駅舎に入り、駅員の窓口から切符を購入してください"};
   if(this.boarded)return {ok:false,message:"乗車中は新しい切符を購入できません"};
   const service=serviceById(serviceId),journey=railwayJourney(service,originId,destinationId);
   if(!journey)return {ok:false,message:"行先と列車を選び直してください"};
@@ -241,6 +250,7 @@ export class RailwaySystem{
    (!serviceId||ticket.serviceId===serviceId)?ticket:null;
  }
  enterPlatform(stationId,serviceId,departureMinute=null){
+  if(this.concourse!==stationId)return {ok:false,message:"駅舎に入ってから改札へお進みください"};
   const ticket=this.ticketFor(stationId,serviceId);
   if(!ticket)return {ok:false,message:"先に、この列車・行先の切符を購入してください"};
   const service=serviceById(serviceId||ticket.serviceId);
@@ -269,6 +279,7 @@ export class RailwaySystem{
   }
   const now=absoluteMinutes(timeDays);
   ticket.status="validated";
+  this.concourse=null;
   this.boarded={serviceId:state.service.id,carriage,lastStationId:stationId,lastMinute:now,
    nextArrivalMinute:state.nextArrivalMinute,destinationId:ticket.destinationId,ticketId:ticket.id,
    pose:carPose(),camera:"interior",hideWalls:false};
@@ -348,6 +359,7 @@ export class RailwaySystem{
  snapshot(){
   return {schemaVersion:2,testFunds:this.testFunds,coins:this.coins,
    ticket:this.ticket?{...this.ticket}:null,platform:this.platform?{...this.platform}:null,
+   concourse:this.concourse,
    boarded:this.boarded?{
    serviceId:this.boarded.serviceId,carriage:this.boarded.carriage,
    lastStationId:this.boarded.lastStationId,destinationId:this.boarded.destinationId,
