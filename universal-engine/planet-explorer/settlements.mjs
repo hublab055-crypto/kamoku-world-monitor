@@ -40,6 +40,10 @@ export function settlementDestinations(terrain){
  const locations=DESTINATIONS.map(d=>({...d,...safeLand(terrain,
   d.id==="pioneer"?(terrain.landscapeAnchor?.lat??d.lat):d.lat,
   d.id==="pioneer"?(terrain.landscapeAnchor?.lon??d.lon):d.lon)}));
+ // Carve an actual walkable coast and a navigable bay around Serenote. The anchor
+ // follows the seed-specific safe town position, not the original abstract map pin.
+ const port=locations.find(d=>d.id==="port");
+ if(port)terrain.harborAnchor={lat:port.lat,lon:port.lon};
  // The village anchor is the actual walkable arrival point. Never move town
  // buildings; surrounding mountains begin beyond the settlement clearing.
  const mountain=locations.find(d=>d.id==="mountain");
