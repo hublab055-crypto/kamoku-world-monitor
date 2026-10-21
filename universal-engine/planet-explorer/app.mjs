@@ -500,11 +500,13 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded);
+  const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
+   inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
   const detained=Boolean(railwaySecurity?.jailed);
   const input=!detained&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
+  if(inConcourse)railway.walkConcourse(running?dt:0,input);
   if(townLife.inside)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
   const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
@@ -518,7 +520,7 @@ function doFrame(t){
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
   // With an NPC at the wheel, the ship follows its cruise/course instructions.
-  const travelInput=onTrain||onFerry?{forward:0,strafe:0,turn:0}:onShip?{
+  const travelInput=onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:onShip?{
     forward:running&&helming&&ship.cruise&&!ship.anchor?1:helming&&marine.shipboard.helmId==="player"?input.forward:0,
     strafe:0,
     turn:helming&&marine.shipboard.helmId==="player"?input.turn:0
@@ -527,7 +529,7 @@ function doFrame(t){
     running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
      ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=!onTrain&&!onFerry&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
+  const manualLead=!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -536,7 +538,7 @@ function doFrame(t){
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   // Crew use the local vessel walk map, never inland auto-harvest while afloat.
-  if(!onShip&&!onTrain&&!onFerry&&!detained)squad?.advance(running?dt:0,{manualLead});
+  if(!onShip&&!onTrain&&!onFerry&&!inConcourse&&!detained)squad?.advance(running?dt:0,{manualLead});
   if(running){
    for(const a of squad?.agents||[]){
     if(a.id==="player")continue;
@@ -551,14 +553,14 @@ function doFrame(t){
   }
   frontierUI?.updateCamera();
   if(renderer.cameraController.mode==="free"){
-   renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside?0:input.forward,marine?.cabinId||townLife.inside?0:input.strafe);
+   renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.forward,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.strafe);
    controller.update(dt,onShip?{...travelInput,turn:0}:{
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
-  }else controller.update(dt,townLife.inside||onTrain||onFerry?{forward:0,strafe:0,turn:0}:travelInput);
+  }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   for(const event of railwaySecurity?.advance(dt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
-   eligible:controller.altitudeM<=12&&!onTrain&&!detained&&!townLife.inside&&!marine?.cabinId&&
+   eligible:controller.altitudeM<=12&&!onTrain&&!onFerry&&!inConcourse&&!detained&&!townLife.inside&&!marine?.cabinId&&
     !marine?.boarded&&controller.travelMode==="walk"
   })||[])handleRailwaySecurityEvent(event);
   renderer.railwaySecurity=railwaySecurity;
