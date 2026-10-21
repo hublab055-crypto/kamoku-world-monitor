@@ -6,6 +6,7 @@
  * closed. A full loop is eight game-hours, which divides a 24-hour day and
  * gives every station a stable daily timetable.
  */
+import {RAIL_CAMERA_MODES,carPose,railWalk,railTalk,railwayPassengers} from "./railway-car-life.mjs?v=0.8v-track";
 export const MINUTES_PER_DAY=1440;
 export const RAILWAY_LOOP_KM=7;
 export const RAILWAY_DWELL_MINUTES=30;
@@ -175,7 +176,8 @@ export class RailwaySystem{
   const saved=snapshot?.schemaVersion===1?snapshot.boarded:null;
   if(saved&&serviceById(saved.serviceId)&&carriageById(saved.carriage)){
    this.boarded={serviceId:saved.serviceId,carriage:saved.carriage,
-    lastStationId:stationById(saved.lastStationId)?.id||null,lastMinute:null,nextArrivalMinute:null};
+    lastStationId:stationById(saved.lastStationId)?.id||null,lastMinute:null,nextArrivalMinute:null,
+    pose:carPose(saved.pose),camera:RAIL_CAMERA_MODES.includes(saved.camera)?saved.camera:"interior",hideWalls:Boolean(saved.hideWalls)};
   }
  }
  station(id){return stationById(id);}
@@ -198,20 +200,21 @@ export class RailwaySystem{
   }
   const now=absoluteMinutes(timeDays);
   this.boarded={serviceId:state.service.id,carriage,lastStationId:stationId,lastMinute:now,
-   nextArrivalMinute:state.nextArrivalMinute};
+   nextArrivalMinute:state.nextArrivalMinute,pose:carPose(),camera:"interior",hideWalls:false};
   return {ok:true,message:state.service.name+"の"+carriageById(carriage).name+"に乗車しました",
    service:state.service,state:this.status(timeDays)};
  }
  changeCarriage(carriage,timeDays){
   if(!this.boarded)return {ok:false,message:"列車に乗っていません"};
   if(!carriageById(carriage))return {ok:false,message:"車両を選び直してください"};
-  this.boarded.carriage=carriage;
+  this.boarded.carriage=carriage;this.boarded.pose=carPose();
   return {ok:true,message:carriageById(carriage).name+"へ移動しました",state:this.status(timeDays)};
  }
  status(timeDays){
   if(!this.boarded)return null;
   const state=trainState(this.boarded.serviceId,timeDays);
-  return {...state,carriage:this.boarded.carriage,carriageInfo:carriageById(this.boarded.carriage)};
+  return {...state,carriage:this.boarded.carriage,carriageInfo:carriageById(this.boarded.carriage),
+   pose:this.boarded.pose||carPose(),camera:this.boarded.camera||"interior",hideWalls:Boolean(this.boarded.hideWalls)};
  }
  alight(timeDays){
   if(!this.boarded)return {ok:false,message:"列車に乗っていません"};
@@ -245,9 +248,31 @@ export class RailwaySystem{
   }
   return [];
  }
+ setCamera(mode){
+  if(!this.boarded)return {ok:false,message:"列車に乗っていません"};
+  if(!RAIL_CAMERA_MODES.includes(mode))return {ok:false,message:"カメラを選び直してください"};
+  this.boarded.camera=mode;
+  return {ok:true,message:"🎥 "+({interior:"車内",follow:"追従",fixed:"沿線固定",rts:"RTS俯瞰"}[mode])+"カメラ"};
+ }
+ toggleWalls(){
+  if(!this.boarded)return {ok:false,message:"列車に乗っていません"};
+  this.boarded.hideWalls=!this.boarded.hideWalls;
+  return {ok:true,message:this.boarded.hideWalls?"壁・屋根を非表示にしました":"壁・屋根を表示しました"};
+ }
+ walk(dt,input){
+  if(!this.boarded||this.boarded.camera!=="interior")return false;
+  this.boarded.pose=railWalk(this.boarded.pose||carPose(),dt,input,this.boarded.carriage).pose;
+  return this.boarded.pose.moving;
+ }
+ people(companions=[]){return this.boarded?railwayPassengers(this.boarded.carriage,companions):[];}
+ talk(id,companions=[]){
+  if(!this.boarded)return {ok:false,message:"列車に乗っていません"};
+  return railTalk(this.boarded.carriage,id,this.boarded.pose||carPose(),companions);
+ }
  snapshot(){
   return {schemaVersion:1,boarded:this.boarded?{
    serviceId:this.boarded.serviceId,carriage:this.boarded.carriage,
-   lastStationId:this.boarded.lastStationId}:null};
+   lastStationId:this.boarded.lastStationId,
+   pose:carPose(this.boarded.pose),camera:this.boarded.camera||"interior",hideWalls:Boolean(this.boarded.hideWalls)}:null};
  }
 }
