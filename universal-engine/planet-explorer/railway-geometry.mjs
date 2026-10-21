@@ -136,14 +136,21 @@ export function steamTrainGeometry(){
  return b;
 }
 
-export function trainInteriorGeometry(kind="passenger"){
+export function trainInteriorGeometry(kind="passenger",{hideWalls=false}={}){
  const b=fresh(),floor=[.42,.29,.19],wall=[.34,.50,.42],trim=[.69,.52,.25],metal=[.23,.27,.27];
  block(b,0,-.22,0,3.2,.26,6.3,floor);
- // Open near side gives an unobstructed isometric view.
- block(b,-3.08,0,0,.18,3.25,6.25,wall);block(b,3.08,0,0,.18,3.25,6.25,wall);
- block(b,0,0,-6.13,3.2,3.25,.18,wall);block(b,0,0,6.13,3.2,3.25,.18,wall);
- for(const x of [-3.12,3.12])for(const z of [-4.4,-2.2,0,2.2,4.4])
-  block(b,x,1.45,z,.04,.90,.70,[.49,.74,.78]);
+ // Large actual holes between window posts, so moving terrain is visible.
+ if(!hideWalls){
+  for(const x of [-3.08,3.08]){
+   block(b,x,0,0,.18,1.15,6.2,wall);
+   block(b,x,2.65,0,.18,.53,6.2,wall);
+   for(const z of [-5.9,-3.45,-.98,1.48,3.95,5.95])
+    block(b,x,1.15,z,.17,1.56,.13,trim);
+  }
+  block(b,0,0,-6.13,3.2,3.25,.18,wall);
+  block(b,0,0,6.13,3.2,3.25,.18,wall);
+  block(b,0,3.25,0,3.25,.10,6.4,metal);
+ }
  if(kind==="passenger"){
   for(const z of [-4.2,-1.4,1.4,4.2])for(const x of [-1.65,1.65]){
    block(b,x,0,z,.68,.62,.58,[.50,.20,.16]);
