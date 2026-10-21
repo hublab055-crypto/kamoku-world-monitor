@@ -650,7 +650,7 @@ export class ExplorerRenderer{
    this.railSmokePuff=new Mesh(gl,steamPuffGeometry());
    this.railJourneyPatch=null;this.railJourneyTrack=null;this.railJourneyTrees=[];
    this.railJourneyGrass=[];this.railJourneyOrigin=null;this.railJourneyGeo=null;
-   this.railJourneyData=null;this.railJourney=null;this.railCameraFixed=null;
+   this.railJourneyData=null;this.railJourney=null;this.railCameraFixed=null;this.railwayLocations=null;this.stationTrackMesh=null;this.stationTrackId=null;
    this.trainWindowPatch=null;this.trainWindowGeo=null;this.trainPersonMesh=null;this.trainPersonKey=null;
    this.railwayTrainMesh=new Mesh(gl,steamTrainGeometry());this.trainRoomMeshes=new Map();
    this.resourceHarvest=null;
@@ -1990,15 +1990,35 @@ export class ExplorerRenderer{
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
    const railStation=this.railway?.station(this.settlementId);
    if(railStation){
+    // The rails extend beyond the platform along the actual local ground.
+    if(this.stationTrackId!==this.settlementId){
+     this.stationTrackMesh?.destroy();
+     const sleepers=[];
+     for(let i=0;i<=110;i++){
+      const z=railStation.site.z-380+i*7.0,x=railStation.site.x;
+      const point=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
+      const y=Math.max(0,terrainSurface(this.terrain,point.lat,point.lon).elevationM);
+      sleepers.push({x,z,y});
+     }
+     const track=trackGeometry(sleepers);
+     this.stationTrackMesh=track.indices.length?new Mesh(gl,track):null;
+     this.stationTrackId=this.settlementId;
+    }
+    if(this.stationTrackMesh)this.drawMesh(this.stationTrackMesh,
+     multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.82);
     const x=railStation.site.x-this.cx,z=railStation.site.z-this.cz;
     const y=patchSceneryHeight(this.groundPatchData,x,z);
     const stationModel=multiply4(translate(x,y,z),rotateY(railStation.site.yaw||0));
     this.drawMesh(this.railwayStationMesh,multiply4(vp,stationModel),light,1,.72);
-    const stopped=this.railway.stoppedAt(this.settlementId,this.planet.timeDays)[0];
-    if(stopped){
-     const trainYaw=(railStation.site.yaw||0)+(stopped.service.direction<0?Math.PI:0);
-     const trainModel=multiply4(translate(x,y+.18,z),rotateY(trainYaw));
-     this.drawMesh(this.railwayTrainMesh,multiply4(vp,trainModel),light,1,.78);
+    const locations=this.railwayLocations||[];
+    this.trainClock+=Math.max(0,Math.min(dt,.1));
+    for(const state of this.railway.live(this.planet.timeDays)){
+     const pose=railwayJourneyPose(this.terrain,locations,state,this.planet.timeDays);
+     if(!pose)continue;
+     const place=geoLocal(s.origin.lat,s.origin.lon,pose.lat,pose.lon,this.planet.radiusM);
+     if(Math.hypot(place.eastM-s.x,place.northM-s.z)>radius*.95)continue;
+     this.drawRailwayVehicle(vp,light,place.eastM-this.cx,pose.elevationM,
+      place.northM-this.cz,pose.yaw,pose);
     }
    }
    if(this.settlementId!=="pioneer"&&this.settlementId!=="wilderness"){
@@ -2137,7 +2157,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
