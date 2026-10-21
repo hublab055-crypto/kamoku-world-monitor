@@ -1050,3 +1050,44 @@ body.immersive{overflow:hidden}
  .railway-onboard-hud{bottom:7px;padding:7px 8px;gap:3px 6px}.railway-onboard-hud>div{grid-column:1/-1;grid-row:auto;flex-direction:row}
  .railway-onboard-hud>div button{flex:1}.railway-onboard-hud progress{grid-column:1/-1}
 }
+
+/* v0.8u — Orbit-only city pins and destination selector; retains free descent. */
+.orbit-city-controls{position:absolute;z-index:25;top:72px;right:10px;width:min(274px,calc(100% - 20px));
+ display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none}
+.orbit-city-controls[hidden],.orbit-city-pins[hidden],.orbit-city-menu[hidden],.orbit-city-pin[hidden]{display:none!important}
+.orbit-city-controls #orbit-city-toggle{pointer-events:auto;border:1px solid #9bcbe1;
+ background:#103e56e8;color:#f2fbff;min-height:40px;font-size:12px;padding:7px 11px;
+ box-shadow:0 4px 16px #0008}
+.orbit-city-controls #orbit-city-toggle[aria-expanded="true"]{background:#25657b;border-color:#b6e4e7}
+.orbit-city-controls #orbit-city-hint{color:#d7eef9;background:#0c283dbd;border-radius:6px;
+ padding:3px 6px;font-size:10px;text-align:right;text-shadow:0 1px 3px #0008;max-width:100%}
+.orbit-city-menu{pointer-events:auto;display:flex;flex-direction:column;gap:8px;align-self:stretch;
+ max-height:min(420px,57dvh);overflow:auto;overscroll-behavior:contain;background:#0c2b3fee;
+ border:1px solid #6faac0;border-radius:11px;padding:10px;box-shadow:0 8px 26px #000a}
+.orbit-city-menu>strong{color:#edfaff;font-size:13px}
+.orbit-city-menu>small{color:#c0dce9;font-size:10px;line-height:1.5}
+#orbit-city-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;min-height:0;overflow:auto}
+#orbit-city-list li{margin:0;padding:0}
+.orbit-city-menu button{min-height:37px;background:#1a485d;color:#eefaff;border:1px solid #618999;
+ touch-action:manipulation;font-size:12px}
+.orbit-city-menu button[aria-pressed="true"]{background:#276d76;border-color:#a5ebd9}
+.orbit-city-choice{display:flex;align-items:center;justify-content:space-between;gap:6px;
+ text-align:left;width:100%;padding:6px 8px}
+.orbit-city-choice small{color:#b9d7df;font-size:10px}
+.orbit-city-pins{position:absolute;inset:0;z-index:15;pointer-events:none}
+.orbit-city-pin{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;
+ background:#103346dd!important;color:#f7ffff!important;border:1px solid #8ccad6!important;
+ border-radius:999px;min-width:35px;min-height:35px;padding:5px 8px;
+ box-shadow:0 2px 9px #001b2cbb;display:flex;align-items:center;gap:4px;touch-action:manipulation}
+.orbit-city-pin-emoji{font-size:18px;line-height:1}
+.orbit-city-pin-label{font-size:10px;white-space:nowrap;font-weight:800}
+.orbit-city-pin[aria-pressed="true"]{background:#357b78ef!important;border:2px solid #d4fae8!important;
+ box-shadow:0 0 0 4px #a5f1db3b,0 2px 10px #000a}
+@media(max-width:700px){
+ .orbit-city-controls{top:69px;right:5px;width:min(265px,calc(100% - 10px))}
+ .orbit-city-menu{max-height:47dvh}
+ .orbit-city-pin-label{display:none}
+ .orbit-city-pin[aria-pressed="true"] .orbit-city-pin-label{display:inline}
+ .orbit-city-pin{min-height:35px;min-width:35px;padding:5px}
+}
+@media(max-width:440px){.orbit-city-controls{top:66px}.orbit-city-controls #orbit-city-hint{display:none}}
