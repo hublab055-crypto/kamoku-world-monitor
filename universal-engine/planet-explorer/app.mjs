@@ -502,7 +502,7 @@ function doFrame(t){
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded);
   const detained=Boolean(railwaySecurity?.jailed);
-  const input=!detained&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const input=!detained&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
   if(townLife.inside)townLife.walk(running?dt:0,input);
@@ -695,7 +695,18 @@ function doFrame(t){
     else log(actions.message);
     saveLifeJournal();
    }
+  const ferryTimeBefore=planet.timeDays*1440;
   if(running)universe.advance(dt);
+  if(onFerry&&running){
+   const target=ferry.boarded.destinationId,offset=target==="central"?0:60;
+   const nextArrival=offset+120*Math.ceil((ferryTimeBefore+.001-offset)/120);
+   if(ferryTimeBefore<nextArrival&&planet.timeDays*1440>=nextArrival){
+    planet.timeDays=(nextArrival+.12)/1440;
+    running=false;simWorld.clock.paused=true;saveFerryJournal();
+    log("⚓ 客船が"+(WHARVES.find(w=>w.id===target)?.name||"目的地")+
+     "に入港しました。時間を停止しました。乗船パネルから下船できます。");
+   }
+  }
   for(const event of railway?.advance(planet.timeDays)||[]){
    if(event.type==="arrival")handleRailwayArrival(event);
   }
@@ -718,7 +729,8 @@ function doFrame(t){
    if(next!==displayMode){
     displayMode=next;
     $("mode").textContent=next==="orbit"?"宇宙・惑星モード":next==="train-interior"?"列車内モード":
-     next==="train-exterior"?"列車追従モード":next==="railway-jail"?"駅留置所":"地表メッシュモード";
+     next==="train-exterior"?"列車追従モード":next==="railway-concourse"?"駅構内・切符売場":
+      next==="ferry-interior"?"客船・船内モード":next==="railway-jail"?"駅留置所":"地表メッシュモード";
     if(next==="ground")log("地表詳細メッシュへ移行。同じ緯度・経度を使用しています。");
    }
   }catch(e){
