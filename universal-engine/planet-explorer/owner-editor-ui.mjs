@@ -4,7 +4,7 @@ import {OWNER_BUILDING_KINDS,OWNER_FACILITIES} from "./owner-world.mjs?v=0.8z-pr
 import {FACILITIES} from "./construction-system.mjs";
 export function installOwnerEditor({getWorld,getTerrain,getController,getRenderer,onEnter,onCommit,log}){
  const $=id=>document.getElementById(id);
- const panel=$("owner-panel"),toggle=$("viewport-owner"),toolbar=$("toolbar-owner");
+ const panel=$("owner-panel"),toggle=$("viewport-owner"),toolbar=$("toolbar-owner"),collapse=$("owner-collapse");
  const tool=$("owner-tool"),building=$("owner-building"),radius=$("owner-radius"),width=$("owner-road-width");
  const status=$("owner-status"),selected=$("owner-selected");
  const shape=$("owner-shape"),width3=$("owner-size-x"),height3=$("owner-size-y"),
@@ -20,7 +20,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
   depth3.value=part.depth;offset3.value=part.offsetY;color3.value=hex(part.color);group3.value=part.group;
   if(part.group){prefabGroup.value=part.group;if(!prefabName.value)prefabName.value=part.group;}
  };
- let active=false,selectedId=null,roadStart=null,moveAwaiting=false;
+ let active=false,collapsed=false,selectedId=null,roadStart=null,moveAwaiting=false;
  const notice=message=>{status.textContent=message;log(message);};
  function refreshPrefabs(preferred=""){
   const previous=preferred||prefabList.value,items=getWorld()?.prefabs||[];
@@ -33,12 +33,17 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  const sync=()=>{
   panel.hidden=!active;toggle.setAttribute("aria-pressed",String(active));
   toolbar.setAttribute("aria-pressed",String(active));toggle.textContent=active?"✏️ 編集中":"🏗️ オーナー";
+  panel.classList.toggle("is-collapsed",collapsed);
+  collapse.textContent=collapsed?"◀︎":"▶︎";
+  collapse.setAttribute("aria-expanded",String(!collapsed));
+  collapse.setAttribute("aria-label",collapsed?"オーナーウィンドウを展開する":"オーナーウィンドウを折り畳む");
+  collapse.title=collapsed?"展開する":"折り畳む";
   selected.textContent=selectedId?"選択中: #"+selectedId:"建物未選択";
  };
  const endWork=()=>{selectedId=null;roadStart=null;moveAwaiting=false;const renderer=getRenderer();if(renderer)renderer.ownerSelectedId=null;};
  const enable=flag=>{
   active=Boolean(flag);endWork();
-  if(active){onEnter?.();notice("✏️ オーナーモード：地面をタップして編集。資材は消費しません");}
+  if(active){collapsed=false;onEnter?.();notice("✏️ オーナーモード：地面をタップして編集。資材は消費しません");}
   sync();
  };
  const finish=result=>{
@@ -109,6 +114,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
   return true;
  }
  [toggle,toolbar].forEach(b=>b.addEventListener("click",()=>enable(!active)));
+ collapse.addEventListener("click",()=>{collapsed=!collapsed;sync();});
  $("owner-close").addEventListener("click",()=>enable(false));
  tool.addEventListener("change",()=>{roadStart=null;moveAwaiting=false;
   if(tool.value==="road")notice("道路：始点 → 終点をタップ。次の区間も続けて敷設できます");

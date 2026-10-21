@@ -58,9 +58,14 @@ test("named settlement descent chooses dry ground away from the track",()=>{
 
 test("owner UI is narrow, vertically scrollable and exposes prefab actions",()=>{
  const base=new URL("../planet-explorer/",import.meta.url);
- const html=readFileSync(new URL("index.html",base),"utf8"),css=readFileSync(new URL("style.css",base),"utf8");
+ const html=readFileSync(new URL("index.html",base),"utf8"),css=readFileSync(new URL("style.css",base),"utf8"),
+  editor=readFileSync(new URL("owner-editor-ui.mjs",base),"utf8");
  for(const id of ["owner-prefab-group","owner-prefab-name","owner-prefab-save","owner-prefab-list","owner-prefab-use"])
   assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(html,/<option value="prefab">/);
  assert.match(css,/width:min\(278px/);assert.match(css,/overflow-y:auto/);assert.match(css,/owner-compact-row/);
+ assert.match(html,/id="owner-collapse"[^>]+aria-expanded="true"/);
+ assert.match(css,/\.owner-panel\.is-collapsed/);assert.match(css,/#owner-collapse/);
+ assert.match(editor,/collapse\.textContent=collapsed\?"◀︎":"▶︎"/);
+ assert.match(editor,/if\(active\)\{collapsed=false/);
 });

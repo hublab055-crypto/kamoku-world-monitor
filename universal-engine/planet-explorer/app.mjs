@@ -11,7 +11,7 @@ import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-ch
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {OwnerWorld} from "./owner-world.mjs?v=0.8z-prefabs";
-import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.8z-prefabs";
+import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.8z1-collapse";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";

@@ -97,5 +97,5 @@ test("browser wiring exposes timetable, waiting, carriage selection and onboard 
  assert.match(app,/railwayUI=installRailwayUI/);assert.match(app,/v0_8t:railway\.snapshot\(\)/);
  assert.match(app,/handleRailwayArrival/);assert.match(render,/steamTrainGeometry/);
  assert.match(render,/renderTrainInterior/);assert.match(css,/\.railway-timetable/);
- assert.match(html,/app\.mjs\?v=0\.8z-owner-crossing/);
+ assert.match(html,/app\.mjs\?v=0\.8z1-owner-collapse/);
 });
