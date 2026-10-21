@@ -1,5 +1,6 @@
 /** Local-space mesh primitives for user-placed stone walls and facilities. */
 import {FACILITIES} from "./construction-system.mjs?v=0.8h-church";
+import {OWNER_FACILITIES} from "./owner-world.mjs";
 const fresh=()=>({positions:[],normals:[],colors:[],indices:[]});
 function triangle(g,a,b,c,col){
  const u=b.map((v,i)=>v-a[i]),w=c.map((v,i)=>v-a[i]);
@@ -28,7 +29,7 @@ export function placedBuildingGeometry(kind){
   cuboid(g,0,1.84,0,1.05,.14,.40,[.37,.37,.35]);
   return g;
  }
- const config=FACILITIES[kind];
+ const config=FACILITIES[kind]||OWNER_FACILITIES[kind];
  if(!config)throw new RangeError("Unknown facility: "+kind);
  const c=config.color,w=config.footprint*.48,d=config.footprint*.38;
  const rock=[.54,.53,.50],trim=[.31,.22,.16],roof=[.29,.26,.28];
