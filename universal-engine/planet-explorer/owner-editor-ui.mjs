@@ -1,6 +1,6 @@
 /** Touch-first local owner editor. Taps are routed ahead of gameplay picking. */
-import {terrainSurface} from "./geo.mjs";
-import {OWNER_BUILDING_KINDS,OWNER_FACILITIES} from "./owner-world.mjs";
+import {terrainSurface} from "./geo.mjs?v=0.8y-harbor";
+import {OWNER_BUILDING_KINDS,OWNER_FACILITIES} from "./owner-world.mjs?v=0.8y-primitives";
 import {FACILITIES} from "./construction-system.mjs";
 export function installOwnerEditor({getWorld,getTerrain,getController,getRenderer,onEnter,onCommit,log}){
  const $=id=>document.getElementById(id);
