@@ -35,6 +35,60 @@ test("planet spin offset projects the native longitude correctly",()=>{
  assert.deepEqual(projectOrbitalCities([],{...info}),[]);
  assert.deepEqual(projectOrbitalCities(DESTINATIONS,{}),[]);
 });
+
+test("UI pin click selects a preview only; free mode returns to globe picking",()=>{
+ class FakeElement{
+  constructor(){this.children=[];this.listeners={};this.attributes={};this.dataset={};
+   this.style={};this.hidden=true;this.textContent="";}
+  append(...items){this.children.push(...items);}
+  replaceChildren(...items){this.children=[...items];}
+  setAttribute(name,value){this.attributes[name]=String(value);}
+  addEventListener(name,handler){this.listeners[name]=handler;}
+  closest(selector){return selector==="button[data-city-id]"&&this.dataset.cityId?this:null;}
+  click(target=this){this.listeners.click?.({target});}
+ }
+ const ids=["orbit-city-controls","orbit-city-toggle","orbit-city-menu","orbit-city-list",
+  "orbit-city-pins","orbit-city-free","orbit-city-hint"];
+ const elements=Object.fromEntries(ids.map(id=>[id,new FakeElement()]));
+ const previous=globalThis.document;
+ globalThis.document={
+  getElementById:id=>elements[id],
+  createElement:()=>new FakeElement()
+ };
+ try{
+  const places=[{id:"tower",name:"塔の街",region:"中心部",icon:"🗼",lat:24,lon:30}];
+  const previews=[],freeCalls=[];
+  const ui=installOrbitalCitiesUI({
+   getDestinations:()=>places,
+   onSelect:place=>{previews.push(place.id);return {ok:true};},
+   onFree:()=>freeCalls.push("free")
+  });
+  assert.equal(previews.length,0);
+  ui.setActive(true);
+  assert.equal(elements["orbit-city-controls"].hidden,false);
+  assert.equal(elements["orbit-city-list"].children.length,1);
+  elements["orbit-city-toggle"].click();
+  assert.equal(elements["orbit-city-menu"].hidden,false);
+  const row=elements["orbit-city-list"].children[0].children[0];
+  elements["orbit-city-list"].click(row);
+  assert.deepEqual(previews,["tower"]);
+  assert.equal(ui.selectedId,"tower");
+  assert.equal(elements["orbit-city-menu"].hidden,true);
+  const pin=elements["orbit-city-pins"].children[0];
+  ui.frame([{id:"tower",u:.3,v:.6,onScreen:true}]);
+  assert.equal(pin.hidden,false);
+  assert.equal(pin.style.left,"30.000%");
+  ui.frame([{id:"tower",onScreen:false}]);
+  assert.equal(pin.hidden,true);
+  elements["orbit-city-free"].click();
+  assert.equal(ui.selectedId,null);
+  assert.deepEqual(freeCalls,["free"]);
+  assert.deepEqual(previews,["tower"],"preview click does not trigger landing");
+  ui.setActive(false);
+  assert.equal(elements["orbit-city-controls"].hidden,true);
+ }finally{globalThis.document=previous;}
+});
+
 test("planet UI keeps landmark browsing and arbitrary free-land/sea/ship selection",()=>{
  assert.equal(typeof installOrbitalCitiesUI,"function");
  const dir=new URL("../planet-explorer/",import.meta.url);
