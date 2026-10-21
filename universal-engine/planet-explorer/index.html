@@ -214,6 +214,7 @@
     <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
      <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
     <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
+    <button type="button" id="viewport-harbor" aria-expanded="false" aria-controls="harbor-panel">⚓ 港・客船</button>
     <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
@@ -361,7 +362,26 @@
  <p id="railway-status" role="status" aria-live="polite">列車と行先を選び、切符を購入してから改札を通ってください。</p>
  <small>駅舎に入る → 駅員から切符を購入 → 改札 → ホームで待つ。駅員に話しかけた時だけ到着まで時間を進められます。走行中は降車できません。</small>
 </section>
-<aside id="railway-onboard-hud" class="railway-onboard-hud" aria-label="乗車中の列車" hidden>
+<section id="harbor-panel" class="fauna-panel railway-panel" role="dialog" aria-label="港と客船のターミナル" hidden>
+ <div class="fauna-panel-top"><strong>⚓ セレノート港・旅客船ターミナル</strong><button type="button" id="harbor-close">× 閉じる</button></div>
+ <p id="harbor-status" role="status" aria-live="polite">港町で船の運航情報を確認できます。</p>
+ <label>利用する桟橋 <select id="harbor-terminal">
+  <option value="central">セレノート中央埠頭</option><option value="cape">灯台岬桟橋</option>
+ </select></label>
+ <p id="harbor-schedule" role="status">時刻表を読み込み中です。</p>
+ <div class="railway-staff-controls">
+  <button type="button" id="harbor-approach">⚓ 桟橋まで歩く</button>
+  <button type="button" id="harbor-office">🧑‍✈️ 港の乗船窓口に入る</button>
+  <button type="button" id="harbor-buy">🎫 乗船券を購入（25G）</button>
+  <button type="button" id="harbor-gate">🚶 桟橋の改札を通る</button>
+  <button type="button" id="harbor-wait">⏳ 港員に話す：客船の到着までスキップ</button>
+  <button type="button" id="harbor-board">🚢 客船に乗る</button>
+  <button type="button" id="harbor-alight">⚓ 着岸したら下船</button>
+  <button type="button" id="harbor-talk">💬 船員・乗客と会話</button>
+ </div>
+ <small>港の船はゲーム時間で定期運航し、港の前の海上を連続移動します。船内ではスティックで歩行。テスト所持金は∞です。乗船・建築・航海はセーブスロットに保存されます。</small>
+ </section>
+ <aside id="railway-onboard-hud" class="railway-onboard-hud" aria-label="乗車中の列車" hidden>
  <strong id="railway-onboard-title">🚂 乗車中</strong>
  <span id="railway-onboard-detail">次駅を確認中</span>
  <progress id="railway-onboard-progress" max="100" value="0" aria-label="次駅までの進捗"></progress>
