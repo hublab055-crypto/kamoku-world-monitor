@@ -73,7 +73,7 @@ const VERT=["#version 300 es","precision highp float;","layout(location=0) in ve
 const FRAG=["#version 300 es","precision highp float;",
 "in vec3 vN;in vec3 vC;in float vDepth;",
 "uniform vec3 uLight;uniform float uAlpha;uniform vec3 uTint;",
-"uniform float uAlpha;uniform float uAmbient;",
+"uniform float uAmbient;",
 "uniform vec3 uFogParams;uniform vec3 uFogColor;",
 "out vec4 fragColor;",
 "void main(){",
