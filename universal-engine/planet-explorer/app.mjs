@@ -33,9 +33,9 @@ import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
-import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8x-rail-safety";
+import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8y-station";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
-import {installRailwayUI} from "./railway-ui.mjs?v=0.8x-rail-safety";
+import {installRailwayUI} from "./railway-ui.mjs?v=0.8y-station";
 import {RailwaySecurity,RAIL_BAIL_FINE} from "./railway-security.mjs?v=0.8x-rail-safety";
 import {gameDaysForRealSeconds,normalizeTimeScale,DEFAULT_TIME_SCALE} from "./game-time.mjs?v=0.8x-real-time";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
@@ -1356,6 +1356,37 @@ function placeAtRailwayPlatform(stationId){
   terrainSurface(terrain,controller.lat,controller.lon).elevationM);
  return true;
 }
+function enterRailwayStation(){
+ const station=stationById(activeSettlementId);
+ if(!station)return {ok:false,message:"現在の街に駅がありません"};
+ if(railway?.boarded||marine?.boarded||railwaySecurity?.wanted||railwaySecurity?.jailed)
+  return {ok:false,message:"乗り物に乗っている時や保安員の追跡中は入場できません"};
+ if(controller.altitudeM>12)return {ok:false,message:"地表に降下してください"};
+ if(Math.hypot(controller.x-station.site.x,controller.z-station.site.z)>40)
+  return {ok:false,message:"駅舎の入口（40m以内）まで歩いてください"};
+ const result=railway.enterConcourse(station.id);
+ if(result.ok){controller.clearMoveTarget();controller.x=station.site.x+9;controller.z=station.site.z-7;
+  const geo=controller.locationAt(controller.x,controller.z);controller.lat=geo.lat;controller.lon=geo.lon;
+  renderer.patchKey=null;saveRailwayJournal();updateHUD();}
+ return result;
+}
+function exitRailwayStation(){
+ const result=railway.leaveConcourse();if(result.ok){saveRailwayJournal();updateHUD();}
+ return result;
+}
+function skipRailwayArrival(departure){
+ const station=stationById(activeSettlementId),now=absoluteMinutes(planet.timeDays);
+ if(!station||!railway.platform||railway.platform.stationId!==station.id||
+  railway.platform.serviceId!==departure?.serviceId)
+  return {ok:false,message:"改札を通った後、ホームで駅員に話してください"};
+ if(railway?.boarded)return {ok:false,message:"すでに列車に乗っています"};
+ const next=nextDepartures(station.id,planet.timeDays,12).find(item=>item.serviceId===departure.serviceId);
+ if(!next)return {ok:false,message:"選んだ列車の時刻を確認できません"};
+ const target=Math.max(now,next.arrivalMinute+.2);
+ if(target>now){planet.timeDays=target/1440;running=false;simWorld.clock.paused=true;}
+ updateHUD();saveRailwayJournal();
+ return {ok:true,message:"🧑‍✈️ 駅員「"+next.serviceName+"は"+formatClock(next.arrivalMinute)+"到着です。時間を進めました。」"};
+}
 function waitForRailwayDeparture(departure){
  const station=stationById(activeSettlementId),now=absoluteMinutes(planet.timeDays);
  if(!station||departure?.stationId!==station.id)return {ok:false,message:"この街には選択した列車の駅がありません"};
@@ -1368,12 +1399,9 @@ function waitForRailwayDeparture(departure){
  const gate=railway.enterPlatform(station.id,departure.serviceId,departure.departureMinute);
  if(!gate.ok)return gate;
  placeAtRailwayPlatform(station.id);
- const target=Math.max(now,departure.arrivalMinute+.25);
- planet.timeDays=target/1440;running=false;simWorld.clock.paused=true;
  renderer.trainInterior=null;updateHUD();
  saveRailwayJournal();
- return {ok:true,message:gate.message+" "+departure.serviceName+"（"+
-  departure.directionName+"）が停車中です。時間を停止しました。"};
+ return {ok:true,message:gate.message+" ホームで列車を待てます。駅員に話すと到着まで時間を進めることもできます。"};
 }
 function buyRailwayTicket(departure,destinationId){
  const station=stationById(activeSettlementId);
@@ -2600,7 +2628,8 @@ $("viewport-settlements").addEventListener("click",()=>{
 railwayUI=installRailwayUI({
  get:()=>({railway,timeDays:planet.timeDays,stationId:activeSettlementId,controller,
   routeKm:renderer?.railwayRouteKm,companions:squad?.agents?.slice(1).map(a=>a.name)||[]}),
- onWait:waitForRailwayDeparture,onBuyTicket:buyRailwayTicket,
+ onWait:waitForRailwayDeparture,onEnterStation:enterRailwayStation,
+ onExitStation:exitRailwayStation,onSkipArrival:skipRailwayArrival,onBuyTicket:buyRailwayTicket,
  onBoard:boardRailwayTrain,onAlight:alightRailwayTrain,
  onChangeCarriage:changeRailwayCarriage,
  onCamera:mode=>{
