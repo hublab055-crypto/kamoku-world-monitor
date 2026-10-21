@@ -78,7 +78,8 @@ export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,o
   if(panel.hidden)return;
   const now=absoluteMinutes(timeDays);
   $("railway-clock").textContent="惑星標準時 "+formatClock(now,{withDay:true});
-  $("railway-route").textContent=routeSummary()+" ／ 環状 "+RAILWAY_LOOP_KM.toFixed(1)+"km";
+  const routeKm=get().routeKm;
+  $("railway-route").textContent=routeSummary()+" ／ 惑星上の路線距離 "+(Number.isFinite(routeKm)&&routeKm>0?routeKm:RAILWAY_LOOP_KM).toFixed(1)+"km";
   $("railway-station-name").textContent=station?station.icon+" "+station.name:"🚉 現在地に環状線の駅はありません";
   const distance=station&&controller?Math.hypot(controller.x-station.site.x,controller.z-station.site.z):Infinity;
   $("railway-station-detail").textContent=station?

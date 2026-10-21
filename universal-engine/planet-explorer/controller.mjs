@@ -1,4 +1,4 @@
-import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {geoOffset,clamp,findLand,wrapLon,terrainSurface} from "./geo.mjs?v=0.8v-alpine-horizon";
 import {smoothAltitude} from "./descent-visuals.mjs";
 import {walkableSegment,MAX_WALK_SLOPE_DEG} from "./terrain-collision.mjs?v=0.8c-steep-mountains";
 import {blockedByStoneWall} from "./construction-system.mjs";

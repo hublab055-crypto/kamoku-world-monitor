@@ -1,4 +1,4 @@
-import {geoNormal,geoOffset,terrainSurface,clamp} from "./geo.mjs";
+import {geoNormal,geoOffset,terrainSurface,clamp} from "./geo.mjs?v=0.8v-alpine-horizon";
 
 /** A close-up spherical terrain tile, using the same deterministic surface
  * sampler and planet coordinates as the kilometre-scale ground mesh.

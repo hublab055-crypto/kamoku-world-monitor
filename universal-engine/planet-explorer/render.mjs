@@ -22,7 +22,7 @@ import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8
 import {shipLocalToWorld,shipWorldToLocal,isShipWalkable,SHIP_HELM,SHIP_DOOR} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8q-splash";
 import {SEA_SITE_TYPES,seabedPatch} from "./ocean-exploration.mjs?v=0.8o-seabed";
-import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
+import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs?v=0.8v-alpine-horizon";
 import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
@@ -36,7 +36,7 @@ import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splas
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
-import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8e-sized-resources";
+import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8w-alpine-horizon";
 import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {railwayStationGeometry,steamTrainGeometry,trainInteriorGeometry} from "./railway-geometry.mjs?v=0.8t-timetable";
@@ -653,6 +653,8 @@ export class ExplorerRenderer{
    this.railJourneyPatch=null;this.railJourneyTrack=null;this.railJourneyTrees=[];
    this.railJourneyGrass=[];this.railJourneyOrigin=null;this.railJourneyGeo=null;
    this.railJourneyData=null;this.railJourney=null;this.railCameraFixed=null;
+   this.railJourneyHorizon=null;this.railJourneyHorizonGeo=null;
+   this.trainWindowHorizon=null;this.trainWindowHorizonGeo=null;this.railwayLocations=null;this.stationTrackMesh=null;this.stationTrackId=null;
    this.trainWindowPatch=null;this.trainWindowGeo=null;this.trainPersonMesh=null;this.trainPersonKey=null;
    this.railwayTrainMesh=new Mesh(gl,steamTrainGeometry());this.trainRoomMeshes=new Map();
    this.resourceHarvest=null;
@@ -1497,10 +1499,20 @@ export class ExplorerRenderer{
    eye=[near.eastM,this.railCameraFixed.elevationM+32,near.northM];
   }else eye=[tx-Math.sin(heading)*58+Math.cos(heading)*26,ty+23,
     tz-Math.cos(heading)*58-Math.sin(heading)*26];
-  const vp=multiply4(perspective((mode==="rts"?60:57)*DEG,asp,.12,7000),
+  const vp=multiply4(perspective((mode==="rts"?60:57)*DEG,asp,.65,55000),
    lookAt(eye,target,mode==="rts"?[0,1,0]:undefined));
   this.pickVP=null;this.actorMarker=null;
   const light=[.40,Math.max(.4,this.planet.illumination(pose.lat,pose.lon)),.24];
+  const far=this.railJourneyHorizonGeo?geoLocal(this.railJourneyHorizonGeo.lat,
+   this.railJourneyHorizonGeo.lon,pose.lat,pose.lon,R):null;
+  if(!this.railJourneyHorizon||!far||Math.hypot(far.eastM,far.northM)>6200){
+   this.railJourneyHorizon?.destroy();
+   this.railJourneyHorizon=new Mesh(gl,buildDistantLandscape(this.terrain,pose.lat,pose.lon));
+   this.railJourneyHorizonGeo={lat:pose.lat,lon:pose.lon};
+  }
+  const offset=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,
+   this.railJourneyHorizonGeo.lat,this.railJourneyHorizonGeo.lon,R);
+  this.drawMesh(this.railJourneyHorizon,multiply4(vp,translate(offset.eastM,0,offset.northM)),light,1,.52);
   this.drawMesh(this.railJourneyPatch,vp,light,1,.57);
   if(this.railJourneyTrack)this.drawMesh(this.railJourneyTrack,vp,light,1,.86);
   for(const mesh of this.railJourneyGrass)this.drawInstancedMesh(mesh,vp,light,1,.65);
@@ -1538,12 +1550,16 @@ export class ExplorerRenderer{
    this.drawMesh(this.railConnectingRod,multiply4(frame,model),light,1,.87);
   }
   const smokeLife=pose.state?.mode==="stopped"?.38:1;
+  this.gl.enable(this.gl.BLEND);
+  this.gl.blendFunc(this.gl.SRC_ALPHA,this.gl.ONE_MINUS_SRC_ALPHA);
+  this.gl.depthMask(false);
   for(const puff of motion.smoke){
    const sc=puff.scale*smokeLife;
    const scale=[sc,0,0,0,0,sc,0,0,0,0,sc,0,0,0,0,1];
    const model=multiply4(translate(puff.x,puff.y,puff.z),scale);
-   this.drawMesh(this.railSmokePuff,multiply4(frame,model),light,.58,.92);
+   this.drawMesh(this.railSmokePuff,multiply4(frame,model),light,.40,.92);
   }
+  this.gl.depthMask(true);this.gl.disable(this.gl.BLEND);
  }
  renderTrainInterior(asp,dt=1/60){
   const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
@@ -1554,7 +1570,7 @@ export class ExplorerRenderer{
   this.trainClock+=Math.min(.1,Math.max(0,dt));
   const moving=this.trainInterior.mode==="travel",sway=moving?Math.sin(this.trainClock*3.4)*.11:0;
   gl.clearColor(.055,.075,.073,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=multiply4(perspective(55*DEG,asp,.1,90),
+  const vp=multiply4(perspective(55*DEG,asp,.25,55000),
    lookAt([9+sway,7.1,11],[0,1.25,-.1]));
   this.pickVP=null;
   // The window background is a real, updated local planetary terrain mesh,
@@ -1570,6 +1586,17 @@ export class ExplorerRenderer{
    }
    const offset=geoLocal(this.trainWindowGeo.lat,this.trainWindowGeo.lon,pose.lat,pose.lon,this.planet.radiusM);
    const transform=translate(-offset.eastM,-this.trainWindowGeo.elevationM-.85,-offset.northM);
+   const toFar=this.trainWindowHorizonGeo?geoLocal(this.trainWindowHorizonGeo.lat,
+    this.trainWindowHorizonGeo.lon,pose.lat,pose.lon,this.planet.radiusM):null;
+   if(!this.trainWindowHorizon||!toFar||Math.hypot(toFar.eastM,toFar.northM)>5800){
+    this.trainWindowHorizon?.destroy();
+    this.trainWindowHorizon=new Mesh(gl,buildDistantLandscape(this.terrain,pose.lat,pose.lon));
+    this.trainWindowHorizonGeo={lat:pose.lat,lon:pose.lon,elevationM:pose.elevationM};
+   }
+   const backdrop=geoLocal(pose.lat,pose.lon,this.trainWindowHorizonGeo.lat,
+    this.trainWindowHorizonGeo.lon,this.planet.radiusM);
+   this.drawMesh(this.trainWindowHorizon,multiply4(vp,translate(backdrop.eastM,
+    -this.trainWindowHorizonGeo.elevationM-.85,backdrop.northM)),[.55,.9,.4],1,.57);
    this.drawMesh(this.trainWindowPatch,multiply4(vp,transform),[.55,.9,.4],1,.65);
   }
   this.drawMesh(this.trainRoomMeshes.get(roomKey),vp,[.55,.88,.42],1,.84);
@@ -1586,7 +1613,7 @@ export class ExplorerRenderer{
    const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
    this.townIndoorAvatarMesh=new Mesh(gl,g);
   }
-  const pose={locomotive:{x:0,z:1.4},tender:{x:0,z:4.2},passenger:{x:0,z:2.2},freight:{x:0,z:4.4}}[kind];
+
   const person=this.trainInterior.pose||{x:0,z:1.4,yaw:0};
   const model=multiply4(translate(person.x,moving?.025*Math.sin(this.trainClock*6):0,person.z),rotateY(person.yaw||0));
   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
@@ -1889,7 +1916,7 @@ export class ExplorerRenderer{
      return terrainSurface(this.terrain,pos.lat,pos.lon);
     }
    });
-   // Clear vegetation over editor roads/plots while retaining deterministic scenery elsewhere.
+   // Keep roads and owner building plots visibly free of generated plants.
    const ownerPlots=(this.ownerWorld?.buildings||[]).map(b=>{
     const p=geoLocal(s.origin.lat,s.origin.lon,b.lat,b.lon,this.planet.radiusM);
     return {x:p.eastM,z:p.northM,r:11};
@@ -2035,15 +2062,35 @@ export class ExplorerRenderer{
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
    const railStation=this.railway?.station(this.settlementId);
    if(railStation){
+    // The rails extend beyond the platform along the actual local ground.
+    if(this.stationTrackId!==this.settlementId){
+     this.stationTrackMesh?.destroy();
+     const sleepers=[];
+     for(let i=0;i<=110;i++){
+      const z=railStation.site.z-380+i*7.0,x=railStation.site.x;
+      const point=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
+      const y=Math.max(0,terrainSurface(this.terrain,point.lat,point.lon).elevationM);
+      sleepers.push({x,z,y});
+     }
+     const track=trackGeometry(sleepers);
+     this.stationTrackMesh=track.indices.length?new Mesh(gl,track):null;
+     this.stationTrackId=this.settlementId;
+    }
+    if(this.stationTrackMesh)this.drawMesh(this.stationTrackMesh,
+     multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.82);
     const x=railStation.site.x-this.cx,z=railStation.site.z-this.cz;
     const y=patchSceneryHeight(this.groundPatchData,x,z);
     const stationModel=multiply4(translate(x,y,z),rotateY(railStation.site.yaw||0));
     this.drawMesh(this.railwayStationMesh,multiply4(vp,stationModel),light,1,.72);
-    const stopped=this.railway.stoppedAt(this.settlementId,this.planet.timeDays)[0];
-    if(stopped){
-     const trainYaw=(railStation.site.yaw||0)+(stopped.service.direction<0?Math.PI:0);
-     const trainModel=multiply4(translate(x,y+.18,z),rotateY(trainYaw));
-     this.drawMesh(this.railwayTrainMesh,multiply4(vp,trainModel),light,1,.78);
+    const locations=this.railwayLocations||[];
+    this.trainClock+=Math.max(0,Math.min(dt,.1));
+    for(const state of this.railway.live(this.planet.timeDays)){
+     const pose=railwayJourneyPose(this.terrain,locations,state,this.planet.timeDays);
+     if(!pose)continue;
+     const place=geoLocal(s.origin.lat,s.origin.lon,pose.lat,pose.lon,this.planet.radiusM);
+     if(Math.hypot(place.eastM-s.x,place.northM-s.z)>radius*.95)continue;
+     this.drawRailwayVehicle(vp,light,place.eastM-this.cx,pose.elevationM,
+      place.northM-this.cz,pose.yaw,pose);
     }
    }
    if(this.settlementId!=="pioneer"&&this.settlementId!=="wilderness"){
@@ -2183,7 +2230,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

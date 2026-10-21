@@ -2,9 +2,9 @@ import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
-import {ExplorerController} from "./controller.mjs?v=0.8k-ship-helm-r2";
-import {findLand,terrainSurface} from "./geo.mjs?v=0.8p-island-height";
-import {ExplorerRenderer} from "./render.mjs?v=0.8q-sea-entry";
+import {ExplorerController} from "./controller.mjs?v=0.8v-alpine-horizon";
+import {findLand,terrainSurface} from "./geo.mjs?v=0.8v-alpine-horizon";
+import {ExplorerRenderer} from "./render.mjs?v=0.8v-alpine-horizon";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -28,13 +28,13 @@ import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.8q-rod-use";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
-import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8r-towns";
+import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8w-alpine-horizon";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8v-track";
-import {railwayJourneyPose} from "./railway-world.mjs?v=0.8v-track";
+import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8v-track";
 import {installRailwayUI} from "./railway-ui.mjs?v=0.8v-track";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
@@ -43,7 +43,7 @@ import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
-import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8q-sea-entry";
+import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8v-alpine-horizon";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
@@ -268,6 +268,8 @@ function init(saved=null){
    renderer.settlementId=activeSettlementId;
    renderer.townInterior=null;
    renderer.railway=railway;
+    renderer.railwayLocations=settlementLocations||=settlementDestinations(terrain);
+    renderer.railwayRouteKm=railwayNetworkDistanceKm(terrain,renderer.railwayLocations);
    renderer.trainInterior=railway.boarded?railway.status(planet.timeDays):null;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
@@ -2445,7 +2447,7 @@ $("viewport-settlements").addEventListener("click",()=>{
 });
 railwayUI=installRailwayUI({
  get:()=>({railway,timeDays:planet.timeDays,stationId:activeSettlementId,controller,
-  companions:squad?.agents?.slice(1).map(a=>a.name)||[]}),
+  routeKm:renderer?.railwayRouteKm,companions:squad?.agents?.slice(1).map(a=>a.name)||[]}),
  onWait:waitForRailwayDeparture,onBoard:boardRailwayTrain,onAlight:alightRailwayTrain,
  onChangeCarriage:changeRailwayCarriage,
  onCamera:mode=>{

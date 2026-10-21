@@ -149,7 +149,7 @@ export function trainInteriorGeometry(kind="passenger",{hideWalls=false}={}){
   }
   block(b,0,0,-6.13,3.2,3.25,.18,wall);
   block(b,0,0,6.13,3.2,3.25,.18,wall);
-  block(b,0,3.25,0,3.25,.10,6.4,metal);
+  // Isometric cutaway: keep roof out of the interior view so passengers remain visible.
  }
  if(kind==="passenger"){
   for(const z of [-4.2,-1.4,1.4,4.2])for(const x of [-1.65,1.65]){

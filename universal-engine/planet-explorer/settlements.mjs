@@ -1,7 +1,7 @@
 /** Fictional settlements with reproducible local layouts and planetary addresses.
  * Destination browsing is separate from short-range waypoint navigation.
  */
-import {findLand,geoOffset,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {findLand,geoOffset,terrainSurface} from "./geo.mjs?v=0.8w-alpine-horizon";
 
 export const DESTINATIONS=Object.freeze([
  {id:"pioneer",name:"開拓者の集落",region:"はじまりの谷",icon:"⛺",kind:"hamlet",lat:28,lon:42,
@@ -37,9 +37,14 @@ function safeLand(terrain,lat,lon){
 }
 /** Safe, stable landing locations derived from the current planet seed. */
 export function settlementDestinations(terrain){
- return DESTINATIONS.map(d=>({...d,...safeLand(terrain,
+ const locations=DESTINATIONS.map(d=>({...d,...safeLand(terrain,
   d.id==="pioneer"?(terrain.landscapeAnchor?.lat??d.lat):d.lat,
   d.id==="pioneer"?(terrain.landscapeAnchor?.lon??d.lon):d.lon)}));
+ // The village anchor is the actual walkable arrival point. Never move town
+ // buildings; surrounding mountains begin beyond the settlement clearing.
+ const mountain=locations.find(d=>d.id==="mountain");
+ if(mountain)terrain.alpineVillageAnchor={lat:mountain.lat,lon:mountain.lon};
+ return locations;
 }
 const site=(type,x,z,angle=0)=>({type,x,z,angle});
 const ACTIVITIES=["散歩","買い物","会話","仕事","休憩","配達"];

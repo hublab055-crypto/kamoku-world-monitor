@@ -3,7 +3,7 @@
  * All world coordinates are metres from the current landing origin. Visual props
  * are not save-game structures and must not be exposed as interactive huts.
  */
-import {settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+import {settlementLayout} from "./settlements.mjs?v=0.8w-alpine-horizon";
 import {stationById} from "./railway.mjs?v=0.8t-timetable";
 
 export const VILLAGE_SITES = Object.freeze([
@@ -76,7 +76,11 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     if(distance>430&&roll>.09)continue;
     const biome=biomeAt(ax,az);
     if(biome.water||biome.river||biome.elevationM<60||biome.elevationM>2800)continue;
-    const density=biome.category==="forest"?.89:biome.category==="mountain"?.42:.84;
+    // A real open plain must remain open: keep dense groves in forests,
+    // sparse trees in meadows and treeless snowy highlands.
+    const density=biome.category==="forest"?.89:
+      biome.landform==="grassland"||biome.landform==="plain"||biome.category==="plains"?.10:
+      biome.category==="mountain"?.25:biome.category==="highland"?.31:.49;
     if(roll>density*(distance>430?.09:1))continue;
     const variation=sceneryHash(ix+97,iz-63,seed);
     // Mature evergreen, autumn deciduous and understorey distributions.
@@ -93,7 +97,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
       if(slot&&!allowed(wx,wz))continue;
       // Exclude the narrow starter-valley stream from subcell trees too.
       // Outside that corridor, avoid the many expensive biome lookups.
-      if(slot&&wx>65&&wx<230){
+      if(slot&&((wx>65&&wx<230)||(wz< -1250&&wz> -4600&&Math.abs(wx)<1350))){
        const water=biomeAt(wx,wz);
        if(water.water||water.river)continue;
       }
@@ -126,7 +130,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
         if(a>.86)continue;
         const ax=(ix+.14+a*.70)*stride,az=(iz+.14+b*.70)*stride,x=ax-cx,z=az-cz;
         if(x*x+z*z>reach*reach||!allowed(ax,az))continue;
-        if(ax>65&&ax<230){
+        if((ax>65&&ax<230)||(az< -1250&&az> -4600&&Math.abs(ax)<1350)){
          const moisture=biomeAt(ax,az);
          if(moisture.water||moisture.river)continue;
         }
@@ -146,6 +150,10 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
           if(lx*lx+lz*lz>reach*reach||!allowed(wx,wz))continue;
           const bladeY=groundAt(lx,lz);
           if(bladeY<.15||bladeY>2800)continue;
+          if(wz< -1250&&wz> -4600&&Math.abs(wx)<1350){
+            const water=biomeAt(wx,wz);
+            if(water.water||water.river)continue;
+          }
           grass.push({x:lx,z:lz,y:bladeY,scale:.24+.64*h,
             rotation:v*6.28318,tint:sceneryHash(ix+slot*3,iz-slot*5,seed)});
         }

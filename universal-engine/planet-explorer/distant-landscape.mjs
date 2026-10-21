@@ -4,7 +4,7 @@
  * visible without increasing the resolution/cost of collision or picking.
  * All samples use the same authoritative terrainSurface as ground movement.
  */
-import {geoOffset,terrainSurface,clamp} from "./geo.mjs";
+import {geoOffset,terrainSurface,clamp} from "./geo.mjs?v=0.8v-alpine-horizon";
 export const HORIZON_RADII_M=Object.freeze([4,350,650,1100,1900,3200,5400,8500,12500,18000,26000,36500,47000]);
 const SECTORS=96;
 export function buildDistantLandscape(terrain,lat,lon,{radii=HORIZON_RADII_M,sectors=SECTORS}={}){

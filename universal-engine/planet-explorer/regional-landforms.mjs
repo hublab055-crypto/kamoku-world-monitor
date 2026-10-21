@@ -96,3 +96,22 @@ export function regionalLakeMesh(terrain,patchCenter,radiusM){
  }
  return out;
 }
+
+/** Mountain-village amphitheatre. The actual village landing is found first
+ * by settlementDestinations; slopes begin well outside its building clearing.
+ * A lower north-south pass remains for walking and future roads.
+ */
+export function mountainVillageReliefAt(terrain,lat,lon,elevationM){
+ const anchor=terrain.alpineVillageAnchor;
+ if(!anchor)return null;
+ const {x,z}=local(anchor,lat,lon,terrain.planet.radiusM),d=Math.hypot(x,z);
+ if(d>24000)return null;
+ const angle=Math.atan2(z,x);
+ const ring=smooth(620,3800,d)*(1-smooth(13000,24000,d));
+ const corridor=1-.75*Math.exp(-Math.pow(x/1150,2));
+ const peaks=.35+.65*Math.sin(3.3*angle+d/2300)**2;
+ const rise=ring*corridor*(1700+1750*peaks);
+ const elevation=Math.max(.1,elevationM+rise);
+ return {elevationM:elevation,landform:rise>850?"mountain-range":
+  rise>180?"hills":null};
+}

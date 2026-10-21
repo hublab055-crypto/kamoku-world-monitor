@@ -1,6 +1,6 @@
 import {noise3} from "../planet/planet-core.mjs";
 import {frontierValleyAt} from "./landscape-relief.mjs";
-import {regionalLandformAt} from "./regional-landforms.mjs";
+import {regionalLandformAt,mountainVillageReliefAt} from "./regional-landforms.mjs";
 
 /** Coordinates and terrain queries shared by orbital and ground views.
  * Native planet latitude/longitude and metres; all render-scale decisions are adapters.
@@ -100,10 +100,12 @@ export function terrainSurface(terrain,lat,lon){
   const regional=frontierValleyAt(terrain,lat,lon,Math.max(.1,base.elevationM+detail*taper+relief));
   const extended=regionalLandformAt(terrain,lat,lon,
     regional?.elevationM??Math.max(.1,base.elevationM+detail*taper+relief));
+  const alpineVillage=mountainVillageReliefAt(terrain,lat,lon,
+    extended?.elevationM??regional?.elevationM??Math.max(.1,base.elevationM+detail*taper+relief));
   const deformation=terrain.earthworks?.deltaAt(lat,lon)||0;
-  const uneditedHeight=Math.max(.1,(extended?.elevationM??regional?.elevationM??
-    base.elevationM+detail*taper+relief)+deformation);
-  return {...base,landform:extended?.landform||regional?.landform||landform,
+  const uneditedHeight=Math.max(.1,(alpineVillage?.elevationM??extended?.elevationM??regional?.elevationM??
+      base.elevationM+detail*taper+relief)+deformation);
+  return {...base,landform:alpineVillage?.landform||extended?.landform||regional?.landform||landform,
     river:Boolean(base.river||regional?.river||extended?.river),
     lake:Boolean(extended?.lake),
     waterLevelM:extended?.waterLevelM??regional?.waterLevelM??null,
