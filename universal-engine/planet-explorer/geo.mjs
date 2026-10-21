@@ -105,7 +105,10 @@ export function serenoteHarborSurface(terrain,lat,lon,base){
 export function terrainSurface(terrain,lat,lon){
  const base=terrain.sample(lat,lon),landform=landformAt(terrain,lat,lon,base);
  const port=serenoteHarborSurface(terrain,lat,lon,base);
- if(port)return port;
+ if(port){
+  if(port.water)return port;
+  return {...port,elevationM:terrain.ownerWorld?.heightAt(lat,lon,port.elevationM)??port.elevationM};
+ }
  if(base.water)return {...base,landform,elevationM:0};
   const n=geoNormal(lat,lon),seed=terrain.planet.seed;
   const reliefFactor=base.category==="mountain"?1.8:base.category==="highland"?1.45:1;
