@@ -15,16 +15,16 @@ export function fogForGround({mode="auto",weather={},illumination=1,cameraHeight
  const daylight=limit(Number.isFinite(illumination)?illumination:.8,0,1);
  if(mode==="off")return {enabled:false,startM:0,endM:1,opacity:0,color:[.64,.74,.82]};
  let endM=mode==="light"?9000:mode==="realistic"?5500:Math.round(9200-clouds*2400);
- if(rain||snow)endM*=rain?.36:.52;
+ if(rain||snow)endM*=rain ? 0.36 : 0.52;
  if(rain||snow)endM*=1-intensity*.38;
  if(underwater)endM=120;
  // A high-altitude camera normally looks through less near-ground haze.
  if(!underwater)endM*=1+Math.min(2.5,Math.max(0,cameraHeightM)/2400);
- endM=limit(endM,underwater?45:650,48000);
- const startM=underwater?4:Math.max(85,endM*(mode==="light"?.27:.10));
+ endM=limit(endM,underwater ? 45 : 650,48000);
+ const startM=underwater?4:Math.max(85,endM*(mode==="light" ? 0.27 : 0.10));
  const sky=daylight<.34?[.17,.24,.36]:[.62,.74,.85];
  const color=underwater?[.045,.20,.27]:sky.map((n,i)=>limit(n*(1-clouds*.18)+(rain||snow?[.025,.035,.042][i]:0),0,1));
- return {enabled:true,startM,endM,opacity:underwater?.92:mode==="light"?.46:(rain||snow)?.88:.78,color};
+ return {enabled:true,startM,endM,opacity:underwater ? 0.92 : mode==="light" ? 0.46 : (rain||snow) ? 0.88 : 0.78,color};
 }
 
 export function sceneryRadiusForQuality(radius,qualityLevel=0){
