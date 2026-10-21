@@ -1417,6 +1417,114 @@ export class ExplorerRenderer{
   if(this.townInterior)return this.renderTownInterior(asp);
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
  }
+ /** A train follows its actual geodesic rail path, never a free-flight camera proxy. */
+ renderRailJourney(asp,dt=1/60){
+  const pose=this.railJourney?.pose,locations=this.railJourney?.locations||[];
+  if(!pose)return this.renderTrainInterior(asp,dt);
+  const R=this.planet.radiusM,gl=this.gl;
+  this.trainClock+=Math.max(0,Math.min(.1,dt));
+  const start=this.railJourneyOrigin;
+  const moved=start?geoLocal(start.lat,start.lon,pose.lat,pose.lon,R):null;
+  if(!start||!moved||Math.hypot(moved.eastM,moved.northM)>270){
+   const station=pose.state.mode==="stopped"?pose.state.station:
+    pose.progress>.996?pose.state.nextStation:pose.progress<.004?pose.state.fromStation:null;
+   const home=station?locations.find(p=>p.id===station.id):null;
+   const anchor=home&&Math.hypot(...Object.values(geoLocal(home.lat,home.lon,pose.lat,pose.lon,R)).slice(0,2))<600?
+    {lat:home.lat,lon:home.lon}: {lat:pose.lat,lon:pose.lon};
+   this.railJourneyOrigin=anchor;
+   this.railJourneyGeo={lat:pose.lat,lon:pose.lon};
+   this.railJourneyPatch?.destroy();this.railJourneyTrack?.destroy();
+   for(const mesh of [...this.railJourneyTrees,...this.railJourneyGrass])mesh.destroy();
+   this.railJourneyTrees=[];this.railJourneyGrass=[];
+   this.railJourneyData=samplePatch(this.terrain,anchor.lat,anchor.lon,880,58);
+   this.railJourneyPatch=new Mesh(gl,this.railJourneyData);
+   const center=geoLocal(anchor.lat,anchor.lon,pose.lat,pose.lon,R);
+   const railRows=railwayTrackSamples(this.terrain,locations,pose,{spanM:1550,steps:60}).map(p=>
+    ({...p,x:p.x+center.eastM,z:p.z+center.northM}));
+   const geom=trackGeometry(railRows);
+   this.railJourneyTrack=geom.indices.length?new Mesh(gl,geom):null;
+   // LOD: native grass/trees from the same planetary seed as free exploration.
+   const groundAt=(x,z)=>patchSceneryHeight(this.railJourneyData,x,z);
+   const plan=planWorldScenery({seed:this.planet.seed,cx:0,cz:0,radius:880,
+    groundAt,settlementId:"wilderness",
+    biomeAt:(x,z)=>{
+     const p=geoOffset(anchor.lat,anchor.lon,x,z,R);
+     return terrainSurface(this.terrain,p.lat,p.lon);
+    }});
+   const scenery=buildSceneryInstances({...plan,trees:plan.trees.slice(0,850),
+    grass:plan.grass.slice(0,2000)});
+   this.railJourneyTrees=scenery.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+   this.railJourneyGrass=scenery.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+  }
+  const pos=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,pose.lat,pose.lon,R);
+  const tx=pos.eastM,tz=pos.northM,ty=pose.elevationM,heading=pose.yaw;
+  const mode=this.trainInterior.camera||"follow";
+  let eye,target=[tx,ty+2.7,tz+3];
+  if(mode==="rts")eye=[tx+90,ty+205,tz-80];
+  else if(mode==="fixed"){
+   const fixed=this.railCameraFixed;
+   const far=fixed?geoLocal(fixed.at.lat,fixed.at.lon,pose.lat,pose.lon,R):null;
+   if(!fixed||fixed.fromId!==pose.fromId||fixed.toId!==pose.toId||
+     Math.hypot(far.eastM,far.northM)>470){
+    const at=geoOffset(pose.lat,pose.lon,
+     Math.cos(heading)*62+Math.sin(heading)*100,
+     -Math.sin(heading)*62+Math.cos(heading)*100,R);
+    this.railCameraFixed={at,fromId:pose.fromId,toId:pose.toId,
+     elevationM:pose.elevationM};
+   }
+   const near=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,
+    this.railCameraFixed.at.lat,this.railCameraFixed.at.lon,R);
+   eye=[near.eastM,this.railCameraFixed.elevationM+32,near.northM];
+  }else eye=[tx-Math.sin(heading)*58+Math.cos(heading)*26,ty+23,
+    tz-Math.cos(heading)*58-Math.sin(heading)*26];
+  const vp=multiply4(perspective((mode==="rts"?60:57)*DEG,asp,.12,7000),
+   lookAt(eye,target,mode==="rts"?[0,1,0]:undefined));
+  this.pickVP=null;this.actorMarker=null;
+  const light=[.40,Math.max(.4,this.planet.illumination(pose.lat,pose.lon)),.24];
+  this.drawMesh(this.railJourneyPatch,vp,light,1,.57);
+  if(this.railJourneyTrack)this.drawMesh(this.railJourneyTrack,vp,light,1,.86);
+  for(const mesh of this.railJourneyGrass)this.drawInstancedMesh(mesh,vp,light,1,.65);
+  for(const mesh of this.railJourneyTrees)this.drawInstancedMesh(mesh,vp,light,1,.62);
+  // On the last kilometre, station buildings are drawn on the same terrain tile.
+  for(const station of this.railway?.live(this.planet.timeDays)?.map(s=>
+    s.mode==="stopped"?s.station:s.nextStation)||[]){
+   if(!station)continue;
+   const at=railwayStationCoordinates(this.terrain,locations,station.id);
+   if(!at)continue;
+   const local=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,at.lat,at.lon,R);
+   if(Math.hypot(local.eastM-tx,local.northM-tz)>800)continue;
+   const g=terrainSurface(this.terrain,at.lat,at.lon);
+   const world=multiply4(translate(local.eastM,Math.max(0,g.elevationM),local.northM),rotateY(heading));
+   this.drawMesh(this.railwayStationMesh,multiply4(vp,world),light,1,.77);
+  }
+  this.drawRailwayVehicle(vp,light,tx,ty,tz,heading,pose);
+  return "train-exterior";
+ }
+ drawRailwayVehicle(vp,light,x,y,z,yaw,pose){
+  const world=multiply4(translate(x,y,z),rotateY(yaw));
+  const frame=multiply4(vp,world);
+  this.drawMesh(this.railwayTrainMesh,frame,light,1,.80);
+  const ease=.5-.5*Math.cos(Math.PI*(pose.progress||0));
+  const motion=locomotiveMotion((pose.totalM||0)*ease,this.trainClock,pose.speedMps||0);
+  for(const side of [-1.83,1.83]){
+   for(const z0 of [14.2,17.1,20.1]){
+    const gear=multiply4(translate(side,1.02,z0),rotX(motion.phase));
+    this.drawMesh(this.railWheelSpokes,multiply4(frame,gear),light,1,.93);
+   }
+  }
+  for(const rod of motion.rod){
+   const long=[1,0,0,0,0,1,0,0,0,0,rod.length,0,0,0,0,1];
+   const model=multiply4(translate(rod.x,rod.y,rod.z),multiply4(rotX(rod.angle),long));
+   this.drawMesh(this.railConnectingRod,multiply4(frame,model),light,1,.87);
+  }
+  const smokeLife=pose.state?.mode==="stopped"?.38:1;
+  for(const puff of motion.smoke){
+   const sc=puff.scale*smokeLife;
+   const scale=[sc,0,0,0,0,sc,0,0,0,0,sc,0,0,0,0,1];
+   const model=multiply4(translate(puff.x,puff.y,puff.z),scale);
+   this.drawMesh(this.railSmokePuff,multiply4(frame,model),light,.58,.92);
+  }
+ }
  renderTrainInterior(asp,dt=1/60){
   const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
   if(!this.trainRoomMeshes.has(kind))
