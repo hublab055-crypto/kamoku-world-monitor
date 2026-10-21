@@ -51,6 +51,7 @@ import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {mapToWorld,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
 import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
+import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -933,9 +934,8 @@ $("next-season").addEventListener("click",()=>{
 $("play").addEventListener("click",()=>{
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
-$("save").addEventListener("click",()=>{
- try{
-  const data={format:"ue/explorer-demo",version:1,
+function captureGame(){
+  return {format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
@@ -950,11 +950,53 @@ $("save").addEventListener("click",()=>{
          v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot(),
          v0_8x:{schemaVersion:1,timeScale:normalizeTimeScale($("days-per-second").value),security:railwaySecurity.snapshot()},
          v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()}};
+}
+$("save").addEventListener("click",()=>{
+ try{
+  const data=captureGame();
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();
   log("v0.8x：切符・鉄道保安・時間倍率を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
+/** Save slots are independent from the historical quick save. */
+function renderSaveSlots(){
+ const host=$("save-slot-list");if(!host)return;
+ host.replaceChildren();
+ for(const {id,slot,error} of slotIndex(localStorage)){
+  const row=document.createElement("div");row.className="save-slot-row";
+  const input=document.createElement("input");input.type="text";input.maxLength=40;
+  input.setAttribute("aria-label","スロット"+id+"の名前");input.value=slot?.name||"冒険 "+id;
+  const description=document.createElement("small");
+  description.textContent=error?"⚠️ "+error:slot?
+   new Date(slot.updatedAt).toLocaleString("ja-JP")+" ／ "+slot.settlementId:"空きスロット";
+  const save=document.createElement("button");save.type="button";save.textContent="💾 保存";
+  save.addEventListener("click",()=>{
+   if(slot&&!window.confirm("スロット"+id+"を上書きしますか？"))return;
+   try{writeSlot(localStorage,id,captureGame(),input.value);log("💾 スロット"+id+"に保存しました");renderSaveSlots();}
+   catch(e){log("スロット保存失敗: "+e.message);}
+  });
+  const load=document.createElement("button");load.type="button";load.textContent="📂 読込";load.disabled=!slot;
+  load.addEventListener("click",()=>{
+   if(!window.confirm("スロット"+id+"を読み込むと、現在の未保存の進行状況は失われます。続けますか？"))return;
+   try{const selected=readSlot(localStorage,id);
+    if(!selected)throw Error("スロットが空です");
+    running=false;init(selected.game);updateHUD();log("📂 スロット"+id+"を読み込みました");
+   }catch(e){log("スロット読込失敗: "+e.message);}
+  });
+  const remove=document.createElement("button");remove.type="button";remove.textContent="削除";remove.disabled=!slot;
+  remove.addEventListener("click",()=>{
+   if(!window.confirm("スロット"+id+"を削除しますか？"))return;
+   try{eraseSlot(localStorage,id);renderSaveSlots();log("スロット"+id+"を削除しました");}
+   catch(e){log("削除失敗: "+e.message);}
+  });
+  row.append(document.createTextNode("No."+id+" "),input,description,save,load,remove);
+  host.append(row);
+ }
+}
+$("save-slots-refresh").addEventListener("click",renderSaveSlots);
+renderSaveSlots();
+
 $("restore").addEventListener("click",()=>{
  try{
   const data=JSON.parse(localStorage.getItem(SAVE_KEY)||localStorage.getItem(PRE_FRONTIER_SAVE_KEY)||"null");
