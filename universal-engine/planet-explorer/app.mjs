@@ -32,7 +32,7 @@ import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe"
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8v-track";
-import {railwayJourneyPose} from "./railway-world.mjs?v=0.8v-track";
+import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8v-track";
 import {installRailwayUI} from "./railway-ui.mjs?v=0.8v-track";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
@@ -257,6 +257,7 @@ function init(saved=null){
    renderer.townInterior=null;
    renderer.railway=railway;
     renderer.railwayLocations=settlementLocations||=settlementDestinations(terrain);
+    renderer.railwayRouteKm=railwayNetworkDistanceKm(terrain,renderer.railwayLocations);
    renderer.trainInterior=railway.boarded?railway.status(planet.timeDays):null;
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
@@ -2425,7 +2426,7 @@ $("viewport-settlements").addEventListener("click",()=>{
 });
 railwayUI=installRailwayUI({
  get:()=>({railway,timeDays:planet.timeDays,stationId:activeSettlementId,controller,
-  companions:squad?.agents?.slice(1).map(a=>a.name)||[]}),
+  routeKm:renderer?.railwayRouteKm,companions:squad?.agents?.slice(1).map(a=>a.name)||[]}),
  onWait:waitForRailwayDeparture,onBoard:boardRailwayTrain,onAlight:alightRailwayTrain,
  onChangeCarriage:changeRailwayCarriage,
  onCamera:mode=>{
