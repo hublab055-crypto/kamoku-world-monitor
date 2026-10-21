@@ -52,6 +52,8 @@ import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {mapToWorld,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
 import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
+import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
+import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -65,6 +67,7 @@ const OWNER_JOURNAL_KEY="universal-engine:explorer:owner:v0.8w";
 const FAUNA_JOURNAL_KEY="universal-engine:explorer:fauna:v0.8f";
 const FARM_JOURNAL_KEY="universal-engine:explorer:agriculture:v0.8g";
 const MARINE_JOURNAL_KEY="universal-engine:explorer:marine:v0.8g";
+const FERRY_JOURNAL_KEY="universal-engine:explorer:ferry:v0.8y";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
@@ -74,7 +77,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let ownerWorld=null,ownerUI=null;
+let ownerWorld=null,ownerUI=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null;
@@ -102,6 +105,13 @@ function loadTownJournal(){
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
  catch(_){log("船の保存に失敗しました");}
+}
+function saveFerryJournal(){
+ try{if(ferry)localStorage.setItem(FERRY_JOURNAL_KEY,JSON.stringify(ferry.snapshot()));}
+ catch(_){log("旅客船の運航記録を保存できませんでした");}
+}
+function loadFerryJournal(){
+ try{return JSON.parse(localStorage.getItem(FERRY_JOURNAL_KEY)||"null");}catch(_){return null;}
 }
 function loadMarineJournal(){
  try{return JSON.parse(localStorage.getItem(MARINE_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -242,6 +252,7 @@ function init(saved=null){
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
    settlementLocations=null;
+  ferry=new PassengerFerry(saved?.v0_8y?.ferry||(!saved?loadFerryJournal():null));
   marine=new MarineWorld(saved?.v0_8g?.marine||(!saved?loadMarineJournal():null));
   marine.update(0,controller,terrain);
   controller.boatSpeed=marine.sailingSpeed();
@@ -289,6 +300,7 @@ function init(saved=null){
   $("fog-mode").value=renderer.fogMode;
    renderer.settlementId=activeSettlementId;
    renderer.townInterior=null;
+   renderer.ferry=ferry;
    renderer.railway=railway;
    renderer.railwaySecurity=railwaySecurity;
     renderer.railwayLocations=settlementLocations||=settlementDestinations(terrain);
@@ -443,10 +455,11 @@ function inputVector(){
 function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
-  const onTrain=Boolean(railway?.boarded);
+  const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded);
   const detained=Boolean(railwaySecurity?.jailed);
   const input=!detained&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(onTrain)railway.walk(running?dt:0,input);
+  if(onFerry)ferry.walk(running?dt:0,input);
   if(townLife.inside)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
   const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
@@ -460,7 +473,7 @@ function doFrame(t){
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
   // With an NPC at the wheel, the ship follows its cruise/course instructions.
-  const travelInput=onTrain?{forward:0,strafe:0,turn:0}:onShip?{
+  const travelInput=onTrain||onFerry?{forward:0,strafe:0,turn:0}:onShip?{
     forward:running&&helming&&ship.cruise&&!ship.anchor?1:helming&&marine.shipboard.helmId==="player"?input.forward:0,
     strafe:0,
     turn:helming&&marine.shipboard.helmId==="player"?input.turn:0
@@ -469,7 +482,7 @@ function doFrame(t){
     running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
      ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=!onTrain&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
+  const manualLead=!onTrain&&!onFerry&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -478,7 +491,7 @@ function doFrame(t){
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   // Crew use the local vessel walk map, never inland auto-harvest while afloat.
-  if(!onShip&&!onTrain&&!detained)squad?.advance(running?dt:0,{manualLead});
+  if(!onShip&&!onTrain&&!onFerry&&!detained)squad?.advance(running?dt:0,{manualLead});
   if(running){
    for(const a of squad?.agents||[]){
     if(a.id==="player")continue;
@@ -497,7 +510,7 @@ function doFrame(t){
    controller.update(dt,onShip?{...travelInput,turn:0}:{
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
-  }else controller.update(dt,townLife.inside||onTrain?{forward:0,strafe:0,turn:0}:travelInput);
+  }else controller.update(dt,townLife.inside||onTrain||onFerry?{forward:0,strafe:0,turn:0}:travelInput);
   for(const event of railwaySecurity?.advance(dt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
    eligible:controller.altitudeM<=12&&!onTrain&&!detained&&!townLife.inside&&!marine?.cabinId&&
@@ -896,10 +909,11 @@ function updateHUD(){
    controlMode==="tap"?"地面をダブルタップで移動。1本指ドラッグで視点回転、2本指で拡大縮小。":
   "スティック/WASDで移動。地面をダブルタップで目的地設定、2本指ピンチで拡大縮小。";
  railwayUI?.refresh();
+ updateHarborUI();
  updateRailwaySecurityHUD();
 }
 function setAltitude(m){
- if(railway?.boarded){log("🚂 列車を降りてから高度を変更してください。");return;}
+ if(railway?.boarded||ferry?.boarded){log("🚂🚢 乗り物を降りてから高度を変更してください。");return;}
  if(railwaySecurity?.jailed||railwaySecurity?.wanted){log("🚨 鉄道保安の追跡・勾留中は高度を変更できません。");return;}
  controller.targetAltitude(m);
  log(m<=12?"着陸地点へ降下します。":"高度 "+Math.round(m).toLocaleString("ja-JP")+"m を目標にします。");
@@ -949,13 +963,14 @@ function captureGame(){
         v0_8h:{schemaVersion:1,playerHp:battle.playerHp},
          v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot(),
          v0_8x:{schemaVersion:1,timeScale:normalizeTimeScale($("days-per-second").value),security:railwaySecurity.snapshot()},
-         v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()}};
+         v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()},
+   v0_8y:{schemaVersion:1,ferry:ferry.snapshot()}};
 }
 $("save").addEventListener("click",()=>{
  try{
   const data=captureGame();
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();
-   saveFaunaJournal();saveFarmJournal();saveMarineJournal();
+   saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();
   log("v0.8x：切符・鉄道保安・時間倍率を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
@@ -2868,7 +2883,7 @@ $("fishing-hud-stop").addEventListener("click",()=>{
  const result=marine.stopFishing();log(result.message);
  if(result.ok)saveMarineJournal();updateHUD();
 });
-window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();});
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();});
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
