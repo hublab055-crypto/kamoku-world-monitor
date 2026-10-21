@@ -1331,6 +1331,8 @@ export class ExplorerRenderer{
   for(const [x,z] of [[-4.0,-6.9],[1.3,4.4],[-4.2,4.0]]){
    this.drawMesh(this.railGuardMesh,multiply4(vp,translate(x,0,z)),[.43,.86,.73],1,.84);
   }
+  this.drawMesh(this.railGuardMesh,multiply4(vp,translate(pose.x,0,pose.z)),
+   [.43,.86,.73],1,.88,[.86,.92,1]);
   this.drawMesh(this.selectionRing,multiply4(vp,translate(pose.x,.12,pose.z)),
    [.43,.86,.73],1,.94,[.15,.95,.85]);
   return "railway-concourse";
