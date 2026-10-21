@@ -72,6 +72,19 @@ export function railwayJourneyPose(terrain,locations,service,timeDays){
  const speedMps=metresPerMinute/60;
  return {...value,state,fromId,toId,totalM,speedMps,lookAhead:next};
 }
+/** Geodesic network length in km; scheduled journey time is independent of this metric. */
+export function railwayNetworkDistanceKm(terrain,locations){
+ const legs=[["tower","meadow"],["meadow","capital"],["capital","port"],["port","tower"]];
+ let total=0;
+ for(const [a,b] of legs){
+  const p=railwayStationCoordinates(terrain,locations,a);
+  const q=railwayStationCoordinates(terrain,locations,b);
+  if(!p||!q)return 0;
+  const cosine=clamp(dot(geoNormal(p.lat,p.lon),geoNormal(q.lat,q.lon)),-1,1);
+  total+=Math.acos(cosine)*terrain.planet.radiusM/1000;
+ }
+ return total;
+}
 /** Local track cross sections from the actual spherical path, sampled near the train. */
 export function railwayTrackSamples(terrain,locations,pose,{spanM=900,steps=44}={}){
  if(!pose)return [];
