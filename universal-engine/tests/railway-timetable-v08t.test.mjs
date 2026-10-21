@@ -42,7 +42,10 @@ test("live board reports stops, segment progress, next station and ETA",()=>{
 
 test("boarding is stop-gated, arrival survives a skipped frame, and alighting is station-gated",()=>{
  const railway=new RailwaySystem();
+ assert.equal(railway.buyTicket("tower","meadow","aurora-out",at(0,6,0)).ok,true);
+ assert.equal(railway.enterPlatform("tower","aurora-out").ok,true);
  assert.equal(railway.board("tower",at(0,6,31),"passenger","aurora-out").ok,false);
+ assert.equal(railway.enterPlatform("tower","aurora-out").ok,true);
  const boarded=railway.board("tower",at(0,6,5),"passenger","aurora-out");
  assert.equal(boarded.ok,true);assert.equal(railway.status(at(0,7,0)).carriage,"passenger");
  assert.equal(railway.alight(at(0,7,0)).ok,false);
@@ -55,6 +58,8 @@ test("boarding is stop-gated, arrival survives a skipped frame, and alighting is
 
 test("onboard service and chosen carriage survive save and restore",()=>{
  const railway=new RailwaySystem();
+ assert.equal(railway.buyTicket("tower","capital","aurora-out",at(0,6,0)).ok,true);
+ assert.equal(railway.enterPlatform("tower","aurora-out").ok,true);
  assert.equal(railway.board("tower",at(0,6,5),"freight","aurora-out").ok,true);
  const restored=new RailwaySystem(railway.snapshot());
  assert.equal(restored.status(at(0,7,0)).carriage,"freight");
@@ -84,10 +89,11 @@ test("browser wiring exposes timetable, waiting, carriage selection and onboard 
  const css=readFileSync(new URL("style.css",base),"utf8");
  for(const id of ["viewport-railway","railway-panel","railway-clock","railway-live-status",
   "railway-timetable-body","railway-carriage","railway-board","railway-alight",
-  "railway-onboard-hud","railway-onboard-detail","railway-onboard-progress"])
+  "railway-onboard-hud","railway-onboard-detail","railway-onboard-progress",
+  "railway-destination","railway-buy-ticket","railway-platform","railway-funds"])
   assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(app,/railwayUI=installRailwayUI/);assert.match(app,/v0_8t:railway\.snapshot\(\)/);
  assert.match(app,/handleRailwayArrival/);assert.match(render,/steamTrainGeometry/);
  assert.match(render,/renderTrainInterior/);assert.match(css,/\.railway-timetable/);
- assert.match(html,/app\.mjs\?v=0\.8t-railway-timetable/);
+ assert.match(html,/app\.mjs\?v=0\.8x-rail-safety/);
 });

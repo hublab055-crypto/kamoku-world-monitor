@@ -180,3 +180,21 @@ export function trainInteriorGeometry(kind="passenger",{hideWalls=false}={}){
  for(const z of [-3,3])cylinderY(b,0,2.80,z,.28,.20,[.92,.75,.35],8);
  return b;
 }
+
+/** Small station holding cell shown after a guard catches a trespasser. */
+export function railwayJailGeometry(){
+ const b=fresh(),stone=[.34,.36,.35],dark=[.18,.21,.21],iron=[.32,.36,.36],wood=[.43,.30,.18];
+ block(b,0,-.22,0,4.5,.24,4.6,stone);
+ block(b,0,0,-4.5,4.5,3.7,.18,dark);
+ block(b,-4.35,0,0,.18,3.7,4.5,dark);block(b,4.35,0,0,.18,3.7,4.5,dark);
+ block(b,0,3.55,0,4.5,.18,4.5,dark);
+ // Cell bars and a barred door leave the guard visible on the corridor side.
+ for(let x=-4.1;x<=4.1;x+=.58)cylinderY(b,x,0,4.22,3.55,.055,iron,7);
+ block(b,0,3.30,4.22,4.25,.10,.08,iron);block(b,0,.08,4.22,4.25,.10,.08,iron);
+ block(b,1.65,0,-2.8,1.15,.45,1.65,wood);block(b,1.65,.43,-3.2,1.10,.25,1.22,[.53,.56,.49]);
+ block(b,-2.65,0,-3.25,.70,.72,.72,[.56,.57,.53]);
+ block(b,-1.65,0,1.75,.75,.86,.55,wood);block(b,-1.65,.83,1.75,.90,.09,.68,[.49,.34,.20]);
+ // Warm wall lamp keeps the room readable while still looking confined.
+ block(b,0,2.35,-4.28,.45,.58,.08,[.88,.67,.28]);
+ return b;
+}

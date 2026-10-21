@@ -2,7 +2,7 @@
  * railway paths, sampled as terrain-respecting rails and approaches. No station teleport.
  */
 import {geoNormal,geoLocal,geoOffset,terrainSurface,wrapLon} from "./geo.mjs";
-import {stationById,trainState} from "./railway.mjs";
+import {stationById,trainState} from "./railway.mjs?v=0.8x-rail-safety";
 const RAD=180/Math.PI;
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const unit=v=>{const d=Math.hypot(...v)||1;return v.map(x=>x/d);};

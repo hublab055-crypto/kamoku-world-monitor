@@ -54,6 +54,39 @@ export function trackGeometry(rows,{density=2.9}={}){
  }
  return b;
 }
+/** Terrain-following safety fence on both sides of an urban rail corridor. */
+export function trackFenceGeometry(rows,{halfWidth=3.15,postSpacing=7,gateZ=null,gateHalf=3.2}={}){
+ const b=fresh();if(!rows||rows.length<2)return b;
+ const steel=[.31,.35,.34],warning=[.84,.65,.19];
+ let carried=0;
+ for(let i=1;i<rows.length;i++){
+  const a=rows[i-1],c=rows[i],dx=c.x-a.x,dz=c.z-a.z,len=Math.hypot(dx,dz);
+  if(len<.02)continue;
+  const nx=-dz/len,nz=dx/len;
+  for(const side of [-1,1]){
+   const p={x:a.x+nx*halfWidth,y:a.y+.05,z:a.z+nz*halfWidth};
+   const q={x:c.x+nx*halfWidth,y:c.y+.05,z:c.z+nz*halfWidth};
+   const midpoint=(a.z+c.z)/2;
+   const gate=side===1&&Number.isFinite(gateZ)&&Math.abs(midpoint-gateZ)<gateHalf;
+   if(!gate){
+    beam(b,{...p,y:p.y+.70},{...q,y:q.y+.70},.045,.09,steel);
+    beam(b,{...p,y:p.y+1.38},{...q,y:q.y+1.38},.045,.09,steel);
+   }
+  }
+  let d=postSpacing-carried;
+  while(d<=len){
+   const t=d/len,z=a.z+(c.z-a.z)*t,y=a.y+(c.y-a.y)*t;
+   for(const side of [-1,1]){
+    if(side===1&&Number.isFinite(gateZ)&&Math.abs(z-gateZ)<gateHalf)continue;
+    const x=a.x+(c.x-a.x)*t+nx*halfWidth,pz=z+nz*halfWidth;
+    block(b,x,y+.02,pz,.085,1.58,.085,Math.abs(z-(gateZ||0))<gateHalf+postSpacing?warning:steel);
+   }
+   d+=postSpacing;
+  }
+  carried=(len-(d-postSpacing))%postSpacing;
+ }
+ return b;
+}
 export function wheelSpokesGeometry(){
  const b=fresh(),metal=[.75,.54,.24],hub=[.45,.20,.12];
  // In wheel-local space; rotation around X is applied by the renderer.

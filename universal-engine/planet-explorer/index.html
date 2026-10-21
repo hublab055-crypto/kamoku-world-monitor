@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8v-rail-motion">
+<link rel="stylesheet" href="./style.css?v=0.8x-rail-safety">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -78,7 +78,7 @@
       <h1>オリジナルの世界を歩く。</h1>
       <p>v0.7v：木・鉄・火矢、集中／各自／分散照準、一斉／順次発射を追加。v0.7t：シンクロ一斉射撃・直射／曲射・矢の命中・矢の回収・練習用の的を追加。v0.7s：RTS・TPV共通でピンチズーム、資源タップで接近・採集、敵タップでターゲット、地面ダブルタップで移動。v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.8t 都市環状線・時刻表</span>
+    <div class="version-control"><span class="version-tag">v0.8x 切符・鉄道保安・実時間</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -320,6 +320,15 @@
    <tbody id="railway-timetable-body"></tbody>
   </table>
  </div>
+ <section class="railway-ticket-office" aria-label="駅の切符売り場と改札">
+  <div><strong>🎫 駅の切符売り場</strong><span id="railway-funds">テスト所持金 ∞</span></div>
+  <label for="railway-destination">行先
+   <select id="railway-destination" disabled><option value="">先に列車を選択</option></select>
+  </label>
+  <button type="button" id="railway-buy-ticket" disabled>切符を購入</button>
+  <button type="button" id="railway-platform" disabled>🚉 改札を通ってホームへ</button>
+  <span id="railway-ticket-status">時刻表から乗る列車を選んでください。</span>
+ </section>
  <div class="railway-board-controls">
   <label for="railway-carriage">乗る車両
    <select id="railway-carriage">
@@ -332,8 +341,8 @@
   <button type="button" id="railway-board" disabled>列車の到着を待ってください</button>
   <button type="button" id="railway-alight" disabled hidden>🚉 この駅で降りる</button>
  </div>
- <p id="railway-status" role="status" aria-live="polite">時刻表の「駅で待つ」を押すと、ホームへ移動して到着時刻で一時停止します。</p>
- <small>列車は惑星時間で常時運行します。走行中は降車できず、次駅到着時に自動で時間が停止します。</small>
+ <p id="railway-status" role="status" aria-live="polite">列車と行先を選び、切符を購入してから改札を通ってください。</p>
+ <small>列車は惑星時間で連続運行します。ホームからのみ乗車でき、走行中は降車できません。</small>
 </section>
 <aside id="railway-onboard-hud" class="railway-onboard-hud" aria-label="乗車中の列車" hidden>
  <strong id="railway-onboard-title">🚂 乗車中</strong>
@@ -355,6 +364,11 @@
   </div>
   <span id="railway-experience-status" role="status" aria-live="polite">車内はスティック・WASDで歩けます。</span>
  </section>
+</aside>
+<aside id="railway-security-hud" class="railway-security-hud" aria-live="assertive" hidden>
+ <strong id="railway-security-title">⚠️ 鉄道保安</strong>
+ <span id="railway-security-detail">線路内から退出してください。</span>
+ <button type="button" id="railway-bail" hidden>罰金を支払って保釈</button>
 </aside>
 <button type="button" id="town-interior-exit" class="town-interior-exit" hidden
  aria-label="建物の外に出る">🚪 外へ</button>
@@ -892,17 +906,18 @@
        <button id="toolbar-life" type="button">🛠️ 家具・テント・食器</button>
       <button id="zoom-out" type="button">− 縮小</button>
       <button id="play" type="button">⏸ 時間を停止</button>
-      <label for="days-per-second">時間速度</label>
+      <label for="days-per-second">ゲーム時間</label>
       <select id="days-per-second">
-        <option value=".4">ゆっくり</option>
-        <option value="2" selected>標準</option>
-        <option value="10">速い</option>
-        <option value="40">超高速</option>
+        <option value=".25">スロー ×0.25</option>
+        <option value="1" selected>実時間 ×1</option>
+        <option value="60">早回し ×60</option>
+        <option value="600">早回し ×600</option>
+        <option value="3600">早回し ×3600</option>
       </select>
       <button id="next-day" type="button">＋1日</button>
       <button id="next-season" type="button">＋90日</button>
-      <button id="save" type="button">💾 v0.8t保存</button>
-      <button id="restore" type="button">📂 v0.8t復元</button>
+      <button id="save" type="button">💾 v0.8x保存</button>
+      <button id="restore" type="button">📂 v0.8x復元</button>
        <button id="import-v07d-save" type="button" title="旧v0.7dセーブを上書きせず取り込む">v0.7dデータ読込</button>
       <button id="import-v07c-save" type="button" title="旧v0.7cセーブを読み取りのみで取り込み">v0.7cデータ読込</button>
       <button id="import-v07b-save" type="button" title="v0.7bのセーブを読み取り専用で取り込みます">v0.7bデータ読込</button>
@@ -1084,6 +1099,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8w1-shader-fix"></script>
+<script type="module" src="./app.mjs?v=0.8x-rail-safety"></script>
 </body>
 </html>

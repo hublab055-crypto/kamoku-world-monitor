@@ -4,7 +4,8 @@
  * are not save-game structures and must not be exposed as interactive huts.
  */
 import {settlementLayout} from "./settlements.mjs?v=0.8w-alpine-horizon";
-import {stationById} from "./railway.mjs?v=0.8t-timetable";
+import {stationById} from "./railway.mjs?v=0.8x-rail-safety";
+import {keepResidentOffRail} from "./railway-security.mjs?v=0.8x-rail-safety";
 
 export const VILLAGE_SITES = Object.freeze([
   {type:"lodge",x:54,z:44,angle:.12},
@@ -57,7 +58,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   const sites=settlementId==="pioneer"?VILLAGE_SITES:layout.buildings;
   const railStation=stationById(settlementId);
   const allowed=(x,z)=>clearOfBuildings(x,z,sites,layout.clearing)&&
-   !(railStation&&Math.abs(x-railStation.site.x)<15&&Math.abs(z-railStation.site.z)<79);
+   !(railStation&&Math.abs(x-railStation.site.x)<15&&Math.abs(z-railStation.site.z)<380);
   if(radius>4100)return {trees,grass,buildings,people,landmark:null};
   const reach=Math.min(radius*.87,850);
   // A consistent cell grid: no popping/random reshuffle when panning.
@@ -171,11 +172,12 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     buildings.push({...site,id:"village-"+index,localX:x,localZ:z,elevationM:y});
   }
   for(const resident of layout.residents){
-    const x=resident.x-cx,z=resident.z-cz;
+    const safe=keepResidentOffRail(settlementId,resident.x,resident.z);
+    const x=safe.x-cx,z=safe.z-cz;
     if(Math.abs(x)>radius*.95||Math.abs(z)>radius*.95)continue;
-    const ground=biomeAt(resident.x,resident.z);
+    const ground=biomeAt(safe.x,safe.z);
     if(ground.water||ground.river)continue;
-    people.push({...resident,localX:x,localZ:z,elevationM:groundAt(x,z)});
+    people.push({...resident,x:safe.x,z:safe.z,localX:x,localZ:z,elevationM:groundAt(x,z)});
   }
   const marker=layout.landmark;
   const landmark=marker&&Math.abs(marker.x-cx)<radius*.9&&Math.abs(marker.z-cz)<radius*.9&&

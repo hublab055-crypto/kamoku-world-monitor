@@ -1,12 +1,13 @@
 import {absoluteMinutes,formatClock,formatCountdown,nextDepartures,routeSummary,
- RAIL_CARRIAGES,RAILWAY_LOOP_KM,stationById} from "./railway.mjs?v=0.8t-timetable";
+ RAIL_CARRIAGES,RAILWAY_LOOP_KM,stationById} from "./railway.mjs?v=0.8x-rail-safety";
 
 /** Timetable, live train board and the compact onboard HUD. */
-export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,onCamera=()=>({ok:false}),onWalls=()=>({ok:false}),onTalk=()=>({ok:false}),onOpen=()=>{},notify=()=>{}}){
+export function installRailwayUI({get,onWait,onBuyTicket=()=>({ok:false}),onBoard,onAlight,onChangeCarriage,onCamera=()=>({ok:false}),onWalls=()=>({ok:false}),onTalk=()=>({ok:false}),onOpen=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const panel=$("railway-panel"),toggle=$("viewport-railway"),body=$("railway-timetable-body");
  const status=$("railway-status"),board=$("railway-board"),carriage=$("railway-carriage");
- let departures=[],selectedService=null;
+ const destination=$("railway-destination"),buyTicket=$("railway-buy-ticket"),platform=$("railway-platform");
+ let departures=[],selectedDeparture=null;
 
  function setStatus(message){status.textContent=message||"";}
  function trainLabel(state){
@@ -37,19 +38,47 @@ export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,o
     const cell=document.createElement("td");cell.textContent=value;row.append(cell);
    }
    const action=document.createElement("td"),wait=document.createElement("button");
-   wait.type="button";wait.dataset.departure=String(index);wait.textContent="駅で待つ";
-   wait.disabled=Boolean(boarded);wait.title=departure.serviceName+"の到着時刻まで進め、駅で時間を停止します";
+   wait.type="button";wait.dataset.departure=String(index);wait.textContent="選ぶ";
+   wait.disabled=Boolean(boarded);wait.title=departure.serviceName+"を選び、行先切符を購入します";
+   wait.setAttribute("aria-pressed",String(selectedDeparture?.departureMinute===departure.departureMinute&&
+    selectedDeparture?.serviceId===departure.serviceId));
    action.append(wait);row.append(action);body.append(row);
   });
+ }
+ function refreshTicketOffice(railway,station,boarded){
+  $("railway-funds").textContent="テスト所持金 "+railway.fundsLabel;
+  const selection=selectedDeparture;
+  const signature=selection?selection.serviceId+":"+selection.stationId:"";
+  if(destination.dataset.route!==signature){
+   const previous=railway.ticket?.serviceId===selection?.serviceId?railway.ticket.destinationId:destination.value;
+   destination.replaceChildren();
+   if(selection)for(const stop of selection.stops){
+    const option=document.createElement("option");option.value=stop.id;option.textContent=stop.icon+" "+stop.name;
+    destination.append(option);
+   }
+   if(previous&&selection?.stops.some(stop=>stop.id===previous))destination.value=previous;
+   destination.dataset.route=signature;
+  }
+  destination.disabled=Boolean(boarded)||!station||!selection;
+  buyTicket.disabled=destination.disabled||!destination.value;
+  const matching=Boolean(selection&&railway.ticketFor(station?.id,selection.serviceId));
+  platform.disabled=Boolean(boarded)||!matching;
+  const ticket=railway.ticket;
+  $("railway-ticket-status").textContent=boarded&&ticket?
+   "改札済み："+stationById(ticket.destinationId).name+"まで":
+   railway.platform&&matching?"改札済み。ホームで列車の到着を待っています。":
+   matching?"購入済み："+stationById(ticket.destinationId).name+"まで（"+ticket.fare+"G）":
+   selection?selection.serviceName+"を選択中。行先を選び切符を購入してください。":
+   "時刻表から乗る列車を選んでください。";
  }
  function refreshOnboard(railway,timeDays){
   const state=railway.status(timeDays),hud=$("railway-onboard-hud");hud.hidden=!state;
   if(!state)return;
   $("railway-onboard-title").textContent=state.carriageInfo.icon+" "+state.service.name+"・"+state.carriageInfo.name;
   $("railway-onboard-detail").textContent=state.mode==="stopped"?
-   state.station.name+"に停車中 ／ 次は"+state.nextStation.name+" ／ "+formatClock(state.departureMinute)+"発":
+   state.station.name+"に停車中 ／ 行先 "+(state.destination?.name||state.nextStation.name)+" ／ "+formatClock(state.departureMinute)+"発":
    "次は "+state.nextStation.name+" ／ 到着 "+formatClock(state.nextArrivalMinute)+"（"+
-    formatCountdown(state.nextArrivalMinute-absoluteMinutes(timeDays))+"）";
+    formatCountdown(state.nextArrivalMinute-absoluteMinutes(timeDays))+"）／ 行先 "+(state.destination?.name||"未設定");
   $("railway-onboard-progress").value=state.mode==="travel"?Math.round(state.progress*100):0;
   $("railway-hud-alight").disabled=state.mode!=="stopped";
   for(const button of document.querySelectorAll("[data-rail-camera]"))
@@ -87,9 +116,14 @@ export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,o
    "塔の街・草原の村・王都・港町の4駅を結びます。街・村メニューから移動できます。";
   refreshLive(railway,timeDays);refreshTimetable(railway,station,timeDays,boarded);
   const stopped=station?railway.stoppedAt(station.id,timeDays):[];
-  if(stopped.length&&!selectedService)selectedService=stopped[0].service.id;
-  board.disabled=Boolean(boarded)||!station||!stopped.some(item=>item.service.id===selectedService);
-  board.textContent=boarded?"乗車中":stopped.length?"🚂 停車中の列車に乗る":"列車の到着を待ってください";
+  refreshTicketOffice(railway,station,boarded);
+  const selectedService=selectedDeparture?.serviceId;
+  const atPlatform=Boolean(railway.platform&&railway.platform.stationId===station?.id&&
+   railway.platform.serviceId===selectedService);
+  board.disabled=Boolean(boarded)||!station||!atPlatform||
+   !stopped.some(item=>item.service.id===selectedService);
+  board.textContent=boarded?"乗車中":!atPlatform?"切符を買ってホームへ":
+   stopped.some(item=>item.service.id===selectedService)?"🚂 ホームから列車に乗る":"列車の到着を待ってください";
   $("railway-alight").disabled=!boarded||railway.status(timeDays)?.mode!=="stopped";
   $("railway-alight").hidden=!boarded;
   if(boarded&&document.activeElement!==carriage)carriage.value=boarded.carriage;
@@ -101,12 +135,22 @@ export function installRailwayUI({get,onWait,onBoard,onAlight,onChangeCarriage,o
  body.addEventListener("click",event=>{
   const button=event.target.closest("button[data-departure]");if(!button||!body.contains(button))return;
   const departure=departures[Number(button.dataset.departure)];if(!departure)return;
-  const result=onWait(departure);setStatus(result?.message||"列車を待てませんでした");
-  if(result?.ok)selectedService=departure.serviceId;
+  selectedDeparture=departure;
+  setStatus(departure.serviceName+"（"+departure.directionName+"・"+departure.time+"発）を選びました。行先切符を購入してください。");
+  refresh();
+ });
+ buyTicket.addEventListener("click",()=>{
+  if(!selectedDeparture)return;
+  const result=onBuyTicket(selectedDeparture,destination.value);
+  setStatus(result?.message||"切符を購入できませんでした");notify(status.textContent);refresh();
+ });
+ platform.addEventListener("click",()=>{
+  if(!selectedDeparture)return;
+  const result=onWait(selectedDeparture);setStatus(result?.message||"ホームへ入れませんでした");
   notify(status.textContent);refresh();
  });
  board.addEventListener("click",()=>{
-  const result=onBoard(selectedService,carriage.value);setStatus(result?.message||"乗車できませんでした");
+  const result=onBoard(selectedDeparture?.serviceId,carriage.value);setStatus(result?.message||"乗車できませんでした");
   notify(status.textContent);refresh();if(result?.ok)close();
  });
  function alight(){

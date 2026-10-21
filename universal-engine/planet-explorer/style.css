@@ -1028,6 +1028,15 @@ body.immersive{overflow:hidden}
 .railway-timetable th,.railway-timetable td{padding:6px 5px;text-align:left;border-top:1px solid #3c5153}
 .railway-timetable th{color:#bcd4cf;font-weight:600}.railway-timetable td:first-child{font-weight:800;color:#ffe0a5;font-variant-numeric:tabular-nums}
 .railway-timetable button{min-height:30px;padding:4px 7px;font-size:10px;background:#5c4829;border-color:#a88d5d}
+.railway-timetable button[aria-pressed="true"]{background:#317066;border-color:#b8efdc;color:#fff}
+.railway-ticket-office{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:6px;
+ padding:8px;border:1px solid #77633c;border-radius:8px;background:linear-gradient(145deg,#342b1c,#182c2f)}
+.railway-ticket-office>div{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px;color:#ffe4aa}
+.railway-ticket-office>div span{font-weight:800;color:#bff6c9}.railway-ticket-office label{display:flex;flex-direction:column;
+ gap:3px;font-size:10px;color:#d9e6dd}.railway-ticket-office select{min-height:36px;width:100%}
+.railway-ticket-office button{min-height:36px;font-size:10px;padding:4px 7px}
+.railway-ticket-office #railway-platform{grid-column:1/-1;background:#315c4e;border-color:#87c4a9}
+#railway-ticket-status{grid-column:1/-1;font-size:10px;line-height:1.4;color:#dbe9ce}
 .railway-board-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:end}
 .railway-board-controls label{display:flex;flex-direction:column;gap:3px;color:#cee2dd;font-size:10px}
 .railway-board-controls select{width:100%;min-height:38px}.railway-board-controls button{min-height:38px;font-size:11px;padding:5px}
@@ -1042,11 +1051,20 @@ body.immersive{overflow:hidden}
 .railway-onboard-hud progress{grid-column:1;width:100%;height:8px;accent-color:#d59c42;align-self:center}
 .railway-onboard-hud>div{grid-column:2;grid-row:1 / span 3;display:flex;flex-direction:column;gap:4px}
 .railway-onboard-hud button{font-size:10px;min-height:29px;padding:3px 7px;white-space:nowrap}
+.railway-security-hud{position:absolute;z-index:35;left:50%;top:74px;transform:translateX(-50%);
+ width:min(470px,calc(100% - 16px));display:grid;grid-template-columns:1fr auto;gap:5px 9px;align-items:center;
+ padding:9px 11px;border:2px solid #efb45b;border-radius:9px;background:rgba(55,24,20,.95);
+ box-shadow:0 8px 28px #0009;color:#fff}
+.railway-security-hud[hidden]{display:none!important}.railway-security-hud strong{color:#ffd08a}
+.railway-security-hud span{grid-column:1/-1;font-size:11px;line-height:1.45}
+.railway-security-hud button{grid-column:1/-1;min-height:36px;background:#71472d;border-color:#ffd08a;color:#fff}
 @media(max-width:600px){
  .railway-panel{top:68px;right:5px;width:min(355px,calc(100% - 10px));max-height:calc(100% - 74px)}
  .railway-live-status{grid-template-columns:1fr}.railway-timetable th,.railway-timetable td{padding:5px 4px}
  .railway-timetable th:nth-child(2),.railway-timetable td:nth-child(2){display:none}
  .railway-board-controls{grid-template-columns:1fr}.railway-board-controls #railway-alight{grid-column:auto}
+ .railway-ticket-office{grid-template-columns:1fr}.railway-ticket-office>div,.railway-ticket-office #railway-platform,
+ #railway-ticket-status{grid-column:auto}.railway-security-hud{top:66px}
  .railway-onboard-hud{bottom:7px;padding:7px 8px;gap:3px 6px}.railway-onboard-hud>div{grid-column:1/-1;grid-row:auto;flex-direction:row}
  .railway-onboard-hud>div button{flex:1}.railway-onboard-hud progress{grid-column:1/-1}
 }
