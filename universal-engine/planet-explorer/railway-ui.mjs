@@ -117,7 +117,7 @@ export function installRailwayUI({get,onWait,onEnterStation=()=>({ok:false}),onE
   $("railway-exit-station").hidden=!inside||Boolean(railway.platform);
   $("railway-concourse-status").textContent=inside?
    railway.platform?"🚉 改札を通過しています。ホームで駅員に話せます":
-    "🧑‍✈️ 駅構内です。駅員の窓口で切符を購入してください。":
+    "🧑‍✈️ 駅構内です。移動キーやスティックで歩けます。窓口の駅員から切符を購入してください。":
    "駅舎の入口に近づいて「駅舎に入る」。そのあと切符の購入と改札です。";
   $("railway-station-detail").textContent=station?
    station.townName+" ／ ホームまで約"+Math.round(distance)+"m ／ 1番線 外回り・2番線 内回り":
