@@ -11,7 +11,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
   depth3=$("owner-size-z"),offset3=$("owner-elevation"),color3=$("owner-color"),group3=$("owner-group");
  const rgb=()=>[1,3,5].map(n=>parseInt(color3.value.slice(n,n+2),16)/255);
  const hex=color=>"#"+color.map(c=>Math.round(c*255).toString(16).padStart(2,"0")).join("");
- const options=()=>({width:Number(width3.value),height:Number(height3.value),
+ const primitiveParams=()=>({width:Number(width3.value),height:Number(height3.value),
   depth:Number(depth3.value),offsetY:Number(offset3.value),color:rgb(),group:group3.value});
  const selectedPart=()=>getWorld()?.primitives.find(p=>p.id===selectedId)||null;
  const populate=part=>{
@@ -72,7 +72,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
   }
   if(p.surface.water||p.surface.river){notice("水面・河川ではこの編集はできません");return true;}
   if(name==="primitive"){
-   const result=world.placePrimitive(shape.value,p,options());
+   const result=world.placePrimitive(shape.value,p,primitiveParams());
    if(result.ok){selectedId=result.id;getRenderer().ownerSelectedId=selectedId;sync();}
    return finish(result);
   }
@@ -106,7 +106,7 @@ export function installOwnerEditor({getWorld,getTerrain,getController,getRendere
  });
  $("owner-primitive-apply").addEventListener("click",()=>{
   if(!selectedPart()){notice("先に建築パーツを選択してください");return;}
-  finish(getWorld().changePrimitive(selectedId,{...options(),shape:shape.value}));
+  finish(getWorld().changePrimitive(selectedId,{...primitiveParams(),shape:shape.value}));
  });
  $("owner-undo").addEventListener("click",()=>{endWork();sync();finish(getWorld().undo());});
  $("owner-redo").addEventListener("click",()=>{endWork();sync();finish(getWorld().redo());});
