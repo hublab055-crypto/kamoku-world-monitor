@@ -31,8 +31,9 @@ import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
-import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8t-timetable";
-import {installRailwayUI} from "./railway-ui.mjs?v=0.8t-timetable";
+import {absoluteMinutes,RailwaySystem,stationById} from "./railway.mjs?v=0.8v-track";
+import {railwayJourneyPose} from "./railway-world.mjs?v=0.8v-track";
+import {installRailwayUI} from "./railway-ui.mjs?v=0.8v-track";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
@@ -405,7 +406,8 @@ function doFrame(t){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded);
-  const input=!onTrain&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const input=$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  if(onTrain)railway.walk(running?dt:0,input);
   if(townLife.inside)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
   const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
@@ -595,6 +597,11 @@ function doFrame(t){
    if(event.type==="arrival")handleRailwayArrival(event);
   }
   renderer.trainInterior=railway?.boarded?railway.status(planet.timeDays):null;
+  renderer.railJourney=railway?.boarded?{
+   pose:railwayJourneyPose(terrain,
+    settlementLocations||=settlementDestinations(terrain),renderer.trainInterior,planet.timeDays),
+   locations:settlementLocations
+  }:null;
   try{
    const next=renderer.frame(controller,dt);
    orbitalCitiesUI?.setActive(next==="orbit");
@@ -2416,9 +2423,25 @@ $("viewport-settlements").addEventListener("click",()=>{
  $("marine-panel").hidden=true;
 });
 railwayUI=installRailwayUI({
- get:()=>({railway,timeDays:planet.timeDays,stationId:activeSettlementId,controller}),
+ get:()=>({railway,timeDays:planet.timeDays,stationId:activeSettlementId,controller,
+  companions:squad?.agents?.slice(1).map(a=>a.name)||[]}),
  onWait:waitForRailwayDeparture,onBoard:boardRailwayTrain,onAlight:alightRailwayTrain,
- onChangeCarriage:changeRailwayCarriage,notify:log,
+ onChangeCarriage:changeRailwayCarriage,
+ onCamera:mode=>{
+  const result=railway.setCamera(mode);
+  if(result.ok){renderer.railCameraFixed=null;saveRailwayJournal();updateHUD();}
+  return result;
+ },
+ onWalls:()=>{
+  const result=railway.toggleWalls();
+  if(result.ok){saveRailwayJournal();updateHUD();}
+  return result;
+ },
+ onTalk:id=>{
+  const result=railway.talk(id,squad?.agents?.slice(1).map(a=>a.name)||[]);
+  if(result.ok)worldUI?.speak(id,result.message);
+  return result;
+ },notify:log,
  onOpen:()=>{
   settlementTravelUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
   townUI?.close(true);faunaUI?.close();farmUI?.close();$("marine-panel").hidden=true;
