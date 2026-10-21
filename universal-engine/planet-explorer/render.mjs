@@ -1322,15 +1322,17 @@ export class ExplorerRenderer{
    }
  }
  renderRailwayConcourse(asp){
-  const gl=this.gl;
+  const gl=this.gl,pose=this.railway?.concoursePose||{x:0,z:8};
   gl.clearColor(.07,.09,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=multiply4(perspective(57*DEG,asp,.25,1000),lookAt([15,12,17],[0,1.8,-1]));
+  const vp=multiply4(perspective(57*DEG,asp,.25,1000),lookAt([pose.x+14,11,pose.z+14],[pose.x,1.3,pose.z]));
   this.pickVP=null;
   this.drawMesh(this.railwayConcourseMesh,vp,[.43,.86,.73],1,.87);
   // Stationmaster and arriving passengers are anchored to the ticket window.
   for(const [x,z] of [[-4.0,-6.9],[1.3,4.4],[-4.2,4.0]]){
    this.drawMesh(this.railGuardMesh,multiply4(vp,translate(x,0,z)),[.43,.86,.73],1,.84);
   }
+  this.drawMesh(this.selectionRing,multiply4(vp,translate(pose.x,.12,pose.z)),
+   [.43,.86,.73],1,.94,[.15,.95,.85]);
   return "railway-concourse";
  }
  renderFerryInterior(asp,dt){
