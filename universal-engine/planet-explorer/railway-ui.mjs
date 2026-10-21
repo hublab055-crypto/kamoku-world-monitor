@@ -2,7 +2,7 @@ import {absoluteMinutes,formatClock,formatCountdown,nextDepartures,routeSummary,
  RAIL_CARRIAGES,RAILWAY_LOOP_KM,stationById} from "./railway.mjs?v=0.8x-rail-safety";
 
 /** Timetable, live train board and the compact onboard HUD. */
-export function installRailwayUI({get,onWait,onBuyTicket=()=>({ok:false}),onBoard,onAlight,onChangeCarriage,onCamera=()=>({ok:false}),onWalls=()=>({ok:false}),onTalk=()=>({ok:false}),onOpen=()=>{},notify=()=>{}}){
+export function installRailwayUI({get,onWait,onEnterStation=()=>({ok:false}),onExitStation=()=>({ok:false}),onSkipArrival=()=>({ok:false}),onBuyTicket=()=>({ok:false}),onBoard,onAlight,onChangeCarriage,onCamera=()=>({ok:false}),onWalls=()=>({ok:false}),onTalk=()=>({ok:false}),onOpen=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const panel=$("railway-panel"),toggle=$("viewport-railway"),body=$("railway-timetable-body");
  const status=$("railway-status"),board=$("railway-board"),carriage=$("railway-carriage");
@@ -60,9 +60,9 @@ export function installRailwayUI({get,onWait,onBuyTicket=()=>({ok:false}),onBoar
    destination.dataset.route=signature;
   }
   destination.disabled=Boolean(boarded)||!station||!selection;
-  buyTicket.disabled=destination.disabled||!destination.value;
+  buyTicket.disabled=destination.disabled||!destination.value||railway.concourse!==station?.id;
   const matching=Boolean(selection&&railway.ticketFor(station?.id,selection.serviceId));
-  platform.disabled=Boolean(boarded)||!matching;
+  platform.disabled=Boolean(boarded)||!matching||railway.concourse!==station?.id;
   const ticket=railway.ticket;
   $("railway-ticket-status").textContent=boarded&&ticket?
    "改札済み："+stationById(ticket.destinationId).name+"まで":
@@ -111,6 +111,14 @@ export function installRailwayUI({get,onWait,onBuyTicket=()=>({ok:false}),onBoar
   $("railway-route").textContent=routeSummary()+" ／ 惑星上の路線距離 "+(Number.isFinite(routeKm)&&routeKm>0?routeKm:RAILWAY_LOOP_KM).toFixed(1)+"km";
   $("railway-station-name").textContent=station?station.icon+" "+station.name:"🚉 現在地に環状線の駅はありません";
   const distance=station&&controller?Math.hypot(controller.x-station.site.x,controller.z-station.site.z):Infinity;
+  const inside=Boolean(station&&railway.concourse===station.id);
+  $("railway-enter-station").disabled=Boolean(boarded)||!station||distance>40||controller?.altitudeM>12;
+  $("railway-enter-station").hidden=inside;
+  $("railway-exit-station").hidden=!inside||Boolean(railway.platform);
+  $("railway-concourse-status").textContent=inside?
+   railway.platform?"🚉 改札を通過しています。ホームで駅員に話せます":
+    "🧑‍✈️ 駅構内です。駅員の窓口で切符を購入してください。":
+   "駅舎の入口に近づいて「駅舎に入る」。そのあと切符の購入と改札です。";
   $("railway-station-detail").textContent=station?
    station.townName+" ／ ホームまで約"+Math.round(distance)+"m ／ 1番線 外回り・2番線 内回り":
    "塔の街・草原の村・王都・港町の4駅を結びます。街・村メニューから移動できます。";
@@ -120,9 +128,11 @@ export function installRailwayUI({get,onWait,onBuyTicket=()=>({ok:false}),onBoar
   const selectedService=selectedDeparture?.serviceId;
   const atPlatform=Boolean(railway.platform&&railway.platform.stationId===station?.id&&
    railway.platform.serviceId===selectedService);
+  $("railway-skip-arrival").disabled=Boolean(boarded)||!atPlatform||
+   !selectedDeparture||selectedDeparture.arrivalMinute<=now+.1;
   board.disabled=Boolean(boarded)||!station||!atPlatform||
    !stopped.some(item=>item.service.id===selectedService);
-  board.textContent=boarded?"乗車中":!atPlatform?"切符を買ってホームへ":
+  board.textContent=boarded?"乗車中":!atPlatform?"駅員から切符を購入し改札へ":
    stopped.some(item=>item.service.id===selectedService)?"🚂 ホームから列車に乗る":"列車の到着を待ってください";
   $("railway-alight").disabled=!boarded||railway.status(timeDays)?.mode!=="stopped";
   $("railway-alight").hidden=!boarded;
@@ -132,6 +142,20 @@ export function installRailwayUI({get,onWait,onBuyTicket=()=>({ok:false}),onBoar
  function close(){panel.hidden=true;toggle.setAttribute("aria-expanded","false");}
  toggle.addEventListener("click",()=>panel.hidden?open():close());
  $("railway-close").addEventListener("click",close);
+ $("railway-enter-station").addEventListener("click",()=>{
+  const result=onEnterStation();setStatus(result?.message||"駅舎に入れませんでした");
+  notify(status.textContent);refresh();
+ });
+ $("railway-exit-station").addEventListener("click",()=>{
+  const result=onExitStation();setStatus(result?.message||"退出できませんでした");
+  notify(status.textContent);refresh();
+ });
+ $("railway-skip-arrival").addEventListener("click",()=>{
+  if(!selectedDeparture)return;
+  const result=onSkipArrival(selectedDeparture);
+  setStatus(result?.message||"駅員が到着時刻を確認できませんでした");
+  notify(status.textContent);refresh();
+ });
  body.addEventListener("click",event=>{
   const button=event.target.closest("button[data-departure]");if(!button||!body.contains(button))return;
   const departure=departures[Number(button.dataset.departure)];if(!departure)return;
