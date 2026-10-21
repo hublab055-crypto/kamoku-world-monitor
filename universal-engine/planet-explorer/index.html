@@ -228,12 +228,23 @@
 <section id="owner-panel" class="owner-panel" role="region" aria-label="オーナー用ワールドエディター" hidden>
  <div class="owner-panel-head"><strong>🏗️ オーナーモード・地形と街の編集</strong><button id="owner-close" type="button" aria-label="編集モードを閉じる">×</button></div>
  <label>編集ツール <select id="owner-tool">
-  <option value="select">🔍 建物を選択</option><option value="building">🏠 建物を配置</option>
+  <option value="select">🔍 建物・パーツを選択</option><option value="building">🏠 建物を配置</option><option value="primitive">🧱 基本立体を追加</option>
   <option value="move">↔️ 建物を移動</option><option value="delete">🗑️ 建物を削除</option>
   <option value="road">🛣️ 道を引く</option><option value="raise">⛰️ 地面を上げる</option>
   <option value="lower">🪏 地面を下げる</option><option value="flatten">📐 地面を整地</option>
  </select></label>
  <label>建物 <select id="owner-building" aria-label="配置する建物"></select></label>
+ <fieldset class="owner-primitives"><legend>🧱 立体パーツを組み合わせて建築</legend>
+  <label>形状 <select id="owner-shape"><option value="cube">立方体・直方体</option><option value="cylinder">円柱</option><option value="sphere">球</option><option value="cone">円錐</option></select></label>
+  <div class="owner-fields"><label>幅 X(m)<input type="number" id="owner-size-x" min=".1" max="200" step=".5" value="4"></label>
+   <label>高さ Y(m)<input type="number" id="owner-size-y" min=".1" max="200" step=".5" value="4"></label>
+   <label>奥行 Z(m)<input type="number" id="owner-size-z" min=".1" max="200" step=".5" value="4"></label>
+   <label>高さオフセット(m)<input type="number" id="owner-elevation" min="-500" max="500" step=".5" value="0"></label></div>
+  <label>色 <input type="color" id="owner-color" value="#c2ad8c"></label>
+  <label>グループ名 <input type="text" id="owner-group" maxlength="40" placeholder="例：時計塔、住宅A"></label>
+  <button type="button" id="owner-primitive-apply">📐 選択中のパーツに寸法・色を適用</button>
+  <small>「基本立体を追加」で地面をタップすると配置。選択して寸法変更・回転・移動・削除ができます。同じグループ名を使うと建物のパーツを整理できます。</small>
+ </fieldset>
  <div class="owner-fields"><label>ブラシ半径 <select id="owner-radius"><option value="8">8m</option><option value="20" selected>20m</option><option value="50">50m</option><option value="100">100m</option><option value="200">200m</option></select></label>
  <label>道路の幅 <select id="owner-road-width"><option value="3">3m</option><option value="5" selected>5m</option><option value="8">8m</option><option value="12">12m</option></select></label></div>
  <div id="owner-selected" class="owner-selected">建物未選択</div>
