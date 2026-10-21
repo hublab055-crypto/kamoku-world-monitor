@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.8t-railway-timetable">
+<link rel="stylesheet" href="./style.css?v=0.8u-globe-cities">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -122,6 +122,17 @@
         <div class="descent-fog"></div>
       </div>
       <div id="orbit-pick-marker" class="orbit-pick-marker" hidden aria-hidden="true">⊕</div>
+      <div id="orbit-city-pins" class="orbit-city-pins" hidden aria-label="惑星上の街・村のマーカー"></div>
+      <section id="orbit-city-controls" class="orbit-city-controls" aria-label="惑星から都市を選択" hidden>
+       <button type="button" id="orbit-city-toggle" aria-expanded="false" aria-controls="orbit-city-menu">🏙️ 都市・村を選ぶ</button>
+       <small id="orbit-city-hint">🌐 地表をタップして自由降下もできます</small>
+       <div id="orbit-city-menu" class="orbit-city-menu" hidden>
+        <strong>🏘️ 行き先を選択</strong>
+        <ul id="orbit-city-list" aria-label="惑星から降下できる都市と村"></ul>
+        <button type="button" id="orbit-city-free">📍 自由降下 — 地表の好きな場所へ</button>
+        <small>地球儀のマーカーを直接タップしても選択できます。未開拓地への降下は従来どおりです。</small>
+       </div>
+      </section>
       <div id="orbit-landing-preview" class="orbit-landing-preview" hidden role="group" aria-label="惑星上の降下地点">
         <span id="orbit-landing-coords" class="orbit-landing-coords">📍 地点を選択</span>
         <span id="orbit-landing-terrain" class="orbit-landing-terrain"></span>
@@ -1031,6 +1042,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.8t-railway-timetable"></script>
+<script type="module" src="./app.mjs?v=0.8u-globe-cities"></script>
 </body>
 </html>
