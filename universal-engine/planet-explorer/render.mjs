@@ -1,5 +1,7 @@
-import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8b-river-valley";
+import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8v-alpine-horizon";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
+import {regionalLakeMesh} from "./regional-landforms.mjs";
+import {buildDistantLandscape} from "./distant-landscape.mjs";
 import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-drift";
 import {BUILD_KINDS} from "./construction-system.mjs?v=0.8h-church";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs?v=0.8h-church";
@@ -640,7 +642,7 @@ export class ExplorerRenderer{
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
   this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
-  this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
+  this.patch=null;this.distantLandscape=null;this.distantCenter=null;this.distantKey=null;this.lakeWater=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
    this.railway=null;this.trainInterior=null;this.trainClock=0;
    this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
    this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
@@ -1843,11 +1845,13 @@ export class ExplorerRenderer{
   const resolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution,this.settlementId].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
-   this.patch?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
+   this.patch?.destroy();this.riverWater?.destroy();this.lakeWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
    this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    this.patch=new Mesh(gl,this.groundPatchData);
    const channel=buildRiverWaterPatch(this.terrain,geo,radius);
    this.riverWater=channel.indices.length?new Mesh(gl,channel):null;
+   const lake=regionalLakeMesh(this.terrain,geo,radius);
+   this.lakeWater=lake.indices.length?new Mesh(gl,lake):null;
     const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
     const clouds=groundCloudGeometry({seed:this.planet.seed,cx,cz,radius,
      baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM,
@@ -1899,6 +1903,20 @@ export class ExplorerRenderer{
    this.patchKey=key;this.cx=cx;this.cz=cz;
    this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
   }
+  // Cache the low-poly 47 km panorama independently of the 110 m ground
+  // patch snaps, minimizing rebuild cost on mobile WebGL2.
+  const panoramaAllowed=radius<=6500;
+  const farCx=Math.round(focusX/900)*900,farCz=Math.round(focusZ/900)*900;
+  const farKey=[farCx,farCz,this.planet.seed].join("/");
+  if(panoramaAllowed&&farKey!==this.distantKey){
+   this.distantLandscape?.destroy();
+   const farGeo=geoOffset(s.origin.lat,s.origin.lon,farCx,farCz,this.planet.radiusM);
+   this.distantLandscape=new Mesh(gl,buildDistantLandscape(this.terrain,farGeo.lat,farGeo.lon));
+   this.distantCenter={cx:farCx,cz:farCz};
+   this.distantKey=farKey;
+  }else if(!panoramaAllowed&&this.distantLandscape){
+   this.distantLandscape.destroy();this.distantLandscape=null;this.distantCenter=null;this.distantKey=null;
+  }
   const shipboard=this.marine?.shipboard;
   const onboard=Boolean(this.marine?.boarded?.kind==="sailing_ship"&&
    shipboard?.shipId===this.marine.boardedId);
@@ -1938,16 +1956,25 @@ export class ExplorerRenderer{
   if(s.travelMode==="dive"&&!room&&!cabinActive&&cameraMode!=="free"&&cameraMode!=="tactical"){
    camera.eye[1]=Math.min(waterY-.35,feet+2.35);camera.target[1]=feet+.65;
   }
-  const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
+  const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.12,Math.max(radius*8,65000)),
     lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
   this.pickVP=vp;
   const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
+  // Draw kilometer-scale mountains before the collision mesh, without writing
+  // depth. The full-detail foreground always wins even where LODs overlap.
+  if(this.distantLandscape&&s.travelMode!=="dive"){
+   gl.depthMask(false);
+   this.drawMesh(this.distantLandscape,multiply4(vp,translate(
+     this.distantCenter.cx-this.cx,0,this.distantCenter.cz-this.cz)),light,1,.83);
+   gl.depthMask(true);
+  }
   if(s.travelMode==="dive"){
    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
    this.drawMesh(this.patch,vp,light,.5,.66);
    gl.depthMask(true);gl.disable(gl.BLEND);
   }else this.drawMesh(this.patch,vp,light,1,.58);
   if(this.riverWater)this.drawMesh(this.riverWater,vp,light,1,.86);
+  if(this.lakeWater)this.drawMesh(this.lakeWater,vp,light,1,.88);
   this.drawMarineSurface(vp,light,s,dt);
   if(s.travelMode==="swim"&&this.marine?.entrySeconds>0){
    const p=1-this.marine.entrySeconds/this.marine.entryDuration,spread=.55+2.1*p;
@@ -2110,7 +2137,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
