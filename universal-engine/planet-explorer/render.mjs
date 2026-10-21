@@ -1532,12 +1532,16 @@ export class ExplorerRenderer{
    this.drawMesh(this.railConnectingRod,multiply4(frame,model),light,1,.87);
   }
   const smokeLife=pose.state?.mode==="stopped"?.38:1;
+  this.gl.enable(this.gl.BLEND);
+  this.gl.blendFunc(this.gl.SRC_ALPHA,this.gl.ONE_MINUS_SRC_ALPHA);
+  this.gl.depthMask(false);
   for(const puff of motion.smoke){
    const sc=puff.scale*smokeLife;
    const scale=[sc,0,0,0,0,sc,0,0,0,0,sc,0,0,0,0,1];
    const model=multiply4(translate(puff.x,puff.y,puff.z),scale);
-   this.drawMesh(this.railSmokePuff,multiply4(frame,model),light,.58,.92);
+   this.drawMesh(this.railSmokePuff,multiply4(frame,model),light,.40,.92);
   }
+  this.gl.depthMask(true);this.gl.disable(this.gl.BLEND);
  }
  renderTrainInterior(asp,dt=1/60){
   const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
