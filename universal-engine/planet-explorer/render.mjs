@@ -1857,12 +1857,20 @@ export class ExplorerRenderer{
   const snap=radius<2200?110:radius<6500?600:3000;
   const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
   const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
-  const resolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56,key=[cx,cz,Math.round(radius/90),resolution,this.settlementId].join("/");
+  const baseResolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56;
+  const detail=this.adaptiveTerrainLOD.level;
+  const resolution=Math.max(28,Math.round(baseResolution*(detail===2?.6:detail===1?.8:1)));
+  const key=[cx,cz,Math.round(radius/90),resolution,detail,this.settlementId].join("/");
   if(key!==this.patchKey){
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
-   this.patch?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
+   this.patch?.destroy();this.horizonMesh?.destroy();this.riverWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
    this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    this.patch=new Mesh(gl,this.groundPatchData);
+   this.horizonMesh=new Mesh(gl,buildDistantTerrainRing(this.terrain,{
+    lat:geo.lat,lon:geo.lon,innerRadiusM:radius,
+    nearHeightAt:(x,z)=>patchSceneryHeight(this.groundPatchData,
+      Math.min(radius,Math.max(-radius,x)),Math.min(radius,Math.max(-radius,z)))
+   }));
    const channel=buildRiverWaterPatch(this.terrain,geo,radius);
    this.riverWater=channel.indices.length?new Mesh(gl,channel):null;
     const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
@@ -1875,7 +1883,7 @@ export class ExplorerRenderer{
     this.groundClouds=clouds.indices.length?new Mesh(gl,clouds):null;
    const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
    const plan=planWorldScenery({
-    seed:this.planet.seed,cx,cz,radius,groundAt:heightAt,settlementId:this.settlementId,
+    seed:this.planet.seed,cx,cz,radius:sceneryRadiusForQuality(radius,detail),groundAt:heightAt,settlementId:this.settlementId,
     biomeAt:(wx,wz)=>{
      const pos=geoOffset(s.origin.lat,s.origin.lon,wx,wz,this.planet.radiusM);
      return terrainSurface(this.terrain,pos.lat,pos.lon);
@@ -1958,7 +1966,15 @@ export class ExplorerRenderer{
   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.08,Math.max(radius*8,5000)),
     lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
   this.pickVP=vp;
-  const light=[.4,Math.max(.3,this.planet.illumination(s.lat,s.lon)),.2];
+  const sunlight=this.planet.illumination(s.lat,s.lon);
+  const light=[.4,Math.max(.3,sunlight),.2];
+  const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,ground));
+  const fog=fogForGround({mode:this.fogMode,weather:climate,illumination:sunlight,
+   cameraHeightM:Math.max(0,camera.eye[1]-focusGround),underwater:s.travelMode==="dive"});
+  this.lastFog=fog;
+  gl.uniform3fv(this.uFogParams,new Float32Array([fog.startM,fog.endM,fog.opacity]));
+  gl.uniform3fv(this.uFogColor,new Float32Array(fog.color));
+  if(this.horizonMesh)this.drawMesh(this.horizonMesh,vp,light,1,.63);
   if(s.travelMode==="dive"){
    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
    this.drawMesh(this.patch,vp,light,.5,.66);
@@ -2127,7 +2143,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.horizonMesh,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
