@@ -1132,3 +1132,8 @@ body.immersive{overflow:hidden}
 .owner-danger{background:#673f43;color:#fff4f0;border-color:#b77777}
 @media(max-width:600px){.owner-panel{top:43px;max-height:calc(100% - 50px);width:min(285px,calc(100% - 12px));right:6px;padding:9px;gap:5px}
  .owner-panel select{min-height:30px}.owner-panel button{font-size:11px}}
+
+/* v0.8w atmospheric distance fog controls */
+.fog-choice{display:flex;flex-direction:column;gap:5px;min-width:180px}
+.fog-choice select{width:100%;min-height:42px}
+.fog-choice small{font-size:11px;font-weight:500;color:#bedbe8;line-height:1.45}
