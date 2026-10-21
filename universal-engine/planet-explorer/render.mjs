@@ -1527,21 +1527,48 @@ export class ExplorerRenderer{
  }
  renderTrainInterior(asp,dt=1/60){
   const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
-  if(!this.trainRoomMeshes.has(kind))
-   this.trainRoomMeshes.set(kind,new Mesh(gl,trainInteriorGeometry(kind)));
+  const roomKey=kind+":"+(this.trainInterior.hideWalls?"open":"closed");
+  if(!this.trainRoomMeshes.has(roomKey))
+   this.trainRoomMeshes.set(roomKey,new Mesh(gl,
+    trainInteriorGeometry(kind,{hideWalls:this.trainInterior.hideWalls})));
   this.trainClock+=Math.min(.1,Math.max(0,dt));
   const moving=this.trainInterior.mode==="travel",sway=moving?Math.sin(this.trainClock*3.4)*.11:0;
   gl.clearColor(.055,.075,.073,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   const vp=multiply4(perspective(55*DEG,asp,.1,90),
    lookAt([9+sway,7.1,11],[0,1.25,-.1]));
   this.pickVP=null;
-  this.drawMesh(this.trainRoomMeshes.get(kind),vp,[.55,.88,.42],1,.84);
+  // The window background is a real, updated local planetary terrain mesh,
+  // not a static illustration. It moves as the train progresses along the track.
+  const pose=this.railJourney?.pose;
+  if(pose){
+   const moved=this.trainWindowGeo?geoLocal(this.trainWindowGeo.lat,this.trainWindowGeo.lon,
+    pose.lat,pose.lon,this.planet.radiusM):null;
+   if(!this.trainWindowPatch||!moved||Math.hypot(moved.eastM,moved.northM)>90){
+    this.trainWindowPatch?.destroy();
+    this.trainWindowPatch=new Mesh(gl,samplePatch(this.terrain,pose.lat,pose.lon,300,42));
+    this.trainWindowGeo={lat:pose.lat,lon:pose.lon,elevationM:pose.elevationM};
+   }
+   const offset=geoLocal(this.trainWindowGeo.lat,this.trainWindowGeo.lon,pose.lat,pose.lon,this.planet.radiusM);
+   const transform=translate(-offset.eastM,-this.trainWindowGeo.elevationM-.85,-offset.northM);
+   this.drawMesh(this.trainWindowPatch,multiply4(vp,transform),[.55,.9,.4],1,.65);
+  }
+  this.drawMesh(this.trainRoomMeshes.get(roomKey),vp,[.55,.88,.42],1,.84);
+  const people=this.railway?.people(this.squad?.agents?.slice(1).map(a=>a.name)||[])||[];
+  const peopleKey=kind+":"+people.map(p=>p.id+":"+p.name).join("|");
+  if(peopleKey!==this.trainPersonKey){
+   this.trainPersonMesh?.destroy();
+   this.trainPersonMesh=people.length?new Mesh(gl,settlementResidentsGeometry(
+    people.map((p,i)=>({id:p.id,x:p.x,z:p.z,clothing:i%6})),()=>0)):null;
+   this.trainPersonKey=peopleKey;
+  }
+  if(this.trainPersonMesh)this.drawMesh(this.trainPersonMesh,vp,[.58,.86,.42],1,.83);
   if(!this.townIndoorAvatarMesh){
    const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
    this.townIndoorAvatarMesh=new Mesh(gl,g);
   }
   const pose={locomotive:{x:0,z:1.4},tender:{x:0,z:4.2},passenger:{x:0,z:2.2},freight:{x:0,z:4.4}}[kind];
-  const model=multiply4(translate(pose.x,moving?.025*Math.sin(this.trainClock*6):0,pose.z),rotateY(Math.PI));
+  const person=this.trainInterior.pose||{x:0,z:1.4,yaw:0};
+  const model=multiply4(translate(person.x,moving?.025*Math.sin(this.trainClock*6):0,person.z),rotateY(person.yaw||0));
   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
   return "train-interior";
  }
@@ -2083,7 +2110,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railJourneyPatch,this.railJourneyTrack,this.trainWindowPatch,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
