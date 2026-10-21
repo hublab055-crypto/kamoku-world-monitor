@@ -1889,8 +1889,32 @@ export class ExplorerRenderer{
      return terrainSurface(this.terrain,pos.lat,pos.lon);
     }
    });
-   const visible=(this.resourceHarvest?this.resourceHarvest.visible(plan.trees):plan.trees).filter(n=>!this.fallingTrees.has(n.id));
-   const instanced=buildSceneryInstances({...plan,trees:visible});
+   // Clear vegetation over editor roads/plots while retaining deterministic scenery elsewhere.
+   const ownerPlots=(this.ownerWorld?.buildings||[]).map(b=>{
+    const p=geoLocal(s.origin.lat,s.origin.lon,b.lat,b.lon,this.planet.radiusM);
+    return {x:p.eastM,z:p.northM,r:11};
+   }).filter(p=>Math.abs(p.x-cx)<radius+30&&Math.abs(p.z-cz)<radius+30);
+   const ownerLanes=(this.ownerWorld?.roads||[]).flatMap(r=>r.points.slice(1).map((b,i)=>{
+    const a=r.points[i],u=geoLocal(s.origin.lat,s.origin.lon,a.lat,a.lon,this.planet.radiusM),
+     v=geoLocal(s.origin.lat,s.origin.lon,b.lat,b.lon,this.planet.radiusM);
+    return {ax:u.eastM,az:u.northM,bx:v.eastM,bz:v.northM,r:r.width/2+2};
+   })).filter(p=>Math.max(Math.abs(p.ax-cx),Math.abs(p.bx-cx))<radius+2100&&
+    Math.max(Math.abs(p.az-cz),Math.abs(p.bz-cz))<radius+2100);
+   const blockedByOwner=(x,z)=>{
+    for(const p of ownerPlots)if((x-p.x)**2+(z-p.z)**2<p.r*p.r)return true;
+    for(const r of ownerLanes){
+     if(x<Math.min(r.ax,r.bx)-r.r||x>Math.max(r.ax,r.bx)+r.r||
+        z<Math.min(r.az,r.bz)-r.r||z>Math.max(r.az,r.bz)+r.r)continue;
+     const dx=r.bx-r.ax,dz=r.bz-r.az,t=clamp(((x-r.ax)*dx+(z-r.az)*dz)/(dx*dx+dz*dz||1),0,1);
+     if(Math.hypot(x-r.ax-t*dx,z-r.az-t*dz)<r.r)return true;
+    }
+    return false;
+   };
+   const visible=(this.resourceHarvest?this.resourceHarvest.visible(plan.trees):plan.trees)
+    .filter(n=>!this.fallingTrees.has(n.id)&&!blockedByOwner(n.x,n.z));
+   const ownerGrass=ownerPlots.length||ownerLanes.length?
+    plan.grass.filter(g=>!blockedByOwner(g.x+cx,g.z+cz)):plan.grass;
+   const instanced=buildSceneryInstances({...plan,grass:ownerGrass,trees:visible});
    // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
    this.resourceNodes=visible;
