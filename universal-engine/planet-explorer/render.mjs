@@ -36,6 +36,8 @@ import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8e-si
 import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {railwayStationGeometry,steamTrainGeometry,trainInteriorGeometry} from "./railway-geometry.mjs?v=0.8t-timetable";
+import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8v-track";
+import {trackGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8v-track";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -641,6 +643,13 @@ export class ExplorerRenderer{
   this.patch=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
    this.railway=null;this.trainInterior=null;this.trainClock=0;
    this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
+   this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
+   this.railConnectingRod=new Mesh(gl,connectingRodGeometry());
+   this.railSmokePuff=new Mesh(gl,steamPuffGeometry());
+   this.railJourneyPatch=null;this.railJourneyTrack=null;this.railJourneyTrees=[];
+   this.railJourneyGrass=[];this.railJourneyOrigin=null;this.railJourneyGeo=null;
+   this.railJourneyData=null;this.railJourney=null;this.railCameraFixed=null;
+   this.trainWindowPatch=null;this.trainWindowGeo=null;this.trainPersonMesh=null;this.trainPersonKey=null;
    this.railwayTrainMesh=new Mesh(gl,steamTrainGeometry());this.trainRoomMeshes=new Map();
    this.resourceHarvest=null;
   // Original segmented humanoid; each mesh is parented to a semantic joint.
@@ -1403,7 +1412,8 @@ export class ExplorerRenderer{
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
   this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
-  if(this.trainInterior)return this.renderTrainInterior(asp,dt);
+  if(this.trainInterior?.camera==="interior"||this.trainInterior&&!this.trainInterior.camera)return this.renderTrainInterior(asp,dt);
+  if(this.trainInterior&&this.railJourney)return this.renderRailJourney(asp,dt);
   if(this.townInterior)return this.renderTownInterior(asp);
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
  }
