@@ -20,7 +20,7 @@ import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8
 import {shipLocalToWorld,shipWorldToLocal,isShipWalkable,SHIP_HELM,SHIP_DOOR} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8q-splash";
 import {SEA_SITE_TYPES,seabedPatch} from "./ocean-exploration.mjs?v=0.8o-seabed";
-import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs";
+import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs?v=0.8v-alpine-horizon";
 import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
 import {buildOriginalModel} from "../original-assets/original-models.mjs";
 import {jointTransformsV2} from "./rig-v2.mjs";
