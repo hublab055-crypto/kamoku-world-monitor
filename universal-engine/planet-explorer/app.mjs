@@ -12,7 +12,7 @@ import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {OwnerWorld} from "./owner-world.mjs?v=0.9a-assets";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9a-assets";
-import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9a-assets";
+import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9b-camera";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";
