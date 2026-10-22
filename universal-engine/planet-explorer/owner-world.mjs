@@ -204,6 +204,17 @@ export class OwnerWorld {
   if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
   return {ok:true,name:title,count:model.parts.length,message:"💾 「"+title+"」を"+model.parts.length+"パーツの建築物として保存しました"};
  }
+ savePrefabParts(name,parts,{replace=false}={}){
+  const title=String(name||"").trim().slice(0,40);
+  if(!title||!Array.isArray(parts)||!parts.length||parts.length>96)return fail("Asset名を入力し、1〜96個のパーツを配置してください");
+  if(parts.some(part=>!validPrimitivePart(part)||![part.x,part.z].every(v=>finite(v)&&Math.abs(v)<=500)))return fail("Assetの形状・寸法・座標が不正です");
+  const existing=this.prefabs.findIndex(prefab=>prefab.name===title);
+  if(existing>=0&&!replace)return fail("同じ名前の保存建築物があります");
+  if(existing<0&&this.prefabs.length>=100)return fail("保存建築物の上限100件に達しました");
+  const model={name:title,parts:parts.map(part=>({...part,color:[...part.color]}))};this._remember();
+  if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
+  return {ok:true,name:title,count:model.parts.length,message:"💾 Asset「"+title+"」を保存建築物へ登録しました（"+model.parts.length+"パーツ）"};
+ }
  placePrefab(name,p,{rotation=0}={}){
   const prefab=this.prefabs.find(item=>item.name===name);
   if(!prefab||!validGeo(p)||!finite(rotation))return fail("保存建築物か配置位置が不正です");

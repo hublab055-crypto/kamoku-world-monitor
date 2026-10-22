@@ -10,8 +10,9 @@ import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
-import {OwnerWorld} from "./owner-world.mjs?v=0.8z-prefabs";
-import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.8z1-collapse";
+import {OwnerWorld} from "./owner-world.mjs?v=0.9a-assets";
+import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9a-assets";
+import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9a-assets";
 import {BattleTest} from "./battle-test.mjs";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";
@@ -78,7 +79,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let ownerWorld=null,ownerUI=null,ferry=null;
+let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null;
@@ -504,7 +505,7 @@ function doFrame(t){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
   const detained=Boolean(railwaySecurity?.jailed);
-  const input=!detained&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
   if(inConcourse)railway.walkConcourse(running?dt:0,input);
@@ -1849,6 +1850,8 @@ ownerUI=installOwnerEditor({
  onEnter:()=>constructionUI?.setKind(null),
  onCommit:()=>{if(renderer)renderer.patchKey=null;saveOwnerJournal();},log
 });
+assetStudio=installAssetStudio({getWorld:()=>ownerWorld,
+ onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
 function vitalsActor(){
  return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
 }

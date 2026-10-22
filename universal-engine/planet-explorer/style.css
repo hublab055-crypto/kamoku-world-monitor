@@ -1186,6 +1186,32 @@ body.immersive{overflow:hidden}
 .owner-primitives .owner-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
 .owner-primitives input[type="color"]{width:48px;height:29px;padding:1px}
 .owner-prefab-buttons{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:4px}
+/* v0.9a: isolated XY asset workspace with dial-driven XYZ editing. */
+.asset-studio{position:absolute;inset:4px;z-index:70;display:flex;flex-direction:column;min-height:0;color:#eaf7fb;
+ background:#0b202bf7;border:1px solid #7196a4;border-radius:12px;box-shadow:0 12px 44px #000c;overflow:hidden}
+.asset-studio[hidden]{display:none}
+.asset-studio-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:#173947;border-bottom:1px solid #57798a}
+.asset-studio-head div{display:flex;align-items:baseline;gap:8px}.asset-studio-head small{color:#b7d2dc}.asset-studio-head button{min-height:32px}
+.asset-workspace{display:grid;grid-template-columns:minmax(0,1fr) 286px;min-height:0;flex:1}
+.asset-canvas-wrap{position:relative;min-width:0;min-height:280px;background:#091820;overflow:hidden}
+#asset-canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;background:#0b1c25}
+.asset-plane-label{position:absolute;left:8px;top:8px;padding:4px 7px;border-radius:6px;background:#071116cc;color:#9fe3ff;font:700 11px/1.2 system-ui;pointer-events:none}
+.asset-controls{min-height:0;overflow:auto;padding:7px;display:grid;align-content:start;gap:6px;background:#102c38;border-left:1px solid #57798a;font-size:11px}
+.asset-controls button,.asset-controls input,.asset-controls select{min-width:0;min-height:29px;font-size:11px}
+.asset-controls label{display:grid;gap:2px}.asset-mode-row,.asset-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.asset-mode-row{grid-template-columns:repeat(3,minmax(0,1fr))}.asset-mode-row [aria-pressed="true"]{background:#3b7770;border-color:#b6ead4}
+.asset-dials{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;text-align:center}
+.asset-dials label{justify-items:center;color:#cde7ee}.asset-dials label>span:first-of-type{font-size:9px;color:#ffdd8a}
+.asset-dial{position:relative;width:58px;height:58px;border-radius:50%;touch-action:none;cursor:grab;background:radial-gradient(circle,#7895a0 0 12%,#274b59 14% 54%,#102630 56%);border:3px solid #7298a5;box-shadow:inset 0 0 0 2px #0b171d,0 2px 6px #0008}
+.asset-dial:focus-visible{outline:3px solid #ffd977}.asset-dial i{position:absolute;width:4px;height:22px;left:calc(50% - 2px);top:4px;border-radius:3px;background:#ffd46d;transform-origin:50% 25px;transform:rotate(var(--dial-angle,0deg));pointer-events:none}
+.asset-inline{grid-template-columns:auto 1fr;align-items:center;gap:5px}.asset-fields{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.asset-fields input,.asset-fields select{width:100%}.asset-snap{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0;padding:5px;border:1px solid #547481;border-radius:7px}
+.asset-snap legend{padding:0 3px;color:#e4cf91}.asset-check{display:flex!important;align-items:center;gap:5px}.asset-check input{min-height:auto}
+.asset-group-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px}.asset-controls hr{width:100%;border:0;border-top:1px solid #466875;margin:1px 0}
+#asset-status{padding:6px;border-radius:6px;background:#0a2029;color:#ffe5a2;line-height:1.4;overflow-wrap:anywhere}
+@media(max-width:700px){.asset-studio{inset:2px}.asset-studio-head{padding:5px 7px}.asset-studio-head small{display:none}
+ .asset-workspace{grid-template-columns:1fr;grid-template-rows:minmax(260px,48dvh) minmax(0,1fr)}.asset-controls{border-left:0;border-top:1px solid #57798a;padding:6px}
+ .asset-dial{width:52px;height:52px}.asset-dial i{height:19px;transform-origin:50% 23px}}
 .railway-staff-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.5rem 0}
 .railway-staff-controls span{flex-basis:100%}
 #harbor-panel{max-height:min(88vh,750px);overflow:auto}
