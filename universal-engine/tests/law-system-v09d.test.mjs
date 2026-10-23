@@ -143,3 +143,27 @@ test("actual guard hits use HP rather than panel instant kills, and persist thro
  assert.equal(reload.guardTargets("forest")[0].hp,first.hp-15);
  assert.ok(reload.district("forest").hostile);
 });
+
+test("permanent paper warrant is issued on a witnessed crime, live chase is temporary",()=>{
+ const law=new LawSystem();
+ assert.equal(law.warrant("capital"),null);
+ law.reportCrime("capital","theft");
+ const posted=law.warrant("capital");
+ assert.equal(posted.name,"開拓者");
+ assert.ok(posted.reward>0);
+ law.advance(.1,{day:1,settlementId:"port"});
+ assert.equal(law.warrant("capital").livePursuit,false);
+ assert.equal(law.warrant("capital").reward,posted.reward);
+ const revived=new LawSystem(law.snapshot());
+ assert.equal(revived.warrant("capital").reward,posted.reward);
+});
+
+test("serious wanted crimes authorize lethal force, but depleted HP takes priority over detention",()=>{
+ const law=new LawSystem();
+ law.reportCrime("capital","murder");
+ law.advance(.1,{day:1,settlementId:"capital",x:16,z:18});
+ assert.ok(law.district("capital").hostile);
+ const hits=law.advance(2,{day:1,settlementId:"capital",x:16,z:18,stamina:0,hp:0});
+ assert.equal(hits.some(x=>x.type==="detained"),false);
+ assert.equal(law.custody,null);
+});
