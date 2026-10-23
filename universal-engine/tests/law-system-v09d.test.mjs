@@ -167,3 +167,20 @@ test("serious wanted crimes authorize lethal force, but depleted HP takes priori
  assert.equal(hits.some(x=>x.type==="detained"),false);
  assert.equal(law.custody,null);
 });
+
+test("custody has a finite prison sentence alternative even without coins",()=>{
+ const law=new LawSystem();
+ law.reportCrime("mountain","murder");
+ law.detain("mountain");
+ const fine=law.custody.fine;
+ assert.ok(fine>0);
+ assert.equal(law.payFine("mountain",()=>false).ok,false);
+ const before=law.day;
+ const served=law.serveSentence("mountain");
+ assert.equal(served.ok,true);
+ assert.ok(served.days>=1&&served.days<=90);
+ assert.equal(law.day,before+served.days);
+ assert.equal(law.custody,null);
+ assert.equal(law.level("mountain"),0);
+ assert.equal(law.history.at(-1).type,"servedSentence");
+});
