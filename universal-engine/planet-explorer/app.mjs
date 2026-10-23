@@ -59,7 +59,7 @@ import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-sl
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem} from "./law-system.mjs?v=0.9g-defense";
-import {installLawUI} from "./law-ui.mjs?v=0.9e-guard";
+import {installLawUI} from "./law-ui.mjs?v=0.9g-defense";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
