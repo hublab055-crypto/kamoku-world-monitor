@@ -109,7 +109,7 @@ function saveFactionJournal(){
  try{if(factionStrategy)localStorage.setItem(FACTION_JOURNAL_KEY,JSON.stringify(factionStrategy.snapshot()));}
  catch(_){log("国家外交・軍事データを保存できませんでした");}
 }
-function saveLawJournal(){try{localStorage.setItem(LAW_JOURNAL_KEY,JSON.stringify(law.snapshot()));}catch(_){log("治安・継承データを保存できませんでした");}}
+function saveLawJournal(){try{localStorage.setItem(LAW_JOURNAL_KEY,JSON.stringify(law.snapshot()));}catch(_){log("治安・継承データを保存できませんでした");}lawUI?.refresh();}
 function loadLawJournal(){try{return JSON.parse(localStorage.getItem(LAW_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function saveRailwayJournal(){
  try{if(railway)localStorage.setItem(RAILWAY_JOURNAL_KEY,JSON.stringify(railway.snapshot()));}
