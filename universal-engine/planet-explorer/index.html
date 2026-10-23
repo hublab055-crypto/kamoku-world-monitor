@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.9c-asset-v2">
+<link rel="stylesheet" href="./style.css?v=0.9g-rail-law">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -544,7 +544,14 @@
 <aside id="railway-security-hud" class="railway-security-hud" aria-live="assertive" hidden>
  <strong id="railway-security-title">⚠️ 鉄道保安</strong>
  <span id="railway-security-detail">線路内から退出してください。</span>
- <button type="button" id="railway-bail" hidden>罰金を支払って保釈</button>
+ <div class="railway-security-choices">
+  <button type="button" id="railway-comply" hidden>▶ 従う（線路から出る）</button>
+  <button type="button" id="railway-surrender" hidden>▶ 投降</button>
+  <button type="button" id="railway-flee" hidden>▶ 投降しない</button>
+  <button type="button" id="railway-resist" hidden>⚔️ 抵抗する</button>
+  <button type="button" id="railway-bail" hidden>罰金を支払って保釈</button>
+  <button type="button" id="railway-serve" hidden>📆 服役して釈放</button>
+ </div>
 </aside>
 <button type="button" id="town-interior-exit" class="town-interior-exit" hidden
  aria-label="建物の外に出る">🚪 外へ</button>
@@ -1276,6 +1283,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9g-strategy"></script>
+<script type="module" src="./app.mjs?v=0.9h-arrest-dialogue"></script>
 </body>
 </html>

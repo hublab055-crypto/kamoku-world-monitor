@@ -85,7 +85,7 @@ export function installWorldFeedbackUI({getRenderer,getController,onCommand=()=>
   const renderer=getRenderer(),controller=getController();
   if(!renderer||!controller)return;
   const width=renderer.canvas?.clientWidth||1,height=renderer.canvas?.clientHeight||1;
-  const layout=feedback.layout({actors:renderer.screenActors,enemies:renderer.screenEnemies,width,height});
+  const layout=feedback.layout({actors:[...renderer.screenActors,...(renderer.screenGuards||[])],enemies:[...renderer.screenEnemies,...(renderer.screenGuards||[])],width,height});
   // 32 small nodes maximum, reusable across frames. Plain text only.
   const ids=layout.map(e=>e.id).join(",");
   if(ids!==visibleIds){

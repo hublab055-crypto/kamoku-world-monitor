@@ -41,20 +41,30 @@ export class BattleTest{
   return {ok:true,enemy,message:"👾 "+config.name+"が前方に出現しました（HP "+config.hp+"）。"};
  }
  /** Animated approach, attack, guard, hit and death in isolated battle sandbox. */
- advance(dt,player,playerAction=null,squad=null){
+ advance(dt,player,playerAction=null,squad=null,{guardTargets=[],onGuardHit=null}={}){
   if(!Number.isFinite(dt)||dt<0)throw TypeError("Invalid battle timestep");
   if(!player)return;
   const step=clamp(dt,0,.1);
   this.playerGuard=Math.max(0,this.playerGuard-step);
   // Enemy squads share a target, while lone enemies seek their nearest opponent.
   const focus=new Map();
+  const guards=(Array.isArray(guardTargets)?guardTargets:[]).filter(g=>g&&g.hp>0&&Number.isFinite(g.x)&&Number.isFinite(g.z));
+  const nearestGuard=point=>{
+   let best=65,candidate=null;
+   for(const g of guards){if(g.hp<=0)continue;
+    const d=Math.hypot(g.x-point.x,g.z-point.z);
+    if(d<best){best=d;candidate=g;}
+   }
+   return candidate?{kind:"guard",id:candidate.id,control:candidate,distance:best}:null;
+  };
   if(squad){
    for(const unit of this.enemyUnits){
     const living=unit.members.map(id=>this.enemies.find(e=>e.id===id&&e.hp>0)).filter(Boolean);
     if(!living.length)continue;
     const center={x:living.reduce((n,e)=>n+e.x,0)/living.length,
      z:living.reduce((n,e)=>n+e.z,0)/living.length};
-    focus.set(unit.id,nearestAliveAlly(center,squad,player,this.playerHp).id);
+    const ally=nearestAliveAlly(center,squad,player,this.playerHp),defender=nearestGuard(center);
+   focus.set(unit.id,defender&&defender.distance<=ally.distance+9?{guardId:defender.id}:ally.id);
    }
   }
   for(const e of this.enemies){
@@ -62,9 +72,16 @@ export class BattleTest{
    e.animTime=(e.animTime||0)+step;
    e.attackCooldown=Math.max(0,(e.attackCooldown||0)-step);
    e.guardCooldown=Math.max(0,(e.guardCooldown||0)-step);
-   let target=squad?nearestAliveAlly(e,squad,player,this.playerHp):{control:player,id:"player"};
+   let target=squad?nearestAliveAlly(e,squad,player,this.playerHp):
+    {control:player,id:"player",distance:Math.hypot(e.x-player.x,e.z-player.z)};
+   const defender=nearestGuard(e);
+   if(defender&&defender.distance<=target.distance+7)target=defender;
    const focused=e.unitId?focus.get(e.unitId):null;
-   if(focused&&focused!=="player"&&squad?.get(focused)?.hp>0)
+   if(focused?.guardId){
+    const guard=guards.find(g=>g.id===focused.guardId&&g.hp>0);
+    if(guard&&Math.hypot(guard.x-e.x,guard.z-e.z)<=65)
+     target={kind:"guard",id:guard.id,control:guard};
+   }else if(focused&&focused!=="player"&&squad?.get(focused)?.hp>0)
     target={control:squad.get(focused).control,id:focused};
    else if(focused==="player"&&this.playerHp>0)target={control:player,id:"player"};
    const aim=target.control;
@@ -82,15 +99,26 @@ export class BattleTest{
     // Damage only on the animated weapon's impact; never every frame.
     if(e.animTime>=.52&&!e.attackLanded){
      e.attackLanded=true;
-     if(d<3.0&&(target.id==="player"?this.playerHp>0:(squad.get(target.id)?.hp||0)>0)){
+     const viable=target.kind==="guard"?guards.some(g=>g.id===target.id&&g.hp>0):
+      target.id==="player"?this.playerHp>0:(squad?.get(target.id)?.hp||0)>0;
+     if(d<3.0&&viable){
       const points=e.type==="orc"?12:e.type==="demon"?14:e.type==="skeleton"?7:8;
-      const ally=target.id==="player"?null:squad?.get(target.id);
-      const defending=target.id==="player"?this.playerGuard>0:(ally?.guardTime||0)>0;
-      const dealt=defending?Math.max(1,Math.round(points*(target.id==="player"?this.playerGuardFactor:.35))):points;
-      if(ally){ally.hp=Math.max(0,ally.hp-dealt);if(!ally.hp)ally.status="戦闘不能";}
-      else this.playerHp=Math.max(0,this.playerHp-dealt);
-      this.enemyHits.push({name:e.name,damage:dealt,hp:ally?.hp??this.playerHp,actorId:target.id,
-       message:e.name+" → "+(ally?.name||"プレイヤー")+"：-"+dealt+" HP"+(defending?"（防御）":"")});
+      if(target.kind==="guard"){
+       const hit=typeof onGuardHit==="function"?onGuardHit(target.id,points,e):null;
+       if(hit?.ok){
+        const guard=guards.find(g=>g.id===target.id);if(guard)guard.hp=hit.hp;
+        this.enemyHits.push({name:e.name,damage:hit.damage,hp:hit.hp,guardId:target.id,
+         message:e.name+" → 衛兵：-"+hit.damage+" HP"+(hit.defeated?"（撃破）":"")});
+       }
+      }else{
+       const ally=target.id==="player"?null:squad?.get(target.id);
+       const defending=target.id==="player"?this.playerGuard>0:(ally?.guardTime||0)>0;
+       const dealt=defending?Math.max(1,Math.round(points*(target.id==="player"?this.playerGuardFactor:.35))):points;
+       if(ally){ally.hp=Math.max(0,ally.hp-dealt);if(!ally.hp)ally.status="戦闘不能";}
+       else this.playerHp=Math.max(0,this.playerHp-dealt);
+       this.enemyHits.push({name:e.name,damage:dealt,hp:ally?.hp??this.playerHp,actorId:target.id,
+        message:e.name+" → "+(ally?.name||"プレイヤー")+"：-"+dealt+" HP"+(defending?"（防御）":"")});
+      }
      }
     }
     if(e.animTime<1.03)continue;
@@ -111,7 +139,8 @@ export class BattleTest{
     e.x+=dx/(d||1)*travel;e.z+=dz/(d||1)*travel;
     e.walkPhase=(e.walkPhase||0)+travel*6.5;
     if(e.anim!=="walk"){e.anim="walk";e.animTime=0;}
-   }else if(e.attackCooldown===0&&(target.id==="player"?this.playerHp>0:(squad?.get(target.id)?.hp||0)>0)){
+   }else if(e.attackCooldown===0&&(target.kind==="guard"?guards.some(g=>g.id===target.id&&g.hp>0):
+    target.id==="player"?this.playerHp>0:(squad?.get(target.id)?.hp||0)>0)){
     e.anim="attack";e.animTime=0;e.attackLanded=false;
    }else if(e.anim!=="idle"){
     e.anim="idle";e.animTime=0;

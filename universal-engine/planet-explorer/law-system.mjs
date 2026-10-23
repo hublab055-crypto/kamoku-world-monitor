@@ -3,7 +3,7 @@
  * Inspired by tiered pursuit and RPG surrender/bounty systems; no game assets copied.
  */
 export const LAW_SCHEMA=1;
-export const CRIME_POINTS=Object.freeze({trespass:12,theft:18,assault:32,escape:15,attackGuard:38,killGuard:75,murder:100});
+export const CRIME_POINTS=Object.freeze({trespass:12,armedRefusal:18,theft:18,assault:32,escape:15,attackGuard:38,killGuard:75,murder:100});
 export const WANTED_THRESHOLDS=Object.freeze([0,10,35,80,150,260]);
 export const wantedLevel=points=>{const p=Math.max(0,Number(points)||0);for(let i=5;i>=1;i--)if(p>=WANTED_THRESHOLDS[i])return i;return 0;};
 const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
@@ -43,7 +43,11 @@ export class LawSystem{
    this.factions[id]={
     heat:clamp(finite(s.heat),0,10000),alert:clamp(finite(s.alert),0,100),
     pursuit:Boolean(s.pursuit),lastSeenDay:finite(s.lastSeenDay,-1),
-    hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
+    hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown)&&!Boolean(s.challengePending),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
+    defenseAlert:Boolean(s.defenseAlert),
+    warningKind:null, // unacknowledged warnings must be spoken again after loading
+    warningSpeakerId:typeof s.warningSpeakerId==="string"?s.warningSpeakerId:null,
+    challengePending:Boolean(s.challengePending),engaged:Boolean(s.engaged),
     owner:String(s.owner||"crown").slice(0,60),
     current:clamp(Math.trunc(finite(s.current,post.max)),0,post.max),
     reserves:clamp(Math.trunc(finite(s.reserves,0)),0,post.max),
@@ -53,7 +57,8 @@ export class LawSystem{
      id:g.id,x:finite(g.x,post.x),z:finite(g.z,post.z),kind:g.kind==="knight"?"knight":"guard",
      stamina:clamp(finite(g.stamina,100),0,100),hp:clamp(finite(g.hp,100),0,160),
      yaw:finite(g.yaw),walkPhase:finite(g.walkPhase),patrolIndex:Math.trunc(finite(g.patrolIndex))%4,
-     mode:["patrol","chase","attack","warning","return"].includes(g.mode)?g.mode:"patrol"
+     strikeCooldown:Math.max(0,finite(g.strikeCooldown)),defenseTargetId:g.defenseTargetId??null,
+     mode:["patrol","chase","attack","warning","return","defend"].includes(g.mode)?g.mode:"patrol"
     })):[],
     occupying:Array.isArray(s.occupying)?s.occupying.filter(x=>typeof x==="string").slice(0,50):[]
    };
@@ -85,30 +90,40 @@ export class LawSystem{
   s.heat=clamp(s.heat+points,0,10000);
   s.alert=clamp(s.alert+points*.6,0,100);
   s.pursuit=true;s.lastSeenDay=this.day;
-  // Serious crimes authorize direct armed apprehension rather than polite questioning.
-  if(this.level(id)>=3){s.hostile=true;s.challengeShown=true;}
+  // All warrants require a spoken encounter, including high-level crimes.
+  // Being wanted alone never implies refusing surrender.
   this.history.push({day:this.day,type:"crime",id,kind,reporter});
-  this.notice="🚨 "+GUARD_POSTS[id].name+"：手配レベル "+this.level(id);
+  this.notice="🚨 "+GUARD_POSTS[id].name+"：手配 "+"❌".repeat(this.level(id));
   return {ok:true,reported:true,level:this.level(id),points,message:this.notice};
  }
  addWitnessReport(id,kind){return this.reportCrime(id,kind,{witnessed:true});}
+ /** Settle only a railway trespass charge, not independent crimes like assault. */
+ settleRailTrespass(id){
+  const district=this.district(id);if(!district)return false;
+  district.heat=Math.max(0,district.heat-CRIME_POINTS.trespass);
+  if(this.level(id)===0){district.pursuit=false;district.hostile=false;district.challengeShown=false;}
+  this.history.push({day:this.day,type:"railFineSettled",id});
+  return true;
+ }
+
  /** No random spawning. Guards leave a post's finite personnel pool; replacements are daily-capped. */
- dispatch(id,x=0,z=0){
+ dispatch(id,x=0,z=0,minimum=0){
   const s=this.district(id),post=GUARD_POSTS[id];
   if(!s||s.owner!=="crown"||s.current<=0)return [];
   // Even peaceful towns have actual patrols, drawn from the same finite roster.
-  const desired=[2,3,4,5,7,10][this.level(id)];
+  const desired=Math.min(post.max,Math.max([2,3,4,5,7,10][this.level(id)],Math.trunc(minimum)||0));
   const sent=[];
   while(s.deployed.length<desired&&s.current>0){
    const kind=this.level(id)>=4&&s.deployed.length%3===0?"knight":"guard";
    const guard={id:id+":guard:"+ ++this.seq,x:post.x,z:post.z,kind,hp:kind==="knight"?160:100,
-    stamina:100,yaw:0,walkPhase:0,patrolIndex:s.deployed.length%4,mode:"patrol"};
+    stamina:100,yaw:0,walkPhase:0,patrolIndex:s.deployed.length%4,mode:"patrol",strikeCooldown:0,defenseTargetId:null};
    s.deployed.push(guard);s.current--;sent.push(guard);
   }
   return sent;
  }
  /** Emits events; time is supplied by the world's existing simulation clock. */
- advance(dt,{day=this.day,settlementId="wilderness",x=0,z=0,stamina=100,hp=100,eligible=true,passable=null}={}){
+ advance(dt,{day=this.day,settlementId="wilderness",x=0,z=0,stamina=100,hp=100,
+  eligible=true,playerEligible=true,hostiles=[],passable=null,armedWeapons=[],restrictedZone=false}={}){
   const events=[];if(this.gameOver||this.pendingDeath||this.custody)return events;
   const nextDay=Math.max(this.day,finite(day,this.day));
   for(const [id,s] of Object.entries(this.factions)){
@@ -124,21 +139,43 @@ export class LawSystem{
    }else if(now>prev){s.replenishedDay=now;}
    if(id!==settlementId){s.pursuit=false;s.challengeShown=false;s.lostSeconds=0;s.alert=Math.max(0,s.alert-Math.max(0,dt)*4);continue;}
    if(!eligible)continue;
-   const additions=this.dispatch(id,x,z),level=this.level(id);
+   // Garrison scouts relay a warning about invading squads up to 180m from
+   // their station; an alarm draws extra troops from the same finite roster.
+   const threats=(Array.isArray(hostiles)?hostiles:[]).filter(e=>e&&e.hp>0&&Number.isFinite(e.x)&&Number.isFinite(e.z)&&
+    Math.hypot(e.x-post.x,e.z-post.z)<180).slice(0,80);
+   if(threats.length&&!s.defenseAlert&&s.owner==="crown")
+    events.push({type:"defenseAlarm",id,count:threats.length,
+     message:"📯 "+post.name+"：敵部隊 "+threats.length+"体を発見！ 守備隊が出動します"});
+   s.defenseAlert=Boolean(threats.length);
+   const minimum=threats.length?2+Math.ceil(threats.length/2):0;
+   const additions=this.dispatch(id,x,z,minimum),level=this.level(id);
    if(additions.length&&level>0)events.push({type:"dispatch",id,count:additions.length,message:"🏰 "+post.name+"から"+additions.length+"名を派遣"});
    let contact=false,spotted=false;
    for(const guard of s.deployed){
     if(guard.hp<=0)continue;
     const dx=x-guard.x,dz=z-guard.z,dist=Math.hypot(dx,dz);
     // No omniscience: beyond visual range guards continue their assigned patrol.
-    const sees=level>0&&dist<=55;
+    guard.strikeCooldown=Math.max(0,(guard.strikeCooldown||0)-Math.max(0,Math.min(dt,.25)));
+    let enemy=null,enemyDist=180;
+    for(const candidate of threats){
+     const d=Math.hypot(candidate.x-guard.x,candidate.z-guard.z);
+     if(d<enemyDist){enemy=candidate;enemyDist=d;}
+    }
+    const sees=playerEligible&&level>0&&dist<=55;
     if(sees)spotted=true;
     let tx,tz,speed,stop;
-    if(sees){
+    if(enemy){
+      // Defend nearby residents and the garrison even when the player has no warrant.
+      guard.mode="defend";guard.defenseTargetId=enemy.id;
+      tx=enemy.x;tz=enemy.z;stop=2.35;
+      speed=guard.kind==="knight"?4.9:3.65;
+    }else if(sees){
+      guard.defenseTargetId=null;
       guard.mode=s.hostile&&dist<4.5?"attack":dist<4.5&&level<=2?"warning":"chase";
       tx=x;tz=z;stop=s.hostile?2.25:3;
       speed=guard.kind==="knight"?4.6:3.2;
     }else{
+      guard.defenseTargetId=null;
       guard.mode=level>0&&s.pursuit?"return":"patrol";
       // Four posts on a loop: visible, repeatable foot patrol around the station.
       const offsets=[[12,9],[-11,11],[-13,-9],[10,-11]];
@@ -158,40 +195,98 @@ export class LawSystem{
        guard.yaw=Math.atan2(vx,vz);
       }
     }
-    if(sees&&dist<=4.3)contact=true;
+    if(sees&&dist<=4.3&&!enemy)contact=true;
+    // Strike only on cooldown and inside weapon range, never each render frame.
+    if(enemy&&enemyDist<=3.35&&guard.strikeCooldown<=0){
+     guard.strikeCooldown=guard.kind==="knight"?1.0:1.35;
+     events.push({type:"guardAttack",id,guardId:guard.id,targetId:enemy.id,
+      damage:guard.kind==="knight"?19:12,kind:guard.kind,
+      message:(guard.kind==="knight"?"⚔️ 騎士":"🛡️ 衛兵")+"が"+(enemy.name||"敵")+"を攻撃"});
+    }
    }
-   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;if(level>=3)s.hostile=true;}
-   else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){s.pursuit=false;s.challengeShown=false;s.hostile=false;}}
+   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;}
+   else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){
+    s.pursuit=false;s.challengeShown=false;s.challengePending=false;
+    if(!s.engaged)s.hostile=false;
+   }}
    s.alert=Math.max(0,s.alert-(contact?0:Math.max(0,dt)*.3));
-   if(contact&&level<=2&&!s.challengeShown){
-    s.challengeShown=true;events.push({type:"challenge",id,message:"衛兵「止まれ！ 武器を置いて投降せよ」"});
+   const armed=Array.isArray(armedWeapons)&&armedWeapons.length>0;
+   if(s.warningKind&&(
+      s.warningKind==="weapon"&&!armed||s.warningKind==="restricted"&&!restrictedZone)){
+    events.push({type:"complied",id,speakerId:s.warningSpeakerId,
+      speech:"それでいい。",message:"衛兵「それでいい。」監視を解きました。"});
+    s.warningKind=null;s.warningSpeakerId=null;
    }
-   // Host handles periodic nonlethal/lethal damage after refusal.
-   if(contact&&s.hostile&&dt>0){
-    s.attackTimer=(finite(s.attackTimer)+dt);
+   const nearbyGuard=s.deployed.find(g=>g.hp>0&&Math.hypot(g.x-x,g.z-z)<=12);
+   if(level===0&&playerEligible&&s.owner==="crown"&&!s.warningKind&&!s.defenseAlert&&nearbyGuard){
+    const kind=restrictedZone?"restricted":armed?"weapon":null;
+    if(kind){
+     s.warningKind=kind;s.warningSpeakerId=nearbyGuard.id;
+     const speech=kind==="restricted"?
+      "ここは立入禁止区域だ。外に出なさい。":"ここは衛兵の管轄だ。武器をしまいなさい。";
+     events.push({type:"territoryWarning",id,kind,speakerId:nearbyGuard.id,speech,
+      message:"衛兵「"+speech+"」"});
+    }
+   }
+   // A warrant is a real conversation, never an automatic arrest.
+   if(playerEligible&&contact&&level>0&&!s.engaged&&!s.challengeShown){
+    s.warningKind=null;s.warningSpeakerId=null;
+    s.challengeShown=true;s.challengePending=true;
+    const guard=s.deployed.find(g=>g.hp>0&&Math.hypot(g.x-x,g.z-z)<=5);
+    const speech="あなたには逮捕状が出ている。武器をしまい投降しなさい。";
+    events.push({type:"challenge",id,speakerId:guard?.id||null,speech,
+     message:"衛兵「"+speech+"」"});
+   }
+   // Only an explicit refusal or actual attack grants permission to suppress.
+   if(playerEligible&&contact&&s.engaged&&s.hostile&&dt>0){
+    s.attackTimer=finite(s.attackTimer)+dt;
     if(s.attackTimer>=1.5){
      s.attackTimer=0;events.push({type:"guardHit",id,staminaDamage:12,hpDamage:this.level(id)>=4?14:4,
       message:"衛兵から攻撃を受けた"});
      if(stamina<=0&&hp>0)events.push(this.detain(id));
     }
    }
-   if(contact&&stamina<=0&&hp>0)events.push(this.detain(id));
+   if(playerEligible&&contact&&s.engaged&&stamina<=0&&hp>0)
+    events.push(this.detain(id));
   }
   this.day=nextDay;
   return events.filter(Boolean);
  }
+ respondWarning(id,choice){
+  const s=this.district(id);if(!s?.warningKind)return {ok:false,message:"現在、警告は出ていません"};
+  if(choice==="comply"){
+   if(s.warningKind==="weapon")return {ok:true,action:"stow",message:"武器をしまってください"};
+   if(s.warningKind==="restricted")return {ok:true,action:"leave",message:"立入禁止区画から退出してください"};
+  }
+  if(choice==="refuse"){
+   const kind=s.warningKind==="weapon"?"armedRefusal":"trespass";
+   s.warningKind=null;s.warningSpeakerId=null;
+   const report=this.reportCrime(id,kind);
+   return {...report,action:"refusedWarning",
+    message:"衛兵の警告を拒否したため手配度が上がりました。"};
+  }
+  return {ok:false,message:"不明な応答です"};
+ }
  respond(id,choice){
   const s=this.district(id);if(!s||!this.level(id))return {ok:false,message:"手配されていません"};
   if(choice==="surrender")return this.detain(id);
-  if(choice==="refuse"){s.hostile=true;s.challengeShown=true;return this.reportCrime(id,"escape");}
-  if(choice==="flee"){s.pursuit=true;s.challengeShown=true;return {ok:true,message:"逃走を開始。衛兵の視界から離れれば追跡が中断します"};}
+  if(choice==="refuse"){
+   s.engaged=true;s.hostile=true;s.challengeShown=true;s.challengePending=false;
+   const report=this.reportCrime(id,"escape");
+   return {...report,message:"衛兵「投降を拒否したな！」手配度が上がり、制圧行動が始まります。"};
+  }
+  if(choice==="flee"){
+   s.engaged=true;s.challengePending=false;s.challengeShown=true;s.pursuit=true;
+   const report=this.reportCrime(id,"escape");
+   return {...report,message:"逃走を開始しました。衛兵の視界から離れると追跡が中断します。"};
+  }
   return {ok:false,message:"不明な選択肢"};
  }
  detain(id){const s=this.district(id);if(!s||this.custody)return null;
   s.hostile=false;s.pursuit=false;s.current=clamp(s.current+s.deployed.length,0,GUARD_POSTS[id].max);s.deployed=[];s.challengeShown=false;
   this.custody={faction:id,fine:Math.max(20,Math.ceil(s.heat*2)),since:this.day};
   this.history.push({day:this.day,type:"detained",id});
-  return {type:"detained",id,message:"🔒 "+GUARD_POSTS[id].name+"に勾留された"};
+  return {ok:true,type:"detained",id,message:"🔒 "+GUARD_POSTS[id].name+"に勾留された"};
  }
  payFine(id,pay){if(!this.custody||this.custody.faction!==id)return {ok:false,message:"この管轄では勾留されていません"};
   const fine=this.custody.fine;
@@ -204,19 +299,22 @@ export class LawSystem{
  }));}
  /** Applies actual weapon damage to exactly one guard; escalates once for each hit,
   * and once again only on a lethal blow. Spawn budget is not refunded on death. */
- damageGuard(id,guardId,damage,{attackerX=null,attackerZ=null}={}){
+ damageGuard(id,guardId,damage,{attackerX=null,attackerZ=null,source="player"}={}){
   const s=this.district(id),guard=s?.deployed.find(g=>g.id===guardId&&g.hp>0);
   if(!guard||!Number.isFinite(damage)||damage<=0)return {ok:false,message:"有効な衛兵攻撃ではありません"};
   if(Number.isFinite(attackerX)&&Number.isFinite(attackerZ)&&
     Math.hypot(guard.x-attackerX,guard.z-attackerZ)>6.0)
    return {ok:false,message:"衛兵から離れすぎています"};
   guard.hp=Math.max(0,guard.hp-damage);
-  this.reportCrime(id,"attackGuard");s.hostile=true;s.challengeShown=true;
+  if(source!=="enemy"){
+   this.reportCrime(id,"attackGuard");s.engaged=true;s.hostile=true;
+   s.challengeShown=true;s.challengePending=false;
+  }
   const defeated=guard.hp===0;
   if(defeated){
-   this.reportCrime(id,"killGuard");
+   if(source!=="enemy")this.reportCrime(id,"killGuard");
    s.deployed=s.deployed.filter(g=>g.id!==guardId);
-   this.history.push({day:this.day,type:"guardDefeated",id,guardId});
+   this.history.push({day:this.day,type:source==="enemy"?"guardFallenInDefense":"guardDefeated",id,guardId});
   }
   return {ok:true,id:guardId,damage,hp:guard.hp,defeated,
    message:(guard.kind==="knight"?"騎士":"衛兵")+"に "+Math.round(damage)+" ダメージ"+(defeated?"（撃破）":"")};

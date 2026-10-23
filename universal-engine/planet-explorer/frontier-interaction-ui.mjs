@@ -42,6 +42,25 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
    button.classList.toggle("unavailable",item==="none"||count<1);
   }
  }
+ const GUARDED_WEAPONS=new Set(["sword","spear","greatsword","axe","bow"]);
+ function armedWeapons(id="player"){
+  const equipped=social.actor(id)?.hands||{};
+  return [...new Set(["right","left"].map(h=>equipped[h]).filter(i=>GUARDED_WEAPONS.has(i)))];
+ }
+ function stowWeapons(id="player"){
+  const c=get(),who=c.squad?.get(id);
+  if(!who)return {ok:false,message:"対象がいません"};
+  const equipped=social.actor(id);
+  if(!equipped)return {ok:false,message:"装備情報がありません"};
+  let stowed=0;
+  for(const hand of ["right","left"]){
+   if(!GUARDED_WEAPONS.has(social.handItem(id,hand)))continue;
+   const changed=social.equipHand(who,hand,"none",c.life,c.squad.frontier);
+   if(changed.ok){stowed++;decks[id]?.configure(decks[id].selected,{hands:{[hand]:"none"}});}
+  }
+  if(stowed){slotSignature="";syncHands();quick();updateHUD();}
+  return {ok:true,message:stowed?"武器をしまいました。":"武器は装備していません。"};
+ }
  function equipHandFromInventory(item,hand){
   const c=get(),who=actor();
   const r=social.equipHand(who,hand,item,c.life,c.squad.frontier);
@@ -719,6 +738,6 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
  return {quick,restore,snapshot,syncRoster,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
   hasTacticalArrow:id=>social.arrowCount(id,"wood")>0,
   consumeTacticalArrow:id=>social.spendArrow(id,"wood"),
-  updateTarget,selectTargetAt,isCombat,volley,addRecoveredArrow,
+  updateTarget,selectTargetAt,isCombat,volley,addRecoveredArrow,armedWeapons,stowWeapons,
   attackVariantFor:(id,kind)=>social.attackVariant(id,kind)};
 }

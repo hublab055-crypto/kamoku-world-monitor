@@ -47,8 +47,13 @@ test("three recent warnings start pursuit, capture leads to jail, and fine grant
  assert.equal(security.warningCount,2);
  for(let i=0;i<42;i++)events.push(...security.advance(.1,{stationId:station.id,x:station.x,z:station.z,eligible:true}));
  assert.ok(events.some(event=>event.type==="pursuit"));assert.equal(security.wanted,true);
- for(let i=0;i<80&&!security.jailed;i++)events.push(...security.advance(.1,{stationId:station.id,x:station.x,z:station.z,eligible:true}));
- assert.ok(security.jailed);assert.ok(events.some(event=>event.type==="jailed"));
+ for(let i=0;i<80&&!security.challenged;i++)events.push(...security.advance(.1,{stationId:station.id,x:station.x,z:station.z,eligible:true}));
+ assert.ok(events.some(event=>event.type==="challenge"));
+ assert.equal(security.jailed,null,"a warrant cannot arrest without a response");
+ for(let i=0;i<80;i++)security.advance(.1,{stationId:station.id,x:station.x,z:station.z,eligible:true});
+ assert.equal(security.jailed,null,"ignoring the dialogue is not consent");
+ const submitted=security.respond("surrender");
+ assert.equal(submitted.type,"jailed");assert.ok(security.jailed);
  const rail=new RailwaySystem(),result=security.payFine(amount=>rail.charge(amount));
  assert.equal(result.ok,true);assert.equal(RAIL_BAIL_FINE,120);assert.equal(security.state,"clear");
 });

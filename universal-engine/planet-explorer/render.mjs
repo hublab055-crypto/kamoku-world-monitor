@@ -1181,6 +1181,24 @@ export class ExplorerRenderer{
    const at=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
    return Math.max(0,terrainSurface(this.terrain,at.lat,at.lon).elevationM);
   };
+  // A visible station sentry speaks warnings even before any arrest warrant.
+  // Keep them on-screen for the "それでいい" acknowledgement after leaving the rails.
+  const security=this.railwaySecurity;
+  const showSentry=security?.state==="warned"||
+   (security?.sentryUntil>security?.elapsed);
+  const officer=security?.guard||(showSentry?security?.sentry:null);
+  if(officer&&officer.stationId===this.settlementId&&
+     Math.hypot(officer.x-s.x,officer.z-s.z)<135){
+   const y=getY(officer.x,officer.z);
+   if(!security.guard){
+    const mesh=this.lawGuardMeshes.guard.calm[0];
+    this.drawMesh(mesh,multiply4(vp,multiply4(
+     translate(officer.x-this.cx,y,officer.z-this.cz),rotateY(Math.PI))),light,1,.85);
+   }
+   const screen=projectScreen(vp,[officer.x-this.cx,y+1.85,officer.z-this.cz]);
+   if(screen?.onScreen)this.screenGuards.push({...screen,id:"railway-security:"+this.settlementId,
+    x:officer.x,z:officer.z,hp:officer.hp??100,name:"鉄道保安員",kind:"railsecurity"});
+  }
   if(Math.abs(gx)<radius&&Math.abs(gz)<radius){
    const mesh=this.lawPostMeshes[garrison.owner==="player"?"player":"crown"];
    this.drawMesh(mesh,multiply4(vp,translate(gx,getY(post.x,post.z),gz)),light,1,.74);
@@ -1188,7 +1206,7 @@ export class ExplorerRenderer{
   for(const guard of garrison.deployed){
    if(guard.hp<=0||Math.hypot(guard.x-s.x,guard.z-s.z)>radius)continue;
    const groundY=getY(guard.x,guard.z);
-   const hostile=garrison.hostile&&(guard.mode==="attack"||guard.mode==="chase");
+   const hostile=guard.mode==="defend"||(garrison.hostile&&(guard.mode==="attack"||guard.mode==="chase"));
    const phases=this.lawGuardMeshes[guard.kind]||this.lawGuardMeshes.guard;
    const frame=((Math.floor(guard.walkPhase||0)%4)+4)%4;
    const mesh=(hostile?phases.fighting:phases.calm)[frame];
