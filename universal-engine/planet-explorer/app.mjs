@@ -446,7 +446,7 @@ function init(saved=null){
       if(townLife.coins<amount)return false;townLife.coins-=amount;saveTownJournal();return true;
     },serveTime:days=>{planet.advance(days);saveLawJournal();updateHUD();}
     }),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
-    onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();},
+    onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();lawUI?.open();},
     onSuccession:heirId=>completeSuccession(heirId),
     onFight:()=>startGuardCombat(),
     onWarningCompliance:(id,kind)=>handleGuardWarningCompliance(id,kind)
