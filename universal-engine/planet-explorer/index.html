@@ -505,7 +505,14 @@
 <aside id="railway-security-hud" class="railway-security-hud" aria-live="assertive" hidden>
  <strong id="railway-security-title">⚠️ 鉄道保安</strong>
  <span id="railway-security-detail">線路内から退出してください。</span>
- <button type="button" id="railway-bail" hidden>罰金を支払って保釈</button>
+ <div class="railway-security-choices">
+  <button type="button" id="railway-comply" hidden>🚶 警告に従って線路を出る</button>
+  <button type="button" id="railway-surrender" hidden>🙌 投降する</button>
+  <button type="button" id="railway-flee" hidden>🏃 逃走する</button>
+  <button type="button" id="railway-resist" hidden>⚔️ 抵抗する</button>
+  <button type="button" id="railway-bail" hidden>罰金を支払って保釈</button>
+  <button type="button" id="railway-serve" hidden>📆 服役して釈放</button>
+ </div>
 </aside>
 <button type="button" id="town-interior-exit" class="town-interior-exit" hidden
  aria-label="建物の外に出る">🚪 外へ</button>
@@ -1237,6 +1244,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9f-territory"></script>
+<script type="module" src="./app.mjs?v=0.9g-guards-rail-security"></script>
 </body>
 </html>
