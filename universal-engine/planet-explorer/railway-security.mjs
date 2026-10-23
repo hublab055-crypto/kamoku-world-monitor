@@ -7,6 +7,9 @@ export const RAIL_WARNING_WINDOW_SECONDS=30;
 export const RAIL_WARNING_INTERVAL_SECONDS=4;
 export const RAIL_WARNING_LIMIT=3;
 export const RAIL_BAIL_FINE=120;
+export const RAIL_CHALLENGE_SECONDS=4.8;
+export const RAIL_LOSE_PURSUIT_SECONDS=12;
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 
 function localAt(station,x,z){
  const yaw=station.site.yaw||0,c=Math.cos(yaw),s=Math.sin(yaw);
@@ -37,6 +40,13 @@ export function isRailRestricted(stationId,x,z,{margin=0}={}){
   Math.abs(local.z)<RAIL_CORRIDOR_HALF_LENGTH+margin&&!isRailwayCrossing(stationId,x,z,{margin});
 }
 
+/** Find a safe point outside the railway fence; host walks rather than teleporting. */
+export function railwaySafeExit(stationId,x,z){
+ const station=stationById(stationId);
+ if(!station||![x,z].every(Number.isFinite))return null;
+ const local=localAt(station,x,z);
+ return worldAt(station,{x:(local.x<0?-1:1)*(RAIL_CORRIDOR_HALF_WIDTH+5),z:local.z});
+}
 /** Move ambient residents to the town side of the fence without moving the player. */
 export function keepResidentOffRail(stationId,x,z,clearance=2.2){
  const station=stationById(stationId);
@@ -60,10 +70,30 @@ export class RailwaySecurity{
   this.wanted=Boolean(saved?.wanted);
   this.guard=saved?.guard&&[saved.guard.x,saved.guard.z].every(Number.isFinite)?{...saved.guard}:null;
   this.jailed=saved?.jailed&&stationById(saved.jailed.stationId)?
-   {stationId:saved.jailed.stationId,fine:RAIL_BAIL_FINE}:null;
+   {stationId:saved.jailed.stationId,fine:Math.max(RAIL_BAIL_FINE,Number(saved.jailed.fine)||RAIL_BAIL_FINE)}:null;
+   this.challenged=Boolean(saved?.challenged);
+   this.challengeRemaining=clamp(Number(saved?.challengeRemaining)||0,0,RAIL_CHALLENGE_SECONDS);
+   this.fleeing=Boolean(saved?.fleeing);this.resisting=Boolean(saved?.resisting);
+   this.lostSeconds=Math.max(0,Number(saved?.lostSeconds)||0);
+   this.attackSeconds=Math.max(0,Number(saved?.attackSeconds)||0);
  }
  get warningCount(){return this.warningTimes.length;}
- get state(){return this.jailed?"jailed":this.wanted?"wanted":this.warningCount?"warned":"clear";}
+ get state(){return this.jailed?"jailed":this.wanted?(this.challenged&&!this.fleeing&&!this.resisting?"challenged":"wanted"):
+   this.warningCount?"warned":"clear";}
+  _clear(){
+   this.jailed=null;this.wanted=false;this.guard=null;this.warningTimes=[];
+   this.wasRestricted=false;this.nextWarningAt=this.elapsed;
+   this.challenged=false;this.challengeRemaining=0;this.fleeing=false;this.resisting=false;
+   this.lostSeconds=0;this.attackSeconds=0;
+  }
+  _detain(stationId){
+   const fine=RAIL_BAIL_FINE+(this.resisting?60:0);
+   this.jailed={stationId,fine};this.wanted=false;this.guard=null;
+   this.challenged=false;this.challengeRemaining=0;this.wasRestricted=false;
+   this.fleeing=false;this.resisting=false;
+   return {type:"jailed",stationId,fine,
+    message:"保安員に確保され駅留置所へ勾留されました。罰金か服役を選べます。"};
+  }
  advance(dt,{stationId,x,z,eligible=true}={}){
   if(!Number.isFinite(dt)||dt<0)throw new RangeError("Invalid security time delta");
   this.elapsed+=Math.min(dt,.25);
