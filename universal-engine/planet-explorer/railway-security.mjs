@@ -94,7 +94,7 @@ export class RailwaySecurity{
    return {type:"jailed",stationId,fine,
     message:"保安員に確保され駅留置所へ勾留されました。罰金か服役を選べます。"};
   }
- advance(dt,{stationId,x,z,eligible=true}={}){
+ advance(dt,{stationId,x,z,eligible=true,stamina=100}={}){
   if(!Number.isFinite(dt)||dt<0)throw new RangeError("Invalid security time delta");
   this.elapsed+=Math.min(dt,.25);
   this.warningTimes=this.warningTimes.filter(t=>this.elapsed-t<=RAIL_WARNING_WINDOW_SECONDS);
@@ -102,18 +102,39 @@ export class RailwaySecurity{
   if(this.jailed)return events;
   const station=stationById(stationId);
   const restricted=Boolean(eligible&&station&&isRailRestricted(stationId,x,z));
-  if(this.wanted&&station&&this.guard){
-   if(this.guard.stationId!==stationId){
-    this.guard={stationId,x:station.site.x+10,z:station.site.z-7};
+  if(this.wanted&&station&&this.guard&&eligible){
+   if(this.guard.stationId!==stationId)this.lostSeconds+=Math.min(dt,.25);
+   let dx=x-this.guard.x,dz=z-this.guard.z,distance=Math.hypot(dx,dz);
+   if(distance>85)this.lostSeconds+=Math.min(dt,.25);
+   else if(this.guard.stationId===stationId)this.lostSeconds=Math.max(0,this.lostSeconds-Math.min(dt,.25));
+   if(this.lostSeconds>=RAIL_LOSE_PURSUIT_SECONDS){
+    this._clear();events.push({type:"evaded",stationId,message:"保安員の追跡を振り切りました。地域の手配記録は残ります。"});return events;
    }
-   const dx=x-this.guard.x,dz=z-this.guard.z,distance=Math.hypot(dx,dz);
-   const step=Math.min(distance,5.4*Math.min(dt,.25));
-   if(distance>.001){this.guard.x+=dx/distance*step;this.guard.z+=dz/distance*step;}
-   if(distance<=1.65){
-    this.jailed={stationId,fine:RAIL_BAIL_FINE};this.wanted=false;this.guard=null;
-    this.wasRestricted=false;
-    events.push({type:"jailed",stationId,fine:RAIL_BAIL_FINE,
-     message:"衛兵に確保され、駅の留置所へ勾留されました。罰金 "+RAIL_BAIL_FINE+"G で保釈できます。"});
+   if(this.guard.stationId!==stationId)return events; // No cross-town teleport
+   const stop=this.fleeing?.9:this.resisting?1.8:3;
+   const speed=this.fleeing||this.resisting?6.5:5.4;
+   const step=Math.min(Math.max(0,distance-stop),speed*Math.min(dt,.25));
+   if(distance>.00001&&step>0){
+    this.guard.x+=dx/distance*step;this.guard.z+=dz/distance*step;
+    dx=x-this.guard.x;dz=z-this.guard.z;distance=Math.hypot(dx,dz);
+   }
+   if(distance<=4.3&&!this.challenged&&!this.fleeing&&!this.resisting){
+    this.challenged=true;this.challengeRemaining=RAIL_CHALLENGE_SECONDS;
+    events.push({type:"challenge",stationId,message:"🛡️ 保安員「止まれ！ 投降するか、線路の外へ出なさい！」"});return events;
+   }
+   if(this.fleeing&&distance<=1.55){events.push(this._detain(stationId));return events;}
+   if(this.resisting&&distance<=3.4){
+    this.attackSeconds+=Math.min(dt,.25);
+    if(this.attackSeconds>=1.35){
+     this.attackSeconds=0;events.push({type:"securityHit",stationId,staminaDamage:16,hpDamage:4,
+      message:"🛡️ 保安員から制圧攻撃を受けた"});
+    }
+    if(stamina<=0)events.push(this._detain(stationId));
+    return events;
+   }
+   if(this.challenged&&distance<=4.3&&!this.fleeing&&!this.resisting){
+    this.challengeRemaining=Math.max(0,this.challengeRemaining-Math.min(dt,.25));
+    if(this.challengeRemaining===0)events.push(this._detain(stationId));
    }
    return events;
   }
@@ -122,10 +143,10 @@ export class RailwaySecurity{
    this.warningTimes=this.warningTimes.slice(-RAIL_WARNING_LIMIT);
    this.nextWarningAt=this.elapsed+RAIL_WARNING_INTERVAL_SECONDS;
    if(this.warningCount>=RAIL_WARNING_LIMIT){
-    this.wanted=true;
+    this.wanted=true;this.challenged=false;this.fleeing=false;this.resisting=false;
     this.guard={stationId,x:station.site.x+10,z:station.site.z-7};
     events.push({type:"pursuit",stationId,count:this.warningCount,
-     message:"3回目の警告に背きました。衛兵が追跡を開始しました。線路から離れても追跡は続きます。"});
+     message:"3回の警告を無視したため保安員が追跡します。接近すると投降を求められます。"});
    }else events.push({type:"warning",stationId,count:this.warningCount,
     message:"保安員：線路内は立入禁止です。柵の外へ出てください（警告 "+this.warningCount+"/"+RAIL_WARNING_LIMIT+"）。"});
   }
