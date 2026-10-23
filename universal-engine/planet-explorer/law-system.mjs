@@ -221,6 +221,17 @@ export class LawSystem{
   return {ok:true,id:guardId,damage,hp:guard.hp,defeated,
    message:(guard.kind==="knight"?"騎士":"衛兵")+"に "+Math.round(damage)+" ダメージ"+(defeated?"（撃破）":"")};
  }
+ /** Serving time is an alternative to bail, so jailed players cannot soft-lock. */
+ serveSentence(id,{days=null}={}){
+  if(!this.custody||this.custody.faction!==id)return {ok:false,message:"この地域では勾留されていません"};
+  const period=Math.max(1,Math.min(90,Math.floor(Number.isFinite(days)?days:
+   Math.ceil(this.custody.fine/30))));
+  const s=this.district(id);
+  s.heat=0;s.alert=0;s.hostile=false;s.pursuit=false;s.challengeShown=false;
+  this.custody=null;this.day+=period;
+  this.history.push({day:this.day,type:"servedSentence",id,days:period});
+  return {ok:true,days:period,message:"🔓 "+period+"日間の服役を終え釈放された"};
+ }
  attackGuard(id,guardId,{defeat=false,attackerX=null,attackerZ=null}={}){
   const s=this.district(id),index=s?.deployed.findIndex(g=>g.id===guardId)??-1;
   if(index<0)return {ok:false,message:"対象の衛兵が見つかりません"};
