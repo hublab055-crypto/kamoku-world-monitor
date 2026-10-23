@@ -78,6 +78,8 @@ export class RailwaySecurity{
    this.lostSeconds=Math.max(0,Number(saved?.lostSeconds)||0);
    this.attackSeconds=Math.max(0,Number(saved?.attackSeconds)||0);
   this.caseReported=Boolean(saved?.caseReported);
+  this.warningAcknowledged=Boolean(saved?.warningAcknowledged);
+  this.sentry=saved?.sentry&&[saved.sentry.x,saved.sentry.z].every(Number.isFinite)?{...saved.sentry}:null;
  }
  get warningCount(){return this.warningTimes.length;}
  get state(){return this.jailed?"jailed":this.wanted?(this.challenged&&!this.fleeing&&!this.resisting?"challenged":"wanted"):
@@ -86,7 +88,7 @@ export class RailwaySecurity{
    this.jailed=null;this.wanted=false;this.guard=null;this.warningTimes=[];
    this.wasRestricted=false;this.nextWarningAt=this.elapsed;
    this.challenged=false;this.challengeRemaining=0;this.fleeing=false;this.resisting=false;
-   this.lostSeconds=0;this.attackSeconds=0;this.caseReported=false;
+   this.lostSeconds=0;this.attackSeconds=0;this.caseReported=false;this.warningAcknowledged=false;
   }
   _detain(stationId){
    const fine=RAIL_BAIL_FINE+(this.resisting?60:0);
@@ -104,6 +106,7 @@ export class RailwaySecurity{
   if(this.jailed)return events;
   const station=stationById(stationId);
   const restricted=Boolean(eligible&&station&&isRailRestricted(stationId,x,z));
+  if(station)this.sentry={stationId,x:station.site.x+10,z:station.site.z-7};
   if(this.wanted&&station&&this.guard&&eligible){
    if(this.guard.stationId!==stationId)this.lostSeconds+=Math.min(dt,.25);
    let dx=x-this.guard.x,dz=z-this.guard.z,distance=Math.hypot(dx,dz);
@@ -122,7 +125,9 @@ export class RailwaySecurity{
    }
    if(distance<=4.3&&!this.challenged&&!this.fleeing&&!this.resisting){
     this.challenged=true;this.challengeRemaining=RAIL_CHALLENGE_SECONDS;
-    events.push({type:"challenge",stationId,message:"🛡️ 保安員「止まれ！ 投降するか、線路の外へ出なさい！」"});return events;
+    events.push({type:"challenge",stationId,speakerId:"railway-security:"+stationId,
+     speech:"あなたには逮捕状が出ている。武器をしまい、投降しなさい。",
+     message:"🛡️ 保安員「あなたには逮捕状が出ている。武器をしまい、投降しなさい。」"});return events;
    }
    if(this.fleeing&&distance<=1.55){events.push(this._detain(stationId));return events;}
    if(this.resisting&&distance<=3.4){
@@ -134,9 +139,9 @@ export class RailwaySecurity{
     if(stamina<=0)events.push(this._detain(stationId));
     return events;
    }
-   if(this.challenged&&distance<=4.3&&!this.fleeing&&!this.resisting){
-    this.challengeRemaining=Math.max(0,this.challengeRemaining-Math.min(dt,.25));
-    if(this.challengeRemaining===0)events.push(this._detain(stationId));
+   if(this.challenged&&!this.fleeing&&!this.resisting){
+    // An unanswered dialog is never automatic consent to arrest.
+    this.challengeRemaining=RAIL_CHALLENGE_SECONDS;
    }
    return events;
   }
@@ -150,9 +155,15 @@ export class RailwaySecurity{
     events.push({type:"pursuit",stationId,count:this.warningCount,
      message:"3回の警告を無視したため保安員が追跡します。接近すると投降を求められます。"});
    }else events.push({type:"warning",stationId,count:this.warningCount,
+    speakerId:"railway-security:"+stationId,speech:"線路内は立入禁止だ。柵の外へ出なさい。",
     message:"保安員：線路内は立入禁止です。柵の外へ出てください（警告 "+this.warningCount+"/"+RAIL_WARNING_LIMIT+"）。"});
   }
   if(!restricted){
+   if(this.warningCount&&!this.wanted){
+    this.warningTimes=[];this.wasRestricted=false;this.warningAcknowledged=true;
+    events.push({type:"complied",stationId,speakerId:"railway-security:"+stationId,
+     speech:"それでいい。",message:"保安員「それでいい。」監視が解除されました。"});
+   }
    this.nextWarningAt=this.elapsed;
    if(!this.warningCount)this.wasRestricted=false;
   }
@@ -217,6 +228,7 @@ export class RailwaySecurity{
    warningAges:this.warningTimes.map(t=>Math.max(0,this.elapsed-t)),wanted:this.wanted,
    guard:this.guard?{...this.guard}:null,jailed:this.jailed?{...this.jailed}:null,
    challenged:this.challenged,challengeRemaining:this.challengeRemaining,
-   fleeing:this.fleeing,resisting:this.resisting,lostSeconds:this.lostSeconds,attackSeconds:this.attackSeconds,caseReported:this.caseReported};
+   fleeing:this.fleeing,resisting:this.resisting,lostSeconds:this.lostSeconds,attackSeconds:this.attackSeconds,caseReported:this.caseReported,
+   warningAcknowledged:this.warningAcknowledged,sentry:this.sentry?{...this.sentry}:null};
  }
 }
