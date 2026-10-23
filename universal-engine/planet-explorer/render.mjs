@@ -46,6 +46,8 @@ import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {railwayStationGeometry,railwayConcourseGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8y-station";
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
+import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
+import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -672,6 +674,12 @@ export class ExplorerRenderer{
    this.railwayConcourseMesh=new Mesh(gl,railwayConcourseGeometry());
    this.railwayJailMesh=new Mesh(gl,railwayJailGeometry());
    this.railGuardMesh=new Mesh(gl,settlementResidentsGeometry([{id:"rail-guard",x:0,z:0,clothing:5}],()=>0));
+   this.law=null;this.screenGuards=[];
+   this.lawGuardMeshes=Object.fromEntries(["guard","knight"].map(kind=>[kind,
+    {calm:Array.from({length:4},(_,phase)=>new Mesh(gl,guardGeometry(kind,phase))),
+     fighting:Array.from({length:4},(_,phase)=>new Mesh(gl,guardGeometry(kind,phase,{hostile:true})))}]));
+   this.lawPostMeshes={crown:new Mesh(gl,guardPostGeometry()),
+    player:new Mesh(gl,guardPostGeometry({occupied:true}))};
    this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
    this.railConnectingRod=new Mesh(gl,connectingRodGeometry());
    this.railSmokePuff=new Mesh(gl,steamPuffGeometry());
@@ -984,7 +992,20 @@ export class ExplorerRenderer{
    }
    return hit;
   }
-  pickDoor(clientX,clientY){
+  /** Guard tap selection uses the same view projection as enemy/resource picking. */
+ pickGuard(clientX,clientY){
+  const rect=this.canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return null;
+  const u=(clientX-rect.left)/rect.width,v=(clientY-rect.top)/rect.height;
+  let selected=null,best=37;
+  for(const guard of this.screenGuards||[]){
+   if(!guard.onScreen)continue;
+   const d=Math.hypot((guard.u-u)*rect.width,(guard.v-v)*rect.height);
+   if(d<best){selected=guard;best=d;}
+  }
+  return selected;
+ }
+ pickDoor(clientX,clientY){
    const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
    const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
    let best=null,distance=42;
@@ -1145,6 +1166,39 @@ export class ExplorerRenderer{
     const p=projectScreen(vp,[shot.x-this.cx,shot.y,shot.z-this.cz]);
     if(p)this.screenArrows.push({...p,...shot});
    }
+  }
+ }
+ /** Render patrols and the physical spawn/return post in the active jurisdiction.
+  * Shared meshes are built once, not created per guard or per animation frame. */
+ drawLawGuards(vp,light,s,radius){
+  this.screenGuards=[];
+  const post=GUARD_POSTS[this.settlementId],garrison=this.law?.district(this.settlementId);
+  if(!post||!garrison)return;
+  const gx=post.x-this.cx,gz=post.z-this.cz;
+  const getY=(x,z)=>{
+   if(this.groundPatchData&&Math.abs(x-this.cx)<radius&&Math.abs(z-this.cz)<radius)
+    return patchSceneryHeight(this.groundPatchData,x-this.cx,z-this.cz);
+   const at=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
+   return Math.max(0,terrainSurface(this.terrain,at.lat,at.lon).elevationM);
+  };
+  if(Math.abs(gx)<radius&&Math.abs(gz)<radius){
+   const mesh=this.lawPostMeshes[garrison.owner==="player"?"player":"crown"];
+   this.drawMesh(mesh,multiply4(vp,translate(gx,getY(post.x,post.z),gz)),light,1,.74);
+  }
+  for(const guard of garrison.deployed){
+   if(guard.hp<=0||Math.hypot(guard.x-s.x,guard.z-s.z)>radius)continue;
+   const groundY=getY(guard.x,guard.z);
+   const hostile=garrison.hostile&&(guard.mode==="attack"||guard.mode==="chase");
+   const phases=this.lawGuardMeshes[guard.kind]||this.lawGuardMeshes.guard;
+   const frame=((Math.floor(guard.walkPhase||0)%4)+4)%4;
+   const mesh=(hostile?phases.fighting:phases.calm)[frame];
+   const model=multiply4(translate(guard.x-this.cx,groundY,guard.z-this.cz),rotateY(guard.yaw||0));
+   this.drawMesh(mesh,multiply4(vp,model),light,1,.82);
+   if(Math.hypot(guard.x-s.x,guard.z-s.z)>135)continue;
+   const screen=projectScreen(vp,[guard.x-this.cx,groundY+1.8,guard.z-this.cz]);
+   if(screen?.onScreen)this.screenGuards.push({...screen,id:guard.id,x:guard.x,z:guard.z,
+     name:guard.kind==="knight"?"騎士":"衛兵",kind:guard.kind,
+     hp:guard.hp,factionId:this.settlementId});
   }
  }
  drawTestEnemies(vp,light,s,radius){
@@ -1525,7 +1579,7 @@ export class ExplorerRenderer{
    if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
-  this.screenActors=[];this.screenEnemies=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  this.screenActors=[];this.screenEnemies=[];this.screenGuards=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
    return this.renderRailwayConcourse(asp);
@@ -2306,6 +2360,7 @@ export class ExplorerRenderer{
   this.drawFishingActivity(vp,light,s,waterY);
   this.drawFrontier(vp,light,s,radius);
   this.drawTestEnemies(vp,light,s,radius);
+  this.drawLawGuards(vp,light,s,radius);
   this.drawPhysicalArrows(vp,light);
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
@@ -2375,7 +2430,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

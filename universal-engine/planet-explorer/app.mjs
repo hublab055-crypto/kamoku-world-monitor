@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9c-asset-v2";
+import {ExplorerRenderer} from "./render.mjs?v=0.9e-guard-render";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -56,6 +56,9 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
+import {LawSystem} from "./law-system.mjs?v=0.9e-guard";
+import {installLawUI} from "./law-ui.mjs?v=0.9e-guard";
+import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -73,6 +76,7 @@ const FERRY_JOURNAL_KEY="universal-engine:explorer:ferry:v0.8y";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
+const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
 const TIME_SCALE_KEY="universal-engine:explorer:time-scale:v0.8x";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
@@ -82,7 +86,10 @@ let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,a
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
-let townLife=new TownLife(),townUI=null;
+let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
+let lastGuardStrike=null;
+function saveLawJournal(){try{localStorage.setItem(LAW_JOURNAL_KEY,JSON.stringify(law.snapshot()));}catch(_){log("治安・継承データを保存できませんでした");}}
+function loadLawJournal(){try{return JSON.parse(localStorage.getItem(LAW_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function saveRailwayJournal(){
  try{if(railway)localStorage.setItem(RAILWAY_JOURNAL_KEY,JSON.stringify(railway.snapshot()));}
  catch(_){log("鉄道の乗車記録を保存できませんでした");}
@@ -224,7 +231,7 @@ function faunaGroundPassable(fx,fz,tx,tz){
 }
 function init(saved=null){
  try{
-  manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;viewportGestures?.cancel();
+  manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
   orbitSelection=null;
   orbitalCitiesUI?.reset();
   $("orbit-landing-preview").hidden=true;
@@ -248,9 +255,10 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
+   law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   railwaySecurity=new RailwaySecurity(saved?.v0_8x?.security||(!saved?loadRailwaySecurityJournal():null));
-  townUI?.close(true);$("town-interior-exit").hidden=true;
+  townUI?.close(true);lawUI?.close();$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
    settlementLocations=null;
@@ -356,6 +364,7 @@ function init(saved=null){
    if(!marine.shipboard.member(marine.shipboard.helmId))marine.shipboard.assignHelm("scout");
   }
   renderer.squad=squad;
+  renderer.law=law;
   squad.attachLifestyle(life);renderer.sceneFrontier=squad.frontier;
    for(const actor of squad.agents){
     const p=squad.frontier.person(actor.id),stored=!saved?journal?.vitals?.[actor.id]:null;
@@ -418,7 +427,17 @@ function init(saved=null){
   syncCameraControls();
   rtsMode=false;rtsMulti=false;rallyPicking=false;
   autoActorId=squad.selectedAgents()[0]?.id||"player";
-  if(!faunaUI)faunaUI=installFaunaUI({
+  if(!lawUI)lawUI=installLawUI({
+    get:()=>({law,settlementId:activeSettlementId,squad,playerPosition:{x:controller.x,z:controller.z},payFine:amount=>{
+      if(townLife.coins<amount)return false;townLife.coins-=amount;saveTownJournal();return true;
+    },serveTime:days=>{planet.advance(days);saveLawJournal();updateHUD();}
+    }),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
+    onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();},
+    onSuccession:heirId=>completeSuccession(heirId),
+    onFight:()=>startGuardCombat()
+   });
+   lawUI.refresh();
+   if(!faunaUI)faunaUI=installFaunaUI({
    state:()=>({fauna,controller,actions}),log,save:saveFaunaJournal,
    refreshHud:updateHUD,passable:faunaGroundPassable,onResourcesChange:saveLifeJournal
   });
@@ -504,7 +523,7 @@ function doFrame(t){
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
-  const detained=Boolean(railwaySecurity?.jailed);
+  const detained=Boolean(railwaySecurity?.jailed||law?.custody||law?.pendingDeath||law?.gameOver);
   const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
@@ -566,6 +585,28 @@ function doFrame(t){
     !marine?.boarded&&controller.travelMode==="walk"
   })||[])handleRailwaySecurityEvent(event);
   renderer.railwaySecurity=railwaySecurity;
+  if(running&&law&&!law.custody&&!law.pendingDeath&&!law.gameOver){
+    const vitals=squad.frontier.person("player");
+    const events=law.advance(dt,{day:planet.timeDays,settlementId:activeSettlementId,
+      x:controller.x,z:controller.z,stamina:vitals.stamina,hp:battle.playerHp,
+      passable:faunaGroundPassable,
+      eligible:controller.altitudeM<=12&&!townLife.inside&&!railway?.boarded&&!ferry?.boarded&&!marine?.boarded});
+    for(const event of events){
+      if(event.message)log(event.message);
+      if(event.type==="guardHit"){
+        vitals.stamina=Math.max(0,vitals.stamina-event.staminaDamage);
+        battle.playerHp=Math.max(0,battle.playerHp-event.hpDamage);
+        worldUI?.float({kind:"hurt",text:"−"+event.staminaDamage+" ⚡ / −"+event.hpDamage+" HP",actorId:"player"});
+        if(vitals.stamina<=0&&battle.playerHp>0){const arrest=law.detain(activeSettlementId);if(arrest)events.push(arrest);}
+      }
+      if(event.type==="detained"){
+        controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
+      }
+      if(event.type==="challenge")document.getElementById("law-panel").hidden=false;
+      if(event.type==="challenge"||event.type==="detained")lawUI?.refresh();
+    }
+    if(events.length)saveLawJournal();
+  }
   marine?.update(running?dt:0,controller,terrain);
   if(onShip){
    // Keep the squad's world-space controls co-located with moving ship for RTS,
@@ -631,6 +672,35 @@ function doFrame(t){
      worldUI?.float({kind:hit.guarded?"guard":"damage",
       text:(hit.guarded?"🛡️ −":"−")+hit.damage+(hit.defeated?" ✦":""),enemyId:hit.id,duration:1.4});
     }
+    // Resolve guard damage at the actual impact frame, not every redraw.
+    if(attackInProgress&&["sword","axe","spear","greatsword"].includes(attackInProgress.kind)
+      &&attackInProgress.time/attackInProgress.duration>=.62&&lastGuardStrike!==attackInProgress){
+      lastGuardStrike=attackInProgress;
+      const kind=attackInProgress.kind,variant=attackInProgress.variant||"overhead";
+      const guards=law.guardTargets(activeSettlementId);
+      let targets=[];
+      if(kind==="spear"||kind==="greatsword"){
+       targets=sweptWeaponContacts(controller,guards,kind,variant==="combo"?"overhead":variant)
+         .map(c=>c.target);
+      }else{
+       const range=kind==="axe"?2.7:2.6,arc=variant==="sweep"?1.65:1.05;
+       targets=guards.filter(g=>{
+        const dx=g.x-controller.x,dz=g.z-controller.z;
+        const bearing=Math.atan2(dx,dz)-controller.yaw;
+        return Math.hypot(dx,dz)<range+g.radius&&
+         Math.abs(Math.atan2(Math.sin(bearing),Math.cos(bearing)))<arc;
+       });
+      }
+      for(const guard of targets.slice(0,3)){
+       const damage=kind==="spear"||kind==="greatsword"?
+         contactDamage(kind,variant==="combo"?"overhead":variant):kind==="axe"?22:18;
+       const result=law.damageGuard(activeSettlementId,guard.id,damage,
+        {attackerX:controller.x,attackerZ:controller.z});
+       if(result.ok){log("⚔️ "+result.message);
+        worldUI?.float({kind:"damage",text:"−"+damage,actorId:"player"});
+        saveLawJournal();}
+      }
+    }
     for(const attack of battle.consumeEnemyHits().slice(0,5)){
      log("🛡️ "+attack.message);
      worldUI?.float({kind:"hurt",text:"−"+attack.damage+" HP",
@@ -649,8 +719,13 @@ function doFrame(t){
      groundHeight:terrainAt,
      trees:renderer.resourceNodes||[],
      buildings:actions.structures,
-     enemies:battle.enemies,
-     onEnemyHit:(enemy,damage)=>battle.damage(enemy,damage)
+     enemies:[...battle.enemies,...law.guardTargets(activeSettlementId)],
+     onEnemyHit:(enemy,damage)=>{
+       if(enemy.type!=="lawguard")return battle.damage(enemy,damage);
+       const result=law.damageGuard(activeSettlementId,enemy.id,damage);
+       if(result.ok)saveLawJournal();
+       return result;
+      }
     });
     for(const event of events){
      if(event.hit){
@@ -679,8 +754,14 @@ function doFrame(t){
      if(actor.id==="player")battle.playerHp=outcome.hp;
      else actor.hp=outcome.hp;
     }
+    if(battle.playerHp<=0&&!law.pendingDeath&&!law.gameOver){
+      const heirs=law.die({cause:"戦闘による死亡"});
+      running=false;simWorld.clock.paused=true;saveLawJournal();lawUI?.refresh();
+      document.getElementById("law-panel").hidden=false;
+      log(heirs.length?"🪦 主人公死亡。治安・手配パネルから継承者を選択してください。":"🪦 継承者がいません。ゲームオーバーです。");
+    }
     vitalsSaveElapsed+=dt;
-    if(vitalsSaveElapsed>=10){vitalsSaveElapsed=0;saveLifeJournal();}
+    if(vitalsSaveElapsed>=10){vitalsSaveElapsed=0;saveLifeJournal();saveLawJournal();}
    }
    // Lifestyle uses an inverse hunger gauge: 100 means very hungry.
    life.stats.hunger=100-squad.frontier.person("player").hunger;
@@ -775,6 +856,7 @@ function refreshShipCrewChoices(){
  }
 }
 function updateHUD(){
+  lawUI?.refresh();
  const g=terrainSurface(terrain,controller.lat,controller.lon);
  const climate=weather.sample(controller.lat,controller.lon,g.elevationM);
  const isSurface=controller.altitudeM<=12;
@@ -1007,8 +1089,39 @@ $("next-season").addEventListener("click",()=>{
  planet.advance(90);log("惑星時間を90日進めました。");updateHUD();
 });
 $("play").addEventListener("click",()=>{
+ if(law?.custody||law?.pendingDeath||law?.gameOver){log("勾留中・継承待ち・ゲームオーバー中は再生できません");return;}
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
+function startGuardCombat(){
+ if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"現在は戦闘できません"};
+ const district=law.district(activeSettlementId);
+ const guard=district?.deployed.find(g=>Math.hypot(g.x-controller.x,g.z-controller.z)<3.6);
+ if(!guard)return {ok:false,message:"武器で攻撃するには衛兵に接近してください"};
+ controller.yaw=Math.atan2(guard.x-controller.x,guard.z-controller.z);
+ const wanted=law.level(activeSettlementId);
+ if(wanted>0){const result=law.respond(activeSettlementId,"refuse");if(result?.ok)saveLawJournal();}
+ const started=actions.start("sword",controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
+   frontierUI?.attackVariantFor("player","sword")||"overhead");
+ if(started){
+  const p=squad.frontier.person("player");p.stamina=clamp(p.stamina-3,0,100);
+  return {ok:true,message:"⚔️ 剣で戦闘開始。攻撃の命中時に衛兵のHPが減少します"};
+ }
+ return {ok:false,message:actions.message};
+}
+function completeSuccession(id){
+ const candidate=squad?.get(id);
+ if(!candidate||candidate.hp<=0)return {ok:false,message:"その人物は生存していません"};
+ const result=law.succeed(id);
+ if(!result.ok)return result;
+ const player=squad.get("player"),vitals=squad.frontier.person("player"),heirVitals=squad.frontier.person(id);
+ Object.assign(vitals,normalizeVitals(heirVitals));
+ battle.playerHp=Math.max(1,Math.min(100,candidate.hp));player.name=result.person.name;
+ controller.x=candidate.control.x;controller.z=candidate.control.z;
+ const loc=controller.locationAt(controller.x,controller.z);controller.lat=loc.lat;controller.lon=loc.lon;
+ candidate.hp=0;
+ squad.repositionAfterLanding();running=true;simWorld.clock.paused=false;
+ saveLawJournal();saveLifeJournal();updateHUD();return result;
+}
 function captureGame(){
   return {format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
@@ -1025,13 +1138,13 @@ function captureGame(){
          v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot(),
          v0_8x:{schemaVersion:1,timeScale:normalizeTimeScale($("days-per-second").value),security:railwaySecurity.snapshot()},
          v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()},
-   v0_8y:{schemaVersion:1,ferry:ferry.snapshot()}};
+   v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
  try{
   const data=captureGame();
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();
-   saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();
+   saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();saveLawJournal();
   log("v0.8x：切符・鉄道保安・時間倍率を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
@@ -1127,7 +1240,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);localStorage.removeItem(LAW_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
@@ -1744,6 +1857,12 @@ function handleSceneTap({x,y,shiftKey=false}){
  if(constructionUI?.tap(x,y))return;
  const arrow=renderer.pickArrow(x,y);
  if(arrow){orderArrowPickup(arrow);return;}
+ const tappedGuard=renderer.pickGuard(x,y);
+ if(tappedGuard){
+  const current=law.level(activeSettlementId);
+  log(current?"🛡️ "+tappedGuard.name+"があなたを警戒しています。":"🛡️ "+tappedGuard.name+"「街の安全を守っています」");
+  lawUI?.open();return;
+ }
  if(frontierUI?.selectTargetAt(x,y)){renderer.selectedResource=null;return;}
  if(rtsMode&&screenActorAt(x,y)){commandRtsTap(x,y,shiftKey);return;}
  const animal=renderer.pickAnimal(x,y);
@@ -3001,7 +3120,7 @@ $("harbor-alight").addEventListener("click",()=>harborAction(()=>{
 let ferryDialogue=0;
 $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
-window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();});
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
