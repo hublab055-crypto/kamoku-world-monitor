@@ -596,7 +596,7 @@ function doFrame(t){
         vitals.stamina=Math.max(0,vitals.stamina-event.staminaDamage);
         battle.playerHp=Math.max(0,battle.playerHp-event.hpDamage);
         worldUI?.float({kind:"hurt",text:"−"+event.staminaDamage+" ⚡ / −"+event.hpDamage+" HP",actorId:"player"});
-        if(vitals.stamina<=0){const arrest=law.detain(activeSettlementId);if(arrest)events.push(arrest);}
+        if(vitals.stamina<=0&&battle.playerHp>0){const arrest=law.detain(activeSettlementId);if(arrest)events.push(arrest);}
       }
       if(event.type==="detained"){
         controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
@@ -1094,8 +1094,9 @@ $("play").addEventListener("click",()=>{
 function startGuardCombat(){
  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"現在は戦闘できません"};
  const district=law.district(activeSettlementId);
- const guard=district?.deployed.find(g=>Math.hypot(g.x-controller.x,g.z-controller.z)<5.2);
+ const guard=district?.deployed.find(g=>Math.hypot(g.x-controller.x,g.z-controller.z)<3.6);
  if(!guard)return {ok:false,message:"武器で攻撃するには衛兵に接近してください"};
+ controller.yaw=Math.atan2(guard.x-controller.x,guard.z-controller.z);
  const wanted=law.level(activeSettlementId);
  if(wanted>0){const result=law.respond(activeSettlementId,"refuse");if(result?.ok)saveLawJournal();}
  const started=actions.start("sword",controller,(lat,lon)=>terrainSurface(terrain,lat,lon),
