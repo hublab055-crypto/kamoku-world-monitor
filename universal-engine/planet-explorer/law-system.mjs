@@ -30,7 +30,8 @@ export class LawSystem{
   this.activePersonId=String(saved?.activePersonId||"founder");
   this.people=Array.isArray(saved?.people)&&saved.people.length?
    saved.people.slice(0,200).map(normalizePerson):[normalizePerson({id:"founder",name:"開拓者"})];
-  if(!this.people.some(p=>p.id===this.activePersonId&&p.alive))this.activePersonId=this.people.find(p=>p.alive)?.id||null;
+  if(!this.people.some(p=>p.id===this.activePersonId&&p.alive))
+   this.activePersonId=saved?.pendingDeath||saved?.gameOver?null:(this.people.find(p=>p.alive)?.id||null);
   this.history=Array.isArray(saved?.history)?saved.history.slice(-300):[];
   this.heirs=Array.isArray(saved?.heirs)?saved.heirs.filter(x=>typeof x==="string").slice(0,50):[];
   this.gameOver=Boolean(saved?.gameOver)&&!this.activePersonId;
@@ -42,6 +43,7 @@ export class LawSystem{
    this.factions[id]={
     heat:clamp(finite(s.heat),0,10000),alert:clamp(finite(s.alert),0,100),
     pursuit:Boolean(s.pursuit),lastSeenDay:finite(s.lastSeenDay,-1),
+    hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
     owner:String(s.owner||"crown").slice(0,60),
     current:clamp(Math.trunc(finite(s.current,post.max)),0,post.max),
     reserves:clamp(Math.trunc(finite(s.reserves,0)),0,post.max),
@@ -108,7 +110,7 @@ export class LawSystem{
     }
     s.replenishedDay=now;s.restoredToday=Math.min(post.daily,Math.max(0,s.current));
    }
-   if(id!==settlementId){s.pursuit=false;s.alert=Math.max(0,s.alert-Math.max(0,dt)*4);continue;}
+   if(id!==settlementId){s.pursuit=false;s.challengeShown=false;s.lostSeconds=0;s.alert=Math.max(0,s.alert-Math.max(0,dt)*4);continue;}
    if(!eligible)continue;
    if(this.level(id)===0){s.pursuit=false;continue;}
    const additions=this.dispatch(id,x,z);
@@ -120,7 +122,9 @@ export class LawSystem{
      const step=Math.min(dist-1.65,speed);guard.x+=dx/dist*step;guard.z+=dz/dist*step;}
     if(dist<=4.3)contact=true;
    }
-   if(contact&&!s.pursuit)s.pursuit=true;
+   if(contact){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;}
+   else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){s.pursuit=false;s.challengeShown=false;s.hostile=false;}}
+   s.alert=Math.max(0,s.alert-(contact?0:Math.max(0,dt)*.3));
    if(contact&&this.level(id)<=2&&!s.challengeShown){
     s.challengeShown=true;events.push({type:"challenge",id,message:"衛兵「止まれ！ 武器を置いて投降せよ」"});
    }
@@ -146,7 +150,7 @@ export class LawSystem{
   return {ok:false,message:"不明な選択肢"};
  }
  detain(id){const s=this.district(id);if(!s||this.custody)return null;
-  s.hostile=false;s.pursuit=false;s.deployed=[];s.challengeShown=false;
+  s.hostile=false;s.pursuit=false;s.current=clamp(s.current+s.deployed.length,0,GUARD_POSTS[id].max);s.deployed=[];s.challengeShown=false;
   this.custody={faction:id,fine:Math.max(20,Math.ceil(s.heat*2)),since:this.day};
   this.history.push({day:this.day,type:"detained",id});
   return {type:"detained",id,message:"🔒 "+GUARD_POSTS[id].name+"に勾留された"};
@@ -154,7 +158,7 @@ export class LawSystem{
  payFine(id,pay){if(!this.custody||this.custody.faction!==id)return {ok:false,message:"この管轄では勾留されていません"};
   const fine=this.custody.fine;
   if(typeof pay!=="function"||!pay(fine))return {ok:false,message:"罰金を支払えません（"+fine+"G）"};
-  this.factions[id].heat=0;this.factions[id].alert=0;this.custody=null;
+  this.factions[id].heat=0;this.factions[id].alert=0;this.custody=null;this.factions[id].hostile=false;
   return {ok:true,message:"罰金 "+fine+"G を支払い釈放された"};}
  attackGuard(id,guardId,{defeat=false}={}){
   const s=this.district(id),index=s?.deployed.findIndex(g=>g.id===guardId)??-1;
