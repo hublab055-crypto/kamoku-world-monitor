@@ -54,7 +54,7 @@ export class LawSystem{
      stamina:clamp(finite(g.stamina,100),0,100),hp:clamp(finite(g.hp,100),0,160),
      yaw:finite(g.yaw),walkPhase:finite(g.walkPhase),patrolIndex:Math.trunc(finite(g.patrolIndex))%4,
      strikeCooldown:Math.max(0,finite(g.strikeCooldown)),defenseTargetId:g.defenseTargetId??null,
-     mode:["patrol","chase","attack","warning","return"].includes(g.mode)?g.mode:"patrol"
+     mode:["patrol","chase","attack","warning","return","defend"].includes(g.mode)?g.mode:"patrol"
     })):[],
     occupying:Array.isArray(s.occupying)?s.occupying.filter(x=>typeof x==="string").slice(0,50):[]
    };
