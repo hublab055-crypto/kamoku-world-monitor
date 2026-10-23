@@ -77,6 +77,19 @@
 .territory-panel ul{padding-left:18px}
 @media(max-width:680px){.territory-panel{top:42px;max-height:73vh}}
 </style>
+<style>
+#strategy-panel[hidden]{display:none!important}
+.strategy-panel{position:absolute;z-index:24;top:53px;right:7px;width:min(385px,calc(100% - 14px));max-height:78vh;overflow:auto;background:#0d2636f7;color:#f4f8fc;border:1px solid #72a5b6;border-radius:13px;padding:11px;box-shadow:0 8px 32px #000a;font:12px/1.5 system-ui,sans-serif}
+.strategy-panel .strategy-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:7px 0}
+.strategy-panel button,.strategy-panel select{font-size:12px;min-height:30px;max-width:100%}
+.strategy-panel hr{border:0;border-top:1px solid #91aeba55;margin:10px 0}
+.strategy-panel strong{font-size:14px}
+.strategy-panel ul{padding-left:18px}
+.strategy-panel .strategy-buttons{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0}
+.strategy-panel .strategy-buttons button{white-space:normal}
+.strategy-panel small{color:#c6dce5}
+@media(max-width:680px){.strategy-panel{top:43px;max-height:74vh}}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -227,6 +240,7 @@
      <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
     <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
     <button type="button" id="viewport-harbor" aria-expanded="false" aria-controls="harbor-panel">⚓ 港・客船</button>
+    <button type="button" id="viewport-strategy" aria-expanded="false" aria-controls="strategy-panel">🌐 国家・外交</button>
     <button type="button" id="viewport-territory" aria-expanded="false" aria-controls="territory-panel">🏡 土地・税</button>
      <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
@@ -239,6 +253,31 @@
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="strategy-panel" class="strategy-panel" role="dialog" aria-label="経済・軍事・外交シミュレーション" hidden>
+ <div class="strategy-row"><strong>🌐 国家・外交・軍事</strong><button id="strategy-close" type="button">× 閉じる</button><span id="strategy-month"></span></div>
+ <small>オフラインのNPC国家との戦略シミュレーションです。他プレイヤーとの同期・戦闘はまだできません。</small>
+ <div class="strategy-row"><label>自領 <select id="strategy-own" aria-label="自領の拠点"></select></label></div>
+ <div id="strategy-own-stats"></div>
+ <div class="strategy-row"><label>交渉相手 <select id="strategy-target" aria-label="交渉先国家"></select></label></div>
+ <div id="strategy-target-stats"></div><div id="strategy-trade-hint"></div>
+ <div class="strategy-buttons">
+  <button type="button" id="strategy-envoy">🤝 使節派遣（35G）</button>
+  <button type="button" id="strategy-trade">📦 通商協定（40G）</button>
+  <button type="button" id="strategy-pact">🕊️ 不可侵条約</button>
+  <button type="button" id="strategy-alliance">🛡️ 防衛同盟</button>
+  <button type="button" id="strategy-withdraw">📃 条約を破棄</button>
+  <button type="button" id="strategy-peace">🏳️ 停戦交渉</button>
+ </div>
+ <hr><strong>⚔️ 戦略軍備</strong>
+ <p id="strategy-recruit-hint"></p>
+ <div class="strategy-row"><button type="button" id="strategy-recruit">🛡️ 守備隊を雇用</button><button type="button" id="strategy-war">⚔️ 宣戦布告</button></div>
+ <div class="strategy-row"><label>遠征兵数 <select id="strategy-force" aria-label="派遣する兵の数"></select></label>
+  <button type="button" id="strategy-campaign">🏳️ 戦略演算で遠征</button></div>
+ <small>勝敗は兵力・防衛側の優位・民心から演算します。実際の3D戦闘や他人の建物破壊は行いません。</small>
+ <hr><strong>🏛️ 各国の情勢</strong><ul id="strategy-summary"></ul>
+ <strong>📒 直近の出来事</strong><ul id="strategy-journal"></ul>
+ <p id="strategy-status" role="status" aria-live="polite">国庫・兵力・外交を管理します。</p>
+</section>
 <section id="territory-panel" class="territory-panel" role="dialog" aria-label="土地・建物の登記と領地管理" hidden>
  <div class="territory-row"><strong>🏡 土地・建物・領地管理</strong><button type="button" id="territory-close">× 閉じる</button></div>
  <small>この画面はローカル・デモ用です。オンライン所有権・徴税・譲渡の認証は未接続です。</small>
@@ -1237,6 +1276,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9f-territory"></script>
+<script type="module" src="./app.mjs?v=0.9g-strategy"></script>
 </body>
 </html>
