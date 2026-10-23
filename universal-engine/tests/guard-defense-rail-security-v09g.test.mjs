@@ -110,3 +110,27 @@ test("published application wires defense and railway choice buttons into actual
  for(const id of ["railway-comply","railway-surrender","railway-flee","railway-resist","railway-bail","railway-serve"])
   assert.ok(html.includes('id="'+id+'"'),id);
 });
+
+test("railway officer has physical HP, player assault transfers pursuit to territorial law",()=>{
+ const rail=new RailwaySecurity(),law=new LawSystem();
+ issueRailWarrant(rail);
+ law.reportCrime("tower","trespass");
+ const guard=rail.guard;
+ assert.equal(guard.hp,100);
+ const far=rail.damageGuard(18,{attackerX:999,attackerZ:999});
+ assert.equal(far.ok,false);assert.equal(rail.guard.hp,100);
+ const strike=rail.damageGuard(22,{attackerX:guard.x,attackerZ:guard.z});
+ assert.equal(strike.ok,true);
+ assert.equal(strike.hp,78);assert.equal(rail.resisting,true);
+ law.reportCrime("tower","attackGuard");
+ const finished=rail.damageGuard(100,{attackerX:guard.x,attackerZ:guard.z});
+ assert.equal(finished.defeated,true);
+ law.reportCrime("tower","killGuard");
+ assert.equal(rail.wanted,false);
+ assert.equal(rail.guard,null);
+ assert.equal(rail.jailed,null);
+ assert.ok(law.level("tower")>=3);
+ assert.equal(law.district("tower").hostile,true);
+ const restored=new LawSystem(law.snapshot());
+ assert.equal(restored.level("tower"),law.level("tower"));
+});
