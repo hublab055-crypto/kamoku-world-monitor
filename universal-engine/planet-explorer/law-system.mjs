@@ -101,7 +101,7 @@ export class LawSystem{
   const nextDay=Math.max(this.day,finite(day,this.day));
   for(const [id,s] of Object.entries(this.factions)){
    const post=GUARD_POSTS[id],prev=Math.floor(s.replenishedDay),now=Math.floor(nextDay);
-   if(now>prev){
+   if(s.owner==="crown"&&now>prev){
     // Process at most one replenishment per game day. Dead guards take days to replace.
     const elapsed=Math.min(365,now-prev);
     for(let i=0;i<elapsed;i++){
@@ -109,10 +109,10 @@ export class LawSystem{
      s.current+=Math.min(post.daily,needed);
     }
     s.replenishedDay=now;s.restoredToday=Math.min(post.daily,Math.max(0,s.current));
-   }
+   }else if(now>prev){s.replenishedDay=now;}
    if(id!==settlementId){s.pursuit=false;s.challengeShown=false;s.lostSeconds=0;s.alert=Math.max(0,s.alert-Math.max(0,dt)*4);continue;}
    if(!eligible)continue;
-   if(this.level(id)===0){s.pursuit=false;continue;}
+   if(this.level(id)===0){s.pursuit=false;s.hostile=false;continue;}
    const additions=this.dispatch(id,x,z);
    if(additions.length)events.push({type:"dispatch",id,count:additions.length,message:"🏰 "+post.name+"から"+additions.length+"名を派遣"});
    let contact=false;
@@ -134,7 +134,7 @@ export class LawSystem{
     if(s.attackTimer>=1.5){
      s.attackTimer=0;events.push({type:"guardHit",id,staminaDamage:12,hpDamage:this.level(id)>=4?14:4,
       message:"衛兵から攻撃を受けた"});
-     if(stamina<=12)events.push(this.detain(id));
+     if(stamina<=0)events.push(this.detain(id));
     }
    }
    if(contact&&stamina<=0)events.push(this.detain(id));
