@@ -1,0 +1,26 @@
+name: Universal Engine strategy tests
+
+on:
+  push:
+    paths:
+      - 'universal-engine/planet-explorer/faction-strategy*.mjs'
+      - 'universal-engine/planet-explorer/territory-economy.mjs'
+      - '.github/workflows/ue-strategy-check.yml'
+  pull_request:
+    paths:
+      - 'universal-engine/planet-explorer/faction-strategy*.mjs'
+      - 'universal-engine/planet-explorer/territory-economy.mjs'
+      - '.github/workflows/ue-strategy-check.yml'
+  workflow_dispatch:
+
+jobs:
+  strategy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run strategy state and economy tests
+        run: node --test universal-engine/planet-explorer/faction-strategy.test.mjs
