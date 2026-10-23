@@ -70,7 +70,8 @@ export class RailwaySecurity{
   this.wanted=Boolean(saved?.wanted);
   this.guard=saved?.guard&&[saved.guard.x,saved.guard.z].every(Number.isFinite)?
    {...saved.guard,hp:clamp(Number(saved.guard.hp)||100,0,100)}:null;
-  this.jailed=saved?.jailed&&stationById(saved.jailed.stationId)?
+  // Legacy saves could be detained without dialogue. Release these automatically.
+  this.jailed=saved?.interactionVersion===2&&saved?.jailed&&stationById(saved.jailed.stationId)?
    {stationId:saved.jailed.stationId,fine:Math.max(RAIL_BAIL_FINE,Number(saved.jailed.fine)||RAIL_BAIL_FINE)}:null;
    this.challenged=Boolean(saved?.challenged);
    this.challengeRemaining=clamp(Number(saved?.challengeRemaining)||0,0,RAIL_CHALLENGE_SECONDS);
@@ -80,6 +81,8 @@ export class RailwaySecurity{
   this.caseReported=Boolean(saved?.caseReported);
   this.warningAcknowledged=Boolean(saved?.warningAcknowledged);
   this.sentry=saved?.sentry&&[saved.sentry.x,saved.sentry.z].every(Number.isFinite)?{...saved.sentry}:null;
+  this.sentryUntil=Math.max(0,Number(saved?.sentryUntil)||0);
+  if(saved?.jailed&&saved?.interactionVersion!==2){this.wanted=false;this.guard=null;this.warningTimes=[];}
  }
  get warningCount(){return this.warningTimes.length;}
  get state(){return this.jailed?"jailed":this.wanted?(this.challenged&&!this.fleeing&&!this.resisting?"challenged":"wanted"):
@@ -161,6 +164,7 @@ export class RailwaySecurity{
   if(!restricted){
    if(this.warningCount&&!this.wanted){
     this.warningTimes=[];this.wasRestricted=false;this.warningAcknowledged=true;
+    this.sentryUntil=this.elapsed+5;
     events.push({type:"complied",stationId,speakerId:"railway-security:"+stationId,
      speech:"それでいい。",message:"保安員「それでいい。」監視が解除されました。"});
    }
@@ -229,6 +233,7 @@ export class RailwaySecurity{
    guard:this.guard?{...this.guard}:null,jailed:this.jailed?{...this.jailed}:null,
    challenged:this.challenged,challengeRemaining:this.challengeRemaining,
    fleeing:this.fleeing,resisting:this.resisting,lostSeconds:this.lostSeconds,attackSeconds:this.attackSeconds,caseReported:this.caseReported,
-   warningAcknowledged:this.warningAcknowledged,sentry:this.sentry?{...this.sentry}:null};
+   warningAcknowledged:this.warningAcknowledged,sentry:this.sentry?{...this.sentry}:null,
+   sentryUntil:this.sentryUntil,interactionVersion:2};
  }
 }
