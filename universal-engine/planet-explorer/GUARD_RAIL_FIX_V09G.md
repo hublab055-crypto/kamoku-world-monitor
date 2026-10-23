@@ -22,3 +22,13 @@
 
 ## Known limitations
 Full witness reporting by individual residents, escort/handover animations, a proper jail interior with days of activities, physical rail security sword animations, terrain-aware A* pathfinding and line-of-sight occlusion, and server-authoritative multiplayer remain future work. The railway officer's HP and attack effects are functional; the police AI is an initial gameplay simulation rather than a production-grade state machine.
+
+## v0.9h — Mandatory dialog and regulated weapons
+
+- A local warrant (including a severe warrant) first triggers a **real character speech bubble** and a visible **「▶ 投降」「▶ 投降しない」** choice. A pending or unanswered dialog never silently teleports the player to prison. Only choosing surrender, or physical suppression **after explicitly refusing** allows detention.
+- Law warning indicators and local bounty records render levels with **❌** repeated 1–5 times, never stars.
+- Within a crown-controlled settlement, guards first ask the player to **put weapons away** (sword, spear, two-handed sword, axe, bow); compliance uses the actual two-hand inventory and does not create a crime. Explicitly refusing escalates the local warrant.
+- A guard outpost (5 m restricted footprint) is an example of a **restricted non-rail area**. Crossing into it triggers a bubble asking the player to leave; obeying sets a normal walking destination outside.
+- For rail tracks, sentry guards stand beside the fence and deliver **speech bubbles**. Leaving after a first or second warning ends monitoring with **「それでいい。」** without issuing a warrant. Level crossings remain legal.
+- The railway warrant confrontation has **no automatic detention timeout**. Bail or imprisonment only follows conscious surrender or actual capture after choosing to flee or resist. The new save schema migrates old automatically-jailed railway saves to a released state.
+- Speech is anchored to the actual projected on-screen guard/sentry ID. Pending dialogue is reissued after loading a save rather than disappearing.
