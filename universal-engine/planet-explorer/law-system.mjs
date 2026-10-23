@@ -169,17 +169,22 @@ export class LawSystem{
   if(typeof pay!=="function"||!pay(fine))return {ok:false,message:"罰金を支払えません（"+fine+"G）"};
   this.factions[id].heat=0;this.factions[id].alert=0;this.custody=null;this.factions[id].hostile=false;
   return {ok:true,message:"罰金 "+fine+"G を支払い釈放された"};}
- attackGuard(id,guardId,{defeat=false}={}){
+ attackGuard(id,guardId,{defeat=false,attackerX=null,attackerZ=null}={}){
   const s=this.district(id),index=s?.deployed.findIndex(g=>g.id===guardId)??-1;
   if(index<0)return {ok:false,message:"対象の衛兵が見つかりません"};
+  if(Number.isFinite(attackerX)&&Number.isFinite(attackerZ)&&
+   Math.hypot(s.deployed[index].x-attackerX,s.deployed[index].z-attackerZ)>5)
+   return {ok:false,message:"衛兵に近づく必要があります"};
   const result=this.reportCrime(id,defeat?"killGuard":"attackGuard");
   s.hostile=true;s.challengeShown=true;
   if(defeat){const [victim]=s.deployed.splice(index,1);this.history.push({day:this.day,type:"guardDefeated",id,guardId:victim.id});}
   return result;
  }
- occupyPost(id,allies=[]){
+ occupyPost(id,allies=[],{x=null,z=null}={}){
   const s=this.district(id);if(!s)return {ok:false,message:"拠点がありません"};
   if(s.deployed.length||s.current>0)return {ok:false,message:"衛兵が残っています。守備隊の制圧が必要です"};
+  if(Number.isFinite(x)&&Number.isFinite(z)&&Math.hypot(x-GUARD_POSTS[id].x,z-GUARD_POSTS[id].z)>8)
+   return {ok:false,message:"詰所の中に入って占拠してください"};
   const members=[...new Set(allies.filter(x=>typeof x==="string"&&x.length))];
   if(!members.length)return {ok:false,message:"守備担当の仲間を配置してください"};
   s.owner="player";s.occupying=members;s.pursuit=false;s.heat=0;s.alert=0;
