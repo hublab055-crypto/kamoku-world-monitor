@@ -1,5 +1,5 @@
 /** Non-invasive mobile law panel. The host owns save, battle HP and clock. */
-export function installLawUI({get,notify,onChange,onDetain,onSuccession,onGameOver}){
+export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}){
  const toolbar=document.getElementById("viewport-toolbar");
  const toggle=document.createElement("button");
  toggle.type="button";toggle.id="law-toggle";toggle.textContent="🚨 治安・手配";toggle.setAttribute("aria-controls","law-panel");
@@ -56,9 +56,9 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onGameOv
     row.append(makeButton("✋ 投降しない",()=>law.respond(settlementId,"refuse")));
     row.append(makeButton("🏃 逃走",()=>law.respond(settlementId,"flee")));
     if(faction.deployed.length){
-     const attack=actionRow(),guard=faction.deployed[0];
-     attack.append(makeButton("⚔ 衛兵に攻撃",()=>law.attackGuard(settlementId,guard.id,{attackerX:playerPosition?.x,attackerZ:playerPosition?.z})));
-     attack.append(makeButton("💀 衛兵撃破（テスト）",()=>law.attackGuard(settlementId,guard.id,{defeat:true,attackerX:playerPosition?.x,attackerZ:playerPosition?.z})));
+     const attack=actionRow();
+     attack.append(makeButton("⚔ 武器で戦う",()=>onFight?.()||{ok:false,message:"戦闘システムが未接続です"}));
+     text(buttons,"small","剣・槍・斧・弓による実際の命中で衛兵にダメージを与えます。");
     }
    }
    const candidates=(squad?.agents||[]).filter(p=>p.id!=="player"&&p.hp>0&&!law.people.some(a=>a.id===p.id));
@@ -91,5 +91,6 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onGameOv
  }
  toggle.addEventListener("click",()=>{panel.hidden=!panel.hidden;toggle.setAttribute("aria-expanded",String(!panel.hidden));refresh();});
  panel.querySelector('[data-action="close"]').addEventListener("click",()=>{panel.hidden=true;toggle.setAttribute("aria-expanded","false");});
- return {refresh,close(){panel.hidden=true;},destroy(){panel.remove();toggle.remove();style.remove();}};
+ return {refresh,open(){panel.hidden=false;toggle.setAttribute("aria-expanded","true");refresh();},
+ close(){panel.hidden=true;toggle.setAttribute("aria-expanded","false");},destroy(){panel.remove();toggle.remove();style.remove();}};
 }
