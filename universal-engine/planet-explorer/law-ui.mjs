@@ -4,11 +4,17 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}
  const toggle=document.createElement("button");
  toggle.type="button";toggle.id="law-toggle";toggle.textContent="🚨 治安・手配";toggle.setAttribute("aria-controls","law-panel");
  toolbar.append(toggle);
+ const status=document.createElement("button");status.id="law-wanted-indicator";status.type="button";
+ status.hidden=true;status.setAttribute("aria-label","手配状況を開く");
+ document.body.append(status);
  const panel=document.createElement("section");panel.id="law-panel";panel.hidden=true;
  panel.setAttribute("aria-label","治安・衛兵・世代継承");panel.setAttribute("role","dialog");
  panel.innerHTML='<header><strong>🚨 治安・手配・一族</strong><button type="button" data-action="close">× 閉じる</button></header><div data-role="summary"></div><div data-role="buttons"></div><div data-role="history"></div>';
  const style=document.createElement("style");style.textContent=`
- #law-panel[hidden]{display:none!important}
+ #law-panel[hidden],#law-wanted-indicator[hidden]{display:none!important}
+ #law-wanted-indicator{position:fixed;top:max(79px,env(safe-area-inset-top));right:8px;z-index:19;
+ border:1px solid #dfa66f;border-radius:9px;padding:5px 9px;color:#fff;background:#6c2722eb;
+ box-shadow:0 2px 8px #0009;font:600 12px system-ui;cursor:pointer;}
  #law-panel{position:fixed;inset:auto 10px max(10px,env(safe-area-inset-bottom)) auto;z-index:60;
  width:min(380px,calc(100vw - 20px));max-height:min(72vh,560px);overflow:auto;box-sizing:border-box;
  background:#132534f5;color:#eff9ff;border:1px solid #88b2c2;border-radius:13px;padding:12px;
@@ -34,11 +40,15 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}
   if(!law)return;
   const faction=law.district(settlementId);
   const level=law.level(settlementId),actor=law.people.find(p=>p.id===law.activePersonId);
+  const warrant=law.warrant(settlementId);
+  status.hidden=!warrant||Boolean(law.custody)||law.gameOver;
+  status.textContent=warrant?"🚨 "+"★".repeat(warrant.level)+(warrant.livePursuit?" 追跡中":" 手配中"):"";
   summary.replaceChildren();buttons.replaceChildren();history.replaceChildren();
   text(summary,"p","現在："+(actor?.name||"後継者不在")+" ／ "+(actor?.generation||"—")+"代目");
   if(faction){
    text(summary,"p","管轄："+settlementId+" ／ 手配 "+("★".repeat(level)||"なし")+" ／ ポイント "+Math.round(faction.heat));
    text(summary,"p","守備兵：詰所 "+faction.current+"名・派遣 "+faction.deployed.length+"名 ／ 支配："+faction.owner);
+   if(warrant)text(summary,"p","📜 手配書："+warrant.name+" ／ 懸賞金 "+warrant.reward+"G ／ ★"+warrant.level);
    text(summary,"small",faction.pursuit?"衛兵が追跡中。支配エリアから出ると追跡は中断します。":"手配度は逃走だけでは消えません。");
   }else text(summary,"p","支配エリア外（手配情報は各国に残っています）");
   if(law.gameOver){text(buttons,"h3","一族が断絶しました — GAME OVER");}
@@ -52,12 +62,15 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}
   }else{
    if(faction&&level>0){
     const row=actionRow();
-    row.append(makeButton("🙌 投降する",()=>{const r=law.respond(settlementId,"surrender");if(r?.type==="detained")onDetain?.();return r;}));
+    if(level<=2)row.append(makeButton("🙌 投降する",()=>{const r=law.respond(settlementId,"surrender");if(r?.type==="detained")onDetain?.();return r;}));
     row.append(makeButton("✋ 投降しない",()=>law.respond(settlementId,"refuse")));
     row.append(makeButton("🏃 逃走",()=>law.respond(settlementId,"flee")));
     if(faction.deployed.length){
      const attack=actionRow();
-     attack.append(makeButton("⚔ 武器で戦う",()=>onFight?.()||{ok:false,message:"戦闘システムが未接続です"}));
+     attack.append(makeButton("⚔ 武器で戦う",()=>{
+      const result=onFight?.()||{ok:false,message:"戦闘システムが未接続です"};
+      if(result.ok)panel.hidden=true;return result;
+     }));
      text(buttons,"small","剣・槍・斧・弓による実際の命中で衛兵にダメージを与えます。");
     }
    }
@@ -90,7 +103,8 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}
   for(const event of law.history.slice(-4).reverse())text(history,"small",Math.floor(event.day)+"日目 "+event.type+" "+(event.id||event.personId||"")+"　");
  }
  toggle.addEventListener("click",()=>{panel.hidden=!panel.hidden;toggle.setAttribute("aria-expanded",String(!panel.hidden));refresh();});
+ status.addEventListener("click",()=>{panel.hidden=false;refresh();});
  panel.querySelector('[data-action="close"]').addEventListener("click",()=>{panel.hidden=true;toggle.setAttribute("aria-expanded","false");});
  return {refresh,open(){panel.hidden=false;toggle.setAttribute("aria-expanded","true");refresh();},
- close(){panel.hidden=true;toggle.setAttribute("aria-expanded","false");},destroy(){panel.remove();toggle.remove();style.remove();}};
+ close(){panel.hidden=true;toggle.setAttribute("aria-expanded","false");},destroy(){panel.remove();status.remove();toggle.remove();style.remove();}};
 }
