@@ -425,7 +425,7 @@ function init(saved=null){
   rtsMode=false;rtsMulti=false;rallyPicking=false;
   autoActorId=squad.selectedAgents()[0]?.id||"player";
   if(!lawUI)lawUI=installLawUI({
-    get:()=>({law,settlementId:activeSettlementId,squad,payFine:amount=>{
+    get:()=>({law,settlementId:activeSettlementId,squad,playerPosition:{x:controller.x,z:controller.z},payFine:amount=>{
       if(townLife.coins<amount)return false;townLife.coins-=amount;saveTownJournal();return true;
     }}),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
     onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();},
