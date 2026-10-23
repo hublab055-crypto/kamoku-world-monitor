@@ -3,7 +3,7 @@
  * Inspired by tiered pursuit and RPG surrender/bounty systems; no game assets copied.
  */
 export const LAW_SCHEMA=1;
-export const CRIME_POINTS=Object.freeze({trespass:12,theft:18,assault:32,escape:15,attackGuard:38,killGuard:75,murder:100});
+export const CRIME_POINTS=Object.freeze({trespass:12,armedRefusal:18,theft:18,assault:32,escape:15,attackGuard:38,killGuard:75,murder:100});
 export const WANTED_THRESHOLDS=Object.freeze([0,10,35,80,150,260]);
 export const wantedLevel=points=>{const p=Math.max(0,Number(points)||0);for(let i=5;i>=1;i--)if(p>=WANTED_THRESHOLDS[i])return i;return 0;};
 const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
@@ -45,6 +45,9 @@ export class LawSystem{
     pursuit:Boolean(s.pursuit),lastSeenDay:finite(s.lastSeenDay,-1),
     hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
     defenseAlert:Boolean(s.defenseAlert),
+    warningKind:["weapon","restricted"].includes(s.warningKind)?s.warningKind:null,
+    warningSpeakerId:typeof s.warningSpeakerId==="string"?s.warningSpeakerId:null,
+    challengePending:Boolean(s.challengePending),engaged:Boolean(s.engaged),
     owner:String(s.owner||"crown").slice(0,60),
     current:clamp(Math.trunc(finite(s.current,post.max)),0,post.max),
     reserves:clamp(Math.trunc(finite(s.reserves,0)),0,post.max),
@@ -87,8 +90,8 @@ export class LawSystem{
   s.heat=clamp(s.heat+points,0,10000);
   s.alert=clamp(s.alert+points*.6,0,100);
   s.pursuit=true;s.lastSeenDay=this.day;
-  // Serious crimes authorize direct armed apprehension rather than polite questioning.
-  if(this.level(id)>=3){s.hostile=true;s.challengeShown=true;}
+  // All warrants require a spoken encounter, including high-level crimes.
+  // Being wanted alone never implies refusing surrender.
   this.history.push({day:this.day,type:"crime",id,kind,reporter});
   this.notice="🚨 "+GUARD_POSTS[id].name+"：手配レベル "+this.level(id);
   return {ok:true,reported:true,level:this.level(id),points,message:this.notice};
@@ -120,7 +123,7 @@ export class LawSystem{
  }
  /** Emits events; time is supplied by the world's existing simulation clock. */
  advance(dt,{day=this.day,settlementId="wilderness",x=0,z=0,stamina=100,hp=100,
-  eligible=true,playerEligible=true,hostiles=[],passable=null}={}){
+  eligible=true,playerEligible=true,hostiles=[],passable=null,armedWeapons=[],restrictedZone=false}={}){
   const events=[];if(this.gameOver||this.pendingDeath||this.custody)return events;
   const nextDay=Math.max(this.day,finite(day,this.day));
   for(const [id,s] of Object.entries(this.factions)){
@@ -201,31 +204,82 @@ export class LawSystem{
       message:(guard.kind==="knight"?"⚔️ 騎士":"🛡️ 衛兵")+"が"+(enemy.name||"敵")+"を攻撃"});
     }
    }
-   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;if(level>=3)s.hostile=true;}
-   else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){s.pursuit=false;s.challengeShown=false;s.hostile=false;}}
+   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;}
+   else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){
+    s.pursuit=false;s.challengeShown=false;s.challengePending=false;
+    if(!s.engaged)s.hostile=false;
+   }}
    s.alert=Math.max(0,s.alert-(contact?0:Math.max(0,dt)*.3));
-   if(contact&&level<=2&&!s.challengeShown){
-    s.challengeShown=true;events.push({type:"challenge",id,message:"衛兵「止まれ！ 武器を置いて投降せよ」"});
+   const armed=Array.isArray(armedWeapons)&&armedWeapons.length>0;
+   if(s.warningKind&&(
+      s.warningKind==="weapon"&&!armed||s.warningKind==="restricted"&&!restrictedZone)){
+    events.push({type:"complied",id,speakerId:s.warningSpeakerId,
+      speech:"それでいい。",message:"衛兵「それでいい。」監視を解きました。"});
+    s.warningKind=null;s.warningSpeakerId=null;
    }
-   // Host handles periodic nonlethal/lethal damage after refusal.
-   if(contact&&s.hostile&&dt>0){
-    s.attackTimer=(finite(s.attackTimer)+dt);
+   const nearbyGuard=s.deployed.find(g=>g.hp>0&&Math.hypot(g.x-x,g.z-z)<=12);
+   if(level===0&&playerEligible&&s.owner==="crown"&&!s.warningKind&&!s.defenseAlert&&nearbyGuard){
+    const kind=restrictedZone?"restricted":armed?"weapon":null;
+    if(kind){
+     s.warningKind=kind;s.warningSpeakerId=nearbyGuard.id;
+     const speech=kind==="restricted"?
+      "ここは立入禁止区域だ。外に出なさい。":"ここは衛兵の管轄だ。武器をしまいなさい。";
+     events.push({type:"territoryWarning",id,kind,speakerId:nearbyGuard.id,speech,
+      message:"衛兵「"+speech+"」"});
+    }
+   }
+   // A warrant is a real conversation, never an automatic arrest.
+   if(playerEligible&&contact&&level>0&&!s.engaged&&!s.challengeShown){
+    s.warningKind=null;s.warningSpeakerId=null;
+    s.challengeShown=true;s.challengePending=true;
+    const guard=s.deployed.find(g=>g.hp>0&&Math.hypot(g.x-x,g.z-z)<=5);
+    const speech="あなたには逮捕状が出ている。武器をしまい投降しなさい。";
+    events.push({type:"challenge",id,speakerId:guard?.id||null,speech,
+     message:"衛兵「"+speech+"」"});
+   }
+   // Only an explicit refusal or actual attack grants permission to suppress.
+   if(playerEligible&&contact&&s.engaged&&s.hostile&&dt>0){
+    s.attackTimer=finite(s.attackTimer)+dt;
     if(s.attackTimer>=1.5){
      s.attackTimer=0;events.push({type:"guardHit",id,staminaDamage:12,hpDamage:this.level(id)>=4?14:4,
       message:"衛兵から攻撃を受けた"});
      if(stamina<=0&&hp>0)events.push(this.detain(id));
     }
    }
-   if(contact&&stamina<=0&&hp>0)events.push(this.detain(id));
+   if(playerEligible&&contact&&s.engaged&&stamina<=0&&hp>0)
+    events.push(this.detain(id));
   }
   this.day=nextDay;
   return events.filter(Boolean);
  }
+ respondWarning(id,choice){
+  const s=this.district(id);if(!s?.warningKind)return {ok:false,message:"現在、警告は出ていません"};
+  if(choice==="comply"){
+   if(s.warningKind==="weapon")return {ok:true,action:"stow",message:"武器をしまってください"};
+   if(s.warningKind==="restricted")return {ok:true,action:"leave",message:"立入禁止区画から退出してください"};
+  }
+  if(choice==="refuse"){
+   const kind=s.warningKind==="weapon"?"armedRefusal":"trespass";
+   s.warningKind=null;s.warningSpeakerId=null;
+   const report=this.reportCrime(id,kind);
+   return {...report,action:"refusedWarning",
+    message:"衛兵の警告を拒否したため手配度が上がりました。"};
+  }
+  return {ok:false,message:"不明な応答です"};
+ }
  respond(id,choice){
   const s=this.district(id);if(!s||!this.level(id))return {ok:false,message:"手配されていません"};
   if(choice==="surrender")return this.detain(id);
-  if(choice==="refuse"){s.hostile=true;s.challengeShown=true;return this.reportCrime(id,"escape");}
-  if(choice==="flee"){s.pursuit=true;s.challengeShown=true;return {ok:true,message:"逃走を開始。衛兵の視界から離れれば追跡が中断します"};}
+  if(choice==="refuse"){
+   s.engaged=true;s.hostile=true;s.challengeShown=true;s.challengePending=false;
+   const report=this.reportCrime(id,"escape");
+   return {...report,message:"衛兵「投降を拒否したな！」手配度が上がり、制圧行動が始まります。"};
+  }
+  if(choice==="flee"){
+   s.engaged=true;s.challengePending=false;s.challengeShown=true;s.pursuit=true;
+   const report=this.reportCrime(id,"escape");
+   return {...report,message:"逃走を開始しました。衛兵の視界から離れると追跡が中断します。"};
+  }
   return {ok:false,message:"不明な選択肢"};
  }
  detain(id){const s=this.district(id);if(!s||this.custody)return null;
@@ -252,7 +306,10 @@ export class LawSystem{
     Math.hypot(guard.x-attackerX,guard.z-attackerZ)>6.0)
    return {ok:false,message:"衛兵から離れすぎています"};
   guard.hp=Math.max(0,guard.hp-damage);
-  if(source!=="enemy"){this.reportCrime(id,"attackGuard");s.hostile=true;s.challengeShown=true;}
+  if(source!=="enemy"){
+   this.reportCrime(id,"attackGuard");s.engaged=true;s.hostile=true;
+   s.challengeShown=true;s.challengePending=false;
+  }
   const defeated=guard.hp===0;
   if(defeated){
    if(source!=="enemy")this.reportCrime(id,"killGuard");
