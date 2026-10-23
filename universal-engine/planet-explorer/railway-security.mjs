@@ -68,7 +68,8 @@ export class RailwaySecurity{
   this.nextWarningAt=this.elapsed;
   this.wasRestricted=false;
   this.wanted=Boolean(saved?.wanted);
-  this.guard=saved?.guard&&[saved.guard.x,saved.guard.z].every(Number.isFinite)?{...saved.guard}:null;
+  this.guard=saved?.guard&&[saved.guard.x,saved.guard.z].every(Number.isFinite)?
+   {...saved.guard,hp:clamp(Number(saved.guard.hp)||100,0,100)}:null;
   this.jailed=saved?.jailed&&stationById(saved.jailed.stationId)?
    {stationId:saved.jailed.stationId,fine:Math.max(RAIL_BAIL_FINE,Number(saved.jailed.fine)||RAIL_BAIL_FINE)}:null;
    this.challenged=Boolean(saved?.challenged);
@@ -145,7 +146,7 @@ export class RailwaySecurity{
    this.nextWarningAt=this.elapsed+RAIL_WARNING_INTERVAL_SECONDS;
    if(this.warningCount>=RAIL_WARNING_LIMIT){
     this.wanted=true;this.challenged=false;this.fleeing=false;this.resisting=false;this.caseReported=true;
-    this.guard={stationId,x:station.site.x+10,z:station.site.z-7};
+    this.guard={stationId,x:station.site.x+10,z:station.site.z-7,hp:100};
     events.push({type:"pursuit",stationId,count:this.warningCount,
      message:"3回の警告を無視したため保安員が追跡します。接近すると投降を求められます。"});
    }else events.push({type:"warning",stationId,count:this.warningCount,
@@ -177,6 +178,23 @@ export class RailwaySecurity{
    return {ok:true,action:"resist",message:"⚔️ 保安員が制圧行動へ移りました"};
   }
   return {ok:false,message:"操作できません"};
+ }
+ /** A weapon hit on the real 3D station guard (never a button-only instant defeat).
+  * The caller records the assault in the territory law system separately. */
+ damageGuard(damage,{attackerX=null,attackerZ=null}={}){
+  const guard=this.guard;
+  if(!this.wanted||!guard||!Number.isFinite(damage)||damage<=0)
+   return {ok:false,message:"攻撃できる保安員がいません"};
+  if(Number.isFinite(attackerX)&&Number.isFinite(attackerZ)&&
+    Math.hypot(guard.x-attackerX,guard.z-attackerZ)>4.7)
+   return {ok:false,message:"保安員から離れすぎています"};
+  guard.hp=Math.max(0,guard.hp-damage);
+  this.resisting=true;this.challenged=true;this.challengeRemaining=0;
+  const defeated=guard.hp===0,id="railway-security:"+guard.stationId;
+  const result={ok:true,id,damage,hp:guard.hp,defeated,
+   message:"鉄道保安員に "+damage+" ダメージ"+(defeated?"（戦闘不能）":"")};
+  if(defeated)this._clear(); // The regional town warrant persists and takes over pursuit.
+  return result;
  }
  /** Bail is optional; serve time if the player cannot or does not want to pay. */
  serveSentence(){
