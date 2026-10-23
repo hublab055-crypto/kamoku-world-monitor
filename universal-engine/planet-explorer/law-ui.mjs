@@ -30,9 +30,9 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onGameOv
  const actionRow=()=>{const div=document.createElement("div");div.className="law-actions";buttons.append(div);return div;};
  const safeGet=()=>get();
  function refresh(){
-  const {law,settlementId,squad}=safeGet();
+  const {law,settlementId,squad,playerPosition}=safeGet();
   if(!law)return;
-  const faction=law.district(settlementId),post=law.constructor===Object?null:undefined;
+  const faction=law.district(settlementId);
   const level=law.level(settlementId),actor=law.people.find(p=>p.id===law.activePersonId);
   summary.replaceChildren();buttons.replaceChildren();history.replaceChildren();
   text(summary,"p","現在："+(actor?.name||"後継者不在")+" ／ "+(actor?.generation||"—")+"代目");
@@ -57,8 +57,8 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onGameOv
     row.append(makeButton("🏃 逃走",()=>law.respond(settlementId,"flee")));
     if(faction.deployed.length){
      const attack=actionRow(),guard=faction.deployed[0];
-     attack.append(makeButton("⚔ 衛兵に攻撃",()=>law.attackGuard(settlementId,guard.id)));
-     attack.append(makeButton("💀 衛兵撃破（テスト）",()=>law.attackGuard(settlementId,guard.id,{defeat:true})));
+     attack.append(makeButton("⚔ 衛兵に攻撃",()=>law.attackGuard(settlementId,guard.id,{attackerX:playerPosition?.x,attackerZ:playerPosition?.z})));
+     attack.append(makeButton("💀 衛兵撃破（テスト）",()=>law.attackGuard(settlementId,guard.id,{defeat:true,attackerX:playerPosition?.x,attackerZ:playerPosition?.z})));
     }
    }
    const candidates=(squad?.agents||[]).filter(p=>p.id!=="player"&&p.hp>0&&!law.people.some(a=>a.id===p.id));
@@ -70,7 +70,7 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onGameOv
    if(faction?.owner==="crown"){
     const row=actionRow();
     row.append(makeButton("🏴 詰所を占拠",()=>law.occupyPost(settlementId,
-      (squad?.agents||[]).filter(a=>a.id!=="player"&&a.hp>0).map(a=>a.id))));
+      (squad?.agents||[]).filter(a=>a.id!=="player"&&a.hp>0).map(a=>a.id),playerPosition)));
    }
    const test=actionRow();
    if(faction)test.append(makeButton("🧪 盗難通報を試す",()=>law.reportCrime(settlementId,"theft")));
