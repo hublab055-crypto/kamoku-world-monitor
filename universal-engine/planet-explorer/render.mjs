@@ -1181,6 +1181,15 @@ export class ExplorerRenderer{
    const at=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
    return Math.max(0,terrainSurface(this.terrain,at.lat,at.lon).elevationM);
   };
+  // Project the separately patrolling railway officer for physical-hit feedback.
+  const officer=this.railwaySecurity?.guard;
+  if(officer&&officer.stationId===this.settlementId&&
+     Math.hypot(officer.x-s.x,officer.z-s.z)<135){
+   const y=getY(officer.x,officer.z);
+   const screen=projectScreen(vp,[officer.x-this.cx,y+1.85,officer.z-this.cz]);
+   if(screen?.onScreen)this.screenGuards.push({...screen,id:"railway-security:"+this.settlementId,
+    x:officer.x,z:officer.z,hp:officer.hp||100,name:"鉄道保安員",kind:"railsecurity"});
+  }
   if(Math.abs(gx)<radius&&Math.abs(gz)<radius){
    const mesh=this.lawPostMeshes[garrison.owner==="player"?"player":"crown"];
    this.drawMesh(mesh,multiply4(vp,translate(gx,getY(post.x,post.z),gz)),light,1,.74);
