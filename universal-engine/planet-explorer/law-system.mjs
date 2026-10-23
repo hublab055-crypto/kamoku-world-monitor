@@ -71,6 +71,12 @@ export class LawSystem{
   gameOver:this.gameOver,pendingDeath:this.pendingDeath,custody:copy(this.custody),
   factions:copy(this.factions),wantedPeople:copy(this.wantedPeople),coins:this.coins,seq:this.seq};}
  district(id){return this.factions[id]||null;}
+ /** Issued warrant remains visible even after the guard loses the trail. */
+ warrant(id){const s=this.district(id);if(!s||this.level(id)===0)return null;
+  const actor=this.people.find(p=>p.id===this.activePersonId);
+  return {factionId:id,personId:this.activePersonId,name:actor?.name||"不明な容疑者",
+   level:this.level(id),reward:Math.ceil(s.heat*3),issuedAt:s.lastSeenDay,livePursuit:s.pursuit};
+ }
  level(id){return wantedLevel(this.district(id)?.heat||0);}
  reportCrime(id,kind,{witnessed=true,reporter=null}={}){
   const s=this.district(id),points=CRIME_POINTS[kind];
@@ -79,6 +85,8 @@ export class LawSystem{
   s.heat=clamp(s.heat+points,0,10000);
   s.alert=clamp(s.alert+points*.6,0,100);
   s.pursuit=true;s.lastSeenDay=this.day;
+  // Serious crimes authorize direct armed apprehension rather than polite questioning.
+  if(this.level(id)>=3){s.hostile=true;s.challengeShown=true;}
   this.history.push({day:this.day,type:"crime",id,kind,reporter});
   this.notice="🚨 "+GUARD_POSTS[id].name+"：手配レベル "+this.level(id);
   return {ok:true,reported:true,level:this.level(id),points,message:this.notice};
@@ -164,10 +172,10 @@ export class LawSystem{
     if(s.attackTimer>=1.5){
      s.attackTimer=0;events.push({type:"guardHit",id,staminaDamage:12,hpDamage:this.level(id)>=4?14:4,
       message:"衛兵から攻撃を受けた"});
-     if(stamina<=0)events.push(this.detain(id));
+     if(stamina<=0&&hp>0)events.push(this.detain(id));
     }
    }
-   if(contact&&stamina<=0)events.push(this.detain(id));
+   if(contact&&stamina<=0&&hp>0)events.push(this.detain(id));
   }
   this.day=nextDay;
   return events.filter(Boolean);
