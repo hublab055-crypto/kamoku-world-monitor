@@ -1188,7 +1188,7 @@ export class ExplorerRenderer{
   for(const guard of garrison.deployed){
    if(guard.hp<=0||Math.hypot(guard.x-s.x,guard.z-s.z)>radius)continue;
    const groundY=getY(guard.x,guard.z);
-   const hostile=garrison.hostile&&(guard.mode==="attack"||guard.mode==="chase");
+   const hostile=guard.mode==="defend"||(garrison.hostile&&(guard.mode==="attack"||guard.mode==="chase"));
    const phases=this.lawGuardMeshes[guard.kind]||this.lawGuardMeshes.guard;
    const frame=((Math.floor(guard.walkPhase||0)%4)+4)%4;
    const mesh=(hostile?phases.fighting:phases.calm)[frame];
