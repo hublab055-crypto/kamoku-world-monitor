@@ -56,6 +56,8 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
+import {LawSystem} from "./law-system.mjs?v=0.9d-law";
+import {installLawUI} from "./law-ui.mjs?v=0.9d-law";
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY="universal-engine:explorer:v0.7i";
@@ -73,6 +75,7 @@ const FERRY_JOURNAL_KEY="universal-engine:explorer:ferry:v0.8y";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
+const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
 const TIME_SCALE_KEY="universal-engine:explorer:time-scale:v0.8x";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
@@ -82,7 +85,9 @@ let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,a
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
-let townLife=new TownLife(),townUI=null;
+let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
+function saveLawJournal(){try{localStorage.setItem(LAW_JOURNAL_KEY,JSON.stringify(law.snapshot()));}catch(_){log("治安・継承データを保存できませんでした");}}
+function loadLawJournal(){try{return JSON.parse(localStorage.getItem(LAW_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function saveRailwayJournal(){
  try{if(railway)localStorage.setItem(RAILWAY_JOURNAL_KEY,JSON.stringify(railway.snapshot()));}
  catch(_){log("鉄道の乗車記録を保存できませんでした");}
@@ -248,9 +253,10 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
+   law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   railwaySecurity=new RailwaySecurity(saved?.v0_8x?.security||(!saved?loadRailwaySecurityJournal():null));
-  townUI?.close(true);$("town-interior-exit").hidden=true;
+  townUI?.close(true);lawUI?.close();$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
    settlementLocations=null;
@@ -418,7 +424,15 @@ function init(saved=null){
   syncCameraControls();
   rtsMode=false;rtsMulti=false;rallyPicking=false;
   autoActorId=squad.selectedAgents()[0]?.id||"player";
-  if(!faunaUI)faunaUI=installFaunaUI({
+  if(!lawUI)lawUI=installLawUI({
+    get:()=>({law,settlementId:activeSettlementId,squad,payFine:amount=>{
+      if(townLife.coins<amount)return false;townLife.coins-=amount;saveTownJournal();return true;
+    }}),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
+    onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();},
+    onSuccession:heirId=>completeSuccession(heirId)
+   });
+   lawUI.refresh();
+   if(!faunaUI)faunaUI=installFaunaUI({
    state:()=>({fauna,controller,actions}),log,save:saveFaunaJournal,
    refreshHud:updateHUD,passable:faunaGroundPassable,onResourcesChange:saveLifeJournal
   });
@@ -775,6 +789,7 @@ function refreshShipCrewChoices(){
  }
 }
 function updateHUD(){
+  lawUI?.refresh();
  const g=terrainSurface(terrain,controller.lat,controller.lon);
  const climate=weather.sample(controller.lat,controller.lon,g.elevationM);
  const isSurface=controller.altitudeM<=12;
@@ -1009,6 +1024,20 @@ $("next-season").addEventListener("click",()=>{
 $("play").addEventListener("click",()=>{
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
+function completeSuccession(id){
+ const candidate=squad?.get(id);
+ if(!candidate||candidate.hp<=0)return {ok:false,message:"その人物は生存していません"};
+ const result=law.succeed(id);
+ if(!result.ok)return result;
+ const player=squad.get("player"),vitals=squad.frontier.person("player"),heirVitals=squad.frontier.person(id);
+ Object.assign(vitals,normalizeVitals(heirVitals));
+ battle.playerHp=Math.max(1,Math.min(100,candidate.hp));player.name=result.person.name;
+ controller.x=candidate.control.x;controller.z=candidate.control.z;
+ const loc=controller.locationAt(controller.x,controller.z);controller.lat=loc.lat;controller.lon=loc.lon;
+ candidate.hp=0;
+ squad.repositionAfterLanding();running=true;simWorld.clock.paused=false;
+ saveLawJournal();saveLifeJournal();updateHUD();return result;
+}
 function captureGame(){
   return {format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
@@ -1025,13 +1054,13 @@ function captureGame(){
          v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot(),
          v0_8x:{schemaVersion:1,timeScale:normalizeTimeScale($("days-per-second").value),security:railwaySecurity.snapshot()},
          v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()},
-   v0_8y:{schemaVersion:1,ferry:ferry.snapshot()}};
+   v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
  try{
   const data=captureGame();
   localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();
-   saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();
+   saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();saveLawJournal();
   log("v0.8x：切符・鉄道保安・時間倍率を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
 });
@@ -1127,7 +1156,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);localStorage.removeItem(LAW_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
@@ -3001,7 +3030,7 @@ $("harbor-alight").addEventListener("click",()=>harborAction(()=>{
 let ferryDialogue=0;
 $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
-window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();});
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
 init();requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
