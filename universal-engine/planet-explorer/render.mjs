@@ -1181,14 +1181,23 @@ export class ExplorerRenderer{
    const at=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
    return Math.max(0,terrainSurface(this.terrain,at.lat,at.lon).elevationM);
   };
-  // Project the separately patrolling railway officer for physical-hit feedback.
-  const officer=this.railwaySecurity?.guard;
+  // A visible station sentry speaks warnings even before any arrest warrant.
+  // Keep them on-screen for the "それでいい" acknowledgement after leaving the rails.
+  const security=this.railwaySecurity;
+  const showSentry=security?.state==="warned"||
+   (security?.sentryUntil>security?.elapsed);
+  const officer=security?.guard||(showSentry?security?.sentry:null);
   if(officer&&officer.stationId===this.settlementId&&
      Math.hypot(officer.x-s.x,officer.z-s.z)<135){
    const y=getY(officer.x,officer.z);
+   if(!security.guard){
+    const mesh=this.lawGuardMeshes.guard.calm[0];
+    this.drawMesh(mesh,multiply4(vp,multiply4(
+     translate(officer.x-this.cx,y,officer.z-this.cz),rotateY(Math.PI))),light,1,.85);
+   }
    const screen=projectScreen(vp,[officer.x-this.cx,y+1.85,officer.z-this.cz]);
    if(screen?.onScreen)this.screenGuards.push({...screen,id:"railway-security:"+this.settlementId,
-    x:officer.x,z:officer.z,hp:officer.hp||100,name:"鉄道保安員",kind:"railsecurity"});
+    x:officer.x,z:officer.z,hp:officer.hp??100,name:"鉄道保安員",kind:"railsecurity"});
   }
   if(Math.abs(gx)<radius&&Math.abs(gz)<radius){
    const mesh=this.lawPostMeshes[garrison.owner==="player"?"player":"crown"];
