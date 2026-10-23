@@ -1680,7 +1680,19 @@ function handleRailwayArrival(event){
  updateHUD();
 }
 function handleRailwaySecurityEvent(event){
- log((event.type==="warning"?"⚠️ ":event.type==="pursuit"?"🚨 ":"🔒 ")+event.message);
+ if(event.type==="pursuit"){
+  const crime=law.reportCrime(event.stationId,"trespass",{witnessed:true,reporter:"railway-security"});
+  if(crime.ok)saveLawJournal();
+ }
+ if(event.type==="securityHit"){
+  const vitals=squad.frontier.person("player");
+  vitals.stamina=Math.max(0,vitals.stamina-(event.staminaDamage||0));
+  battle.playerHp=Math.max(0,battle.playerHp-(event.hpDamage||0));
+  renderer.playerHitSeconds=.48;
+  worldUI?.float({kind:"hurt",text:"−"+event.staminaDamage+" ⚡ / −"+event.hpDamage+" HP",
+   actorId:"player",duration:1.2});
+ }
+ if(event.message)log(event.message);
  if(event.type==="jailed"){
   controller.clearMoveTarget();actions.cancel?.();townLife.leave();renderer.townInterior=null;
   townUI?.close(true);railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
@@ -1691,33 +1703,77 @@ function handleRailwaySecurityEvent(event){
 }
 function updateRailwaySecurityHUD(){
  const hud=$("railway-security-hud");if(!hud||!railwaySecurity)return;
- const bail=$("railway-bail"),title=$("railway-security-title"),detail=$("railway-security-detail");
- if(railwaySecurity.state==="clear"){hud.hidden=true;return;}
- hud.hidden=false;bail.hidden=railwaySecurity.state!=="jailed";
- if(railwaySecurity.state==="jailed"){
+ const state=railwaySecurity.state,jailed=state==="jailed",chased=state==="wanted"||state==="challenged";
+ if(state==="clear"){hud.hidden=true;return;}
+ hud.hidden=false;
+ for(const [id,show] of [
+  ["railway-bail",jailed],["railway-serve",jailed],
+  ["railway-comply",state==="warned"],
+  ["railway-surrender",chased],["railway-flee",chased&&!railwaySecurity.fleeing],
+  ["railway-resist",chased&&!railwaySecurity.resisting]
+ ])$(id).hidden=!show;
+ const title=$("railway-security-title"),detail=$("railway-security-detail");
+ if(jailed){
+  const fine=railwaySecurity.jailed?.fine??RAIL_BAIL_FINE;
   title.textContent="🔒 駅留置所";
-  detail.textContent="線路内への侵入で勾留中です。罰金 "+RAIL_BAIL_FINE+"G を支払うと保釈されます。テスト所持金："+railway.fundsLabel;
-  bail.textContent="罰金 "+RAIL_BAIL_FINE+"G を支払って保釈";
- }else if(railwaySecurity.state==="wanted"){
-  title.textContent="🚨 衛兵が追跡中";detail.textContent="3回の警告に背いたため追跡されています。衛兵に捕まると留置所へ勾留されます。";
+  detail.textContent="線路侵入の勾留。罰金または服役による釈放が可能です。所持金："+railway.fundsLabel;
+  $("railway-bail").textContent="罰金 "+fine+"G を支払う";
+ }else if(state==="challenged"){
+  title.textContent="🛡️ 保安員からの投降要求";
+  detail.textContent="投降・逃走・抵抗を選択できます。応じなければ約"+
+   Math.ceil(railwaySecurity.challengeRemaining)+"秒後に拘束されます。";
+ }else if(chased){
+  title.textContent="🚨 鉄道保安が追跡中";
+  detail.textContent=railwaySecurity.resisting?
+   "保安員が制圧を試みています。攻撃を受けるとスタミナとHPを失います。":
+   railwaySecurity.fleeing?
+   "逃走中です。距離を取れば追跡は中断します。":
+   "警告を無視したため追跡中。接近されると投降要求が始まります。";
  }else{
   title.textContent="⚠️ 鉄道保安の警告 "+railwaySecurity.warningCount+"/3";
-  detail.textContent="柵内の線路から出てください。30秒以内に3回警告に背くと衛兵が追跡します。";
+  detail.textContent="柵内は危険です。警告に従って線路の外へ戻れます。踏切の横断は合法です。";
  }
 }
-function payRailwayBail(){
- const result=railwaySecurity.payFine(amount=>railway.charge(amount));
- if(!result.ok){log("保釈できませんでした: "+result.message);return;}
+function releaseRailwayCustody(result){
+ if(!result.ok){log("釈放できませんでした: "+result.message);return;}
+ if(result.settleReport){law.settleRailTrespass(result.stationId);saveLawJournal();}
+ if(result.days)planet.advance(result.days);
  const station=stationById(result.stationId);
  if(station){
   activeSettlementId=station.id;renderer.settlementId=station.id;
   controller.x=station.site.x+14;controller.z=station.site.z-7;controller.yaw=-Math.PI*.5;
-  const geo=controller.locationAt(controller.x,controller.z);controller.lat=geo.lat;controller.lon=geo.lon;
-  controller.clearMoveTarget();renderer.patchKey=null;renderer.mapFocus=null;squad?.repositionAfterLanding();
+  const geo=controller.locationAt(controller.x,controller.z);
+  controller.lat=geo.lat;controller.lon=geo.lon;
+  controller.clearMoveTarget();renderer.patchKey=null;renderer.mapFocus=null;
+  squad?.repositionAfterLanding();
  }
  saveRailwayJournal();saveRailwaySecurityJournal();log("🔓 "+result.message);updateHUD();
 }
+function payRailwayBail(){
+ const result=railwaySecurity.payFine(amount=>railway.charge(amount));
+ releaseRailwayCustody(result);
+}
+function serveRailwaySentence(){
+ releaseRailwayCustody(railwaySecurity.serveSentence());
+}
+function respondRailwaySecurity(choice){
+ const result=railwaySecurity.respond(choice);
+ if(!result.ok){log(result.message);return;}
+ if(result.action==="exit"){
+  const position=railwaySafeExit(activeSettlementId,controller.x,controller.z);
+  if(!position||!controller.setMoveTarget(position.x,position.z))
+   log("柵外への移動ができません。操作して線路から離れてください。");
+  else log("🚶 柵の外へ移動します。");
+ }else if(result.type==="jailed")handleRailwaySecurityEvent(result);
+ else log(result.message);
+ saveRailwaySecurityJournal();updateRailwaySecurityHUD();
+}
 $("railway-bail").addEventListener("click",payRailwayBail);
+$("railway-serve").addEventListener("click",serveRailwaySentence);
+for(const [button,choice] of [
+ ["railway-comply","comply"],["railway-surrender","surrender"],
+ ["railway-flee","flee"],["railway-resist","resist"]
+ ])$(button).addEventListener("click",()=>respondRailwaySecurity(choice));
 /** Read-only directory browsing until the player explicitly selects an action. */
 function openMapEntry(entry){
  if(entry.source==="animal"){
