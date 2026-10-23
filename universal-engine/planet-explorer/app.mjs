@@ -28,7 +28,7 @@ import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
-import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.8q-rod-use";
+import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
@@ -58,8 +58,8 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
-import {LawSystem} from "./law-system.mjs?v=0.9g-defense";
-import {installLawUI} from "./law-ui.mjs?v=0.9g-defense";
+import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9h-dialogue";
+import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -448,7 +448,8 @@ function init(saved=null){
     }),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
     onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();},
     onSuccession:heirId=>completeSuccession(heirId),
-    onFight:()=>startGuardCombat()
+    onFight:()=>startGuardCombat(),
+    onWarningCompliance:(id,kind)=>handleGuardWarningCompliance(id,kind)
    });
    lawUI.refresh();
    if(!territoryUI)territoryUI=installTerritoryUI({
@@ -608,7 +609,11 @@ function doFrame(t){
     const vitals=squad.frontier.person("player");
     const events=law.advance(dt,{day:planet.timeDays,settlementId:activeSettlementId,
       x:controller.x,z:controller.z,stamina:vitals.stamina,hp:battle.playerHp,
-      playerEligible:!railwaySecurity?.wanted&&!railwaySecurity?.jailed,
+      playerEligible:railwaySecurity?.state==="clear",
+      armedWeapons:frontierUI?.armedWeapons("player")||[],
+      restrictedZone:Boolean(GUARD_POSTS[activeSettlementId]&&
+       Math.hypot(controller.x-GUARD_POSTS[activeSettlementId].x,
+                  controller.z-GUARD_POSTS[activeSettlementId].z)<5),
       hostiles:battle.enemies,passable:faunaGroundPassable,
       eligible:controller.altitudeM<=12&&!townLife.inside&&!railway?.boarded&&!ferry?.boarded&&!marine?.boarded});
     for(const event of events){
@@ -628,9 +633,13 @@ function doFrame(t){
       }
       if(event.type==="detained"){
         controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
+        lawUI?.closeEncounter();lawUI?.open();
       }
-      if(event.type==="challenge")document.getElementById("law-panel").hidden=false;
-      if(event.type==="challenge"||event.type==="detained")lawUI?.refresh();
+      if(event.speech&&event.speakerId)worldUI?.speak(event.speakerId,event.speech,5.5);
+      if(event.type==="challenge"||event.type==="territoryWarning")lawUI?.openEncounter(event);
+      if(event.type==="complied")lawUI?.closeEncounter();
+      if(["challenge","territoryWarning","complied","detained"].includes(event.type))
+       lawUI?.refresh();
     }
     if(events.length)saveLawJournal();
   }
@@ -1159,6 +1168,25 @@ function damageRailwayGuard(damage,options={}){
  if(result.defeated)law.reportCrime(activeSettlementId,"killGuard",{reporter:"railway-guard"});
  saveLawJournal();saveRailwaySecurityJournal();
  return result;
+}
+function handleGuardWarningCompliance(id,kind){
+ const checked=law.respondWarning(id,"comply");
+ if(!checked.ok)return checked;
+ if(kind==="weapon"){
+  const outcome=frontierUI?.stowWeapons("player")||{ok:false,message:"装備画面がまだ利用できません"};
+  if(outcome.ok)saveLifeJournal();
+  return outcome;
+ }
+ if(kind==="restricted"){
+  const post=GUARD_POSTS[id];
+  if(!post)return {ok:false,message:"警備区画が見つかりません"};
+  const dx=controller.x-post.x,dz=controller.z-post.z,dist=Math.hypot(dx,dz)||1;
+  const target={x:post.x+dx/dist*11,z:post.z+dz/dist*11};
+  if(!controller.setMoveTarget(target.x,target.z))
+   return {ok:false,message:"退出先へ歩けません。手動で警備区画から出てください"};
+  return {ok:true,message:"🚶 警備区画の外へ向かいます"};
+ }
+ return {ok:false,message:"指示に対応できません"};
 }
 function startGuardCombat(){
  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"現在は戦闘できません"};
@@ -1722,6 +1750,7 @@ function handleRailwaySecurityEvent(event){
    actorId:"player",duration:1.2});
  }
  if(event.message)log(event.message);
+ if(event.speech&&event.speakerId)worldUI?.speak(event.speakerId,event.speech,5.5);
  if(event.type==="jailed"){
   controller.clearMoveTarget();actions.cancel?.();townLife.leave();renderer.townInterior=null;
   townUI?.close(true);railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
@@ -1749,8 +1778,7 @@ function updateRailwaySecurityHUD(){
   $("railway-bail").textContent="罰金 "+fine+"G を支払う";
  }else if(state==="challenged"){
   title.textContent="🛡️ 保安員からの投降要求";
-  detail.textContent="投降・逃走・抵抗を選択できます。応じなければ約"+
-   Math.ceil(railwaySecurity.challengeRemaining)+"秒後に拘束されます。";
+  detail.textContent="あなたには逮捕状がでている。武器をしまい投降しなさい。選択するまで自動拘束されません。";
  }else if(chased){
   title.textContent="🚨 鉄道保安が追跡中";
   detail.textContent=railwaySecurity.resisting?
@@ -1794,7 +1822,12 @@ function respondRailwaySecurity(choice){
    log("柵外への移動ができません。操作して線路から離れてください。");
   else log("🚶 柵の外へ移動します。");
  }else if(result.type==="jailed")handleRailwaySecurityEvent(result);
- else log(result.message);
+ else{
+  if(result.action==="flee"||result.action==="resist"){
+   law.reportCrime(activeSettlementId,"escape",{reporter:"railway-security"});saveLawJournal();
+  }
+  log(result.message);
+ }
  saveRailwaySecurityJournal();updateRailwaySecurityHUD();
 }
 $("railway-bail").addEventListener("click",payRailwayBail);
