@@ -109,7 +109,12 @@ export class RailwaySecurity{
   if(this.jailed)return events;
   const station=stationById(stationId);
   const restricted=Boolean(eligible&&station&&isRailRestricted(stationId,x,z));
-  if(station)this.sentry={stationId,x:station.site.x+10,z:station.site.z-7};
+  if(station&&restricted&&(!this.sentry||this.sentry.stationId!==stationId||
+   this.state==="clear")){
+   const side=x<station.site.x?-1:1;
+   // Officer stands outside the fence, near enough to speak visibly.
+   this.sentry={stationId,x:x+side*(RAIL_CORRIDOR_HALF_WIDTH+2),z};
+  }
   if(this.wanted&&station&&this.guard&&eligible){
    if(this.guard.stationId!==stationId)this.lostSeconds+=Math.min(dt,.25);
    let dx=x-this.guard.x,dz=z-this.guard.z,distance=Math.hypot(dx,dz);
@@ -154,7 +159,8 @@ export class RailwaySecurity{
    this.nextWarningAt=this.elapsed+RAIL_WARNING_INTERVAL_SECONDS;
    if(this.warningCount>=RAIL_WARNING_LIMIT){
     this.wanted=true;this.challenged=false;this.fleeing=false;this.resisting=false;this.caseReported=true;
-    this.guard={stationId,x:station.site.x+10,z:station.site.z-7,hp:100};
+    this.guard={stationId,x:this.sentry?.x??station.site.x+10,
+      z:this.sentry?.z??station.site.z-7,hp:100};
     events.push({type:"pursuit",stationId,count:this.warningCount,
      message:"3回の警告を無視したため保安員が追跡します。接近すると投降を求められます。"});
    }else events.push({type:"warning",stationId,count:this.warningCount,
