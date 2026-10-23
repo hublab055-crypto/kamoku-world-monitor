@@ -1264,7 +1264,7 @@ $("import-v07a-save").addEventListener("click",()=>{
  }catch(e){log("v0.7aの読み込み失敗: "+e.message)}
 });
 $("reset").addEventListener("click",()=>{
-  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);localStorage.removeItem(LAW_JOURNAL_KEY);}catch(_){}
+  try{localStorage.removeItem(LIFE_JOURNAL_KEY);localStorage.removeItem(WORLD_JOURNAL_KEY);localStorage.removeItem(STRUCTURES_JOURNAL_KEY);localStorage.removeItem(FAUNA_JOURNAL_KEY);localStorage.removeItem(TOWN_JOURNAL_KEY);localStorage.removeItem(RAILWAY_JOURNAL_KEY);localStorage.removeItem(LAW_JOURNAL_KEY);localStorage.removeItem(TERRITORY_JOURNAL_KEY);}catch(_){}
   running=true;init();updateHUD();
  });
 window.addEventListener("keydown",e=>{
