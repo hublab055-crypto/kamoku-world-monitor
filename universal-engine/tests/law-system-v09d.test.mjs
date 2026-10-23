@@ -162,6 +162,8 @@ test("serious wanted crimes authorize lethal force, but depleted HP takes priori
  const law=new LawSystem();
  law.reportCrime("capital","murder");
  law.advance(.1,{day:1,settlementId:"capital",x:16,z:18});
+ assert.equal(law.district("capital").hostile,false);
+ assert.equal(law.respond("capital","refuse").ok,true);
  assert.ok(law.district("capital").hostile);
  const hits=law.advance(2,{day:1,settlementId:"capital",x:16,z:18,stamina:0,hp:0});
  assert.equal(hits.some(x=>x.type==="detained"),false);
