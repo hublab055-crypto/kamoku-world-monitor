@@ -59,6 +59,10 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}
   }else if(law.custody){
    text(buttons,"p","🔒 勾留中："+law.custody.faction+" ／ 罰金 "+law.custody.fine+"G");
    buttons.append(makeButton("罰金を払って釈放",()=>{const {law,payFine}=safeGet();return law.payFine(law.custody.faction,payFine);}));
+   buttons.append(makeButton("📆 服役して釈放",()=>{const {law,serveTime}=safeGet();
+    const result=law.serveSentence(law.custody.faction);
+    if(result.ok)serveTime?.(result.days);
+    return result;}));
   }else{
    if(faction&&level>0){
     const row=actionRow();
