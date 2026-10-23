@@ -157,18 +157,47 @@ export class RailwaySecurity{
   this.wasRestricted=restricted;
   return events;
  }
+ /** Response to an actual railway guard. No instant teleport or auto-capture on sight. */
+ respond(choice){
+  if(this.jailed)return {ok:false,message:"勾留中は保釈または服役を選んでください"};
+  if(choice==="comply"){
+   if(this.wanted)return {ok:false,message:"既に手配されています。投降するか逃走してください"};
+   return {ok:true,action:"exit",message:"柵の外の安全な位置へ移動します"};
+  }
+  if(!this.wanted||!this.guard)return {ok:false,message:"追跡中の保安員はいません"};
+  if(choice==="surrender"){return {ok:true,...this._detain(this.guard.stationId)};}
+  if(choice==="flee"){
+   this.challenged=true;this.fleeing=true;this.resisting=false;
+   this.challengeRemaining=0;
+   return {ok:true,action:"flee",message:"🏃 保安員から逃走。距離を取れば追跡を振り切れます"};
+  }
+  if(choice==="resist"){
+   this.challenged=true;this.resisting=true;this.fleeing=false;this.challengeRemaining=0;
+   return {ok:true,action:"resist",message:"⚔️ 保安員が制圧行動へ移りました"};
+  }
+  return {ok:false,message:"操作できません"};
+ }
+ /** Bail is optional; serve time if the player cannot or does not want to pay. */
+ serveSentence(){
+  if(!this.jailed)return {ok:false,message:"勾留中ではありません"};
+  const stationId=this.jailed.stationId,days=clamp(Math.ceil(this.jailed.fine/60),1,14);
+  this._clear();
+  return {ok:true,stationId,days,message:days+"日間の服役を終えて釈放されました"};
+ }
  payFine(pay){
   if(!this.jailed)return {ok:false,message:"勾留されていません"};
-  const result=typeof pay==="function"?pay(RAIL_BAIL_FINE):{ok:false};
+  const amount=this.jailed.fine;
+  const result=typeof pay==="function"?pay(amount):{ok:false};
   if(result===false||result?.ok===false)return {ok:false,message:result?.message||"罰金を支払えません"};
   const stationId=this.jailed.stationId;
-  this.jailed=null;this.wanted=false;this.guard=null;this.warningTimes=[];
-  this.wasRestricted=false;this.nextWarningAt=this.elapsed;
-  return {ok:true,stationId,message:"罰金 "+RAIL_BAIL_FINE+"G を支払い、保釈されました。"};
+  this._clear();
+  return {ok:true,stationId,message:"罰金 "+amount+"G を支払い、保釈されました。"};
  }
  snapshot(){
   return {schemaVersion:1,elapsed:this.elapsed,
    warningAges:this.warningTimes.map(t=>Math.max(0,this.elapsed-t)),wanted:this.wanted,
-   guard:this.guard?{...this.guard}:null,jailed:this.jailed?{...this.jailed}:null};
+   guard:this.guard?{...this.guard}:null,jailed:this.jailed?{...this.jailed}:null,
+   challenged:this.challenged,challengeRemaining:this.challengeRemaining,
+   fleeing:this.fleeing,resisting:this.resisting,lostSeconds:this.lostSeconds,attackSeconds:this.attackSeconds};
  }
 }
