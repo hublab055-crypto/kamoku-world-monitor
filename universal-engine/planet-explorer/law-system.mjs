@@ -93,7 +93,7 @@ export class LawSystem{
   // All warrants require a spoken encounter, including high-level crimes.
   // Being wanted alone never implies refusing surrender.
   this.history.push({day:this.day,type:"crime",id,kind,reporter});
-  this.notice="🚨 "+GUARD_POSTS[id].name+"：手配レベル "+this.level(id);
+  this.notice="🚨 "+GUARD_POSTS[id].name+"：手配 "+"❌".repeat(this.level(id));
   return {ok:true,reported:true,level:this.level(id),points,message:this.notice};
  }
  addWitnessReport(id,kind){return this.reportCrime(id,kind,{witnessed:true});}
