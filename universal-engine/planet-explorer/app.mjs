@@ -430,7 +430,8 @@ function init(saved=null){
   if(!lawUI)lawUI=installLawUI({
     get:()=>({law,settlementId:activeSettlementId,squad,playerPosition:{x:controller.x,z:controller.z},payFine:amount=>{
       if(townLife.coins<amount)return false;townLife.coins-=amount;saveTownJournal();return true;
-    }}),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
+    },serveTime:days=>{planet.advance(days);saveLawJournal();updateHUD();}
+    }),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
     onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();},
     onSuccession:heirId=>completeSuccession(heirId),
     onFight:()=>startGuardCombat()
