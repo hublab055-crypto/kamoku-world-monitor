@@ -93,6 +93,15 @@ export class LawSystem{
   return {ok:true,reported:true,level:this.level(id),points,message:this.notice};
  }
  addWitnessReport(id,kind){return this.reportCrime(id,kind,{witnessed:true});}
+ /** Settle only a railway trespass charge, not independent crimes like assault. */
+ settleRailTrespass(id){
+  const district=this.district(id);if(!district)return false;
+  district.heat=Math.max(0,district.heat-CRIME_POINTS.trespass);
+  if(this.level(id)===0){district.pursuit=false;district.hostile=false;district.challengeShown=false;}
+  this.history.push({day:this.day,type:"railFineSettled",id});
+  return true;
+ }
+
  /** No random spawning. Guards leave a post's finite personnel pool; replacements are daily-capped. */
  dispatch(id,x=0,z=0){
   const s=this.district(id),post=GUARD_POSTS[id];
