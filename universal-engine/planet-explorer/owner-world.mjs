@@ -20,10 +20,17 @@ const wrapLon=lon=>((lon+540)%360)-180;
 const near=(a,b)=>{const dy=(a.lat-b.lat)*111195;let dlon=a.lon-b.lon;dlon=((dlon+540)%360)-180;
  return Math.hypot(dy,dlon*111195*Math.cos((a.lat+b.lat)*Math.PI/360));};
 const fail=message=>({ok:false,message});
+const primitiveRotations=p=>({rx:finite(p?.rx)?p.rx:0,ry:finite(p?.ry)?p.ry:0,
+ rz:finite(p?.rz)?p.rz:finite(p?.rotation)?p.rotation:0});
+const withPrimitiveRotations=p=>{const r=primitiveRotations(p);return {...p,...r,rotation:r.rz};};
 const validPrimitivePart=p=>p&&OWNER_PRIMITIVES.includes(p.shape)&&
  [p.width,p.height,p.depth].every(v=>finite(v)&&v>=.1&&v<=200)&&
- finite(p.rotation)&&finite(p.offsetY)&&Math.abs(p.offsetY)<=500&&
+ Object.values(primitiveRotations(p)).every(v=>finite(v)&&Math.abs(v)<=1e5)&&
+ finite(p.offsetY)&&Math.abs(p.offsetY)<=500&&
  Array.isArray(p.color)&&p.color.length===3&&p.color.every(v=>finite(v)&&v>=0&&v<=1);
+const validAssetDocument=document=>document===undefined||document===null||
+ (document?.format==="ue/asset-document"&&document.version===2&&Array.isArray(document.nodes)&&
+  document.nodes.length>0&&document.nodes.length<=96&&JSON.stringify(document).length<=750000);
 const localFrom=(origin,p)=>{
  const dlon=wrapLon(p.lon-origin.lon),lat=(origin.lat+p.lat)*Math.PI/360;
  return {x:dlon*111195*Math.cos(lat),z:(p.lat-origin.lat)*111195};
@@ -58,7 +65,7 @@ export class OwnerWorld {
     for(const p of saved.primitives){
      if(!validGeo(p)||!validPrimitivePart(p)||!Number.isSafeInteger(p.id)||p.id<1||ids.has(p.id)||
       typeof p.group!=="string"||p.group.length>40)throw Error("建築パーツが不正です");
-     ids.add(p.id);this.primitives.push({...p,color:[...p.color]});
+     ids.add(p.id);this.primitives.push({...withPrimitiveRotations(p),color:[...p.color]});
     }
    }
    if(saved.version>=3){
@@ -69,8 +76,10 @@ export class OwnerWorld {
       !Array.isArray(prefab.parts)||!prefab.parts.length||prefab.parts.length>96)throw Error("保存建築物が不正です");
      for(const part of prefab.parts)if(!validPrimitivePart(part)||![part.x,part.z].every(v=>finite(v)&&Math.abs(v)<=500))
       throw Error("保存建築物のパーツが不正です");
+     if(!validAssetDocument(prefab.assetDocument))throw Error("保存Asset文書が不正です");
      names.add(prefab.name);this.prefabs.push({name:prefab.name,
-      parts:prefab.parts.map(part=>({...part,color:[...part.color]}))});
+      parts:prefab.parts.map(part=>({...withPrimitiveRotations(part),color:[...part.color]})),
+      ...(prefab.assetDocument?{assetDocument:clone(prefab.assetDocument)}:{})});
     }
    }
    this.nextId=Math.max(1,...ids)+1;
@@ -143,14 +152,14 @@ export class OwnerWorld {
   this.roads.push(r);return {ok:true,message:"🛣️ 幅"+width+"m・長さ約"+Math.round(meters)+"mの道を引きました"};
  }
  /** Independent scaled geometric parts can be assembled into buildings by sharing a group name. */
- placePrimitive(shape,p,{width=4,height=4,depth=4,offsetY=0,rotation=0,color=[.76,.68,.55],group=""}={}){
+ placePrimitive(shape,p,{width=4,height=4,depth=4,offsetY=0,rotation=0,rx=0,ry=0,rz=rotation,color=[.76,.68,.55],group=""}={}){
   if(!OWNER_PRIMITIVES.includes(shape)||!validGeo(p)||this.primitives.length>=1200||
    ![width,height,depth].every(v=>finite(v)&&v>=.1&&v<=200)||
-   !finite(offsetY)||Math.abs(offsetY)>500||!finite(rotation)||
+   !finite(offsetY)||Math.abs(offsetY)>500||![rx,ry,rz].every(v=>finite(v)&&Math.abs(v)<=1e5)||
    !Array.isArray(color)||color.length!==3||!color.every(c=>finite(c)&&c>=0&&c<=1))
    return fail("立体の形状・寸法が不正か、上限1200個に達しました");
   this._remember();
-  const part={id:this.nextId++,shape,lat:p.lat,lon:p.lon,width,height,depth,offsetY,rotation,
+  const part={id:this.nextId++,shape,lat:p.lat,lon:p.lon,width,height,depth,offsetY,rotation:rz,rx,ry,rz,
    color:[...color],group:String(group).trim().slice(0,40)};
   this.primitives.push(part);
   return {ok:true,id:part.id,message:"🧱 "+shape+"を配置しました（グループ："+(part.group||"未設定")+"）"};
@@ -163,10 +172,11 @@ export class OwnerWorld {
  changePrimitive(id,updates){
   const part=this.primitives.find(p=>p.id===id);
   if(!part)return fail("建築パーツが見つかりません");
-  const next={...part,...updates};
+  const owns=key=>Object.prototype.hasOwnProperty.call(updates,key),merged={...part,...updates};if(owns("rotation")&&!owns("rz"))merged.rz=updates.rotation;
+  const next=withPrimitiveRotations(merged);
   if(!validGeo(next)||!OWNER_PRIMITIVES.includes(next.shape)||
    ![next.width,next.height,next.depth].every(v=>finite(v)&&v>=.1&&v<=200)||
-   !finite(next.rotation)||!finite(next.offsetY)||Math.abs(next.offsetY)>500||
+   ![next.rx,next.ry,next.rz].every(v=>finite(v)&&Math.abs(v)<=1e5)||!finite(next.offsetY)||Math.abs(next.offsetY)>500||
    !Array.isArray(next.color)||next.color.length!==3||
    !next.color.every(v=>finite(v)&&v>=0&&v<=1))return fail("建築パーツの編集値が不正です");
   this._remember();
@@ -176,7 +186,7 @@ export class OwnerWorld {
  movePrimitive(id,p){return this.changePrimitive(id,{lat:p?.lat,lon:p?.lon});}
  rotatePrimitive(id,radians=Math.PI/8){
   const part=this.primitives.find(p=>p.id===id);
-  return part?this.changePrimitive(id,{rotation:(part.rotation+radians)%(Math.PI*2)}):fail("建築パーツが見つかりません");
+  return part?this.changePrimitive(id,{rz:(part.rz+radians)%(Math.PI*2)}):fail("建築パーツが見つかりません");
  }
  removePrimitive(id){
   const index=this.primitives.findIndex(p=>p.id===id);
@@ -199,19 +209,21 @@ export class OwnerWorld {
    z:offsets.reduce((sum,p)=>sum+p.z,0)/offsets.length};
   const model={name:title,parts:parts.map((part,index)=>({shape:part.shape,
    x:offsets[index].x-center.x,z:offsets[index].z-center.z,width:part.width,height:part.height,
-   depth:part.depth,offsetY:part.offsetY,rotation:part.rotation,color:[...part.color]}))};
+   depth:part.depth,offsetY:part.offsetY,rotation:part.rz,rx:part.rx,ry:part.ry,rz:part.rz,color:[...part.color]}))};
   this._remember();
   if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
   return {ok:true,name:title,count:model.parts.length,message:"💾 「"+title+"」を"+model.parts.length+"パーツの建築物として保存しました"};
  }
- savePrefabParts(name,parts,{replace=false}={}){
+ savePrefabParts(name,parts,{replace=false,assetDocument=null}={}){
   const title=String(name||"").trim().slice(0,40);
   if(!title||!Array.isArray(parts)||!parts.length||parts.length>96)return fail("Asset名を入力し、1〜96個のパーツを配置してください");
   if(parts.some(part=>!validPrimitivePart(part)||![part.x,part.z].every(v=>finite(v)&&Math.abs(v)<=500)))return fail("Assetの形状・寸法・座標が不正です");
+  if(!validAssetDocument(assetDocument)||(assetDocument&&assetDocument.nodes.length!==parts.length))return fail("AssetDocument v2の保存形式が不正です");
   const existing=this.prefabs.findIndex(prefab=>prefab.name===title);
   if(existing>=0&&!replace)return fail("同じ名前の保存建築物があります");
   if(existing<0&&this.prefabs.length>=100)return fail("保存建築物の上限100件に達しました");
-  const model={name:title,parts:parts.map(part=>({...part,color:[...part.color]}))};this._remember();
+  const model={name:title,parts:parts.map(part=>({...withPrimitiveRotations(part),color:[...part.color]})),
+   ...(assetDocument?{assetDocument:clone(assetDocument)}:{})};this._remember();
   if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
   return {ok:true,name:title,count:model.parts.length,message:"💾 Asset「"+title+"」を保存建築物へ登録しました（"+model.parts.length+"パーツ）"};
  }
@@ -227,8 +239,8 @@ export class OwnerWorld {
   this._remember();
   for(const {part,geo} of placements){
    const item={id:this.nextId++,shape:part.shape,lat:geo.lat,lon:geo.lon,width:part.width,
-    height:part.height,depth:part.depth,offsetY:part.offsetY,
-    rotation:(part.rotation+rotation)%(Math.PI*2),color:[...part.color],group};
+    height:part.height,depth:part.depth,offsetY:part.offsetY,rx:part.rx,ry:part.ry,
+    rz:(part.rz+rotation)%(Math.PI*2),rotation:(part.rz+rotation)%(Math.PI*2),color:[...part.color],group};
    this.primitives.push(item);created.push(item.id);
   }
   return {ok:true,ids:created,group,message:"🏠 保存建築物「"+prefab.name+"」を一括配置しました（"+created.length+"パーツ）"};

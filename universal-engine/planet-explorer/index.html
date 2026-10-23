@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.9b-asset-camera">
+<link rel="stylesheet" href="./style.css?v=0.9c-asset-v2">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -78,7 +78,7 @@
       <h1>オリジナルの世界を歩く。</h1>
       <p>v0.7v：木・鉄・火矢、集中／各自／分散照準、一斉／順次発射を追加。v0.7t：シンクロ一斉射撃・直射／曲射・矢の命中・矢の回収・練習用の的を追加。v0.7s：RTS・TPV共通でピンチズーム、資源タップで接近・採集、敵タップでターゲット、地面ダブルタップで移動。v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.9b Asset 3Dカメラ・床レベル</span>
+    <div class="version-control"><span class="version-tag">v0.9c Asset v2・6軸・テンキー</span>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -272,15 +272,29 @@
    <div class="asset-camera-row"><label>カメラ<select id="asset-camera-tool"><option value="orbit">回転</option><option value="pan">パン</option></select></label><label>方向<select id="asset-camera-preset"><option value="orbit">3D</option><option value="top">上面</option><option value="front">正面</option><option value="right">右側面</option></select></label><button type="button" id="asset-camera-focus">◎ 注視・リセット</button></div>
    <small class="asset-camera-help">「視点」でドラッグ。選択中は選択物の中心、未選択時はモデル原点を中心に回転します。ホイール／2本指でズーム。</small>
    <div class="asset-mode-row" role="group" aria-label="Asset編集モード"><button type="button" data-asset-mode="place" aria-pressed="true">＋配置</button><button type="button" data-asset-mode="select" aria-pressed="false">選択</button><button type="button" data-asset-mode="move" aria-pressed="false">移動</button><button type="button" data-asset-mode="view" aria-pressed="false">視点</button></div>
-   <div class="asset-dials" aria-label="座標ダイヤル">
+   <details class="asset-ui-settings"><summary>⚙ 操作UI・刻み設定</summary><div>
+    <label class="asset-check"><input id="asset-show-axis-dials" type="checkbox" checked> XYZダイヤルを表示</label>
+    <label class="asset-check"><input id="asset-show-common-dial" type="checkbox" checked> 共通ダイヤルを表示</label>
+    <label>回転刻み<select id="asset-angle-step"><option value="1">1°</option><option value="5">5°</option><option value="15" selected>15°</option><option value="45">45°</option></select></label>
+   </div></details>
+   <div class="asset-transform-fields" aria-label="位置と回転の数値入力">
+    <label>X位置<input id="asset-pos-x" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>Y位置<input id="asset-pos-y" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>Z位置・床<input id="asset-pos-z" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>RX°<input id="asset-rx" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>RY°<input id="asset-ry" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>RZ°<input id="asset-rz" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+   </div>
+   <div id="asset-axis-controls" class="asset-dials" aria-label="座標ダイヤル">
     <label>X移動 <span id="asset-value-x">0.0m</span><span id="asset-dial-x" class="asset-dial" role="slider" tabindex="0" aria-label="X方向移動" aria-valuenow="0"><i></i></span></label>
     <label>Y移動 <span id="asset-value-y">0.0m</span><span id="asset-dial-y" class="asset-dial" role="slider" tabindex="0" aria-label="Y方向移動" aria-valuenow="0"><i></i></span></label>
     <label>Z面・高さ <span id="asset-value-z">0.0m</span><span id="asset-dial-z" class="asset-dial" role="slider" tabindex="0" aria-label="Z方向と配置面の高さ" aria-valuenow="0"><i></i></span></label>
    </div>
    <div class="asset-z-row"><label>移動刻み<select id="asset-step"><option value="0.1">0.1m</option><option value="0.5" selected>0.5m</option><option value="1">1m</option><option value="2">2m</option></select></label><label>Zダイヤルの対象<select id="asset-z-target"><option value="floor" selected>配置床レベル</option><option value="selection">選択物のZ位置</option></select></label></div>
-   <div class="asset-fields"><label>形状<select id="asset-shape"><option value="cube">直方体</option><option value="cylinder">円柱</option><option value="sphere">球</option><option value="cone">円錐</option></select></label><label>色<input id="asset-color" type="color" value="#c2ad8c"></label>
-    <label>幅X<input id="asset-width" type="number" min=".1" max="200" step=".1" value="4"></label><label>奥行Y<input id="asset-depth" type="number" min=".1" max="200" step=".1" value="4"></label>
-    <label>高さZ<input id="asset-height" type="number" min=".1" max="200" step=".1" value="4"></label><label>回転°<input id="asset-rotation" type="number" step="1" value="0"></label></div>
+   <div id="asset-common-control" class="asset-common-control"><label>共通ダイヤルの対象<select id="asset-common-target"><option value="asset-pos-x">X位置</option><option value="asset-pos-y">Y位置</option><option value="asset-pos-z">Z位置／床</option><option value="asset-rx">RX回転</option><option value="asset-ry">RY回転</option><option value="asset-rz">RZ回転</option><option value="asset-width">幅X</option><option value="asset-depth">奥行Y</option><option value="asset-height">高さZ</option></select></label><button id="asset-number-open" type="button" aria-haspopup="dialog" aria-controls="asset-number-pad">⌨ 数値</button><span id="asset-common-value">0m</span><span id="asset-dial-common" class="asset-dial" role="slider" tabindex="0" aria-label="共通ダイヤル" aria-valuenow="0"><i></i></span></div>
+   <div class="asset-fields"><label>用途<select id="asset-type"><option value="building">建築</option><option value="machine">機械</option><option value="vehicle">乗り物</option><option value="equipment">道具・装備</option><option value="plant">植物</option><option value="creature">動物</option><option value="avatar">アバター</option></select></label><label>形状<select id="asset-shape"><option value="cube">直方体</option><option value="cylinder">円柱</option><option value="sphere">球</option><option value="cone">円錐</option></select></label><label>色<input id="asset-color" type="color" value="#c2ad8c"></label>
+    <label>幅X<input id="asset-width" class="asset-number-entry" type="text" value="4" readonly inputmode="none" data-asset-number></label><label>奥行Y<input id="asset-depth" class="asset-number-entry" type="text" value="4" readonly inputmode="none" data-asset-number></label>
+    <label>高さZ<input id="asset-height" class="asset-number-entry" type="text" value="4" readonly inputmode="none" data-asset-number></label></div>
    <button type="button" id="asset-apply">寸法・形状・色を選択へ適用</button>
    <fieldset class="asset-snap"><legend>スナップ</legend><label>既存側<select id="asset-snap-mode"><option value="auto">自動（端点・面・中心・重心）</option><option value="endpoint">端点</option><option value="face">面中央</option><option value="center">中心</option><option value="centroid">全体重心</option><option value="none">なし</option></select></label>
     <label>配置物側<select id="asset-source-anchor"><option value="center">中心</option><option value="top-left">左上端点</option><option value="top">上面中央</option><option value="top-right">右上端点</option><option value="right">右面中央</option><option value="bottom-right">右下端点</option><option value="bottom">下面中央</option><option value="bottom-left">左下端点</option><option value="left">左面中央</option></select></label></fieldset>
@@ -292,6 +306,19 @@
    <button id="asset-clear" class="owner-danger" type="button">新規・制作面を空にする</button>
    <output id="asset-status" role="status" aria-live="polite">XY平面をタップして配置できます</output>
   </aside>
+ </div>
+ <div id="asset-number-pad" class="asset-number-pad" hidden>
+  <section role="dialog" aria-modal="true" aria-labelledby="asset-number-title">
+   <header><strong id="asset-number-title">数値入力</strong><button id="asset-number-cancel" type="button" aria-label="数値入力を閉じる">×</button></header>
+   <output id="asset-number-display">0</output>
+   <div class="asset-number-keys" aria-label="テンキー">
+    <button type="button" data-asset-key="7">7</button><button type="button" data-asset-key="8">8</button><button type="button" data-asset-key="9">9</button><button type="button" data-asset-key="back">⌫</button>
+    <button type="button" data-asset-key="4">4</button><button type="button" data-asset-key="5">5</button><button type="button" data-asset-key="6">6</button><button type="button" data-asset-key="clear">C</button>
+    <button type="button" data-asset-key="1">1</button><button type="button" data-asset-key="2">2</button><button type="button" data-asset-key="3">3</button><button type="button" data-asset-key="minus">±</button>
+    <button type="button" data-asset-key="0">0</button><button type="button" data-asset-key="00">00</button><button type="button" data-asset-key="dot">.</button><button type="button" data-asset-key="apply" class="asset-number-apply">決定</button>
+   </div>
+   <small>数値欄をタップすると、端末のキーボードを開かずに入力できます。</small>
+  </section>
  </div>
 </section>
 <section id="map-directory-panel" class="fauna-panel map-directory-panel" role="dialog" aria-label="周辺マップの対象一覧" hidden>
@@ -1177,6 +1204,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9b-asset-camera"></script>
+<script type="module" src="./app.mjs?v=0.9c-asset-v2"></script>
 </body>
 </html>

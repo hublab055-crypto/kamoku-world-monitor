@@ -1202,18 +1202,29 @@ body.immersive{overflow:hidden}
 .asset-mode-row{grid-template-columns:repeat(4,minmax(0,1fr))}.asset-mode-row [aria-pressed="true"]{background:#3b7770;border-color:#b6ead4}
 .asset-camera-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:4px;padding:5px;border:1px solid #547481;border-radius:7px;background:#0c2530}
 .asset-camera-help{color:#a9cbd5;line-height:1.35}.asset-z-row{display:grid;grid-template-columns:1fr 1.45fr;gap:4px}
+.asset-controls [hidden]{display:none!important}
+.asset-ui-settings{border:1px solid #496d7a;border-radius:7px;background:#0c2530}.asset-ui-settings summary{cursor:pointer;padding:5px 6px;color:#d5e9ef;font-weight:650}.asset-ui-settings>div{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:2px 6px 6px}.asset-ui-settings>div>label:last-child{grid-column:1/-1}
+.asset-transform-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:5px;border:1px solid #547481;border-radius:7px;background:#0c2530}
+.asset-transform-fields label{color:#bcd9e2}.asset-number-entry{width:100%;min-height:31px!important;padding:3px 5px!important;background:#173d4b;color:#fff0b0;border-color:#7896a2;cursor:pointer;font-size:16px!important;font-variant-numeric:tabular-nums}
+.asset-number-entry:focus{outline:2px solid #ffd46d;outline-offset:1px}.asset-number-entry[readonly]{opacity:1;-webkit-text-fill-color:#fff0b0}
 .asset-dials{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;text-align:center}
 .asset-dials label{justify-items:center;color:#cde7ee}.asset-dials label>span:first-of-type{font-size:9px;color:#ffdd8a}
 .asset-dial{position:relative;width:58px;height:58px;border-radius:50%;touch-action:none;cursor:grab;background:radial-gradient(circle,#7895a0 0 12%,#274b59 14% 54%,#102630 56%);border:3px solid #7298a5;box-shadow:inset 0 0 0 2px #0b171d,0 2px 6px #0008}
 .asset-dial:focus-visible{outline:3px solid #ffd977}.asset-dial i{position:absolute;width:4px;height:22px;left:calc(50% - 2px);top:4px;border-radius:3px;background:#ffd46d;transform-origin:50% 25px;transform:rotate(var(--dial-angle,0deg));pointer-events:none}
+.asset-common-control{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"target number" "value dial";align-items:center;gap:5px;padding:5px;border:1px solid #78917b;border-radius:8px;background:#183a38}
+.asset-common-control label{grid-area:target}.asset-common-control>button{grid-area:number}.asset-common-control>#asset-common-value{grid-area:value;justify-self:center;color:#ffe18a;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}.asset-common-control>#asset-dial-common{grid-area:dial;justify-self:center}
 .asset-inline{grid-template-columns:auto 1fr;align-items:center;gap:5px}.asset-fields{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .asset-fields input,.asset-fields select{width:100%}.asset-snap{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0;padding:5px;border:1px solid #547481;border-radius:7px}
 .asset-snap legend{padding:0 3px;color:#e4cf91}.asset-check{display:flex!important;align-items:center;gap:5px}.asset-check input{min-height:auto}
 .asset-group-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px}.asset-controls hr{width:100%;border:0;border-top:1px solid #466875;margin:1px 0}
 #asset-status{padding:6px;border-radius:6px;background:#0a2029;color:#ffe5a2;line-height:1.4;overflow-wrap:anywhere}
+.asset-number-pad{position:absolute;inset:0;z-index:4;display:grid;place-items:center;padding:12px;background:#02090db8;touch-action:none}
+.asset-number-pad[hidden]{display:none}.asset-number-pad section{width:min(330px,94vw);padding:9px;border:1px solid #89b7c2;border-radius:12px;background:#102c38;box-shadow:0 14px 42px #000d}
+.asset-number-pad header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}.asset-number-pad header button{width:38px;min-height:34px}.asset-number-pad output{display:block;min-height:48px;padding:8px 10px;margin-bottom:7px;border:1px solid #7595a0;border-radius:7px;background:#06161e;color:#fff1a3;text-align:right;font:700 25px/1.2 ui-monospace,SFMono-Regular,monospace;overflow:auto}
+.asset-number-keys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.asset-number-keys button{min-height:48px;font-size:18px}.asset-number-keys .asset-number-apply{background:#397a5d;border-color:#9be3bd}.asset-number-pad small{display:block;margin-top:7px;color:#b7d2dc;line-height:1.35}
 @media(max-width:700px){.asset-studio{inset:2px}.asset-studio-head{padding:5px 7px}.asset-studio-head small{display:none}
  .asset-workspace{grid-template-columns:1fr;grid-template-rows:minmax(260px,48dvh) minmax(0,1fr)}.asset-controls{border-left:0;border-top:1px solid #57798a;padding:6px}
- .asset-dial{width:52px;height:52px}.asset-dial i{height:19px;transform-origin:50% 23px}}
+ .asset-controls input:not([type="checkbox"]):not([type="color"]),.asset-controls select{font-size:16px}.asset-dial{width:52px;height:52px}.asset-dial i{height:19px;transform-origin:50% 23px}}
 .railway-staff-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.5rem 0}
 .railway-staff-controls span{flex-basis:100%}
 #harbor-panel{max-height:min(88vh,750px);overflow:auto}

@@ -1,7 +1,9 @@
-import {AssetStudioModel,partAnchor,snapCandidates} from "./asset-studio-model.mjs?v=0.9b-camera";
-import {AssetCamera} from "./asset-camera.mjs?v=0.9b-camera";
+import {AssetStudioModel,partAnchor,snapCandidates} from "./asset-studio-model.mjs?v=0.9c-asset-v2";
+import {AssetCamera} from "./asset-camera.mjs?v=0.9c-asset-v2";
 
-const DRAFT_KEY="universal-engine:asset-studio:v0.9a";
+const DRAFT_KEY="universal-engine:asset-studio:v0.9c";
+const LEGACY_DRAFT_KEY="universal-engine:asset-studio:v0.9a";
+const UI_PREFS_KEY="universal-engine:asset-studio-ui:v1";
 const $=id=>document.getElementById(id);
 const hexToRgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
 const rgbToHex=rgb=>"#"+rgb.map(v=>Math.round(v*255).toString(16).padStart(2,"0")).join("");
@@ -11,10 +13,16 @@ const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z});
 const cross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x});
 const norm=a=>{const d=Math.hypot(a.x,a.y,a.z)||1;return {x:a.x/d,y:a.y/d,z:a.z/d};};
 const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
-const rotateXY=(x,y,a)=>({x:x*Math.cos(a)-y*Math.sin(a),y:x*Math.sin(a)+y*Math.cos(a)});
+const rotateEuler=(point,part)=>{
+ const pivot=part.pivot||{x:0,y:0,z:0},rx=part.rx||0,ry=part.ry||0,rz=part.rz??part.rotation??0;
+ let x=point.x-pivot.x,y=point.y-pivot.y,z=point.z-pivot.z,c=Math.cos(rx),s=Math.sin(rx);
+ [y,z]=[y*c-z*s,y*s+z*c];c=Math.cos(ry);s=Math.sin(ry);[x,z]=[x*c+z*s,-x*s+z*c];
+ c=Math.cos(rz);s=Math.sin(rz);[x,y]=[x*c-y*s,x*s+y*c];
+ return {x:x+pivot.x,y:y+pivot.y,z:z+pivot.z};
+};
 
 function partMesh(part){
- const vertices=[],faces=[],point=(x,y,z)=>{const q=rotateXY(x,y,part.rotation);vertices.push({x:part.x+q.x,y:part.y+q.y,z:part.z+z});return vertices.length-1;};
+ const vertices=[],faces=[],point=(x,y,z)=>{const q=rotateEuler({x,y,z},part);vertices.push({x:part.x+q.x,y:part.y+q.y,z:part.z+q.z});return vertices.length-1;};
  if(part.shape==="cube"){
   for(const z of [0,part.height])for(const y of [-part.depth/2,part.depth/2])for(const x of [-part.width/2,part.width/2])point(x,y,z);
   faces.push([0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]);
@@ -34,12 +42,28 @@ function insidePolygon(x,y,points){let inside=false;for(let i=0,j=points.length-
 
 export function installAssetStudio({getWorld,onCommit,log}){
  const overlay=$("asset-studio"),canvas=$("asset-canvas"),ctx=canvas.getContext("2d"),status=$("asset-status"),camera=new AssetCamera();
- let studio;try{studio=new AssetStudioModel(JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"));}catch(_){studio=new AssetStudioModel();}
- let mode="place",cursor={x:0,y:0},pixelRatio=Math.min(2,window.devicePixelRatio||1),dialAngles={x:0,y:0,z:0},faceHits=[];
+ let studio;try{const raw=localStorage.getItem(DRAFT_KEY)||localStorage.getItem(LEGACY_DRAFT_KEY);studio=new AssetStudioModel(raw?JSON.parse(raw):null);}catch(_){studio=new AssetStudioModel();}
+ let uiPrefs={axisDials:true,commonDial:true};try{uiPrefs={...uiPrefs,...JSON.parse(localStorage.getItem(UI_PREFS_KEY)||"null")};}catch(_){}
+ let mode="place",cursor={x:0,y:0},pixelRatio=Math.min(2,window.devicePixelRatio||1),dialAngles={x:0,y:0,z:0,common:0},faceHits=[];
+ let activeNumberId="asset-pos-x",numberBuffer="0",numberReturnFocus=null;
  const pointers=new Map();let viewGesture=null;
- const template=()=>({shape:$("asset-shape").value,width:Number($("asset-width").value),height:Number($("asset-height").value),depth:Number($("asset-depth").value),rotation:rad($("asset-rotation").value),color:hexToRgb($("asset-color").value),group:$("asset-group").value});
+ const numericTargets={
+  "asset-pos-x":{label:"X位置",unit:"m",min:-500,max:500,kind:"position",axis:"x"},
+  "asset-pos-y":{label:"Y位置",unit:"m",min:-500,max:500,kind:"position",axis:"y"},
+  "asset-pos-z":{label:"Z位置／床",unit:"m",min:-500,max:500,kind:"position",axis:"z"},
+  "asset-rx":{label:"RX回転",unit:"°",min:-36000,max:36000,kind:"rotation",axis:"rx"},
+  "asset-ry":{label:"RY回転",unit:"°",min:-36000,max:36000,kind:"rotation",axis:"ry"},
+  "asset-rz":{label:"RZ回転",unit:"°",min:-36000,max:36000,kind:"rotation",axis:"rz"},
+  "asset-width":{label:"幅X",unit:"m",min:.1,max:200,kind:"size",axis:"width"},
+  "asset-depth":{label:"奥行Y",unit:"m",min:.1,max:200,kind:"size",axis:"depth"},
+  "asset-height":{label:"高さZ",unit:"m",min:.1,max:200,kind:"size",axis:"height"}
+ };
+ const template=()=>({shape:$("asset-shape").value,width:Number($("asset-width").value),height:Number($("asset-height").value),
+  depth:Number($("asset-depth").value),rx:rad($("asset-rx").value),ry:rad($("asset-ry").value),rz:rad($("asset-rz").value),
+  color:hexToRgb($("asset-color").value),group:$("asset-group").value});
  const say=message=>{status.value=message;status.textContent=message;log(message);};
  const persist=()=>{try{localStorage.setItem(DRAFT_KEY,JSON.stringify(studio.snapshot()));}catch(_){say("Asset下書きの保存に失敗しました");}};
+ const persistUi=()=>{try{localStorage.setItem(UI_PREFS_KEY,JSON.stringify(uiPrefs));}catch(_){}};
  const selected=()=>studio.selected;
  function resize(){const box=canvas.getBoundingClientRect();pixelRatio=Math.min(2,window.devicePixelRatio||1);const w=Math.max(300,Math.round(box.width*pixelRatio)),h=Math.max(260,Math.round(box.height*pixelRatio));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}draw();}
  const canvasPoint=e=>{const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*pixelRatio,y:(e.clientY-r.top)*pixelRatio};};
@@ -61,13 +85,51 @@ export function installAssetStudio({getWorld,onCommit,log}){
   const cp=project({x:cursor.x,y:cursor.y,z:studio.planeZ});if(cp){ctx.strokeStyle="#ff9a68";ctx.lineWidth=2*pixelRatio;ctx.beginPath();ctx.arc(cp.x,cp.y,6*pixelRatio,0,Math.PI*2);ctx.moveTo(cp.x-9*pixelRatio,cp.y);ctx.lineTo(cp.x+9*pixelRatio,cp.y);ctx.moveTo(cp.x,cp.y-9*pixelRatio);ctx.lineTo(cp.x,cp.y+9*pixelRatio);ctx.stroke();}
   const focus=studio.selection().length?"選択中心":"モデル原点";$("asset-plane-label").textContent="床 Z="+studio.planeZ.toFixed(1)+"m / "+studio.parts.length+"パーツ / 注視: "+focus+" / 距離 "+camera.distance.toFixed(1);syncValues();
  }
- function syncValues(){const chosen=studio.selection(),p=chosen[0],floorMode=$("asset-z-target").value==="floor";$("asset-value-x").textContent=(p?.x??cursor.x).toFixed(1)+"m";$("asset-value-y").textContent=(p?.y??cursor.y).toFixed(1)+"m";$("asset-value-z").textContent=(floorMode?studio.planeZ:(p?.z??studio.planeZ)).toFixed(1)+"m";
-  for(const axis of ["x","y","z"]){const dial=$("asset-dial-"+axis),value=axis==="x"?(p?.x??cursor.x):axis==="y"?(p?.y??cursor.y):(floorMode?studio.planeZ:(p?.z??studio.planeZ));dial.setAttribute("aria-valuenow",value.toFixed(1));dial.style.setProperty("--dial-angle",dialAngles[axis]+"deg");}}
- function loadFields(part){if(!part)return;$("asset-shape").value=part.shape;$("asset-width").value=part.width;$("asset-height").value=part.height;$("asset-depth").value=part.depth;$("asset-rotation").value=deg(part.rotation);$("asset-color").value=rgbToHex(part.color);$("asset-group").value=part.group||"";}
+ const cleanNumber=value=>Math.round(value*1000)/1000;
+ function positionValue(axis){const part=studio.selection()[0],floorMode=$("asset-z-target").value==="floor";
+  if(axis==="x")return part?.x??cursor.x;if(axis==="y")return part?.y??cursor.y;
+  return floorMode?studio.planeZ:(part?.z??studio.planeZ);}
+ function currentNumberValue(id){const target=numericTargets[id];return target?.kind==="position"?positionValue(target.axis):Number($(id)?.value);}
+ function syncCommon(){const select=$("asset-common-target");if(!select)return;activeNumberId=select.value||activeNumberId;
+  const target=numericTargets[activeNumberId],value=currentNumberValue(activeNumberId);if(!target)return;
+  $("asset-common-value").textContent=(Number.isFinite(value)?cleanNumber(value):"—")+target.unit;
+  const dial=$("asset-dial-common");dial.setAttribute("aria-label",target.label+"を調整");dial.setAttribute("aria-valuenow",String(value));dial.style.setProperty("--dial-angle",dialAngles.common+"deg");}
+ function syncValues(){const p=studio.selection()[0],floorMode=$("asset-z-target").value==="floor",values={x:p?.x??cursor.x,y:p?.y??cursor.y,z:floorMode?studio.planeZ:(p?.z??studio.planeZ)};
+  for(const axis of ["x","y","z"]){$("asset-value-"+axis).textContent=values[axis].toFixed(1)+"m";$("asset-pos-"+axis).value=cleanNumber(values[axis]);
+   const dial=$("asset-dial-"+axis);dial.setAttribute("aria-valuenow",values[axis].toFixed(1));dial.style.setProperty("--dial-angle",dialAngles[axis]+"deg");}
+  if(p){$("asset-rx").value=cleanNumber(deg(p.rx));$("asset-ry").value=cleanNumber(deg(p.ry));$("asset-rz").value=cleanNumber(deg(p.rz));}
+  syncCommon();
+ }
+ function loadFields(part){if(!part)return;$("asset-shape").value=part.shape;$("asset-width").value=cleanNumber(part.width);$("asset-height").value=cleanNumber(part.height);$("asset-depth").value=cleanNumber(part.depth);
+  $("asset-rx").value=cleanNumber(deg(part.rx));$("asset-ry").value=cleanNumber(deg(part.ry));$("asset-rz").value=cleanNumber(deg(part.rz));$("asset-color").value=rgbToHex(part.color);$("asset-group").value=part.group||"";syncValues();}
  function setMode(next){mode=next;document.querySelectorAll("[data-asset-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.assetMode===mode)));canvas.style.cursor=mode==="view"?($("asset-camera-tool").value==="pan"?"move":"grab"):"crosshair";
   say(mode==="place"?"配置：表示中の床面をタップ。Zダイヤルで床レベルを変更":mode==="select"?"選択：パーツをタップ。カメラは選択中心を注視":mode==="move"?"移動：移動先の床面をタップまたはXYZダイヤルを回す":"視点：ドラッグで"+($("asset-camera-tool").value==="pan"?"パン":"回転")+"、ホイール／ピンチでズーム");draw();}
- function dialStep(axis,direction){const step=Number($("asset-step").value)*direction,chosen=studio.selection().length,floorMode=$("asset-z-target").value==="floor";if(axis==="z"&&floorMode)studio.setPlane(studio.planeZ+step);else if(chosen)studio.move(axis==="x"?step:0,axis==="y"?step:0,axis==="z"?step:0);else if(axis==="z")studio.setPlane(studio.planeZ+step);else cursor[axis]+=step;persist();draw();}
- function installDial(axis){const dial=$("asset-dial-"+axis);let active=false,last=0,remainder=0;const angle=e=>{const r=dial.getBoundingClientRect();return Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2);};dial.addEventListener("pointerdown",e=>{active=true;last=angle(e);try{dial.setPointerCapture(e.pointerId);}catch(_){}});dial.addEventListener("pointermove",e=>{if(!active)return;let d=angle(e)-last;if(d>Math.PI)d-=Math.PI*2;if(d<-Math.PI)d+=Math.PI*2;last=angle(e);remainder+=d;dialAngles[axis]+=d*180/Math.PI;while(Math.abs(remainder)>=Math.PI/12){const direction=Math.sign(remainder);dialStep(axis,direction);remainder-=direction*Math.PI/12;}syncValues();});for(const event of ["pointerup","pointercancel","lostpointercapture"])dial.addEventListener(event,()=>{active=false;remainder=0;});dial.addEventListener("keydown",e=>{if(!["ArrowUp","ArrowRight","ArrowDown","ArrowLeft"].includes(e.key))return;e.preventDefault();dialStep(axis,["ArrowUp","ArrowRight"].includes(e.key)?1:-1);});}
+ function applyNumericValue(id,value,{announce=false}={}){
+  const target=numericTargets[id];value=Number(value);if(!target||!Number.isFinite(value)||value<target.min||value>target.max){if(announce)say("入力範囲を確認してください："+(target?.min??"")+"〜"+(target?.max??""));return false;}
+  if(target.kind==="position"){
+   const axis=target.axis,current=positionValue(axis),chosen=studio.selection().length,floorMode=$("asset-z-target").value==="floor";
+   if(axis==="z"&&(floorMode||!chosen))studio.setPlane(value);
+   else if(chosen)studio.move(axis==="x"?value-current:0,axis==="y"?value-current:0,axis==="z"?value-current:0);
+   else cursor[axis]=value;
+  }else{
+   $(id).value=cleanNumber(value);const chosen=studio.selection().length;
+   if(chosen&&target.kind==="rotation")studio.update({[target.axis]:rad(value)});
+   else if(chosen&&target.kind==="size")studio.update({[target.axis]:value});
+  }
+  persist();draw();if(announce)say(target.label+"を "+cleanNumber(value)+target.unit+" に設定しました");return true;
+ }
+ function nudgeNumeric(id,direction){const target=numericTargets[id],current=currentNumberValue(id);if(!target||!Number.isFinite(current))return;
+  const step=target.kind==="rotation"?Number($("asset-angle-step").value):Number($("asset-step").value);applyNumericValue(id,current+step*direction);}
+ function chooseNumeric(id){if(!numericTargets[id])return;activeNumberId=id;$("asset-common-target").value=id;syncCommon();}
+ function installDial(dial,key,onStep){let active=false,last=0,remainder=0;const angle=e=>{const r=dial.getBoundingClientRect();return Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2);};
+  dial.addEventListener("pointerdown",e=>{e.preventDefault();active=true;last=angle(e);try{dial.setPointerCapture(e.pointerId);}catch(_){}});
+  dial.addEventListener("pointermove",e=>{if(!active)return;let delta=angle(e)-last;if(delta>Math.PI)delta-=Math.PI*2;if(delta<-Math.PI)delta+=Math.PI*2;last=angle(e);remainder+=delta;dialAngles[key]+=delta*180/Math.PI;
+   while(Math.abs(remainder)>=Math.PI/12){const direction=Math.sign(remainder);onStep(direction);remainder-=direction*Math.PI/12;}syncValues();});
+  for(const event of ["pointerup","pointercancel","lostpointercapture"])dial.addEventListener(event,()=>{active=false;remainder=0;});
+  dial.addEventListener("keydown",e=>{if(!["ArrowUp","ArrowRight","ArrowDown","ArrowLeft"].includes(e.key))return;e.preventDefault();onStep(["ArrowUp","ArrowRight"].includes(e.key)?1:-1);});
+ }
+ function applyUiPrefs(){uiPrefs.axisDials=Boolean(uiPrefs.axisDials);uiPrefs.commonDial=Boolean(uiPrefs.commonDial);$("asset-show-axis-dials").checked=uiPrefs.axisDials;$("asset-show-common-dial").checked=uiPrefs.commonDial;
+  $("asset-axis-controls").hidden=!uiPrefs.axisDials;$("asset-common-control").hidden=!uiPrefs.commonDial;}
  function refreshLoadList(preferred=""){const list=$("asset-load-list"),items=getWorld()?.prefabs||[],previous=preferred||list.value;list.replaceChildren(new Option("保存Assetを選択",""),...items.map(p=>new Option(p.name+"（"+p.parts.length+"）",p.name)));if(items.some(p=>p.name===previous))list.value=previous;}
  function hitAt(point){for(let i=faceHits.length-1;i>=0;i--)if(insidePolygon(point.x,point.y,faceHits[i].points))return studio.parts.find(p=>p.id===faceHits[i].partId)||null;return null;}
  function editTap(point){const hit=hitAt(point);
@@ -83,10 +145,31 @@ export function installAssetStudio({getWorld,onCommit,log}){
  document.querySelectorAll("[data-asset-mode]").forEach(button=>button.addEventListener("click",()=>setMode(button.dataset.assetMode)));$("asset-camera-tool").addEventListener("change",()=>setMode("view"));$("asset-camera-preset").addEventListener("change",e=>{camera.preset(e.target.value);setMode("view");});
  $("asset-camera-focus").addEventListener("click",()=>{camera.resetPan();const chosen=studio.selection(),parts=chosen.length?chosen:studio.parts;if(parts.length){const cx=chosen.length?chosen.reduce((s,p)=>s+p.x,0)/chosen.length:0,cy=chosen.length?chosen.reduce((s,p)=>s+p.y,0)/chosen.length:0,radius=Math.max(...parts.map(p=>Math.hypot(p.x-cx,p.y-cy,p.height)));camera.distance=Math.max(8,Math.min(300,radius*3));}draw();say("注視中心とズームをリセットしました");});
  $("asset-z-target").addEventListener("change",()=>{syncValues();say($("asset-z-target").value==="floor"?"Zダイヤル：配置床レベルを上下":"Zダイヤル：選択物のZ位置を上下");draw();});
- $("owner-asset-open").addEventListener("click",()=>{overlay.hidden=false;refreshLoadList();requestAnimationFrame(resize);say("3D Asset制作空間を開きました。街の直接配置データは変更しません");});$("asset-close").addEventListener("click",()=>{persist();overlay.hidden=true;});
+ const numberPad=$("asset-number-pad"),numberDisplay=$("asset-number-display");
+ function renderNumberPad(){numberDisplay.textContent=numberBuffer;const target=numericTargets[activeNumberId];$("asset-number-title").textContent=(target?.label||"数値")+"を入力";}
+ function openNumberPad(id=activeNumberId){if(!numericTargets[id])return;chooseNumeric(id);numberReturnFocus=$(id);const value=currentNumberValue(id);numberBuffer=Number.isFinite(value)?String(cleanNumber(value)):"0";numberPad.hidden=false;renderNumberPad();
+  requestAnimationFrame(()=>numberPad.querySelector('[data-asset-key="7"]')?.focus());}
+ function closeNumberPad(commit=false){if(commit&&!applyNumericValue(activeNumberId,Number(numberBuffer),{announce:true}))return;numberPad.hidden=true;numberReturnFocus?.focus({preventScroll:true});}
+ function numberKey(key){if(key==="apply"){closeNumberPad(true);return;}if(key==="clear")numberBuffer="0";else if(key==="back")numberBuffer=numberBuffer.length>1?numberBuffer.slice(0,-1):"0";
+  else if(key==="minus")numberBuffer=numberBuffer.startsWith("-")?numberBuffer.slice(1):"-"+numberBuffer;
+  else if(key==="dot"){if(!numberBuffer.includes("."))numberBuffer+=".";}else if(/^\d{1,2}$/.test(key)){numberBuffer=numberBuffer==="0"?key:numberBuffer+key;if(numberBuffer.length>14)numberBuffer=numberBuffer.slice(0,14);}
+  renderNumberPad();
+ }
+ document.querySelectorAll("[data-asset-number]").forEach(input=>{input.addEventListener("click",e=>{e.preventDefault();openNumberPad(input.id);});input.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openNumberPad(input.id);}});});
+ numberPad.addEventListener("click",e=>{const key=e.target.closest("[data-asset-key]")?.dataset.assetKey;if(key)numberKey(key);else if(e.target===numberPad)closeNumberPad(false);});
+ numberPad.addEventListener("keydown",e=>{if(e.key==="Escape"){e.preventDefault();e.stopPropagation();closeNumberPad(false);}else if(e.key==="Enter"){e.preventDefault();numberKey("apply");}});
+ $("asset-number-cancel").addEventListener("click",()=>closeNumberPad(false));$("asset-number-open").addEventListener("click",()=>openNumberPad());
+ $("asset-common-target").addEventListener("change",e=>{chooseNumeric(e.target.value);});
+ for(const id of Object.keys(numericTargets))$(id).addEventListener("pointerdown",()=>chooseNumeric(id));
+ for(const id of ["asset-show-axis-dials","asset-show-common-dial"])$(id).addEventListener("change",()=>{uiPrefs={axisDials:$("asset-show-axis-dials").checked,commonDial:$("asset-show-common-dial").checked};applyUiPrefs();persistUi();requestAnimationFrame(resize);});
+ $("asset-type").addEventListener("change",e=>{studio.setMeta({assetType:e.target.value});persist();});
+ $("owner-asset-open").addEventListener("click",()=>{overlay.hidden=false;refreshLoadList();$("asset-type").value=studio.meta.assetType;$("asset-name").value=studio.meta.name||$("asset-name").value;applyUiPrefs();requestAnimationFrame(resize);say("3D Asset制作空間を開きました。数値欄は専用テンキーで入力できます");});$("asset-close").addEventListener("click",()=>{persist();numberPad.hidden=true;overlay.hidden=true;});
  $("asset-apply").addEventListener("click",()=>{if(studio.update(template())){persist();draw();say("選択パーツを編集しました");}else say("編集するパーツを選択し、寸法を確認してください");});$("asset-copy").addEventListener("click",()=>{const copies=studio.copy(Number($("asset-step").value));if(copies.length){camera.resetPan();persist();draw();say(copies.length+"パーツをコピーしました");}else say("コピーするパーツを選択してください");});$("asset-delete").addEventListener("click",()=>{if(studio.remove()){camera.resetPan();persist();draw();say("選択パーツを削除し、モデル原点を注視します");}else say("削除するパーツを選択してください");});
  $("asset-group-apply").addEventListener("click",()=>{if(studio.group($("asset-group").value)){persist();draw();say("選択パーツをグループ化しました");}else say("パーツを選択し、グループ名を入力してください");});$("asset-undo").addEventListener("click",()=>{say(studio.undo()?"直前の操作を戻しました":"戻せる操作はありません");camera.resetPan();persist();draw();});$("asset-redo").addEventListener("click",()=>{say(studio.redo()?"操作をやり直しました":"やり直せる操作はありません");camera.resetPan();persist();draw();});
- $("asset-save").addEventListener("click",()=>{const name=$("asset-name").value.trim(),exists=getWorld().prefabs.some(p=>p.name===name);if(exists&&!window.confirm("Asset「"+name+"」を上書きしますか？"))return;const result=getWorld().savePrefabParts(name,studio.prefabParts(),{replace:exists});say(result.message);if(result.ok){onCommit();refreshLoadList(result.name);}});$("asset-load").addEventListener("click",()=>{const name=$("asset-load-list").value,prefab=getWorld().prefabs.find(p=>p.name===name);if(!prefab){say("読み込むAssetを選択してください");return;}if(studio.parts.length&&!window.confirm("現在の制作面を置き換えて「"+name+"」を読み込みますか？"))return;studio.loadPrefab(prefab);camera.preset("orbit");$("asset-name").value=name;persist();draw();say("Asset「"+name+"」を制作面へ読み込みました");});
- $("asset-clear").addEventListener("click",()=>{if(studio.parts.length&&!window.confirm("制作中のAssetを空にしますか？\n保存建築物は削除されません。"))return;studio=new AssetStudioModel();cursor={x:0,y:0};camera.preset("orbit");persist();draw();say("新しい制作面を用意しました");});overlay.addEventListener("keydown",e=>{if(e.key==="Escape"){$("asset-close").click();return;}if((e.key==="Delete"||e.key==="Backspace")&&e.target===canvas){e.preventDefault();$("asset-delete").click();}});
- for(const axis of ["x","y","z"])installDial(axis);window.addEventListener("resize",()=>{if(!overlay.hidden)resize();});draw();return {open(){$("owner-asset-open").click();},close(){overlay.hidden=true;},refresh:refreshLoadList};
+ $("asset-save").addEventListener("click",()=>{const name=$("asset-name").value.trim(),exists=getWorld().prefabs.some(p=>p.name===name);if(exists&&!window.confirm("Asset「"+name+"」を上書きしますか？"))return;studio.setMeta({name,assetType:$("asset-type").value});const result=getWorld().savePrefabParts(name,studio.prefabParts(),{replace:exists,assetDocument:studio.prefabDocument(name)});say(result.message);if(result.ok){persist();onCommit();refreshLoadList(result.name);}});$("asset-load").addEventListener("click",()=>{const name=$("asset-load-list").value,prefab=getWorld().prefabs.find(p=>p.name===name);if(!prefab){say("読み込むAssetを選択してください");return;}if(studio.parts.length&&!window.confirm("現在の制作面を置き換えて「"+name+"」を読み込みますか？"))return;if(!studio.loadPrefab(prefab)){say("Assetの読込に失敗しました");return;}camera.preset("orbit");$("asset-name").value=name;$("asset-type").value=studio.meta.assetType;persist();draw();say("Asset「"+name+"」を制作面へ読み込みました");});
+ $("asset-clear").addEventListener("click",()=>{if(studio.parts.length&&!window.confirm("制作中のAssetを空にしますか？\n保存建築物は削除されません。"))return;studio=new AssetStudioModel();cursor={x:0,y:0};camera.preset("orbit");$("asset-name").value="";$("asset-type").value="building";persist();draw();say("新しい制作面を用意しました");});overlay.addEventListener("keydown",e=>{if(e.key==="Escape"){$("asset-close").click();return;}if((e.key==="Delete"||e.key==="Backspace")&&e.target===canvas){e.preventDefault();$("asset-delete").click();}});
+ for(const axis of ["x","y","z"])installDial($("asset-dial-"+axis),axis,direction=>nudgeNumeric("asset-pos-"+axis,direction));
+ installDial($("asset-dial-common"),"common",direction=>nudgeNumeric($("asset-common-target").value,direction));
+ $("asset-type").value=studio.meta.assetType;$("asset-name").value=studio.meta.name;applyUiPrefs();
+ window.addEventListener("resize",()=>{if(!overlay.hidden)resize();});draw();return {open(){$("owner-asset-open").click();},close(){overlay.hidden=true;},refresh:refreshLoadList};
 }

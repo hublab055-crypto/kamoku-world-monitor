@@ -5,12 +5,20 @@ const scale=(a,n)=>({x:a.x*n,y:a.y*n,z:a.z*n});
 const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
 const cross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x});
 const norm=a=>{const d=Math.hypot(a.x,a.y,a.z)||1;return scale(a,1/d);};
+const rotateEuler=(point,part)=>{
+ const pivot=part.pivot||{x:0,y:0,z:0},rx=part.rx||0,ry=part.ry||0,rz=part.rz??part.rotation??0;
+ let x=point.x-pivot.x,y=point.y-pivot.y,z=point.z-pivot.z,c=Math.cos(rx),s=Math.sin(rx);
+ [y,z]=[y*c-z*s,y*s+z*c];c=Math.cos(ry);s=Math.sin(ry);[x,z]=[x*c+z*s,-x*s+z*c];
+ c=Math.cos(rz);s=Math.sin(rz);[x,y]=[x*c-y*s,x*s+y*c];
+ return {x:x+pivot.x,y:y+pivot.y,z:z+pivot.z};
+};
 
 export function selectionCenter(parts,selected){
  const chosen=parts.filter(p=>selected?.has?.(p.id));
  if(!chosen.length)return {x:0,y:0,z:0};
- return {x:chosen.reduce((s,p)=>s+p.x,0)/chosen.length,y:chosen.reduce((s,p)=>s+p.y,0)/chosen.length,
-  z:chosen.reduce((s,p)=>s+p.z+p.height/2,0)/chosen.length};
+ const centers=chosen.map(part=>add({x:part.x,y:part.y,z:part.z},rotateEuler({x:0,y:0,z:part.height/2},part)));
+ return {x:centers.reduce((sum,p)=>sum+p.x,0)/centers.length,y:centers.reduce((sum,p)=>sum+p.y,0)/centers.length,
+  z:centers.reduce((sum,p)=>sum+p.z,0)/centers.length};
 }
 
 export class AssetCamera{

@@ -4,7 +4,7 @@ import {regionalLakeMesh} from "./regional-landforms.mjs";
 import {buildDistantLandscape} from "./distant-landscape.mjs";
 import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-drift";
 import {BUILD_KINDS} from "./construction-system.mjs?v=0.8h-church";
-import {OWNER_BUILDING_KINDS} from "./owner-world.mjs?v=0.8z-prefabs";
+import {OWNER_BUILDING_KINDS} from "./owner-world.mjs?v=0.9c-asset-v2";
 import {ownerRoadGeometry} from "./owner-road-geometry.mjs";
 import {ownerPrimitiveGeometry} from "./owner-primitive-geometry.mjs?v=0.8y-solids";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs?v=0.8h-church";
@@ -1385,8 +1385,10 @@ export class ExplorerRenderer{
     const site=terrainSurface(this.terrain,part.lat,part.lon);
     if(site.water||site.river)continue;
     const x=p.eastM-this.cx,z=p.northM-this.cz;
+    const rotation=multiply4(rotateY(part.rz??part.rotation??0),
+     multiply4(rotZ(part.ry||0),rotX(part.rx||0)));
     const transform=multiply4(translate(x,site.elevationM+part.offsetY,z),
-     multiply4(rotateY(part.rotation),scale3(part.width,part.height,part.depth)));
+     multiply4(rotation,scale3(part.width,part.height,part.depth)));
     const mesh=this.ownerPrimitiveMeshes[part.shape];
     if(mesh)this.drawMesh(mesh,multiply4(vp,transform),light,1,.82,part.color);
     if(this.ownerSelectedId===part.id)this.drawMesh(this.selectionRing,
