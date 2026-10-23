@@ -40,15 +40,17 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight}
   if(!law)return;
   const faction=law.district(settlementId);
   const level=law.level(settlementId),actor=law.people.find(p=>p.id===law.activePersonId);
-  const warrant=law.warrant(settlementId);
-  status.hidden=!warrant||Boolean(law.custody)||law.gameOver;
-  status.textContent=warrant?"🚨 "+"★".repeat(warrant.level)+(warrant.livePursuit?" 追跡中":" 手配中"):"";
+  const warrant=law.warrant(settlementId),underAttack=Boolean(faction?.defenseAlert&&faction?.owner==="crown");
+  status.hidden=!(warrant||underAttack)||Boolean(law.custody)||law.gameOver;
+  status.textContent=warrant?"🚨 "+"★".repeat(warrant.level)+(warrant.livePursuit?" 追跡中":" 手配中"):
+   underAttack?"📯 衛兵が敵部隊と交戦中":"";
   summary.replaceChildren();buttons.replaceChildren();history.replaceChildren();
   text(summary,"p","現在："+(actor?.name||"後継者不在")+" ／ "+(actor?.generation||"—")+"代目");
   if(faction){
    text(summary,"p","管轄："+settlementId+" ／ 手配 "+("★".repeat(level)||"なし")+" ／ ポイント "+Math.round(faction.heat));
    text(summary,"p","守備兵：詰所 "+faction.current+"名・派遣 "+faction.deployed.length+"名 ／ 支配："+faction.owner);
    if(warrant)text(summary,"p","📜 手配書："+warrant.name+" ／ 懸賞金 "+warrant.reward+"G ／ ★"+warrant.level);
+   if(underAttack)text(summary,"p","📯 衛兵が敵部隊を迎撃中。詰所から実際の兵員が出動します。");
    text(summary,"small",faction.pursuit?"衛兵が追跡中。支配エリアから出ると追跡は中断します。":"手配度は逃走だけでは消えません。");
   }else text(summary,"p","支配エリア外（手配情報は各国に残っています）");
   if(law.gameOver){text(buttons,"h3","一族が断絶しました — GAME OVER");}
