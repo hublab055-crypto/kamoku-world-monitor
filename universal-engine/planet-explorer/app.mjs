@@ -16,7 +16,7 @@ import {installTerritoryUI} from "./territory-ui.mjs?v=0.9f-territory";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
-import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
+import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
 import {joystickMovement} from "./stick-input.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
@@ -731,7 +731,7 @@ function doFrame(t){
        const result=law.damageGuard(activeSettlementId,guard.id,damage,
         {attackerX:controller.x,attackerZ:controller.z});
        if(result.ok){log("⚔️ "+result.message);
-        worldUI?.float({kind:"damage",text:"−"+damage,actorId:"player"});
+        worldUI?.float({kind:"damage",text:"−"+damage,enemyId:guard.id});
         saveLawJournal();}
       }
       // The railway officer has a real collider and HP, just like town guards.
@@ -755,7 +755,7 @@ function doFrame(t){
     for(const attack of battle.consumeEnemyHits().slice(0,5)){
      log("🛡️ "+attack.message);
      worldUI?.float({kind:"hurt",text:"−"+attack.damage+" HP",
-      actorId:attack.actorId||"player",duration:1.45});
+      ...(attack.guardId?{enemyId:attack.guardId}:{actorId:attack.actorId||"player"}),duration:1.45});
      if(!attack.guardId&&(!attack.actorId||attack.actorId==="player"))renderer.playerHitSeconds=.48;
     }
     for(const event of battle.consumeTacticalEvents().slice(0,6)){
