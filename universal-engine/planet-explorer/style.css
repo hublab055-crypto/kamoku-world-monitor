@@ -1058,6 +1058,10 @@ body.immersive{overflow:hidden}
 .railway-security-hud[hidden]{display:none!important}.railway-security-hud strong{color:#ffd08a}
 .railway-security-hud span{grid-column:1/-1;font-size:11px;line-height:1.45}
 .railway-security-hud button{grid-column:1/-1;min-height:36px;background:#71472d;border-color:#ffd08a;color:#fff}
+.railway-security-choices{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;max-height:35vh;overflow-y:auto}
+.railway-security-choices button{flex:1 1 140px;grid-column:auto;font-size:12px;min-height:34px}
+.railway-security-choices button[hidden]{display:none!important}
+
 @media(max-width:600px){
  .railway-panel{top:68px;right:5px;width:min(355px,calc(100% - 10px));max-height:calc(100% - 74px)}
  .railway-live-status{grid-template-columns:1fr}.railway-timetable th,.railway-timetable td{padding:5px 4px}
