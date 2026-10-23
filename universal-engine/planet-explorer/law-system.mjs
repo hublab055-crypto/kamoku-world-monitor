@@ -115,14 +115,23 @@ export class LawSystem{
    if(this.level(id)===0){s.pursuit=false;s.hostile=false;continue;}
    const additions=this.dispatch(id,x,z);
    if(additions.length)events.push({type:"dispatch",id,count:additions.length,message:"🏰 "+post.name+"から"+additions.length+"名を派遣"});
-   let contact=false;
+   let contact=false,spotted=false;
    for(const guard of s.deployed){
     const dx=x-guard.x,dz=z-guard.z,dist=Math.hypot(dx,dz);
-    if(dist>1.65&&dt>0){const speed=(guard.kind==="knight"?4.6:3.2)*Math.min(dt,.12);
-     const step=Math.min(dist-1.65,speed);guard.x+=dx/dist*step;guard.z+=dz/dist*step;}
+    // Each guard only knows the player's position inside their own sight radius.
+    // Outside that radius they return toward the garrison rather than GPS-tracking.
+    const sees=dist<=55;
+    if(sees)spotted=true;
+    const tx=sees?x:post.x,tz=sees?z:post.z;
+    const vx=tx-guard.x,vz=tz-guard.z,remaining=Math.hypot(vx,vz);
+    if(remaining>1.65&&dt>0){
+      const speed=(sees?(guard.kind==="knight"?4.6:3.2):1.8)*Math.min(dt,.12);
+      const step=Math.min(remaining-(sees?1.65:0),speed);
+      if(step>0){guard.x+=vx/remaining*step;guard.z+=vz/remaining*step;}
+    }
     if(dist<=4.3)contact=true;
    }
-   if(contact){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;}
+   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;}
    else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){s.pursuit=false;s.challengeShown=false;s.hostile=false;}}
    s.alert=Math.max(0,s.alert-(contact?0:Math.max(0,dt)*.3));
    if(contact&&this.level(id)<=2&&!s.challengeShown){
