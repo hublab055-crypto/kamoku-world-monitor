@@ -17,7 +17,9 @@ test("witnessed offenses raise faction-local GTA-style level, unseen ones do not
 test("guards deploy from finite post pool and do not spawn without crime",()=>{
  const law=new LawSystem();
  assert.deepEqual(law.advance(.1,{day:1,settlementId:"capital"}),[]);
- assert.equal(law.district("capital").current,GUARD_POSTS.capital.max);
+ const calm=law.district("capital");
+ assert.equal(calm.deployed.length,2); // Guards visibly patrol even during peace.
+ assert.equal(calm.current+calm.deployed.length,GUARD_POSTS.capital.max);
  law.reportCrime("capital","murder");
  law.reportCrime("capital","murder");
  const events=law.advance(.1,{day:1,settlementId:"capital",x:200,z:200});
@@ -98,4 +100,46 @@ test("wanted NPC bounty is one-time and recorded",()=>{
  assert.equal(law.collectBounty("bandit",{captured:true}).reward,120);
  assert.equal(law.collectBounty("bandit").ok,false);
  assert.equal(new LawSystem(law.snapshot()).coins,120);
+});
+
+test("peaceful 3D guards walk a reproducible loop, then challenge suspects",()=>{
+ const law=new LawSystem();
+ law.advance(.1,{day:1,settlementId:"tower",x:600,z:600});
+ const g=law.district("tower").deployed[0];
+ const start={x:g.x,z:g.z};
+ for(let i=0;i<40;i++)law.advance(.1,{day:1,settlementId:"tower",x:600,z:600});
+ assert.ok(Math.hypot(g.x-start.x,g.z-start.z)>1);
+ assert.equal(g.mode,"patrol");
+ law.reportCrime("tower","theft");
+ const events=law.advance(.1,{day:1,settlementId:"tower",x:g.x,z:g.z});
+ assert.ok(events.some(e=>e.type==="challenge"));
+ assert.ok(["warning","chase"].includes(g.mode));
+});
+
+test("high-level crimes deploy a finite knight-class guard",()=>{
+ const law=new LawSystem();
+ for(let i=0;i<6;i++)law.reportCrime("capital","assault");
+ law.advance(.1,{day:1,settlementId:"capital",x:0,z:0});
+ assert.ok(law.level("capital")>=4);
+ assert.ok(law.guardTargets("capital").some(g=>g.kind==="knight"));
+ const g=law.guardTargets("capital")[0],before=law.district("capital").current;
+ const result=law.damageGuard("capital",g.id,600);
+ assert.equal(result.defeated,true);
+ assert.equal(law.district("capital").current,before);
+ assert.ok(law.level("capital")>=4);
+});
+
+test("actual guard hits use HP rather than panel instant kills, and persist through save",()=>{
+ const law=new LawSystem();
+ law.advance(.1,{day:1,settlementId:"forest",x:100,z:100});
+ const first=law.guardTargets("forest")[0];
+ assert.equal(law.damageGuard("forest",first.id,10,{attackerX:999,attackerZ:999}).ok,false);
+ assert.equal(law.level("forest"),0);
+ const result=law.damageGuard("forest",first.id,15,{attackerX:first.x,attackerZ:first.z});
+ assert.equal(result.ok,true);
+ assert.equal(result.defeated,false);
+ assert.equal(law.level("forest"),2); // assaulting a guard is serious
+ const reload=new LawSystem(law.snapshot());
+ assert.equal(reload.guardTargets("forest")[0].hp,first.hp-15);
+ assert.ok(reload.district("forest").hostile);
 });
