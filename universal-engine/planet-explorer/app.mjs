@@ -734,6 +734,23 @@ function doFrame(t){
         worldUI?.float({kind:"damage",text:"−"+damage,actorId:"player"});
         saveLawJournal();}
       }
+      // The railway officer has a real collider and HP, just like town guards.
+      const officer=railwaySecurity?.wanted?railwaySecurity.guard:null;
+      if(officer){
+       const dx=officer.x-controller.x,dz=officer.z-controller.z;
+       const distance=Math.hypot(dx,dz),bearing=Math.atan2(dx,dz)-controller.yaw;
+       const style=variant==="combo"?"overhead":variant;
+       const weaponHit=["spear","greatsword"].includes(kind)?
+        sweptWeaponContacts(controller,[{id:"rail-officer",x:officer.x,z:officer.z,
+         radius:.56,hp:officer.hp}],kind,style).length>0:
+        distance<(kind==="axe"?3.25:3.15)&&
+         Math.abs(Math.atan2(Math.sin(bearing),Math.cos(bearing)))<(style==="sweep"?1.65:1.05);
+       if(weaponHit){
+        const damage=["spear","greatsword"].includes(kind)?contactDamage(kind,style):kind==="axe"?22:18;
+        const hit=damageRailwayGuard(damage,{attackerX:controller.x,attackerZ:controller.z});
+        if(hit?.ok)log("⚔️ "+hit.message);
+       }
+      }
     }
     for(const attack of battle.consumeEnemyHits().slice(0,5)){
      log("🛡️ "+attack.message);
@@ -753,8 +770,12 @@ function doFrame(t){
      groundHeight:terrainAt,
      trees:renderer.resourceNodes||[],
      buildings:actions.structures,
-     enemies:[...battle.enemies,...law.guardTargets(activeSettlementId)],
+     enemies:[...battle.enemies,...law.guardTargets(activeSettlementId),
+       ...(railwaySecurity?.wanted&&railwaySecurity.guard?[{
+        ...railwaySecurity.guard,id:"railway-security:"+activeSettlementId,type:"railsecurity",
+        radius:.56,height:2.1}]:[])],
      onEnemyHit:(enemy,damage)=>{
+       if(enemy.type==="railsecurity")return damageRailwayGuard(damage);
        if(enemy.type!=="lawguard")return battle.damage(enemy,damage);
        const result=law.damageGuard(activeSettlementId,enemy.id,damage);
        if(result.ok)saveLawJournal();
@@ -1131,6 +1152,14 @@ $("play").addEventListener("click",()=>{
  if(law?.custody||law?.pendingDeath||law?.gameOver){log("勾留中・継承待ち・ゲームオーバー中は再生できません");return;}
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
+function damageRailwayGuard(damage,options={}){
+ const result=railwaySecurity?.damageGuard(damage,options);
+ if(!result?.ok)return result||{ok:false,message:"保安員はいません"};
+ law.reportCrime(activeSettlementId,"attackGuard",{reporter:"railway-guard"});
+ if(result.defeated)law.reportCrime(activeSettlementId,"killGuard",{reporter:"railway-guard"});
+ saveLawJournal();saveRailwaySecurityJournal();
+ return result;
+}
 function startGuardCombat(){
  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"現在は戦闘できません"};
  const district=law.district(activeSettlementId);
@@ -1725,7 +1754,7 @@ function updateRailwaySecurityHUD(){
  }else if(chased){
   title.textContent="🚨 鉄道保安が追跡中";
   detail.textContent=railwaySecurity.resisting?
-   "保安員が制圧を試みています。攻撃を受けるとスタミナとHPを失います。":
+   "保安員が制圧を試みています。スタミナとHPが減ります。剣などで反撃も可能です。":
    railwaySecurity.fleeing?
    "逃走中です。距離を取れば追跡は中断します。":
    "警告を無視したため追跡中。接近されると投降要求が始まります。";
