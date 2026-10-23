@@ -53,6 +53,7 @@ export class LawSystem{
      id:g.id,x:finite(g.x,post.x),z:finite(g.z,post.z),kind:g.kind==="knight"?"knight":"guard",
      stamina:clamp(finite(g.stamina,100),0,100),hp:clamp(finite(g.hp,100),0,160),
      yaw:finite(g.yaw),walkPhase:finite(g.walkPhase),patrolIndex:Math.trunc(finite(g.patrolIndex))%4,
+     strikeCooldown:Math.max(0,finite(g.strikeCooldown)),defenseTargetId:g.defenseTargetId??null,
      mode:["patrol","chase","attack","warning","return"].includes(g.mode)?g.mode:"patrol"
     })):[],
     occupying:Array.isArray(s.occupying)?s.occupying.filter(x=>typeof x==="string").slice(0,50):[]
@@ -102,13 +103,14 @@ export class LawSystem{
   while(s.deployed.length<desired&&s.current>0){
    const kind=this.level(id)>=4&&s.deployed.length%3===0?"knight":"guard";
    const guard={id:id+":guard:"+ ++this.seq,x:post.x,z:post.z,kind,hp:kind==="knight"?160:100,
-    stamina:100,yaw:0,walkPhase:0,patrolIndex:s.deployed.length%4,mode:"patrol"};
+    stamina:100,yaw:0,walkPhase:0,patrolIndex:s.deployed.length%4,mode:"patrol",strikeCooldown:0,defenseTargetId:null};
    s.deployed.push(guard);s.current--;sent.push(guard);
   }
   return sent;
  }
  /** Emits events; time is supplied by the world's existing simulation clock. */
- advance(dt,{day=this.day,settlementId="wilderness",x=0,z=0,stamina=100,hp=100,eligible=true,passable=null}={}){
+ advance(dt,{day=this.day,settlementId="wilderness",x=0,z=0,stamina=100,hp=100,
+  eligible=true,playerEligible=true,hostiles=[],passable=null}={}){
   const events=[];if(this.gameOver||this.pendingDeath||this.custody)return events;
   const nextDay=Math.max(this.day,finite(day,this.day));
   for(const [id,s] of Object.entries(this.factions)){
@@ -126,19 +128,36 @@ export class LawSystem{
    if(!eligible)continue;
    const additions=this.dispatch(id,x,z),level=this.level(id);
    if(additions.length&&level>0)events.push({type:"dispatch",id,count:additions.length,message:"🏰 "+post.name+"から"+additions.length+"名を派遣"});
+   // Nearby hostile NPC squads are threats to the settlement, independent of the player\'s bounty.
+   // Only simulate enemies in this district and keep the scan bounded for mobile.
+   const threats=(Array.isArray(hostiles)?hostiles:[]).filter(e=>e&&e.hp>0&&Number.isFinite(e.x)&&Number.isFinite(e.z)&&
+    Math.hypot(e.x-post.x,e.z-post.z)<110).slice(0,80);
    let contact=false,spotted=false;
    for(const guard of s.deployed){
     if(guard.hp<=0)continue;
     const dx=x-guard.x,dz=z-guard.z,dist=Math.hypot(dx,dz);
     // No omniscience: beyond visual range guards continue their assigned patrol.
-    const sees=level>0&&dist<=55;
+    guard.strikeCooldown=Math.max(0,(guard.strikeCooldown||0)-Math.max(0,Math.min(dt,.25)));
+    let enemy=null,enemyDist=55;
+    for(const candidate of threats){
+     const d=Math.hypot(candidate.x-guard.x,candidate.z-guard.z);
+     if(d<enemyDist){enemy=candidate;enemyDist=d;}
+    }
+    const sees=playerEligible&&level>0&&dist<=55;
     if(sees)spotted=true;
     let tx,tz,speed,stop;
-    if(sees){
+    if(enemy){
+      // Defend nearby residents and the garrison even when the player has no warrant.
+      guard.mode="defend";guard.defenseTargetId=enemy.id;
+      tx=enemy.x;tz=enemy.z;stop=2.35;
+      speed=guard.kind==="knight"?4.9:3.65;
+    }else if(sees){
+      guard.defenseTargetId=null;
       guard.mode=s.hostile&&dist<4.5?"attack":dist<4.5&&level<=2?"warning":"chase";
       tx=x;tz=z;stop=s.hostile?2.25:3;
       speed=guard.kind==="knight"?4.6:3.2;
     }else{
+      guard.defenseTargetId=null;
       guard.mode=level>0&&s.pursuit?"return":"patrol";
       // Four posts on a loop: visible, repeatable foot patrol around the station.
       const offsets=[[12,9],[-11,11],[-13,-9],[10,-11]];
@@ -158,7 +177,14 @@ export class LawSystem{
        guard.yaw=Math.atan2(vx,vz);
       }
     }
-    if(sees&&dist<=4.3)contact=true;
+    if(sees&&dist<=4.3&&!enemy)contact=true;
+    // Strike only on cooldown and inside weapon range, never each render frame.
+    if(enemy&&enemyDist<=3.35&&guard.strikeCooldown<=0){
+     guard.strikeCooldown=guard.kind==="knight"?1.0:1.35;
+     events.push({type:"guardAttack",id,guardId:guard.id,targetId:enemy.id,
+      damage:guard.kind==="knight"?19:12,kind:guard.kind,
+      message:(guard.kind==="knight"?"⚔️ 騎士":"🛡️ 衛兵")+"が"+(enemy.name||"敵")+"を攻撃"});
+    }
    }
    if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;if(level>=3)s.hostile=true;}
    else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){s.pursuit=false;s.challengeShown=false;s.hostile=false;}}
@@ -204,19 +230,19 @@ export class LawSystem{
  }));}
  /** Applies actual weapon damage to exactly one guard; escalates once for each hit,
   * and once again only on a lethal blow. Spawn budget is not refunded on death. */
- damageGuard(id,guardId,damage,{attackerX=null,attackerZ=null}={}){
+ damageGuard(id,guardId,damage,{attackerX=null,attackerZ=null,source="player"}={}){
   const s=this.district(id),guard=s?.deployed.find(g=>g.id===guardId&&g.hp>0);
   if(!guard||!Number.isFinite(damage)||damage<=0)return {ok:false,message:"有効な衛兵攻撃ではありません"};
   if(Number.isFinite(attackerX)&&Number.isFinite(attackerZ)&&
     Math.hypot(guard.x-attackerX,guard.z-attackerZ)>6.0)
    return {ok:false,message:"衛兵から離れすぎています"};
   guard.hp=Math.max(0,guard.hp-damage);
-  this.reportCrime(id,"attackGuard");s.hostile=true;s.challengeShown=true;
+  if(source!=="enemy"){this.reportCrime(id,"attackGuard");s.hostile=true;s.challengeShown=true;}
   const defeated=guard.hp===0;
   if(defeated){
-   this.reportCrime(id,"killGuard");
+   if(source!=="enemy")this.reportCrime(id,"killGuard");
    s.deployed=s.deployed.filter(g=>g.id!==guardId);
-   this.history.push({day:this.day,type:"guardDefeated",id,guardId});
+   this.history.push({day:this.day,type:source==="enemy"?"guardFallenInDefense":"guardDefeated",id,guardId});
   }
   return {ok:true,id:guardId,damage,hp:guard.hp,defeated,
    message:(guard.kind==="knight"?"騎士":"衛兵")+"に "+Math.round(damage)+" ダメージ"+(defeated?"（撃破）":"")};
