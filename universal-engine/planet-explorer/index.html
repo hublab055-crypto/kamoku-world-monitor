@@ -65,6 +65,18 @@
 #route-map-canvas:focus-visible{outline:3px solid #e8cb71}
 @media(max-width:600px){.marine-swim-hud{top:96px;right:3px;max-width:146px}.fishing-reel-hud{right:2px;bottom:17%;padding:4px}}
 </style>
+<style>
+#territory-panel[hidden]{display:none!important}
+.territory-panel{position:absolute;z-index:23;top:60px;right:7px;width:min(365px,calc(100% - 14px));max-height:75vh;overflow:auto;background:#102838f5;color:#f4f7fb;border:1px solid #83aab6;border-radius:12px;padding:10px;box-shadow:0 8px 28px #0009;font:12px/1.55 system-ui,sans-serif}
+.territory-panel .territory-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.territory-panel label{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.territory-panel button,.territory-panel select{max-width:100%;font-size:12px;min-height:30px}
+.territory-panel input[type=range]{width:145px}
+.territory-panel strong{font-size:14px}
+.territory-panel hr{border:0;border-top:1px solid #8eacbb55;margin:8px 0}
+.territory-panel ul{padding-left:18px}
+@media(max-width:680px){.territory-panel{top:42px;max-height:73vh}}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -215,7 +227,8 @@
      <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
     <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
     <button type="button" id="viewport-harbor" aria-expanded="false" aria-controls="harbor-panel">⚓ 港・客船</button>
-    <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
+    <button type="button" id="viewport-territory" aria-expanded="false" aria-controls="territory-panel">🏡 土地・税</button>
+     <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
@@ -226,6 +239,26 @@
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
   </div>
 </div>
+<section id="territory-panel" class="territory-panel" role="dialog" aria-label="土地・建物の登記と領地管理" hidden>
+ <div class="territory-row"><strong>🏡 土地・建物・領地管理</strong><button type="button" id="territory-close">× 閉じる</button></div>
+ <small>この画面はローカル・デモ用です。オンライン所有権・徴税・譲渡の認証は未接続です。</small>
+ <div class="territory-row"><label>領地 <select id="territory-town" aria-label="管理する領地"></select></label></div>
+ <div class="territory-row"><span>統治者：<b id="territory-ruler"></b></span><span>支持度：<b id="territory-support"></b></span></div>
+ <div class="territory-row"><span>公金庫：<strong id="territory-treasury">0 G</strong></span></div>
+ <div class="territory-row"><label>所得税 <input id="territory-tax-rate" type="range" min="0" max="30" step="1" value="10"></label><b id="territory-tax-value">10%</b>
+  <button type="button" id="territory-tax-apply">税率を設定</button></div>
+ <div id="territory-estimate"></div><div id="territory-last-tax"></div>
+ <div class="territory-row"><label>公共支出 <select id="territory-purpose"><option value="roads">🛣️ 道路整備</option><option value="guards">🛡️ 衛兵の給与</option><option value="school">📚 教育・公共施設</option></select></label><button type="button" id="territory-spend">100G支出</button></div>
+ <hr><strong>📜 所有権・登記簿</strong><div id="territory-date"></div><div id="territory-asset-count"></div>
+ <div class="territory-row"><label>土地の半径 <select id="territory-radius"><option value="10">10m</option><option value="20" selected>20m</option><option value="50">50m</option><option value="100">100m</option></select></label>
+  <button type="button" id="territory-claim">📍 現在地の土地を登記</button></div>
+ <div class="territory-row"><label>所有資産 <select id="territory-deeds" aria-label="所有する土地・建物"></select></label></div>
+ <div class="territory-row"><label>相手 <select id="territory-recipient"><option value="heir">次世代の後継者</option><option value="community">共同体</option></select></label>
+  <button type="button" id="territory-transfer">所有権を譲渡</button><button type="button" id="territory-lease">賃貸登録</button></div>
+ <hr><strong>📒 領地台帳</strong><ul id="territory-log"></ul>
+ <p id="territory-status" role="status" aria-live="polite">登録・徴税・土地権利の操作を行います。</p>
+ <small>ゲーム内30日ごとにNPCの試算所得から徴収します。実際のNPC財布やマルチサーバーの会計とは未連携です。</small>
+</section>
 <section id="owner-panel" class="owner-panel" role="region" aria-label="オーナー用ワールドエディター" hidden>
  <div class="owner-panel-head"><strong>🏗️ オーナーモード・地形と街の編集</strong><div class="owner-panel-head-actions"><button id="owner-collapse" type="button" aria-expanded="true" aria-label="オーナーウィンドウを折り畳む" title="折り畳む">▶︎</button><button id="owner-close" type="button" aria-label="編集モードを閉じる">×</button></div></div>
  <label class="owner-compact-row"><span>編集</span><select id="owner-tool">
