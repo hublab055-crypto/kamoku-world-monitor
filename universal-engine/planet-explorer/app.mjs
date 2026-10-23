@@ -15,7 +15,7 @@ import {TerritoryEconomy} from "./territory-economy.mjs?v=0.9f-territory";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9f-territory";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
-import {BattleTest} from "./battle-test.mjs";
+import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs";
 import {joystickMovement} from "./stick-input.mjs";
 import {HutAccess,HUT} from "./buildings.mjs";
@@ -39,7 +39,7 @@ import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {installRailwayUI} from "./railway-ui.mjs?v=0.8y-station";
-import {RailwaySecurity,RAIL_BAIL_FINE} from "./railway-security.mjs?v=0.8z-crossing";
+import {RailwaySecurity,RAIL_BAIL_FINE,railwaySafeExit} from "./railway-security.mjs?v=0.9g-rail-law";
 import {chooseSettlementSpawn} from "./settlement-spawn.mjs?v=0.8z-safe-spawn";
 import {gameDaysForRealSeconds,normalizeTimeScale,DEFAULT_TIME_SCALE} from "./game-time.mjs?v=0.8x-real-time";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
@@ -58,7 +58,7 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
-import {LawSystem} from "./law-system.mjs?v=0.9e-guard";
+import {LawSystem} from "./law-system.mjs?v=0.9g-defense";
 import {installLawUI} from "./law-ui.mjs?v=0.9e-guard";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
@@ -599,6 +599,7 @@ function doFrame(t){
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   for(const event of railwaySecurity?.advance(dt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
+   stamina:squad.frontier.person("player").stamina,
    eligible:controller.altitudeM<=12&&!onTrain&&!onFerry&&!inConcourse&&!detained&&!townLife.inside&&!marine?.cabinId&&
     !marine?.boarded&&controller.travelMode==="walk"
   })||[])handleRailwaySecurityEvent(event);
@@ -607,9 +608,17 @@ function doFrame(t){
     const vitals=squad.frontier.person("player");
     const events=law.advance(dt,{day:planet.timeDays,settlementId:activeSettlementId,
       x:controller.x,z:controller.z,stamina:vitals.stamina,hp:battle.playerHp,
-      passable:faunaGroundPassable,
+      playerEligible:!railwaySecurity?.wanted&&!railwaySecurity?.jailed,
+      hostiles:battle.enemies,passable:faunaGroundPassable,
       eligible:controller.altitudeM<=12&&!townLife.inside&&!railway?.boarded&&!ferry?.boarded&&!marine?.boarded});
     for(const event of events){
+      if(event.type==="guardAttack"){
+       const enemy=battle.enemies.find(e=>e.id===event.targetId&&e.hp>0);
+       if(enemy){const hit=battle.damage(enemy,event.damage);
+        log(event.message+"：-"+hit.damage+" HP"+(hit.defeated?"（撃破）":""));
+        worldUI?.float({kind:"damage",text:"−"+hit.damage,enemyId:enemy.id});}
+       continue;
+      }
       if(event.message)log(event.message);
       if(event.type==="guardHit"){
         vitals.stamina=Math.max(0,vitals.stamina-event.staminaDamage);
@@ -678,7 +687,14 @@ function doFrame(t){
     launchArrow(squad.get("player"),attackInProgress);
    }
    if(running&&battle){
-    battle.advance(dt,controller,attackInProgress,squad);
+    battle.advance(dt,controller,attackInProgress,squad,{
+      guardTargets:law.guardTargets(activeSettlementId),
+      onGuardHit:(id,damage)=>{
+       const hit=law.damageGuard(activeSettlementId,id,damage,{source:"enemy"});
+       if(hit.ok)saveLawJournal();
+       return hit;
+      }
+     });
     battle.advanceAllies(dt,squad,{launchArrow:(soldier,target)=>{
      if(!frontierUI?.hasTacticalArrow(soldier.id))return false;
      const shot=launchArrow(soldier,{targetId:target.id});
@@ -723,7 +739,7 @@ function doFrame(t){
      log("🛡️ "+attack.message);
      worldUI?.float({kind:"hurt",text:"−"+attack.damage+" HP",
       actorId:attack.actorId||"player",duration:1.45});
-     if(!attack.actorId||attack.actorId==="player")renderer.playerHitSeconds=.48;
+     if(!attack.guardId&&(!attack.actorId||attack.actorId==="player"))renderer.playerHitSeconds=.48;
     }
     for(const event of battle.consumeTacticalEvents().slice(0,6)){
      worldUI?.float({kind:event.kind==="heal"?"heal":"damage",
