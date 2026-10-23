@@ -160,7 +160,7 @@ export class LawSystem{
     }
     if(sees&&dist<=4.3)contact=true;
    }
-   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;}
+   if(spotted){s.lostSeconds=0;s.pursuit=true;s.lastSeenDay=nextDay;if(level>=3)s.hostile=true;}
    else {s.lostSeconds+=Math.max(0,dt);if(s.lostSeconds>20){s.pursuit=false;s.challengeShown=false;s.hostile=false;}}
    s.alert=Math.max(0,s.alert-(contact?0:Math.max(0,dt)*.3));
    if(contact&&level<=2&&!s.challengeShown){
