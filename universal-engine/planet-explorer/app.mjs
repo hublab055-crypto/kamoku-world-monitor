@@ -11,6 +11,8 @@ import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-ch
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {OwnerWorld} from "./owner-world.mjs?v=0.9c-asset-v2";
+import {TerritoryEconomy} from "./territory-economy.mjs?v=0.9f-territory";
+import {installTerritoryUI} from "./territory-ui.mjs?v=0.9f-territory";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs";
@@ -77,6 +79,7 @@ const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
 const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
+const TERRITORY_JOURNAL_KEY="universal-engine:explorer:territory:v0.9f";
 const TIME_SCALE_KEY="universal-engine:explorer:time-scale:v0.8x";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
@@ -88,6 +91,14 @@ let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirecto
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
 let lastGuardStrike=null;
+let territoryEconomy=null,territoryUI=null;
+function loadTerritoryJournal(){
+ try{return JSON.parse(localStorage.getItem(TERRITORY_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
+function saveTerritoryJournal(){
+ try{if(territoryEconomy)localStorage.setItem(TERRITORY_JOURNAL_KEY,JSON.stringify(territoryEconomy.snapshot()));}
+ catch(_){log("領地台帳の自動保存に失敗しました");}
+}
 function saveLawJournal(){try{localStorage.setItem(LAW_JOURNAL_KEY,JSON.stringify(law.snapshot()));}catch(_){log("治安・継承データを保存できませんでした");}}
 function loadLawJournal(){try{return JSON.parse(localStorage.getItem(LAW_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function saveRailwayJournal(){
@@ -261,6 +272,9 @@ function init(saved=null){
   townUI?.close(true);lawUI?.close();$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
+    territoryEconomy=new TerritoryEconomy(saved?.v0_9f?.territory||(!saved?loadTerritoryJournal():null),planet.timeDays);
+    territoryEconomy.syncOwnerBuildings(ownerWorld);
+    territoryUI?.close();
    settlementLocations=null;
   ferry=new PassengerFerry(saved?.v0_8y?.ferry||(!saved?loadFerryJournal():null));
   marine=new MarineWorld(saved?.v0_8g?.marine||(!saved?loadMarineJournal():null));
@@ -437,6 +451,10 @@ function init(saved=null){
     onFight:()=>startGuardCombat()
    });
    lawUI.refresh();
+   if(!territoryUI)territoryUI=installTerritoryUI({
+    get:()=>({economy:territoryEconomy,ownerWorld,controller,planet,activeSettlementId}),
+    save:saveTerritoryJournal,notify:log
+   });
    if(!faunaUI)faunaUI=installFaunaUI({
    state:()=>({fauna,controller,actions}),log,save:saveFaunaJournal,
    refreshHud:updateHUD,passable:faunaGroundPassable,onResourcesChange:saveLifeJournal
@@ -856,6 +874,11 @@ function refreshShipCrewChoices(){
  }
 }
 function updateHUD(){
+  if(territoryEconomy&&ownerWorld){
+   const changed=territoryEconomy.syncOwnerBuildings(ownerWorld);
+   const months=territoryEconomy.collectUntil(planet?.timeDays);
+   if(changed||months){saveTerritoryJournal();territoryUI?.refresh();}
+  }
   lawUI?.refresh();
  const g=terrainSurface(terrain,controller.lat,controller.lon);
  const climate=weather.sample(controller.lat,controller.lon,g.elevationM);
@@ -1138,12 +1161,13 @@ function captureGame(){
          v0_8r:{schemaVersion:1,destinationId:activeSettlementId},v0_8s:townLife.snapshot(),v0_8t:railway.snapshot(),
          v0_8x:{schemaVersion:1,timeScale:normalizeTimeScale($("days-per-second").value),security:railwaySecurity.snapshot()},
          v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()},
+          v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
  try{
   const data=captureGame();
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();saveTerritoryJournal();
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();saveLawJournal();
   log("v0.8x：切符・鉄道保安・時間倍率を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
