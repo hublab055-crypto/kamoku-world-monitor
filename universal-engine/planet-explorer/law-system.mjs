@@ -43,9 +43,9 @@ export class LawSystem{
    this.factions[id]={
     heat:clamp(finite(s.heat),0,10000),alert:clamp(finite(s.alert),0,100),
     pursuit:Boolean(s.pursuit),lastSeenDay:finite(s.lastSeenDay,-1),
-    hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
+    hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown)&&!Boolean(s.challengePending),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
     defenseAlert:Boolean(s.defenseAlert),
-    warningKind:["weapon","restricted"].includes(s.warningKind)?s.warningKind:null,
+    warningKind:null, // unacknowledged warnings must be spoken again after loading
     warningSpeakerId:typeof s.warningSpeakerId==="string"?s.warningSpeakerId:null,
     challengePending:Boolean(s.challengePending),engaged:Boolean(s.engaged),
     owner:String(s.owner||"crown").slice(0,60),
