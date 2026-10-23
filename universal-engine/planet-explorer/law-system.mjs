@@ -286,7 +286,7 @@ export class LawSystem{
   s.hostile=false;s.pursuit=false;s.current=clamp(s.current+s.deployed.length,0,GUARD_POSTS[id].max);s.deployed=[];s.challengeShown=false;
   this.custody={faction:id,fine:Math.max(20,Math.ceil(s.heat*2)),since:this.day};
   this.history.push({day:this.day,type:"detained",id});
-  return {type:"detained",id,message:"🔒 "+GUARD_POSTS[id].name+"に勾留された"};
+  return {ok:true,type:"detained",id,message:"🔒 "+GUARD_POSTS[id].name+"に勾留された"};
  }
  payFine(id,pay){if(!this.custody||this.custody.faction!==id)return {ok:false,message:"この管轄では勾留されていません"};
   const fine=this.custody.fine;
