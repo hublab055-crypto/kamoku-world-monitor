@@ -76,6 +76,7 @@ export class RailwaySecurity{
    this.fleeing=Boolean(saved?.fleeing);this.resisting=Boolean(saved?.resisting);
    this.lostSeconds=Math.max(0,Number(saved?.lostSeconds)||0);
    this.attackSeconds=Math.max(0,Number(saved?.attackSeconds)||0);
+  this.caseReported=Boolean(saved?.caseReported);
  }
  get warningCount(){return this.warningTimes.length;}
  get state(){return this.jailed?"jailed":this.wanted?(this.challenged&&!this.fleeing&&!this.resisting?"challenged":"wanted"):
@@ -84,7 +85,7 @@ export class RailwaySecurity{
    this.jailed=null;this.wanted=false;this.guard=null;this.warningTimes=[];
    this.wasRestricted=false;this.nextWarningAt=this.elapsed;
    this.challenged=false;this.challengeRemaining=0;this.fleeing=false;this.resisting=false;
-   this.lostSeconds=0;this.attackSeconds=0;
+   this.lostSeconds=0;this.attackSeconds=0;this.caseReported=false;
   }
   _detain(stationId){
    const fine=RAIL_BAIL_FINE+(this.resisting?60:0);
@@ -143,7 +144,7 @@ export class RailwaySecurity{
    this.warningTimes=this.warningTimes.slice(-RAIL_WARNING_LIMIT);
    this.nextWarningAt=this.elapsed+RAIL_WARNING_INTERVAL_SECONDS;
    if(this.warningCount>=RAIL_WARNING_LIMIT){
-    this.wanted=true;this.challenged=false;this.fleeing=false;this.resisting=false;
+    this.wanted=true;this.challenged=false;this.fleeing=false;this.resisting=false;this.caseReported=true;
     this.guard={stationId,x:station.site.x+10,z:station.site.z-7};
     events.push({type:"pursuit",stationId,count:this.warningCount,
      message:"3回の警告を無視したため保安員が追跡します。接近すると投降を求められます。"});
@@ -180,24 +181,24 @@ export class RailwaySecurity{
  /** Bail is optional; serve time if the player cannot or does not want to pay. */
  serveSentence(){
   if(!this.jailed)return {ok:false,message:"勾留中ではありません"};
-  const stationId=this.jailed.stationId,days=clamp(Math.ceil(this.jailed.fine/60),1,14);
+  const stationId=this.jailed.stationId,days=clamp(Math.ceil(this.jailed.fine/60),1,14),settleReport=this.caseReported;
   this._clear();
-  return {ok:true,stationId,days,message:days+"日間の服役を終えて釈放されました"};
+  return {ok:true,stationId,days,settleReport,message:days+"日間の服役を終えて釈放されました"};
  }
  payFine(pay){
   if(!this.jailed)return {ok:false,message:"勾留されていません"};
   const amount=this.jailed.fine;
   const result=typeof pay==="function"?pay(amount):{ok:false};
   if(result===false||result?.ok===false)return {ok:false,message:result?.message||"罰金を支払えません"};
-  const stationId=this.jailed.stationId;
+  const stationId=this.jailed.stationId,settleReport=this.caseReported;
   this._clear();
-  return {ok:true,stationId,message:"罰金 "+amount+"G を支払い、保釈されました。"};
+  return {ok:true,stationId,settleReport,message:"罰金 "+amount+"G を支払い、保釈されました。"};
  }
  snapshot(){
   return {schemaVersion:1,elapsed:this.elapsed,
    warningAges:this.warningTimes.map(t=>Math.max(0,this.elapsed-t)),wanted:this.wanted,
    guard:this.guard?{...this.guard}:null,jailed:this.jailed?{...this.jailed}:null,
    challenged:this.challenged,challengeRemaining:this.challengeRemaining,
-   fleeing:this.fleeing,resisting:this.resisting,lostSeconds:this.lostSeconds,attackSeconds:this.attackSeconds};
+   fleeing:this.fleeing,resisting:this.resisting,lostSeconds:this.lostSeconds,attackSeconds:this.attackSeconds,caseReported:this.caseReported};
  }
 }
