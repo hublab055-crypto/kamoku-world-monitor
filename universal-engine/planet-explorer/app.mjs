@@ -518,7 +518,7 @@ function doFrame(t){
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
-  const detained=Boolean(railwaySecurity?.jailed);
+  const detained=Boolean(railwaySecurity?.jailed||law?.custody||law?.pendingDeath||law?.gameOver);
   const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
@@ -596,6 +596,7 @@ function doFrame(t){
       if(event.type==="detained"){
         controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
       }
+      if(event.type==="challenge")document.getElementById("law-panel").hidden=false;
       if(event.type==="challenge"||event.type==="detained")lawUI?.refresh();
     }
     if(events.length)saveLawJournal();
@@ -1048,6 +1049,7 @@ $("next-season").addEventListener("click",()=>{
  planet.advance(90);log("惑星時間を90日進めました。");updateHUD();
 });
 $("play").addEventListener("click",()=>{
+ if(law?.custody||law?.pendingDeath||law?.gameOver){log("勾留中・継承待ち・ゲームオーバー中は再生できません");return;}
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
 function completeSuccession(id){
