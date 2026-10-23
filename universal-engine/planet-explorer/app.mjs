@@ -580,6 +580,26 @@ function doFrame(t){
     !marine?.boarded&&controller.travelMode==="walk"
   })||[])handleRailwaySecurityEvent(event);
   renderer.railwaySecurity=railwaySecurity;
+  if(running&&law&&!law.custody&&!law.pendingDeath&&!law.gameOver){
+    const vitals=squad.frontier.person("player");
+    const events=law.advance(dt,{day:planet.timeDays,settlementId:activeSettlementId,
+      x:controller.x,z:controller.z,stamina:vitals.stamina,hp:battle.playerHp,
+      eligible:controller.altitudeM<=12&&!townLife.inside&&!railway?.boarded&&!ferry?.boarded&&!marine?.boarded});
+    for(const event of events){
+      if(event.message)log(event.message);
+      if(event.type==="guardHit"){
+        vitals.stamina=Math.max(0,vitals.stamina-event.staminaDamage);
+        battle.playerHp=Math.max(0,battle.playerHp-event.hpDamage);
+        worldUI?.float({kind:"hurt",text:"−"+event.staminaDamage+" ⚡ / −"+event.hpDamage+" HP",actorId:"player"});
+        if(vitals.stamina<=0){const arrest=law.detain(activeSettlementId);if(arrest)events.push(arrest);}
+      }
+      if(event.type==="detained"){
+        controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
+      }
+      if(event.type==="challenge"||event.type==="detained")lawUI?.refresh();
+    }
+    if(events.length)saveLawJournal();
+  }
   marine?.update(running?dt:0,controller,terrain);
   if(onShip){
    // Keep the squad's world-space controls co-located with moving ship for RTS,
@@ -693,8 +713,14 @@ function doFrame(t){
      if(actor.id==="player")battle.playerHp=outcome.hp;
      else actor.hp=outcome.hp;
     }
+    if(battle.playerHp<=0&&!law.pendingDeath&&!law.gameOver){
+      const heirs=law.die({cause:"戦闘による死亡"});
+      running=false;simWorld.clock.paused=true;saveLawJournal();lawUI?.refresh();
+      document.getElementById("law-panel").hidden=false;
+      log(heirs.length?"🪦 主人公死亡。治安・手配パネルから継承者を選択してください。":"🪦 継承者がいません。ゲームオーバーです。");
+    }
     vitalsSaveElapsed+=dt;
-    if(vitalsSaveElapsed>=10){vitalsSaveElapsed=0;saveLifeJournal();}
+    if(vitalsSaveElapsed>=10){vitalsSaveElapsed=0;saveLifeJournal();saveLawJournal();}
    }
    // Lifestyle uses an inverse hunger gauge: 100 means very hungry.
    life.stats.hunger=100-squad.frontier.person("player").hunger;
