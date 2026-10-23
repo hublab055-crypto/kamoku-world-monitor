@@ -44,6 +44,7 @@ export class LawSystem{
     heat:clamp(finite(s.heat),0,10000),alert:clamp(finite(s.alert),0,100),
     pursuit:Boolean(s.pursuit),lastSeenDay:finite(s.lastSeenDay,-1),
     hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
+    defenseAlert:Boolean(s.defenseAlert),
     owner:String(s.owner||"crown").slice(0,60),
     current:clamp(Math.trunc(finite(s.current,post.max)),0,post.max),
     reserves:clamp(Math.trunc(finite(s.reserves,0)),0,post.max),
@@ -103,11 +104,11 @@ export class LawSystem{
  }
 
  /** No random spawning. Guards leave a post's finite personnel pool; replacements are daily-capped. */
- dispatch(id,x=0,z=0){
+ dispatch(id,x=0,z=0,minimum=0){
   const s=this.district(id),post=GUARD_POSTS[id];
   if(!s||s.owner!=="crown"||s.current<=0)return [];
   // Even peaceful towns have actual patrols, drawn from the same finite roster.
-  const desired=[2,3,4,5,7,10][this.level(id)];
+  const desired=Math.min(post.max,Math.max([2,3,4,5,7,10][this.level(id)],Math.trunc(minimum)||0));
   const sent=[];
   while(s.deployed.length<desired&&s.current>0){
    const kind=this.level(id)>=4&&s.deployed.length%3===0?"knight":"guard";
@@ -135,19 +136,24 @@ export class LawSystem{
    }else if(now>prev){s.replenishedDay=now;}
    if(id!==settlementId){s.pursuit=false;s.challengeShown=false;s.lostSeconds=0;s.alert=Math.max(0,s.alert-Math.max(0,dt)*4);continue;}
    if(!eligible)continue;
-   const additions=this.dispatch(id,x,z),level=this.level(id);
-   if(additions.length&&level>0)events.push({type:"dispatch",id,count:additions.length,message:"🏰 "+post.name+"から"+additions.length+"名を派遣"});
-   // Nearby hostile NPC squads are threats to the settlement, independent of the player\'s bounty.
-   // Only simulate enemies in this district and keep the scan bounded for mobile.
+   // Garrison scouts relay a warning about invading squads up to 180m from
+   // their station; an alarm draws extra troops from the same finite roster.
    const threats=(Array.isArray(hostiles)?hostiles:[]).filter(e=>e&&e.hp>0&&Number.isFinite(e.x)&&Number.isFinite(e.z)&&
-    Math.hypot(e.x-post.x,e.z-post.z)<110).slice(0,80);
+    Math.hypot(e.x-post.x,e.z-post.z)<180).slice(0,80);
+   if(threats.length&&!s.defenseAlert&&s.owner==="crown")
+    events.push({type:"defenseAlarm",id,count:threats.length,
+     message:"📯 "+post.name+"：敵部隊 "+threats.length+"体を発見！ 守備隊が出動します"});
+   s.defenseAlert=Boolean(threats.length);
+   const minimum=threats.length?2+Math.ceil(threats.length/2):0;
+   const additions=this.dispatch(id,x,z,minimum),level=this.level(id);
+   if(additions.length&&level>0)events.push({type:"dispatch",id,count:additions.length,message:"🏰 "+post.name+"から"+additions.length+"名を派遣"});
    let contact=false,spotted=false;
    for(const guard of s.deployed){
     if(guard.hp<=0)continue;
     const dx=x-guard.x,dz=z-guard.z,dist=Math.hypot(dx,dz);
     // No omniscience: beyond visual range guards continue their assigned patrol.
     guard.strikeCooldown=Math.max(0,(guard.strikeCooldown||0)-Math.max(0,Math.min(dt,.25)));
-    let enemy=null,enemyDist=55;
+    let enemy=null,enemyDist=180;
     for(const candidate of threats){
      const d=Math.hypot(candidate.x-guard.x,candidate.z-guard.z);
      if(d<enemyDist){enemy=candidate;enemyDist=d;}
