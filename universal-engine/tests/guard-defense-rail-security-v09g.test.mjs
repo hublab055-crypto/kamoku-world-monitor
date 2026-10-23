@@ -130,6 +130,8 @@ test("railway officer has physical HP, player assault transfers pursuit to terri
  assert.equal(rail.guard,null);
  assert.equal(rail.jailed,null);
  assert.ok(law.level("tower")>=3);
+ assert.equal(law.district("tower").hostile,false,"wanted alone requires a spoken guard warning");
+ assert.equal(law.respond("tower","refuse").ok,true);
  assert.equal(law.district("tower").hostile,true);
  const restored=new LawSystem(law.snapshot());
  assert.equal(restored.level("tower"),law.level("tower"));
