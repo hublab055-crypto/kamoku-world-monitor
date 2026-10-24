@@ -19,7 +19,7 @@ export function installTerritoryUI({get,save,notify}){
   notify?.(r.message);
  };
  function refresh(){
-  const {economy,ownerWorld,activeSettlementId,planet}=get();
+  const {economy,ownerWorld,activeSettlementId,planet,wallet}=get();
   if(!economy)return;
   if(!town.value||!economy.town(town.value))town.value=activeSettlementId==="wilderness"?"pioneer":activeSettlementId;
   const t=economy.town(town.value);
@@ -30,13 +30,36 @@ export function installTerritoryUI({get,save,notify}){
   $("territory-tax-apply").disabled=!leader;
   $("territory-spend").disabled=!leader;
   $("territory-treasury").textContent=format(t.treasury)+" G";
+  $("territory-wallet").textContent=format(wallet?.coins)+" G";
+  $("territory-debt").textContent=format(economy.bonds.debt(t.id))+" G";
+  $("territory-bond-create").disabled=!leader;
+  const bondSelect=$("territory-bond-issue"),selectedBond=bondSelect.value;
+  bondSelect.replaceChildren();
+  const bonds=economy.bonds.issues.filter(b=>b.townId===t.id).reverse();
+  for(const b of bonds){
+   const label=b.id+" / "+b.face+"G×"+b.sold+"口保有 / "+
+    economy.bonds.status(b,planet.timeDays)+" / 満期 第"+b.maturityMonth+"月";
+   bondSelect.append(option(b.id,label));
+  }
+  if(bonds.some(b=>b.id===selectedBond))bondSelect.value=selectedBond;
+  const selected=bonds.find(b=>b.id===bondSelect.value);
+  const left=selected?selected.units-selected.sold:0;
+  const remainingDays=selected?Math.max(0,Math.ceil(selected.maturityMonth*30-planet.timeDays)):0;
+  $("territory-bond-buy").disabled=!selected||!!selected.closed||remainingDays===0||left===0;
+  $("territory-bond-info").textContent=selected?
+   "発行 "+selected.units+"口 / 募集残 "+left+"口 / 満期まで "+remainingDays+"日 / 利率 "+
+    selected.interestPercent+"%（満期一括） / 償還見込 "+
+    format(economy.bonds.outstanding(selected))+"G"+
+    (remainingDays===0&&!selected.closed?" / 返済待ち":""):
+   "債券はまだ発行されていません。";
+
   $("territory-support").textContent=t.support+"/100";
   $("territory-ruler").textContent=leader?"あなた（ローカル試作）":"自治評議会・NPC";
   const bill=economy.monthlyAssessment(t.id);
   $("territory-estimate").textContent="試算："+bill.residents+"人、課税対象所得 "+
     format(bill.income-bill.residents*t.exemption)+" G/月、徴収見込 "+format(bill.collected)+" G/月";
   const last=t.lastReport;
-  $("territory-last-tax").textContent=last?"最終徴収：第"+last.month+"月 "+format(last.collected)+" G":"最終徴収：未実施（ゲーム内30日ごと）";
+  $("territory-last-tax").textContent=(last?"最終徴収：第"+last.month+"月 "+format(last.collected)+" G":"最終徴収：未実施")+" / 次回徴税まで "+(30-(Math.floor(planet.timeDays)%30))+"日（ゲーム内30日ごと）";
   const owned=economy.assets.filter(a=>a.ownerId==="player"&&!a.destroyed);
   const previous=deeds.value;deeds.replaceChildren();
   for(const a of owned.slice(0,150)){
@@ -90,6 +113,21 @@ export function installTerritoryUI({get,save,notify}){
  $("territory-spend").addEventListener("click",()=>{
   const {economy}=get();
   message(economy.spend(town.value,$("territory-purpose").value,100,"player"));
+ });
+ $("territory-bond-issue").addEventListener("change",refresh);
+ $("territory-bond-create").addEventListener("click",()=>{
+  const {economy}=get();
+  message(economy.bonds.issue(town.value,{
+   face:Number($("territory-bond-face").value),
+   units:Number($("territory-bond-units").value),
+   termMonths:Number($("territory-bond-term").value),
+   interestPercent:Number($("territory-bond-rate").value)
+  },"player"));
+ });
+ $("territory-bond-buy").addEventListener("click",()=>{
+  const {economy,wallet}=get();
+  message(economy.bonds.buy($("territory-bond-issue").value,
+   Number($("territory-bond-buy-units").value),wallet));
  });
  return {refresh:()=>{if(!panel.hidden)refresh();},close:()=>{
   panel.hidden=true;button.setAttribute("aria-expanded","false");
