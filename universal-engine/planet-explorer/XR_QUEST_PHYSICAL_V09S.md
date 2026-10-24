@@ -39,8 +39,10 @@ independent from the existing avatar's desktop third-person animation.
 - Sword motion **initiates the game's existing swept melee action**; the
   entire virtual steel blade is not yet resolved as a separate per-frame
   hand-tracked rigid-body collision shape.
-- Bow trigger release **starts the game's established archery animation**;
-  the actual projectile emission is still scheduled by that animation.
+- VR bow trigger release starts the existing archery action directly at its
+  **release phase**; the next active simulation tick emits its projectile.
+  If game time is paused, release waits for simulation to resume.
+  No second VR-only projectile or ammunition counter is introduced.
 - The plus sight follows left controller pointing, while ballistics use the
   existing player's yaw-based world action.
 - No force feedback, finger tracking or real-world obstacle checking.
@@ -60,3 +62,10 @@ independent from the existing avatar's desktop third-person animation.
    cooldown does not double attack.
 6. Press A -> VR tabletop RTS; press A to return; MR and normal 2D still work.
 7. Exit VR: no tracked pose/body state is saved.
+
+## Technical note
+The VR sword's hand pose changes the rendered sword position every XR frame.
+A sufficiently fast swipe triggers the existing game melee swing at its hit
+phase on the next simulation tick. The entire hand-driven blade is *not* yet a
+unique physics collider, so precision parries and collision of every point on
+the blade remain future enhancements.
