@@ -130,13 +130,17 @@ export class SocietySystem{
    housingCapacity:t.housingCapacity};
  }
  record(t,message){t.events.push(message);if(t.events.length>12)t.events.shift();}
- postJob(townId,occupation,capacity,wage){
+ postJob(townId,occupation,capacity,wage,options={}){
   const t=this.town(townId),spec=SOCIETY_OCCUPATIONS[occupation];
   if(!t||!spec||!Number.isSafeInteger(capacity)||capacity<1||capacity>30||
    !Number.isSafeInteger(wage)||wage<1||wage>10000)
    return result(false,"求人条件を確認してください");
   if(t.jobs.length>=100)return result(false,"求人枠の上限です");
-  const j={id:"job-"+t.nextJobId++,occupation,ownerId:"player",sector:"private",wage,capacity};
+  const isPublic=options?.sector==="public";
+  if(isPublic&&!options?.authorized)return result(false,"公務員の募集には統治者の権限が必要です");
+  if(options?.sector&&!["public","private"].includes(options.sector))return result(false,"雇用区分が不正です");
+  const j={id:"job-"+t.nextJobId++,occupation,ownerId:isPublic?"council":"player",
+   sector:isPublic?"public":"private",wage,capacity};
   t.jobs.push(j);this.record(t,"求人："+spec.name+" "+capacity+"人");
   return result(true,"📣 "+t.name+"で"+spec.name+"の求人を公開しました",{job:j});
  }
