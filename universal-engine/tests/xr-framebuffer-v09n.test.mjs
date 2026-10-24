@@ -46,7 +46,7 @@ test("XR frame coordinator probes framebuffer before clearing or rendering",()=>
  const c=runtime.indexOf("renderer.frame(frameState",a);
  assert.ok(a>0&&b>a&&c>b);
  assert.match(runtime,/const replacement=new XRWebGLLayer\(session,gl,XR_VR_LAYER_CONFIGS\[next\]\)/);
- assert.match(runtime,/if\(!target\.ok\)\{recoverVRFramebuffer/);
+ assert.match(runtime,/if\(!target\.ok\)\{\s*recoverVRFramebuffer/);
  assert.match(runtime,/if\(clearErr\)/);
  assert.match(runtime,/if\(sceneErr\)/);
 });

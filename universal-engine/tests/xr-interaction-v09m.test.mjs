@@ -56,5 +56,7 @@ test("VR black-frame diagnostic never persists camera or XR sensor data",()=>{
  assert.match(runtime,/if\(mode==="vr"&&vrFrames<240\)renderer\.drawVRGuide/);
  assert.match(render,/drawVRGuide\(xr,anchor\)/);
  assert.match(runtime,/gl\.colorMask\(/);
- assert.match(runtime,/VR診断：追跡あり/);
+ assert.match(runtime,/VR診断：/);
+ assert.match(runtime,/追跡=/);
+ assert.match(runtime,/vrSceneFrames\+\+/);
 });
