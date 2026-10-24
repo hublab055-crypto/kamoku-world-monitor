@@ -80,8 +80,15 @@ const FRAG=["#version 300 es","precision highp float;",
 "uniform vec3 uLight;uniform float uAlpha;uniform vec3 uTint;",
 "uniform float uAmbient;",
 "uniform vec3 uFogParams;uniform vec3 uFogColor;",
+"uniform float uXROcclusionEnabled;uniform vec4 uXROcclusionViewport;",
+"uniform sampler2D uXROcclusionDepth;",
 "out vec4 fragColor;",
 "void main(){",
+" if(uXROcclusionEnabled>0.5){",
+"  vec2 uv=(gl_FragCoord.xy-uXROcclusionViewport.xy)/uXROcclusionViewport.zw;",
+"  float realMeters=texture(uXROcclusionDepth,clamp(uv,0.001,0.999)).r;",
+"  if(realMeters>0.02&&vDepth>realMeters+0.08)discard;",
+" }",
 " float b=max(dot(normalize(vN),normalize(uLight)),0.0);",
 " vec3 lit=vC*uTint*(uAmbient+(1.0-uAmbient)*b);",
 " float f=clamp((vDepth-uFogParams.x)/max(1.0,uFogParams.y-uFogParams.x),0.0,1.0);",
@@ -663,6 +670,9 @@ export class ExplorerRenderer{
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
   this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");this.uInstanced=gl.getUniformLocation(pg,"uInstanced");
   this.uFogParams=gl.getUniformLocation(pg,"uFogParams");this.uFogColor=gl.getUniformLocation(pg,"uFogColor");
+  this.uXROcclusionEnabled=gl.getUniformLocation(pg,"uXROcclusionEnabled");
+  this.uXROcclusionViewport=gl.getUniformLocation(pg,"uXROcclusionViewport");
+  this.uXROcclusionDepth=gl.getUniformLocation(pg,"uXROcclusionDepth");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
@@ -1399,7 +1409,8 @@ export class ExplorerRenderer{
  renderRailwayConcourse(asp){
   const gl=this.gl,pose=this.railway?.concoursePose||{x:0,z:8};
   gl.clearColor(.07,.09,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=multiply4(perspective(57*DEG,asp,.25,1000),lookAt([pose.x+14,11,pose.z+14],[pose.x,1.3,pose.z]));
+  const vp=this.xrInteriorVP(pose)||
+   multiply4(perspective(57*DEG,asp,.25,1000),lookAt([pose.x+14,11,pose.z+14],[pose.x,1.3,pose.z]));
   this.pickVP=null;
   this.drawMesh(this.railwayConcourseMesh,vp,[.43,.86,.73],1,.87);
   // Stationmaster and arriving passengers are anchored to the ticket window.
@@ -1417,8 +1428,9 @@ export class ExplorerRenderer{
   this.trainClock+=Math.max(0,Math.min(.10,dt));
   gl.clearColor(.06,.11,.14,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   const sway=Math.sin(this.trainClock*1.3)*.08;
-  const vp=multiply4(perspective(58*DEG,asp,.2,1000),
-   lookAt([11+sway,9.0,14],[p.x,1.2,p.z]));
+  const vp=this.xrInteriorVP(p)||
+   multiply4(perspective(58*DEG,asp,.2,1000),
+    lookAt([11+sway,9.0,14],[p.x,1.2,p.z]));
   this.pickVP=null;
   this.drawMesh(this.ferryCabinMesh,vp,[.38,.84,.72],1,.82);
   for(const [x,z] of [[-2.2,-7],[2.1,4],[-2.3,3]]){
@@ -1599,6 +1611,15 @@ export class ExplorerRenderer{
   if(xr?.mode==="vr"&&!inOrbit)gl.clearColor(.40,.64,.78,1);
   else gl.clearColor(.011,.032,.071,xr?.mode.startsWith("mr-")?0:inOrbit||xr?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
+  // Sensor depth is per-eye, ephemeral, and only ever used in passthrough MR.
+  const mask=Boolean(xr?.mode.startsWith("mr-")&&xr?.depthTexture);
+  gl.uniform1f(this.uXROcclusionEnabled,mask?1:0);
+  if(mask){
+   gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,xr.depthTexture);
+   gl.uniform1i(this.uXROcclusionDepth,7);
+   gl.uniform4f(this.uXROcclusionViewport,xr.viewport.x,xr.viewport.y,w,h);
+   gl.activeTexture(gl.TEXTURE0);
+  }
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0])); // orbit/interior never fog
   const asp=w/h;
   this.actorMarker=null;
@@ -1609,6 +1630,14 @@ export class ExplorerRenderer{
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
   this.screenActors=[];this.screenEnemies=[];this.screenGuards=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  if(xr?.mode==="vr"&&!inOrbit){
+   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
+   if(this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
+    return this.renderRailwayConcourse(asp);
+   if(this.trainInterior)return this.renderTrainInterior(asp,dt);
+   if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
+   if(this.townInterior)return this.renderTownInterior(asp);
+  }
   if(!xr){
   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
@@ -1744,6 +1773,7 @@ export class ExplorerRenderer{
  }
  renderTrainInterior(asp,dt=1/60){
   const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
+  const actorPose=this.trainInterior.pose||{x:0,z:1.4,yaw:0};
   const roomKey=kind+":"+(this.trainInterior.hideWalls?"open":"closed");
   if(!this.trainRoomMeshes.has(roomKey))
    this.trainRoomMeshes.set(roomKey,new Mesh(gl,
@@ -1751,8 +1781,9 @@ export class ExplorerRenderer{
   this.trainClock+=Math.min(.1,Math.max(0,dt));
   const moving=this.trainInterior.mode==="travel",sway=moving?Math.sin(this.trainClock*3.4)*.11:0;
   gl.clearColor(.055,.075,.073,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=multiply4(perspective(55*DEG,asp,.25,55000),
-   lookAt([9+sway,7.1,11],[0,1.25,-.1]));
+  const vp=this.xrInteriorVP(actorPose)||
+   multiply4(perspective(55*DEG,asp,.25,55000),
+    lookAt([9+sway,7.1,11],[0,1.25,-.1]));
   this.pickVP=null;
   // The window background is a real, updated local planetary terrain mesh,
   // not a static illustration. It moves as the train progresses along the track.
@@ -1795,22 +1826,25 @@ export class ExplorerRenderer{
    this.townIndoorAvatarMesh=new Mesh(gl,g);
   }
 
-  const person=this.trainInterior.pose||{x:0,z:1.4,yaw:0};
+  const person=actorPose;
   const model=multiply4(translate(person.x,moving?.025*Math.sin(this.trainClock*6):0,person.z),rotateY(person.yaw||0));
-  this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
+  if(this.xrView?.mode!=="vr")
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
   return "train-interior";
  }
  renderRailwayJail(asp){
   const gl=this.gl;
   gl.clearColor(.035,.045,.046,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=multiply4(perspective(55*DEG,asp,.22,120),lookAt([8.8,5.8,10.5],[0,1.35,0]));
+  const vp=this.xrInteriorVP({x:.3,z:-.4})||
+   multiply4(perspective(55*DEG,asp,.22,120),lookAt([8.8,5.8,10.5],[0,1.35,0]));
   this.pickVP=null;this.actorMarker=null;
   this.drawMesh(this.railwayJailMesh,vp,[.52,.74,.34],1,.80);
   if(!this.townIndoorAvatarMesh){
    const geometry=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
    this.townIndoorAvatarMesh=new Mesh(gl,geometry);
   }
-  this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,translate(.3,0,-.4)),[.55,.82,.32],1,.88);
+  if(this.xrView?.mode!=="vr")
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,translate(.3,0,-.4)),[.55,.82,.32],1,.88);
   this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(translate(-1.1,0,6.0),rotateY(Math.PI))),
    [.58,.78,.34],1,.86);
   return "railway-jail";
@@ -1821,8 +1855,9 @@ export class ExplorerRenderer{
    this.townRoomMeshes.set(kind,new Mesh(gl,townInteriorGeometry(kind)));
   gl.clearColor(.08,.13,.15,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=multiply4(perspective(55*DEG,asp,.1,90),
-   lookAt([8,6.6,10],[0,1.0,-.2]));
+  const vp=this.xrInteriorVP(this.townInterior.pose||{x:0,z:2.4})||
+   multiply4(perspective(55*DEG,asp,.1,90),
+    lookAt([8,6.6,10],[0,1.0,-.2]));
   this.pickVP=null;
   this.drawMesh(this.townRoomMeshes.get(kind),vp,[.5,.9,.45],1,.86);
   if(!this.townIndoorAvatarMesh){
@@ -1831,7 +1866,8 @@ export class ExplorerRenderer{
   }
   const person=this.townInterior.pose||{x:0,z:2.4,yaw:0};
   const model=multiply4(translate(person.x,0,person.z),rotateY(person.yaw||0));
-  this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
+  if(this.xrView?.mode!=="vr")
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
   return "town-interior";
  }
  orbit(s,asp,dt=1/60){
@@ -1907,6 +1943,14 @@ export class ExplorerRenderer{
    this.actorMarker=screen?{...screen,altitudeM:s.altitudeM,label:"アバターの地表位置"}:null;
   }
   return "orbit";
+ }
+ xrInteriorVP(person={x:0,z:0}){
+  const xr=this.xrView;
+  if(!xr||xr.mode!=="vr")return null;
+  // Keep the local actor at the headset's standing floor anchor. This does
+  // not write to the gameplay camera, movement state, or any persisted data.
+  return multiply4(xr.projection,multiply4(xr.view,
+   multiply4(xr.stage,translate(-(person.x||0),0,-(person.z||0)))));
  }
  drawMarineSurface(vp,light,s,dt){
   const wet=s.travelMode==="swim"||s.travelMode==="dive"||s.travelMode==="boat";
