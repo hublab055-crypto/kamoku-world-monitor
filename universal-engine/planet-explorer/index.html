@@ -146,6 +146,13 @@
   <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
   <button id="xr-exit" type="button" hidden>✕ XR終了</button>
  </div>
+ <div class="xr-action-buttons" aria-label="XR専用操作">
+  <button id="xr-place" type="button" hidden aria-pressed="false">📍 模型を再配置</button>
+  <button id="xr-rotate-left" type="button" hidden>↶ 惑星を左回転</button>
+  <button id="xr-rotate-right" type="button" hidden>↷ 惑星を右回転</button>
+  <button id="xr-planet-land" type="button" hidden disabled>↓ 選択地点へ降下</button>
+  <button id="xr-rts-all" type="button" hidden>👥 味方全員を選択</button>
+ </div>
  <label class="xr-size-label">RTS模型の縮尺
   <select id="xr-scale" aria-label="MR卓上RTSの表示縮尺">
    <option value="0.0007">1:1429・小さく</option>
@@ -155,6 +162,7 @@
  </label>
  <label class="xr-depth-label"><input id="xr-occlusion" type="checkbox" checked> MR実物の奥行き遮蔽（対応機器のみ）</label>
  <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
+ <small id="xr-vr-diagnostics" aria-live="off">VR診断：未開始</small>
 </section>
 <div class="canvas-wrap">
       <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。ダブルタップで地面へ移動、シングルタップで対象を選択。"></canvas>
@@ -1301,6 +1309,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9l-custody-release"></script>
+<script type="module" src="./app.mjs?v=0.9l-custody-release-xr-v09m"></script>
 </body>
 </html>

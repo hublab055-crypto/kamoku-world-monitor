@@ -1956,6 +1956,25 @@ export class ExplorerRenderer{
   }
   return "orbit";
  }
+ /**
+  * A small high-contrast calibration globe at start of VR. Drawn directly in
+  * XR world meters, independent of planet altitude or terrain LOD. If this is
+  * visible while the scene is black, headset projection and framebuffer work
+  * and the missing imagery is in the scene renderer instead.
+  */
+ drawVRGuide(xr,anchor){
+  if(!xr||!anchor||!this.globe)return;
+  const p=anchor.position;
+  const y=anchor.vrFloor[1]+1.35;
+  const model=multiply4(translate(p[0],y,p[2]),
+   scale3(.11/this.R,.11/this.R,.11/this.R));
+  const vp=multiply4(xr.projection,multiply4(xr.view,model));
+  const gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawMesh(this.globe,vp,[.64,.93,.49],1,.92,[.38,1,.64]);
+ }
  xrInteriorVP(person={x:0,z:0}){
   const xr=this.xrView;
   if(!xr||xr.mode!=="vr")return null;

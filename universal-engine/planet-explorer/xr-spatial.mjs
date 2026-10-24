@@ -39,10 +39,10 @@ export function xrAnchor(poseMatrix,{floor=false}={}){
   heading:xrHeading(poseMatrix)
  };
 }
-export function xrStage({mode,anchor,actorYaw=0,planetRadius=1,rtsScale=.0014,planetScale=1}){
+export function xrStage({mode,anchor,actorYaw=0,yawOffset=0,planetRadius=1,rtsScale=.0014,planetScale=1}){
  const isVR=mode==="vr",isPlanet=mode==="mr-planet";
  const position=isVR?anchor.vrFloor:anchor.position;
- const yaw=anchor.heading+Math.PI-(isPlanet?0:actorYaw);
+ const yaw=anchor.heading+Math.PI-(isPlanet?0:actorYaw)+yawOffset;
  const scale=isVR?1:(isPlanet?planetScale/planetRadius:rtsScale);
  return xrMul(xrTranslate(...position),xrMul(xrRotateY(yaw),xrScale(scale)));
 }
@@ -62,4 +62,37 @@ export function xrTableHit(rayMatrix,anchor,actorYaw,actor,scale=.0014){
 export function xrPlacementFromHit(hitMatrix,viewerMatrix,floor=false){
  const anchor=xrAnchor(viewerMatrix,{floor});
  return {...anchor,position:[hitMatrix[12],hitMatrix[13]+.025,hitMatrix[14]]};
+}
+
+/**
+ * Controller ray → the *visible* side of the tabletop planet. The rendered
+ * sphere is translated, Y-rotated, and uniformly scaled. Ray units are XR m.
+ * Returns native latitude/longitude degrees, matching geoNormal() and the
+ * unchanged orbital descent path. A miss never becomes a landing.
+ */
+export function xrPlanetHit(rayMatrix,anchor,{yawOffset=0,radius=.24}={}){
+ if(!rayMatrix||!anchor||!Number.isFinite(radius)||radius<=0)return null;
+ const from=[rayMatrix[12]-anchor.position[0],
+  rayMatrix[13]-anchor.position[1],rayMatrix[14]-anchor.position[2]];
+ const dir=xrForward(rayMatrix);
+ const along=from[0]*dir[0]+from[1]*dir[1]+from[2]*dir[2];
+ const c=from[0]**2+from[1]**2+from[2]**2-radius**2;
+ const d=along*along-c;
+ if(d<0)return null;
+ const root=Math.sqrt(d),near=-along-root,far=-along+root;
+ const t=near>=0?near:far>=0?far:null;
+ if(t===null||t>10)return null;
+ const world=[from[0]+dir[0]*t,from[1]+dir[1]*t,from[2]+dir[2]*t];
+ const yaw=anchor.heading+Math.PI+yawOffset,co=Math.cos(yaw),si=Math.sin(yaw);
+ const x=(co*world[0]-si*world[2])/radius;
+ const z=(si*world[0]+co*world[2])/radius;
+ const y=Math.max(-1,Math.min(1,world[1]/radius));
+ return {lat:Math.asin(y)*180/Math.PI,
+  lon:(((Math.atan2(z,x)*180/Math.PI+180)%360)+360)%360-180,
+  distanceM:t};
+}
+
+/** Real-world distance of a miniature RTS actor selection target. */
+export function xrRTSHitRadius(scale=.0014,worldMeters=6,minimumPhysicalMeters=.035){
+ return Math.max(worldMeters,minimumPhysicalMeters/Math.max(.00001,scale));
 }
