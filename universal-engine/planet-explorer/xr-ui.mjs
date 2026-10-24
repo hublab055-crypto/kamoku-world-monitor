@@ -1,4 +1,5 @@
 import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit} from "./xr-spatial.mjs?v=0.9i-xr";
+import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -8,10 +9,10 @@ import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit} from "./xr-spatial.mjs?v
 export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSMove=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
- const status=$("xr-status"),scaleInput=$("xr-scale");
+ const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
  let session=null,activeMode=null,space=null,anchor=null,lastTime=0,viewerSpace=null,hitSource=null,hitPose=null;
  let usingFloor=false,disposed=false,readyPromise=Promise.resolve();
- let compatibilityRenderer=null;
+ let compatibilityRenderer=null,depthTexture=null;
  const present=()=>Boolean(session);
  const supported=()=>Boolean(navigator.xr&&globalThis.XRWebGLLayer&&globalThis.isSecureContext);
  const statusText=(message)=>{status.textContent=message;};
@@ -57,6 +58,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(renderer){renderer.xrView=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
   hitSource?.cancel?.();hitSource=null;hitPose=null;viewerSpace=null;
+  if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
@@ -80,6 +82,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
    const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:[])]};
    if(root)init.domOverlay={root};
+   const depthOptions=depthFeatureOptions(requestedType);
+   if(depthOptions.optionalFeature){
+    init.optionalFeatures.push(depthOptions.optionalFeature);
+    init.depthSensing=depthOptions.depthSensing;
+   }
    newSession=await navigator.xr.requestSession(requestedType,init);
    if(disposed){await newSession.end();return;}
    await readyGL();
@@ -87,6 +94,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const layer=new XRWebGLLayer(newSession,gl,{alpha:requestedType==="immersive-ar",
     antialias:true,depth:true,stencil:false});
    newSession.updateRenderState({baseLayer:layer});
+   if(requestedType==="immersive-ar"&&newSession.depthUsage==="cpu-optimized"){
+    depthTexture=gl.createTexture();
+    gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,depthTexture);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0);
+   }
    try{space=await newSession.requestReferenceSpace("local-floor");usingFloor=true;}
    catch(_){space=await newSession.requestReferenceSpace("local");usingFloor=false;}
    try{
@@ -100,7 +116,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    session.addEventListener("squeeze",onSqueeze);
    update();
    statusText(mode==="vr"?"VR表示中。ヘッドセットの終了操作で元に戻れます。":
-    "MR表示中。トリガーで実空間の配置を更新し、卓上RTSでは味方を選択できます。");
+    "MR表示中。"+(depthTexture?"実物の深度遮蔽に対応。":"深度遮蔽はこの端末では利用できません。")+
+    " トリガーで配置や味方選択、グリップで移動指示。");
    newSession.requestAnimationFrame(drawXR);
   }catch(error){
    if(newSession&&newSession!==session)try{await newSession.end();}catch(_){}
@@ -184,9 +201,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     anchor.vrFloor[2]+(anchor.position[2]-anchor.vrFloor[2])*2.4
    ]};
   }
+  const indoorYaw=mode==="vr"?(renderer.trainInterior?.pose?.yaw??
+   renderer.townInterior?.pose?.yaw??
+   (renderer.ferry?.boarded?renderer.ferry.pose?.yaw:undefined)??controller.yaw):controller.yaw;
   const stage=xrStage({
    mode:planetMode?"mr-planet":mode,anchor:stageAnchor,
-   actorYaw:controller.yaw,planetRadius:renderer.R,
+   actorYaw:indoorYaw,planetRadius:renderer.R,
    rtsScale:Number(scaleInput.value),
    planetScale:mode==="vr"?1.15:.24
   });
@@ -206,8 +226,21 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    for(let index=0;index<pose.views.length;index++){
     const view=pose.views[index],vp=layer.getViewport(view);
     if(!vp)continue;
+    let occlusionTexture=null;
+    if(mode.startsWith("mr-")&&depthToggle?.checked&&depthTexture&&session.depthUsage==="cpu-optimized"){
+     try{
+      const depth=frame.getDepthInformation?.(view);
+      const grid=sampleXRDepth(depth);
+      if(grid?.available){
+       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,depthTexture);
+       gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,grid.width,grid.height,0,gl.RED,gl.FLOAT,grid.pixels);
+       gl.activeTexture(gl.TEXTURE0);
+       occlusionTexture=depthTexture;
+      }
+     }catch(_){gl.activeTexture(gl.TEXTURE0);}
+    }
     renderer.xrView={mode,projection:view.projectionMatrix,view:view.transform.inverse.matrix,
-     stage,planetMode,viewport:vp,eye:index,cursor};
+     stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
    }
   }catch(error){
