@@ -46,14 +46,14 @@ export function xrStage({mode,anchor,actorYaw=0,yawOffset=0,planetRadius=1,rtsSc
  const scale=isVR?1:(isPlanet?planetScale/planetRadius:rtsScale);
  return xrMul(xrTranslate(...position),xrMul(xrRotateY(yaw),xrScale(scale)));
 }
-export function xrTableHit(rayMatrix,anchor,actorYaw,actor,scale=.0014){
+export function xrTableHit(rayMatrix,anchor,actorYaw,actor,scale=.0014,yawOffset=0){
  const from=[rayMatrix[12],rayMatrix[13],rayMatrix[14]];
  const direction=xrForward(rayMatrix);
  if(Math.abs(direction[1])<.00001)return null;
  const t=(anchor.position[1]-from[1])/direction[1];
  if(t<=0||t>15)return null;
  const world=[from[0]+direction[0]*t-anchor.position[0],from[2]+direction[2]*t-anchor.position[2]];
- const a=anchor.heading+Math.PI-actorYaw,c=Math.cos(a),s=Math.sin(a);
+ const a=anchor.heading+Math.PI-actorYaw+yawOffset,c=Math.cos(a),s=Math.sin(a);
  // Inverse of the Y rotation, then inverse of miniature world scale.
  const x=(c*world[0]-s*world[1])/scale;
  const z=(s*world[0]+c*world[1])/scale;
@@ -95,4 +95,15 @@ export function xrPlanetHit(rayMatrix,anchor,{yawOffset=0,radius=.24}={}){
 /** Real-world distance of a miniature RTS actor selection target. */
 export function xrRTSHitRadius(scale=.0014,worldMeters=6,minimumPhysicalMeters=.035){
  return Math.max(worldMeters,minimumPhysicalMeters/Math.max(.00001,scale));
+}
+
+/** Controller's physical pointing direction mapped through the VR stage
+ * (a uniform-scale, rigid transform) into the game's world X/Z orientation.
+ * Returns null if the ray is vertical. Used for bow and melee facing. */
+export function xrPointerYaw(rayMatrix,stage){
+ if(!rayMatrix||!stage)return null;
+ const d=xrForward(rayMatrix);
+ const x=d[0]*stage[0]+d[1]*stage[1]+d[2]*stage[2];
+ const z=d[0]*stage[8]+d[1]*stage[9]+d[2]*stage[10];
+ return Math.hypot(x,z)>.001?Math.atan2(x,z):null;
 }

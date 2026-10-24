@@ -2501,7 +2501,7 @@ export class ExplorerRenderer{
    baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   // In standing VR, the avatar's head would overlap the real user's eyes.
-  if(this.xrView?.mode!=="vr"&&
+  if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
     !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   if(capture?.stars){
@@ -2551,7 +2551,7 @@ export class ExplorerRenderer{
     this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
      motion,agent.id==="scout"?[.65,.86,1]:[1,.78,.65],agent.id);
   }
-  if(this.xrView?.mode==="mr-rts"){
+  if((this.xrView?.mode==="mr-rts"||this.xrView?.rtsTabletop)){
    // Readable 3-5 cm selection rings even at 1:700 tabletop scale.
    const bigRing=[12,0,0,0,0,1,0,0,0,0,12,0,0,0,0,1];
    const candidates=[{id:"player",control:s},...(this.squad?.agents||[]).filter(a=>a.id!=="player")];
@@ -2564,7 +2564,7 @@ export class ExplorerRenderer{
      this.squad?.selected.has(a.id)?[1,.86,.3]:[.3,.87,1]);
    }
   }
-  if(this.xrView?.mode==="mr-rts"&&this.xrView.cursor){
+  if((this.xrView?.mode==="mr-rts"||this.xrView?.rtsTabletop)&&this.xrView.cursor){
    const p=this.xrView.cursor;
    const loc=geoOffset(s.origin.lat,s.origin.lon,p.x,p.z,this.planet.radiusM);
    const y=Math.max(0,terrainSurface(this.terrain,loc.lat,loc.lon).elevationM);
