@@ -18,6 +18,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let usingFloor=false,disposed=false,readyPromise=Promise.resolve();
  let compatibilityRenderer=null,depthTexture=null;
  let placementArmed=false,planetSelected=false,planetYaw=0,vrFrames=0,vrHasPose=false,vrDrawError="";
+ let previousPlanetHit=null,previousPlanetHitTime=0;
  const present=()=>Boolean(session);
  const supported=()=>Boolean(navigator.xr&&globalThis.XRWebGLLayer&&globalThis.isSecureContext);
  const statusText=(message)=>{status.textContent=message;};
@@ -75,6 +76,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    (vrHasPose?"取得済み":"未取得")+(vrDrawError?"／"+vrDrawError:"");
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
   placementArmed=false;planetSelected=false;vrFrames=0;vrHasPose=false;vrDrawError="";
+  previousPlanetHit=null;previousPlanetHitTime=0;
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
  }
@@ -83,7 +85,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(session){
    if(activeMode===mode)return;
    if(activeMode.startsWith("mr-")&&mode.startsWith("mr-")){
-    activeMode=mode;anchor=null;hitPose=null;placementArmed=false;planetSelected=false;update();
+    activeMode=mode;anchor=null;hitPose=null;placementArmed=false;planetSelected=false;
+    previousPlanetHit=null;previousPlanetHitTime=0;update();
     statusText(mode==="mr-rts"?"MR卓上RTSに切り替えました":"MR惑星モデルに切り替えました");
    }else statusText("VRとMRを切り替えるには、いったん「XR終了」を押してください。");
    return;
@@ -127,6 +130,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
    placementArmed=false;planetSelected=false;vrFrames=0;vrHasPose=false;vrDrawError="";
+   previousPlanetHit=null;previousPlanetHitTime=0;
    if(vrDiag&&mode==="vr")vrDiag.textContent="VR診断：セッション開始、映像フレーム待機中";
    session.addEventListener("end",endCleanup,{once:true});
    session.addEventListener("select",onSelect);
@@ -157,7 +161,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   planetSelected=Boolean(onPlanetPick(hit.lat,hit.lon));
   update();
   statusText(planetSelected?
-   "🌐 "+hit.lat.toFixed(2)+"°, "+hit.lon.toFixed(2)+"° を選択。もう一度同じ操作または「↓降下」で実行":
+   "🌐 "+hit.lat.toFixed(2)+"°, "+hit.lon.toFixed(2)+"° を選択。同じ場所をもう一度トリガー／グリップ／「↓降下」で実行":
    "🌐 この地点には降下できません");
   return planetSelected;
  }
@@ -177,12 +181,16 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(!ray)return;
   if(placementArmed&&activeMode?.startsWith("mr-")){placeModel(ray.transform.matrix);return;}
   if(activeMode==="mr-planet"){
-   if(!planetSelected||!xrPlanetHit(ray.transform.matrix,anchor,{yawOffset:planetYaw,radius:.24})){
-    pickPlanet(ray.transform.matrix);return;
-   }
-   // A second trigger at a different spot reselects, never teleports without
-   // an explicit confirmation via the landing button or squeeze.
-   pickPlanet(ray.transform.matrix);return;
+   const hit=xrPlanetHit(ray.transform.matrix,anchor,{yawOffset:planetYaw,radius:.24});
+   if(!hit){statusText("🌐 惑星模型の表面に照準を合わせてください");return;}
+   const now=performance.now();
+   const repeated=planetSelected&&previousPlanetHit&&now-previousPlanetHitTime<1300&&
+    Math.abs(hit.lat-previousPlanetHit.lat)<5&&
+    Math.abs(((hit.lon-previousPlanetHit.lon+540)%360)-180)<5;
+   if(repeated){previousPlanetHit=null;previousPlanetHitTime=0;confirmPlanetLanding();return;}
+   const selected=pickPlanet(ray.transform.matrix);
+   previousPlanetHit=selected?hit:null;previousPlanetHitTime=selected?now:0;
+   return;
   }
   if(activeMode==="mr-rts"){
    const controller=getController();
