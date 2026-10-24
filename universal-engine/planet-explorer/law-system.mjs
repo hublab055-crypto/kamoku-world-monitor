@@ -283,7 +283,9 @@ export class LawSystem{
   return {ok:false,message:"不明な選択肢"};
  }
  detain(id){const s=this.district(id);if(!s||this.custody)return null;
-  s.hostile=false;s.pursuit=false;s.current=clamp(s.current+s.deployed.length,0,GUARD_POSTS[id].max);s.deployed=[];s.challengeShown=false;
+  // The arresting patrol must remain a real persistent squad, not despawn on custody.
+  s.hostile=false;s.pursuit=false;s.challengeShown=false;s.challengePending=false;s.engaged=false;
+  for(const guard of s.deployed){guard.mode="patrol";guard.defenseTargetId=null;guard.strikeCooldown=0;}
   this.custody={faction:id,fine:Math.max(20,Math.ceil(s.heat*2)),since:this.day};
   this.history.push({day:this.day,type:"detained",id});
   return {ok:true,type:"detained",id,message:"🔒 "+GUARD_POSTS[id].name+"に勾留された"};
