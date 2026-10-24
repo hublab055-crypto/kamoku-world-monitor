@@ -80,8 +80,15 @@ const FRAG=["#version 300 es","precision highp float;",
 "uniform vec3 uLight;uniform float uAlpha;uniform vec3 uTint;",
 "uniform float uAmbient;",
 "uniform vec3 uFogParams;uniform vec3 uFogColor;",
+"uniform float uXROcclusionEnabled;uniform vec4 uXROcclusionViewport;",
+"uniform sampler2D uXROcclusionDepth;",
 "out vec4 fragColor;",
 "void main(){",
+" if(uXROcclusionEnabled>0.5){",
+"  vec2 uv=(gl_FragCoord.xy-uXROcclusionViewport.xy)/uXROcclusionViewport.zw;",
+"  float realMeters=texture(uXROcclusionDepth,clamp(uv,0.001,0.999)).r;",
+"  if(realMeters>0.02&&vDepth>realMeters+0.08)discard;",
+" }",
 " float b=max(dot(normalize(vN),normalize(uLight)),0.0);",
 " vec3 lit=vC*uTint*(uAmbient+(1.0-uAmbient)*b);",
 " float f=clamp((vDepth-uFogParams.x)/max(1.0,uFogParams.y-uFogParams.x),0.0,1.0);",
@@ -663,6 +670,9 @@ export class ExplorerRenderer{
   this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
   this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");this.uInstanced=gl.getUniformLocation(pg,"uInstanced");
   this.uFogParams=gl.getUniformLocation(pg,"uFogParams");this.uFogColor=gl.getUniformLocation(pg,"uFogColor");
+  this.uXROcclusionEnabled=gl.getUniformLocation(pg,"uXROcclusionEnabled");
+  this.uXROcclusionViewport=gl.getUniformLocation(pg,"uXROcclusionViewport");
+  this.uXROcclusionDepth=gl.getUniformLocation(pg,"uXROcclusionDepth");
   const earth=sphereGeometry(terrain,planet);this.R=earth.R;
   this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
   this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
@@ -1599,6 +1609,15 @@ export class ExplorerRenderer{
   if(xr?.mode==="vr"&&!inOrbit)gl.clearColor(.40,.64,.78,1);
   else gl.clearColor(.011,.032,.071,xr?.mode.startsWith("mr-")?0:inOrbit||xr?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
+  // Sensor depth is per-eye, ephemeral, and only ever used in passthrough MR.
+  const mask=Boolean(xr?.mode.startsWith("mr-")&&xr?.depthTexture);
+  gl.uniform1f(this.uXROcclusionEnabled,mask?1:0);
+  if(mask){
+   gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,xr.depthTexture);
+   gl.uniform1i(this.uXROcclusionDepth,7);
+   gl.uniform4f(this.uXROcclusionViewport,xr.viewport.x,xr.viewport.y,w,h);
+   gl.activeTexture(gl.TEXTURE0);
+  }
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0])); // orbit/interior never fog
   const asp=w/h;
   this.actorMarker=null;
@@ -1609,6 +1628,14 @@ export class ExplorerRenderer{
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
   this.screenActors=[];this.screenEnemies=[];this.screenGuards=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  if(xr?.mode==="vr"&&!inOrbit){
+   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
+   if(this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
+    return this.renderRailwayConcourse(asp);
+   if(this.trainInterior)return this.renderTrainInterior(asp,dt);
+   if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
+   if(this.townInterior)return this.renderTownInterior(asp);
+  }
   if(!xr){
   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
@@ -1907,6 +1934,14 @@ export class ExplorerRenderer{
    this.actorMarker=screen?{...screen,altitudeM:s.altitudeM,label:"アバターの地表位置"}:null;
   }
   return "orbit";
+ }
+ xrInteriorVP(person={x:0,z:0}){
+  const xr=this.xrView;
+  if(!xr||xr.mode!=="vr")return null;
+  // Keep the local actor at the headset's standing floor anchor. This does
+  // not write to the gameplay camera, movement state, or any persisted data.
+  return multiply4(xr.projection,multiply4(xr.view,
+   multiply4(xr.stage,translate(-(person.x||0),0,-(person.z||0)))));
  }
  drawMarineSurface(vp,light,s,dt){
   const wet=s.travelMode==="swim"||s.travelMode==="dive"||s.travelMode==="boat";
