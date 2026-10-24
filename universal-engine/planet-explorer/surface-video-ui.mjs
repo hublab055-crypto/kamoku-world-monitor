@@ -44,7 +44,8 @@ export function installSurfaceVideoUI({
  const overlay=make("div","ue-stream-world");wrap.append(overlay);
  const embeds=new CSS3DEmbedRenderer(overlay);
  const allow={directHosts:[]},adapters=new ProviderAdapterRegistry(allow);
- const privatePlayback=new PrivatePlaybackController({hlsFactory});
+ const mediaHost=make("div","ue-stream-video-host");wrap.append(mediaHost);
+ const privatePlayback=new PrivatePlaybackController({hlsFactory,host:mediaHost});
  const entries=new Map();let count=0,activeRenderer=null,layer=null,frame=0,lastUpdate=0;
  const status=message=>{get("[data-status]").textContent=message;};
  const publicSync=new PublicSyncController({transport:publicTransport,policy:publicPolicy,
@@ -70,8 +71,10 @@ export function installSurfaceVideoUI({
   layer=new VideoTextureRenderer(r.gl,{onError:(id,message)=>{privatePlayback.pause(id);status(message);}});
   r.surfaceVideoLayer=layer;
   r.surfaceVideoEntries=()=>Array.from(entries.values()).filter(entry=>
-   entry.source.kind==="video").map(entry=>({...poseFor(entry),id:entry.id,
-     video:privatePlayback.get(entry.id)?.media||null}));
+   entry.source.kind==="video").map(entry=>{
+     const pose=poseFor(entry);
+     return pose?{...pose,id:entry.id,video:privatePlayback.get(entry.id)?.media||null}:null;
+   }).filter(Boolean);
  }
  function poseFor(entry){
   const anchor=entry.anchor;
@@ -164,7 +167,8 @@ export function installSurfaceVideoUI({
    const entry={id,source,mode:"private",anchor,pose,width,aspect};
    privatePlayback.open(id,source,{onStatus:message=>status(message)});
    entries.set(id,entry);
-   embeds.attach(id,()=>void press(entry));
+   const marker=embeds.attach(id,()=>void press(entry));
+   marker.textContent=source.kind==="embed"?"▶ 公式プレイヤー":"▶ / ⏸ 画面操作";
    get("[data-url]").value="";get("[data-trust]").checked=false;allow.directHosts=[];
    status("PRIVATEスクリーンを設置しました。画面をタップして再生できます。");
    ensureLayer();renderList();close();
@@ -202,7 +206,7 @@ export function installSurfaceVideoUI({
   cancelAnimationFrame(frame);document.removeEventListener("visibilitychange",visibility);
   closePlayer();publicSync.disconnect();privatePlayback.closeAll();embeds.destroy();
   if(activeRenderer?.surfaceVideoLayer===layer){layer.destroy();activeRenderer.surfaceVideoLayer=null;activeRenderer.surfaceVideoEntries=null;}
-  entries.clear();root.remove();overlay.remove();toggle.remove();quickToggle.remove();
+  entries.clear();root.remove();overlay.remove();mediaHost.remove();toggle.remove();quickToggle.remove();
  }
  ensureLayer();frame=requestAnimationFrame(update);
  return {open,close,destroy,get privateScreens(){return entries.size;},
