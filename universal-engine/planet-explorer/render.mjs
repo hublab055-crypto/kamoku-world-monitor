@@ -2460,7 +2460,7 @@ export class ExplorerRenderer{
   this.drawLifestyle(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const capture=this.captureFX?capturePose(this.captureFX.elapsed):null;
-  const y0=feet+(capture?.angle?.08:(s.jumpY||0)+(this.fauna?.mount?1.15:0));
+  const y0=feet+(capture ? .08 : (s.jumpY||0)+(this.fauna?.mount?1.15:0));
   const upright=translate(px,y0,pz);
   // Face-local tipping motion from feet to ground.
   const face=viewS.yaw||0;
