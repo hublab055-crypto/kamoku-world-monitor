@@ -3431,7 +3431,17 @@ xrUI=installXRUI({
  },
  onVRCommand:command=>{
   if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false};
-  return frontierUI?.runCommand(command)||{ok:false};
+  const result=frontierUI?.runCommand(command)||{ok:false};
+  // Hand-tracked draw and sword swing have already happened in real time.
+  // Use the SAME game projectile/hit path but start its impact phase on the
+  // next simulation tick rather than replaying 1.6 s of automatic bow pull.
+  if(result.ok&&actions.active){
+   if(command==="shoot"&&actions.active.kind==="bow")
+    actions.active.time=Math.max(actions.active.time,actions.active.duration*.81);
+   if(command==="sweep"&&["sword","axe","spear","greatsword"].includes(actions.active.kind))
+    actions.active.time=Math.max(actions.active.time,actions.active.duration*.63);
+  }
+  return result;
  },
  onVRToggleRTS:nextMode=>{
   if(rtsMode!==nextMode)toggleRts();
