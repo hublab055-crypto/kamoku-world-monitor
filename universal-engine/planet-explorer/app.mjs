@@ -270,6 +270,7 @@ function init(saved=null){
   orbitalCitiesUI?.reset();
   $("orbit-landing-preview").hidden=true;
   $("orbit-pick-marker").hidden=true;
+  surfaceVideoUI?.resetWorld(); // never carry PRIVATE video into another save slot
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
