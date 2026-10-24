@@ -62,6 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9h-dialogue";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
+import {installXRUI} from "./xr-ui.mjs?v=0.9i-xr";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -89,6 +90,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
+let xrUI=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -884,7 +886,9 @@ function doFrame(t){
    locations:settlementLocations
   }:null;
   try{
-   const next=renderer.frame(controller,dt);
+   // While the headset owns the WebGL framebuffer, its XR animation callback
+   // renders both eyes. The existing RAF still runs simulation and HUD logic.
+   const next=xrUI?.active?displayMode:renderer.frame(controller,dt);
    orbitalCitiesUI?.setActive(next==="orbit");
    if(next==="orbit")orbitalCitiesUI?.frame(renderer.orbitCityMarkers(orbitalCitiesUI.destinations));
    updateActorMarker(renderer.actorMarker);
@@ -3302,7 +3306,21 @@ let ferryDialogue=0;
 $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
-init();requestAnimationFrame(doFrame);
+init();
+xrUI=installXRUI({
+ getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ onRTSSelect:(x,z)=>{
+  if(!squad)return false;
+  const distance=a=>Math.hypot(a.control.x-x,a.control.z-z);
+  const nearest=squad.agents.reduce((best,a)=>distance(a)<(best?distance(best):Infinity)?a:best,null);
+  // A 6 m world-space hit radius intentionally favors an explicit actor tap.
+  if(!nearest||distance(nearest)>6)return false;
+  squad.choose(nearest.id);updateHUD();
+  log("🥽 MR卓上RTS："+nearest.name+"を選択しました");
+  return true;
+ }
+});
+requestAnimationFrame(doFrame);
 
 /* v0.7c mobile patch: game-first viewport and explicit exit on iPhone Safari. */
 const stage=document.querySelector(".view-panel");
