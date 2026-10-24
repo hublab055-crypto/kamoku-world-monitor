@@ -47,7 +47,7 @@ import {gameDaysForRealSeconds,normalizeTimeScale,DEFAULT_TIME_SCALE} from "./ga
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
-import {FaunaWorld} from "./fauna.mjs?v=0.9i-custody-horse";
+import {FaunaWorld} from "./fauna.mjs?v=0.9l-custody-horse-release";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
