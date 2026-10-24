@@ -1234,3 +1234,24 @@ body.immersive{overflow:hidden}
 #harbor-panel{max-height:min(88vh,750px);overflow:auto}
 #harbor-panel p{margin:.4rem 0}
 #harbor-panel .railway-staff-controls button{flex:1 1 132px;min-height:36px}
+
+/* v0.9i - Progressive WebXR. This bar never intercepts the normal viewport. */
+.xr-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:5px 0 8px;padding:8px 10px;
+ background:#0a2a3ce8;border:1px solid #426b7d;border-radius:10px;color:#edf9ff}
+.xr-buttons{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.xr-buttons strong{font-size:12px;letter-spacing:.04em;margin-right:4px}
+.xr-controls button,.xr-controls select{min-height:35px;font-size:12px;color:#f2fdff;
+ background:#22526c;border:1px solid #5e9ab3;border-radius:7px;padding:5px 9px}
+.xr-controls button[aria-pressed="true"]{background:#39776f;border-color:#affad6;font-weight:bold}
+.xr-controls button:disabled{opacity:.45;cursor:not-allowed}
+.xr-controls button[hidden]{display:none}
+.xr-size-label{display:flex;align-items:center;gap:5px;font-size:11px;color:#c9e8f2}
+#xr-status{min-width:140px;flex:1;font-size:11px;line-height:1.35;color:#b5dbe8}
+.ue-xr-active .canvas-wrap{opacity:.22;pointer-events:none}
+.ue-xr-active .xr-controls{position:relative;z-index:99}
+@media(max-width:600px){
+ .xr-controls{padding:7px;gap:5px}
+ .xr-buttons button{font-size:11px;padding:5px 6px}
+ .xr-size-label{width:100%}
+ #xr-status{flex-basis:100%}
+}
