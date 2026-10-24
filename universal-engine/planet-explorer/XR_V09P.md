@@ -44,3 +44,12 @@ Legacy 3D, MR, gameplay RTS, save state and WebXR fallback layers preserved.
 
 ## Reference
 WebXR spec: https://www.w3.org/TR/webxr/
+
+
+## Quest 3S concrete VR recovery (hardware report)
+- The Meta Quest 3S reported `FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT` for all 3 legacy `XRWebGLLayer` options, along with earlier `0x0506` errors.
+- Added a **different rendering backend**: `XRWebGLBinding.createProjectionLayer({textureType:"texture"})`. On classic opaque framebuffer failure, the VR session attempts a projection layer before further classic framebuffer variants.
+- Each XR eye's `getViewSubImage()` result is attached to an application-owned framebuffer with `framebufferTexture2D` **inside the XR animation callback**. The app then renders the normal scene using the headset's per-eye projection/view matrices.
+- Requests the optional `layers` session feature. Unsupported browsers retain the classic VR path; MR rendering no longer rejects an opaque XR framebuffer merely because introspection reports no visible attachments.
+- To verify: reopen VR, then check for `Quest向けVR描画方式へ切替`, `XRProjectionLayer／左右眼テクスチャ` and `左右眼描画完了`. If projection creation fails, the existing console records a specific reason.
+- All VR recovery code remains experimental and **not verified on real headset**.
