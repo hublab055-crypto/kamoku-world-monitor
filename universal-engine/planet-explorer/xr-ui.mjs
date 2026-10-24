@@ -23,6 +23,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrLayerIndex=0,vrPendingLayer=null,vrPendingFrames=0,vrFramebufferInfo="未検査";
  let vrRecoveryExhausted=false,vrLastErrorStep="";
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
+ let vrLastCallbackAt=0;
  let vrLastSnapshot="";
  // A watchdog can run even when WebXR never delivers a rendering callback.
  // No XR framebuffer/WebGL operations are performed by these timers.
@@ -113,7 +114,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   previousPlanetHit=null;previousPlanetHitTime=0;
   vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
   vrRecoveryExhausted=false;vrLastErrorStep="";
-  vrStage="未開始";vrSceneFrames=0;
+  vrStage="未開始";vrSceneFrames=0;vrLastCallbackAt=0;
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
  }
@@ -170,7 +171,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    previousPlanetHit=null;previousPlanetHitTime=0;
    vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
    vrFramebufferInfo="未検査";vrRecoveryExhausted=false;vrLastErrorStep="";
-   vrSceneFrames=0;vrStage="開始";vrSessionVisibility=newSession.visibilityState||"不明";
+   vrSceneFrames=0;vrLastCallbackAt=0;vrStage="開始";vrSessionVisibility=newSession.visibilityState||"不明";
    clearVRWatchdogs();
    if(mode==="vr")vrMark("セッション開始／XRコールバック待機",{force:true,log:true});
    session.addEventListener("end",endCleanup,{once:true});
@@ -193,6 +194,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      vrSessionVisibility=watched.visibilityState||"不明";
      if(!vrFrames)vrMark("XR描画コールバック未受信 "+delay+"ms",{force:true,log:true});
      else if(!vrSceneFrames)vrMark("XR映像描画未完了 "+delay+"ms",{force:true,log:true});
+     else if(delay>=11000&&vrLastCallbackAt&&performance.now()-vrLastCallbackAt>4000)
+      vrMark("XR描画コールバックが停止 "+delay+"ms",{force:true,log:true});
     },delay));
    }
   }catch(error){
@@ -322,6 +325,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   // claiming "waiting" even though XR callbacks are being delivered.
   if(activeMode==="vr"){
    vrFrames++;
+   vrLastCallbackAt=performance.now();
    vrSessionVisibility=session.visibilityState||"不明";
    if(vrFrames===1)vrMark("XR初回コールバック受信",{force:true,log:true});
   }
@@ -443,6 +447,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
    gl.disable(gl.BLEND);
    gl.enable(gl.SCISSOR_TEST);
+   let renderedEyes=0;
    for(let index=0;index<pose.views.length;index++){
     const view=pose.views[index],vp=layer.getViewport(view);
     if(!vp||vp.width<=0||vp.height<=0)continue;
@@ -486,9 +491,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       vrMark("VR 3D描画エラー",{force:true,log:vrFrames===1});
       return;
      }
+     renderedEyes++;
     }
    }
    if(mode==="vr"){
+    if(renderedEyes!==pose.views.length||renderedEyes===0){
+     vrMark("XRビュー領域取得失敗 "+renderedEyes+"/"+pose.views.length,
+      {force:vrFrames===1||vrFrames===90,log:vrFrames===90});
+     return;
+    }
     vrSceneFrames++;
     if(vrFrames===1||vrFrames===30||vrFrames===90||vrFrames===300)
      vrMark("左右眼描画完了",{force:true,log:vrFrames===1||vrFrames===90||vrFrames===300});
