@@ -3324,6 +3324,12 @@ xrUI=installXRUI({
   squad.choose(nearest.id);updateHUD();
   log("🥽 MR卓上RTS："+nearest.name+"を選択しました");
   return true;
+ },
+ onRTSMove:(x,z)=>{
+  if(!squad?.selected.size)return false;
+  const moved=squad.orderMove([...squad.selected],x,z);
+  if(moved){log("🥽 MR卓上RTS："+moved+"人へ移動指示");updateHUD();}
+  return moved>0;
  }
 });
 requestAnimationFrame(doFrame);
