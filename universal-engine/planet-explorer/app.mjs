@@ -37,6 +37,8 @@ import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-h
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.8s-towns";
+import {SocietySystem} from "./society-system.mjs?v=0.9l-society";
+import {installSocietyUI} from "./society-ui.mjs?v=0.9l-society";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
@@ -79,6 +81,7 @@ const FARM_JOURNAL_KEY="universal-engine:explorer:agriculture:v0.8g";
 const MARINE_JOURNAL_KEY="universal-engine:explorer:marine:v0.8g";
 const FERRY_JOURNAL_KEY="universal-engine:explorer:ferry:v0.8y";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
+const SOCIETY_JOURNAL_KEY="universal-engine:explorer:society:v1";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
 const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
@@ -95,6 +98,7 @@ let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
+let society=null,societyUI=null;
 let lastGuardStrike=null;
 let territoryEconomy=null,territoryUI=null,factionStrategy=null,factionUI=null;
 function loadTerritoryJournal(){
@@ -133,6 +137,13 @@ function saveTownJournal(){
 }
 function loadTownJournal(){
  try{return JSON.parse(localStorage.getItem(TOWN_JOURNAL_KEY)||"null");}catch(_){return null;}
+}
+function saveSocietyJournal(){
+ try{if(society)localStorage.setItem(SOCIETY_JOURNAL_KEY,JSON.stringify(society.snapshot()));}
+ catch(_){log("住民・雇用・教育・医療の記録を保存できませんでした");}
+}
+function loadSocietyJournal(){
+ try{return JSON.parse(localStorage.getItem(SOCIETY_JOURNAL_KEY)||"null");}catch(_){return null;}
 }
 function saveMarineJournal(){
  try{if(marine)localStorage.setItem(MARINE_JOURNAL_KEY,JSON.stringify(marine.snapshot()));}
@@ -278,6 +289,8 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
+  society=new SocietySystem(saved?.v0_9l?.society||(!saved?loadSocietyJournal():null),planet.timeDays);
+  societyUI?.close();
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   railwaySecurity=new RailwaySecurity(saved?.v0_8x?.security||(!saved?loadRailwaySecurityJournal():null));
@@ -974,6 +987,10 @@ function updateHUD(){
    }
   }
   lawUI?.refresh();
+  if(society?.advanceUntil(planet?.timeDays,{activeTownId:controller?.nearGround?activeSettlementId:null,
+   playerCanWork:!(law?.custody||railwaySecurity?.jailed)})){
+   saveSocietyJournal();societyUI?.refresh();
+  }
  const g=terrainSurface(terrain,controller.lat,controller.lon);
  const climate=weather.sample(controller.lat,controller.lon,g.elevationM);
  const isSurface=controller.altitudeM<=12;
@@ -1284,12 +1301,13 @@ function captureGame(){
          v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()},
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
+           v0_9l:{schemaVersion:1,society:society.snapshot()},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
  try{
   const data=captureGame();
-  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();saveTerritoryJournal();saveFactionJournal();
+  localStorage.setItem(SAVE_KEY,JSON.stringify(data));saveTownJournal();saveRailwayJournal();saveRailwaySecurityJournal();saveOwnerJournal();saveTerritoryJournal();saveFactionJournal();saveSocietyJournal();
    saveFaunaJournal();saveFarmJournal();saveMarineJournal();saveFerryJournal();saveLawJournal();
   log("v0.8x：切符・鉄道保安・時間倍率を含めて保存しました。旧保存キーは保持しています。");
  }catch(e){log("保存に失敗: "+e.message);}
@@ -3044,6 +3062,10 @@ townUI=installTownInteractionUI({
  get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays}),
  onChange:syncTownState,onNotice:log
 });
+societyUI=installSocietyUI({
+ get:()=>({society,townLife,activeSettlementId}),
+ save:()=>{saveSocietyJournal();saveTownJournal();updateHUD();},notify:log
+});
 $("town-interior-exit").addEventListener("click",()=>{
  const result=townLife.leave();
  if(result.ok){syncTownState();log(result.message);townUI?.refresh();}
@@ -3364,7 +3386,7 @@ $("harbor-alight").addEventListener("click",()=>harborAction(()=>{
 let ferryDialogue=0;
 $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
-window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveSocietyJournal();});
 init();
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
