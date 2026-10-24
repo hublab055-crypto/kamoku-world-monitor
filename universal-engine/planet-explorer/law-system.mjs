@@ -214,9 +214,21 @@ export class LawSystem{
        const nx=guard.x+vx/remaining*step,nz=guard.z+vz/remaining*step;
        // The host can reject water, steep slopes and solid wall cells.
        const canWalk=typeof passable!=="function"||passable(guard.x,guard.z,nx,nz);
-       if(canWalk){guard.x=nx;guard.z=nz;guard.walkPhase+=step*6;}
-       else if(!sees)guard.patrolIndex=(guard.patrolIndex+1)%4;
-       guard.yaw=Math.atan2(vx,vz);
+       if(canWalk){
+        guard.x=nx;guard.z=nz;guard.walkPhase+=step*6;
+        guard.yaw=Math.atan2(vx,vz);
+       }else{
+        // Detour locally around steep steps/solids instead of freezing the sentry.
+        // Keep the candidate within the passability constraints; never walk through water.
+        const ux=vx/remaining,uz=vz/remaining;
+        const sideSteps=[[uz,-ux],[-uz,ux],[-ux,-uz]];
+        const detour=sideSteps.find(([sx,sz])=>typeof passable!=="function"||
+         passable(guard.x,guard.z,guard.x+sx*step,guard.z+sz*step));
+        if(detour){
+         guard.x+=detour[0]*step;guard.z+=detour[1]*step;
+         guard.walkPhase+=step*6;guard.yaw=Math.atan2(detour[0],detour[1]);
+        }else if(!sees)guard.patrolIndex=(guard.patrolIndex+1)%4;
+       }
       }
     }
     if(sees&&dist<=4.3&&!enemy)contact=true;
