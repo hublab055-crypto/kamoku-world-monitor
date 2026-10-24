@@ -111,6 +111,6 @@ test("society panel has wired save-slot snapshot, daily advances and accessible 
  }
  assert.match(app,/society=new SocietySystem/);
  assert.match(app,/v0_9l:\{schemaVersion:1,society:society\.snapshot\(\)\}/);
- assert.match(app,/society\.advanceUntil/);
+ assert.match(app,/society\?\.advanceUntil/);
  assert.match(app,/saveSocietyJournal/);
 });
