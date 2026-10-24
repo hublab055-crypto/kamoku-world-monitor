@@ -19,6 +19,7 @@ export function installMediaUI({getController,getRenderer,getTerrain,getGameDays
  const toolbar=document.getElementById("viewport-toolbar");
  const quick=document.getElementById("viewport-quick-panel");
  const stage=document.querySelector(".view-panel");
+ const canvasWrap=stage.querySelector(".canvas-wrap");
  const toggle=b("🎞️ メディア作品",()=>open());
  toggle.id="toolbar-media";toolbar.insertBefore(toggle,document.getElementById("toolbar-life"));
  const q=b("🎞️ メディア・放送",()=>open());
@@ -44,8 +45,8 @@ export function installMediaUI({getController,getRenderer,getTerrain,getGameDays
  '<button type="button" data-watch>現在の番組を見る／聴く</button><small class="ue-media-help">番組の切り替えはゲーム内時計に連動。プレイヤー間の同期配信やアップロードサーバーは未実装です。</small></section>'+
  '<output class="ue-media-status" role="status" aria-live="polite"></output></div>'+
  '<div class="ue-media-preview" hidden><header class="ue-media-preview-head"><strong data-preview-title>再生</strong><button type="button" data-preview-close>× 戻る</button></header><div class="ue-media-preview-body"></div></div>';
- document.body.append(panel);
- const world=h("div","ue-media-world");world.setAttribute("aria-label","世界に設置されたメディア");world.id="ue-media-world";stage.append(world);
+ stage.append(panel);
+ const world=h("div","ue-media-world");world.setAttribute("aria-label","世界に設置されたメディア");world.id="ue-media-world";canvasWrap.append(world);
  const find=s=>$ (panel,s);
  const fields={kind:find("[data-kind]"),file:find("[data-file]"),url:find("[data-youtube]"),text:find("[data-text]")};
  const surfaces=new Map();const cache=new Map();let previewUrl=null,raf=0,lastPaint=0;
@@ -62,7 +63,7 @@ export function installMediaUI({getController,getRenderer,getTerrain,getGameDays
  }
  fields.kind.addEventListener("change",switchInput);
  fields.url.addEventListener("input",switchInput);
- function open(){panel.hidden=false;switchInput();renderList();renderProgram();find("[data-title]").focus();}
+ function open(){panel.hidden=false;quick.hidden=true;document.getElementById("viewport-quick-toggle").setAttribute("aria-expanded","false");switchInput();renderList();renderProgram();find("[data-title]").focus();}
  function close(){closePreview();panel.hidden=true;}
  find("[data-close]").addEventListener("click",close);
  panel.addEventListener("keydown",event=>{if(event.key==="Escape"){if(!find(".ue-media-preview").hidden)closePreview();else close();event.preventDefault();event.stopPropagation();}});
@@ -222,7 +223,7 @@ export function installMediaUI({getController,getRenderer,getTerrain,getGameDays
   if(!renderer?.pickVP||!controller?.nearGround||renderer.xrView){
    for(const el of surfaces.values())el.hidden=true;return;
   }
-  const stageRect=stage.getBoundingClientRect(),canvasRect=renderer.canvas.getBoundingClientRect();
+  const stageRect=canvasWrap.getBoundingClientRect(),canvasRect=renderer.canvas.getBoundingClientRect();
   for(const p of library.placements){
    const el=surfaces.get(p.id);if(!el)continue;
    const local=geoLocal(controller.origin.lat,controller.origin.lon,p.lat,p.lon,terrain.planet.radiusM);
