@@ -2,6 +2,7 @@ import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit} from "./xr-s
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
+import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-layer-policy.mjs?v=0.9q-render-state";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -140,7 +141,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // requestSession must be invoked in the click gesture, before awaiting
    // permissions, feature checks, or any asynchronous GL setup.
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:["layers"])]};
+   const wantsLayers=requestedType==="immersive-vr"&&canUseXRProjection();
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
    if(root)init.domOverlay={root};
    const depthOptions=depthFeatureOptions(requestedType);
    if(depthOptions.optionalFeature){
@@ -151,9 +153,24 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(disposed){await newSession.end();return;}
    await readyGL();
    const renderer=getRenderer(),gl=renderer.gl;
-   const layer=new XRWebGLLayer(newSession,gl,requestedType==="immersive-vr"?
-    XR_VR_LAYER_CONFIGS[0]:{alpha:true,antialias:true,depth:true,stencil:false});
-   newSession.updateRenderState({baseLayer:layer});
+   // Quest Browser rejects baseLayer when the optional "layers" feature is
+   // granted. Select the compositor path before the first XR frame.
+   projection=null;projectionAttempted=false;
+   let projectionStartError="";
+   if(requestedType==="immersive-vr"&&canUseXRProjection()){
+    projectionAttempted=true;
+    try{projection=createXRProjection(newSession,gl);}
+    catch(error){projectionStartError=error?.message||String(error);}
+   }
+   let legacyPath="";
+   if(!projection){
+    const layer=new XRWebGLLayer(newSession,gl,requestedType==="immersive-vr"?
+     XR_VR_LAYER_CONFIGS[0]:{alpha:true,antialias:true,depth:true,stencil:false});
+    const granted=xrLayersEnabled(newSession);
+    legacyPath=installLegacyXRLayer(newSession,layer,{
+     preferLayers:requestedType==="immersive-vr"&&(granted??wantsLayers)
+    });
+   }
    if(requestedType==="immersive-ar"&&newSession.depthUsage==="cpu-optimized"){
     depthTexture=gl.createTexture();
     gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,depthTexture);
@@ -174,8 +191,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
    previousPlanetHit=null;previousPlanetHitTime=0;
    vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
-   vrFramebufferInfo="未検査";vrRecoveryExhausted=false;vrLastErrorStep="";
-   projection=null;projectionAttempted=false;
+   vrFramebufferInfo=projection?"XRProjectionLayer起動時設定":
+    "XRWebGLLayer "+legacyPath;
+   vrRecoveryExhausted=false;vrLastErrorStep=projectionStartError?
+    "XRProjectionLayer起動失敗: "+projectionStartError:"";
    vrSceneFrames=0;vrLastCallbackAt=0;vrStage="開始";vrSessionVisibility=newSession.visibilityState||"不明";
    clearVRWatchdogs();
    if(mode==="vr")vrMark("セッション開始／XRコールバック待機",{force:true,log:true});
@@ -298,8 +317,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="vr")return;
   vrLastErrorStep=reason;
   if(projection){
-   if(!vrRecoveryExhausted){
+   if(vrRecoveryExhausted)return;
+   try{
+    // If Quest's compositor cannot supply projection textures, use the
+    // legacy XRWebGLLayer as one entry of renderState.layers, not baseLayer.
+    const layer=new XRWebGLLayer(session,gl,XR_VR_LAYER_CONFIGS[0]);
+    const granted=xrLayersEnabled(session);
+    installLegacyXRLayer(session,layer,{preferLayers:granted??true});
+    const old=projection;projection=null;destroyXRProjection(gl,old);
+    vrLayerIndex=0;vrPendingLayer=layer;vrPendingFrames=0;
+    vrFramebufferInfo="XRProjectionLayer→旧描画方式へ切替中";
+    vrMark("Quest VR描画方式を再切替",{force:true,log:true});
+   }catch(error){
     vrRecoveryExhausted=true;
+    vrDrawError="VR代替描画先の設定失敗: "+(error?.message||error);
     vrMark("XRProjectionLayer描画エラー",{force:true,log:true});
    }
    return;
@@ -328,7 +359,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   try{
    const replacement=new XRWebGLLayer(session,gl,XR_VR_LAYER_CONFIGS[next]);
-   session.updateRenderState({baseLayer:replacement});
+   const granted=xrLayersEnabled(session);
+   installLegacyXRLayer(session,replacement,{preferLayers:granted??canUseXRProjection()});
    vrLayerIndex=next;vrPendingLayer=replacement;vrPendingFrames=0;
    vrFramebufferInfo="代替FB "+next+" 反映待ち";
    const msg="🥽 VR描画先を切替 "+next+"/"+(XR_VR_LAYER_CONFIGS.length-1)+
@@ -393,7 +425,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const hits=frame.getHitTestResults(hitSource);
    const hit=hits?.[0]?.getPose(space);hitPose=hit?.transform.matrix||null;
   }
-  const gl=renderer.gl,layer=session.renderState.baseLayer;
+  const gl=renderer.gl,layer=activeLegacyXRLayer(session);
   if(!layer&&!projection){
    vrMark("XR描画レイヤー未適用",{force:vrFrames<2||vrFrames===30||vrFrames===90});
    return;
