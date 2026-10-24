@@ -3063,7 +3063,7 @@ townUI=installTownInteractionUI({
  onChange:syncTownState,onNotice:log
 });
 societyUI=installSocietyUI({
- get:()=>({society,townLife,activeSettlementId}),
+ get:()=>({society,townLife,activeSettlementId,territoryEconomy}),
  save:()=>{saveSocietyJournal();saveTownJournal();updateHUD();},notify:log
 });
 $("town-interior-exit").addEventListener("click",()=>{
