@@ -119,3 +119,20 @@ test("app plays custody FX while simulation is paused and uses safe horse recove
  assert.match(render,/if\(capture\?\.stars\)/);
  assert.match(render,/captureFX\.elapsed>=CAPTURE_DURATION_SECONDS/);
 });
+
+test("both desktop and VR defer railway jail rendering until stun completes",()=>{
+ const src=read("render.mjs");
+ const matches=src.match(/if\(this\.railwaySecurity\?\.jailed&&/g)||[];
+ assert.equal(matches.length,2,"both non-VR and XR paths must defer jail cut");
+ assert.match(src,/captureFX\.elapsed>=CAPTURE_DURATION_SECONDS/);
+ assert.match(src,/this\.drawMesh\(this\.custodyStarMesh/);
+ assert.match(src,/this\.captureFX\.elapsed\+Math\.max/);
+});
+test("the arrest guard stays visible until the jail transition and remains in law saves",()=>{
+ const render=read("render.mjs"),law=read("law-system.mjs"),rail=read("railway-security.mjs");
+ assert.ok(render.includes("const guard=this.railwaySecurity?.guard"));
+ assert.ok(render.includes("this.drawLawGuards(vp,light,s,radius)"));
+ assert.ok(!law.includes("s.deployed=[];s.challengeShown=false;"),
+  "detention must not despawn the actual guards");
+ assert.match(rail,/this\.jailed=\{stationId,fine\};this\.wanted=false;/);
+});
