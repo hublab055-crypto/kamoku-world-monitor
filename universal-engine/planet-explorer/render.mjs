@@ -645,6 +645,8 @@ export class ExplorerRenderer{
   if(!gl)throw Error("WebGL2が利用できません。対応ブラウザを利用してください。");
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.xrView=null; // ephemeral per-eye WebXR pass, never serialized
+  const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
+  this.vrBodySegment=new Mesh(gl,vrBox);
 
   this.cameraController=new CameraController();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
@@ -1975,6 +1977,85 @@ export class ExplorerRenderer{
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
   this.drawMesh(this.globe,vp,[.64,.93,.49],1,.92,[.38,1,.64]);
  }
+ /**
+  * Headset-space first-person body: the head is deliberately hidden so it
+  * cannot cover the viewer's eyes. Every stereo eye uses its XR projection.
+  * The procedural meshes are created once and reused without GPU allocations.
+  */
+ drawVRBody(xr,rig){
+  if(!xr||!rig?.anchors||!this.vrBodySegment)return;
+  const a=rig.anchors,gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const vp=multiply4(xr.projection,xr.view),light=[.55,.9,.45];
+  const add=(a,b)=>a.map((x,i)=>x+b[i]),sub=(a,b)=>a.map((x,i)=>x-b[i]);
+  const scale=(a,n)=>a.map(x=>x*n),length=a=>Math.hypot(...a);
+  const unit=a=>scale(a,1/(length(a)||1));
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  const segment=(p,q,width,depth,tint)=>{
+   if(!p||!q)return;
+   const d=sub(q,p),n=length(d);if(n<.001)return;
+   const y=unit(d),x=unit(cross(Math.abs(y[1])>.92?[0,0,1]:[0,1,0],y)),z=unit(cross(x,y));
+   const m=[x[0]*width,x[1]*width,x[2]*width,0,y[0]*n,y[1]*n,y[2]*n,0,
+    z[0]*depth,z[1]*depth,z[2]*depth,0,p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.89,tint);
+  };
+  const clothing=[.32,.45,.60],sleeve=[.39,.52,.67],skin=[.89,.70,.55],
+   pants=[.29,.34,.42],boot=[.26,.22,.19],steel=[.83,.88,.92],
+   leather=[.45,.30,.20],bowWood=[.59,.39,.22],string=[.95,.91,.78];
+  const hand=side=>{
+   const p=rig[side];
+   return p?[p[12],p[13],p[14]]:add(a[side+"Elbow"],[0,-.2,-.15]);
+  };
+  const left=hand("left"),right=hand("right");
+  segment(a.pelvis,a.chest,.43,.26,clothing);
+  for(const side of ["left","right"]){
+   const sign=side==="left"?-1:1,knee=a[side+"Knee"],foot=a[side+"Foot"],
+    shoulder=a["shoulder"+(side==="left"?"Left":"Right")],wrist=side==="left"?left:right;
+   segment(add(a.pelvis,scale(a.right,sign*.13)),knee,.20,.21,pants);
+   segment(knee,foot,.16,.18,pants);
+   segment(foot,add(foot,scale(a.forward,.22)),.18,.19,boot);
+   const mid=add(scale(add(shoulder,wrist),.5),add(scale(a.right,sign*.09),[0,-.08,0]));
+   segment(shoulder,mid,.17,.18,sleeve);
+   segment(mid,wrist,.125,.14,skin);
+   const aim=rig[side+"Ray"]?
+    [-rig[side+"Ray"][8],-rig[side+"Ray"][9],-rig[side+"Ray"][10]]:a.forward;
+   segment(wrist,add(wrist,scale(unit(aim),.105)),.11,.12,skin);
+  }
+  // Shoulder quiver and sword sheath remain visible when empty.
+  const quiver=add(a.shoulderRight,scale(a.forward,-.10));
+  segment(quiver,add(quiver,[0,.28,0]),.11,.11,leather);
+  if(!rig.swordHeld){
+   segment(a.leftHip,add(a.leftHip,[0,-.57,0]),.085,.085,leather);
+   segment(a.leftHip,add(a.leftHip,[0,.10,0]),.12,.09,steel);
+  }else{
+   const aim=unit(rig.rightRay?[-rig.rightRay[8],-rig.rightRay[9],-rig.rightRay[10]]:a.forward);
+   segment(add(right,scale(aim,-.12)),add(right,scale(aim,.10)),.065,.07,leather);
+   segment(add(right,scale(aim,.10)),add(right,scale(aim,.88)),.054,.035,steel);
+   segment(add(right,scale(a.right,-.16)),add(right,scale(a.right,.16)),.037,.05,steel);
+  }
+  if(rig.bowHeld){
+   const aim=unit(rig.leftRay?[-rig.leftRay[8],-rig.leftRay[9],-rig.leftRay[10]]:a.forward);
+   const hi=add(add(left,[0,.39,0]),scale(aim,.08));
+   const lo=add(add(left,[0,-.39,0]),scale(aim,.08));
+   const up=add(left,[0,.19,0]),down=add(left,[0,-.19,0]);
+   for(const [u,v] of [[left,up],[left,down],[up,hi],[down,lo]])
+    segment(u,v,.04,.05,bowWood);
+   const nock=rig.nocked?right:left;
+   segment(hi,nock,.012,.012,string);segment(nock,lo,.012,.012,string);
+   if(rig.arrowHeld){
+    const tip=add(nock,scale(aim,.82));
+    segment(nock,tip,.015,.015,bowWood);
+    segment(add(tip,scale(aim,-.11)),tip,.035,.028,steel);
+   }
+   if(rig.drawing&&rig.nocked){
+    const target=add(left,scale(aim,2.1));
+    segment(add(target,scale(a.right,-.065)),add(target,scale(a.right,.065)),.012,.012,[1,.91,.29]);
+    segment(add(target,[0,-.065,0]),add(target,[0,.065,0]),.012,.012,[1,.91,.29]);
+   }
+  }
+ }
  xrInteriorVP(person={x:0,z:0}){
   const xr=this.xrView;
   if(!xr||xr.mode!=="vr")return null;
@@ -2582,7 +2663,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
