@@ -1261,3 +1261,10 @@ body.immersive{overflow:hidden}
  color:#c9e8f2;line-height:1.4;white-space:normal;cursor:pointer}
 .xr-depth-label input{width:17px;height:17px;flex:none;accent-color:#62bba5}
 @media(max-width:600px){.xr-depth-label{width:100%}}
+
+/* XR headset UI fixes: separate tabletop placement from gameplay commands. */
+.xr-action-buttons{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.xr-action-buttons button{font-size:12px;min-height:34px;padding:5px 8px}
+.xr-action-buttons button[hidden]{display:none!important}
+#xr-vr-diagnostics{display:block;font-size:11px;opacity:.8;word-break:break-word}
+.ue-xr-active .xr-controls{max-width:100%}
