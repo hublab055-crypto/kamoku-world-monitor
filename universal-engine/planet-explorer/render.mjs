@@ -636,6 +636,8 @@ export class ExplorerRenderer{
   const gl=canvas.getContext("webgl2",{antialias:true,alpha:true,powerPreference:"high-performance"});
   if(!gl)throw Error("WebGL2が利用できません。対応ブラウザを利用してください。");
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
+  this.xrView=null; // ephemeral per-eye WebXR pass, never serialized
+
   this.cameraController=new CameraController();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
   this.actorMarker=null;
@@ -1580,13 +1582,21 @@ export class ExplorerRenderer{
    gl.uniform1f(this.uInstanced,1);mesh.draw();
  }
  frame(state,dt=1/60){
-  const gl=this.gl,dpr=Math.min(2,globalThis.devicePixelRatio||1);
-  const w=Math.max(1,Math.floor(this.canvas.clientWidth*dpr)),h=Math.max(1,Math.floor(this.canvas.clientHeight*dpr));
-  if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}
-  // Ground view exposes the atmospheric CSS gradient through transparent sky pixels.
-  // Orbital view remains opaque dark space; terrain meshes always draw opaque.
-  const inOrbit=state.altitudeM>ORBIT_GROUND_CUTOFF_M;
-  gl.viewport(0,0,w,h);gl.clearColor(.011,.032,.071,inOrbit?1:0);
+  const gl=this.gl,xr=this.xrView,dpr=Math.min(2,globalThis.devicePixelRatio||1);
+  const w=xr?xr.viewport.width:Math.max(1,Math.floor(this.canvas.clientWidth*dpr));
+  const h=xr?xr.viewport.height:Math.max(1,Math.floor(this.canvas.clientHeight*dpr));
+  // WebXR owns the framebuffer size; resizing the canvas inside a headset
+  // pass may detach its XRWebGLLayer and corrupt stereo presentation.
+  if(!xr&&(this.canvas.width!==w||this.canvas.height!==h)){
+   this.canvas.width=w;this.canvas.height=h;
+  }
+  const inOrbit=xr?.planetMode??(state.altitudeM>ORBIT_GROUND_CUTOFF_M);
+  if(xr){
+   gl.viewport(xr.viewport.x,xr.viewport.y,w,h);
+   gl.scissor(xr.viewport.x,xr.viewport.y,w,h);
+  }else gl.viewport(0,0,w,h);
+  // Passthrough MR requires an alpha-zero background; meshes remain opaque.
+  gl.clearColor(.011,.032,.071,xr?.mode.startsWith("mr-")?0:inOrbit?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0])); // orbit/interior never fog
   const asp=w/h;
@@ -1849,9 +1859,12 @@ export class ExplorerRenderer{
   this.lastOrbitCenter={lat:orbitalLat,lon:wrapLon(orbitalLon-offset)};
   const n=geoNormal(orbitalLat,orbitalLon),camera=n.map(v=>v*distance);
   const view=lookAt(camera,[0,0,0],Math.abs(n[1])>.95?[0,0,1]:[0,1,0]);
-  const vp=multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
+  const vp=this.xrView?.planetMode?
+   multiply4(this.xrView.projection,multiply4(this.xrView.view,this.xrView.stage)):
+   multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
     Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
-  this.orbitVP=vp;this.orbitCamera=camera;this.orbitOffsetDeg=offset;
+  this.orbitVP=this.xrView?null:vp;
+  this.orbitCamera=camera;this.orbitOffsetDeg=offset;
   const landingPoint=this.selectedLanding?
    geoNormal(this.selectedLanding.lat,this.selectedLanding.lon+offset).map(v=>v*(R+.7)):null;
   // A marker on the far side of the planet must not shine through the globe.
@@ -2214,9 +2227,15 @@ export class ExplorerRenderer{
   if(s.travelMode==="dive"&&!room&&!cabinActive&&cameraMode!=="free"&&cameraMode!=="tactical"){
    camera.eye[1]=Math.min(waterY-.35,feet+2.35);camera.target[1]=feet+.65;
   }
-  const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.12,Math.max(radius*8,65000)),
+  // Headset pose supplies the per-eye perspective and view. The virtual
+  // terrain is translated around the real actor and optionally miniaturized.
+  const xrModel=this.xrView?multiply4(this.xrView.stage,
+   translate(-px,-feet,-pz)):null;
+  const vp=this.xrView?multiply4(this.xrView.projection,
+   multiply4(this.xrView.view,xrModel)):
+   multiply4(perspective(camera.fovDeg*DEG,asp,.12,Math.max(radius*8,65000)),
     lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
-  this.pickVP=vp;
+  this.pickVP=this.xrView?null:vp;
   const sunlight=this.planet.illumination(s.lat,s.lon);
   const light=[.4,Math.max(.3,sunlight),.2];
   const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,ground));
@@ -2397,7 +2416,9 @@ export class ExplorerRenderer{
    {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
    baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
-  if(!this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
+  // In standing VR, the avatar's head would overlap the real user's eyes.
+  if(this.xrView?.mode!=="vr"&&
+    !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   const gearModel=this.divingEquipmentModels[this.marine?.diveGear];
   if(gearModel&&s.travelMode!=="boat"){
@@ -2439,7 +2460,20 @@ export class ExplorerRenderer{
     this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
      motion,agent.id==="scout"?[.65,.86,1]:[1,.78,.65],agent.id);
   }
-  if(camera.marker){
+  if(this.xrView?.mode==="mr-rts"){
+   // Readable 3-5 cm selection rings even at 1:700 tabletop scale.
+   const bigRing=[12,0,0,0,0,1,0,0,0,0,12,0,0,0,0,1];
+   const candidates=[{id:"player",control:s},...(this.squad?.agents||[]).filter(a=>a.id!=="player")];
+   for(const a of candidates){
+    const u=a.control||a;
+    const here=geoOffset(s.origin.lat,s.origin.lon,u.x,u.z,this.planet.radiusM);
+    const y=Math.max(0,terrainSurface(this.terrain,here.lat,here.lon).elevationM);
+    this.drawMesh(this.selectionRing,multiply4(vp,multiply4(
+     translate(u.x-this.cx,y+.15,u.z-this.cz),bigRing)),light,1,.98,
+     this.squad?.selected.has(a.id)?[1,.86,.3]:[.3,.87,1]);
+   }
+  }
+  if(camera.marker&&!this.xrView){
    const screen=projectScreen(vp,camera.actorPos);
    this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
   }
