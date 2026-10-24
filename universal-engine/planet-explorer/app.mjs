@@ -3022,7 +3022,7 @@ function castFromEquippedRod(power=Number($("marine-fish-power").value)/100){
 }
 frontierUI=installFrontierInteractions({
  get:()=>({controller,renderer,squad,actions,life,lifeUI,terrain,battle,projectiles,rtsMode,syncMode,
-  manualInputActive:Math.abs(stick.x)+Math.abs(stick.y)>.16||["w","a","s","d","ArrowUp","ArrowDown"].some(k=>keys.has(k)||touches.has(k)),
+  manualInputActive:(xrUI?.active&&xrUI.mode==="vr")||Math.abs(stick.x)+Math.abs(stick.y)>.16||["w","a","s","d","ArrowUp","ArrowDown"].some(k=>keys.has(k)||touches.has(k)),
   sample:(lat,lon)=>terrainSurface(terrain,lat,lon)}),
  log,updateHUD,openBookLibrary,saveLifeJournal,
  showSpeech:(id,text)=>worldUI?.speak(id,text),
@@ -3421,8 +3421,45 @@ xrUI=installXRUI({
  onRTSMove:(x,z)=>{
   if(!squad?.selected.size||!Number.isFinite(x)||!Number.isFinite(z))return false;
   const moved=squad.orderMove([...squad.selected],x,z);
-  if(moved){log("🥽 MR卓上RTS："+moved+"人へ移動指示");updateHUD();}
+  if(moved){log("🥽 XR RTS："+moved+"人へ移動指示");updateHUD();}
   return moved>0;
+ },
+ // Use the shared inventory, stamina, ammunition and combat commands.
+ onVRHand:hand=>{
+  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"拘束・継承中は武器を使えません"};
+  return frontierUI?.useHand(hand)||{ok:false};
+ },
+ onVRCommand:command=>{
+  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false};
+  return frontierUI?.runCommand(command)||{ok:false};
+ },
+ onVRToggleRTS:nextMode=>{
+  if(rtsMode!==nextMode)toggleRts();
+  return rtsMode===nextMode;
+ },
+ onVRJump:()=>{
+  if(fauna?.mount){log("🥽 騎乗中はジャンプできません");return false;}
+  const ok=Boolean(controller?.jump());
+  if(!ok)log("🥽 ジャンプは地上でのみ使用可能です");
+  return ok;
+ },
+ onVRDeck:(()=>{
+  let selected=0;
+  return ()=>{
+   selected=(selected+1)%5;
+   frontierUI?.selectDeck(selected);
+   log("🥽 行動スロット "+(selected+1));
+  };
+ })(),
+ onVRSync:()=>{
+  if(!rtsMode)return;
+  syncMode=!syncMode;
+  for(const g of squad.selectedGroups())squad.updateGroup(g.id,{sync:syncMode});
+  updateHUD();log("🥽 シンクロ"+(syncMode?"ON：一斉行動に対応":"OFF"));
+ },
+ onVRAim:(yaw,hand)=>{
+  if(rtsMode||!controller?.nearGround||!Number.isFinite(yaw))return;
+  if(hand==="right"||frontierUI?.activeHand(hand)==="bow")controller.yaw=yaw;
  }
 });
 requestAnimationFrame(doFrame);
