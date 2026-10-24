@@ -605,8 +605,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       }
      }catch(_){gl.activeTexture(gl.TEXTURE0);}
     }
-    renderer.xrView={mode:mrRts?"mr-rts":mode,vrImmersive:mode==="vr",
-     showAvatar:mode==="vr"&&vrThird&&!vrRTS,
+    renderer.xrView={mode,vrImmersive:mode==="vr",rtsTabletop:mrRts,
+     showAvatar:mode==="vr"&&(vrThird||vrRTS),
      projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
