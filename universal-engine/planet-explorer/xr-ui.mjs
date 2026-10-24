@@ -431,7 +431,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(vrFrames===1)vrMark("XR初回コールバック受信",{force:true,log:true});
   }
   session.requestAnimationFrame(drawXR);
-  vrButtonsFrame();
+  try{vrButtonsFrame();}
+  catch(error){
+   vrButtons.clear();
+   notify("🥽 コントローラー操作エラー: "+(error?.message||error));
+  }
   const renderer=getRenderer(),controller=getController();
   if(!renderer||!controller||!space){
    vrMark("描画準備未完了（renderer／controller／space）",{force:true,log:vrFrames===1});
