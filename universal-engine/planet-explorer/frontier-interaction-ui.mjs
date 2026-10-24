@@ -736,6 +736,8 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   if(e.key.toLowerCase()==="l"){e.preventDefault();useHand("left");}
  });
  return {quick,restore,snapshot,syncRoster,updateCamera,loadModels,equipmentInventory,equipHandFromInventory,
+  // XR controllers share the regular ammo, weapon, stamina and RTS logic.
+  useHand,runCommand,selectDeck,activeHand:(hand,id="player")=>social.handItem(id,hand),
   hasTacticalArrow:id=>social.arrowCount(id,"wood")>0,
   consumeTacticalArrow:id=>social.spendArrow(id,"wood"),
   updateTarget,selectTargetAt,isCombat,volley,addRecoveredArrow,armedWeapons,stowWeapons,
