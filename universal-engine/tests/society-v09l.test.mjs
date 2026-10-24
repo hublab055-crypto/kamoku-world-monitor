@@ -23,6 +23,8 @@ test("postings validate occupations, wages, sizes and hire only eligible workers
  assert.equal(society.postJob("capital","invalid",1,100).ok,false);
  assert.equal(society.postJob("capital","craft",0,100).ok,false);
  assert.equal(society.postJob("capital","craft",3,-2).ok,false);
+ assert.equal(society.postJob("capital","guard",2,80,{sector:"public"}).ok,false);
+ assert.equal(society.postJob("pioneer","guard",2,80,{sector:"public",authorized:true}).job.sector,"public");
  const posted=society.postJob("capital","farmer",2,70);
  assert.equal(posted.ok,true);
  assert.equal(posted.job.ownerId,"player");
