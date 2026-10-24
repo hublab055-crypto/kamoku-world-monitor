@@ -1255,3 +1255,9 @@ body.immersive{overflow:hidden}
  .xr-size-label{width:100%}
  #xr-status{flex-basis:100%}
 }
+
+/* v0.9j: Optional depth-sensing occlusion control. */
+.xr-depth-label{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+ color:#c9e8f2;line-height:1.4;white-space:normal;cursor:pointer}
+.xr-depth-label input{width:17px;height:17px;flex:none;accent-color:#62bba5}
+@media(max-width:600px){.xr-depth-label{width:100%}}
