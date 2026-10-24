@@ -668,8 +668,8 @@ function doFrame(t){
         if(vitals.stamina<=0&&battle.playerHp>0){const arrest=law.detain(activeSettlementId);if(arrest)events.push(arrest);}
       }
       if(event.type==="detained"){
-        controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
-        lawUI?.closeEncounter();lawUI?.open();
+        beginCustody("law");
+        lawUI?.closeEncounter();
       }
       if(event.speech&&event.speakerId)worldUI?.speak(event.speakerId,event.speech,5.5);
       if(event.type==="challenge"||event.type==="territoryWarning")lawUI?.openEncounter(event);
@@ -904,7 +904,13 @@ function doFrame(t){
   try{
    // While the headset owns the WebGL framebuffer, its XR animation callback
    // renders both eyes. The existing RAF still runs simulation and HUD logic.
+   const captureWasPlaying=Boolean(renderer?.captureFX&&
+    renderer.captureFX.elapsed<renderer.captureFX.duration);
    const next=xrUI?.active?displayMode:renderer.frame(controller,dt);
+   if(captureWasPlaying&&renderer.captureFX.elapsed>=renderer.captureFX.duration){
+    if(law?.custody)lawUI?.open();
+    if(railwaySecurity?.jailed)updateRailwaySecurityHUD();
+   }
    orbitalCitiesUI?.setActive(next==="orbit");
    if(next==="orbit")orbitalCitiesUI?.frame(renderer.orbitCityMarkers(orbitalCitiesUI.destinations));
    updateActorMarker(renderer.actorMarker);
@@ -1795,7 +1801,8 @@ function handleRailwaySecurityEvent(event){
  if(event.message)log(event.message);
  if(event.speech&&event.speakerId)worldUI?.speak(event.speakerId,event.speech,5.5);
  if(event.type==="jailed"){
-  controller.clearMoveTarget();actions.cancel?.();townLife.leave();renderer.townInterior=null;
+  beginCustody("railway");
+  actions.cancel?.();townLife.leave();renderer.townInterior=null;
   townUI?.close(true);railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
   $("town-interior-exit").hidden=true;
   running=false;simWorld.clock.paused=true;
@@ -1805,7 +1812,10 @@ function handleRailwaySecurityEvent(event){
 function updateRailwaySecurityHUD(){
  const hud=$("railway-security-hud");if(!hud||!railwaySecurity)return;
  const state=railwaySecurity.state,jailed=state==="jailed",chased=state==="wanted"||state==="challenged";
- if(state==="clear"){hud.hidden=true;return;}
+ if(state==="clear"||(jailed&&renderer?.captureFX?.kind==="railway"&&
+  renderer.captureFX.elapsed<renderer.captureFX.duration)){
+  hud.hidden=true;return;
+ }
  hud.hidden=false;
  for(const [id,show] of [
   ["railway-bail",jailed],["railway-serve",jailed],
@@ -1879,6 +1889,7 @@ function releaseRailwayCustody(result){
   controller.clearMoveTarget();renderer.patchKey=null;renderer.mapFocus=null;
   squad?.repositionAfterLanding();
  }
+ finishCustody();
  saveRailwayJournal();saveRailwaySecurityJournal();log("🔓 "+result.message);updateHUD();
 }
 function payRailwayBail(){
