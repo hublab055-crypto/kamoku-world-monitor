@@ -1650,7 +1650,8 @@ export class ExplorerRenderer{
    if(this.townInterior)return this.renderTownInterior(asp);
   }
   if(!xr){
-  if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
+  if(this.railwaySecurity?.jailed&&
+     (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
    return this.renderRailwayConcourse(asp);
   if(this.trainInterior?.camera==="interior"||this.trainInterior&&!this.trainInterior.camera)return this.renderTrainInterior(asp,dt);
