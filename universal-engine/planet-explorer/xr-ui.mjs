@@ -344,16 +344,48 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }
   }
   try{
-   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
-   // A previous 2D pass can have disabled color/depth writes or changed
-   // blend state. Restore XR framebuffer invariants every immersive frame.
+   // WebXR opaque framebuffers are only renderable *inside* the XR frame
+   // callback. A status probe here distinguishes an incompatible VR target
+   // from a normal 3D scene error; never inspect its private attachments.
+   if(mode==="vr"&&vrPendingLayer){
+    if(layer!==vrPendingLayer){
+     if(++vrPendingFrames<45)return;
+     vrPendingLayer=null;vrFramebufferInfo="XRレイヤー切替が反映されません";
+    }else{vrPendingLayer=null;vrPendingFrames=0;}
+   }
+   const stale=mode==="vr"?readGLError(gl):null;
+   const target=probeXRFramebuffer(gl,layer);
+   if(mode==="vr"){
+    vrFramebufferInfo="FB="+target.label+
+     " "+target.width+"x"+target.height+"／layer="+vrLayerIndex;
+    if(!target.ok){recoverVRFramebuffer(gl,"FB状態 "+target.label);return;}
+    if(stale&&vrFrames<3)vrLastErrorStep="前フレームGL "+stale;
+   }else if(!target.ok){
+    if(vrFrames<3)statusText("MRの描画先が未準備です: "+target.label);
+    return;
+   }
+   // Restore output masks and depth testing after regular canvas rendering.
    gl.colorMask(true,true,true,true);
    gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
    gl.disable(gl.BLEND);
    gl.enable(gl.SCISSOR_TEST);
    for(let index=0;index<pose.views.length;index++){
     const view=pose.views[index],vp=layer.getViewport(view);
-    if(!vp)continue;
+    if(!vp||vp.width<=0||vp.height<=0)continue;
+    if(mode==="vr"){
+     // Color-only calibration before drawing the real scene. When clear works
+     // but the scene fails, the diagnosis reports "scene" instead of "FB".
+     gl.viewport(vp.x,vp.y,vp.width,vp.height);
+     gl.scissor(vp.x,vp.y,vp.width,vp.height);
+     gl.clearColor(.12,.23,.40,1);
+     gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+     const clearErr=readGLError(gl);
+     if(clearErr){
+      recoverVRFramebuffer(gl,"eye"+(index+1)+" clear "+clearErr+
+       "／FB="+target.label);
+      return;
+     }
+    }
     let occlusionTexture=null;
     if(mode.startsWith("mr-")&&depthToggle?.checked&&depthTexture&&session.depthUsage==="cpu-optimized"){
      try{
@@ -371,14 +403,21 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
+    if(mode==="vr"){
+     const sceneErr=readGLError(gl);
+     if(sceneErr){
+      recoverVRFramebuffer(gl,"eye"+(index+1)+" scene "+sceneErr+
+       "／FB="+target.label);
+      return;
+     }
+    }
    }
    if(mode==="vr"&&(vrFrames===90||vrFrames===300)){
-    const err=gl.getError();
-    const diag="VR診断：追跡あり／"+pose.views.length+"眼／"+
-     (err===gl.NO_ERROR?"GL正常":"WebGLエラー 0x"+err.toString(16))+
+    const diag="🥽 VR診断：追跡あり／"+pose.views.length+"眼／"+
+     vrFramebufferInfo+(vrLastErrorStep?"／"+vrLastErrorStep:"")+
      "／"+vrFrames+"フレーム";
     if(vrDiag)vrDiag.textContent=diag;
-    if(err!==gl.NO_ERROR)notify("🥽 "+diag);
+    notify(diag);
    }
   }catch(error){
    vrDrawError=error?.message||String(error);
