@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9h-dialogue";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9i-xr";
+import {installXRUI} from "./xr-ui.mjs?v=0.9j-xr-interior-depth";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
