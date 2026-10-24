@@ -8,7 +8,7 @@ export function installSocietyUI({get,save=()=>{},notify=()=>{}}){
  const townField=$("society-town"),stats=$("society-stats"),jobs=$("society-jobs");
  const residents=$("society-residents"),status=$("society-status");
  const occupation=$("society-occupation"),capacity=$("society-capacity"),wage=$("society-wage");
- const actions=$("society-actions");
+ const sector=$("society-sector");
  let selectedTown=null;
  const el=(tag,text="",className="")=>{
   const node=document.createElement(tag);node.textContent=text;
@@ -48,6 +48,7 @@ export function installSocietyUI({get,save=()=>{},notify=()=>{}}){
   clinic.textContent="🏥 診療所 "+town.clinics+"施設 / 医療職員 "+s.medics+
    "人 / 対応可能 "+s.clinicCapacity+"人 / 要診療 "+s.patients+"人";
   jobs.replaceChildren();
+  const ruler=Boolean(get().territoryEconomy?.ruler(townId));
   for(const j of town.jobs){
    const row=el("div","","society-job-row");
    const name=el("span",SOCIETY_OCCUPATIONS[j.occupation].name+
@@ -57,7 +58,7 @@ export function installSocietyUI({get,save=()=>{},notify=()=>{}}){
    hire.type=apply.type="button";hire.dataset.action="hire";hire.dataset.job=j.id;
    apply.dataset.action="apply";apply.dataset.job=j.id;
    hire.disabled=apply.disabled=society.vacancies(town,j)===0;
-   if(j.ownerId!=="player"&&j.sector==="private")hire.disabled=true;
+   if(j.ownerId!=="player"&&!(j.sector==="public"&&ruler))hire.disabled=true;
    row.append(name,hire,apply);jobs.append(row);
   }
   const eligible=town.people.filter(p=>p.education<5&&!p.studying);
@@ -96,8 +97,9 @@ export function installSocietyUI({get,save=()=>{},notify=()=>{}}){
  $("society-close").addEventListener("click",close);
  townField.addEventListener("change",()=>{selectedTown=townField.value;render();});
  $("society-post").addEventListener("click",()=>{
-  const {society}=get();
-  onChange(society.postJob(currentTown(),occupation.value,Number(capacity.value),Number(wage.value)));
+  const {society,territoryEconomy}=get();
+  onChange(society.postJob(currentTown(),occupation.value,Number(capacity.value),Number(wage.value),
+   {sector:sector.value,authorized:Boolean(territoryEconomy?.ruler(currentTown()))}));
  });
  jobs.addEventListener("click",event=>{
   const b=event.target.closest("button[data-action][data-job]");
