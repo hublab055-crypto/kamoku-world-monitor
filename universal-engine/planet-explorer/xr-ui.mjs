@@ -391,7 +391,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="vr"){
    const hand=event.inputSource?.handedness;
    if(vrGripConsumed.delete(hand))return;
-   const result=onVRCommand(hand==="right"?"guard":"shoot");
+   const result=onVRCommand(event.inputSource?.handedness==="right"?"guard":"shoot");
    if(result?.ok)statusText("🥽 "+(event.inputSource?.handedness==="right"?"防御":"弓射撃")+"を実行");
    return;
   }
@@ -686,10 +686,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
-    if(mode==="vr"){
-     renderer.drawVRBody?.(renderer.xrView,vrPhysical.snapshot());
-     if(vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
-    }
+    if(mode==="vr")renderer.drawVRBody?.(renderer.xrView,vrPhysical.snapshot());
+    if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
      if(sceneErr){
