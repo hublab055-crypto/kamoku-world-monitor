@@ -77,8 +77,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   try{
    // requestSession must be invoked in the click gesture, before awaiting
    // permissions, feature checks, or any asynchronous GL setup.
-   const root=$("xr-controls");
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor","hit-test",...(root?["dom-overlay"]:[])]};
+   const root=requestedType==="immersive-ar"?$("xr-controls"):null;
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:[])]};
    if(root)init.domOverlay={root};
    newSession=await navigator.xr.requestSession(requestedType,init);
    if(disposed){await newSession.end();return;}
@@ -176,11 +176,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    mode==="mr-planet"?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:15000000}):controller;
   let stageAnchor=anchor;
   if(mode==="vr"&&planetMode){
-   const forward=[-pose.transform.matrix[8],-pose.transform.matrix[9],-pose.transform.matrix[10]];
+   // Preserve the original room-space planet anchor when the user turns
+   // their head. A hologram must NOT chase the viewer every XR frame.
    stageAnchor={...anchor,position:[
-    anchor.vrFloor[0]+forward[0]*3,
-    anchor.vrFloor[1]+1.65+forward[1]*3,
-    anchor.vrFloor[2]+forward[2]*3
+    anchor.vrFloor[0]+(anchor.position[0]-anchor.vrFloor[0])*2.4,
+    anchor.vrFloor[1]+1.65,
+    anchor.vrFloor[2]+(anchor.position[2]-anchor.vrFloor[2])*2.4
    ]};
   }
   const stage=xrStage({
@@ -190,6 +191,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    planetScale:mode==="vr"?1.15:.24
   });
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
+  let cursor=null;
+  if(mode==="mr-rts"){
+   for(const source of session.inputSources||[]){
+    const ray=source.targetRaySpace&&frame.getPose(source.targetRaySpace,space);
+    if(!ray)continue;
+    cursor=xrTableHit(ray.transform.matrix,anchor,controller.yaw,controller,Number(scaleInput.value));
+    if(cursor)break;
+   }
+  }
   try{
    gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
    gl.enable(gl.SCISSOR_TEST);
@@ -197,7 +207,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     const view=pose.views[index],vp=layer.getViewport(view);
     if(!vp)continue;
     renderer.xrView={mode,projection:view.projectionMatrix,view:view.transform.inverse.matrix,
-     stage,planetMode,viewport:vp,eye:index};
+     stage,planetMode,viewport:vp,eye:index,cursor};
     renderer.frame(frameState,index===0?dt:0);
    }
   }catch(error){
