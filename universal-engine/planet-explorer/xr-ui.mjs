@@ -1,5 +1,6 @@
 import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit} from "./xr-spatial.mjs?v=0.9k-xr";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
+import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -19,6 +20,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let compatibilityRenderer=null,depthTexture=null;
  let placementArmed=false,planetSelected=false,planetYaw=0,vrFrames=0,vrHasPose=false,vrDrawError="";
  let previousPlanetHit=null,previousPlanetHitTime=0;
+ let vrLayerIndex=0,vrPendingLayer=null,vrPendingFrames=0,vrFramebufferInfo="未検査";
+ let vrRecoveryExhausted=false,vrLastErrorStep="";
  const present=()=>Boolean(session);
  const supported=()=>Boolean(navigator.xr&&globalThis.XRWebGLLayer&&globalThis.isSecureContext);
  const statusText=(message)=>{status.textContent=message;};
@@ -73,10 +76,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   hitSource?.cancel?.();hitSource=null;hitPose=null;viewerSpace=null;
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   if(vrDiag&&vrFrames)vrDiag.textContent="VR診断："+vrFrames+"フレーム／追跡"+
-   (vrHasPose?"取得済み":"未取得")+(vrDrawError?"／"+vrDrawError:"");
+   (vrHasPose?"取得済み":"未取得")+"／"+vrFramebufferInfo+
+   (vrDrawError?"／"+vrDrawError:"")+(vrLastErrorStep?"／"+vrLastErrorStep:"");
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
   placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
   previousPlanetHit=null;previousPlanetHitTime=0;
+  vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
+  vrRecoveryExhausted=false;vrLastErrorStep="";
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
  }
@@ -109,8 +115,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(disposed){await newSession.end();return;}
    await readyGL();
    const renderer=getRenderer(),gl=renderer.gl;
-   const layer=new XRWebGLLayer(newSession,gl,{alpha:requestedType==="immersive-ar",
-    antialias:true,depth:true,stencil:false});
+   const layer=new XRWebGLLayer(newSession,gl,requestedType==="immersive-vr"?
+    XR_VR_LAYER_CONFIGS[0]:{alpha:true,antialias:true,depth:true,stencil:false});
    newSession.updateRenderState({baseLayer:layer});
    if(requestedType==="immersive-ar"&&newSession.depthUsage==="cpu-optimized"){
     depthTexture=gl.createTexture();
@@ -131,6 +137,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
    placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
    previousPlanetHit=null;previousPlanetHitTime=0;
+   vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
+   vrFramebufferInfo="未検査";vrRecoveryExhausted=false;vrLastErrorStep="";
    if(vrDiag&&mode==="vr")vrDiag.textContent="VR診断：セッション開始、映像フレーム待機中";
    session.addEventListener("end",endCleanup,{once:true});
    session.addEventListener("select",onSelect);
@@ -226,6 +234,40 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(src.handedness==="right")out.turn=x;
   }
   return out;
+ }
+ /**
+  * Called only during a live immersive XR animation frame. Do not inspect
+  * XR opaque framebuffer attachments and do not check them in window RAF.
+  */
+ function recoverVRFramebuffer(gl,reason){
+  if(activeMode!=="vr")return;
+  vrLastErrorStep=reason;
+  if(vrPendingLayer)return;
+  const next=xrNextLayerIndex(vrLayerIndex);
+  if(next===null){
+   if(!vrRecoveryExhausted){
+    vrRecoveryExhausted=true;
+    notify("🥽 VR描画先が利用できません／"+reason+
+     "。機器のWebXR描画互換性を確認してください");
+   }
+   return;
+  }
+  try{
+   const replacement=new XRWebGLLayer(session,gl,XR_VR_LAYER_CONFIGS[next]);
+   session.updateRenderState({baseLayer:replacement});
+   vrLayerIndex=next;vrPendingLayer=replacement;vrPendingFrames=0;
+   vrFramebufferInfo="代替FB "+next+" 反映待ち";
+   const msg="🥽 VR描画先を切替 "+next+"/"+(XR_VR_LAYER_CONFIGS.length-1)+
+    "（"+reason+"）";
+   statusText(msg);notify(msg);
+  }catch(error){
+   vrFramebufferInfo="代替FB生成失敗: "+(error?.message||error);
+   notify("🥽 "+vrFramebufferInfo);
+  }
+ }
+ function readGLError(gl){
+  const err=gl.getError();
+  return err===gl.NO_ERROR?null:"0x"+err.toString(16);
  }
  function drawXR(time,frame){
   if(!session)return;
