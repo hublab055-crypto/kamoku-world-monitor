@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx";
+import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx-xr-v09s-body";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -30,7 +30,7 @@ import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
-import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r";
+import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r-body-v09s";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
@@ -3431,7 +3431,17 @@ xrUI=installXRUI({
  },
  onVRCommand:command=>{
   if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false};
-  return frontierUI?.runCommand(command)||{ok:false};
+  const result=frontierUI?.runCommand(command)||{ok:false};
+  // Hand-tracked draw and sword swing have already happened in real time.
+  // Use the SAME game projectile/hit path but start its impact phase on the
+  // next simulation tick rather than replaying 1.6 s of automatic bow pull.
+  if(result.ok&&actions.active){
+   if(command==="shoot"&&actions.active.kind==="bow")
+    actions.active.time=Math.max(actions.active.time,actions.active.duration*.81);
+   if(command==="sweep"&&["sword","axe","spear","greatsword"].includes(actions.active.kind))
+    actions.active.time=Math.max(actions.active.time,actions.active.duration*.63);
+  }
+  return result;
  },
  onVRToggleRTS:nextMode=>{
   if(rtsMode!==nextMode)toggleRts();
@@ -3460,6 +3470,17 @@ xrUI=installXRUI({
  onVRAim:(yaw,hand)=>{
   if(rtsMode||!controller?.nearGround||!Number.isFinite(yaw))return;
   if(hand==="right"||frontierUI?.activeHand(hand)==="bow")controller.yaw=yaw;
+ },
+ onVRGrab:(item,hand)=>{
+  if(law?.custody||law?.pendingDeath||law?.gameOver||!frontierUI)return false;
+  if(item==="arrow")
+   return frontierUI.activeHand("left")==="bow"&&frontierUI.hasVRArrow("player");
+  if(item==="sheathe")return Boolean(frontierUI.equipHandFromInventory("none","right")?.ok);
+  if(item==="bow"&&hand!=="left"||item==="sword"&&hand!=="right")return false;
+  if(frontierUI.activeHand(hand)===item)return true;
+  const result=frontierUI.equipHandFromInventory(item,hand);
+  if(!result?.ok)log("🥽 装備できません: "+(result?.message||item));
+  return Boolean(result?.ok);
  }
 });
 requestAnimationFrame(doFrame);
