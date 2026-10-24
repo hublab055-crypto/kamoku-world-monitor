@@ -4,6 +4,7 @@ import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
 import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-layer-policy.mjs?v=0.9q-render-state";
+import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9s-physical";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -13,7 +14,8 @@ import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-lay
 export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSMove=()=>{},
  onRTSAll=()=>{},onPlanetPick=()=>false,onPlanetLand=()=>false,
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
- onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},notify=()=>{}}){
+ onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
+ onVRGrab=()=>false,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -29,6 +31,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrRecoveryExhausted=false,vrLastErrorStep="";
  let projection=null,projectionAttempted=false;
  let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
+ let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
  let vrLastSnapshot="";
@@ -113,6 +116,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   projectionAttempted=false;
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
   vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
   if(activeMode==="vr"){
@@ -163,6 +167,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // granted. Select the compositor path before the first XR frame.
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
     projectionAttempted=true;
@@ -206,10 +211,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    clearVRWatchdogs();
    if(mode==="vr"){
     vrMark("セッション開始／XRコールバック待機",{force:true,log:true});
-    notify("🥽 Quest：左スティック移動／右スティック旋回、右トリガー右手、左トリガー左手、右グリップ防御、左グリップ射撃、A=VR RTS、B=視点切替、X=ジャンプ、Y=行動変更");
+    notify("🥽 Quest VR身体操作：左肩で左グリップ→弓、右肩で右グリップ→矢、弦につがえて右トリガーを押し引き絞り→離して発射。左腰で右グリップ→抜刀、腕を振って攻撃。A=RTS、B=視点、スティック=歩行・旋回");
    }
    session.addEventListener("end",endCleanup,{once:true});
    session.addEventListener("select",onSelect);
+   session.addEventListener("selectstart",onVRSelectStart);
+   session.addEventListener("selectend",onVRSelectEnd);
+   session.addEventListener("squeezestart",onVRSqueezeStart);
    session.addEventListener("squeeze",onSqueeze);
    session.addEventListener("visibilitychange",()=>{
     if(session!==newSession||activeMode!=="vr")return;
