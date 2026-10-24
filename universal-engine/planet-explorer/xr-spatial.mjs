@@ -33,7 +33,7 @@ export function xrAnchor(poseMatrix,{floor=false}={}){
  // local-floor has Y=0 at floor; local space is approximately head-relative.
  return {
   position:[origin[0]+forward[0]/horizontal*1.25,
-   floor?.78:origin[1]-.64,
+   floor ? .78 : origin[1]-.64,
    origin[2]+forward[2]/horizontal*1.25],
   vrFloor:[origin[0],floor?0:origin[1]-1.64,origin[2]],
   heading:xrHeading(poseMatrix)
@@ -43,7 +43,7 @@ export function xrStage({mode,anchor,actorYaw=0,planetRadius=1,rtsScale=.0014,pl
  const isVR=mode==="vr",isPlanet=mode==="mr-planet";
  const position=isVR?anchor.vrFloor:anchor.position;
  const yaw=anchor.heading+Math.PI-(isPlanet?0:actorYaw);
- const scale=isVR?(isPlanet?1:1):(isPlanet?planetScale/planetRadius:rtsScale);
+ const scale=isVR?1:(isPlanet?planetScale/planetRadius:rtsScale);
  return xrMul(xrTranslate(...position),xrMul(xrRotateY(yaw),xrScale(scale)));
 }
 export function xrTableHit(rayMatrix,anchor,actorYaw,actor,scale=.0014){
