@@ -111,6 +111,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   hitSource?.cancel?.();hitSource=null;hitPose=null;viewerSpace=null;
   if(projection){if(renderer)destroyXRProjection(renderer.gl,projection);projection=null;}
   projectionAttempted=false;
+  if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
   vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
@@ -430,6 +431,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(vrFrames===1)vrMark("XR初回コールバック受信",{force:true,log:true});
   }
   session.requestAnimationFrame(drawXR);
+  vrButtonsFrame();
   const renderer=getRenderer(),controller=getController();
   if(!renderer||!controller||!space){
    vrMark("描画準備未完了（renderer／controller／space）",{force:true,log:vrFrames===1});
@@ -479,11 +481,19 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   const mode=activeMode;
-  const planetMode=mode==="mr-planet"||(mode==="vr"&&controller.altitudeM>50000);
-  const mrRts=mode==="mr-rts";
+  const planetMode=mode==="mr-planet"||(mode==="vr"&&!vrRTS&&controller.altitudeM>50000);
+  const mrRts=mode==="mr-rts"||(mode==="vr"&&vrRTS);
   const frameState=mrRts?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:2.5}):
    mode==="mr-planet"?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:15000000}):controller;
   let stageAnchor=anchor;
+  if(mode==="vr"&&vrThird&&!vrRTS&&!planetMode){
+   // Allow a real head-tracked third-person view with the player in front.
+   stageAnchor={...anchor,vrFloor:[
+    anchor.vrFloor[0]+(anchor.position[0]-anchor.vrFloor[0])*3.2,
+    anchor.vrFloor[1],
+    anchor.vrFloor[2]+(anchor.position[2]-anchor.vrFloor[2])*3.2
+   ]};
+  }
   if(mode==="vr"&&planetMode){
    // Preserve the original room-space planet anchor when the user turns
    // their head. A hologram must NOT chase the viewer every XR frame.
@@ -497,12 +507,16 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    renderer.townInterior?.pose?.yaw??
    (renderer.ferry?.boarded?renderer.ferry.pose?.yaw:undefined)??controller.yaw):controller.yaw;
   const stage=xrStage({
-   mode:planetMode?"mr-planet":mode,anchor:stageAnchor,
+   mode:mrRts?"mr-rts":planetMode?"mr-planet":mode,anchor:stageAnchor,
    actorYaw:indoorYaw,planetRadius:renderer.R,
-   rtsScale:Number(scaleInput.value),yawOffset:planetYaw,
+   rtsScale:Number(scaleInput.value),yawOffset:mrRts&&mode==="vr"?vrTableYaw:planetYaw,
    planetScale:mode==="vr"?1.15:.24
   });
+  if(mode==="vr")vrCurrentStage=stage;
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
+  if(mode==="vr"&&vrRTS){
+   vrTableYaw+=xrVRMovement(session.inputSources,{rts:true}).tableTurn*dt*1.4;
+  }
   if(mode==="mr-planet"){
    for(const input of session.inputSources||[]){
     const axes=input.gamepad?.axes;
@@ -512,11 +526,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }
   }
   let cursor=null;
-  if(mode==="mr-rts"){
+  if(mrRts){
    for(const source of session.inputSources||[]){
     const ray=source.targetRaySpace&&frame.getPose(source.targetRaySpace,space);
     if(!ray)continue;
-    cursor=xrTableHit(ray.transform.matrix,anchor,controller.yaw,controller,Number(scaleInput.value));
+    cursor=xrTableHit(ray.transform.matrix,anchor,controller.yaw,controller,Number(scaleInput.value),
+     mode==="vr"?vrTableYaw:0);
     if(cursor)break;
    }
   }
@@ -590,7 +605,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       }
      }catch(_){gl.activeTexture(gl.TEXTURE0);}
     }
-    renderer.xrView={mode,projection:view.projectionMatrix,view:view.transform.inverse.matrix,
+    renderer.xrView={mode:mrRts?"mr-rts":mode,vrImmersive:mode==="vr",
+     showAvatar:mode==="vr"&&vrThird&&!vrRTS,
+     projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
