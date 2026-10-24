@@ -227,6 +227,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const pose=frame.getViewerPose(space);
   if(activeMode==="vr")vrFrames++;
   if(!pose){
+   // Present a visible neutral blue frame when VR tracking has not supplied
+   // eyes yet; an all-black compositor image would hide this distinction.
+   if(activeMode==="vr"&&session.renderState.baseLayer){
+    const gl=renderer.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER,session.renderState.baseLayer.framebuffer);
+    gl.disable(gl.SCISSOR_TEST);gl.colorMask(true,true,true,true);
+    gl.clearColor(.08,.23,.40,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+   }
    if(activeMode==="vr"&&vrFrames===90){
     vrDrawError="追跡姿勢が取得できません";
     if(vrDiag)vrDiag.textContent="VR診断："+vrDrawError;
@@ -311,6 +320,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     renderer.xrView={mode,projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
+    if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
+   }
+   if(mode==="vr"&&(vrFrames===90||vrFrames===300)){
+    const err=gl.getError();
+    const diag="VR診断：追跡あり／"+pose.views.length+"眼／"+
+     (err===gl.NO_ERROR?"GL正常":"WebGLエラー 0x"+err.toString(16))+
+     "／"+vrFrames+"フレーム";
+    if(vrDiag)vrDiag.textContent=diag;
+    if(err!==gl.NO_ERROR)notify("🥽 "+diag);
    }
   }catch(error){
    vrDrawError=error?.message||String(error);
