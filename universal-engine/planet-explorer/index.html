@@ -268,7 +268,7 @@
     <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
     <button type="button" id="viewport-harbor" aria-expanded="false" aria-controls="harbor-panel">⚓ 港・客船</button>
     <button type="button" id="viewport-strategy" aria-expanded="false" aria-controls="strategy-panel">🌐 国家・外交</button>
-    <button type="button" id="viewport-territory" aria-expanded="false" aria-controls="territory-panel">🏡 土地・税</button>
+    <button type="button" id="viewport-territory" aria-expanded="false" aria-controls="territory-panel">🏛️ 財政・土地</button>
      <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
@@ -315,6 +315,23 @@
   <button type="button" id="territory-tax-apply">税率を設定</button></div>
  <div id="territory-estimate"></div><div id="territory-last-tax"></div>
  <div class="territory-row"><label>公共支出 <select id="territory-purpose"><option value="roads">🛣️ 道路整備</option><option value="guards">🛡️ 衛兵の給与</option><option value="school">📚 教育・公共施設</option></select></label><button type="button" id="territory-spend">100G支出</button></div>
+ <hr><strong>🏦 国債・都市公債</strong>
+ <small>プレイヤーの所持金で購入すると、代金が発行元の公金庫に入ります。国・都市には満期時の元利金の返済義務が残ります。</small>
+ <div class="territory-row"><span>所持金：<b id="territory-wallet">0 G</b></span><span>未返済の債務：<b id="territory-debt">0 G</b></span></div>
+ <div class="territory-row">
+  <label>額面 <select id="territory-bond-face"><option value="10">10G</option><option value="50">50G</option><option value="100">100G</option></select></label>
+  <label>発行口数 <select id="territory-bond-units"><option value="10">10口</option><option value="20" selected>20口</option><option value="50">50口</option><option value="100">100口</option></select></label>
+ </div>
+ <div class="territory-row">
+  <label>満期 <select id="territory-bond-term"><option value="3">3か月</option><option value="6" selected>6か月</option><option value="12">12か月</option></select></label>
+  <label>満期利率 <select id="territory-bond-rate"><option value="10" selected>10%</option><option value="20">20%</option></select></label>
+  <button type="button" id="territory-bond-create">公債を発行</button>
+ </div>
+ <div class="territory-row"><label>発行中・保有債券 <select id="territory-bond-issue" aria-label="債券を選択"></select></label></div>
+ <div id="territory-bond-info">債券はまだ発行されていません。</div>
+ <div class="territory-row"><label>購入数 <select id="territory-bond-buy-units"><option value="1">1口</option><option value="2">2口</option><option value="5">5口</option><option value="10">10口</option></select></label>
+  <button type="button" id="territory-bond-buy">🪙 債券を購入</button></div>
+ <small>満期時に公金不足なら返済遅延となり、支持度が下がります。オフライン試作のため保有者はプレイヤー1人です。</small>
  <hr><strong>📜 所有権・登記簿</strong><div id="territory-date"></div><div id="territory-asset-count"></div>
  <div class="territory-row"><label>土地の半径 <select id="territory-radius"><option value="10">10m</option><option value="20" selected>20m</option><option value="50">50m</option><option value="100">100m</option></select></label>
   <button type="button" id="territory-claim">📍 現在地の土地を登記</button></div>
@@ -1310,6 +1327,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9l-custody-release-xr-v09m-media-v09n"></script>
+<script type="module" src="./app.mjs?v=0.9l-custody-release-xr-v09m-media-v09n-public-bonds-v09o"></script>
 </body>
 </html>

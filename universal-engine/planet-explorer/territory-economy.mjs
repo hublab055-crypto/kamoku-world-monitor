@@ -3,6 +3,7 @@
  * NOT a multiplayer permission boundary: authoritative checks require a server.
  */
 import {DESTINATIONS,settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+import {PublicBonds} from "./public-bonds.mjs?v=0.9o-public-bonds";
 
 const MAX_COINS=999999999;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -37,6 +38,7 @@ export class TerritoryEconomy{
   this.ledger=[];
   this.nextDeedId=1;
   this.lastCollectedMonth=Math.floor(Math.max(0,Number(nowDay)||0)/30);
+  this.bonds=new PublicBonds(this,saved?.bonds||null);
   if(!saved||saved.schemaVersion!==1)return;
   this.lastCollectedMonth=integer(saved.lastCollectedMonth,this.lastCollectedMonth,1000000);
   for(const [id,old] of Object.entries(saved.territories||{})){
@@ -185,6 +187,7 @@ export class TerritoryEconomy{
  snapshot(){
   return {schemaVersion:1,lastCollectedMonth:this.lastCollectedMonth,
    nextDeedId:this.nextDeedId,territories:JSON.parse(JSON.stringify(this.territories)),
-   assets:this.assets.map(a=>({...a})),ledger:this.ledger.map(e=>({...e}))};
+   assets:this.assets.map(a=>({...a})),ledger:this.ledger.map(e=>({...e})),
+   bonds:this.bonds.snapshot()};
  }
 }
