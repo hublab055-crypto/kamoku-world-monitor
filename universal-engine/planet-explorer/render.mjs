@@ -1609,6 +1609,7 @@ export class ExplorerRenderer{
    this.orbitDetailCenter=null;this.orbitDetailRadius=0;
   }
   this.screenActors=[];this.screenEnemies=[];this.screenGuards=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  if(!xr){
   if(this.railwaySecurity?.jailed)return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
    return this.renderRailwayConcourse(asp);
@@ -1616,6 +1617,7 @@ export class ExplorerRenderer{
   if(this.trainInterior&&this.railJourney)return this.renderRailJourney(asp,dt);
   if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
   if(this.townInterior)return this.renderTownInterior(asp);
+  }
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
  }
  /** A train follows its actual geodesic rail path, never a free-flight camera proxy. */
