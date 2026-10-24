@@ -2501,7 +2501,7 @@ export class ExplorerRenderer{
    baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   // In standing VR, the avatar's head would overlap the real user's eyes.
-  if(this.xrView?.mode!=="vr"&&
+  if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
     !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   if(capture?.stars){
