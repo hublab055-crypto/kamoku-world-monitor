@@ -41,7 +41,7 @@ export class VideoTextureRenderer {
   this.content=gl.getUniformLocation(this.program,"uContent");
   this.vao=gl.createVertexArray();this.buffer=gl.createBuffer();
   gl.bindVertexArray(this.vao);gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);
-  gl.bufferData(gl.ARRAY_BUFFER,20*4,gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER,30*4,gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
   gl.enableVertexAttribArray(1);gl.vertexAttribPointer(1,2,gl.FLOAT,false,20,12);
   gl.bindVertexArray(null);
