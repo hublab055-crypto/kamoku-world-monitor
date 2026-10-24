@@ -63,6 +63,7 @@ import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
 import {installXRUI} from "./xr-ui.mjs?v=0.9m-xr-controls-vr";
+import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -90,7 +91,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let xrUI=null;
+let xrUI=null,mediaUI=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -521,6 +522,7 @@ function init(saved=null){
   keys.clear();touches.clear();stick={x:0,y:0};
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
+  if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
@@ -1296,6 +1298,7 @@ function captureGame(){
          v0_8w:{schemaVersion:1,owner:ownerWorld.snapshot()},
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
+    v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
@@ -3388,6 +3391,8 @@ $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
 init();
+mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
+ getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onPlanetPick:(lat,lon)=>{
