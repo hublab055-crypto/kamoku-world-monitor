@@ -353,6 +353,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);
    }
    if(activeMode==="vr"){
+    if(vrFrames===90)vrDrawError="追跡姿勢が取得できません";
     vrMark("XRフレーム受信／追跡姿勢なし",{force:vrFrames===1||vrFrames===30||vrFrames===90,
      log:vrFrames===90});
    }
@@ -360,6 +361,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   if(activeMode==="vr"){
    vrHasPose=true;
+   if(vrDrawError==="追跡姿勢が取得できません")vrDrawError="";
    if(vrFrames===1)vrMark("追跡姿勢取得／"+pose.views.length+"眼",{force:true});
   }
   if(!anchor)anchor=xrAnchor(pose.transform.matrix,{floor:usingFloor});
