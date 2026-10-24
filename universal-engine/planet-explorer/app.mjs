@@ -63,6 +63,7 @@ import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9h-dialogue";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
 import {installXRUI} from "./xr-ui.mjs?v=0.9j-xr-interior-depth";
+import {installMediaUI} from "./media-ui.mjs?v=0.9k-media-culture";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -3313,6 +3314,8 @@ $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
 init();
+const mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
+ getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onRTSSelect:(x,z)=>{
