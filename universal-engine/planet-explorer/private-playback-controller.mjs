@@ -3,9 +3,9 @@
  * The caller owns any user-facing status strings. No service restrictions are bypassed.
  */
 export class PrivatePlaybackController {
-  constructor({hlsFactory=null}={}) {
+  constructor({hlsFactory=null,host=null}={}) {
     this.sessions=new Map();
-    this.hlsFactory=hlsFactory;
+    this.hlsFactory=hlsFactory;this.host=host;
   }
   open(id, source, {onStatus=()=>{},muted=true}={}) {
     this.close(id);
@@ -26,6 +26,11 @@ export class PrivatePlaybackController {
     video.addEventListener("loadedmetadata",playable);
     state.cleanup=()=>{video.removeEventListener("error",fail);video.removeEventListener("loadedmetadata",playable);};
     state.media=video;
+    if(this.host){
+      // iPhone Safari may suspend detached/offscreen video elements.
+      video.style.cssText="position:absolute;left:0;top:0;width:1px;height:1px;opacity:.01;pointer-events:none";
+      this.host.append(video);
+    }
     if(source.format==="hls" && !video.canPlayType("application/vnd.apple.mpegurl")) {
       const Hls=this.hlsFactory;
       if (!Hls || !Hls.isSupported?.()) {
@@ -71,6 +76,7 @@ export class PrivatePlaybackController {
       s.media.pause();
       s.media.removeAttribute("src");
       s.media.load(); // tear down decoder / fetch resources on iOS
+      s.media.remove?.();
     }
     s.hls?.destroy?.();
     if(s.iframe){s.iframe.removeAttribute("src");s.iframe.remove();}
