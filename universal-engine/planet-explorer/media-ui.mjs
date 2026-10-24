@@ -253,7 +253,8 @@ export function installMediaUI({getController,getRenderer,getTerrain,getGameDays
  }
  refreshSurfaces();raf=requestAnimationFrame(updateWorld);
  window.addEventListener("pagehide",persist);
- return {library,open,close,save:persist,refresh:commit,destroy(){
+ return {get library(){return library;},open,close,save:persist,refresh:commit,
+  loadSnapshot:snapshot=>{library=new MediaLibrary(snapshot);commit();},destroy(){
   cancelAnimationFrame(raf);closePreview();panel.remove();world.remove();toggle.remove();q.remove();
   for(const url of cache.values())URL.revokeObjectURL(url);
  }};
