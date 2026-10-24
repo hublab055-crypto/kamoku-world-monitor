@@ -64,6 +64,7 @@ import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
 import {installXRUI} from "./xr-ui.mjs?v=0.9m-xr-controls-vr";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
+import {installSurfaceVideoUI} from "./surface-video-ui.mjs?v=0.9p-private-stream";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -91,7 +92,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let xrUI=null,mediaUI=null;
+let xrUI=null,mediaUI=null,surfaceVideoUI=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -3396,6 +3397,12 @@ window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal()
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
+surfaceVideoUI=installSurfaceVideoUI({
+ getController:()=>controller,getRenderer:()=>renderer,getTerrain:()=>terrain,
+ getOwnerWorld:()=>ownerWorld
+ // The current planet explorer is offline. A verified multiplayer transport,
+ // its public provider policy and server-side authorization are future inputs.
+});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onPlanetPick:(lat,lon)=>{
