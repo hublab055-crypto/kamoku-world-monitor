@@ -102,7 +102,14 @@ export class FaunaWorld {
  releaseCustodyMount(actor,canStand=()=>true){
   const horse=this.custodyMount;
   if(!horse){this.custodyMountId=null;return {ok:false,message:"預かった馬はいません"};}
-  const candidates=[[3,0],[0,3],[-3,0],[0,-3],[3,3],[-3,3],[3,-3],[-3,-3]];
+  const candidates=[];
+  // Scan several nearby rings before giving up, for sloping station entrances.
+  for(const radius of [3,4.5,6,8,12]){
+   for(let i=0;i<8;i++){
+    const angle=i*Math.PI/4;
+    candidates.push([Math.cos(angle)*radius,Math.sin(angle)*radius]);
+   }
+  }
   const choice=candidates.find(([dx,dz])=>canStand(actor.x+dx,actor.z+dz));
   if(!choice)return {ok:false,message:"馬を戻せる安全な地形がありません"};
   horse.x=actor.x+choice[0];horse.z=actor.z+choice[1];horse.yaw=actor.yaw;
