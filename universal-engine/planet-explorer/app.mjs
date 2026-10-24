@@ -564,6 +564,12 @@ function doFrame(t){
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
   const detained=Boolean(railwaySecurity?.jailed||law?.custody||law?.pendingDeath||law?.gameOver);
   const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const xrAxes=xrUI?.inputVector?.();
+  if(xrAxes&&!detained){
+   input.forward=clamp(input.forward+xrAxes.forward,-1,1);
+   input.strafe=clamp(input.strafe+xrAxes.strafe,-1,1);
+   input.turn=clamp(input.turn+xrAxes.turn,-1,1);
+  }
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
   if(inConcourse)railway.walkConcourse(running?dt:0,input);
