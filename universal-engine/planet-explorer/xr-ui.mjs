@@ -5,7 +5,7 @@ import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit} from "./xr-spatial.mjs?v
  * No save-schema changes. XR is presentation-only unless the user selects a
  * unit on the miniature RTS surface with a controller trigger.
  */
-export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},notify=()=>{}}){
+export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSMove=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale");
@@ -97,6 +97,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},notify
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
    session.addEventListener("end",endCleanup,{once:true});
    session.addEventListener("select",onSelect);
+   session.addEventListener("squeeze",onSqueeze);
    update();
    statusText(mode==="vr"?"VR表示中。ヘッドセットの終了操作で元に戻れます。":
     "MR表示中。トリガーで実空間の配置を更新し、卓上RTSでは味方を選択できます。");
@@ -132,6 +133,27 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},notify
    statusText(hitPose?"MRモデルを実空間の面に再配置しました":
     "MRモデルを正面に置き直しました（平面検出なし）");
   }
+ }
+ function onSqueeze(event){
+  if(!session||activeMode!=="mr-rts"||!anchor||!space||!event.frame)return;
+  const raySpace=event.inputSource?.targetRaySpace;
+  const pose=raySpace&&event.frame.getPose(raySpace,space);
+  if(!pose)return;
+  const point=xrTableHit(pose.transform.matrix,anchor,getController().yaw,getController(),Number(scaleInput.value));
+  if(point&&onRTSMove(point.x,point.z))statusText("📍 選択した味方にMR卓上の移動指示を出しました");
+ }
+ function inputVector(){
+  if(!session||activeMode!=="vr")return null;
+  const out={forward:0,strafe:0,turn:0};
+  const deadzone=v=>Math.abs(v)<.18?0:Math.max(-1,Math.min(1,v));
+  for(const src of session.inputSources||[]){
+   const a=src.gamepad?.axes;
+   if(!a?.length)continue;
+   const x=deadzone(a.length>=4?a[2]:a[0]),y=deadzone(a.length>=4?a[3]:a[1]);
+   if(src.handedness==="left"){out.forward=-y;out.strafe=x;}
+   if(src.handedness==="right")out.turn=x;
+  }
+  return out;
  }
  function drawXR(time,frame){
   if(!session)return;
@@ -193,7 +215,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},notify
  }
  buttons.exit.addEventListener("click",()=>session?.end().catch(error=>statusText(String(error))));
  update();probe();
- return {get active(){return present();},get mode(){return activeMode;},
+ return {get active(){return present();},get mode(){return activeMode;},inputVector,
   close:()=>session?.end(),dispose:()=>{
    disposed=true;
    if(session)session.end().catch(()=>{});
