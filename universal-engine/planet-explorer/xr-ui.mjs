@@ -140,7 +140,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // requestSession must be invoked in the click gesture, before awaiting
    // permissions, feature checks, or any asynchronous GL setup.
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:[])]};
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:["layers"])]};
    if(root)init.domOverlay={root};
    const depthOptions=depthFeatureOptions(requestedType);
    if(depthOptions.optionalFeature){
