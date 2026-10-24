@@ -1596,7 +1596,8 @@ export class ExplorerRenderer{
    gl.scissor(xr.viewport.x,xr.viewport.y,w,h);
   }else gl.viewport(0,0,w,h);
   // Passthrough MR requires an alpha-zero background; meshes remain opaque.
-  gl.clearColor(.011,.032,.071,xr?.mode.startsWith("mr-")?0:inOrbit?1:0);
+  if(xr?.mode==="vr"&&!inOrbit)gl.clearColor(.40,.64,.78,1);
+  else gl.clearColor(.011,.032,.071,xr?.mode.startsWith("mr-")?0:inOrbit||xr?1:0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0])); // orbit/interior never fog
   const asp=w/h;
