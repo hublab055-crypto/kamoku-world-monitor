@@ -273,6 +273,66 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    session?.end().catch(()=>{});
   }else statusText("↓ 降下できません。地形・手配状態・乗り物を確認してください");
  }
+
+ function sampleVRRig(frame,headOverride=null,time=performance.now()){
+  if(activeMode!=="vr"||!frame||!space)return;
+  const matrix=(source,kind)=>{
+   const target=kind==="grip"?(source?.gripSpace||source?.targetRaySpace):source?.targetRaySpace;
+   try{return target?frame.getPose(target,space)?.transform.matrix||null:null;}
+   catch(_){return null;}
+  };
+  const left=[...(session?.inputSources||[])].find(s=>s.handedness==="left");
+  const right=[...(session?.inputSources||[])].find(s=>s.handedness==="right");
+  let head=headOverride;
+  if(!head)try{head=frame.getViewerPose(space)?.transform.matrix||null;}catch(_){}
+  const last=vrPhysical.pose||{};
+  const gear={head:head||last.head,left:matrix(left,"grip")||last.left,
+   right:matrix(right,"grip")||last.right,
+   leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
+  const events=vrPhysical.setPose(gear,time,{floorY:usingFloor?0:null});
+  if(vrRTS)return;
+  for(const action of events){
+   if(action==="swordSwing"){
+    const yaw=gear.rightRay&&vrCurrentStage?xrPointerYaw(gear.rightRay,vrCurrentStage):null;
+    if(yaw!==null)onVRAim(yaw,"right");
+    if(onVRCommand("sweep")?.ok)statusText("⚔️ VR：剣の振り動作で攻撃");
+   }else if(action==="nock")
+    statusText("🏹 矢をつがえました。右トリガーで引いて、離すと射撃");
+  }
+ }
+ function onVRSqueezeStart(event){
+  if(activeMode!=="vr"||vrRTS||!event.frame)return;
+  sampleVRRig(event.frame);
+  const hand=event.inputSource?.handedness;
+  if(!["left","right"].includes(hand))return;
+  const result=vrPhysical.grab(hand,(item,grip)=>onVRGrab(item,grip)===true);
+  if(result.kind==="none")return;
+  vrGripConsumed.add(hand);
+  if(result.kind==="unavailable")statusText("🥽 "+result.item+"が装備・所持品にありません");
+  else if(result.kind==="no-bow")statusText("🏹 先に左肩から弓を取ってください");
+  else if(result.kind==="sheathe"){
+   onVRGrab("sheathe",hand);statusText("⚔️ 剣を納刀しました");
+  }else statusText("🥽 "+({bow:"左肩から弓",arrow:"右肩の矢筒から矢",sword:"左腰から剣"}[result.kind]||result.kind)+"を取り出しました");
+ }
+ function onVRSelectStart(event){
+  if(activeMode!=="vr"||vrRTS||!event.frame)return;
+  sampleVRRig(event.frame);
+  if(vrPhysical.triggerStart(event.inputSource?.handedness)==="draw")
+   statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
+ }
+ function onVRSelectEnd(event){
+  if(activeMode!=="vr"||vrRTS||!event.frame)return;
+  sampleVRRig(event.frame);
+  const outcome=vrPhysical.triggerEnd(event.inputSource?.handedness);
+  if(!outcome)return;
+  if(outcome.kind==="shoot"){
+   const ray=vrPhysical.pose?.leftRay;
+   const yaw=ray&&vrCurrentStage?xrPointerYaw(ray,vrCurrentStage):null;
+   if(yaw!==null)onVRAim(yaw,"left");
+   const fired=onVRCommand("shoot");
+   statusText(fired?.ok?"🏹 VR：トリガーを離して射撃":"🏹 射撃できません。矢・体力・行動中を確認してください");
+  }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
+ }
  function onSelect(event){
   if(!session||!anchor||!space||!event.frame)return;
   const source=event.inputSource;
@@ -280,6 +340,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const ray=event.frame.getPose(source.targetRaySpace,space);
   if(!ray)return;
   if(activeMode==="vr"){
+   if(vrPhysical.suppressSelect(source.handedness))return;
    if(vrRTS&&source.handedness==="right"){
     const actor=getController();
     const point=xrTableHit(ray.transform.matrix,anchor,actor.yaw,actor,Number(scaleInput.value),vrTableYaw);
@@ -328,7 +389,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const pose=raySpace&&event.frame.getPose(raySpace,space);
   if(!pose)return;
   if(activeMode==="vr"){
-   const result=onVRCommand(event.inputSource?.handedness==="right"?"guard":"shoot");
+   const hand=event.inputSource?.handedness;
+   if(vrGripConsumed.delete(hand))return;
+   const result=onVRCommand(hand==="right"?"guard":"shoot");
    if(result?.ok)statusText("🥽 "+(event.inputSource?.handedness==="right"?"防御":"弓射撃")+"を実行");
    return;
   }
@@ -479,6 +542,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(vrFrames===1)vrMark("追跡姿勢取得／"+pose.views.length+"眼",{force:true});
   }
   if(!anchor)anchor=xrAnchor(pose.transform.matrix,{floor:usingFloor});
+  if(activeMode==="vr")sampleVRRig(frame,pose.transform.matrix,time);
   if(hitSource&&frame.getHitTestResults){
    const hits=frame.getHitTestResults(hitSource);
    const hit=hits?.[0]?.getPose(space);hitPose=hit?.transform.matrix||null;
@@ -622,7 +686,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
-    if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
+    if(mode==="vr"){
+     renderer.drawVRBody?.(renderer.xrView,vrPhysical.snapshot());
+     if(vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
+    }
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
      if(sceneErr){
