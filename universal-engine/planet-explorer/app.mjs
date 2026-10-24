@@ -1618,14 +1618,14 @@ function selectOrbitCity(place){
 }
 $("landing-water-mode").addEventListener("change",updateOrbitSelection);
 function confirmOrbitLanding(){
- if(!orbitSelection?.site)return;
- if(railway?.boarded){log("🚂 列車を降りてから別の地点へ降下してください。");return;}
- if(railwaySecurity?.wanted||railwaySecurity?.jailed){log("🚨 鉄道保安の追跡・勾留中は別地点へ移動できません。");return;}
+ if(!orbitSelection?.site)return false;
+ if(railway?.boarded){log("🚂 列車を降りてから別の地点へ降下してください。");return false;}
+ if(railwaySecurity?.wanted||railwaySecurity?.jailed){log("🚨 鉄道保安の追跡・勾留中は別地点へ移動できません。");return false;}
  if(orbitSelection.cityId){
   const result=visitSettlement(destinationById(orbitSelection.cityId),{fromOrbit:true});
   if(result.ok)clearOrbitSelection();
   log(result.message);
-  return;
+  return Boolean(result.ok);
  }
  try{
   const site=orbitSelection.site;
@@ -1655,7 +1655,8 @@ function confirmOrbitLanding(){
   log(site.mode==="sea-ship"?"⛵ 中型帆船の甲板に到着しました。操船パネルで舵・帆・巡航・投錨を操作できます。":
    site.mode==="sea"?"🌊 海上降下：水面に出ました。泳ぐ・潜る・船で航海できます。":
     "🏝️ 陸上への降下を開始します"+(site.movedM?"（海を避け、近隣の陸地へ移動）":""));
- }catch(e){log("地点降下エラー: "+e.message);}
+  return true;
+ }catch(e){log("地点降下エラー: "+e.message);return false;}
 }
 /** Planetary travel to named settlements. The local waypoint map is unaffected. */
 function visitSettlement(place,{byRail=false,fromOrbit=false}={}){
@@ -3389,18 +3390,28 @@ window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal()
 init();
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
- onRTSSelect:(x,z)=>{
+ onPlanetPick:(lat,lon)=>{
+  if(!terrain||!renderer||!Number.isFinite(lat)||!Number.isFinite(lon))return false;
+  orbitalCitiesUI?.clearChoice();
+  orbitSelection={pickedLat:lat,pickedLon:lon,site:null};
+  updateOrbitSelection();updateHUD();
+  return Boolean(orbitSelection.site);
+ },
+ onPlanetLand:()=>confirmOrbitLanding(),
+ onRTSAll:()=>{squad?.selectAll();updateHUD();},
+ onRTSSelect:(x,z,scale=.0014)=>{
   if(!squad)return false;
   const distance=a=>Math.hypot(a.control.x-x,a.control.z-z);
   const nearest=squad.agents.reduce((best,a)=>distance(a)<(best?distance(best):Infinity)?a:best,null);
-  // A 6 m world-space hit radius intentionally favors an explicit actor tap.
-  if(!nearest||distance(nearest)>6)return false;
+  // Physical ~35 mm tap target improves miniature selection across headsets.
+  const radius=Math.max(6,.035/Math.max(.00001,scale));
+  if(!nearest||distance(nearest)>radius)return false;
   squad.choose(nearest.id);updateHUD();
   log("🥽 MR卓上RTS："+nearest.name+"を選択しました");
   return true;
  },
  onRTSMove:(x,z)=>{
-  if(!squad?.selected.size)return false;
+  if(!squad?.selected.size||!Number.isFinite(x)||!Number.isFinite(z))return false;
   const moved=squad.orderMove([...squad.selected],x,z);
   if(moved){log("🥽 MR卓上RTS："+moved+"人へ移動指示");updateHUD();}
   return moved>0;
