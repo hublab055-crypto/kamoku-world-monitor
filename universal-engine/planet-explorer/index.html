@@ -90,6 +90,19 @@
 .strategy-panel small{color:#c6dce5}
 @media(max-width:680px){.strategy-panel{top:43px;max-height:74vh}}
 </style>
+<style>
+#society-panel[hidden]{display:none!important}
+.society-panel{position:absolute;z-index:25;top:50px;right:7px;left:auto;bottom:auto;width:min(395px,calc(100% - 14px));max-height:78vh;overflow:auto;background:#102a39f6;color:#f4f8fd;border:1px solid #86b5c8;border-radius:12px;padding:10px;box-shadow:0 8px 28px #0009;font:12px/1.5 system-ui,sans-serif}
+.society-panel label{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.society-panel button,.society-panel select,.society-panel input{font-size:12px;min-height:30px;max-width:100%}
+.society-panel .society-job-row{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin:6px 0;border-bottom:1px solid #ffffff24;padding-bottom:5px}
+.society-panel .society-job-row span{flex:1 1 145px}
+.society-panel #society-jobs{max-height:170px;overflow:auto}
+.society-panel #society-residents{display:grid;gap:6px}
+.society-panel hr{border:0;border-top:1px solid #ffffff36;margin:8px 0}
+.society-panel small{color:#c8d9e8}
+@media(max-width:680px){.society-panel{top:43px;max-height:74vh}}
+</style>
 </head>
 <body>
 <header class="site-header">
@@ -262,6 +275,7 @@
     <button type="button" id="viewport-territory" aria-expanded="false" aria-controls="territory-panel">🏡 土地・税</button>
      <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
     <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
+    <button type="button" id="viewport-society" aria-expanded="false" aria-controls="society-panel">🏛️ 仕事・学校・医療</button>
     <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
     <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
      <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
@@ -581,6 +595,32 @@
  <div id="town-interaction-actions" class="town-interaction-actions"></div>
  <p id="town-interaction-status" role="status" aria-live="polite">近づいて交流してください。</p>
  <small>🗺️ マップ一覧で人物・建物を選ぶと、遠くの対象も確認できます。会話・売買・入室は一定距離以内のみです。</small>
+</section>
+<section id="society-panel" class="society-panel" role="dialog" aria-label="街の雇用・教育・医療" hidden>
+ <div class="fauna-panel-top"><strong>🏛️ 都市社会・求人</strong>
+  <button type="button" id="society-close" aria-label="都市社会メニューを閉じる">× 閉じる</button></div>
+ <label>都市 <select id="society-town" aria-label="確認する都市"></select></label>
+ <p id="society-stats">住民情報を読み込み中</p>
+ <p id="society-school">🏫 学校</p><p id="society-clinic">🏥 診療所</p>
+ <hr><strong>📣 求人・採用</strong>
+ <div class="society-job-row">
+  <label>職種 <select id="society-occupation"></select></label>
+  <label>人数 <input id="society-capacity" type="number" min="1" max="30" step="1" value="2" inputmode="numeric" style="width:58px"></label>
+  <label>日給 <input id="society-wage" type="number" min="1" max="10000" step="1" value="80" inputmode="numeric" style="width:75px"></label>
+  <button id="society-post" type="button">求人を公開</button>
+ </div>
+ <div id="society-jobs" aria-label="求人一覧"></div>
+ <hr><strong>📚 学校・🏥 診療所</strong>
+ <div id="society-residents"></div>
+ <hr><strong>🧑 プレイヤーの雇用</strong>
+ <p id="society-player"></p>
+ <div class="society-job-row">
+  <button id="society-pay" type="button">給与を受け取る</button>
+  <button id="society-resign" type="button">退職する</button>
+ </div>
+ <p id="society-status" role="status" aria-live="polite">求人や住民の学校・診療を管理できます。</p>
+ <ul id="society-events" aria-label="都市社会の履歴"></ul>
+ <small>試作版：住民の採用・通学・健康と移住はゲーム内の日数で更新。求人給与と医療は簡易計算です。3D住民の増減表示、勤務アニメーション、企業会計・資格制度・公的予算とは未連動です。</small>
 </section>
 <section id="marine-panel" class="fauna-panel" role="group" aria-label="海上移動・潜水・造船" hidden>
  <div class="fauna-panel-top"><strong>🌊 海・船・潜水</strong>
@@ -1301,6 +1341,6 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9k-custody-horse-stars"></script>
+<script type="module" src="./app.mjs?v=0.9l-society"></script>
 </body>
 </html>
