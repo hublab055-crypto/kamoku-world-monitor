@@ -26,8 +26,10 @@ const freshResident=(townId,i)=>({
  employerId:null,experience:0,studying:false
 });
 function makeTown(place){
- const count=place.id==="pioneer"?18:settlementLayout(place.id).residents.length;
- const people=Array.from({length:count},(_,i)=>freshResident(place.id,i));
+ const ids=place.id==="pioneer"?Array.from({length:18},(_,i)=>i):
+  settlementLayout(place.id).residents.map(p=>Number(p.id.slice("resident-".length)));
+ const count=ids.length;
+ const people=ids.map(i=>freshResident(place.id,i));
  const city=place.kind==="city",town=place.kind==="town";
  const jobs=[
   {id:"job-1",occupation:"farmer",ownerId:"community",sector:"private",wage:45,capacity:city?5:3},
@@ -46,7 +48,7 @@ function makeTown(place){
  const schools=city?2:1,clinics=city?2:1;
  return {id:place.id,name:place.name,people,jobs,schools,clinics,
   housingCapacity:count+6,schoolSeats:schools*(city?16:10),
-  clinicBeds:clinics*(city?8:4),nextResidentId:count,nextJobId:7,
+  clinicBeds:clinics*(city?8:4),nextResidentId:Math.max(...ids)+1,nextJobId:7,
   events:[]};
 }
 const validResident=p=>p&&typeof p.id==="string"&&/^resident-\d+$/.test(p.id)&&
@@ -154,7 +156,7 @@ export class SocietySystem{
   if(this.playerJob)return result(false,"すでに就職中です。退職後に応募してください");
   // Avatar skill/qualifications are not yet mapped; the initial gameplay only
   // supports unqualified entry-level jobs, never licensed teaching/medicine.
-  if(SOCIETY_OCCUPATIONS[j.occupation].skill>1||
+  if(SOCIETY_OCCUPATIONS[j.occupation].skill>0||
    SOCIETY_OCCUPATIONS[j.occupation].education>0)
    return result(false,"この職種への応募には資格・技能の連携が必要です");
   this.playerJob={townId,jobId};
