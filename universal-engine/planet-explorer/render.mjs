@@ -2473,6 +2473,15 @@ export class ExplorerRenderer{
      this.squad?.selected.has(a.id)?[1,.86,.3]:[.3,.87,1]);
    }
   }
+  if(this.xrView?.mode==="mr-rts"&&this.xrView.cursor){
+   const p=this.xrView.cursor;
+   const loc=geoOffset(s.origin.lat,s.origin.lon,p.x,p.z,this.planet.radiusM);
+   const y=Math.max(0,terrainSurface(this.terrain,loc.lat,loc.lon).elevationM);
+   const cursorScale=[17,0,0,0,0,1,0,0,0,0,17,0,0,0,0,1];
+   this.drawMesh(this.selectionRing,multiply4(vp,multiply4(
+    translate(p.x-this.cx,y+.22,p.z-this.cz),cursorScale)),
+    light,1,.99,[1,.58,.18]);
+  }
   if(camera.marker&&!this.xrView){
    const screen=projectScreen(vp,camera.actorPos);
    this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
