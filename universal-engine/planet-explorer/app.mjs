@@ -47,7 +47,7 @@ import {gameDaysForRealSeconds,normalizeTimeScale,DEFAULT_TIME_SCALE} from "./ga
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
-import {FaunaWorld} from "./fauna.mjs?v=0.9i-custody-horse";
+import {FaunaWorld} from "./fauna.mjs?v=0.9l-custody-horse-release";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
@@ -60,7 +60,7 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
-import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9h-dialogue";
+import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
 import {installXRUI} from "./xr-ui.mjs?v=0.9j-xr-interior-depth";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
@@ -251,6 +251,15 @@ function faunaGroundPassable(fx,fz,tx,tz){
  const before=sample(fx,fz),after=sample(tx,tz),step=Math.hypot(tx-fx,tz-fz);
  return !after.water&&!after.river&&after.elevationM<2800&&
   Math.abs(after.elevationM-before.elevationM)<=Math.max(.12,step*.74);
+}
+/** Allow patrols over small mesh steps while still rejecting steep terrain and water. */
+function guardGroundPassable(fx,fz,tx,tz){
+ if(!controller)return false;
+ const here=controller.locationAt(fx,fz),there=controller.locationAt(tx,tz);
+ const before=terrainSurface(terrain,here.lat,here.lon),after=terrainSurface(terrain,there.lat,there.lon);
+ const step=Math.hypot(tx-fx,tz-fz);
+ return !after.water&&!after.river&&after.elevationM<2800&&
+  Math.abs(after.elevationM-before.elevationM)<=Math.max(.5,step*1.8);
 }
 function init(saved=null){
  try{
@@ -650,7 +659,7 @@ function doFrame(t){
       restrictedZone:Boolean(GUARD_POSTS[activeSettlementId]&&
        Math.hypot(controller.x-GUARD_POSTS[activeSettlementId].x,
                   controller.z-GUARD_POSTS[activeSettlementId].z)<5),
-      hostiles:battle.enemies,passable:faunaGroundPassable,
+      hostiles:battle.enemies,passable:guardGroundPassable,
       eligible:controller.altitudeM<=12&&!townLife.inside&&!railway?.boarded&&!ferry?.boarded&&!marine?.boarded});
     for(const event of events){
       if(event.type==="guardAttack"){
@@ -808,7 +817,7 @@ function doFrame(t){
       text:(event.kind==="heal"?"+":"−")+event.amount,
       actorId:event.actorId,enemyId:event.enemyId,duration:1.1});
     }
-    if(renderer.playerHitSeconds>0)renderer.playerHitSeconds=Math.max(0,renderer.playerHitSeconds-dt);
+    // Hit-flash visual timer is updated outside the running-only branch.
    }
    if(running&&projectiles){
     const events=projectiles.advance(dt,{
@@ -902,6 +911,9 @@ function doFrame(t){
    locations:settlementLocations
   }:null;
   try{
+   // The hit overlay fades even when imprisonment pauses game simulation.
+   if(renderer.playerHitSeconds>0)
+    renderer.playerHitSeconds=Math.max(0,renderer.playerHitSeconds-dt);
    // While the headset owns the WebGL framebuffer, its XR animation callback
    // renders both eyes. The existing RAF still runs simulation and HUD logic.
    const captureWasPlaying=Boolean(renderer?.captureFX&&
@@ -917,7 +929,7 @@ function doFrame(t){
    updateOrbitLandingMarker(renderer.screenLanding);
    updateDescentOverlay(controller.altitudeM);
    updateRtsMarkers(renderer.screenActors);
-   worldUI?.frame(running?dt:0);
+   worldUI?.frame(dt); // Fade damage and speech while jailed/paused.
    $("world-hit-flash").style.opacity=String(Math.min(.85,Math.max(0,(renderer.playerHitSeconds||0)/.48))*.83);
    if(next!==displayMode){
     displayMode=next;
@@ -1847,6 +1859,9 @@ function updateRailwaySecurityHUD(){
 /** Both legal systems use one transition for the player and their mount. */
 function beginCustody(kind="law"){
  if(renderer?.captureFX?.kind===kind)return;
+ // Damage numbers from prior combat must not remain over the arrest cutscene.
+ worldUI?.clear();
+ if(renderer)renderer.playerHitSeconds=0;
  if(fauna?.mount){
   const parked=fauna.impoundMount(controller);
   if(parked.ok)log(parked.message);
@@ -1862,7 +1877,8 @@ function beginCustody(kind="law"){
 }
 /** Release must follow teleporting the avatar to the gate, not precede it. */
 function finishCustody(){
- renderer?.clearCapture();
+ renderer?.clearCapture();worldUI?.clear();
+ if(renderer)renderer.playerHitSeconds=0;
  controller.mountRiding=false;controller.walkSpeed=5;
  controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
  controller.altitudeM=2.5;controller.targetAltitude(2.5);
@@ -1873,7 +1889,12 @@ function finishCustody(){
   if(returned.ok)log(returned.message);
   else log("🐎 "+returned.message+"。馬は預けた場所に残っています。");
  }
- saveFaunaJournal();saveLifeJournal();
+ // Resume the world after paying bail or serving time so the guards patrol again.
+ if(!law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver){
+  running=true;
+  if(simWorld?.clock)simWorld.clock.paused=false;
+ }
+ saveFaunaJournal();saveLifeJournal();saveLawJournal();saveRailwaySecurityJournal();
  updateHUD();
 }
 function releaseRailwayCustody(result){

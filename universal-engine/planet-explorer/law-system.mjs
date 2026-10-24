@@ -18,6 +18,19 @@ export const GUARD_POSTS=Object.freeze({
  meadow:{name:"草原駐屯所",max:8,daily:1,x:16,z:10},
  forest:{name:"森林詰所",max:8,daily:1,x:18,z:6}
 });
+/** Recover outstanding railway charges from pre-v0.9l saves.
+ * Railway bail discharges only railway-security penalties, never unrelated crimes.
+ */
+function unsettledRailCharges(history,id){
+ let total=0;
+ for(const event of Array.isArray(history)?history:[]){
+  if(event?.id!==id)continue;
+  if(["railFineSettled","finePaid","servedSentence"].includes(event.type))total=0;
+  if(event.type==="crime"&&event.reporter==="railway-security")
+   total+=Math.max(0,CRIME_POINTS[event.kind]||0);
+ }
+ return total;
+}
 const normalizePerson=p=>({
  id:String(p?.id||"founder").slice(0,80),name:String(p?.name||"開拓者").slice(0,60),
  alive:p?.alive!==false,generation:Math.max(1,Math.trunc(finite(p?.generation,1))),
@@ -42,6 +55,7 @@ export class LawSystem{
    const s=saved?.factions?.[id]||{};
    this.factions[id]={
     heat:clamp(finite(s.heat),0,10000),alert:clamp(finite(s.alert),0,100),
+     railCasePoints:clamp(finite(s.railCasePoints,unsettledRailCharges(this.history,id)),0,10000),
     pursuit:Boolean(s.pursuit),lastSeenDay:finite(s.lastSeenDay,-1),
     hostile:Boolean(s.hostile),challengeShown:Boolean(s.challengeShown)&&!Boolean(s.challengePending),attackTimer:finite(s.attackTimer),lostSeconds:finite(s.lostSeconds),
     defenseAlert:Boolean(s.defenseAlert),
@@ -88,6 +102,7 @@ export class LawSystem{
   if(!s||!points)return {ok:false,message:"犯罪種別または管轄が不明です"};
   if(!witnessed)return {ok:true,reported:false,message:"目撃者がおらず、まだ手配されていません"};
   s.heat=clamp(s.heat+points,0,10000);
+  if(reporter==="railway-security")s.railCasePoints=clamp(s.railCasePoints+points,0,10000);
   s.alert=clamp(s.alert+points*.6,0,100);
   s.pursuit=true;s.lastSeenDay=this.day;
   // All warrants require a spoken encounter, including high-level crimes.
@@ -97,13 +112,22 @@ export class LawSystem{
   return {ok:true,reported:true,level:this.level(id),points,message:this.notice};
  }
  addWitnessReport(id,kind){return this.reportCrime(id,kind,{witnessed:true});}
- /** Settle only a railway trespass charge, not independent crimes like assault. */
+ /** Paying bail or serving time resolves all offences in that railway case.
+  * An independent charge, such as assaulting a town guard, is preserved.
+  * Idempotent: applying this twice must never forgive further unrelated crimes.
+  */
  settleRailTrespass(id){
-  const district=this.district(id);if(!district)return false;
-  district.heat=Math.max(0,district.heat-CRIME_POINTS.trespass);
-  if(this.level(id)===0){district.pursuit=false;district.hostile=false;district.challengeShown=false;}
-  this.history.push({day:this.day,type:"railFineSettled",id});
-  return true;
+  const s=this.district(id);if(!s)return false;
+  const discharged=Math.min(s.heat,Math.max(0,s.railCasePoints));
+  s.heat=Math.max(0,s.heat-discharged);
+  s.railCasePoints=0;
+  s.alert=Math.min(s.alert,s.heat*.6);
+  if(this.level(id)===0){
+   s.pursuit=false;s.hostile=false;s.challengeShown=false;s.challengePending=false;
+   s.engaged=false;s.warningKind=null;s.warningSpeakerId=null;
+  }
+  this.history.push({day:this.day,type:"railFineSettled",id,points:discharged});
+  return {ok:true,points:discharged,level:this.level(id)};
  }
 
  /** No random spawning. Guards leave a post's finite personnel pool; replacements are daily-capped. */
@@ -190,9 +214,21 @@ export class LawSystem{
        const nx=guard.x+vx/remaining*step,nz=guard.z+vz/remaining*step;
        // The host can reject water, steep slopes and solid wall cells.
        const canWalk=typeof passable!=="function"||passable(guard.x,guard.z,nx,nz);
-       if(canWalk){guard.x=nx;guard.z=nz;guard.walkPhase+=step*6;}
-       else if(!sees)guard.patrolIndex=(guard.patrolIndex+1)%4;
-       guard.yaw=Math.atan2(vx,vz);
+       if(canWalk){
+        guard.x=nx;guard.z=nz;guard.walkPhase+=step*6;
+        guard.yaw=Math.atan2(vx,vz);
+       }else{
+        // Detour locally around steep steps/solids instead of freezing the sentry.
+        // Keep the candidate within the passability constraints; never walk through water.
+        const ux=vx/remaining,uz=vz/remaining;
+        const sideSteps=[[uz,-ux],[-uz,ux],[-ux,-uz]];
+        const detour=sideSteps.find(([sx,sz])=>typeof passable!=="function"||
+         passable(guard.x,guard.z,guard.x+sx*step,guard.z+sz*step));
+        if(detour){
+         guard.x+=detour[0]*step;guard.z+=detour[1]*step;
+         guard.walkPhase+=step*6;guard.yaw=Math.atan2(detour[0],detour[1]);
+        }else if(!sees)guard.patrolIndex=(guard.patrolIndex+1)%4;
+       }
       }
     }
     if(sees&&dist<=4.3&&!enemy)contact=true;
@@ -293,8 +329,12 @@ export class LawSystem{
  payFine(id,pay){if(!this.custody||this.custody.faction!==id)return {ok:false,message:"この管轄では勾留されていません"};
   const fine=this.custody.fine;
   if(typeof pay!=="function"||!pay(fine))return {ok:false,message:"罰金を支払えません（"+fine+"G）"};
-  this.factions[id].heat=0;this.factions[id].alert=0;this.custody=null;this.factions[id].hostile=false;
-  return {ok:true,message:"罰金 "+fine+"G を支払い釈放された"};}
+  const s=this.factions[id];
+  s.heat=0;s.alert=0;s.railCasePoints=0;s.hostile=false;s.pursuit=false;
+  s.engaged=false;s.challengeShown=false;s.challengePending=false;s.warningKind=null;s.warningSpeakerId=null;
+  this.custody=null;
+  this.history.push({day:this.day,type:"finePaid",id,fine});
+  return {ok:true,level:0,message:"罰金 "+fine+"G を支払い釈放された"};}
  /** World-space combat target list; callers treat them as real colliders. */
  guardTargets(id){return (this.district(id)?.deployed||[]).filter(g=>g.hp>0).map(g=>({
   ...g,type:"lawguard",radius:g.kind==="knight"?.61:.52,height:2.15,maxHp:g.kind==="knight"?160:100
@@ -327,7 +367,8 @@ export class LawSystem{
   const period=Math.max(1,Math.min(90,Math.floor(Number.isFinite(days)?days:
    Math.ceil(this.custody.fine/30))));
   const s=this.district(id);
-  s.heat=0;s.alert=0;s.hostile=false;s.pursuit=false;s.challengeShown=false;
+  s.heat=0;s.alert=0;s.railCasePoints=0;s.hostile=false;s.pursuit=false;
+  s.engaged=false;s.challengeShown=false;s.challengePending=false;s.warningKind=null;s.warningSpeakerId=null;
   this.custody=null;this.day+=period;
   this.history.push({day:this.day,type:"servedSentence",id,days:period});
   return {ok:true,days:period,message:"🔓 "+period+"日間の服役を終え釈放された"};

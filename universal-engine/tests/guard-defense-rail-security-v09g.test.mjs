@@ -91,9 +91,9 @@ test("escape route and non-lethal resistance produce different police outcomes",
  assert.ok(caught.some(e=>e.type==="jailed"));
  assert.ok(resistance.jailed.fine>RAIL_BAIL_FINE);
 });
-test("rail settlement only removes trespass charge, leaving unrelated assault",()=>{
+test("rail settlement only removes rail-reported trespass, leaving unrelated assault",()=>{
  const law=new LawSystem();
- law.reportCrime("tower","trespass");
+ law.reportCrime("tower","trespass",{reporter:"railway-security"});
  law.reportCrime("tower","assault");
  law.settleRailTrespass("tower");
  assert.equal(law.district("tower").heat,32);

@@ -104,9 +104,11 @@ export class FaunaWorld {
   if(!horse){this.custodyMountId=null;return {ok:false,message:"預かった馬はいません"};}
   const candidates=[];
   // Scan several nearby rings before giving up, for sloping station entrances.
-  for(const radius of [3,4.5,6,8,12]){
-   for(let i=0;i<8;i++){
-    const angle=i*Math.PI/4;
+  // Search a larger station-yard area when the first ring falls on steep banks.
+  // The actual terrain callback still decides whether each point is safe.
+  for(const radius of [3,4.5,6,8,12,16,22,30]){
+   for(let i=0;i<16;i++){
+    const angle=i*Math.PI/8;
     candidates.push([Math.cos(angle)*radius,Math.sin(angle)*radius]);
    }
   }
