@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09s-body";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-v09s-body";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
