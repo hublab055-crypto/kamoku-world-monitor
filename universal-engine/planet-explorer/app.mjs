@@ -11,10 +11,10 @@ import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-ch
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
 import {OwnerWorld} from "./owner-world.mjs?v=0.9c-asset-v2";
-import {TerritoryEconomy} from "./territory-economy.mjs?v=0.9f-territory";
+import {TerritoryEconomy} from "./territory-economy.mjs?v=0.9o-public-bonds";
 import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
-import {installTerritoryUI} from "./territory-ui.mjs?v=0.9f-territory";
+import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
@@ -488,8 +488,9 @@ function init(saved=null){
    });
    lawUI.refresh();
    if(!territoryUI)territoryUI=installTerritoryUI({
-    get:()=>({economy:territoryEconomy,ownerWorld,controller,planet,activeSettlementId}),
-    save:saveTerritoryJournal,notify:log
+    get:()=>({economy:territoryEconomy,ownerWorld,controller,planet,activeSettlementId,wallet:townLife}),
+    save:()=>{saveTerritoryJournal();saveTownJournal();townUI?.refresh();factionUI?.refresh();},
+    notify:log
    });
    if(!factionUI)factionUI=installStrategyUI({
     get:()=>({strategy:factionStrategy,economy:territoryEconomy,planet}),
@@ -982,8 +983,10 @@ function updateHUD(){
    const changed=territoryEconomy.syncOwnerBuildings(ownerWorld);
    const months=territoryEconomy.collectUntil(planet?.timeDays);
    const strategyMonths=factionStrategy?.advanceUntil(planet?.timeDays)||0;
-   if(changed||months||strategyMonths){
+   const bondEvents=territoryEconomy.bonds.settle(planet?.timeDays,townLife);
+   if(changed||months||strategyMonths||bondEvents){
     saveTerritoryJournal();if(strategyMonths)saveFactionJournal();
+    if(bondEvents){saveTownJournal();townUI?.refresh();}
     territoryUI?.refresh();factionUI?.refresh();
    }
   }
