@@ -107,7 +107,7 @@ export class MediaLibrary{
  duplicate(id,owner="player"){
   const original=this.items.find(x=>x.id===Number(id));
   if(!original||!original.transferable)fail("この作品は複製できません");
-  return this.create({...original,owner,source:original.source});
+  return this.create({...original,owner,source:original.source.type==="youtube"?{type:"youtube",url:"https://www.youtube.com/watch?v="+original.source.videoId}:original.source});
  }
  place(id,mode,point){
   const item=this.items.find(x=>x.id===Number(id));
