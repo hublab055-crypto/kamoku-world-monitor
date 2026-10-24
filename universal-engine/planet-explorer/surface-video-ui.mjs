@@ -114,6 +114,14 @@ export function installSurfaceVideoUI({
  function drop(id){
   entries.delete(id);privatePlayback.close(id);embeds.remove(id);layer?.release(id);renderList();
  }
+ // Switching worlds must never carry a PRIVATE screen over to a different save.
+ function resetWorld(){
+  closePlayer();
+  for(const id of Array.from(entries.keys()))drop(id);
+  get("[data-url]").value="";
+  get("[data-trust]").checked=false;
+  allow.directHosts=[];
+ }
  function renderList(){
   const list=get("[data-list]");list.replaceChildren();
   if(!entries.size){list.append(make("small","", "設置された一時配信モニターはありません。"));return;}
@@ -202,14 +210,17 @@ export function installSurfaceVideoUI({
  }
  const visibility=()=>{if(document.hidden)for(const entry of entries.values())privatePlayback.setVisible(entry.id,false);};
  document.addEventListener("visibilitychange",visibility);
+ const pagehide=()=>resetWorld();
+ window.addEventListener("pagehide",pagehide);
  function destroy(){
   cancelAnimationFrame(frame);document.removeEventListener("visibilitychange",visibility);
+  window.removeEventListener("pagehide",pagehide);
   closePlayer();publicSync.disconnect();privatePlayback.closeAll();embeds.destroy();
   if(activeRenderer?.surfaceVideoLayer===layer){layer.destroy();activeRenderer.surfaceVideoLayer=null;activeRenderer.surfaceVideoEntries=null;}
   entries.clear();root.remove();overlay.remove();mediaHost.remove();toggle.remove();quickToggle.remove();
  }
  ensureLayer();frame=requestAnimationFrame(update);
- return {open,close,destroy,get privateScreens(){return entries.size;},
+ return {open,close,destroy,resetWorld,get privateScreens(){return entries.size;},
   // No snapshot/export method by design. An online server must supply its own public screens.
   publicSync};
 }
