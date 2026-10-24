@@ -1,5 +1,5 @@
 /** Non-invasive mobile law panel. The host owns save, battle HP and clock. */
-export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight,onWarningCompliance}){
+export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight,onWarningCompliance,onRelease}){
  const toolbar=document.getElementById("viewport-toolbar");
  const toggle=document.createElement("button");
  toggle.type="button";toggle.id="law-toggle";toggle.textContent="🚨 治安・手配";toggle.setAttribute("aria-controls","law-panel");
@@ -71,10 +71,14 @@ export function installLawUI({get,notify,onChange,onDetain,onSuccession,onFight,
    for(const heir of heirs)buttons.append(makeButton("👑 "+heir.name+"（第"+heir.generation+"代）",()=>onSuccession(heir.id)));
   }else if(law.custody){
    text(buttons,"p","🔒 勾留中："+law.custody.faction+" ／ 罰金 "+law.custody.fine+"G");
-   buttons.append(makeButton("罰金を払って釈放",()=>{const {law,payFine}=safeGet();return law.payFine(law.custody.faction,payFine);}));
+   buttons.append(makeButton("罰金を払って釈放",()=>{
+    const {law,payFine}=safeGet(),result=law.payFine(law.custody.faction,payFine);
+    if(result?.ok)onRelease?.();
+    return result;
+   }));
    buttons.append(makeButton("📆 服役して釈放",()=>{const {law,serveTime}=safeGet();
     const result=law.serveSentence(law.custody.faction);
-    if(result.ok)serveTime?.(result.days);
+    if(result.ok){serveTime?.(result.days);onRelease?.();}
     return result;}));
   }else{
    if(faction?.warningKind&&level===0){

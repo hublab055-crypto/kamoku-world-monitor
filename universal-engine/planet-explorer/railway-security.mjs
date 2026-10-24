@@ -95,7 +95,8 @@ export class RailwaySecurity{
   }
   _detain(stationId){
    const fine=RAIL_BAIL_FINE+(this.resisting?60:0);
-   this.jailed={stationId,fine};this.wanted=false;this.guard=null;
+   // Retain the actual arresting guard during the stun scene; jail rendering has its own guard.
+  this.jailed={stationId,fine};this.wanted=false;
    this.challenged=false;this.challengeRemaining=0;this.wasRestricted=false;
    this.fleeing=false;this.resisting=false;
    return {type:"jailed",stationId,fine,

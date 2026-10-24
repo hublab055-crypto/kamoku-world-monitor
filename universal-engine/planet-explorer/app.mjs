@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9j-xr-interior-depth";
+import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -47,7 +47,7 @@ import {gameDaysForRealSeconds,normalizeTimeScale,DEFAULT_TIME_SCALE} from "./ga
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
 import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
-import {FaunaWorld} from "./fauna.mjs?v=0.8f-animals";
+import {FaunaWorld} from "./fauna.mjs?v=0.9i-custody-horse";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
 import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
@@ -298,8 +298,17 @@ function init(saved=null){
   let faunaJournal=null;
   if(!saved)try{faunaJournal=JSON.parse(localStorage.getItem(FAUNA_JOURNAL_KEY)||"null");}catch(_){}
   fauna=new FaunaWorld(saved?.v0_8f?.fauna||faunaJournal);
+  // Fix old save slots that still have a mounted avatar inside detention.
+  if((law?.custody||railwaySecurity?.jailed)&&fauna.mount){
+   fauna.impoundMount(controller);saveFaunaJournal();
+  }
+  if(!law?.custody&&!railwaySecurity?.jailed&&fauna.custodyMountId){
+   fauna.releaseCustodyMount(controller,(x,z)=>faunaGroundPassable(controller.x,controller.z,x,z));
+   saveFaunaJournal();
+  }
   farm=new AgricultureWorld(saved?.v0_8g?.farm||(saved?null:loadFarmJournal()));
   controller.mountRiding=Boolean(fauna.mount);controller.walkSpeed=fauna.speed();
+  if(law?.custody||railwaySecurity?.jailed){controller.jumpY=0;controller.jumpV=0;}
   actions=saved?.actions?Actions.fromSnapshot(saved.actions):new Actions();
    actions.worldHarvestEnabled=true;
   battle=new BattleTest();
@@ -461,7 +470,8 @@ function init(saved=null){
       if(townLife.coins<amount)return false;townLife.coins-=amount;saveTownJournal();return true;
     },serveTime:days=>{planet.advance(days);saveLawJournal();updateHUD();}
     }),notify:log,onChange:()=>{saveLawJournal();updateHUD();},
-    onDetain:()=>{controller.clearMoveTarget();running=false;simWorld.clock.paused=true;saveLawJournal();lawUI?.open();},
+    onDetain:()=>{beginCustody("law");saveLawJournal();},
+    onRelease:()=>finishCustody(),
     onSuccession:heirId=>completeSuccession(heirId),
     onFight:()=>startGuardCombat(),
     onWarningCompliance:(id,kind)=>handleGuardWarningCompliance(id,kind)
@@ -658,8 +668,8 @@ function doFrame(t){
         if(vitals.stamina<=0&&battle.playerHp>0){const arrest=law.detain(activeSettlementId);if(arrest)events.push(arrest);}
       }
       if(event.type==="detained"){
-        controller.clearMoveTarget();running=false;simWorld.clock.paused=true;
-        lawUI?.closeEncounter();lawUI?.open();
+        beginCustody("law");
+        lawUI?.closeEncounter();
       }
       if(event.speech&&event.speakerId)worldUI?.speak(event.speakerId,event.speech,5.5);
       if(event.type==="challenge"||event.type==="territoryWarning")lawUI?.openEncounter(event);
@@ -894,7 +904,13 @@ function doFrame(t){
   try{
    // While the headset owns the WebGL framebuffer, its XR animation callback
    // renders both eyes. The existing RAF still runs simulation and HUD logic.
+   const captureWasPlaying=Boolean(renderer?.captureFX&&
+    renderer.captureFX.elapsed<renderer.captureFX.duration);
    const next=xrUI?.active?displayMode:renderer.frame(controller,dt);
+   if(captureWasPlaying&&renderer.captureFX.elapsed>=renderer.captureFX.duration){
+    if(law?.custody)lawUI?.open();
+    if(railwaySecurity?.jailed)updateRailwaySecurityHUD();
+   }
    orbitalCitiesUI?.setActive(next==="orbit");
    if(next==="orbit")orbitalCitiesUI?.frame(renderer.orbitCityMarkers(orbitalCitiesUI.destinations));
    updateActorMarker(renderer.actorMarker);
@@ -1785,7 +1801,8 @@ function handleRailwaySecurityEvent(event){
  if(event.message)log(event.message);
  if(event.speech&&event.speakerId)worldUI?.speak(event.speakerId,event.speech,5.5);
  if(event.type==="jailed"){
-  controller.clearMoveTarget();actions.cancel?.();townLife.leave();renderer.townInterior=null;
+  beginCustody("railway");
+  actions.cancel?.();townLife.leave();renderer.townInterior=null;
   townUI?.close(true);railwayUI?.close();mapDirectoryUI?.close();routeMapUI?.close();
   $("town-interior-exit").hidden=true;
   running=false;simWorld.clock.paused=true;
@@ -1795,7 +1812,10 @@ function handleRailwaySecurityEvent(event){
 function updateRailwaySecurityHUD(){
  const hud=$("railway-security-hud");if(!hud||!railwaySecurity)return;
  const state=railwaySecurity.state,jailed=state==="jailed",chased=state==="wanted"||state==="challenged";
- if(state==="clear"){hud.hidden=true;return;}
+ if(state==="clear"||(jailed&&renderer?.captureFX?.kind==="railway"&&
+  renderer.captureFX.elapsed<renderer.captureFX.duration)){
+  hud.hidden=true;return;
+ }
  hud.hidden=false;
  for(const [id,show] of [
   ["railway-bail",jailed],["railway-serve",jailed],
@@ -1824,6 +1844,38 @@ function updateRailwaySecurityHUD(){
   detail.textContent="柵内は危険です。警告に従って線路の外へ戻れます。踏切の横断は合法です。";
  }
 }
+/** Both legal systems use one transition for the player and their mount. */
+function beginCustody(kind="law"){
+ if(renderer?.captureFX?.kind===kind)return;
+ if(fauna?.mount){
+  const parked=fauna.impoundMount(controller);
+  if(parked.ok)log(parked.message);
+ }
+ controller.mountRiding=false;controller.walkSpeed=5;
+ controller.jumpY=0;controller.jumpV=0;controller.clearMoveTarget();
+ if(controller.travelMode==="walk"){
+  controller.altitudeM=2.5;controller.targetAltitude(2.5);
+ }
+ renderer?.beginCapture(kind);
+ running=false;simWorld.clock.paused=true;
+ saveFaunaJournal();saveLifeJournal();
+}
+/** Release must follow teleporting the avatar to the gate, not precede it. */
+function finishCustody(){
+ renderer?.clearCapture();
+ controller.mountRiding=false;controller.walkSpeed=5;
+ controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
+ controller.altitudeM=2.5;controller.targetAltitude(2.5);
+ controller.clearMoveTarget();
+ if(fauna?.custodyMountId){
+  const returned=fauna.releaseCustodyMount(controller,
+   (x,z)=>faunaGroundPassable(controller.x,controller.z,x,z));
+  if(returned.ok)log(returned.message);
+  else log("🐎 "+returned.message+"。馬は預けた場所に残っています。");
+ }
+ saveFaunaJournal();saveLifeJournal();
+ updateHUD();
+}
 function releaseRailwayCustody(result){
  if(!result.ok){log("釈放できませんでした: "+result.message);return;}
  if(result.settleReport){law.settleRailTrespass(result.stationId);saveLawJournal();}
@@ -1837,6 +1889,7 @@ function releaseRailwayCustody(result){
   controller.clearMoveTarget();renderer.patchKey=null;renderer.mapFocus=null;
   squad?.repositionAfterLanding();
  }
+ finishCustody();
  saveRailwayJournal();saveRailwaySecurityJournal();log("🔓 "+result.message);updateHUD();
 }
 function payRailwayBail(){

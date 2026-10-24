@@ -23,7 +23,7 @@ const initial=()=>[
  tame:false,trust:0,following:false,stamina:100,hunger:62,grazing:false,gear:{bit:false,reins:false,saddle:false,horseshoes:false}}));
 export class FaunaWorld {
  constructor(saved=null){
-  this.animals=initial();this.selectedId=null;this.mountId=null;this.gait="trot";this.elapsed=0;
+  this.animals=initial();this.selectedId=null;this.mountId=null;this.custodyMountId=null;this.gait="trot";this.elapsed=0;
   if(saved?.version===1&&Array.isArray(saved.animals)){
    for(const source of saved.animals){
     const dest=this.animals.find(a=>a.id===source.id&&a.kind===source.kind);
@@ -35,12 +35,15 @@ export class FaunaWorld {
     if(dest.kind==="horse")for(const key of Object.keys(TACK))dest.gear[key]=Boolean(source.gear?.[key]);
    }
    this.mountId=this.animals.some(a=>a.id===saved.mountId&&a.kind==="horse"&&a.tame)?saved.mountId:null;
+   this.custodyMountId=this.animals.some(a=>a.id===saved.custodyMountId&&a.kind==="horse"&&a.tame)?saved.custodyMountId:null;
+   if(this.mountId===this.custodyMountId)this.mountId=null;
    this.gait=Object.hasOwn(HORSE_GAITS,saved.gait)?saved.gait:"trot";
   }
  }
  get(id){return this.animals.find(a=>a.id===id)||null;}
  get selected(){return this.get(this.selectedId);}
  get mount(){return this.get(this.mountId);}
+ get custodyMount(){return this.get(this.custodyMountId);}
  select(id){if(!this.get(id))return false;this.selectedId=id;return true;}
  range(animal,actor){return Math.hypot(animal.x-actor.x,animal.z-actor.z);}
  tame(id,actor){
@@ -79,6 +82,41 @@ export class FaunaWorld {
   this.mountId=a.id;a.following=false;
   a.yaw=actor.yaw;
   return {ok:true,message:"🐎 騎乗しました。剣・槍・弓を使用できます"};
+ }
+ /** An arrest interrupts riding even where ordinary dismount is blocked.
+  * Preserve the horse, tack, stamina and tame state in the ordinary fauna save.
+  */
+ impoundMount(actor){
+  const horse=this.mount;
+  if(!horse)return {ok:false,id:this.custodyMountId,message:"騎乗していません"};
+  horse.x=actor.x;horse.z=actor.z;horse.yaw=actor.yaw;
+  horse.following=false;horse.grazing=false;
+  this.custodyMountId=horse.id;this.mountId=null;
+  actor.mountRiding=false;actor.walkSpeed=5;
+  actor.jumpY=0;actor.jumpV=0;actor.clearMoveTarget?.();
+  return {ok:true,id:horse.id,message:"🐎 馬を安全に預けました"};
+ }
+ /** Return the same horse near the released avatar. Never auto-remount.
+  * Safe cardinal candidate positions avoid walls, shore edges and obstacles.
+  */
+ releaseCustodyMount(actor,canStand=()=>true){
+  const horse=this.custodyMount;
+  if(!horse){this.custodyMountId=null;return {ok:false,message:"預かった馬はいません"};}
+  const candidates=[];
+  // Scan several nearby rings before giving up, for sloping station entrances.
+  for(const radius of [3,4.5,6,8,12]){
+   for(let i=0;i<8;i++){
+    const angle=i*Math.PI/4;
+    candidates.push([Math.cos(angle)*radius,Math.sin(angle)*radius]);
+   }
+  }
+  const choice=candidates.find(([dx,dz])=>canStand(actor.x+dx,actor.z+dz));
+  if(!choice)return {ok:false,message:"馬を戻せる安全な地形がありません"};
+  horse.x=actor.x+choice[0];horse.z=actor.z+choice[1];horse.yaw=actor.yaw;
+  horse.following=false;horse.grazing=false;
+  this.selectedId=horse.id;this.custodyMountId=null;this.mountId=null;
+  actor.mountRiding=false;actor.walkSpeed=5;actor.jumpY=0;actor.jumpV=0;
+  return {ok:true,id:horse.id,x:horse.x,z:horse.z,message:"🐎 預けていた馬が近くに戻りました"};
  }
  dismount(actor,canStand=()=>true){
   const a=this.mount;if(!a)return {ok:false,message:"騎乗していません"};
@@ -177,7 +215,7 @@ export class FaunaWorld {
   }
  }
  snapshot(){
-  return {version:1,mountId:this.mountId,gait:this.gait,
+  return {version:1,mountId:this.mountId,custodyMountId:this.custodyMountId,gait:this.gait,
    animals:this.animals.map(a=>({id:a.id,kind:a.kind,x:a.x,z:a.z,yaw:a.yaw,stamina:a.stamina,trust:a.trust,
     tame:a.tame,following:a.following,hunger:a.hunger,gear:{...a.gear}}))};
  }
