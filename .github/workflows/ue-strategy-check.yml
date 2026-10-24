@@ -5,11 +5,15 @@ on:
     paths:
       - 'universal-engine/planet-explorer/faction-strategy*.mjs'
       - 'universal-engine/planet-explorer/territory-economy.mjs'
+      - 'universal-engine/planet-explorer/public-bonds.mjs'
+      - 'universal-engine/tests/public-bonds.test.mjs'
       - '.github/workflows/ue-strategy-check.yml'
   pull_request:
     paths:
       - 'universal-engine/planet-explorer/faction-strategy*.mjs'
       - 'universal-engine/planet-explorer/territory-economy.mjs'
+      - 'universal-engine/planet-explorer/public-bonds.mjs'
+      - 'universal-engine/tests/public-bonds.test.mjs'
       - '.github/workflows/ue-strategy-check.yml'
   workflow_dispatch:
 
@@ -23,4 +27,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run strategy state and economy tests
-        run: node --test universal-engine/planet-explorer/faction-strategy.test.mjs
+        run: node --test universal-engine/planet-explorer/faction-strategy.test.mjs universal-engine/tests/public-bonds.test.mjs
