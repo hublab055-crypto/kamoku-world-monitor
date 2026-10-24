@@ -49,7 +49,7 @@ test("VR tabletop controller hit preserves original unrotated placement",()=>{
  assert.ok(rotated);assert.equal(rotated.x,12);assert.equal(rotated.z,30);
 });
 test("VR controller pointing yaw uses game-stage basis, independent of head orientation",()=>{
- const ray=xrIdentity();ray[8]=0;ray[10]=-1;
+ const ray=xrIdentity(); // local -Z is the forward ray
  assert.ok(Math.abs(Math.abs(xrPointerYaw(ray,xrIdentity()))-Math.PI)<.0001);
  const stage=xrStage({mode:"vr",anchor:{vrFloor:[0,0,0],heading:0,position:[0,.8,-1]}});
  const pointed=xrPointerYaw(ray,stage);
