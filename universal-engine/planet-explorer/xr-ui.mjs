@@ -1,6 +1,7 @@
 import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit} from "./xr-spatial.mjs?v=0.9k-xr";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
+import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -22,6 +23,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let previousPlanetHit=null,previousPlanetHitTime=0;
  let vrLayerIndex=0,vrPendingLayer=null,vrPendingFrames=0,vrFramebufferInfo="未検査";
  let vrRecoveryExhausted=false,vrLastErrorStep="";
+ let projection=null,projectionAttempted=false;
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
  let vrLastSnapshot="";
@@ -102,6 +104,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(renderer){renderer.xrView=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
   hitSource?.cancel?.();hitSource=null;hitPose=null;viewerSpace=null;
+  if(projection){if(renderer)destroyXRProjection(renderer.gl,projection);projection=null;}
+  projectionAttempted=false;
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
   if(activeMode==="vr"){
@@ -136,7 +140,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // requestSession must be invoked in the click gesture, before awaiting
    // permissions, feature checks, or any asynchronous GL setup.
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:[])]};
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:["layers"])]};
    if(root)init.domOverlay={root};
    const depthOptions=depthFeatureOptions(requestedType);
    if(depthOptions.optionalFeature){
@@ -171,6 +175,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    previousPlanetHit=null;previousPlanetHitTime=0;
    vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
    vrFramebufferInfo="未検査";vrRecoveryExhausted=false;vrLastErrorStep="";
+   projection=null;projectionAttempted=false;
    vrSceneFrames=0;vrLastCallbackAt=0;vrStage="開始";vrSessionVisibility=newSession.visibilityState||"不明";
    clearVRWatchdogs();
    if(mode==="vr")vrMark("セッション開始／XRコールバック待機",{force:true,log:true});
@@ -292,6 +297,25 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  function recoverVRFramebuffer(gl,reason){
   if(activeMode!=="vr")return;
   vrLastErrorStep=reason;
+  if(projection){
+   if(!vrRecoveryExhausted){
+    vrRecoveryExhausted=true;
+    vrMark("XRProjectionLayer描画エラー",{force:true,log:true});
+   }
+   return;
+  }
+  if(!projectionAttempted&&canUseXRProjection()){
+   projectionAttempted=true;
+   try{
+    projection=createXRProjection(session,gl);
+    vrFramebufferInfo="XRProjectionLayer反映待ち";
+    vrMark("Quest向けVR描画方式へ切替",{force:true,log:true});
+    return;
+   }catch(error){
+    vrLastErrorStep+="／XRProjectionLayer不可: "+(error?.message||error);
+    notify("🥽 代替XRProjectionLayerの作成に失敗: "+(error?.message||error));
+   }
+  }
   if(vrPendingLayer)return;
   const next=xrNextLayerIndex(vrLayerIndex);
   if(next===null){
@@ -370,8 +394,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const hit=hits?.[0]?.getPose(space);hitPose=hit?.transform.matrix||null;
   }
   const gl=renderer.gl,layer=session.renderState.baseLayer;
-  if(!layer){
+  if(!layer&&!projection){
    vrMark("XR描画レイヤー未適用",{force:vrFrames<2||vrFrames===30||vrFrames===90});
+   return;
+  }
+  if(activeMode==="vr"&&projection&&!projectionReady(session,projection)){
+   vrMark("XRProjectionLayer適用待ち",{force:vrFrames<2||vrFrames===30||vrFrames===90});
    return;
   }
   const mode=activeMode;
@@ -420,7 +448,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // WebXR opaque framebuffers are only renderable *inside* the XR frame
    // callback. A status probe here distinguishes an incompatible VR target
    // from a normal 3D scene error; never inspect its private attachments.
-   if(mode==="vr"&&vrPendingLayer){
+   const usingProjection=mode==="vr"&&Boolean(projection);
+   if(mode==="vr"&&!usingProjection&&vrPendingLayer){
     if(layer!==vrPendingLayer){
      if(++vrPendingFrames<45){
       vrMark("描画レイヤー切替待ち",{force:vrPendingFrames===1||vrPendingFrames===30});
@@ -430,20 +459,23 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     }else{vrPendingLayer=null;vrPendingFrames=0;}
    }
    const stale=mode==="vr"?readGLError(gl):null;
-   const target=probeXRFramebuffer(gl,layer);
-   if(mode==="vr"){
+   if(usingProjection){
+    vrFramebufferInfo="XRProjectionLayer／左右眼テクスチャ";
+   }else if(mode==="vr"){
+    const target=probeXRFramebuffer(gl,layer);
     vrFramebufferInfo="FB="+target.label+
      " "+target.width+"x"+target.height+"／layer="+vrLayerIndex;
     if(!target.ok){
      recoverVRFramebuffer(gl,"FB状態 "+target.label);
      vrMark("VR描画先不完全",{force:true,log:vrFrames===1});return;
     }
-    if(stale&&vrFrames<3)vrLastErrorStep="前フレームGL "+stale;
     if(vrFrames===1)vrMark("描画先確認済み",{force:true});
-   }else if(!target.ok){
-    if(vrFrames<3)statusText("MRの描画先が未準備です: "+target.label);
-    return;
+   }else{
+    // Legacy MR rendering already works on Quest. Avoid rejecting its
+    // opaque compositing framebuffer based on attachment introspection.
+    gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
    }
+   if(stale&&vrFrames<3)vrLastErrorStep="前フレームGL "+stale;
    // Restore output masks and depth testing after regular canvas rendering.
    gl.colorMask(true,true,true,true);
    gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
@@ -451,7 +483,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.enable(gl.SCISSOR_TEST);
    let renderedEyes=0;
    for(let index=0;index<pose.views.length;index++){
-    const view=pose.views[index],vp=layer.getViewport(view);
+    const view=pose.views[index];
+    const vp=usingProjection?bindXRProjectionView(gl,projection,view):layer.getViewport(view);
     if(!vp||vp.width<=0||vp.height<=0)continue;
     if(mode==="vr"){
      // Color-only calibration before drawing the real scene. When clear works
@@ -463,7 +496,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      const clearErr=readGLError(gl);
      if(clearErr){
       recoverVRFramebuffer(gl,"eye"+(index+1)+" clear "+clearErr+
-       "／FB="+target.label);
+       "／"+vrFramebufferInfo);
       vrMark("VR画面初期化エラー",{force:true,log:vrFrames===1});
       return;
      }
@@ -489,7 +522,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      const sceneErr=readGLError(gl);
      if(sceneErr){
       recoverVRFramebuffer(gl,"eye"+(index+1)+" scene "+sceneErr+
-       "／FB="+target.label);
+       "／"+vrFramebufferInfo);
       vrMark("VR 3D描画エラー",{force:true,log:vrFrames===1});
       return;
      }
