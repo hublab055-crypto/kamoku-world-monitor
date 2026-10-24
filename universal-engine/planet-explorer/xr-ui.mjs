@@ -75,7 +75,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(vrDiag&&vrFrames)vrDiag.textContent="VR診断："+vrFrames+"フレーム／追跡"+
    (vrHasPose?"取得済み":"未取得")+(vrDrawError?"／"+vrDrawError:"");
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
-  placementArmed=false;planetSelected=false;vrFrames=0;vrHasPose=false;vrDrawError="";
+  placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
   previousPlanetHit=null;previousPlanetHitTime=0;
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
@@ -85,7 +85,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(session){
    if(activeMode===mode)return;
    if(activeMode.startsWith("mr-")&&mode.startsWith("mr-")){
-    activeMode=mode;anchor=null;hitPose=null;placementArmed=false;planetSelected=false;
+    activeMode=mode;anchor=null;hitPose=null;placementArmed=false;planetSelected=false;planetYaw=0;
     previousPlanetHit=null;previousPlanetHitTime=0;update();
     statusText(mode==="mr-rts"?"MR卓上RTSに切り替えました":"MR惑星モデルに切り替えました");
    }else statusText("VRとMRを切り替えるには、いったん「XR終了」を押してください。");
@@ -129,7 +129,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      hitSource=await newSession.requestHitTestSource({space:viewerSpace});
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
-   placementArmed=false;planetSelected=false;vrFrames=0;vrHasPose=false;vrDrawError="";
+   placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
    previousPlanetHit=null;previousPlanetHitTime=0;
    if(vrDiag&&mode==="vr")vrDiag.textContent="VR診断：セッション開始、映像フレーム待機中";
    session.addEventListener("end",endCleanup,{once:true});
@@ -138,7 +138,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    update();
    statusText(mode==="vr"?"VR表示中。ヘッドセットの終了操作で元に戻れます。":
     "MR表示中。"+(depthTexture?"実物の深度遮蔽に対応。":"深度遮蔽はこの端末では利用できません。")+
-    " トリガーで配置や味方選択、グリップで移動指示。");
+    " 惑星ではトリガーで地点選択・再押下で降下、RTSではトリガーで選択と移動。模型再配置は専用ボタン。");
    newSession.requestAnimationFrame(drawXR);
   }catch(error){
    if(newSession&&newSession!==session)try{await newSession.end();}catch(_){}
