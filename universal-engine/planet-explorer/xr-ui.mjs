@@ -34,7 +34,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let projection=null,projectionAttempted=false;
  let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
- let vrInputInfo="未取得",vrMoveInfo="未計測",vrNoMotionFrames=0,vrWarned=false;
+ let vrInputInfo="未取得",vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
@@ -46,7 +46,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   return "🥽 VR診断："+stage+"／XRコールバック="+vrFrames+
    "／描画完了="+vrSceneFrames+"／追跡="+(vrHasPose?"あり":"未確認")+
    "／可視状態="+vrSessionVisibility+"／入力="+vrInputInfo+
-   "／歩行="+vrMoveInfo+"／"+vrFramebufferInfo+tail+
+   "／歩行="+vrMoveInfo+"／最終試行="+vrLastWalk+"／"+vrFramebufferInfo+tail+
    (vrDrawError?"／"+vrDrawError:"");
  }
  function vrMark(stage,{force=false,log=false}={}){
@@ -122,7 +122,6 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
   vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-  vrInputInfo="未取得";vrMoveInfo="未計測";vrNoMotionFrames=0;vrWarned=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
@@ -131,6 +130,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     vrFrames?"終了・XRフレーム受信／映像未描画":"終了・XRフレーム未受信";
    vrMark(ending,{force:true,log:!disposed});
   }
+  // Preserve the final stick/blocked diagnostic for inspection after exiting VR.
+  vrInputInfo="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
   placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
   previousPlanetHit=null;previousPlanetHitTime=0;
@@ -175,7 +176,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-  vrInputInfo="未取得";vrMoveInfo="未計測";vrNoMotionFrames=0;vrWarned=false;
+  vrInputInfo="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
@@ -569,6 +570,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      vrMoveInfo="移動 "+movement.traveledM.toFixed(3)+"m／高度 "+movement.altitudeM.toFixed(1)+
       "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"");
      const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
+     if(requested)vrLastWalk="前後 "+vrMovement.forward.toFixed(2)+
+      "／左右 "+vrMovement.strafe.toFixed(2)+"／変位 "+movement.traveledM.toFixed(3)+
+      "m／高度 "+movement.altitudeM.toFixed(1)+"m"+
+      (movement.blocked?"／衝突":"")+(movement.detained?"／拘束":"")+
+      "／"+vrInputInfo;
      if(requested&&movement.traveledM<.001){
       vrNoMotionFrames++;
       if(vrNoMotionFrames>80&&!vrWarned){
