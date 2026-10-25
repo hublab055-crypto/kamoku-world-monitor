@@ -15,6 +15,25 @@ test("Quest 3S left thumbstick walks and right thumbstick turns with drift deadz
  assert.equal(xrStick(gamepad([0,0,.05,-.06])).x,0);
  assert.equal(xrStick(gamepad([0,0,.05,-.06])).y,0);
 });
+test("Quest left stick moves avatar in each of four cardinal directions",()=>{
+ const movement=(x,y)=>xrVRMovement([sourceFor("left",[0,0,x,y])]);
+ assert.ok(movement(0,-1).forward>.9,"stick up walks forward");
+ assert.ok(movement(0,1).forward<-.9,"stick down walks backward");
+ assert.ok(movement(-1,0).strafe<-.9,"stick left strafes left");
+ assert.ok(movement(1,0).strafe>.9,"stick right strafes right");
+ assert.equal(movement(0,0).forward,0);
+ assert.equal(movement(0,0).strafe,0);
+});
+test("Immersive VR samples Touch movement in the XR frame and runs simulation there",()=>{
+ const ui=source("xr-ui.mjs"),app=source("app.mjs");
+ assert.match(ui,/vrMovement=xrVRMovement\\(session\\.inputSources,\\{rts:vrRTS\\}\\)/);
+ assert.match(ui,/onVRFrame\\(time\\)/);
+ assert.match(ui,/performance\\.now\\(\\)-vrInputSampleAt>250/);
+ assert.match(app,/onVRFrame:t=>doFrame\\(t,"xr"\\)/);
+ assert.match(app,/source==="window"&&xrUI\\?\\.mode==="vr"/);
+ assert.match(app,/input\\.forward=xrAxes\\.forward/);
+ assert.match(app,/cameraController\\.mode==="free"&&xrUI\\?\\.mode!=="vr"/);
+});
 test("Quest tabletop RTS disables walking and redirects right thumbstick to model rotation",()=>{
  const a=xrVRMovement([sourceFor("left",[0,0,.8,-.9]),sourceFor("right",[0,0,.5,0])],{rts:true});
  assert.equal(a.forward,0);assert.equal(a.strafe,0);assert.equal(a.turn,0);
