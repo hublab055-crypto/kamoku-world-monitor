@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.9g-rail-law">
+<link rel="stylesheet" href="./style.css?v=0.9t-xr-compact">
 <link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
@@ -140,8 +140,15 @@
   <span class="camera-active-label" id="camera-status">追従（三人称）</span>
 </div>
 <section id="xr-controls" class="xr-controls" aria-label="VR・MR表示モード">
+ <div class="xr-panel-header">
+  <strong>🥽 XR設定</strong>
+  <div class="xr-panel-header-actions">
+   <button id="xr-settings-toggle" type="button" aria-expanded="false" aria-controls="xr-settings-body">▼ 展開</button>
+   <button id="xr-help-toggle" type="button" aria-expanded="false" aria-controls="xr-help-panel" aria-label="XRの仕様・操作説明を表示" title="仕様・操作説明">？</button>
+  </div>
+ </div>
+ <div id="xr-settings-body" class="xr-settings-body" hidden>
  <div class="xr-buttons">
-  <strong>🥽 XR</strong>
   <button id="xr-vr" type="button" disabled aria-pressed="false">VR・立体視</button>
   <button id="xr-mr-rts" type="button" disabled aria-pressed="false">MR・卓上RTS</button>
   <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
@@ -163,8 +170,13 @@
  </label>
  <label class="xr-depth-label"><input id="xr-occlusion" type="checkbox" checked> MR実物の奥行き遮蔽（対応機器のみ）</label>
  <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
- <small id="xr-vr-diagnostics" aria-live="off">VR診断：未開始</small>
+ </div>
+ <div id="xr-help-panel" class="xr-help-panel" hidden>
+  <strong>VR / MR の仕様と操作説明</strong>
+  <p>WebXR対応ブラウザと対応ヘッドセットが必要です。iPhone SafariではXRを利用できませんが、通常の3D・RTS表示は使用できます。</p>
   <small class="xr-quest-controller-guide">🥽 Quest 3S操作：左スティック＝歩行／右スティック＝旋回。右・左トリガー＝それぞれの手の装備使用（剣・弓など）、右グリップ＝防御、左グリップ＝弓射撃。A＝VR卓上RTS、B＝一人称・三人称、X＝ジャンプ、Y＝行動スロット切替。RTSでは右トリガー＝人物選択・地面への移動指示、右スティック＝卓上模型の回転、左右スティック押込＝全員選択・シンクロ切替。</small>
+  <small id="xr-vr-diagnostics" aria-live="off">VR診断：未開始</small>
+ </div>
 </section>
 <div class="canvas-wrap">
       <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。ダブルタップで地面へ移動、シングルタップで対象を選択。"></canvas>
@@ -1329,5 +1341,33 @@
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
 <script type="module" src="./app.mjs?v=0.9l-custody-release-xr-v09m-media-v09n-public-bonds-v09o-xr-fbo-09n-live-v09p-controls-v09r-quest3s-fix-v09q-body-gesture-v09s"></script>
+<script>
+/* XR settings are independent of WebXR initialization. */
+(() => {
+ const settingsButton=document.getElementById("xr-settings-toggle");
+ const helpButton=document.getElementById("xr-help-toggle");
+ const settingsBody=document.getElementById("xr-settings-body");
+ const helpPanel=document.getElementById("xr-help-panel");
+ if(!settingsButton||!helpButton||!settingsBody||!helpPanel)return;
+ function showHelp(open){
+  helpPanel.hidden=!open;
+  helpButton.setAttribute("aria-expanded",String(open));
+  helpButton.setAttribute("aria-label",open?"XRの仕様・操作説明を閉じる":"XRの仕様・操作説明を表示");
+  helpButton.title=open?"説明を閉じる":"仕様・操作説明";
+ }
+ function showSettings(open){
+  settingsBody.hidden=!open;
+  settingsButton.setAttribute("aria-expanded",String(open));
+  settingsButton.textContent=open?"▲ 折り畳み":"▼ 展開";
+  if(!open)showHelp(false);
+ }
+ settingsButton.addEventListener("click",()=>showSettings(settingsBody.hidden));
+ helpButton.addEventListener("click",()=>showHelp(helpPanel.hidden));
+ document.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&!helpPanel.hidden){showHelp(false);helpButton.focus();}
+ });
+ showSettings(false);
+})();
+</script>
 </body>
 </html>

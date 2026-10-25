@@ -1268,3 +1268,25 @@ body.immersive{overflow:hidden}
 .xr-action-buttons button[hidden]{display:none!important}
 #xr-vr-diagnostics{display:block;font-size:11px;opacity:.8;word-break:break-word}
 .ue-xr-active .xr-controls{max-width:100%}
+
+/* Compact XR settings: one-row header, with opt-in help. */
+.xr-controls{display:block;padding:6px 9px;margin:5px 0 8px}
+.xr-panel-header{display:flex;align-items:center;gap:8px;min-height:37px}
+.xr-panel-header>strong{font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.xr-panel-header-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.xr-panel-header-actions button{min-height:32px;padding:4px 10px;white-space:nowrap;touch-action:manipulation}
+#xr-help-toggle{min-width:34px;padding:4px 7px;font-size:15px;font-weight:700}
+.xr-settings-body{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;padding-top:8px;border-top:1px solid #406477}
+.xr-settings-body[hidden],.xr-help-panel[hidden]{display:none!important}
+.xr-help-panel{margin-top:7px;padding-top:8px;border-top:1px solid #406477;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.xr-help-panel>strong{display:block;margin-bottom:5px;font-size:12px}
+.xr-help-panel>p{margin:0 0 6px;color:#d4ebf4}
+.xr-quest-controller-guide{display:block;margin-bottom:7px;color:#e1f3f8}
+.xr-help-panel #xr-vr-diagnostics{margin-top:6px}
+@media(max-width:600px){
+ .xr-controls{padding:5px 8px}
+ .xr-panel-header{min-height:35px}
+ .xr-panel-header-actions button{min-height:34px}
+ .xr-settings-body{gap:6px}
+ .xr-settings-body .xr-buttons{flex:1 1 100%}
+}
