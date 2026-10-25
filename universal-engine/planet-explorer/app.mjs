@@ -607,7 +607,9 @@ function doFrame(t,source="window",xrFrameInput=null){
   const detained=Boolean(vrRestraintReason);
   // In custody the avatar can walk inside the locked room, but may not
   // move its planetary coordinates or perform world actions.
-  const jailCellActive=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell);
+  const jailStunned=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell&&
+   renderer.captureFX&&renderer.captureFX.elapsed<renderer.captureFX.duration);
+  const jailCellActive=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell&&!jailStunned);
   const input=(!detained||jailCellActive)&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
   if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
@@ -683,7 +685,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    forward:input.forward,strafe:input.strafe,turn:input.turn,
    traveledM:jailCellActive?renderer.custodyCell.movedM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
    altitudeM:controller.altitudeM,blocked:jailCellActive?renderer.custodyCell.blocked:Boolean(controller.blocked),
-   detained,jailWalkable:jailCellActive,restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
+   detained,jailWalkable:jailCellActive,jailStunned,restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
   for(const event of railwaySecurity?.advance(dt,{
@@ -1267,7 +1269,7 @@ $("next-season").addEventListener("click",()=>{
  planet.advance(90);log("惑星時間を90日進めました。");updateHUD();
 });
 $("play").addEventListener("click",()=>{
- if(law?.custody||law?.pendingDeath||law?.gameOver){log("勾留中・継承待ち・ゲームオーバー中は再生できません");return;}
+ if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver){log("勾留中・継承待ち・ゲームオーバー中は再生できません");return;}
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
 function damageRailwayGuard(damage,options={}){
