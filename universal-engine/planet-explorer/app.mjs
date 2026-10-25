@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx-xr-v09s-body-bag-v09t";
+import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx-xr-v09s-body-bag-v09t-v09v-aim";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -45,7 +45,7 @@ import {RailwaySecurity,RAIL_BAIL_FINE,railwaySafeExit} from "./railway-security
 import {chooseSettlementSpawn} from "./settlement-spawn.mjs?v=0.8z-safe-spawn";
 import {gameDaysForRealSeconds,normalizeTimeScale,DEFAULT_TIME_SCALE} from "./game-time.mjs?v=0.8x-real-time";
 import {descentVisuals,ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
-import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl";
+import {ArrowProjectiles,ARROW_RECOVERY_SECONDS} from "./arrow-projectiles.mjs?v=0.8k-arrow-ttl-v09v-vr-aim";
 import {chooseWorkPoint} from "./terrain-collision.mjs";
 import {FaunaWorld} from "./fauna.mjs?v=0.9l-custody-horse-release";
 import {installFaunaUI} from "./fauna-ui.mjs?v=0.8g-feed";
@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u-v09v-archery";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -1455,8 +1455,8 @@ function launchArrow(agent,plan={}){
  const enemy=battle?.enemies.find(e=>e.id===plan.targetId&&e.hp>0);
  const point=plan.targetPoint|| (enemy?{x:enemy.x,y:terrainAt(enemy.x,enemy.z)+(enemy.height||1.8)*.65,z:enemy.z}:null);
  const shot=projectiles.launch({shooterId:agent.id,actor:agent.control,
-  groundY:terrainAt(agent.control.x,agent.control.z)+(agent.id==="player"&&fauna?.mount?1.15:0),target:point,mode:plan.trajectory||"auto",
-  arrowType:plan.arrowType||"wood"});
+  groundY:terrainAt(agent.control.x,agent.control.z)+(agent.id==="player"&&fauna?.mount?1.15:0),target:plan.vrAim?null:point,mode:plan.trajectory||"auto",
+  arrowType:plan.arrowType||"wood",aim:plan.vrAim||null});
  if(!shot)log("矢を発射できませんでした（画面内の矢が多すぎます）。");
  return shot;
 }
@@ -3442,15 +3442,22 @@ xrUI=installXRUI({
   if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"拘束・継承中は武器を使えません"};
   return frontierUI?.useHand(hand)||{ok:false};
  },
- onVRCommand:command=>{
+ onVRCommand:(command,{vrAim=null}={})=>{
   if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false};
   const result=frontierUI?.runCommand(command)||{ok:false};
   // Hand-tracked draw and sword swing have already happened in real time.
   // Use the SAME game projectile/hit path but start its impact phase on the
   // next simulation tick rather than replaying 1.6 s of automatic bow pull.
   if(result.ok&&actions.active){
-   if(command==="shoot"&&actions.active.kind==="bow")
+   if(command==="shoot"&&actions.active.kind==="bow"){
+    if(vrAim){
+     actions.active.vrAim=vrAim;
+     actions.active.targetId=null;
+     actions.active.targetPoint=null;
+     actions.active.trajectory="vr";
+    }
     actions.active.time=Math.max(actions.active.time,actions.active.duration*.81);
+   }
    if(command==="sweep"&&["sword","axe","spear","greatsword"].includes(actions.active.kind))
     actions.active.time=Math.max(actions.active.time,actions.active.duration*.63);
   }
