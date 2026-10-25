@@ -2091,9 +2091,14 @@ export class ExplorerRenderer{
     segment(add(tip,scale(aim,-.11)),tip,.035,.028,steel);
    }
    if(rig.drawing&&rig.nocked){
-    const target=add(left,scale(aim,2.1));
-    segment(add(target,scale(a.right,-.065)),add(target,scale(a.right,.065)),.012,.012,[1,.91,.29]);
-    segment(add(target,[0,-.065,0]),add(target,[0,.065,0]),.012,.012,[1,.91,.29]);
+    // A stereo world-space cross predicts gravitational drop at 12 metres.
+    const reach=12;
+    const speed=47*Math.max(.4,Math.min(1,.4+.6*(rig.pull||0)));
+    const target=add(left,scale(aim,reach));
+    target[1]-=.5*9.81*(reach/speed)**2;
+    const size=.11,tint=(rig.pull||0)>=.18?[1,.96,.32]:[.86,.86,.86];
+    segment(add(target,scale(a.right,-size)),add(target,scale(a.right,size)),.014,.014,tint);
+    segment(add(target,[0,-size,0]),add(target,[0,size,0]),.014,.014,tint);
    }
   }
  }
