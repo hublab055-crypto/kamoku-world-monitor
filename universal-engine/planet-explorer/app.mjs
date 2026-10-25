@@ -3487,7 +3487,7 @@ xrUI=installXRUI({
   if(!result?.ok)log("🥽 装備できません: "+(result?.message||item));
   return Boolean(result?.ok);
  },
- onVRHasBag:()=>avatarStyle?.bag!=="none",
+ onVRHasBag:()=>appearance?.bag!=="none",
  getVRPickups:()=>{
   if(!controller?.nearGround||!squad?.frontier)return [];
   const items=(squad.frontier.nodes||[]).filter(n=>n.quantity>0)
@@ -3501,7 +3501,7 @@ xrUI=installXRUI({
   return items;
  },
  onVRStow:item=>{
-  if(avatarStyle?.bag==="none")return {ok:false,message:"服装から鞄を装備してください"};
+  if(appearance?.bag==="none")return {ok:false,message:"服装から鞄を装備してください"};
   if(!controller?.nearGround||!squad?.frontier||!item)return {ok:false,message:"地表で拾ってください"};
   if(Math.hypot(item.x-controller.x,item.z-controller.z)>3)
    return {ok:false,message:"拾った場所から遠すぎます"};
