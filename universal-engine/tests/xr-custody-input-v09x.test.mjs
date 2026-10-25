@@ -41,15 +41,15 @@ test("VR diagnostics distinguish custody, XR focus and controller presence",()=>
  assert.match(runtime,/const sources=controllerSources/);
  assert.match(runtime,/visible"/);
  assert.match(runtime,/フォーカス外の可能性/);
- assert.match(runtime,/movement\.detained&&movement\.restraintReason\?\.includes\("勾留"\)/);
+ assert.match(runtime,/movement\.detained&&!movement\.jailWalkable&&movement\.restraintReason\?\.includes\("勾留"\)/);
  assert.match(runtime,/罰金を払って釈放/);
  assert.match(runtime,/服役して釈放/);
 });
-test("Custody walking restriction stays intact; no VR-only jail bypass",()=>{
+test("Custody permits confined walking without world-coordinate movement",()=>{
  const app=contentOf("app.mjs");
  assert.match(app,/const detained=Boolean\(vrRestraintReason\)/);
- assert.match(app,/if\(xrAxes&&!detained\)/);
- assert.match(app,/detained,restraintReason:vrRestraintReason/);
+ assert.match(app,/if\(xrAxes&&\(!detained\|\|jailCellActive\)\)/);
+ assert.match(app,/detained,jailWalkable:jailCellActive,restraintReason:vrRestraintReason/);
 });
 test("Game entrypoints bust cached Quest control modules",()=>{
  assert.match(contentOf("app.mjs"),/xr-ui\.mjs\?v=[^"]*quest-resume-v09x/);
