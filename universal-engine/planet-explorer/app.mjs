@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u-sticks-v09v";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u-sticks-v09v-custody-v09w";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -593,7 +593,10 @@ function doFrame(t,source="window",xrFrameInput=null){
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
-  const detained=Boolean(railwaySecurity?.jailed||law?.custody||law?.pendingDeath||law?.gameOver);
+  const vrRestraintReason=law?.custody?"衛兵による勾留（治安・手配で保釈／服役）":
+   railwaySecurity?.jailed?"駅留置所で勾留（罰金／服役）":
+   law?.pendingDeath?"後継者の選択待ち":law?.gameOver?"ゲームオーバー":null;
+  const detained=Boolean(vrRestraintReason);
   const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
   if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
@@ -665,7 +668,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    forward:input.forward,strafe:input.strafe,turn:input.turn,
    traveledM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
    altitudeM:controller.altitudeM,blocked:Boolean(controller.blocked),
-   detained,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
+   detained,restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
   for(const event of railwaySecurity?.advance(dt,{
@@ -3450,11 +3453,12 @@ xrUI=installXRUI({
  },
  // Use the shared inventory, stamina, ammunition and combat commands.
  onVRHand:hand=>{
-  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false,message:"拘束・継承中は武器を使えません"};
+  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
+   return {ok:false,message:"拘束・継承中は武器を使えません"};
   return frontierUI?.useHand(hand)||{ok:false};
  },
  onVRCommand:command=>{
-  if(law?.custody||law?.pendingDeath||law?.gameOver)return {ok:false};
+  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)return {ok:false};
   const result=frontierUI?.runCommand(command)||{ok:false};
   // Hand-tracked draw and sword swing have already happened in real time.
   // Use the SAME game projectile/hit path but start its impact phase on the
@@ -3472,6 +3476,7 @@ xrUI=installXRUI({
   return rtsMode===nextMode;
  },
  onVRJump:()=>{
+  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)return false;
   if(fauna?.mount){log("🥽 騎乗中はジャンプできません");return false;}
   const ok=Boolean(controller?.jump());
   if(!ok)log("🥽 ジャンプは地上でのみ使用可能です");
@@ -3496,7 +3501,7 @@ xrUI=installXRUI({
   if(hand==="right"||frontierUI?.activeHand(hand)==="bow")controller.yaw=yaw;
  },
  onVRGrab:(item,hand)=>{
-  if(law?.custody||law?.pendingDeath||law?.gameOver||!frontierUI)return false;
+  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver||!frontierUI)return false;
   if(item==="arrow")
    return frontierUI.activeHand("left")==="bow"&&frontierUI.hasVRArrow("player");
   if(item==="sheathe"||item==="none")
