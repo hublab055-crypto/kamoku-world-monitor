@@ -33,7 +33,9 @@ export function xrButtonEdges(sources,previous=new Set()){
  const next=new Set(),pressed=[];
  for(const source of sources||[]){
   if(!["left","right"].includes(source?.handedness))continue;
-  if(source.gamepad?.mapping&&source.gamepad.mapping!=="xr-standard")continue;
+  // An XRInputSource is already scoped to the active immersive session.
+  // Some Quest Browser versions expose a generic "standard" mapping here.
+  if(source.gamepad?.mapping&&!["xr-standard","standard"].includes(source.gamepad.mapping))continue;
   for(const buttonIndex of [3,4,5]){
    const key=source.handedness+":"+buttonIndex;
    if(xrButtonPressed(source.gamepad,buttonIndex)){
@@ -46,7 +48,9 @@ export function xrButtonEdges(sources,previous=new Set()){
 export function xrVRMovement(sources,{rts=false}={}){
  const result={forward:0,strafe:0,turn:0,tableTurn:0};
  for(const source of sources||[]){
-  if(source.gamepad?.mapping&&source.gamepad.mapping!=="xr-standard")continue;
+  // An XRInputSource is already scoped to the active immersive session.
+  // Some Quest Browser versions expose a generic "standard" mapping here.
+  if(source.gamepad?.mapping&&!["xr-standard","standard"].includes(source.gamepad.mapping))continue;
   const {x,y}=xrStick(source.gamepad);
   if(source.handedness==="left"&&!rts){result.forward=-y;result.strafe=x;}
   if(source.handedness==="right"){
