@@ -1,5 +1,5 @@
 import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
-import {xrButtonEdges,xrVRMovement} from "./xr-quest-controls.mjs?v=0.9r-quest";
+import {xrButtonEdges,xrVRMovement} from "./xr-quest-controls.mjs?v=0.9v-quest-stick-fallback";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
@@ -34,6 +34,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let projection=null,projectionAttempted=false;
  let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
+ let vrInputInfo="未取得",vrMoveInfo="未計測",vrNoMotionFrames=0,vrWarned=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
@@ -44,7 +45,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const tail=vrLastErrorStep?"／"+vrLastErrorStep:"";
   return "🥽 VR診断："+stage+"／XRコールバック="+vrFrames+
    "／描画完了="+vrSceneFrames+"／追跡="+(vrHasPose?"あり":"未確認")+
-   "／可視状態="+vrSessionVisibility+"／"+vrFramebufferInfo+tail+
+   "／可視状態="+vrSessionVisibility+"／入力="+vrInputInfo+
+   "／歩行="+vrMoveInfo+"／"+vrFramebufferInfo+tail+
    (vrDrawError?"／"+vrDrawError:"");
  }
  function vrMark(stage,{force=false,log=false}={}){
@@ -120,6 +122,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
   vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
+  vrInputInfo="未取得";vrMoveInfo="未計測";vrNoMotionFrames=0;vrWarned=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
@@ -172,6 +175,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
+  vrInputInfo="未取得";vrMoveInfo="未計測";vrNoMotionFrames=0;vrWarned=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
@@ -217,6 +221,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(mode==="vr"){
     vrMark("セッション開始／XRコールバック待機",{force:true,log:true});
     notify("🥽 Quest VR身体操作：左肩で左グリップ→弓、右肩で右グリップ→矢、弦につがえて右トリガーを押し引き絞り→離して発射。左腰で右グリップ→抜刀、腕を振って攻撃。A=RTS、B=視点、スティック=歩行・旋回");
+    if(getController()?.altitudeM>12.01)notify("🥽 VR歩行には地表への降下が必要です。惑星モードから地表に降下してください。");
    }
    session.addEventListener("end",endCleanup,{once:true});
    session.addEventListener("select",onSelect);
@@ -545,11 +550,41 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    notify("🥽 コントローラー操作エラー: "+(error?.message||error));
   }
   if(activeMode==="vr"){
-   vrMovement=xrVRMovement(session.inputSources,{rts:vrRTS});
+   // Quest controllers normally live in inputSources. Newer runtimes may
+   // temporarily migrate them to trackedSources: retain one per hand.
+   const sources=[...(session.inputSources||[])];
+   for(const source of session.trackedSources||[])
+    if(!sources.some(s=>s.handedness===source.handedness))sources.push(source);
+   vrMovement=xrVRMovement(sources,{rts:vrRTS});
    vrInputSampleAt=performance.now();
-   // Quest may suspend window.requestAnimationFrame during immersive sessions.
-   // Run the existing simulation once from the XR frame before rendering eyes.
-   onVRFrame(time);
+   const left=sources.find(s=>s.handedness==="left");
+   const axes=left?.gamepad?.axes;
+   vrInputInfo=left?("L("+[...(axes||[])].map(v=>Number(v).toFixed(2)).join(",")+
+    ") "+(left.gamepad?.mapping||"mappingなし")):"左コントローラーなし";
+   // Quest can suspend window.requestAnimationFrame: drive the simulation
+   // from the immersive XR frame and pass the same sampled axes directly.
+   try{
+    const movement=onVRFrame(time,{...vrMovement});
+    if(movement){
+     vrMoveInfo="移動 "+movement.traveledM.toFixed(3)+"m／高度 "+movement.altitudeM.toFixed(1)+
+      "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"");
+     const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
+     if(requested&&movement.traveledM<.001){
+      vrNoMotionFrames++;
+      if(vrNoMotionFrames>80&&!vrWarned){
+       const reason=movement.altitudeM>12.01?"地表への降下が未完了":
+        movement.detained?"拘束・操作停止中":movement.indoor?"施設や乗り物の専用移動中":
+        movement.blocked?"地形・壁との衝突":"移動が反映されていません";
+       notify("🥽 左スティック入力は検出しましたが、アバターが進めません："+reason+
+        "／"+vrInputInfo);
+       vrWarned=true;
+      }
+     }else{vrNoMotionFrames=0;vrWarned=false;}
+    }
+   }catch(error){
+    if(vrFrames<3||vrFrames%180===0)notify("🥽 VR移動処理エラー: "+(error?.message||error));
+    vrMoveInfo="移動処理エラー："+(error?.message||error);
+   }
   }
   const renderer=getRenderer(),controller=getController();
   if(!renderer||!controller||!space){
