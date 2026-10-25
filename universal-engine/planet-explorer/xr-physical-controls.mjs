@@ -98,7 +98,8 @@ export class VRPhysicalControls{
     this.arrowHeld=false;this.nocked=false;this.pull=0;
     return {kind:"sword"};
    }
-   if(this.bowHeld&&distance(p,h.shoulderRight)<XR_GRAB_RADIUS_M){
+   if(distance(p,h.shoulderRight)<XR_GRAB_RADIUS_M){
+    if(!this.bowHeld)return {kind:"no-bow"};
     if(this.arrowHeld)return {kind:"arrow",already:true};
     if(!authorize("arrow","right"))return {kind:"unavailable",item:"arrow"};
     this.swordHeld=false;this.arrowHeld=true;this.nocked=false;
@@ -136,8 +137,12 @@ export class VRPhysicalControls{
   const fired=this.nocked&&this.pull>=.18;
   const result={kind:fired?"shoot":"cancelDraw",power:this.pull};
   this.pull=0;
-  if(fired){this.arrowHeld=false;this.nocked=false;}
+  // Only remove the virtual arrow after the existing inventory/combat
+  // command accepts the shot. A failed shot must not silently eat an arrow.
   return result;
+ }
+ confirmShot(accepted){
+  if(accepted){this.arrowHeld=false;this.nocked=false;}
  }
  suppressSelect(hand){
   if(hand!=="right"||!this.suppressRightSelect)return false;
