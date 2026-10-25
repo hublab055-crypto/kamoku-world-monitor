@@ -17,7 +17,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
- onVRHasBag=()=>true,notify=()=>{}}){
+ onVRHasBag=()=>true,onVRFrame=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -33,6 +33,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrRecoveryExhausted=false,vrLastErrorStep="";
  let projection=null,projectionAttempted=false;
  let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
+ let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
@@ -118,6 +119,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   projectionAttempted=false;
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
   vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+  vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
@@ -169,6 +171,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // granted. Select the compositor path before the first XR frame.
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+  vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
@@ -433,7 +436,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function inputVector(){
   if(!session||activeMode!=="vr")return null;
-  return xrVRMovement(session.inputSources,{rts:vrRTS});
+  // XR gamepad data is sampled in immersive session frames, not window RAF.
+  // Stop motion if the headset is no longer delivering controller frames.
+  if(!vrInputSampleAt||performance.now()-vrInputSampleAt>250)
+   return {forward:0,strafe:0,turn:0,tableTurn:0};
+  return {...vrMovement};
  }
  function vrButtonsFrame(){
   if(activeMode!=="vr")return;
@@ -536,6 +543,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   catch(error){
    vrButtons.clear();
    notify("🥽 コントローラー操作エラー: "+(error?.message||error));
+  }
+  if(activeMode==="vr"){
+   vrMovement=xrVRMovement(session.inputSources,{rts:vrRTS});
+   vrInputSampleAt=performance.now();
+   // Quest may suspend window.requestAnimationFrame during immersive sessions.
+   // Run the existing simulation once from the XR frame before rendering eyes.
+   onVRFrame(time);
   }
   const renderer=getRenderer(),controller=getController();
   if(!renderer||!controller||!space){
