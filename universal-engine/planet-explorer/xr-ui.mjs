@@ -17,7 +17,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
- onVRHasBag=()=>true,onVRFrame=()=>{},notify=()=>{}}){
+ onVRHasBag=()=>true,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -355,12 +355,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🥽 "+({bow:"左肩から弓",arrow:"右肩の矢筒から矢",sword:"左腰から剣"}[result.kind]||result.kind)+"を取り出しました");
  }
  function onVRSelectStart(event){
+  if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   sampleVRRig(event.frame);
   if(vrPhysical.triggerStart(event.inputSource?.handedness)==="draw")
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
  function onVRSelectEnd(event){
+  if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   sampleVRRig(event.frame);
   const outcome=vrPhysical.triggerEnd(event.inputSource?.handedness);
@@ -380,6 +382,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const ray=event.frame.getPose(source.targetRaySpace,space);
   if(!ray)return;
   if(activeMode==="vr"){
+   if(onVRCustody("state")?.handled){
+    const result=onVRCustody("talk");
+    if(result?.message)statusText("🛡️ "+result.message);
+    return;
+   }
    if(vrPhysical.suppressSelect(source.handedness))return;
    if(vrRTS&&source.handedness==="right"){
     const actor=getController();
@@ -429,6 +436,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const pose=raySpace&&event.frame.getPose(raySpace,space);
   if(!pose)return;
   if(activeMode==="vr"){
+   if(onVRCustody("state")?.handled)return; // Combat grips are inactive during detention.
    const hand=event.inputSource?.handedness;
    if(vrGripConsumed.delete(hand))return;
    const result=onVRCommand(event.inputSource?.handedness==="right"?"guard":"shoot");
@@ -454,6 +462,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const {next,pressed}=xrButtonEdges(sources,vrButtons);
   vrButtons=next;
   for(const button of pressed){
+   if(onVRCustody("state")?.handled){
+    const action=button==="left:4"?"talk":button==="right:4"?"bail":button==="right:5"?"serve":null;
+    if(action){
+     const result=onVRCustody(action);
+     if(result?.message)statusText("🛡️ "+result.message);
+    }
+    continue; // Detention overrides normal RTS/camera/jump bindings.
+   }
    if(button==="right:4"){
     const nextMode=!vrRTS;
     if(onVRToggleRTS(nextMode)!==false){
