@@ -1,5 +1,5 @@
 import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
-import {xrButtonEdges,xrVRMovement} from "./xr-quest-controls.mjs?v=0.9v-quest-stick-fallback";
+import {xrButtonEdges,xrVRMovement,xrControllerSources} from "./xr-quest-controls.mjs?v=0.9w-quest-focus-custody";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
@@ -35,7 +35,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
- let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false;
+ let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
@@ -132,7 +132,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    vrMark(ending,{force:true,log:!disposed});
   }
   // Preserve the final stick/blocked diagnostic for inspection after exiting VR.
-  vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
+  vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
   placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
   previousPlanetHit=null;previousPlanetHitTime=0;
@@ -177,7 +177,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-  vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
+  vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
@@ -449,9 +449,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return {forward:0,strafe:0,turn:0,tableTurn:0};
   return {...vrMovement};
  }
- function vrButtonsFrame(){
+ function vrButtonsFrame(sources){
   if(activeMode!=="vr")return;
-  const {next,pressed}=xrButtonEdges(session.inputSources,vrButtons);
+  const {next,pressed}=xrButtonEdges(sources,vrButtons);
   vrButtons=next;
   for(const button of pressed){
    if(button==="right:4"){
@@ -546,7 +546,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(vrFrames===1)vrMark("XR初回コールバック受信",{force:true,log:true});
   }
   session.requestAnimationFrame(drawXR);
-  try{vrButtonsFrame();}
+  const controllerSources=xrControllerSources(session);
+  try{vrButtonsFrame(controllerSources);}
   catch(error){
    vrButtons.clear();
    notify("🥽 コントローラー操作エラー: "+(error?.message||error));
@@ -554,9 +555,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="vr"){
    // Quest controllers normally live in inputSources. Newer runtimes may
    // temporarily migrate them to trackedSources: retain one per hand.
-   const sources=[...(session.inputSources||[])];
-   for(const source of session.trackedSources||[])
-    if(!sources.some(s=>s.handedness===source.handedness))sources.push(source);
+   const sources=controllerSources;
    vrMovement=xrVRMovement(sources,{rts:vrRTS});
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
@@ -568,8 +567,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }else{
     // XR inputSources may disappear when Quest shows an overlay or exits VR.
     // Preserve the most recent real input sample for post-exit diagnostics.
+    const blurred=vrSessionVisibility!=="visible";
     vrInputInfo=vrLastConnectedLeft==="未取得"?"左コントローラー未検出":
-     "現在左コントローラー未検出（直近 "+vrLastConnectedLeft+"）";
+     "現在左コントローラー未検出（直近 "+vrLastConnectedLeft+"）"+
+     (blurred?"／フォーカス外の可能性":"");
    }
    // Quest can suspend window.requestAnimationFrame: drive the simulation
    // from the immersive XR frame and pass the same sampled axes directly.
@@ -580,6 +581,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"")+
       (movement.restraintReason?"／"+movement.restraintReason:"");
      const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
+     if(requested&&movement.detained&&movement.restraintReason?.includes("勾留")&&!vrCustodyTipShown){
+      vrCustodyTipShown=true;
+      notify("🥽 歩行停止：ゲーム内で勾留中です。VRを終了して🚨「治安・手配」から「罰金を払って釈放」または「📆 服役して釈放」を選択してください。左スティック入力とは別の移動制限です。");
+     }
+     if(!movement.detained)vrCustodyTipShown=false;
      if(requested)vrLastWalk="前後 "+vrMovement.forward.toFixed(2)+
       "／左右 "+vrMovement.strafe.toFixed(2)+"／変位 "+movement.traveledM.toFixed(3)+
       "m／高度 "+movement.altitudeM.toFixed(1)+"m"+

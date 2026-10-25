@@ -60,3 +60,23 @@ export function xrVRMovement(sources,{rts=false}={}){
  }
  return result;
 }
+
+/**
+ * Quest input sources may briefly move between inputSources and trackedSources.
+ * Use the *same* hand selection for stick motion and button edge detection.
+ * This does not synthesize movement when a controller is actually missing.
+ */
+export function xrControllerSources(session){
+ const chosen=new Map();
+ for(const group of [session?.trackedSources||[],session?.inputSources||[]]){
+  for(const source of group){
+   if(!["left","right"].includes(source?.handedness))continue;
+   const previous=chosen.get(source.handedness);
+   // Favor a usable gamepad over a tracked-only controller. When equal,
+   // prefer the standard session input source over an optional fallback.
+   if(!previous||Boolean(source.gamepad)||!previous.gamepad)
+    chosen.set(source.handedness,source);
+  }
+ }
+ return [...chosen.values()];
+}
