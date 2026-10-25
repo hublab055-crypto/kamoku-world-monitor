@@ -10,16 +10,16 @@ test("VR walk reports the actual legal reason rather than accusing Quest thumbst
  assert.match(app,/law\?\.pendingDeath\?"後継者の選択待ち"/);
  assert.match(app,/restraintReason:vrRestraintReason/);
  assert.match(xr,/movement\.restraintReason\?"／"\+movement\.restraintReason/);
- assert.match(xr,/movement\.detained\?movement\.restraintReason\|\|"行動制限中"/);
+ assert.match(xr,/movement\.detained&&!movement\.jailWalkable\?movement\.restraintReason\|\|"行動制限中"/);
 });
 
-test("Custody does not bypass walk restriction even though VR motion axes reach simulation",()=>{
+test("Custody routes stick motion to local cell but not planetary walking",()=>{
  const app=get("app.mjs");
  assert.match(app,/const detained=Boolean\(vrRestraintReason\)/);
- assert.match(app,/if\(xrAxes&&!detained\)/);
+ assert.match(app,/if\(xrAxes&&\(!detained\|\|jailCellActive\)\)/);
  assert.match(app,/input\.forward=xrAxes\.forward/);
  assert.match(app,/xrMoveResult=\{/);
- assert.match(app,/traveledM:Math\.hypot\(controller\.x-previous\.x,controller\.z-previous\.z\)/);
+ assert.match(app,/traveledM:jailCellActive\?renderer\.custodyCell\.movedM:Math\.hypot\(controller\.x-previous\.x,controller\.z-previous\.z\)/);
 });
 
 test("Headset last input is preserved if controllers disappear on session exit",()=>{
