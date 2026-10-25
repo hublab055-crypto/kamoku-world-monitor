@@ -30,7 +30,7 @@ import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
-import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r-body-v09s";
+import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r-body-v09s-hammer-v09t";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
