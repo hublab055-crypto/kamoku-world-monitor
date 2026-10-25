@@ -4,7 +4,8 @@ import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
 import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-layer-policy.mjs?v=0.9q-render-state";
-import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9s-physical";
+import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9s-physical-v09t";
+import {vrNearestPickup,vrHandAtBag} from "./xr-backpack.mjs?v=0.9t-bag";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -15,7 +16,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onRTSAll=()=>{},onPlanetPick=()=>false,onPlanetLand=()=>false,
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
- onVRGrab=()=>false,notify=()=>{}}){
+ onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
+ onVRHasBag=()=>true,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -291,6 +293,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
   const events=vrPhysical.setPose(gear,time,{floorY:usingFloor?0:null});
   if(vrRTS)return;
+  const carried=vrPhysical.heldDrop;
+  if(carried){
+   const handMatrix=gear[carried.hand];
+   const atBag=onVRHasBag()&&vrHandAtBag(handMatrix,vrPhysical.anchors);
+   if(atBag&&!carried.stowAttempted){
+    carried.stowAttempted=true;
+    const result=onVRStow(carried.item);
+    if(result?.ok){
+     vrPhysical.heldDrop=null;
+     statusText("🎒 "+(result.message||"拾ったアイテムを鞄に収納しました"));
+    }else statusText("🎒 "+(result?.message||"鞄へ収納できません"));
+   }
+   if(!atBag)carried.stowAttempted=false;
+  }
   for(const action of events){
    if(action==="swordSwing"){
     const yaw=gear.rightRay&&vrCurrentStage?xrPointerYaw(gear.rightRay,vrCurrentStage):null;
@@ -305,13 +321,27 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   sampleVRRig(event.frame);
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
+  if(vrPhysical.heldDrop?.hand===hand){vrGripConsumed.add(hand);return;}
   const result=vrPhysical.grab(hand,(item,grip)=>onVRGrab(item,grip)===true);
-  if(result.kind==="none")return;
+  if(result.kind==="none"){
+   if(vrPhysical.heldDrop)return;
+   const candidate=vrNearestPickup(vrPhysical.pose?.[hand],vrCurrentStage,
+    getController(),getVRPickups());
+   if(!candidate)return;
+   vrPhysical.heldDrop={hand,item:{...candidate.item},stowAttempted:false};
+   vrGripConsumed.add(hand);
+   statusText("✋ "+(candidate.item.label||candidate.item.kind)+"を手で拾いました。胸元の鞄ベルトへ運んで収納");
+   return;
+  }
   vrGripConsumed.add(hand);
   if(result.kind==="unavailable")statusText("🥽 "+result.item+"が装備・所持品にありません");
   else if(result.kind==="no-bow")statusText("🏹 先に左肩から弓を取ってください");
   else if(result.kind==="sheathe"){
    onVRGrab("sheathe",hand);statusText("⚔️ 剣を納刀しました");
+  }else if(result.kind==="stowTool"){
+   onVRGrab("none",hand);statusText("🔧 "+result.item+"をホルスターに戻しました");
+  }else if(result.kind==="tool"){
+   statusText("🔧 "+result.item+"を取り出しました。トリガーで使用できます");
   }else statusText("🥽 "+({bow:"左肩から弓",arrow:"右肩の矢筒から矢",sword:"左腰から剣"}[result.kind]||result.kind)+"を取り出しました");
  }
  function onVRSelectStart(event){
@@ -686,7 +716,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
-    if(mode==="vr")renderer.drawVRBody?.(renderer.xrView,vrPhysical.snapshot());
+    if(mode==="vr")renderer.drawVRBody?.(renderer.xrView,{...vrPhysical.snapshot(),backpack:onVRHasBag()});
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
