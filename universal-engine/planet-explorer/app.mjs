@@ -63,7 +63,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u-sticks-v09v-custody-v09w-quest-resume-v09x";
+import {installXRUI} from "./xr-ui.mjs?v=0.9x-locked-cell-motion";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -1219,7 +1219,9 @@ function updateHUD(){
  }
  $("play").textContent=running?"⏸ 時間を停止":"▶ 時間を再生";
  $("ground-button").disabled=isSurface&&controller.targetAltitudeM<=12;
- $("walk-note").textContent=renderer.cameraController.mode==="free"?
+ $("walk-note").textContent=renderer.custodyCell?
+  "🔒 勾留中：スティック/WASDで牢内を歩けます。壁・鉄格子・施錠中の出入口からは出られません。釈放には治安・手配または駅留置所の操作が必要です。":
+  renderer.cameraController.mode==="free"?
   "自由視点：スティック/WASDでカメラ移動。画面ドラッグで視線を回転。人物の位置は変わりません。":
   !isSurface?(controller.altitudeM>23000?
    "宇宙視点：「🏙️ 都市・村を選ぶ」で街へ降下。何もない場所もタップして自由降下でき、ダブルタップなら直接降下。海・船も選択可。":
