@@ -4,7 +4,8 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx-xr-v09s-body-bag-v09t";
+import {ExplorerRenderer} from "./render.mjs?v=0.9w-lockup-walk";
+import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -355,6 +356,13 @@ function init(saved=null){
    planet.advance(gameDaysForRealSeconds(dt,$("days-per-second").value)));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+  // Resume inside a locked cell if an older save was made during detention.
+  if(law?.custody||railwaySecurity?.jailed){
+   renderer.custodyCell=newCustodyCell();
+   renderer.custodyKind=law?.custody?"law":"railway";
+   controller.altitudeM=2.5;controller.targetAltitude(2.5);
+   controller.clearMoveTarget();
+  }
   try{renderer.setFogMode(localStorage.getItem(FOG_MODE_KEY)||"auto");}
   catch(_){renderer.setFogMode("auto");}
   $("fog-mode").value=renderer.fogMode;
@@ -597,24 +605,27 @@ function doFrame(t,source="window",xrFrameInput=null){
    railwaySecurity?.jailed?"駅留置所で勾留（罰金／服役）":
    law?.pendingDeath?"後継者の選択待ち":law?.gameOver?"ゲームオーバー":null;
   const detained=Boolean(vrRestraintReason);
-  const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  // In custody the avatar can walk inside the locked room, but may not
+  // move its planetary coordinates or perform world actions.
+  const jailCellActive=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell);
+  const input=(!detained||jailCellActive)&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
   if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
   // Never request Quest input from window RAF: deliver it directly with the
   // immersive XR animation frame, so there is no stale-polling race.
   const xrAxes=source==="xr"?xrFrameInput:xrUI?.inputVector?.();
-  if(xrAxes&&!detained){
+  if(xrAxes&&(!detained||jailCellActive)){
    // The Quest stick owns VR movement; never mix desktop camera/touch axes.
    input.forward=xrAxes.forward;
    input.strafe=xrAxes.strafe;
    input.turn=xrAxes.turn;
   }
-  if(onTrain)railway.walk(running?dt:0,input);
-  if(onFerry)ferry.walk(running?dt:0,input);
-  if(inConcourse)railway.walkConcourse(running?dt:0,input);
-  if(townLife.inside)townLife.walk(running?dt:0,input);
+  if(onTrain&&!jailCellActive)railway.walk(running?dt:0,input);
+  if(onFerry&&!jailCellActive)ferry.walk(running?dt:0,input);
+  if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
+  if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
-  const onShip=ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
+  const onShip=!jailCellActive&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
    for(const message of marine.shipboard.advance(running?dt:0,
     renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input))log(message);
@@ -625,7 +636,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
   // With an NPC at the wheel, the ship follows its cruise/course instructions.
-  const travelInput=onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:onShip?{
+  const travelInput=jailCellActive||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:onShip?{
     forward:running&&helming&&ship.cruise&&!ship.anchor?1:helming&&marine.shipboard.helmId==="player"?input.forward:0,
     strafe:0,
     turn:helming&&marine.shipboard.helmId==="player"?input.turn:0
@@ -634,7 +645,7 @@ function doFrame(t,source="window",xrFrameInput=null){
     running&&ship?.kind==="sailing_ship"&&ship.cruise&&!ship.anchor&&
      ship.sailTrim>0&&Math.abs(input.forward)<.1?{...input,forward:1}:input;
    const previous={x:controller.x,z:controller.z,lat:controller.lat,lon:controller.lon};
-  const manualLead=!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
+  const manualLead=!detained&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&!marine?.shipboard?.active&&!marine?.cabinId&&(Math.abs(input.forward)+Math.abs(input.strafe)+Math.abs(input.turn)>.1);
    if(manualLead)cancelHarvestOrder("player");
   const priorResources={...actions.resources};
    const hpBefore=new Map(squad.agents.map(a=>[a.id,a.id==="player"?battle.playerHp:a.hp]));
@@ -658,7 +669,11 @@ function doFrame(t,source="window",xrFrameInput=null){
   }
   frontierUI?.updateCamera();
   // VR locomotion moves the avatar even when desktop free-camera is selected.
-  if(renderer.cameraController.mode==="free"&&xrUI?.mode!=="vr"){
+  if(jailCellActive){
+   // Detention pauses the planet, not the cell. Do not update planet position.
+   renderer.custodyCell=walkCustodyCell(renderer.custodyCell,input,dt);
+   controller.update(dt,{forward:0,strafe:0,turn:0});
+  }else if(renderer.cameraController.mode==="free"&&xrUI?.mode!=="vr"){
    renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.forward,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.strafe);
    controller.update(dt,onShip?{...travelInput,turn:0}:{
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
@@ -666,9 +681,9 @@ function doFrame(t,source="window",xrFrameInput=null){
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   if(source==="xr")xrMoveResult={
    forward:input.forward,strafe:input.strafe,turn:input.turn,
-   traveledM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
-   altitudeM:controller.altitudeM,blocked:Boolean(controller.blocked),
-   detained,restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
+   traveledM:jailCellActive?renderer.custodyCell.movedM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
+   altitudeM:controller.altitudeM,blocked:jailCellActive?renderer.custodyCell.blocked:Boolean(controller.blocked),
+   detained,jailWalkable:jailCellActive,restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
   for(const event of railwaySecurity?.advance(dt,{
@@ -963,7 +978,8 @@ function doFrame(t,source="window",xrFrameInput=null){
     displayMode=next;
     $("mode").textContent=next==="orbit"?"宇宙・惑星モード":next==="train-interior"?"列車内モード":
      next==="train-exterior"?"列車追従モード":next==="railway-concourse"?"駅構内・切符売場":
-      next==="ferry-interior"?"客船・船内モード":next==="railway-jail"?"駅留置所":"地表メッシュモード";
+      next==="ferry-interior"?"客船・船内モード":next==="railway-jail"?"駅留置所":
+      next==="guard-cell"?"衛兵の牢屋":"地表メッシュモード";
     if(next==="ground")log("地表詳細メッシュへ移行。同じ緯度・経度を使用しています。");
    }
   }catch(e){
@@ -1230,8 +1246,8 @@ $("orbit-button").addEventListener("click",()=>{
 });
 $("orbit-landing-confirm").addEventListener("click",confirmOrbitLanding);
 $("orbit-landing-clear").addEventListener("click",clearOrbitSelection);
-$("zoom-in").addEventListener("click",()=>controller.zoom(.35));
-$("zoom-out").addEventListener("click",()=>controller.zoom(2.8));
+$("zoom-in").addEventListener("click",()=>{if(law?.custody||railwaySecurity?.jailed)return;controller.zoom(.35);});
+$("zoom-out").addEventListener("click",()=>{if(law?.custody||railwaySecurity?.jailed)return;controller.zoom(2.8);});
 $("days-per-second").addEventListener("change",()=>{
  const scale=normalizeTimeScale($("days-per-second").value);
  $("days-per-second").value=String(scale);
@@ -1650,6 +1666,7 @@ function selectOrbitCity(place){
 }
 $("landing-water-mode").addEventListener("change",updateOrbitSelection);
 function confirmOrbitLanding(){
+ if(law?.custody||railwaySecurity?.jailed){log("🔒 勾留中は牢屋から別地点へ移動できません。釈放が必要です。");return false;}
  if(!orbitSelection?.site)return false;
  if(railway?.boarded){log("🚂 列車を降りてから別の地点へ降下してください。");return false;}
  if(railwaySecurity?.wanted||railwaySecurity?.jailed){log("🚨 鉄道保安の追跡・勾留中は別地点へ移動できません。");return false;}
@@ -1692,6 +1709,7 @@ function confirmOrbitLanding(){
 }
 /** Planetary travel to named settlements. The local waypoint map is unaffected. */
 function visitSettlement(place,{byRail=false,fromOrbit=false}={}){
+ if(law?.custody||railwaySecurity?.jailed)return {ok:false,message:"勾留中は都市へ移動できません。釈放が必要です"};
  if(!place||!destinationById(place.id))return {ok:false,message:"未登録の行き先です"};
  if(railway?.boarded&&!byRail)return {ok:false,message:"列車を降りてから別の街へ移動してください"};
  if((railwaySecurity?.wanted||railwaySecurity?.jailed)&&!byRail)
@@ -1892,6 +1910,8 @@ function updateRailwaySecurityHUD(){
 /** Both legal systems use one transition for the player and their mount. */
 function beginCustody(kind="law"){
  if(renderer?.captureFX?.kind===kind)return;
+ // Capture FX plays outdoors, then both law and railway transfer to a cell.
+ if(renderer){renderer.custodyCell=newCustodyCell();renderer.custodyKind=kind;}
  // Damage numbers from prior combat must not remain over the arrest cutscene.
  worldUI?.clear();
  if(renderer)renderer.playerHitSeconds=0;
@@ -1911,6 +1931,7 @@ function beginCustody(kind="law"){
 /** Release must follow teleporting the avatar to the gate, not precede it. */
 function finishCustody(){
  renderer?.clearCapture();worldUI?.clear();
+ if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;}
  if(renderer)renderer.playerHitSeconds=0;
  controller.mountRiding=false;controller.walkSpeed=5;
  controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
