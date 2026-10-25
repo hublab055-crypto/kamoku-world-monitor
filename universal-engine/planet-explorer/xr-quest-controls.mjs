@@ -17,8 +17,13 @@ const deadzone=(v,d=.19)=>{
 export function xrStick(gamepad){
  const a=gamepad?.axes;
  if(!a||!a.length)return {x:0,y:0};
- const pair=a.length>=4?2:0;
- return {x:deadzone(a[pair]),y:deadzone(a[pair+1])};
+ // WebXR xr-standard uses [2,3] for thumbsticks. Some Quest Browser
+ // configurations expose only [0,1], or leave [2,3] as placeholders.
+ // Prefer the standard pair whenever it has active input.
+ const standard=a.length>=4?{x:deadzone(a[2]),y:deadzone(a[3])}:null;
+ const legacy={x:deadzone(a[0]),y:deadzone(a[1])};
+ return standard&&(standard.x!==0||standard.y!==0)?standard:
+  legacy.x!==0||legacy.y!==0?legacy:standard||legacy;
 }
 export function xrButtonPressed(gamepad,index){
  return Boolean(gamepad?.buttons?.[index]?.pressed);
