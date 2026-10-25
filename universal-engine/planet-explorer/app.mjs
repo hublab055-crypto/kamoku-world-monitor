@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u-sticks-v09v";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -581,7 +581,8 @@ function inputVector(){
   strafe:(on("d")?1:0)-(on("a")?1:0)+axes.strafe,
   turn:(on("e")||on("right")?1:0)-(on("q")||on("left")?1:0)};
 }
-function doFrame(t,source="window"){
+function doFrame(t,source="window",xrFrameInput=null){
+ let xrMoveResult=null;
  // XR frames are the simulation clock while immersive VR is active.
  // Window RAF may be suspended in Quest Browser, or run concurrently.
  if(source==="window"&&xrUI?.mode==="vr"){
@@ -596,7 +597,9 @@ function doFrame(t,source="window"){
   const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
   if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
-  const xrAxes=xrUI?.inputVector?.();
+  // Never request Quest input from window RAF: deliver it directly with the
+  // immersive XR animation frame, so there is no stale-polling race.
+  const xrAxes=source==="xr"?xrFrameInput:xrUI?.inputVector?.();
   if(xrAxes&&!detained){
    // The Quest stick owns VR movement; never mix desktop camera/touch axes.
    input.forward=xrAxes.forward;
@@ -658,6 +661,13 @@ function doFrame(t,source="window"){
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
+  if(source==="xr")xrMoveResult={
+   forward:input.forward,strafe:input.strafe,turn:input.turn,
+   traveledM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
+   altitudeM:controller.altitudeM,blocked:Boolean(controller.blocked),
+   detained,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
+   onShip:Boolean(onShip),rts:Boolean(rtsMode)
+  };
   for(const event of railwaySecurity?.advance(dt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
    stamina:squad.frontier.person("player").stamina,
@@ -970,6 +980,7 @@ function doFrame(t,source="window"){
   }
  }
  if(source==="window")requestAnimationFrame(doFrame);
+ return xrMoveResult;
 }
 function refreshShipCrewChoices(){
  const board=marine?.shipboard;
@@ -3410,7 +3421,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
- onVRFrame:t=>doFrame(t,"xr"),
+ onVRFrame:(t,input)=>doFrame(t,"xr",input),
  onPlanetPick:(lat,lon)=>{
   if(!terrain||!renderer||!Number.isFinite(lat)||!Number.isFinite(lon))return false;
   orbitalCitiesUI?.clearChoice();
