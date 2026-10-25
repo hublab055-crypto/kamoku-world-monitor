@@ -6,8 +6,8 @@
  * to avoid firing twice; only non-select gamepad buttons are polled here.
  */
 export const XR_VR_MAPPING=Object.freeze({
- left:"Move: left stick; X: jump; Y: next action deck; left trigger: left hand; left grip: shoot",
- right:"Turn: right stick; A: tabletop RTS; B: first/third-person; right trigger: right hand or RTS select/move; right grip: guard",
+ left:"Move: left stick; X: jump; Y: next action deck; left grip: take bow from left shoulder; left trigger: free-hand action",
+ right:"Turn: right stick; A: tabletop RTS; B: first/third-person; right grip: take arrow from right quiver; right trigger: draw nocked bow, release to fire; hip grip: draw sword",
  rts:"A: exit RTS; right trigger: choose ally / ground move; left trigger: left-hand action; left grip: bow volley; right stick: rotate table; right stick click: select all"
 });
 const deadzone=(v,d=.19)=>{

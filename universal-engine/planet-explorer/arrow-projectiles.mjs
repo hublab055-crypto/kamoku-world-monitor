@@ -81,11 +81,23 @@ export class ArrowProjectiles{
    z:shooter.z+Math.cos(angle)*9,y:groundY,yaw:angle+Math.PI};
   this.targets.push(target);return target;
  }
- launch({shooterId,actor,groundY=0,target=null,mode="auto",arrowType="wood"}){
+ launch({shooterId,actor,groundY=0,target=null,mode="auto",arrowType="wood",aim=null}){
   if(!actor||!finite(actor.x)||!finite(actor.z)||this.flying.length>=64)return null;
   const yaw=actor.yaw||0;
-  const origin={x:actor.x+Math.sin(yaw)*.52,y:groundY+1.48,z:actor.z+Math.cos(yaw)*.52};
-  const velocity=shotVector({origin,target,yaw,mode});
+  const physical=aim&&finite(aim.yaw)&&finite(aim.pitch);
+  const offset=physical?aim.originOffset:null;
+  const origin=physical?{
+   x:actor.x+clamp(finite(offset?.x)?offset.x:0,-1,1),
+   y:groundY+clamp(finite(offset?.y)?offset.y:1.48,.45,2.3),
+   z:actor.z+clamp(finite(offset?.z)?offset.z:.52,-1,1)
+  }:{x:actor.x+Math.sin(yaw)*.52,y:groundY+1.48,z:actor.z+Math.cos(yaw)*.52};
+  // VR deliberately bypasses auto target correction: arrows follow the
+  // tracked bow direction (including elevation) and retain normal gravity.
+  const pitch=physical?clamp(aim.pitch,-.6,1.3):0;
+  const speed=physical?47*clamp(.40+.60*(finite(aim.power)?aim.power:1),.4,1):0;
+  const velocity=physical?{mode:"vr",vx:Math.sin(aim.yaw)*speed*Math.cos(pitch),
+   vy:speed*Math.sin(pitch),vz:Math.cos(aim.yaw)*speed*Math.cos(pitch)}:
+   shotVector({origin,target,yaw,mode});
   const arrow={id:this.nextId++,shooterId,ownerId:shooterId,arrowType:arrowTypeValid(arrowType)?arrowType:"wood",
    x:origin.x,y:origin.y,z:origin.z,
    vx:velocity.vx,vy:velocity.vy,vz:velocity.vz,mode:velocity.mode,age:0};
