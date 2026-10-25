@@ -41,7 +41,7 @@ test("VR diagnostics distinguish custody, XR focus and controller presence",()=>
  assert.match(runtime,/const sources=controllerSources/);
  assert.match(runtime,/visible"/);
  assert.match(runtime,/フォーカス外の可能性/);
- assert.match(runtime,/movement\.detained&&!movement\.jailWalkable&&movement\.restraintReason\?\.includes\("勾留"\)/);
+ assert.match(runtime,/movement\.detained&&!movement\.jailWalkable&&!movement\.jailStunned&&movement\.restraintReason\?\.includes\("勾留"\)/);
  assert.match(runtime,/罰金を払って釈放/);
  assert.match(runtime,/服役して釈放/);
 });
