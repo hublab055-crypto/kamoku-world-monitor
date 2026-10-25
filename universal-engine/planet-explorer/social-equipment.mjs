@@ -3,7 +3,7 @@
  */
 export const ITEM_OPTIONS=Object.freeze([
  ["none","— 空き","▫️"],["sword","剣","⚔️"],["spear","長槍（両手）","🔱"],["greatsword","両手剣","⚔️"],["shield","盾","🛡️"],["potion","回復薬","🧪"],["axe","斧","🪓"],["bow","弓","🏹"],["arrow","矢","➶"],["fishingRod","釣竿","🎣"],
- ["pickaxe","つるはし","⛏️"],["book","本","📖"],["cup","コップ","🥛"],
+ ["pickaxe","つるはし","⛏️"],["hammer","金槌","🔨"],["book","本","📖"],["cup","コップ","🥛"],
  ["bowl","椀","🥣"],["spoon","スプーン","🥄"],["meal","料理","🍲"],
  ["water","水","💧"],["wood","木材","🪵"],["stone","石","🪨"],
  ["fiber","繊維","🌿"],["rawFood","食材","🥕"],["bedroll","ベッドロール","🛏️"],
@@ -39,7 +39,7 @@ export const ARROW_TYPES=Object.freeze({
  fire:{name:"火矢",icon:"🔥",damage:17}
 });
 export const arrowTypeValid=type=>Object.hasOwn(ARROW_TYPES,type);
-const permanent=new Set(["sword","spear","greatsword","shield","axe","pickaxe","bow","book","fishingRod"]);
+const permanent=new Set(["sword","spear","greatsword","shield","axe","pickaxe","hammer","bow","book","fishingRod"]);
 const handDefaults=()=>({right:"sword",left:"axe"});
 export const EQUIPPABLE=Object.freeze([...validItems]);
 export class SocialEquipment {
@@ -214,7 +214,7 @@ export class SocialEquipment {
      {ok:true,kind:"action",action:"bow",usesArrow:true,arrowType:type}:
      {ok:false,message:ARROW_TYPES[type].name+"がありません。矢筒を補充してください。"};
    }
-   return {ok:true,kind:"action",action:{sword:"sword",spear:"spear",greatsword:"greatsword",axe:"axe",pickaxe:"mine"}[item]};
+   return {ok:true,kind:"action",action:{sword:"sword",spear:"spear",greatsword:"greatsword",axe:"axe",pickaxe:"mine",hammer:"build"}[item]};
   }
   if(["bedroll","tent"].includes(item))return {ok:true,kind:"deploy",item};
   const bag=frontier?.person(actor.id)?.inventory||{},

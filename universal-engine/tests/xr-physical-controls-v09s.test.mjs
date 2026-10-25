@@ -85,7 +85,7 @@ test("Quest VR rendering includes room-space torso, arms, hands, knees and feet 
  assert.match(renderer,/segment\(knee,foot/);
  assert.match(renderer,/if\(rig\.drawing&&rig\.nocked\)/);
  assert.match(renderer,/this\.vrBodySegment\.destroy|this\.vrBodySegment,this\.custodyStarMesh/);
- assert.match(ui,/renderer\.drawVRBody\?\.\(renderer\.xrView,vrPhysical\.snapshot\(\)\)/);
+ assert.match(ui,/renderer\.drawVRBody\?\.\(renderer\.xrView,\{\.\.\.vrPhysical\.snapshot\(\),backpack:onVRHasBag\(\)\}\)/);
 });
 test("XR events wire grip grab, trigger pull/release, swept sword and existing bow command",()=>{
  const ui=contentOf("xr-ui.mjs"),app=contentOf("app.mjs");

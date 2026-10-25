@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx-xr-v09s-body";
+import {ExplorerRenderer} from "./render.mjs?v=0.9k-custody-fx-xr-v09s-body-bag-v09t";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -30,7 +30,7 @@ import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
-import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r-body-v09s";
+import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r-body-v09s-hammer-v09t";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
@@ -62,7 +62,9 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t";
+import {FW_WEIGHTS} from "./frontier-bridge.mjs";
+import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
@@ -586,6 +588,8 @@ function doFrame(t){
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
   const detained=Boolean(railwaySecurity?.jailed||law?.custody||law?.pendingDeath||law?.gameOver);
   const input=!detained&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  // One load-based movement speed for VR stick, desktop and walk-to.
+  if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
   const xrAxes=xrUI?.inputVector?.();
   if(xrAxes&&!detained){
    input.forward=clamp(input.forward+xrAxes.forward,-1,1);
@@ -3475,12 +3479,54 @@ xrUI=installXRUI({
   if(law?.custody||law?.pendingDeath||law?.gameOver||!frontierUI)return false;
   if(item==="arrow")
    return frontierUI.activeHand("left")==="bow"&&frontierUI.hasVRArrow("player");
-  if(item==="sheathe")return Boolean(frontierUI.equipHandFromInventory("none","right")?.ok);
+  if(item==="sheathe"||item==="none")
+   return Boolean(frontierUI.equipHandFromInventory("none",hand)?.ok);
   if(item==="bow"&&hand!=="left"||item==="sword"&&hand!=="right")return false;
   if(frontierUI.activeHand(hand)===item)return true;
   const result=frontierUI.equipHandFromInventory(item,hand);
   if(!result?.ok)log("🥽 装備できません: "+(result?.message||item));
   return Boolean(result?.ok);
+ },
+ onVRHasBag:()=>appearance?.bag!=="none",
+ getVRPickups:()=>{
+  if(!controller?.nearGround||!squad?.frontier)return [];
+  const items=(squad.frontier.nodes||[]).filter(n=>n.quantity>0)
+   .map(n=>({id:n.id,source:"frontier",kind:n.kind,label:resourceNames[n.kind]||n.kind,
+    x:n.x,z:n.z,quantity:n.quantity,pickupHeightM:.43}));
+  for(const a of projectiles?.embedded||[]){
+   if(a.recoverLeft<=0)continue;
+   items.push({id:a.id,source:"arrow",kind:"arrow",label:"回収できる矢",
+    x:a.x,z:a.z,quantity:1,pickupHeightM:.38});
+  }
+  return items;
+ },
+ onVRStow:item=>{
+  if(appearance?.bag==="none")return {ok:false,message:"服装から鞄を装備してください"};
+  if(!controller?.nearGround||!squad?.frontier||!item)return {ok:false,message:"地表で拾ってください"};
+  if(Math.hypot(item.x-controller.x,item.z-controller.z)>3)
+   return {ok:false,message:"拾った場所から遠すぎます"};
+  if(item.source==="arrow"){
+   const arrow=projectiles?.embedded.find(a=>a.id===item.id);
+   if(!arrow)return {ok:false,message:"この矢は回収できなくなりました"};
+   const result=frontierUI?.addRecoveredArrow("player",arrow.arrowType||"wood");
+   if(!result?.ok)return {ok:false,message:"矢筒が満杯です"};
+   projectiles.recover(arrow.id);saveLifeJournal();updateHUD();
+   return {ok:true,message:"矢を矢筒に回収しました"};
+  }
+  if(item.source!=="frontier")return {ok:false,message:"未対応のアイテムです"};
+  const node=squad.frontier.nodes.find(n=>n.id===item.id&&n.kind===item.kind&&n.quantity>0);
+  if(!node)return {ok:false,message:"アイテムは既に拾われました"};
+  const massKg=FW_WEIGHTS[node.kind];
+  if(!Number.isFinite(massKg))return {ok:false,message:"この資源は収納できません"};
+  if(!vrCanCarry(squad.frontier.loadKg("player"),massKg))
+   return {ok:false,message:"荷重上限55kgです。倉庫に預けてください"};
+  node.quantity--;
+  const player=squad.frontier.person("player");
+  player.inventory[node.kind]=(player.inventory[node.kind]||0)+1;
+  player.gathered=(player.gathered||0)+1;
+  saveLifeJournal();updateHUD();
+  return {ok:true,message:(resourceNames[node.kind]||node.kind)+" ×1を収納（"+
+   squad.frontier.loadKg("player").toFixed(1)+"kg）"};
  }
 });
 requestAnimationFrame(doFrame);

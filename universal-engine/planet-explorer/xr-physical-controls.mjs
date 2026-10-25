@@ -27,6 +27,8 @@ export function xrBodyAnchors(headMatrix,{floorY=null}={}){
   head:h,forward,right,shoulderLeft:at(-.26,.30,-.05),
   shoulderRight:at(.26,.30,-.08),leftHip:at(-.20,.78,.02),
   rightHip:at(.20,.78,.02),chest:at(0,.48,.09),
+  rodCarry:at(-.28,.64,-.20),toolBeltRight:at(.27,.78,.04),
+  toolBeltLeft:at(-.29,.83,.03),pickShoulder:at(.29,.41,-.19),
   pelvis:at(0,.90,0),leftElbow:at(-.32,.45,.06),
   rightElbow:at(.32,.45,.06),
   leftKnee:at(-.13,Math.min(1.30,h[1]-ground-.36),.13),
@@ -49,6 +51,7 @@ export function xrDrawLength(bowHand,arrowHand,bowRay){
 export class VRPhysicalControls{
  constructor(){
   this.bowHeld=false;this.arrowHeld=false;this.swordHeld=false;
+  this.toolHeld={left:null,right:null};this.heldDrop=null;
   this.nocked=false;this.triggerDown=false;this.pull=0;
   this.pose=null;this.anchors=null;this.lastRight=null;
   this.lastTime=null;this.lastSwingAt=-Infinity;this.suppressRightSelect=false;
@@ -82,7 +85,7 @@ export class VRPhysicalControls{
   if(hand==="left"&&distance(p,h.shoulderLeft)<XR_GRAB_RADIUS_M){
    if(this.bowHeld)return {kind:"bow",already:true};
    if(!authorize("bow","left"))return {kind:"unavailable",item:"bow"};
-   this.bowHeld=true;
+   this.bowHeld=true;this.toolHeld.left=null;
    return {kind:"bow"};
   }
   if(hand==="right"){
@@ -91,16 +94,32 @@ export class VRPhysicalControls{
      this.swordHeld=false;return {kind:"sheathe"};
     }
     if(!authorize("sword","right"))return {kind:"unavailable",item:"sword"};
-    this.swordHeld=true;this.arrowHeld=false;this.nocked=false;this.pull=0;
+    this.swordHeld=true;this.toolHeld.right=null;
+    this.arrowHeld=false;this.nocked=false;this.pull=0;
     return {kind:"sword"};
    }
-   if(distance(p,h.shoulderRight)<XR_GRAB_RADIUS_M){
-    if(!this.bowHeld)return {kind:"no-bow"};
+   if(this.bowHeld&&distance(p,h.shoulderRight)<XR_GRAB_RADIUS_M){
     if(this.arrowHeld)return {kind:"arrow",already:true};
     if(!authorize("arrow","right"))return {kind:"unavailable",item:"arrow"};
     this.swordHeld=false;this.arrowHeld=true;this.nocked=false;
     return {kind:"arrow"};
    }
+  }
+  // Each VR physical holster uses the existing inventory's permission check.
+  // A second grip on the same slot puts that item away.
+  const slots=hand==="right"?
+   [["axe",h.toolBeltRight],["pickaxe",h.pickShoulder]]:
+   [["hammer",h.toolBeltLeft],["fishingRod",h.rodCarry]];
+  for(const [item,point] of slots){
+   if(distance(p,point)>=.28)continue;
+   if(this.toolHeld[hand]===item){
+    this.toolHeld[hand]=null;return {kind:"stowTool",item,hand};
+   }
+   if(!authorize(item,hand))return {kind:"unavailable",item};
+   this.toolHeld[hand]=item;
+   if(hand==="right"){this.swordHeld=false;this.arrowHeld=false;this.nocked=false;}
+   if(hand==="left"){this.bowHeld=false;this.nocked=false;this.arrowHeld=false;}
+   return {kind:"tool",item,hand};
   }
   return {kind:"none"};
  }
@@ -129,7 +148,8 @@ export class VRPhysicalControls{
    head:this.pose?.head||null,left:this.pose?.left||null,right:this.pose?.right||null,
    leftRay:this.pose?.leftRay||null,rightRay:this.pose?.rightRay||null,
    anchors:this.anchors,bowHeld:this.bowHeld,arrowHeld:this.arrowHeld,
-   swordHeld:this.swordHeld,nocked:this.nocked,drawing:this.triggerDown,pull:this.pull
+   swordHeld:this.swordHeld,toolHeld:{...this.toolHeld},heldDrop:this.heldDrop,
+   nocked:this.nocked,drawing:this.triggerDown,pull:this.pull
   };
  }
 }
