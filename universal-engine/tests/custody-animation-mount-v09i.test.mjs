@@ -122,7 +122,7 @@ test("app plays custody FX while simulation is paused and uses safe horse recove
 
 test("both desktop and VR defer railway jail rendering until stun completes",()=>{
  const src=read("render.mjs");
- const matches=src.match(/if\(this\.railwaySecurity\?\.jailed&&/g)||[];
+ const matches=src.match(/if\(\(this\.custodyCell\|\|this\.railwaySecurity\?\.jailed\)&&/g)||[];
  assert.equal(matches.length,2,"both non-VR and XR paths must defer jail cut");
  assert.match(src,/captureFX\.elapsed>=CAPTURE_DURATION_SECONDS/);
  assert.match(src,/this\.drawMesh\(this\.custodyStarMesh/);
