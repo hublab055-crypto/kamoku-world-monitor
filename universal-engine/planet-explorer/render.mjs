@@ -2010,6 +2010,14 @@ export class ExplorerRenderer{
   };
   const left=hand("left"),right=hand("right");
   segment(a.pelvis,a.chest,.43,.26,clothing);
+  if(rig.backpack){
+   const behind=add(a.chest,scale(a.forward,-.24)),base=add(behind,[0,-.29,0]);
+   segment(behind,base,.37,.21,leather);
+   for(const side of [-1,1]){
+    const shoulder=add(a.chest,scale(a.right,side*.18));
+    segment(shoulder,add(base,scale(a.right,side*.15)),.045,.045,[.29,.23,.18]);
+   }
+  }
   for(const side of ["left","right"]){
    const sign=side==="left"?-1:1,knee=a[side+"Knee"],foot=a[side+"Foot"],
     shoulder=a["shoulder"+(side==="left"?"Left":"Right")],wrist=side==="left"?left:right;
@@ -2023,6 +2031,17 @@ export class ExplorerRenderer{
     [-rig[side+"Ray"][8],-rig[side+"Ray"][9],-rig[side+"Ray"][10]]:a.forward;
    segment(wrist,add(wrist,scale(unit(aim),.105)),.11,.12,skin);
   }
+  // Belt attachments and shoulder gear stay visible.
+  const axePeg=a.toolBeltRight||a.rightHip;
+  segment(axePeg,add(axePeg,[0,-.34,0]),.055,.06,leather);
+  const pickPeg=a.pickShoulder||a.shoulderRight;
+  segment(pickPeg,add(pickPeg,[0,-.40,0]),.056,.06,leather);
+  const rodPeg=a.rodCarry||a.shoulderLeft;
+  segment(rodPeg,add(rodPeg,[0,.60,0]),.023,.024,bowWood);
+  if(!rig.bowHeld){
+   const b=add(a.shoulderLeft,scale(a.forward,-.12));
+   segment(add(b,[0,-.28,0]),add(b,[0,.35,0]),.03,.04,bowWood);
+  }
   // Shoulder quiver and sword sheath remain visible when empty.
   const quiver=add(a.shoulderRight,scale(a.forward,-.10));
   segment(quiver,add(quiver,[0,.28,0]),.11,.11,leather);
@@ -2034,6 +2053,28 @@ export class ExplorerRenderer{
    segment(add(right,scale(aim,-.12)),add(right,scale(aim,.10)),.065,.07,leather);
    segment(add(right,scale(aim,.10)),add(right,scale(aim,.88)),.054,.035,steel);
    segment(add(right,scale(a.right,-.16)),add(right,scale(a.right,.16)),.037,.05,steel);
+  }
+  // Tools follow the real Touch controller's tracked grip.
+  for(const side of ["left","right"]){
+   const item=rig.toolHeld?.[side];
+   if(!item)continue;
+   const wrist=side==="left"?left:right,ray=rig[side+"Ray"];
+   const aim=unit(ray?[-ray[8],-ray[9],-ray[10]]:a.forward);
+   const head=add(wrist,scale(aim,item==="fishingRod"?1.5:.52));
+   segment(wrist,head,item==="fishingRod"?.022:.047,.045,
+    item==="fishingRod"?bowWood:leather);
+   if(["axe","pickaxe","hammer"].includes(item)){
+    const crossbar=add(head,scale(a.right,.19));
+    const opposite=add(head,scale(a.right,-.19));
+    segment(opposite,crossbar,item==="hammer"?.13:.068,.09,steel);
+   }
+  }
+  if(rig.heldDrop){
+   const wrist=rig.heldDrop.hand==="left"?left:right;
+   const isArrow=rig.heldDrop.item?.kind==="arrow";
+   const tint=isArrow?steel:rig.heldDrop.item?.kind==="stone"?[.59,.63,.67]:[.72,.52,.28];
+   segment(add(wrist,[0,-.03,0]),add(wrist,[0,isArrow?.31:.14,0]),
+    isArrow?.025:.14,isArrow?.028:.13,tint);
   }
   if(rig.bowHeld){
    const aim=unit(rig.leftRay?[-rig.leftRay[8],-rig.leftRay[9],-rig.leftRay[10]]:a.forward);
