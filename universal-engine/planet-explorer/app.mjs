@@ -62,7 +62,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -581,7 +581,13 @@ function inputVector(){
   strafe:(on("d")?1:0)-(on("a")?1:0)+axes.strafe,
   turn:(on("e")||on("right")?1:0)-(on("q")||on("left")?1:0)};
 }
-function doFrame(t){
+function doFrame(t,source="window"){
+ // XR frames are the simulation clock while immersive VR is active.
+ // Window RAF may be suspended in Quest Browser, or run concurrently.
+ if(source==="window"&&xrUI?.mode==="vr"){
+  requestAnimationFrame(doFrame);
+  return;
+ }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
@@ -592,9 +598,10 @@ function doFrame(t){
   if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
   const xrAxes=xrUI?.inputVector?.();
   if(xrAxes&&!detained){
-   input.forward=clamp(input.forward+xrAxes.forward,-1,1);
-   input.strafe=clamp(input.strafe+xrAxes.strafe,-1,1);
-   input.turn=clamp(input.turn+xrAxes.turn,-1,1);
+   // The Quest stick owns VR movement; never mix desktop camera/touch axes.
+   input.forward=xrAxes.forward;
+   input.strafe=xrAxes.strafe;
+   input.turn=xrAxes.turn;
   }
   if(onTrain)railway.walk(running?dt:0,input);
   if(onFerry)ferry.walk(running?dt:0,input);
@@ -644,7 +651,8 @@ function doFrame(t){
    }
   }
   frontierUI?.updateCamera();
-  if(renderer.cameraController.mode==="free"){
+  // VR locomotion moves the avatar even when desktop free-camera is selected.
+  if(renderer.cameraController.mode==="free"&&xrUI?.mode!=="vr"){
    renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.forward,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.strafe);
    controller.update(dt,onShip?{...travelInput,turn:0}:{
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
@@ -961,7 +969,7 @@ function doFrame(t){
    frameTime=0;frameCount=0;lastHud=t;
   }
  }
- requestAnimationFrame(doFrame);
+ if(source==="window")requestAnimationFrame(doFrame);
 }
 function refreshShipCrewChoices(){
  const board=marine?.shipboard;
@@ -3402,6 +3410,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ onVRFrame:t=>doFrame(t,"xr"),
  onPlanetPick:(lat,lon)=>{
   if(!terrain||!renderer||!Number.isFinite(lat)||!Number.isFinite(lon))return false;
   orbitalCitiesUI?.clearChoice();
