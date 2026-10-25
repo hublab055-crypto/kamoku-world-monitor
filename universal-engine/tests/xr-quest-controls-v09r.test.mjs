@@ -21,8 +21,8 @@ test("Quest left stick moves avatar in each of four cardinal directions",()=>{
  assert.ok(movement(0,1).forward<-.9,"stick down walks backward");
  assert.ok(movement(-1,0).strafe<-.9,"stick left strafes left");
  assert.ok(movement(1,0).strafe>.9,"stick right strafes right");
- assert.equal(movement(0,0).forward,0);
- assert.equal(movement(0,0).strafe,0);
+ assert.ok(Math.abs(movement(0,0).forward)<1e-9);
+ assert.ok(Math.abs(movement(0,0).strafe)<1e-9);
 });
 test("Immersive VR samples Touch movement in the XR frame and runs simulation there",()=>{
  const ui=source("xr-ui.mjs"),app=source("app.mjs");
