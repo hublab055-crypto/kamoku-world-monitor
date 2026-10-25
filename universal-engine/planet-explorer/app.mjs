@@ -294,6 +294,7 @@ function init(saved=null){
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   railwaySecurity=new RailwaySecurity(saved?.v0_8x?.security||(!saved?loadRailwaySecurityJournal():null));
+  if(law?.custody||railwaySecurity?.jailed){running=false;simWorld.clock.paused=true;}
   townUI?.close(true);lawUI?.close();$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
@@ -627,7 +628,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
   if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
   const ship=marine?.boarded;
-  const onShip=!jailCellActive&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
+  const onShip=!detained&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
    for(const message of marine.shipboard.advance(running?dt:0,
     renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input))log(message);
@@ -638,7 +639,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
   // With an NPC at the wheel, the ship follows its cruise/course instructions.
-  const travelInput=jailCellActive||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:onShip?{
+  const travelInput=detained||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:onShip?{
     forward:running&&helming&&ship.cruise&&!ship.anchor?1:helming&&marine.shipboard.helmId==="player"?input.forward:0,
     strafe:0,
     turn:helming&&marine.shipboard.helmId==="player"?input.turn:0
