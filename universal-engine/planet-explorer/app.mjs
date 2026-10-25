@@ -267,6 +267,8 @@ function guardGroundPassable(fx,fz,tx,tz){
 }
 function init(saved=null){
  try{
+  // A freshly loaded game must not inherit the previous session's paused state.
+  running=true;
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
   orbitSelection=null;
   orbitalCitiesUI?.reset();
@@ -294,7 +296,8 @@ function init(saved=null){
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   railwaySecurity=new RailwaySecurity(saved?.v0_8x?.security||(!saved?loadRailwaySecurityJournal():null));
-  if(law?.custody||railwaySecurity?.jailed){running=false;simWorld.clock.paused=true;}
+  // The simulation world is created below; do not access its clock yet.
+  if(law?.custody||railwaySecurity?.jailed)running=false;
   townUI?.close(true);lawUI?.close();$("town-interior-exit").hidden=true;
    activeSettlementId=saved?.v0_8r?.destinationId||"pioneer";
    if(!destinationById(activeSettlementId)&&activeSettlementId!=="wilderness")activeSettlementId="pioneer";
