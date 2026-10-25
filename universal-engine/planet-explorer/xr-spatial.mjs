@@ -100,6 +100,27 @@ export function xrRTSHitRadius(scale=.0014,worldMeters=6,minimumPhysicalMeters=.
 /** Controller's physical pointing direction mapped through the VR stage
  * (a uniform-scale, rigid transform) into the game's world X/Z orientation.
  * Returns null if the ray is vertical. Used for bow and melee facing. */
+/** Physical left-hand bow ray mapped into the game world.
+ * The pointer, crosshair and projectile all use this one direction.
+ * originOffset is local to the player's head/body root, in metres. */
+export function xrBowAim(rayMatrix,stage,headMatrix=null,bowGripMatrix=null,{floor=false}={}){
+ if(!rayMatrix||!stage)return null;
+ const d=xrForward(rayMatrix);
+ const component=column=>d[0]*stage[column]+d[1]*stage[column+1]+d[2]*stage[column+2];
+ const x=component(0),y=component(4),z=component(8);
+ const horizontal=Math.hypot(x,z);
+ if(horizontal<.001)return null;
+ const aim={yaw:Math.atan2(x,z),pitch:Math.atan2(y,horizontal)};
+ if(headMatrix&&bowGripMatrix){
+  const delta=[bowGripMatrix[12]-headMatrix[12],
+   bowGripMatrix[13]-headMatrix[13],bowGripMatrix[14]-headMatrix[14]];
+  const scale=Math.hypot(stage[0],stage[1],stage[2])||1;
+  const world=column=>(delta[0]*stage[column]+delta[1]*stage[column+1]+delta[2]*stage[column+2])/scale;
+  const height=floor?bowGripMatrix[13]:1.65+delta[1];
+  aim.originOffset={x:world(0),y:height,z:world(8)};
+ }
+ return aim;
+}
 export function xrPointerYaw(rayMatrix,stage){
  if(!rayMatrix||!stage)return null;
  const d=xrForward(rayMatrix);
