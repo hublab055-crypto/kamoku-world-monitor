@@ -98,8 +98,7 @@ export class VRPhysicalControls{
     this.arrowHeld=false;this.nocked=false;this.pull=0;
     return {kind:"sword"};
    }
-   if(distance(p,h.shoulderRight)<XR_GRAB_RADIUS_M){
-    if(!this.bowHeld)return {kind:"no-bow"};
+   if(this.bowHeld&&distance(p,h.shoulderRight)<XR_GRAB_RADIUS_M){
     if(this.arrowHeld)return {kind:"arrow",already:true};
     if(!authorize("arrow","right"))return {kind:"unavailable",item:"arrow"};
     this.swordHeld=false;this.arrowHeld=true;this.nocked=false;
