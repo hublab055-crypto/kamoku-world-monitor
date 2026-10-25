@@ -1,10 +1,10 @@
-import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
+import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw,xrBowAim} from "./xr-spatial.mjs?v=0.9r-vr-controls-v09v-bow-aim";
 import {xrButtonEdges,xrVRMovement} from "./xr-quest-controls.mjs?v=0.9r-quest";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
 import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-layer-policy.mjs?v=0.9q-render-state";
-import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9s-physical-v09t";
+import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9s-physical-v09t-v09v-confirm-shot";
 import {vrNearestPickup,vrHandAtBag} from "./xr-backpack.mjs?v=0.9t-bag";
 
 /**
@@ -359,12 +359,17 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const outcome=vrPhysical.triggerEnd(event.inputSource?.handedness);
   if(!outcome)return;
   if(outcome.kind==="shoot"){
-   const ray=vrPhysical.pose?.leftRay;
-   const yaw=ray&&vrCurrentStage?xrPointerYaw(ray,vrCurrentStage):null;
-   if(yaw!==null)onVRAim(yaw,"left");
-   const fired=onVRCommand("shoot");
-   statusText(fired?.ok?"🏹 VR：トリガーを離して射撃":"🏹 射撃できません。矢・体力・行動中を確認してください");
-  }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
+   const aim=xrBowAim(vrPhysical.pose?.leftRay,vrCurrentStage,
+    vrPhysical.pose?.head,vrPhysical.pose?.left,{floor:usingFloor});
+   if(!aim){
+    statusText("🏹 弓の位置を追跡できません。左手をカメラの前に戻してください");
+    return;
+   }
+   onVRAim(aim.yaw,"left");
+   const fired=onVRCommand("shoot",{vrAim:{...aim,power:outcome.power}});
+   vrPhysical.confirmShot(Boolean(fired?.ok));
+   statusText(fired?.ok?"🏹 VR：右トリガーを離して射撃":"🏹 射撃できません。矢は手元に残っています（矢・体力・行動中を確認）");
+  }else statusText("🏹 引きが不足しています。矢をつがえたまま、もう一度引いてください");
  }
  function onSelect(event){
   if(!session||!anchor||!space||!event.frame)return;
@@ -374,6 +379,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(!ray)return;
   if(activeMode==="vr"){
    if(vrPhysical.suppressSelect(source.handedness))return;
+   // The bow must only shoot on right trigger release *after* an arrow was
+   // physically nocked and drawn. Standard trigger "use hand" is disabled.
+   if(!vrRTS&&vrPhysical.bowHeld&&source.handedness==="left")return;
+   if(!vrRTS&&vrPhysical.bowHeld&&!vrPhysical.swordHeld&&source.handedness==="right"){
+    statusText("🏹 右肩から矢を取り、弓の弦につがえてから右トリガーで引いてください");
+    return;
+   }
    if(vrRTS&&source.handedness==="right"){
     const actor=getController();
     const point=xrTableHit(ray.transform.matrix,anchor,actor.yaw,actor,Number(scaleInput.value),vrTableYaw);
@@ -424,7 +436,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="vr"){
    const hand=event.inputSource?.handedness;
    if(vrGripConsumed.delete(hand))return;
-   const result=onVRCommand(event.inputSource?.handedness==="right"?"guard":"shoot");
+   // Grips are physical grab/release in first-person VR. Preserve their
+   // legacy volley/guard shortcuts only while in tabletop RTS mode.
+   if(!vrRTS)return;
+   const result=onVRCommand(hand==="right"?"guard":"shoot");
    if(result?.ok)statusText("🥽 "+(event.inputSource?.handedness==="right"?"防御":"弓射撃")+"を実行");
    return;
   }
