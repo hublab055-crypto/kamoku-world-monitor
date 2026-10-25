@@ -100,6 +100,7 @@ let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirecto
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
 let lastGuardStrike=null;
+let custodyConversation=false;
 let territoryEconomy=null,territoryUI=null,factionStrategy=null,factionUI=null;
 function loadTerritoryJournal(){
  try{return JSON.parse(localStorage.getItem(TERRITORY_JOURNAL_KEY)||"null");}catch(_){return null;}
@@ -269,6 +270,7 @@ function init(saved=null){
  try{
   // A freshly loaded game must not inherit the previous session's paused state.
   running=true;
+  custodyConversation=false;
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
   orbitSelection=null;
   orbitalCitiesUI?.reset();
@@ -1917,6 +1919,7 @@ function updateRailwaySecurityHUD(){
 }
 /** Both legal systems use one transition for the player and their mount. */
 function beginCustody(kind="law"){
+ custodyConversation=false;
  if(renderer?.captureFX?.kind===kind)return;
  // Capture FX plays outdoors, then both law and railway transfer to a cell.
  if(renderer){renderer.custodyCell=newCustodyCell();renderer.custodyKind=kind;}
@@ -1938,6 +1941,7 @@ function beginCustody(kind="law"){
 }
 /** Release must follow teleporting the avatar to the gate, not precede it. */
 function finishCustody(){
+ custodyConversation=false;
  renderer?.clearCapture();worldUI?.clear();
  if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;}
  if(renderer)renderer.playerHitSeconds=0;
@@ -1981,6 +1985,56 @@ function payRailwayBail(){
 }
 function serveRailwaySentence(){
  releaseRailwayCustody(railwaySecurity.serveSentence());
+}
+/** VR inmates speak to the visible guard and use the existing legal release paths.
+ * Quest trigger/X: talk, right A: bail, right B: serve.
+ */
+function vrCustodySay(message){
+ log("🛡️ 看守「"+message+"」");
+ // Standard HTML overlays are invisible in immersive VR; voice is best effort.
+ try{
+  if(typeof speechSynthesis!=="undefined"&&typeof SpeechSynthesisUtterance!=="undefined"){
+   speechSynthesis.cancel();const voice=new SpeechSynthesisUtterance(message);
+   voice.lang="ja-JP";voice.rate=.92;speechSynthesis.speak(voice);
+  }
+ }catch(_){/* Text remains in the non-VR log. */}
+ return {handled:true,ok:true,message};
+}
+function vrCustodyInteraction(action){
+ const jailed=Boolean(railwaySecurity?.jailed),lawHeld=Boolean(law?.custody);
+ if(!jailed&&!lawHeld)return {handled:false};
+ if(action==="state")return {handled:true};
+ const cell=renderer?.custodyCell;
+ // Guard stands beyond the barred z=3.78 wall.
+ if(!cell||Math.hypot(cell.x+1.1,cell.z-3.4)>2.3)
+  return vrCustodySay("看守のいる鉄格子まで歩いてきてくれ。");
+ if(action==="talk"){
+  custodyConversation=true;
+  return vrCustodySay(jailed?
+   "目が覚めたか。お前は線路に侵入した罪で拘束されている。罰金を払うなら右手のA、服役するなら右手のBだ。":
+   "目が覚めたか。ここは拘置所だ。罰金を払うなら右手のA、服役するなら右手のBだ。");
+ }
+ if(!custodyConversation)
+  return vrCustodySay("まず話しかけてくれ。右トリガー、または左のXボタンだ。");
+ let result;
+ if(jailed){
+  if(action==="bail")result=railwaySecurity.payFine(amount=>railway.charge(amount));
+  else if(action==="serve")result=railwaySecurity.serveSentence();
+  else return {handled:true};
+  if(result.ok)releaseRailwayCustody(result);
+ }else if(lawHeld){
+  if(action==="bail"){
+   result=law.payFine(law.custody.faction,amount=>{
+    if(townLife.coins<amount)return false;
+    townLife.coins-=amount;saveTownJournal();return true;
+   });
+  }else if(action==="serve"){
+   result=law.serveSentence(law.custody.faction);
+   if(result.ok)planet.advance(result.days);
+  }else return {handled:true};
+  if(result.ok){finishCustody();saveLawJournal();}
+ }
+ return vrCustodySay(result?.message||"手続きに失敗した。");
 }
 function respondRailwaySecurity(choice){
  const result=railwaySecurity.respond(choice);
@@ -3454,6 +3508,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onVRFrame:(t,input)=>doFrame(t,"xr",input),
+  onVRCustody:vrCustodyInteraction,
  onPlanetPick:(lat,lon)=>{
   if(!terrain||!renderer||!Number.isFinite(lat)||!Number.isFinite(lon))return false;
   orbitalCitiesUI?.clearChoice();
