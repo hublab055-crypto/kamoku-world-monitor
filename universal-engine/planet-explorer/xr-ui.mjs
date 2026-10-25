@@ -34,7 +34,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let projection=null,projectionAttempted=false;
  let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
- let vrInputInfo="未取得",vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false;
+ let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
+ let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
@@ -131,7 +132,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    vrMark(ending,{force:true,log:!disposed});
   }
   // Preserve the final stick/blocked diagnostic for inspection after exiting VR.
-  vrInputInfo="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
+  vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
   session=null;activeMode=null;space=null;anchor=null;lastTime=0;usingFloor=false;
   placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
   previousPlanetHit=null;previousPlanetHitTime=0;
@@ -176,7 +177,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-  vrInputInfo="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
+  vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
@@ -560,26 +561,37 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
    const axes=left?.gamepad?.axes;
-   vrInputInfo=left?("L("+[...(axes||[])].map(v=>Number(v).toFixed(2)).join(",")+
-    ") "+(left.gamepad?.mapping||"mappingなし")):"左コントローラーなし";
+   if(left?.gamepad){
+    vrLastConnectedLeft="L("+[...(axes||[])].map(v=>Number(v).toFixed(2)).join(",")+
+     ") "+(left.gamepad?.mapping||"mappingなし");
+    vrInputInfo=vrLastConnectedLeft;
+   }else{
+    // XR inputSources may disappear when Quest shows an overlay or exits VR.
+    // Preserve the most recent real input sample for post-exit diagnostics.
+    vrInputInfo=vrLastConnectedLeft==="未取得"?"左コントローラー未検出":
+     "現在左コントローラー未検出（直近 "+vrLastConnectedLeft+"）";
+   }
    // Quest can suspend window.requestAnimationFrame: drive the simulation
    // from the immersive XR frame and pass the same sampled axes directly.
    try{
     const movement=onVRFrame(time,{...vrMovement});
     if(movement){
      vrMoveInfo="移動 "+movement.traveledM.toFixed(3)+"m／高度 "+movement.altitudeM.toFixed(1)+
-      "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"");
+      "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"")+
+      (movement.restraintReason?"／"+movement.restraintReason:"");
      const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
      if(requested)vrLastWalk="前後 "+vrMovement.forward.toFixed(2)+
       "／左右 "+vrMovement.strafe.toFixed(2)+"／変位 "+movement.traveledM.toFixed(3)+
       "m／高度 "+movement.altitudeM.toFixed(1)+"m"+
-      (movement.blocked?"／衝突":"")+(movement.detained?"／拘束":"")+
+      (movement.blocked?"／衝突":"")+(movement.restraintReason?"／"+movement.restraintReason:
+       movement.detained?"／行動制限":"")+
       "／"+vrInputInfo;
      if(requested&&movement.traveledM<.001){
       vrNoMotionFrames++;
       if(vrNoMotionFrames>80&&!vrWarned){
        const reason=movement.altitudeM>12.01?"地表への降下が未完了":
-        movement.detained?"拘束・操作停止中":movement.indoor?"施設や乗り物の専用移動中":
+        movement.detained?movement.restraintReason||"行動制限中":
+        movement.indoor?"施設や乗り物の専用移動中":
         movement.blocked?"地形・壁との衝突":"移動が反映されていません";
        notify("🥽 左スティック入力は検出しましたが、アバターが進めません："+reason+
         "／"+vrInputInfo);
