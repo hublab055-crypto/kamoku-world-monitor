@@ -669,6 +669,7 @@ export class ExplorerRenderer{
   this.selectionRing=new Mesh(gl,ring);
    this.custodyStarMesh=new Mesh(gl,captureStarGeometry());
    this.captureFX=null;
+   this.custodyCell=null;this.custodyKind=null;
   const pg=gl.createProgram();gl.attachShader(pg,shader(gl,gl.VERTEX_SHADER,VERT));
   gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
@@ -1643,7 +1644,7 @@ export class ExplorerRenderer{
   }
   this.screenActors=[];this.screenEnemies=[];this.screenGuards=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
   if(xr?.mode==="vr"&&!inOrbit){
-   if(this.railwaySecurity?.jailed&&
+   if((this.custodyCell||this.railwaySecurity?.jailed)&&
      (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
    if(this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
     return this.renderRailwayConcourse(asp);
@@ -1652,7 +1653,7 @@ export class ExplorerRenderer{
    if(this.townInterior)return this.renderTownInterior(asp);
   }
   if(!xr){
-  if(this.railwaySecurity?.jailed&&
+  if((this.custodyCell||this.railwaySecurity?.jailed)&&
      (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
    return this.renderRailwayConcourse(asp);
@@ -1847,10 +1848,13 @@ export class ExplorerRenderer{
   return "train-interior";
  }
  renderRailwayJail(asp){
-  const gl=this.gl;
+  const gl=this.gl,person=this.custodyCell||{x:.3,z:-.4,yaw:0};
   gl.clearColor(.035,.045,.046,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const vp=this.xrInteriorVP({x:.3,z:-.4})||
-   multiply4(perspective(55*DEG,asp,.22,120),lookAt([8.8,5.8,10.5],[0,1.35,0]));
+  // Both kinds of arrest share a physical locked cell. The headset follows
+  // the actor's local metre coordinates without translating the planet.
+  const vp=this.xrInteriorVP(person)||
+   multiply4(perspective(55*DEG,asp,.22,120),
+    lookAt([8.0,5.8,9.0],[person.x,1.35,person.z]));
   this.pickVP=null;this.actorMarker=null;
   this.drawMesh(this.railwayJailMesh,vp,[.52,.74,.34],1,.80);
   if(!this.townIndoorAvatarMesh){
@@ -1858,10 +1862,11 @@ export class ExplorerRenderer{
    this.townIndoorAvatarMesh=new Mesh(gl,geometry);
   }
   if(this.xrView?.mode!=="vr")
-   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,translate(.3,0,-.4)),[.55,.82,.32],1,.88);
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,multiply4(
+    translate(person.x,0,person.z),rotateY(person.yaw||0))),[.55,.82,.32],1,.88);
   this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(translate(-1.1,0,6.0),rotateY(Math.PI))),
    [.58,.78,.34],1,.86);
-  return "railway-jail";
+  return this.custodyKind==="law"?"guard-cell":"railway-jail";
  }
  renderTownInterior(asp){
   const gl=this.gl,kind=this.townInterior.type||"cabin";
