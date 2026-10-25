@@ -582,7 +582,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       (movement.jailWalkable?"／牢内歩行":"")+
       (movement.restraintReason?"／"+movement.restraintReason:"");
      const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
-     if(requested&&movement.detained&&!movement.jailWalkable&&movement.restraintReason?.includes("勾留")&&!vrCustodyTipShown){
+     if(requested&&movement.detained&&!movement.jailWalkable&&!movement.jailStunned&&movement.restraintReason?.includes("勾留")&&!vrCustodyTipShown){
       vrCustodyTipShown=true;
       notify("🥽 歩行停止：ゲーム内で勾留中です。VRを終了して🚨「治安・手配」から「罰金を払って釈放」または「📆 服役して釈放」を選択してください。左スティック入力とは別の移動制限です。");
      }
@@ -596,7 +596,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      if(requested&&movement.traveledM<.001){
       vrNoMotionFrames++;
       if(vrNoMotionFrames>80&&!vrWarned){
-       const reason=movement.jailWalkable&&movement.blocked?"牢の壁・鉄格子・家具に阻まれています":
+       const reason=movement.jailStunned?"捕縛・気絶の演出中です。終了すると牢内を歩けます":
+        movement.jailWalkable&&movement.blocked?"牢の壁・鉄格子・家具に阻まれています":
         movement.altitudeM>12.01?"地表への降下が未完了":
         movement.detained&&!movement.jailWalkable?movement.restraintReason||"行動制限中":
         movement.indoor?"施設や乗り物の専用移動中":
