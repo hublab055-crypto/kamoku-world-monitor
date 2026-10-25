@@ -1,4 +1,4 @@
-import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS,ARROW_TYPES} from "./social-equipment.mjs?v=0.8q-rod";
+import {SocialEquipment,ITEM_OPTIONS,ITEM_MAP,TWO_HANDED_ITEMS,ARROW_TYPES} from "./social-equipment.mjs?v=0.9t-hammer";
 import {ActionSlots,DECK_KINDS,COMMAND_LABELS} from "./action-slots.mjs?v=0.8q-rod-deck";
 import {applyBowHold} from "./archery-timing.mjs";
 import {parseFrontierGLB,findFrontierGLB,cachedFrontierGLB,AVATAR_PACK_VERSION} from "./frontier-glb.mjs";
