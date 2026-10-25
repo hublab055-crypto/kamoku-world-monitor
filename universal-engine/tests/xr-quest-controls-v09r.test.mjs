@@ -26,13 +26,26 @@ test("Quest left stick moves avatar in each of four cardinal directions",()=>{
 });
 test("Immersive VR samples Touch movement in the XR frame and runs simulation there",()=>{
  const ui=source("xr-ui.mjs"),app=source("app.mjs");
- assert.match(ui,/vrMovement=xrVRMovement\(session\.inputSources,\{rts:vrRTS\}\)/);
- assert.match(ui,/onVRFrame\(time\)/);
+ assert.match(ui,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS\}\)/);
+ assert.match(ui,/onVRFrame\(time,\{\.\.\.vrMovement\}\)/);
  assert.match(ui,/performance\.now\(\)-vrInputSampleAt>250/);
- assert.match(app,/onVRFrame:t=>doFrame\(t,"xr"\)/);
+ assert.match(app,/onVRFrame:\(t,input\)=>doFrame\(t,"xr",input\)/);
  assert.match(app,/source==="window"&&xrUI\?\.mode==="vr"/);
  assert.match(app,/input\.forward=xrAxes\.forward/);
  assert.match(app,/cameraController\.mode==="free"&&xrUI\?\.mode!=="vr"/);
+});
+test("Quest Browser supports both xr-standard axes and legacy thumbstick axes",()=>{
+ const canonical=sourceFor("left",[.6,.7,.9,-.7]);
+ assert.ok(xrVRMovement([canonical]).forward>.5);
+ assert.ok(xrVRMovement([canonical]).strafe>.8);
+ const fallback=sourceFor("left",[.8,-1,0,0]);
+ assert.ok(xrVRMovement([fallback]).forward>.9);
+ assert.ok(xrVRMovement([fallback]).strafe>.7);
+ const shortPair=sourceFor("left",[-.8,.7]);
+ assert.ok(xrVRMovement([shortPair]).strafe<-.7);
+ const generic=sourceFor("left",[0,0,-.9,-1]);
+ generic.gamepad.mapping="standard";
+ assert.ok(xrVRMovement([generic]).forward>.9);
 });
 test("Quest tabletop RTS disables walking and redirects right thumbstick to model rotation",()=>{
  const a=xrVRMovement([sourceFor("left",[0,0,.8,-.9]),sourceFor("right",[0,0,.5,0])],{rts:true});
@@ -51,7 +64,7 @@ test("A/B/X/Y and stick clicks emit one edge per press, never repeat while held"
 });
 test("Unknown gamepad mapping cannot accidentally drive avatar or buttons",()=>{
  const alien=sourceFor("left",[0,0,1,-1],[4]);
- alien.gamepad.mapping="standard";
+ alien.gamepad.mapping="unsupported-foreign-pad";
  assert.deepEqual(xrButtonEdges([alien]).pressed,[]);
  assert.equal(xrVRMovement([alien]).forward,0);
 });
