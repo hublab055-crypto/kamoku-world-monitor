@@ -4,8 +4,9 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9w-lockup-walk";
+import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-building";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
+import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -85,6 +86,7 @@ const FERRY_JOURNAL_KEY="universal-engine:explorer:ferry:v0.8y";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
+const CUSTODY_FACILITY_JOURNAL_KEY="universal-engine:explorer:custody-facility:v1";
 const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
 const TERRITORY_JOURNAL_KEY="universal-engine:explorer:territory:v0.9f";
 const FACTION_JOURNAL_KEY="universal-engine:explorer:factions:v0.9g";
@@ -100,6 +102,7 @@ let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirecto
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
 let lastGuardStrike=null;
+let custodyFacility=null;
 let custodyConversation=false;
 let territoryEconomy=null,territoryUI=null,factionStrategy=null,factionUI=null;
 function loadTerritoryJournal(){
@@ -125,6 +128,8 @@ function saveRailwayJournal(){
 function loadRailwayJournal(){
  try{return JSON.parse(localStorage.getItem(RAILWAY_JOURNAL_KEY)||"null");}catch(_){return null;}
 }
+function saveCustodyFacilityJournal(){try{if(custodyFacility)localStorage.setItem(CUSTODY_FACILITY_JOURNAL_KEY,JSON.stringify(custodyFacilitySnapshot(custodyFacility)));}catch(_){}}
+function loadCustodyFacilityJournal(){try{return JSON.parse(localStorage.getItem(CUSTODY_FACILITY_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function saveRailwaySecurityJournal(){
  try{if(railwaySecurity)localStorage.setItem(RAILWAY_SECURITY_JOURNAL_KEY,JSON.stringify(railwaySecurity.snapshot()));}
  catch(_){log("鉄道保安の記録を保存できませんでした");}
@@ -270,7 +275,7 @@ function init(saved=null){
  try{
   // A freshly loaded game must not inherit the previous session's paused state.
   running=true;
-  custodyConversation=false;
+  custodyConversation=false;custodyFacility=null;
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
   orbitSelection=null;
   orbitalCitiesUI?.reset();
@@ -364,7 +369,9 @@ function init(saved=null){
   renderer=new ExplorerRenderer($("world"),planet,terrain);
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
-   renderer.custodyCell=newCustodyCell();
+   custodyFacility=newCustodyFacility(saved?.v0_9z?.custodyFacility||(!saved?loadCustodyFacilityJournal():null));
+   renderer.custodyFacility=custodyFacility;
+   renderer.custodyCell=custodyFacility.player;
    renderer.custodyKind=law?.custody?"law":"railway";
    controller.altitudeM=2.5;controller.targetAltitude(2.5);
    controller.clearMoveTarget();
@@ -679,7 +686,18 @@ function doFrame(t,source="window",xrFrameInput=null){
   // VR locomotion moves the avatar even when desktop free-camera is selected.
   if(jailCellActive){
    // Detention pauses the planet, not the cell. Do not update planet position.
-   renderer.custodyCell=walkCustodyCell(renderer.custodyCell,input,dt);
+   if(custodyFacility){
+    const events=advanceCustodyFacility(custodyFacility,dt);
+    for(const event of events){
+     log("🛡️ 看守「"+event.message+"」");
+     if(xrUI?.mode==="vr")vrCustodySay(event.message);
+    }
+    renderer.custodyCell=walkCustodyFacility(custodyFacility,input,dt);
+    renderer.custodyFacility=custodyFacility;
+    if(custodyFacility.elapsedSinceSave>=8||events.length){
+     custodyFacility.elapsedSinceSave=0;saveCustodyFacilityJournal();updateCustodyFacilityPanel();
+    }
+   }else renderer.custodyCell=walkCustodyCell(renderer.custodyCell,input,dt);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else if(renderer.cameraController.mode==="free"&&xrUI?.mode!=="vr"){
    renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.forward,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.strafe);
@@ -1354,6 +1372,7 @@ function captureGame(){
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
+    v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
@@ -1922,7 +1941,10 @@ function beginCustody(kind="law"){
  custodyConversation=false;
  if(renderer?.captureFX?.kind===kind)return;
  // Capture FX plays outdoors, then both law and railway transfer to a cell.
- if(renderer){renderer.custodyCell=newCustodyCell();renderer.custodyKind=kind;}
+ custodyFacility=newCustodyFacility();
+ if(renderer){renderer.custodyFacility=custodyFacility;
+   renderer.custodyCell=custodyFacility.player;renderer.custodyKind=kind;}
+ saveCustodyFacilityJournal();updateCustodyFacilityPanel();
  // Damage numbers from prior combat must not remain over the arrest cutscene.
  worldUI?.clear();
  if(renderer)renderer.playerHitSeconds=0;
@@ -1943,7 +1965,9 @@ function beginCustody(kind="law"){
 function finishCustody(){
  custodyConversation=false;
  renderer?.clearCapture();worldUI?.clear();
- if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;}
+ if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;renderer.custodyFacility=null;}
+ custodyFacility=null;try{localStorage.removeItem(CUSTODY_FACILITY_JOURNAL_KEY);}catch(_){}
+ updateCustodyFacilityPanel();
  if(renderer)renderer.playerHitSeconds=0;
  controller.mountRiding=false;controller.walkSpeed=5;
  controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
@@ -3501,7 +3525,7 @@ $("harbor-alight").addEventListener("click",()=>harborAction(()=>{
 let ferryDialogue=0;
 $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
-window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveCustodyFacilityJournal();});
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
