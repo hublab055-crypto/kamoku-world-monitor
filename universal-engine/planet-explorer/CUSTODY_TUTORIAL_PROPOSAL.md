@@ -2,6 +2,8 @@
 
 2026-10-25 / 対象: planet-explorer、VR（Quest 3S）と通常操作
 
+> 詳細な建築・NPC・二階回廊・食堂・ドア・時間割の実装仕様は [二階建て拘置所仕様 v1.0](./CUSTODY_FACILITY_ATRIUM_SPEC_V1.md) に記載。
+
 ## 原則
 - ゲーム本編の通常開始・既存セーブは一切強制的に留置所スタートにしない。「はじめから」から任意選択の導入シナリオとする。
 - 既存の `law.custody`、`railwaySecurity.jailed` は治安／刑事処理であり、チュートリアルは別個の `detentionTutorial` 進行状態とする。
