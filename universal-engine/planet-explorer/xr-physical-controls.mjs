@@ -27,6 +27,8 @@ export function xrBodyAnchors(headMatrix,{floorY=null}={}){
   head:h,forward,right,shoulderLeft:at(-.26,.30,-.05),
   shoulderRight:at(.26,.30,-.08),leftHip:at(-.20,.78,.02),
   rightHip:at(.20,.78,.02),chest:at(0,.48,.09),
+  leftPocket:at(-.17,.80,.14),rightPocket:at(.17,.80,.14),
+  leftCoat:at(-.16,.49,.17),rightCoat:at(.16,.49,.17),
   rodCarry:at(-.28,.64,-.20),toolBeltRight:at(.27,.78,.04),
   toolBeltLeft:at(-.29,.83,.03),pickShoulder:at(.29,.41,-.19),
   pelvis:at(0,.90,0),leftElbow:at(-.32,.45,.06),
