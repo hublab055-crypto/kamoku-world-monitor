@@ -52,7 +52,14 @@ export function xrVRMovement(sources,{rts=false}={}){
   // Some Quest Browser versions expose a generic "standard" mapping here.
   if(source.gamepad?.mapping&&!["xr-standard","standard"].includes(source.gamepad.mapping))continue;
   const {x,y}=xrStick(source.gamepad);
-  if(source.handedness==="left"&&!rts){result.forward=-y;result.strafe=x;}
+  if(source.handedness==="left"&&!rts){
+      result.forward=-y;
+      // xrStage faces the actor along world +Z. Its yaw includes a 180deg
+      // turn for headset -Z, so world +X appears to the viewer's LEFT.
+      // Invert strafe here (not in world/indoor physics): Touch right must
+      // move toward the viewer's right in both custody and open-world VR.
+      result.strafe=-x;
+    }
   if(source.handedness==="right"){
    if(rts)result.tableTurn=x;
    else result.turn=x;
@@ -79,4 +86,18 @@ export function xrControllerSources(session){
   }
  }
  return [...chosen.values()];
+}
+
+/**
+ * The displayed VR stage and the movement controller MUST use the same yaw.
+ * Prison movement advances its own local actor, not the outdoor controller.
+ * Keep the existing vehicle/interior yaw choices as fallbacks.
+ */
+export function xrVRActorYaw(renderer,controller){
+  return renderer?.custodyFacility?.player?.yaw ??
+    renderer?.custodyCell?.yaw ??
+    renderer?.trainInterior?.pose?.yaw ??
+    renderer?.townInterior?.pose?.yaw ??
+    (renderer?.ferry?.boarded?renderer.ferry.pose?.yaw:undefined) ??
+    controller?.yaw ?? 0;
 }
