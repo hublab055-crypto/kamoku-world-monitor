@@ -44,6 +44,7 @@ import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometr
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {railwayStationGeometry,railwayConcourseGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8y-station";
+import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardrailGeometry} from "./custody-facility-geometry.mjs?v=0.9z-twofloor-jail";
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
@@ -669,7 +670,7 @@ export class ExplorerRenderer{
   this.selectionRing=new Mesh(gl,ring);
    this.custodyStarMesh=new Mesh(gl,captureStarGeometry());
    this.captureFX=null;
-   this.custodyCell=null;this.custodyKind=null;
+   this.custodyCell=null;this.custodyKind=null;this.custodyFacility=null;
   const pg=gl.createProgram();gl.attachShader(pg,shader(gl,gl.VERTEX_SHADER,VERT));
   gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
   if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
@@ -691,6 +692,9 @@ export class ExplorerRenderer{
    this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
    this.railwayConcourseMesh=new Mesh(gl,railwayConcourseGeometry());
    this.railwayJailMesh=new Mesh(gl,railwayJailGeometry());
+   this.custodyFacilityMesh=new Mesh(gl,custodyFacilityGeometry());
+   this.custodyRailMesh=new Mesh(gl,custodyAtriumGuardrailGeometry());
+   this.custodyDoorMesh=new Mesh(gl,custodyFacilityDoorGeometry());
    this.railGuardMesh=new Mesh(gl,settlementResidentsGeometry([{id:"rail-guard",x:0,z:0,clothing:5}],()=>0));
    this.law=null;this.screenGuards=[];
    this.lawGuardMeshes=Object.fromEntries(["guard","knight"].map(kind=>[kind,
@@ -1848,24 +1852,51 @@ export class ExplorerRenderer{
   return "train-interior";
  }
  renderRailwayJail(asp){
-  const gl=this.gl,person=this.custodyCell||{x:.3,z:-.4,yaw:0};
-  gl.clearColor(.035,.045,.046,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  // Both kinds of arrest share a physical locked cell. The headset follows
-  // the actor's local metre coordinates without translating the planet.
-  const vp=this.xrInteriorVP(person)||
-   multiply4(perspective(55*DEG,asp,.22,120),
-    lookAt([8.0,5.8,9.0],[person.x,1.35,person.z]));
+  const gl=this.gl,facility=this.custodyFacility,
+   person=facility?.player||this.custodyCell||{x:.3,z:-.4,yaw:0};
+  gl.clearColor(.15,.22,.29,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  // Both city/rail arrests share one walkable facility. The world coordinates
+  // and the planetary camera are never changed during custody.
+  const xr=this.xrView;
+  const vp=facility?
+   (xr?.mode==="vr"?multiply4(xr.projection,multiply4(xr.view,
+    multiply4(xr.stage,translate(-person.x,-(person.y||0),-person.z)))):
+    multiply4(perspective(62*DEG,asp,.15,130),
+     lookAt([person.x+6,person.y+4.9,person.z+8],
+      [person.x,person.y+1.25,person.z]))):
+   this.xrInteriorVP(person)||multiply4(perspective(55*DEG,asp,.22,120),
+    lookAt([8,5.8,9],[person.x,1.35,person.z]));
   this.pickVP=null;this.actorMarker=null;
-  this.drawMesh(this.railwayJailMesh,vp,[.52,.74,.34],1,.80);
-  if(!this.townIndoorAvatarMesh){
-   const geometry=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
-   this.townIndoorAvatarMesh=new Mesh(gl,geometry);
+  this.drawMesh(facility?this.custodyFacilityMesh:this.railwayJailMesh,vp,[.64,.83,.52],1,.95);
+  if(facility){
+   // Four solid inner safety rails around the entire upper-floor drop.
+   this.drawMesh(this.custodyRailMesh,vp,[.68,.84,.68],1,.95);
+   const openAngle=facility.door*Math.PI*.48;
+   for(const x of [-8,-4,0,4,8]){
+    // Each cell is visibly opened by the scheduled guard shift.
+    const model=multiply4(translate(x-.58,3.8,-6.15),rotateY(openAngle));
+    this.drawMesh(this.custodyDoorMesh,multiply4(vp,model),[.63,.83,.58],1,.94);
+   }
+   const g=facility.guard;
+   this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(
+    translate(g.x,g.y,g.z),rotateY(g.yaw||0))),[.74,.88,.66],1,.94);
+   for(const n of facility.inmates){
+    this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(
+     translate(n.x,n.y,n.z),rotateY(n.yaw||0))),[.72,.78,.90],1,.94);
+   }
+  }else{
+   this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(translate(-1.1,0,6),rotateY(Math.PI))),
+    [.58,.78,.34],1,.86);
   }
-  if(this.xrView?.mode!=="vr")
+  if(!this.townIndoorAvatarMesh){
+   this.townIndoorAvatarMesh=new Mesh(gl,settlementResidentsGeometry(
+    [{id:"player",x:0,z:0,clothing:0}],()=>0));
+  }
+  if(xr?.mode!=="vr"){
    this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,multiply4(
-    translate(person.x,0,person.z),rotateY(person.yaw||0))),[.55,.82,.32],1,.88);
-  this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(translate(-1.1,0,6.0),rotateY(Math.PI))),
-   [.58,.78,.34],1,.86);
+    translate(person.x,person.y||0,person.z),rotateY(person.yaw||0))),
+    [.58,.84,.46],1,.91);
+  }
   return this.custodyKind==="law"?"guard-cell":"railway-jail";
  }
  renderTownInterior(asp){
@@ -2709,7 +2740,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
