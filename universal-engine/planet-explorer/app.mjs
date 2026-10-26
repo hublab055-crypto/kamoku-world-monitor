@@ -2032,7 +2032,7 @@ function updateCustodyFacilityPanel(){
  if(!custodyFacility)return;
  const labels={wake:"起床",breakfast:"朝食",work:"作業",dinner:"夕食",return:"帰房",sleep:"就寝"};
  custodyFacilityPanel.querySelector('[data-role="custody-status"]').textContent=
-  (Math.floor(custodyFacility.elapsed/240)+1)+"日目・"+labels[custodyFacility.phase]+
+  (Math.floor(custodyFacility.elapsed/300)+1)+"日目・"+labels[custodyFacility.phase]+
   "／"+(custodyFacility.door>.88?"開扉中":"施錠中")+"。東側階段から1階へ。";
 }
 function performCustodyFacilityAction(action){
