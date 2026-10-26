@@ -87,7 +87,9 @@ function canWalk(from,to,door,withSweep=true){
   // only after the guard has actually opened its animated leaf.
   if(from.y>2.5){
     const crossing=(a.z-borderZ)*(b.z-borderZ)<0;
-    if(crossing&&Math.abs(b.x)<1.75){
+    if(crossing&&Math.abs(b.x)<10.15){
+      // No inmate can walk through another cell's front bars or a solid wall.
+      // Only the player's own open doorway at x=0 is traversable.
       if(!(Math.abs(b.x)<.46&&door>.88)){
         dest={x:b.x,z:borderZ+(a.z<borderZ?-.22:.22)};blocked=true;
       }
