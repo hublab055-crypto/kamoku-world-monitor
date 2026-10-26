@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-building";
+import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-vr-wearables";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
@@ -32,7 +32,7 @@ import {ExpressionController,EXPRESSIONS} from "./expression.mjs";
 import {CameraController,CAMERA_MODES} from "./camera-controller.mjs";
 import {SquadEngine,RULE_METRICS,RULE_OPERATORS,RULE_ACTIONS} from "./squad.mjs?v=0.8h-hunger-mental-r2";
 import {installGroupUI} from "./groups-ui.mjs";
-import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9h-disarm-xr-v09r-body-v09s-hammer-v09t";
+import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9z-arrow-count";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
@@ -64,7 +64,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest3s-fix-v09q-controls-v09r-physical-controls-v09s-body-backpack-v09t-left-walk-v09u-sticks-v09v-custody-v09w-quest-resume-v09x-locked-cell-v09y-stun-fix-vr-guard-dialogue-20261025";
+import {installXRUI} from "./xr-ui.mjs?v=0.9z-vr-wearables";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -3573,6 +3573,8 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ getVRAppearance:()=>appearance,
+ getVRArrowCount:()=>frontierUI?.vrArrowCount("player")||0,
  onVRFrame:(t,input)=>doFrame(t,"xr",input),
   onVRCustody:vrCustodyInteraction,
  onPlanetPick:(lat,lon)=>{
