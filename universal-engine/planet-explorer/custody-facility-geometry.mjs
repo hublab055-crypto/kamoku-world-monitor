@@ -38,7 +38,7 @@ function twoFloorShell(b){
   // Outer walls of a continuous, lit building. No black void behind guards.
   box(b,-11.9,0,0,.22,7.9,10.0,stoneDark);
   box(b,11.9,0,0,.22,7.9,10.0,stoneDark);
-  box(b,0,0,-10,.22,7.9,.22,stoneDark);
+  box(b,0,0,-10,11.9,7.9,.22,stoneDark);
   box(b,0,0,10,11.9,7.9,.22,wall);
   // Upper ring around the 11m x 9m central opening.
   box(b,-8.75,3.66,0,3.15,.14,9.8,stone);
