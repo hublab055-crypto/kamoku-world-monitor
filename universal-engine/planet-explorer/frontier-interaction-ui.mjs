@@ -739,6 +739,7 @@ export function installFrontierInteractions({get,log,updateHUD,openBookLibrary,s
   // XR controllers share the regular ammo, weapon, stamina and RTS logic.
   useHand,runCommand,selectDeck,activeHand:(hand,id="player")=>social.handItem(id,hand),
   hasVRArrow:(id="player")=>["wood","iron","fire"].some(type=>social.arrowCount(id,type)>0),
+  vrArrowCount:(id="player")=>["wood","iron","fire"].reduce((sum,type)=>sum+social.arrowCount(id,type),0),
   hasTacticalArrow:id=>social.arrowCount(id,"wood")>0,
   consumeTacticalArrow:id=>social.spendArrow(id,"wood"),
   updateTarget,selectTargetAt,isCombat,volley,addRecoveredArrow,armedWeapons,stowWeapons,
