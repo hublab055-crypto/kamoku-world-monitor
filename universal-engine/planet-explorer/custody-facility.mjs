@@ -8,7 +8,7 @@ export const PRISON=Object.freeze({
   innerX:5.5, innerZ:4.5,
   cellFront:-6.20, cellBack:-9.48,
   stairX:8.75, stairTopZ:-4.45, stairBottomZ:5.55,
-  doorHalfWidth:.58, daySeconds:240
+  doorHalfWidth:.58, daySeconds:300
 });
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
@@ -26,9 +26,9 @@ const npcStart=cellCenters.filter(c=>c!==0).map((c,i)=>({
 }));
 function sceneTime(s){return ((s.elapsed%PRISON.daySeconds)+PRISON.daySeconds)%PRISON.daySeconds;}
 export function custodyPhase(elapsed){
-  const t=((elapsed%240)+240)%240;
-  return t<15?"wake":t<70?"breakfast":t<160?"work":
-   t<205?"dinner":t<225?"return":"sleep";
+  const t=((elapsed%300)+300)%300;
+  return t<15?"wake":t<90?"breakfast":t<180?"work":
+   t<235?"dinner":t<270?"return":"sleep";
 }
 export function custodyFloorY(x,z,wasY=3.8){
   if(x>7.10&&x<10.45&&z>=PRISON.stairTopZ&&z<=PRISON.stairBottomZ)
@@ -130,8 +130,9 @@ function moveTo(n,target,dt,speed=1.45){
   if(len<=.07){n.x=target.x;n.z=target.z;n.y=target.y;return true;}
   const d=Math.min(len,dt*speed);
   n.x+=(target.x-n.x)*d/len;n.z+=(target.z-n.z)*d/len;
-  n.y=custodyFloorY(n.x,n.z,n.y);
-  n.y+=(target.y-n.y)*Math.min(1,d/Math.max(.1,len));
+  if(n.x>7.1&&n.x<10.45&&n.z>=PRISON.stairTopZ&&n.z<=PRISON.stairBottomZ)
+    n.y=custodyFloorY(n.x,n.z,n.y);
+  else n.y+=(target.y-n.y)*Math.min(1,d/Math.max(.1,len));
   n.yaw=Math.atan2(target.x-n.x,target.z-n.z);
   return false;
 }
@@ -149,7 +150,7 @@ export function advanceCustodyFacility(state,dt=0){
   const old=state.phase;
   state.elapsed+=t;
   state.phase=custodyPhase(state.elapsed);
-  const open=!["wake","return","sleep"].includes(state.phase);
+  const open=!["wake","sleep"].includes(state.phase);
   state.door=clamp(state.door+(open?1:-1)*t/1.1,0,1);
   const events=[];
   if(old!==state.phase){
@@ -163,16 +164,23 @@ export function advanceCustodyFacility(state,dt=0){
     for(const n of state.inmates)n.step=0;state.guard.step=0;
   }
   const away=!["wake","return","sleep"].includes(state.phase);
-  for(const n of state.inmates){
-    const route=waypointsFor(n,!away);
-    if(away||state.phase==="return"){
-      if(n.step>=route.length)continue;
-      // Stagger the line: adjacent inmates do not overlap at door and stairs.
-      if(away&&(state.door<.88||sceneTime(state)<16+(n.cellX+8)*.3))continue;
-      if(moveTo(n,route[n.step],t))n.step++;
-    }
+  for(const [index,n] of state.inmates.entries()){
+    let route;
+    if(state.phase==="return"){
+      route=waypointsFor(n,true);
+    }else if(state.phase==="work"){
+      route=n.y<1.4?[{x:-7+(index%2)*2,z:-1+index*.45,y:0}]:
+        waypointsFor(n,false);
+    }else if(state.phase==="breakfast"||state.phase==="dinner"){
+      route=n.y<1.4?[{x:-2+(index%2)*1.4,z:1.5+Math.floor(index/2)*2,y:0}]:
+        waypointsFor(n,false);
+    }else continue;
+    if(n.step>=route.length)continue;
+    // Stagger departures, and never walk through a closed cell door.
+    if(away&&(state.door<.88||sceneTime(state)<16+(n.cellX+8)*.3))continue;
+    if(moveTo(n,route[n.step],t))n.step++;
   }
-  const guardRoute=away?[pathToDining[1],pathToDining[2],pathToDining[3],pathToDining[4],pathToDining[5],{x:5.7,z:5.9,y:0}]:
+  const guardRoute=away&&state.guard.y<1.4?[{x:5.7,z:5.9,y:0}]:away?[pathToDining[1],pathToDining[2],pathToDining[3],pathToDining[4],pathToDining[5],{x:5.7,z:5.9,y:0}]:
    [{x:8.75,z:5.55,y:0},{x:8.75,z:-4.45,y:3.8},{x:6.4,z:-5.25,y:3.8},{x:1.25,z:-5.35,y:3.8}];
   if((away||state.phase==="return")&&state.guard.step<guardRoute.length&&(!away||state.door>.88))
    if(moveTo(state.guard,guardRoute[state.guard.step],t,1.7))state.guard.step++;
@@ -196,7 +204,7 @@ export function custodyFacilityInteract(state,action){
     return {ok:true,message:"🛏️ ベッドに腰掛けて休み、体力を回復した。"};
   }
   if(action==="status"){
-    return {ok:true,message:"拘置所 "+state.phase+"／"+Math.floor(state.elapsed/240+1)+"日目"+
+    return {ok:true,message:"拘置所 "+state.phase+"／"+Math.floor(state.elapsed/300+1)+"日目"+
       "。二階回廊から東側の階段で一階へ。食堂で食事、夜は居房へ。"};
   }
   return {ok:false,message:"操作できません。"};
