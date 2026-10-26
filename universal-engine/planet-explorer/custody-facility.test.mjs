@@ -36,9 +36,9 @@ test("other inmates walk from their cells to dining room and back at night",()=>
 });
 
 test("guard uses the real stairs instead of teleporting between floors",()=>{
- const s=newCustodyFacility();advance(s,32);
+ const s=newCustodyFacility();advance(s,24);
  assert.ok(s.guard.y>0&&s.guard.y<3.8,"escort on the staircase");
- advance(s,40);
+ advance(s,48);
  assert.ok(s.guard.y<.5,"guard on first floor");
  advance(s,214);
  assert.ok(s.guard.y>3.5,"guard returned upstairs");
