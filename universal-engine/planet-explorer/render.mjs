@@ -2037,9 +2037,14 @@ export class ExplorerRenderer{
     z[0]*depth,z[1]*depth,z[2]*depth,0,p[0],p[1],p[2],1];
    this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.89,tint);
   };
-  const clothing=[.32,.45,.60],sleeve=[.39,.52,.67],skin=[.89,.70,.55],
-   pants=[.29,.34,.42],boot=[.26,.22,.19],steel=[.83,.88,.92],
-   leather=[.45,.30,.20],bowWood=[.59,.39,.22],string=[.95,.91,.78];
+  const rgb=(hex,fallback)=>typeof hex==="string"&&/^#[0-9a-fA-F]{6}$/.test(hex)?
+   [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255):fallback;
+  const clothing=rgb(rig.appearance?.outer,[.32,.45,.60]);
+  const sleeve=clothing.map(c=>Math.min(1,c*1.15)),skin=[.89,.70,.55];
+  const pants=rgb(rig.appearance?.legs,[.29,.34,.42]);
+  const boot=rgb(rig.appearance?.feet,[.26,.22,.19]);
+  const steel=[.83,.88,.92],leather=[.45,.30,.20],
+   bowWood=[.59,.39,.22],string=[.95,.91,.78];
   const hand=side=>{
    const p=rig[side];
    return p?[p[12],p[13],p[14]]:add(a[side+"Elbow"],[0,-.2,-.15]);
@@ -2047,12 +2052,26 @@ export class ExplorerRenderer{
   const left=hand("left"),right=hand("right");
   segment(a.pelvis,a.chest,.43,.26,clothing);
   if(rig.backpack){
-   const behind=add(a.chest,scale(a.forward,-.24)),base=add(behind,[0,-.29,0]);
-   segment(behind,base,.37,.21,leather);
-   for(const side of [-1,1]){
-    const shoulder=add(a.chest,scale(a.right,side*.18));
-    segment(shoulder,add(base,scale(a.right,side*.15)),.045,.045,[.29,.23,.18]);
+   const toolBag=rig.appearance?.bag==="toolbag";
+   const carry=add(add(a.chest,scale(a.right,toolBag ? .28 : -.26)),[0,-.28,0]);
+   const top=add(carry,[0,.11,0]),base=add(carry,[0,-.20,0]);
+   segment(top,base,toolBag ? .30 : .25,toolBag ? .19 : .15,leather);
+   const shoulder=toolBag?a.shoulderRight:a.shoulderLeft;
+   segment(shoulder,top,.043,.035,[.30,.23,.17]);
+   if(rig.bagOpen){
+    segment(top,add(top,scale(a.forward,.19)),.24,.027,[.70,.52,.30]);
+   }else{
+    segment(top,add(top,[0,-.08,0]),.25,.032,[.33,.22,.13]);
    }
+  }
+  // Pocket flap and visible field note only when the object is stored.
+  const pocket=rig.pocketSocket==="rightCoat"?a.rightCoat:a.rightPocket;
+  if(pocket){
+   segment(add(pocket,[0,.035,0]),add(pocket,[0,-.075,0]),
+    .135,.045,clothing);
+   if(rig.pocketContainsNote)
+    segment(add(pocket,[0,.05,0]),add(pocket,[0,.115,0]),
+     .082,.012,[.90,.83,.64]);
   }
   for(const side of ["left","right"]){
    const sign=side==="left"?-1:1,knee=a[side+"Knee"],foot=a[side+"Foot"],
@@ -2081,6 +2100,13 @@ export class ExplorerRenderer{
   // Shoulder quiver and sword sheath remain visible when empty.
   const quiver=add(a.shoulderRight,scale(a.forward,-.10));
   segment(quiver,add(quiver,[0,.28,0]),.11,.11,leather);
+  // Quiver shafts use the real Frontier World ammunition, never demo items.
+  const shafts=Math.min(4,Math.max(0,Math.floor(rig.arrowCount||0)));
+  for(let i=0;i<shafts;i++){
+   const offset=scale(a.right,(i-1.5)*.038);
+   const bottom=add(add(quiver,offset),[0,.18,0]);
+   segment(bottom,add(bottom,[0,.27,0]),.014,.014,bowWood);
+  }
   if(!rig.swordHeld){
    segment(a.leftHip,add(a.leftHip,[0,-.57,0]),.085,.085,leather);
    segment(a.leftHip,add(a.leftHip,[0,.10,0]),.12,.09,steel);
@@ -2103,6 +2129,21 @@ export class ExplorerRenderer{
     const crossbar=add(head,scale(a.right,.19));
     const opposite=add(head,scale(a.right,-.19));
     segment(opposite,crossbar,item==="hammer"?.13:.068,.09,steel);
+   }
+  }
+  // First-person carried objects follow the tracked Touch grip in metres.
+  for(const side of ["left","right"]){
+   const item=rig.heldWearables?.[side];
+   if(!item)continue;
+   const wrist=side==="left"?left:right;
+   const ray=rig[side+"Ray"];
+   const aim=unit(ray?[-ray[8],-ray[9],-ray[10]]:a.forward);
+   if(item.tag==="paper"){
+    const start=add(wrist,scale(aim,.055)),end=add(start,scale(aim,.20));
+    segment(start,end,.14,.018,[.89,.82,.65]);
+    segment(add(start,[0,.015,0]),add(end,[0,.015,0]),.012,.024,[.41,.30,.18]);
+   }else{
+    segment(wrist,add(wrist,scale(aim,.16)),.10,.09,[.72,.52,.28]);
    }
   }
   if(rig.heldDrop){
