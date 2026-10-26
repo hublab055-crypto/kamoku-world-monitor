@@ -4,8 +4,9 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9w-lockup-walk";
+import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-building";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
+import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -85,6 +86,7 @@ const FERRY_JOURNAL_KEY="universal-engine:explorer:ferry:v0.8y";
 const TOWN_JOURNAL_KEY="universal-engine:explorer:town:v0.8s";
 const RAILWAY_JOURNAL_KEY="universal-engine:explorer:railway:v0.8t";
 const RAILWAY_SECURITY_JOURNAL_KEY="universal-engine:explorer:railway-security:v0.8x";
+const CUSTODY_FACILITY_JOURNAL_KEY="universal-engine:explorer:custody-facility:v1";
 const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
 const TERRITORY_JOURNAL_KEY="universal-engine:explorer:territory:v0.9f";
 const FACTION_JOURNAL_KEY="universal-engine:explorer:factions:v0.9g";
@@ -100,6 +102,7 @@ let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirecto
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
 let lastGuardStrike=null;
+let custodyFacility=null;
 let custodyConversation=false;
 let territoryEconomy=null,territoryUI=null,factionStrategy=null,factionUI=null;
 function loadTerritoryJournal(){
@@ -125,6 +128,8 @@ function saveRailwayJournal(){
 function loadRailwayJournal(){
  try{return JSON.parse(localStorage.getItem(RAILWAY_JOURNAL_KEY)||"null");}catch(_){return null;}
 }
+function saveCustodyFacilityJournal(){try{if(custodyFacility)localStorage.setItem(CUSTODY_FACILITY_JOURNAL_KEY,JSON.stringify(custodyFacilitySnapshot(custodyFacility)));}catch(_){}}
+function loadCustodyFacilityJournal(){try{return JSON.parse(localStorage.getItem(CUSTODY_FACILITY_JOURNAL_KEY)||"null");}catch(_){return null;}}
 function saveRailwaySecurityJournal(){
  try{if(railwaySecurity)localStorage.setItem(RAILWAY_SECURITY_JOURNAL_KEY,JSON.stringify(railwaySecurity.snapshot()));}
  catch(_){log("鉄道保安の記録を保存できませんでした");}
@@ -270,7 +275,7 @@ function init(saved=null){
  try{
   // A freshly loaded game must not inherit the previous session's paused state.
   running=true;
-  custodyConversation=false;
+  custodyConversation=false;custodyFacility=null;
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
   orbitSelection=null;
   orbitalCitiesUI?.reset();
@@ -364,7 +369,9 @@ function init(saved=null){
   renderer=new ExplorerRenderer($("world"),planet,terrain);
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
-   renderer.custodyCell=newCustodyCell();
+   custodyFacility=newCustodyFacility(saved?.v0_9z?.custodyFacility||(!saved?loadCustodyFacilityJournal():null));
+   renderer.custodyFacility=custodyFacility;
+   renderer.custodyCell=custodyFacility.player;
    renderer.custodyKind=law?.custody?"law":"railway";
    controller.altitudeM=2.5;controller.targetAltitude(2.5);
    controller.clearMoveTarget();
@@ -540,6 +547,7 @@ function init(saved=null){
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
+  updateCustodyFacilityPanel();
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
@@ -679,7 +687,18 @@ function doFrame(t,source="window",xrFrameInput=null){
   // VR locomotion moves the avatar even when desktop free-camera is selected.
   if(jailCellActive){
    // Detention pauses the planet, not the cell. Do not update planet position.
-   renderer.custodyCell=walkCustodyCell(renderer.custodyCell,input,dt);
+   if(custodyFacility){
+    const events=advanceCustodyFacility(custodyFacility,dt);
+    for(const event of events){
+     log("🛡️ 看守「"+event.message+"」");
+     if(xrUI?.mode==="vr")vrCustodySay(event.message);
+    }
+    renderer.custodyCell=walkCustodyFacility(custodyFacility,input,dt);
+    renderer.custodyFacility=custodyFacility;
+    if(custodyFacility.elapsedSinceSave>=8||events.length){
+     custodyFacility.elapsedSinceSave=0;saveCustodyFacilityJournal();updateCustodyFacilityPanel();
+    }
+   }else renderer.custodyCell=walkCustodyCell(renderer.custodyCell,input,dt);
    controller.update(dt,{forward:0,strafe:0,turn:0});
   }else if(renderer.cameraController.mode==="free"&&xrUI?.mode!=="vr"){
    renderer.cameraController.pan(dt,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.forward,marine?.cabinId||townLife.inside||inConcourse||onFerry?0:input.strafe);
@@ -1354,6 +1373,7 @@ function captureGame(){
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
+    v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
 $("save").addEventListener("click",()=>{
@@ -1922,7 +1942,10 @@ function beginCustody(kind="law"){
  custodyConversation=false;
  if(renderer?.captureFX?.kind===kind)return;
  // Capture FX plays outdoors, then both law and railway transfer to a cell.
- if(renderer){renderer.custodyCell=newCustodyCell();renderer.custodyKind=kind;}
+ custodyFacility=newCustodyFacility();
+ if(renderer){renderer.custodyFacility=custodyFacility;
+   renderer.custodyCell=custodyFacility.player;renderer.custodyKind=kind;}
+ saveCustodyFacilityJournal();updateCustodyFacilityPanel();
  // Damage numbers from prior combat must not remain over the arrest cutscene.
  worldUI?.clear();
  if(renderer)renderer.playerHitSeconds=0;
@@ -1943,7 +1966,9 @@ function beginCustody(kind="law"){
 function finishCustody(){
  custodyConversation=false;
  renderer?.clearCapture();worldUI?.clear();
- if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;}
+ if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;renderer.custodyFacility=null;}
+ custodyFacility=null;try{localStorage.removeItem(CUSTODY_FACILITY_JOURNAL_KEY);}catch(_){}
+ updateCustodyFacilityPanel();
  if(renderer)renderer.playerHitSeconds=0;
  controller.mountRiding=false;controller.walkSpeed=5;
  controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
@@ -1989,6 +2014,40 @@ function serveRailwaySentence(){
 /** VR inmates speak to the visible guard and use the existing legal release paths.
  * Quest trigger/X: talk, right A: bail, right B: serve.
  */
+let custodyFacilityPanel=null;
+function updateCustodyFacilityPanel(){
+ if(!custodyFacilityPanel){
+  const panel=document.createElement("section");
+  panel.id="custody-facility-panel";panel.hidden=true;
+  panel.setAttribute("aria-label","拘置所生活");
+  panel.style.cssText="position:fixed;bottom:66px;left:8px;z-index:60;max-width:270px;padding:9px;border:1px solid #83959e;border-radius:8px;background:#152a37e8;color:white;font-size:12px";
+  panel.innerHTML='<strong>🔒 拘置所の日課</strong><div data-role="custody-status" style="margin:5px 0"></div><div style="display:flex;gap:3px;flex-wrap:wrap"><button data-action="status">状況</button><button data-action="eat">🍞 食事</button><button data-action="rest">🛏️ 休む</button><button data-action="talk">🛡️ 看守</button></div>';
+  for(const b of panel.querySelectorAll("button")){
+   b.type="button";b.style.cssText="padding:5px;border:1px solid #869fb0;border-radius:5px;background:#2c4351;color:white;font-size:12px";
+   b.addEventListener("click",()=>b.dataset.action==="talk"?vrCustodyInteraction("talk"):performCustodyFacilityAction(b.dataset.action));
+  }
+  document.body.append(panel);custodyFacilityPanel=panel;
+ }
+ custodyFacilityPanel.hidden=!custodyFacility;
+ if(!custodyFacility)return;
+ const labels={wake:"起床",breakfast:"朝食",work:"作業",dinner:"夕食",return:"帰房",sleep:"就寝"};
+ custodyFacilityPanel.querySelector('[data-role="custody-status"]').textContent=
+  (Math.floor(custodyFacility.elapsed/300)+1)+"日目・"+labels[custodyFacility.phase]+
+  "／"+(custodyFacility.door>.88?"開扉中":"施錠中")+"。東側階段から1階へ。";
+}
+function performCustodyFacilityAction(action){
+ if(!custodyFacility)return {ok:false,message:"勾留中ではありません"};
+ const result=custodyFacilityInteract(custodyFacility,action);
+ if(result.ok&&squad?.frontier){
+  const vitals=squad.frontier.person("player");
+  if(action==="eat")eatVitals(vitals,{quality:"meal"});
+  if(action==="rest")restVitals(vitals,{sleep:true});
+  if(action==="eat"||action==="rest")saveLifeJournal();
+ }
+ if(result.message)log(result.message);
+ saveCustodyFacilityJournal();updateCustodyFacilityPanel();updateHUD();
+ return result;
+}
 function vrCustodySay(message){
  log("🛡️ 看守「"+message+"」");
  // Standard HTML overlays are invisible in immersive VR; voice is best effort.
@@ -2005,9 +2064,16 @@ function vrCustodyInteraction(action){
  if(!jailed&&!lawHeld)return {handled:false};
  if(action==="state")return {handled:true};
  const cell=renderer?.custodyCell;
- // Guard stands beyond the barred z=3.78 wall.
- if(!cell||Math.hypot(cell.x+1.1,cell.z-3.4)>2.3)
-  return vrCustodySay("看守のいる鉄格子まで歩いてきてくれ。");
+ const guard=custodyFacility?.guard||{x:-1.1,z:6.0,y:0};
+ if(custodyFacility&&action==="talk"&&cell){
+  if(cell.y<1.2&&Math.hypot(cell.x-1,cell.z-1.7)<5.4)
+   return vrCustodySay(performCustodyFacilityAction("eat").message);
+  if(cell.y>2.5&&cell.z<-6.3&&Math.hypot(cell.x+.8,cell.z+8.25)<1.85)
+   return vrCustodySay(performCustodyFacilityAction("rest").message);
+ }
+ if(!cell||Math.hypot(cell.x-guard.x,cell.z-guard.z)>3.1||
+    Math.abs((cell.y||0)-(guard.y||0))>2.3)
+  return vrCustodySay("看守に近づいてくれ。食堂では食事、ベッドでは休息できる。");
  if(action==="talk"){
   custodyConversation=true;
   return vrCustodySay(jailed?
@@ -3501,7 +3567,7 @@ $("harbor-alight").addEventListener("click",()=>harborAction(()=>{
 let ferryDialogue=0;
 $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
-window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();});
+window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveCustodyFacilityJournal();});
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
