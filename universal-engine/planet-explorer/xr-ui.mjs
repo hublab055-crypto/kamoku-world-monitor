@@ -1,5 +1,5 @@
 import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
-import {xrButtonEdges,xrVRMovement,xrControllerSources} from "./xr-quest-controls.mjs?v=0.9w-quest-focus-custody";
+import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=0.9z-quest-strafe-heading-fix";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
@@ -777,9 +777,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     anchor.vrFloor[2]+(anchor.position[2]-anchor.vrFloor[2])*2.4
    ]};
   }
-  const indoorYaw=mode==="vr"?(renderer.trainInterior?.pose?.yaw??
-   renderer.townInterior?.pose?.yaw??
-   (renderer.ferry?.boarded?renderer.ferry.pose?.yaw:undefined)??controller.yaw):controller.yaw;
+  // VR image facing must track the avatar that the sticks actually move.
+  // In the detention facility its yaw is local and the outdoor controller
+  // remains stationary while the planet clock is paused.
+  const indoorYaw=mode==="vr"?xrVRActorYaw(renderer,controller):controller.yaw;
   const stage=xrStage({
    mode:mrRts?"mr-rts":planetMode?"mr-planet":mode,anchor:stageAnchor,
    actorYaw:indoorYaw,planetRadius:renderer.R,
