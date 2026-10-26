@@ -60,7 +60,7 @@ export function newCustodyFacility(saved=null){
         step:clamp(Math.trunc(saved.inmates[i].step)||0,0,20)
       }:{})
     })),
-    guard:{x:1.25,z:-5.35,y:3.8,yaw:Math.PI},
+    guard:{x:1.25,z:-5.35,y:3.8,yaw:Math.PI,step:0},
     mealCount:valid?Math.min(999,Math.max(0,Math.trunc(saved.mealCount)||0)):0,
     rested:valid?Boolean(saved.rested):false,
     elapsedSinceSave:0,announcements:[]
@@ -73,7 +73,7 @@ export function custodyFacilitySnapshot(state){
     inmates:state.inmates.map(n=>({id:n.id,x:n.x,y:n.y,z:n.z,step:n.step})),
     mealCount:state.mealCount,rested:state.rested};
 }
-const inCell=p=>p.y>2.5&&p.z<-PRISON.cellFront&&
+const inCell=p=>p.y>2.5&&p.z<PRISON.cellFront&&
  p.x>-1.65&&p.x<1.65;
 function canWalk(from,to,door,withSweep=true){
   const a={x:from.x,z:from.z},b={x:to.x,z:to.z};
@@ -160,7 +160,7 @@ export function advanceCustodyFacility(state,dt=0){
       sleep:"消灯だ。横になって休め。",
       wake:"朝の点呼だ。起きろ。"};
     events.push({type:"schedule",phase:state.phase,message:captions[state.phase]});
-    for(const n of state.inmates)n.step=0;
+    for(const n of state.inmates)n.step=0;state.guard.step=0;
   }
   const away=!["wake","return","sleep"].includes(state.phase);
   for(const n of state.inmates){
@@ -168,16 +168,14 @@ export function advanceCustodyFacility(state,dt=0){
     if(away||state.phase==="return"){
       if(n.step>=route.length)continue;
       // Stagger the line: adjacent inmates do not overlap at door and stairs.
-      if(away&&sceneTime(state)<16+(n.cellX+8)*.3)continue;
+      if(away&&(state.door<.88||sceneTime(state)<16+(n.cellX+8)*.3))continue;
       if(moveTo(n,route[n.step],t))n.step++;
     }
   }
-  // Shift guard from upstairs to stair landing and dining hall, then back.
-  const target=away?{x:5.7,z:5.9,y:0}:{x:1.25,z:-5.35,y:3.8};
-  const waypoint=away&&state.guard.y>2.5?
-    {x:8.75,z:-4.45,y:3.8}:!away&&state.guard.y<2.5?
-    {x:8.75,z:5.55,y:0}:target;
-  if(moveTo(state.guard,waypoint,t,1.7)&&waypoint!==target)moveTo(state.guard,target,t,1.7);
+  const guardRoute=away?[pathToDining[1],pathToDining[2],pathToDining[3],pathToDining[4],pathToDining[5],{x:5.7,z:5.9,y:0}]:
+   [{x:8.75,z:5.55,y:0},{x:8.75,z:-4.45,y:3.8},{x:6.4,z:-5.25,y:3.8},{x:1.25,z:-5.35,y:3.8}];
+  if((away||state.phase==="return")&&state.guard.step<guardRoute.length&&(!away||state.door>.88))
+   if(moveTo(state.guard,guardRoute[state.guard.step],t,1.7))state.guard.step++;
   state.elapsedSinceSave+=t;
   return events;
 }
