@@ -84,3 +84,10 @@ test("phase boundaries include unlocked group escorts and locked nighttime",()=>
  assert.equal(custodyPhase(235),"return");
  assert.equal(custodyPhase(270),"sleep");
 });
+
+test("other prisoners' cell fronts stay solid despite an open main door",()=>{
+ const s=newCustodyFacility();advance(s,20);
+ s.player={...s.player,x:4,z:-5.7,y:3.8};
+ move(s,{forward:-1},14);
+ assert.ok(s.player.z>-6.2,"must not walk through the neighbouring bars");
+});
