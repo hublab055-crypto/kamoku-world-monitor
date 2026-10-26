@@ -547,6 +547,7 @@ function init(saved=null){
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
+  updateCustodyFacilityPanel();
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
@@ -2013,6 +2014,40 @@ function serveRailwaySentence(){
 /** VR inmates speak to the visible guard and use the existing legal release paths.
  * Quest trigger/X: talk, right A: bail, right B: serve.
  */
+let custodyFacilityPanel=null;
+function updateCustodyFacilityPanel(){
+ if(!custodyFacilityPanel){
+  const panel=document.createElement("section");
+  panel.id="custody-facility-panel";panel.hidden=true;
+  panel.setAttribute("aria-label","拘置所生活");
+  panel.style.cssText="position:fixed;bottom:66px;left:8px;z-index:60;max-width:270px;padding:9px;border:1px solid #83959e;border-radius:8px;background:#152a37e8;color:white;font-size:12px";
+  panel.innerHTML='<strong>🔒 拘置所の日課</strong><div data-role="custody-status" style="margin:5px 0"></div><div style="display:flex;gap:3px;flex-wrap:wrap"><button data-action="status">状況</button><button data-action="eat">🍞 食事</button><button data-action="rest">🛏️ 休む</button><button data-action="talk">🛡️ 看守</button></div>';
+  for(const b of panel.querySelectorAll("button")){
+   b.type="button";b.style.cssText="padding:5px;border:1px solid #869fb0;border-radius:5px;background:#2c4351;color:white;font-size:12px";
+   b.addEventListener("click",()=>b.dataset.action==="talk"?vrCustodyInteraction("talk"):performCustodyFacilityAction(b.dataset.action));
+  }
+  document.body.append(panel);custodyFacilityPanel=panel;
+ }
+ custodyFacilityPanel.hidden=!custodyFacility;
+ if(!custodyFacility)return;
+ const labels={wake:"起床",breakfast:"朝食",work:"作業",dinner:"夕食",return:"帰房",sleep:"就寝"};
+ custodyFacilityPanel.querySelector('[data-role="custody-status"]').textContent=
+  (Math.floor(custodyFacility.elapsed/240)+1)+"日目・"+labels[custodyFacility.phase]+
+  "／"+(custodyFacility.door>.88?"開扉中":"施錠中")+"。東側階段から1階へ。";
+}
+function performCustodyFacilityAction(action){
+ if(!custodyFacility)return {ok:false,message:"勾留中ではありません"};
+ const result=custodyFacilityInteract(custodyFacility,action);
+ if(result.ok&&squad?.frontier){
+  const vitals=squad.frontier.person("player");
+  if(action==="eat")eatVitals(vitals,{quality:"meal"});
+  if(action==="rest")restVitals(vitals,{sleep:true});
+  if(action==="eat"||action==="rest")saveLifeJournal();
+ }
+ if(result.message)log(result.message);
+ saveCustodyFacilityJournal();updateCustodyFacilityPanel();updateHUD();
+ return result;
+}
 function vrCustodySay(message){
  log("🛡️ 看守「"+message+"」");
  // Standard HTML overlays are invisible in immersive VR; voice is best effort.
@@ -2029,9 +2064,16 @@ function vrCustodyInteraction(action){
  if(!jailed&&!lawHeld)return {handled:false};
  if(action==="state")return {handled:true};
  const cell=renderer?.custodyCell;
- // Guard stands beyond the barred z=3.78 wall.
- if(!cell||Math.hypot(cell.x+1.1,cell.z-3.4)>2.3)
-  return vrCustodySay("看守のいる鉄格子まで歩いてきてくれ。");
+ const guard=custodyFacility?.guard||{x:-1.1,z:6.0,y:0};
+ if(custodyFacility&&action==="talk"&&cell){
+  if(cell.y<1.2&&Math.hypot(cell.x-1,cell.z-1.7)<5.4)
+   return vrCustodySay(performCustodyFacilityAction("eat").message);
+  if(cell.y>2.5&&cell.z<-6.3&&Math.hypot(cell.x+.8,cell.z+8.25)<1.85)
+   return vrCustodySay(performCustodyFacilityAction("rest").message);
+ }
+ if(!cell||Math.hypot(cell.x-guard.x,cell.z-guard.z)>3.1||
+    Math.abs((cell.y||0)-(guard.y||0))>2.3)
+  return vrCustodySay("看守に近づいてくれ。食堂では食事、ベッドでは休息できる。");
  if(action==="talk"){
   custodyConversation=true;
   return vrCustodySay(jailed?
