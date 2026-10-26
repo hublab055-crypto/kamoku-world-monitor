@@ -4,8 +4,9 @@ import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
 import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-layer-policy.mjs?v=0.9q-render-state";
-import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9s-physical-v09t";
+import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {vrNearestPickup,vrHandAtBag} from "./xr-backpack.mjs?v=0.9t-bag";
+import {WearableInventory,starterWearables,pocketSocketForOutfit} from "./wearable-inventory.mjs?v=3";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -17,7 +18,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
- onVRHasBag=()=>true,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),notify=()=>{}}){
+ onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -37,6 +38,31 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
+ const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
+ const vrWearables=(()=>{
+  try{
+   const saved=localStorage.getItem(VR_WEARABLE_SAVE);
+   return saved?WearableInventory.fromSnapshot(JSON.parse(saved)):starterWearables({combatDemo:false});
+  }catch(_){return starterWearables({combatDemo:false});}
+ })();
+ const saveWearables=()=>{
+  try{localStorage.setItem(VR_WEARABLE_SAVE,JSON.stringify(vrWearables.snapshot()));}
+  catch(_){/* VR continues in memory when storage is unavailable. */}
+ };
+ let bagWarningShown=false;
+ const syncVRClothing=()=>{
+  const outfit=getVRAppearance();
+  const bag=outfit?.bag||(onVRHasBag()?"satchel":"none");
+  vrWearables.setSocket("trouser-pocket",pocketSocketForOutfit(outfit?.presetId));
+  const container=vrWearables.containers.get("travel-backpack");
+  if(!container)return;
+  const next=bag==="toolbag"?"toolbag":bag==="satchel"?"satchel":"backpack";
+  if(container.preset!==next&&!vrWearables.setPreset(container.id,next)&&!bagWarningShown){
+   bagWarningShown=true;statusText("🎒 鞄の容量を超えるため、収納物を減らしてください");
+  }
+  vrWearables.setAccess(container.id,{active:bag!=="none"});
+  return bag;
+ };
  let vrStage="未開始",vrSceneFrames=0,vrTimerIds=[],vrSessionVisibility="不明";
  let vrLastCallbackAt=0;
  let vrLastSnapshot="";
@@ -302,6 +328,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    right:matrix(right,"grip")||last.right,
    leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
   const events=vrPhysical.setPose(gear,time,{floorY:usingFloor?0:null});
+  syncVRClothing();
   if(vrRTS)return;
   const carried=vrPhysical.heldDrop;
   if(carried){
@@ -332,9 +359,58 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
   if(vrPhysical.heldDrop?.hand===hand){vrGripConsumed.add(hand);return;}
-  const result=vrPhysical.grab(hand,(item,grip)=>onVRGrab(item,grip)===true);
+  const result=vrWearables.hands[hand]?{kind:"none"}:
+   vrPhysical.grab(hand,(item,grip)=>onVRGrab(item,grip)===true);
   if(result.kind==="none"){
    if(vrPhysical.heldDrop)return;
+   const hp=vrPhysical.pose?.[hand],anchors=vrPhysical.anchors;
+   const point=hp&&hp.length>=16?{x:hp[12],y:hp[13],z:hp[14]}:null;
+   const reachable=(containerId,anchor)=>{
+    const socket=anchors?.[anchor];
+    return point&&socket&&vrWearables.isInReach(containerId,point,
+     {x:socket[0],y:socket[1],z:socket[2]});
+   };
+   // Pockets exist on the garment; the bag uses the chest/shoulder strap.
+   const handBusy=hand==="right"?(vrPhysical.swordHeld||vrPhysical.arrowHeld||vrPhysical.toolHeld.right):
+    (vrPhysical.bowHeld||vrPhysical.toolHeld.left);
+   const pocketSocket=vrWearables.containers.get("trouser-pocket")?.socket||"rightPocket";
+   if(!handBusy&&reachable("trouser-pocket",pocketSocket)){
+    const held=vrWearables.hands[hand];
+    if(held&&vrWearables.returnToContainer(hand,"trouser-pocket")){
+     saveWearables();vrGripConsumed.add(hand);
+     statusText("👖 ポケットに手帳を戻しました");return;
+    }
+    if(!held){
+     const item=vrWearables.grab(hand,"trouser-pocket");
+     if(item){saveWearables();vrGripConsumed.add(hand);
+      statusText("📓 ポケットから手帳を取り出しました");return;}
+    }
+   }
+   if(!handBusy&&onVRHasBag()&&reachable("travel-backpack","chest")){
+    const bag=vrWearables.containers.get("travel-backpack");
+    if(bag?.active!==false){
+     const held=vrWearables.hands[hand];
+     if(!bag.open){
+      vrWearables.setAccess(bag.id,{open:true,accessible:true});
+      saveWearables();vrGripConsumed.add(hand);
+      statusText("🎒 カバンを開きました。もう一度グリップで収納・取り出し");return;
+     }
+     if(held&&vrWearables.returnToContainer(hand,bag.id)){
+      saveWearables();vrGripConsumed.add(hand);
+      statusText("🎒 カバンに手帳を収納しました");return;
+     }
+     if(!held){
+      const item=vrWearables.grab(hand,bag.id);
+      if(item){saveWearables();vrGripConsumed.add(hand);
+       statusText("🎒 カバンから"+(item.id==="field-note"?"手帳":"アイテム")+"を取り出しました");return;}
+      vrWearables.setAccess(bag.id,{open:false,accessible:false});
+      saveWearables();vrGripConsumed.add(hand);
+      statusText("🎒 カバンを閉じました");return;
+     }
+     statusText("🎒 カバンに空き容量がありません");vrGripConsumed.add(hand);return;
+    }
+   }
+   if(handBusy||vrWearables.hands[hand]){vrGripConsumed.add(hand);return;}
    const candidate=vrNearestPickup(vrPhysical.pose?.[hand],vrCurrentStage,
     getController(),getVRPickups());
    if(!candidate)return;
@@ -808,7 +884,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      projection:view.projectionMatrix,view:view.transform.inverse.matrix,
      stage,planetMode,viewport:vp,eye:index,cursor,depthTexture:occlusionTexture};
     renderer.frame(frameState,index===0?dt:0);
-    if(mode==="vr")renderer.drawVRBody?.(renderer.xrView,{...vrPhysical.snapshot(),backpack:onVRHasBag()});
+    if(mode==="vr")renderer.drawVRBody?.(renderer.xrView,{
+      ...vrPhysical.snapshot(),backpack:onVRHasBag(),
+      appearance:getVRAppearance(),arrowCount:Math.max(0,getVRArrowCount()||0),
+      bagOpen:vrWearables.containers.get("travel-backpack")?.open&&onVRHasBag(),
+      pocketContainsNote:vrWearables.containers.get("trouser-pocket")?.items.includes("field-note"),
+      pocketSocket:vrWearables.containers.get("trouser-pocket")?.socket||"rightPocket",
+      heldWearables:Object.fromEntries(["left","right"].map(hand=>
+       [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
+     });
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
