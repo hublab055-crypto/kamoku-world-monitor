@@ -22,7 +22,7 @@ const pathToDining=[
 ];
 const npcStart=cellCenters.filter(c=>c!==0).map((c,i)=>({
   id:"inmate-"+(i+1),cellX:c,
-  x:c,y:PRISON.upperY,z:-8.15,yaw:0,step:0
+  x:c,y:PRISON.upperY,z:-8.15,yaw:0,step:0,upperStart:true
 }));
 function sceneTime(s){return ((s.elapsed%PRISON.daySeconds)+PRISON.daySeconds)%PRISON.daySeconds;}
 export function custodyPhase(elapsed){
@@ -57,10 +57,12 @@ export function newCustodyFacility(saved=null){
         x:Number.isFinite(saved.inmates[i].x)?saved.inmates[i].x:n.x,
         z:Number.isFinite(saved.inmates[i].z)?saved.inmates[i].z:n.z,
         y:Number.isFinite(saved.inmates[i].y)?saved.inmates[i].y:n.y,
-        step:clamp(Math.trunc(saved.inmates[i].step)||0,0,20)
+        step:clamp(Math.trunc(saved.inmates[i].step)||0,0,20),upperStart:saved.inmates[i].upperStart!==false
       }:{})
     })),
-    guard:{x:1.25,z:-5.35,y:3.8,yaw:Math.PI,step:0},
+    guard:valid&&saved.guard&&[saved.guard.x,saved.guard.z,saved.guard.y].every(Number.isFinite)?
+      {...saved.guard,step:Math.max(0,Math.trunc(saved.guard.step)||0),upperStart:saved.guard.upperStart!==false}:
+      {x:1.25,z:-5.35,y:3.8,yaw:Math.PI,step:0,upperStart:true},
     mealCount:valid?Math.min(999,Math.max(0,Math.trunc(saved.mealCount)||0)):0,
     rested:valid?Boolean(saved.rested):false,
     elapsedSinceSave:0,announcements:[]
@@ -70,7 +72,8 @@ export function custodyFacilitySnapshot(state){
   return {schemaVersion:1,facility:"atrium-2f",elapsed:state.elapsed,
     player:{x:state.player.x,y:state.player.y,z:state.player.z,yaw:state.player.yaw},
     door:state.door,phase:state.phase,
-    inmates:state.inmates.map(n=>({id:n.id,x:n.x,y:n.y,z:n.z,step:n.step})),
+    inmates:state.inmates.map(n=>({id:n.id,x:n.x,y:n.y,z:n.z,step:n.step,upperStart:n.upperStart})),
+    guard:{...state.guard},
     mealCount:state.mealCount,rested:state.rested};
 }
 const inCell=p=>p.y>2.5&&p.z<PRISON.cellFront&&
@@ -161,7 +164,7 @@ export function advanceCustodyFacility(state,dt=0){
       sleep:"消灯だ。横になって休め。",
       wake:"朝の点呼だ。起きろ。"};
     events.push({type:"schedule",phase:state.phase,message:captions[state.phase]});
-    for(const n of state.inmates)n.step=0;state.guard.step=0;
+    for(const n of state.inmates){n.step=0;n.upperStart=n.y>1.45;}state.guard.step=0;state.guard.upperStart=state.guard.y>1.45;
   }
   const away=!["wake","return","sleep"].includes(state.phase);
   for(const [index,n] of state.inmates.entries()){
@@ -169,10 +172,10 @@ export function advanceCustodyFacility(state,dt=0){
     if(state.phase==="return"){
       route=waypointsFor(n,true);
     }else if(state.phase==="work"){
-      route=n.y<1.4?[{x:-7+(index%2)*2,z:-1+index*.45,y:0}]:
+      route=!n.upperStart?[{x:-7+(index%2)*2,z:-1+index*.45,y:0}]:
         waypointsFor(n,false);
     }else if(state.phase==="breakfast"||state.phase==="dinner"){
-      route=n.y<1.4?[{x:-2+(index%2)*1.4,z:1.5+Math.floor(index/2)*2,y:0}]:
+      route=!n.upperStart?[{x:-2+(index%2)*1.4,z:1.5+Math.floor(index/2)*2,y:0}]:
         waypointsFor(n,false);
     }else continue;
     if(n.step>=route.length)continue;
@@ -180,7 +183,7 @@ export function advanceCustodyFacility(state,dt=0){
     if(away&&(state.door<.88||sceneTime(state)<16+(n.cellX+8)*.3))continue;
     if(moveTo(n,route[n.step],t))n.step++;
   }
-  const guardRoute=away&&state.guard.y<1.4?[{x:5.7,z:5.9,y:0}]:away?[pathToDining[1],pathToDining[2],pathToDining[3],pathToDining[4],pathToDining[5],{x:5.7,z:5.9,y:0}]:
+  const guardRoute=away&&!state.guard.upperStart?[{x:5.7,z:5.9,y:0}]:away?[pathToDining[1],pathToDining[2],pathToDining[3],pathToDining[4],pathToDining[5],{x:5.7,z:5.9,y:0}]:
    [{x:8.75,z:5.55,y:0},{x:8.75,z:-4.45,y:3.8},{x:6.4,z:-5.25,y:3.8},{x:1.25,z:-5.35,y:3.8}];
   if((away||state.phase==="return")&&state.guard.step<guardRoute.length&&(!away||state.door>.88))
    if(moveTo(state.guard,guardRoute[state.guard.step],t,1.7))state.guard.step++;
