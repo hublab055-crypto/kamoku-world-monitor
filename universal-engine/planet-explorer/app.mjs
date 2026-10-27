@@ -7,6 +7,7 @@ import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-vr-wearables";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
+import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9za-grip-bars";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -103,6 +104,7 @@ let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=nul
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
 let lastGuardStrike=null;
 let custodyFacility=null;
+let custodyClimb=newCustodyBarClimb();
 let custodyConversation=false;
 let territoryEconomy=null,territoryUI=null,factionStrategy=null,factionUI=null;
 function loadTerritoryJournal(){
@@ -367,6 +369,7 @@ function init(saved=null){
    planet.advance(gameDaysForRealSeconds(dt,$("days-per-second").value)));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+  custodyClimb=newCustodyBarClimb();
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
    custodyFacility=newCustodyFacility(saved?.v0_9z?.custodyFacility||(!saved?loadCustodyFacilityJournal():null));
@@ -693,7 +696,17 @@ function doFrame(t,source="window",xrFrameInput=null){
      log("🛡️ 看守「"+event.message+"」");
      if(xrUI?.mode==="vr")vrCustodySay(event.message);
     }
-    renderer.custodyCell=walkCustodyFacility(custodyFacility,input,dt);
+    // During climbing, freeze horizontal walking; after release descend by gravity.
+    if(custodyFacility.door>.88&&custodyClimbHeld(custodyClimb))
+     releaseAllCustodyBars(custodyClimb);
+    const falling=settleCustodyBarClimb(custodyClimb,custodyFacility.player,dt);
+    if(custodyClimbHeld(custodyClimb)||custodyClimb.active){
+     custodyFacility.player.yaw+=clamp(input.turn,-1,1)*1.7*dt;
+     custodyFacility.player.moving=falling>.00001;
+     custodyFacility.player.movedM=falling;
+     custodyFacility.player.blocked=false;
+     renderer.custodyCell=custodyFacility.player;
+    }else renderer.custodyCell=walkCustodyFacility(custodyFacility,input,dt);
     renderer.custodyFacility=custodyFacility;
     if(custodyFacility.elapsedSinceSave>=8||events.length){
      custodyFacility.elapsedSinceSave=0;saveCustodyFacilityJournal();updateCustodyFacilityPanel();
@@ -710,7 +723,10 @@ function doFrame(t,source="window",xrFrameInput=null){
    forward:input.forward,strafe:input.strafe,turn:input.turn,
    traveledM:jailCellActive?renderer.custodyCell.movedM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
    altitudeM:controller.altitudeM,blocked:jailCellActive?renderer.custodyCell.blocked:Boolean(controller.blocked),
-   detained,jailWalkable:jailCellActive,jailStunned,restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
+   detained,jailWalkable:jailCellActive,jailStunned,
+   barClimbing:Boolean(jailCellActive&&custodyClimbHeld(custodyClimb)),
+   barHeightM:jailCellActive?Math.max(0,(renderer.custodyCell?.y??BAR_FLOOR_Y)-BAR_FLOOR_Y):0,
+   restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
   for(const event of railwaySecurity?.advance(dt,{
@@ -1940,6 +1956,7 @@ function updateRailwaySecurityHUD(){
 /** Both legal systems use one transition for the player and their mount. */
 function beginCustody(kind="law"){
  custodyConversation=false;
+ custodyClimb=newCustodyBarClimb();
  if(renderer?.captureFX?.kind===kind)return;
  // Capture FX plays outdoors, then both law and railway transfer to a cell.
  custodyFacility=newCustodyFacility();
@@ -1965,6 +1982,7 @@ function beginCustody(kind="law"){
 /** Release must follow teleporting the avatar to the gate, not precede it. */
 function finishCustody(){
  custodyConversation=false;
+ custodyClimb=newCustodyBarClimb();
  renderer?.clearCapture();worldUI?.clear();
  if(renderer){renderer.custodyCell=null;renderer.custodyKind=null;renderer.custodyFacility=null;}
  custodyFacility=null;try{localStorage.removeItem(CUSTODY_FACILITY_JOURNAL_KEY);}catch(_){}
@@ -2059,10 +2077,36 @@ function vrCustodySay(message){
  }catch(_){/* Text remains in the non-VR log. */}
  return {handled:true,ok:true,message};
 }
-function vrCustodyInteraction(action){
+function vrCustodyInteraction(action,detail=null){
+ if(action==="climb-reset"){
+  releaseAllCustodyBars(custodyClimb);
+  return {handled:true,ok:true};
+ }
  const jailed=Boolean(railwaySecurity?.jailed),lawHeld=Boolean(law?.custody);
  if(!jailed&&!lawHeld)return {handled:false};
  if(action==="state")return {handled:true};
+ if(["climb-grab","climb-pull","climb-release"].includes(action)){
+  const blocked=Boolean(!custodyFacility||!renderer?.custodyCell||
+   renderer.captureFX&&renderer.captureFX.elapsed<renderer.captureFX.duration);
+  if(blocked)return {handled:true,ok:false};
+  const player=custodyFacility.player;
+  if(action==="climb-grab"){
+   const result=grabCustodyBar(custodyClimb,player,detail?.hand,detail?.pose,
+    detail?.stage,custodyFacility.door);
+   return {handled:true,...result,message:result.ok?
+    "鉄格子を握りました。グリップを押したまま手を下へ引くと登れます。":null};
+  }
+  if(action==="climb-release"){
+   const ok=releaseCustodyBar(custodyClimb,detail?.hand);
+   return {handled:true,ok};
+  }
+  if(action==="climb-pull"){
+   const amount=pullCustodyBars(custodyClimb,player,detail?.poses,detail?.stage,detail?.dt);
+   renderer.custodyCell=player;
+   return {handled:true,ok:custodyClimbHeld(custodyClimb),amount,
+    heightM:Math.max(0,player.y-BAR_FLOOR_Y)};
+  }
+ }
  const cell=renderer?.custodyCell;
  const guard=custodyFacility?.guard||{x:-1.1,z:6.0,y:0};
  if(custodyFacility&&action==="talk"&&cell){
