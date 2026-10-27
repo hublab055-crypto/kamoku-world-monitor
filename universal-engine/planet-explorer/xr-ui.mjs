@@ -148,7 +148,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(projection){if(renderer)destroyXRProjection(renderer.gl,projection);projection=null;}
   projectionAttempted=false;
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
-  vrRTS=false;vrThird=false;vrPlanetOverview=false;vrPlanetAnchor=null;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+  vrRTS=false;vrThird=false;vrTableYaw=0;
+  vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
@@ -169,7 +170,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
  }
- async function start(mode,{ground=false}={}){
+ async function start(mode){return startWithOptions(mode,{ground:false});}
+ async function startWithOptions(mode,{ground=false}={}){
   if(disposed)return;
   if(session){
    if(activeMode===mode)return;
@@ -207,7 +209,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // Quest Browser rejects baseLayer when the optional "layers" feature is
    // granted. Select the compositor path before the first XR frame.
    projection=null;projectionAttempted=false;
-   vrRTS=false;vrThird=false;vrPlanetOverview=false;vrPlanetAnchor=null;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+   vrRTS=false;vrThird=false;vrTableYaw=0;
+  vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
@@ -502,7 +505,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     return;
    }
    if(vrPhysical.suppressSelect(source.handedness))return;
-   if(vrPlanetOverview&&!vrRTS){
+   if((vrPlanetOverview||getController()?.altitudeM>50000)&&!vrRTS){
     if(source.handedness!=="right"||!vrPlanetAnchor)return;
     const hit=xrPlanetHit(ray.transform.matrix,vrPlanetAnchor,{yawOffset:planetYaw,radius:1.15});
     if(!hit){statusText("🌐 惑星模型を狙ってください");return;}
@@ -711,7 +714,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // temporarily migrate them to trackedSources: retain one per hand.
    const sources=controllerSources;
    vrMovement=xrVRMovement(sources,{rts:vrRTS});
-   if(vrPlanetOverview)vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
+   if(vrPlanetOverview||getController()?.altitudeM>50000)vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
    const axes=left?.gamepad?.axes;
@@ -997,7 +1000,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  for(const [id,button] of [["vr",buttons.vr],["rts",buttons.rts],["planet",buttons.planet]]){
   button.addEventListener("click",()=>start(id==="vr"?"vr":id==="rts"?"mr-rts":"mr-planet"));
  }
- buttons.adventure?.addEventListener("click",()=>start("vr",{ground:true}));
+ buttons.adventure?.addEventListener("click",()=>startWithOptions("vr",{ground:true}));
  placeButton?.addEventListener("click",()=>{
   placementArmed=!placementArmed;update();
   statusText(placementArmed?"📍 次のトリガーで模型を配置します":"配置モードを終了しました");
