@@ -14,13 +14,13 @@ import {WearableInventory,starterWearables,pocketSocketForOutfit} from "./wearab
  * unit on the miniature RTS surface with a controller trigger.
  */
 export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSMove=()=>{},
- onRTSAll=()=>{},onPlanetPick=()=>false,onPlanetLand=()=>false,
+ onRTSAll=()=>{},onPlanetPick=()=>false,onPlanetLand=()=>false,onVRGroundStart=()=>false,
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),notify=()=>{}}){
  const $=id=>document.getElementById(id);
- const buttons={vr:$("xr-vr"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
+ const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
  const placeButton=$("xr-place"),landButton=$("xr-planet-land");
  const allButton=$("xr-rts-all"),rotateLeft=$("xr-rotate-left"),rotateRight=$("xr-rotate-right");
@@ -33,13 +33,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrLayerIndex=0,vrPendingLayer=null,vrPendingFrames=0,vrFramebufferInfo="未検査";
  let vrRecoveryExhausted=false,vrLastErrorStep="";
  let projection=null,projectionAttempted=false;
- let vrRTS=false,vrThird=false,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
+ let vrRTS=false,vrThird=false,vrPlanetOverview=false,vrPlanetAnchor=null,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
- const vrWearables=(()=>{
+ let vrWearables=(()=>{
   try{
    const saved=localStorage.getItem(VR_WEARABLE_SAVE);
    return saved?WearableInventory.fromSnapshot(JSON.parse(saved)):starterWearables({combatDemo:false});
@@ -99,7 +99,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   for(const [name,button] of Object.entries(buttons)){
    if(!button)continue;
    if(name==="exit"){button.hidden=!session;continue;}
-   const selected=activeMode===(name==="vr"?"vr":name==="rts"?"mr-rts":"mr-planet");
+   const selected=activeMode===(name==="vr"||name==="adventure"?"vr":name==="rts"?"mr-rts":"mr-planet");
    button.setAttribute("aria-pressed",String(selected));
   }
   document.documentElement.classList.toggle("ue-xr-active",Boolean(session));
@@ -122,7 +122,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  async function probe(){
   if(!supported()){
    statusText("このブラウザはWebXR非対応です。通常の3D・RTS表示を利用できます（iPhone SafariではXR不可）。");
-   for(const id of ["vr","rts","planet"])buttons[id].disabled=true;
+   for(const id of ["vr","adventure","rts","planet"])buttons[id].disabled=true;
    return;
   }
   try{
@@ -130,7 +130,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     navigator.xr.isSessionSupported("immersive-vr"),
     navigator.xr.isSessionSupported("immersive-ar")
    ]);
-   buttons.vr.disabled=!vr;buttons.rts.disabled=!ar;buttons.planet.disabled=!ar;
+   buttons.vr.disabled=!vr;buttons.adventure.disabled=!vr;buttons.rts.disabled=!ar;buttons.planet.disabled=!ar;
    statusText(vr||ar?
     "対応機器を検出。VRまたはMRを選択してください。MRではヘッドセットのトリガーで配置・RTS選択できます。":
     "接続中の端末にVR/MRセッションがありません。通常モードはそのまま使用できます。");
@@ -148,7 +148,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(projection){if(renderer)destroyXRProjection(renderer.gl,projection);projection=null;}
   projectionAttempted=false;
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
-  vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+  vrRTS=false;vrThird=false;vrTableYaw=0;
+  vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
@@ -169,7 +170,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   update();
   if(!disposed)statusText("通常の3D画面に戻りました。");
  }
- async function start(mode){
+ async function start(mode){return startWithOptions(mode,{ground:false});}
+ async function startWithOptions(mode,{ground=false}={}){
   if(disposed)return;
   if(session){
    if(activeMode===mode)return;
@@ -181,6 +183,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   if(!supported()){statusText("WebXRを利用できません");return;}
+  if(ground){
+   const result=onVRGroundStart();
+   if(result===false || result?.ok===false){statusText(result?.message||"地表へ移動できません");return;}
+   if(result?.message)statusText(result.message);
+  }
   const requestedType=mode==="vr"?"immersive-vr":"immersive-ar";
   let newSession=null;
   try{
@@ -202,7 +209,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // Quest Browser rejects baseLayer when the optional "layers" feature is
    // granted. Select the compositor path before the first XR frame.
    projection=null;projectionAttempted=false;
-   vrRTS=false;vrThird=false;vrTableYaw=0;vrButtons.clear();vrCurrentStage=null;
+   vrRTS=false;vrThird=false;vrTableYaw=0;
+  vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
@@ -497,6 +505,26 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     return;
    }
    if(vrPhysical.suppressSelect(source.handedness))return;
+   if((vrPlanetOverview||getController()?.altitudeM>50000)&&!vrRTS){
+    if(source.handedness!=="right"||!vrPlanetAnchor)return;
+    const hit=xrPlanetHit(ray.transform.matrix,vrPlanetAnchor,{yawOffset:planetYaw,radius:1.15});
+    if(!hit){statusText("🌐 惑星模型を狙ってください");return;}
+    const now=performance.now();
+    const again=planetSelected&&previousPlanetHit&&now-previousPlanetHitTime<1300&&
+     Math.abs(hit.lat-previousPlanetHit.lat)<5&&
+     Math.abs(((hit.lon-previousPlanetHit.lon+540)%360)-180)<5;
+    if(again){
+     if(onPlanetLand()){
+      vrPlanetOverview=false;planetSelected=false;previousPlanetHit=null;vrPlanetAnchor=null;
+      statusText("🌐 惑星から地表への降下を開始しました（VRを維持）");
+     }else statusText("降下できません。地形や拘束状態を確認してください");
+    }else{
+     planetSelected=Boolean(onPlanetPick(hit.lat,hit.lon));
+     previousPlanetHit=planetSelected?hit:null;previousPlanetHitTime=now;
+     statusText(planetSelected?"🌐 選択しました。同じ地点を再度トリガーで降下":"🌐 この地点へは降下できません");
+    }
+    return;
+   }
    if(vrRTS&&source.handedness==="right"){
     const actor=getController();
     const point=xrTableHit(ray.transform.matrix,anchor,actor.yaw,actor,Number(scaleInput.value),vrTableYaw);
@@ -582,7 +610,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(button==="right:4"){
     const nextMode=!vrRTS;
     if(onVRToggleRTS(nextMode)!==false){
-     vrRTS=nextMode;vrTableYaw=0;
+     vrRTS=nextMode;vrPlanetOverview=false;vrPlanetAnchor=null;planetSelected=false;vrTableYaw=0;
      statusText(vrRTS?"🥽 VR卓上RTS：右トリガーで味方選択・移動、左グリップで射撃":"🥽 VR歩行へ戻りました");
     }
    }else if(button==="right:5"){
@@ -592,6 +620,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }else if(button==="left:5")onVRDeck();
    else if(button==="right:3"&&vrRTS)onRTSAll();
    else if(button==="left:3"&&vrRTS)onVRSync();
+   else if(button==="left:3"){
+    vrPlanetOverview=!vrPlanetOverview;vrPlanetAnchor=null;planetSelected=false;previousPlanetHit=null;
+    statusText(vrPlanetOverview?"🌐 VR惑星ビュー：右トリガーで地点選択、もう一度押すと降下。左スティック押込で地表へ戻る":"🥽 VR一人称の冒険へ戻りました");
+   }
   }
  }
  /**
@@ -682,6 +714,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // temporarily migrate them to trackedSources: retain one per hand.
    const sources=controllerSources;
    vrMovement=xrVRMovement(sources,{rts:vrRTS});
+   if(vrPlanetOverview||getController()?.altitudeM>50000)vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
    const axes=left?.gamepad?.axes;
@@ -789,10 +822,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   const mode=activeMode;
-  const planetMode=mode==="mr-planet"||(mode==="vr"&&!vrRTS&&controller.altitudeM>50000);
+  const planetMode=mode==="mr-planet"||(mode==="vr"&&!vrRTS&&(vrPlanetOverview||controller.altitudeM>50000));
   const mrRts=mode==="mr-rts"||(mode==="vr"&&vrRTS);
   const frameState=mrRts?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:2.5}):
-   mode==="mr-planet"?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:15000000}):controller;
+   planetMode?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:15000000}):controller;
   let stageAnchor=anchor;
   if(mode==="vr"&&vrThird&&!vrRTS&&!planetMode){
    // Allow a real head-tracked third-person view with the player in front.
@@ -811,6 +844,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     anchor.vrFloor[2]+(anchor.position[2]-anchor.vrFloor[2])*2.4
    ]};
   }
+  if(mode==="vr")vrPlanetAnchor=planetMode?stageAnchor:null;
   // VR image facing must track the avatar that the sticks actually move.
   // In the detention facility its yaw is local and the outdoor controller
   // remains stationary while the planet clock is paused.
@@ -966,6 +1000,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  for(const [id,button] of [["vr",buttons.vr],["rts",buttons.rts],["planet",buttons.planet]]){
   button.addEventListener("click",()=>start(id==="vr"?"vr":id==="rts"?"mr-rts":"mr-planet"));
  }
+ buttons.adventure?.addEventListener("click",()=>startWithOptions("vr",{ground:true}));
  placeButton?.addEventListener("click",()=>{
   placementArmed=!placementArmed;update();
   statusText(placementArmed?"📍 次のトリガーで模型を配置します":"配置モードを終了しました");
@@ -977,6 +1012,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  buttons.exit.addEventListener("click",()=>session?.end().catch(error=>statusText(String(error))));
  update();probe();
  return {get active(){return present();},get mode(){return activeMode;},inputVector,
+  exportWearables:()=>vrWearables.snapshot(),
+  restoreWearables:data=>{
+   const restored=WearableInventory.fromSnapshot(data);
+   vrWearables=restored;saveWearables();syncVRClothing();return true;
+  },
   close:()=>session?.end(),dispose:()=>{
    disposed=true;
    if(session)session.end().catch(()=>{});
