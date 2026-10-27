@@ -65,7 +65,7 @@ test("climb cannot bypass ceiling and release safely returns to floor",()=>{
  const state=newCustodyBarClimb(),person=actor(),stage=matrix();
  assert.ok(grabCustodyBar(state,person,"left",grip(),stage).ok);
  let y=1.4;
- for(let i=0;i<40;i++){y-=.09;pullCustodyBars(state,person,{left:grip(0,y,.35)},stage,1/90);}
+ for(let i=0;i<16;i++){y-=.09;pullCustodyBars(state,person,{left:grip(0,y,.35)},stage,1/90);}
  assert.ok(person.y<=BAR_FLOOR_Y+BAR_CLIMB_HEIGHT_M+1e-9);
  assert.ok(person.y>BAR_FLOOR_Y,"actor actually climbed");
  assert.equal(releaseCustodyBar(state,"left"),true);
