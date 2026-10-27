@@ -1,6 +1,7 @@
 /** Portable offline cross-device handoff. No account or cloud sync is implied.
  * The JSON holds only the explicitly captured game and optional VR wearables.
- * Never include localStorage wholesale, authentication tokens, or media URLs.
+ * Exported game data may include player-created notes, media links and world details.
+ * Do not share the JSON publicly. No unrelated localStorage or auth keys are copied.
  */
 export const PORTABLE_SAVE_FORMAT = "ue/portable-explorer";
 export const PORTABLE_SAVE_VERSION = 1;
