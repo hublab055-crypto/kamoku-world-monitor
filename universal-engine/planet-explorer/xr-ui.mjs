@@ -39,7 +39,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
- const vrWearables=(()=>{
+ let vrWearables=(()=>{
   try{
    const saved=localStorage.getItem(VR_WEARABLE_SAVE);
    return saved?WearableInventory.fromSnapshot(JSON.parse(saved)):starterWearables({combatDemo:false});
@@ -1008,6 +1008,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  buttons.exit.addEventListener("click",()=>session?.end().catch(error=>statusText(String(error))));
  update();probe();
  return {get active(){return present();},get mode(){return activeMode;},inputVector,
+  exportWearables:()=>vrWearables.snapshot(),
+  restoreWearables:data=>{
+   const restored=WearableInventory.fromSnapshot(data);
+   vrWearables=restored;saveWearables();syncVRClothing();return true;
+  },
   close:()=>session?.end(),dispose:()=>{
    disposed=true;
    if(session)session.end().catch(()=>{});
