@@ -73,6 +73,14 @@ test("climb cannot bypass ceiling and release safely returns to floor",()=>{
  assert.equal(person.y,BAR_FLOOR_Y);
  assert.equal(state.active,false);
 });
+test("moving a gripped hand away from bars releases it instead of air-climbing",()=>{
+ const state=newCustodyBarClimb(),person=actor();
+ assert.ok(grabCustodyBar(state,person,"left",grip(),matrix()).ok);
+ const before=person.y;
+ pullCustodyBars(state,person,{left:grip(0,1.32,2.0)},matrix(),.016);
+ assert.equal(custodyClimbHeld(state),false);
+ assert.equal(person.y,before);
+});
 test("controller tracking loss and session end cannot leave a permanently attached hand",()=>{
  const state=newCustodyBarClimb(),person=actor();
  grabCustodyBar(state,person,"right",grip(),matrix());
