@@ -72,6 +72,14 @@ export function pullCustodyBars(state,player,poses={},stage,dt=1/90){
    continue;
   }
   hold.trackingAge=0;
+  const contact=custodyGripPoint(pose,stage,player);
+  // A detached or sideways hand cannot continue pulling on invisible bars.
+  if(!contact||Math.abs(contact.z-BAR_FRONT_Z)>BAR_REACH_M+.13||
+    Math.abs(contact.x)>1.98||contact.y<BAR_FLOOR_Y+.1||
+    contact.y>BAR_FLOOR_Y+3.15){
+   state.hands[hand]=null;
+   continue;
+  }
   // Ignore headset recentering / tracking jumps. No synthetic climb if
   // a valid but stationary controller is being held.
   const delta=clamp(hold.lastY-pose[13],-.07,.07);
