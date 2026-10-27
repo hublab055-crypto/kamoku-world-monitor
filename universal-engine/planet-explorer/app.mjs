@@ -61,6 +61,8 @@ import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {mapToWorld,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
 import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
+import {createPortableSave,parsePortableSave,MAX_PORTABLE_SAVE_BYTES,VR_WEARABLE_SAVE_KEY} from "./portable-save.mjs?v=0.9u";
+import {VoyageLog,seaDistance} from "./circumnavigation.mjs";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
@@ -97,7 +99,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let xrUI=null,mediaUI=null;
+let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -301,6 +303,7 @@ function init(saved=null){
    ownerUI?.reset();
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+  footVoyage=new VoyageLog(saved?.v0_9u?.footVoyage||null,{lat:controller.lat,lon:controller.lon});
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
@@ -719,6 +722,11 @@ function doFrame(t,source="window",xrFrameInput=null){
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
+  if(!jailCellActive&&controller.moving&&controller.altitudeM<=12&&controller.travelMode==="walk"&&
+      !onTrain&&!onFerry&&!inConcourse&&!onShip&&!marine?.cabinId&&!townLife.inside){
+   if(footVoyage?.advance(controller.lat,controller.lon,terrain.planet.radiusM))
+    log("🌍 徒歩で惑星を一周しました！ 周回記録をセーブできます");
+  }
   if(source==="xr")xrMoveResult={
    forward:input.forward,strafe:input.strafe,turn:input.turn,
    traveledM:jailCellActive?renderer.custodyCell.movedM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
@@ -1096,6 +1104,16 @@ function updateHUD(){
    backpack.push("🤿 アクアラング ×1"+(marine.diveGear==="scuba"?"（装備中）":"（手持ち）"));
   $("avatar-inventory").textContent=backpack.length?backpack.join(" / "):"リュックは空です（共有資材は下の資材欄）";
  $("coords").textContent=controller.lat.toFixed(5)+"°, "+controller.lon.toFixed(5)+"°";
+ const footStatus=$("foot-journey-status");
+ if(footStatus&&footVoyage){
+  const p=footVoyage.progress(terrain.planet.radiusM);
+  const destinations=settlementLocations||[];
+  const nearest=destinations.map(place=>({...place,distanceM:seaDistance(
+   {lat:controller.lat,lon:controller.lon},place,terrain.planet.radiusM)}))
+    .filter(place=>place.distanceM>300).sort((a,b)=>a.distanceM-b.distanceM)[0];
+  footStatus.textContent="🚶 徒歩累計 "+(p.distanceM/1000).toFixed(2)+"km / 惑星周回 "+p.laps+"周"+
+   (nearest?" / 次の街 "+nearest.name+"まで球面距離 "+(nearest.distanceM/1000).toFixed(1)+"km":"");
+ }
  $("height").textContent=Math.round(controller.altitudeM).toLocaleString("ja-JP")+" m";
  $("ground-height").textContent=Math.round(g.elevationM).toLocaleString("ja-JP")+" m";
  $("biome").textContent=({ocean:"海",river:"川",island:"🏝️ 島",forest:"森林",mountain:"山",
@@ -1389,6 +1407,7 @@ function captureGame(){
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
+    v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
@@ -1435,6 +1454,37 @@ function renderSaveSlots(){
   host.append(row);
  }
 }
+/** Explicit offline transfer. Nothing is uploaded or synced automatically. */
+$("portable-save-export")?.addEventListener("click",()=>{
+ try{
+  const wearables=xrUI?.exportWearables?.()??JSON.parse(localStorage.getItem(VR_WEARABLE_SAVE_KEY)||"null");
+  const json=createPortableSave(captureGame(),{wearables});
+  const blob=new Blob([json],{type:"application/json"}),url=URL.createObjectURL(blob);
+  const link=document.createElement("a");link.href=url;
+  link.download="universal-engine-save-"+new Date().toISOString().slice(0,10)+".json";
+  document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  log("💾 端末間引継ぎ用JSONを保存しました。ほかの端末で「セーブファイル読込」を選択してください");
+ }catch(error){log("端末間セーブの書出失敗: "+error.message);}
+});
+$("portable-save-import")?.addEventListener("change",async event=>{
+ const input=event.currentTarget,file=input.files?.[0];input.value="";
+ if(!file)return;
+ try{
+  if(xrUI?.active)throw Error("VR/MRを終了してから読み込んでください");
+  if(file.size>MAX_PORTABLE_SAVE_BYTES)throw Error("ファイルが16MBを超えています");
+  const transfer=parsePortableSave(await file.text());
+  if(!window.confirm("現在の未保存データとクイックセーブを置き換えて、この冒険を引き継ぎますか？ 旧スロットはそのままです。"))return;
+  running=false;init(transfer.game);
+  localStorage.setItem(SAVE_KEY,JSON.stringify(transfer.game));
+  if(transfer.wearables){
+   if(xrUI?.restoreWearables)xrUI.restoreWearables(transfer.wearables);
+   else localStorage.setItem(VR_WEARABLE_SAVE_KEY,JSON.stringify(transfer.wearables));
+  }
+  updateHUD();renderSaveSlots();
+  log("📱 セーブファイルを取り込みました。位置・装備・世界の状態を確認してください");
+ }catch(error){log("端末間セーブの読込失敗: "+error.message);}
+});
 $("save-slots-refresh").addEventListener("click",renderSaveSlots);
 renderSaveSlots();
 
@@ -3617,6 +3667,16 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ onVRGroundStart:()=>{
+  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
+   return {ok:false,message:"現在は勾留・継承中です。釈放や継承を完了してから屋外へ出てください"};
+  if(controller.altitudeM>12){
+   const result=visitSettlement(destinationById(activeSettlementId)||destinationById("pioneer"));
+   if(!result.ok)return result;
+  }
+  running=true;simWorld.clock.paused=false;updateHUD();
+  return {ok:true,message:"🥽 地表の現在地点からVR冒険を始めます"};
+ },
  getVRAppearance:()=>appearance,
  getVRArrowCount:()=>frontierUI?.vrArrowCount("player")||0,
  onVRFrame:(t,input)=>doFrame(t,"xr",input),
