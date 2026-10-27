@@ -149,7 +149,8 @@
  </div>
  <div id="xr-settings-body" class="xr-settings-body" hidden>
  <div class="xr-buttons">
-  <button id="xr-vr" type="button" disabled aria-pressed="false">VR・立体視</button>
+  <button id="xr-vr" type="button" disabled aria-pressed="false">VR・現在の視点</button>
+  <button id="xr-adventure" type="button" disabled aria-pressed="false">🥽 VRで地表を冒険</button>
   <button id="xr-mr-rts" type="button" disabled aria-pressed="false">MR・卓上RTS</button>
   <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
   <button id="xr-exit" type="button" hidden>✕ XR終了</button>
@@ -174,7 +175,7 @@
  <div id="xr-help-panel" class="xr-help-panel" hidden>
   <strong>VR / MR の仕様と操作説明</strong>
   <p>WebXR対応ブラウザと対応ヘッドセットが必要です。iPhone SafariではXRを利用できませんが、通常の3D・RTS表示は使用できます。</p>
-  <small class="xr-quest-controller-guide">🥽 Quest 3S操作：左スティック＝歩行／右スティック＝旋回。右・左トリガー＝それぞれの手の装備使用（剣・弓など）、右グリップ＝防御、左グリップ＝弓射撃。A＝VR卓上RTS、B＝一人称・三人称、X＝ジャンプ、Y＝行動スロット切替。RTSでは右トリガー＝人物選択・地面への移動指示、右スティック＝卓上模型の回転、左右スティック押込＝全員選択・シンクロ切替。</small>
+  <small class="xr-quest-controller-guide">🥽 Quest 3S操作：左スティック＝歩行／右スティック＝旋回。右・左トリガー＝それぞれの手の装備使用（剣・弓など）、右グリップ＝防御、左グリップ＝弓射撃。A＝VR卓上RTS、B＝一人称・三人称、左スティック押込＝VR惑星模型⇄地表、X＝ジャンプ、Y＝行動スロット切替。VR惑星模型では右トリガーを同じ地点に2回押すと降下します。RTSでは右トリガー＝人物選択・地面への移動指示、右スティック＝卓上模型の回転、左右スティック押込＝全員選択・シンクロ切替。</small>
   <small id="xr-vr-diagnostics" aria-live="off">VR診断：未開始</small>
  </div>
 </section>
@@ -1159,6 +1160,11 @@
       <button id="save" type="button">💾 v0.8x保存</button>
       <button id="restore" type="button">📂 v0.8x復元</button>
       <details class="save-slots-panel"><summary>💾 セーブスロット（5件）</summary><button type="button" id="save-slots-refresh">一覧を更新</button><div id="save-slot-list" aria-live="polite"></div><small>個別の冒険データと建築編集を保存します。このブラウザ内に保存し、従来のクイックセーブは変更しません。</small></details>
+      <details class="save-slots-panel"><summary>📱 PC・スマホ・Questへセーブを引継ぐ</summary>
+       <button type="button" id="portable-save-export">⬇ 現在の冒険を書き出す（JSON）</button>
+       <label>⬆ セーブファイル読込 <input type="file" id="portable-save-import" accept=".json,application/json"></label>
+       <small>同じページを別端末で開き、JSONファイルを転送して読み込みます。セーブデータ・VR装備・建築物を含みます。読込時は確認が必要です。自動クラウド同期は未対応です。</small>
+      </details>
        <button id="import-v07d-save" type="button" title="旧v0.7dセーブを上書きせず取り込む">v0.7dデータ読込</button>
       <button id="import-v07c-save" type="button" title="旧v0.7cセーブを読み取りのみで取り込み">v0.7cデータ読込</button>
       <button id="import-v07b-save" type="button" title="v0.7bのセーブを読み取り専用で取り込みます">v0.7bデータ読込</button>
@@ -1308,6 +1314,7 @@
         </div>
       </div>
       <p id="walk-status" class="status">降下中／宇宙視点</p>
+      <small id="foot-journey-status" aria-live="off">🚶 徒歩の旅を記録します</small>
     </div>
 
     <div class="panel">
@@ -1340,7 +1347,7 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9z-custody-atrium-vr-wearables-strafe-heading-20261027-grip-climb-v09za"></script>
+<script type="module" src="./app.mjs?v=0.9u-vr-roaming-portable-save-20261027"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */
 (() => {
