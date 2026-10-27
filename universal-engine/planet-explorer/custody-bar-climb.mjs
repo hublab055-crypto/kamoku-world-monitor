@@ -50,7 +50,8 @@ export function releaseCustodyBar(state,hand){
 }
 export function releaseAllCustodyBars(state){
  if(!state)return;
- state.hands.left=null;state.hands.right=null;state.fallVelocity=0;state.active=false;
+ state.hands.left=null;state.hands.right=null;state.fallVelocity=0;
+ // Keep active until settleCustodyBarClimb completes the fall.
 }
 /**
  * The real hand moves DOWN while gripping; the virtual body climbs UP.
