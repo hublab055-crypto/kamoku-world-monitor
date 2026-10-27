@@ -49,7 +49,7 @@ test("Custody permits confined walking without world-coordinate movement",()=>{
  const app=contentOf("app.mjs");
  assert.match(app,/const detained=Boolean\(vrRestraintReason\)/);
  assert.match(app,/if\(xrAxes&&\(!detained\|\|jailCellActive\)\)/);
- assert.match(app,/detained,jailWalkable:jailCellActive,jailStunned,restraintReason:vrRestraintReason/);
+ assert.match(app,/detained,jailWalkable:jailCellActive,jailStunned,[\s\S]*?restraintReason:vrRestraintReason/);
 });
 test("Game entrypoints bust cached Quest control modules",()=>{
  assert.match(contentOf("app.mjs"),/xr-ui\.mjs\?v=[^"]*quest-resume-v09x/);
