@@ -710,7 +710,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // Quest controllers normally live in inputSources. Newer runtimes may
    // temporarily migrate them to trackedSources: retain one per hand.
    const sources=controllerSources;
-   vrMovement=vrPlanetOverview?{forward:0,strafe:0,turn:0,tableTurn:0}:xrVRMovement(sources,{rts:vrRTS});
+   vrMovement=xrVRMovement(sources,{rts:vrRTS});
+   if(vrPlanetOverview)vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
    const axes=left?.gamepad?.axes;
