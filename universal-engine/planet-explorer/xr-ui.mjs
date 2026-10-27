@@ -371,8 +371,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
   if(onVRCustody("state")?.handled){
+   let liveGrip=null;
+   try{const source=event.inputSource;
+    const ref=source?.gripSpace||source?.targetRaySpace;
+    liveGrip=ref&&space?event.frame.getPose(ref,space)?.transform.matrix||null:null;
+   }catch(_){/* Never use a cached grip to initiate climbing. */}
    const result=onVRCustody("climb-grab",{hand,
-    pose:vrPhysical.pose?.[hand],stage:vrCurrentStage});
+    pose:liveGrip,stage:vrCurrentStage});
    vrGripConsumed.add(hand);
    statusText(result?.ok?"✊ 鉄格子をつかみました。手を下へ引いて登れます。":
     "🔒 鉄格子に手を近づけてグリップを握ってください。");
