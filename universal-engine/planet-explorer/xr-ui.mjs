@@ -140,6 +140,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function endCleanup(){
+  onVRCustody("climb-reset");
   const renderer=getRenderer();
   if(renderer){renderer.xrView=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
@@ -256,6 +257,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    session.addEventListener("selectstart",onVRSelectStart);
    session.addEventListener("selectend",onVRSelectEnd);
    session.addEventListener("squeezestart",onVRSqueezeStart);
+   session.addEventListener("squeezeend",onVRSqueezeEnd);
    session.addEventListener("squeeze",onSqueeze);
    session.addEventListener("visibilitychange",()=>{
     if(session!==newSession||activeMode!=="vr")return;
@@ -319,16 +321,26 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    try{return target?frame.getPose(target,space)?.transform.matrix||null:null;}
    catch(_){return null;}
   };
-  const left=[...(session?.inputSources||[])].find(s=>s.handedness==="left");
-  const right=[...(session?.inputSources||[])].find(s=>s.handedness==="right");
+  const controllerSources=xrControllerSources(session);
+  const left=controllerSources.find(s=>s.handedness==="left");
+  const right=controllerSources.find(s=>s.handedness==="right");
   let head=headOverride;
   if(!head)try{head=frame.getViewerPose(space)?.transform.matrix||null;}catch(_){}
   const last=vrPhysical.pose||{};
-  const gear={head:head||last.head,left:matrix(left,"grip")||last.left,
-   right:matrix(right,"grip")||last.right,
+  const trackedLeft=matrix(left,"grip"),trackedRight=matrix(right,"grip");
+  const gear={head:head||last.head,left:trackedLeft||last.left,
+   right:trackedRight||last.right,
    leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
+  const prevRigTime=vrPhysical.lastTime;
   const events=vrPhysical.setPose(gear,time,{floorY:usingFloor?0:null});
   syncVRClothing();
+  if(activeMode==="vr"&&onVRCustody("state")?.handled){
+   // Only fresh grip poses count. Last-known body poses are NOT climbing input.
+   onVRCustody("climb-pull",{poses:{left:trackedLeft,right:trackedRight},
+    stage:vrCurrentStage,dt:Number.isFinite(prevRigTime)?
+     Math.max(0,Math.min(.15,(time-prevRigTime)/1000)):1/90});
+   return;
+  }
   if(vrRTS)return;
   const carried=vrPhysical.heldDrop;
   if(carried){
@@ -358,6 +370,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   sampleVRRig(event.frame);
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
+  if(onVRCustody("state")?.handled){
+   const result=onVRCustody("climb-grab",{hand,
+    pose:vrPhysical.pose?.[hand],stage:vrCurrentStage});
+   vrGripConsumed.add(hand);
+   statusText(result?.ok?"✊ 鉄格子をつかみました。手を下へ引いて登れます。":
+    "🔒 鉄格子に手を近づけてグリップを握ってください。");
+   return;
+  }
   if(vrPhysical.heldDrop?.hand===hand){vrGripConsumed.add(hand);return;}
   const result=vrWearables.hands[hand]?{kind:"none"}:
    vrPhysical.grab(hand,(item,grip)=>onVRGrab(item,grip)===true);
@@ -429,6 +449,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else if(result.kind==="tool"){
    statusText("🔧 "+result.item+"を取り出しました。トリガーで使用できます");
   }else statusText("🥽 "+({bow:"左肩から弓",arrow:"右肩の矢筒から矢",sword:"左腰から剣"}[result.kind]||result.kind)+"を取り出しました");
+ }
+ function onVRSqueezeEnd(event){
+  if(activeMode!=="vr")return;
+  const hand=event.inputSource?.handedness;
+  if(!["left","right"].includes(hand))return;
+  const result=onVRCustody("climb-release",{hand});
+  vrGripConsumed.delete(hand);
+  if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
  function onVRSelectStart(event){
   if(onVRCustody("state")?.handled)return;
@@ -672,6 +700,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      vrMoveInfo="移動 "+movement.traveledM.toFixed(3)+"m／高度 "+movement.altitudeM.toFixed(1)+
       "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"")+
       (movement.jailWalkable?"／牢内歩行":"")+
+      (movement.barClimbing?"／鉄格子登攀 "+movement.barHeightM.toFixed(2)+"m":"")+
       (movement.restraintReason?"／"+movement.restraintReason:"");
      const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
      if(requested&&movement.detained&&!movement.jailWalkable&&!movement.jailStunned&&movement.restraintReason?.includes("勾留")&&!vrCustodyTipShown){
