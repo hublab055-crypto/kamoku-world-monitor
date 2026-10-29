@@ -63,6 +63,7 @@ import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
 import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-slots";
 import {createPortableSave,parsePortableSave,MAX_PORTABLE_SAVE_BYTES,VR_WEARABLE_SAVE_KEY} from "./portable-save.mjs?v=0.9u";
 import {VoyageLog,seaDistance} from "./circumnavigation.mjs";
+import {createScenario,INTRO_QUESTS} from "./scenario-engine.mjs?v=1";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
@@ -275,6 +276,7 @@ function guardGroundPassable(fx,fz,tx,tz){
  return !after.water&&!after.river&&after.elevationM<2800&&
   Math.abs(after.elevationM-before.elevationM)<=Math.max(.5,step*1.8);
 }
+let scenario=null;
 function init(saved=null){
  try{
   // A freshly loaded game must not inherit the previous session's paused state.
@@ -304,6 +306,8 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   footVoyage=new VoyageLog(saved?.v0_9u?.footVoyage||null,{lat:controller.lat,lon:controller.lon});
+  scenario=createScenario(saved?.v0_9v?.scenario||null);
+  if(!saved?.v0_9v?.scenario)for(const quest of INTRO_QUESTS)scenario.addQuest(quest);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
@@ -1408,6 +1412,7 @@ function captureGame(){
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
     v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
+    v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
 }
@@ -3891,3 +3896,21 @@ if(typeof window.matchMedia==="function"&&window.matchMedia("(max-width:760px) a
  if(pref!=="0")setCssImmersive(true);
 }
 syncFullscreenButton();
+
+// Scenario journal is embedded in the existing save slots and portable JSON.
+const scenarioPanel=document.getElementById("scenario-panel");
+function renderScenarioPanel(){
+ if(!scenarioPanel||!scenario)return;
+ const state=scenario.snapshot();
+ scenarioPanel.replaceChildren();
+ const heading=document.createElement("p");heading.textContent="第 "+state.generation+" 世代・"+state.chapter+" ／ "+(state.mode==="story"?"シナリオ":"自由冒険");scenarioPanel.append(heading);
+ const mode=document.createElement("button");mode.type="button";mode.textContent=state.mode==="story"?"自由冒険に切替":"シナリオを開始";mode.addEventListener("click",()=>{scenario.start(state.mode==="story"?"sandbox":"story");renderScenarioPanel();});scenarioPanel.append(mode);
+ for(const q of Object.values(state.quests)){
+  const item=document.createElement("div");item.style.cssText="border-top:1px solid #688;padding:7px 0";
+  const label=document.createElement("strong");label.textContent=q.title+"（"+(q.status==="resolved"?"完了":"進行可能")+"）";item.append(label);
+  if(q.status==="available")for(const choice of q.choices){const b=document.createElement("button");b.type="button";b.textContent=choice.label;b.style.margin="3px";b.addEventListener("click",()=>{if(!confirm("「"+choice.label+"」を記録しますか？ ※NPCとの実際の行動判定は未接続です"))return;scenario.resolve(q.id,choice.id);log("📖 "+q.title+"："+choice.label);renderScenarioPanel();});item.append(b);}
+  scenarioPanel.append(item);
+ }
+ const note=document.createElement("small");note.textContent="試験版：選択と履歴の保存のみ。NPC・戦闘・法廷の実処理にはまだ連動しません。保存ボタンかセーブスロットで保存してください。";scenarioPanel.append(note);
+}
+document.getElementById("scenario-panel-toggle")?.addEventListener("click",()=>{const details=document.getElementById("scenario-panel-wrapper");details.open=!details.open;if(details.open)renderScenarioPanel();});
