@@ -7,7 +7,7 @@ import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-vr-wearables";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
-import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9za-grip-bars";
+import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
 import {Actions} from "./actions.mjs?v=0.8e-saw";
 import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
@@ -706,6 +706,8 @@ function doFrame(t,source="window",xrFrameInput=null){
     // During climbing, freeze horizontal walking; after release descend by gravity.
     if(custodyFacility.door>.88&&custodyClimbHeld(custodyClimb))
      releaseAllCustodyBars(custodyClimb);
+    // Ledge only accepts stepping back into the cell, never through bars.
+    stepOffCustodyLedge(custodyClimb,custodyFacility.player,input);
     const falling=settleCustodyBarClimb(custodyClimb,custodyFacility.player,dt);
     if(custodyClimbHeld(custodyClimb)||custodyClimb.active){
      custodyFacility.player.yaw+=clamp(input.turn,-1,1)*1.7*dt;
@@ -736,7 +738,9 @@ function doFrame(t,source="window",xrFrameInput=null){
    traveledM:jailCellActive?renderer.custodyCell.movedM:Math.hypot(controller.x-previous.x,controller.z-previous.z),
    altitudeM:controller.altitudeM,blocked:jailCellActive?renderer.custodyCell.blocked:Boolean(controller.blocked),
    detained,jailWalkable:jailCellActive,jailStunned,
-   barClimbing:Boolean(jailCellActive&&custodyClimbHeld(custodyClimb)),
+   barClimbing:Boolean(jailCellActive&&(custodyClimbHeld(custodyClimb)||custodyClimb.mantle)),
+   barFootBraced:Boolean(jailCellActive&&custodyClimb.footBraced),
+   barOnLedge:Boolean(jailCellActive&&custodyClimb.onLedge),
    barHeightM:jailCellActive?Math.max(0,(renderer.custodyCell?.y??BAR_FLOOR_Y)-BAR_FLOOR_Y):0,
    restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
@@ -2140,7 +2144,7 @@ function vrCustodyInteraction(action,detail=null){
  const jailed=Boolean(railwaySecurity?.jailed),lawHeld=Boolean(law?.custody);
  if(!jailed&&!lawHeld)return {handled:false};
  if(action==="state")return {handled:true};
- if(["climb-grab","climb-pull","climb-release"].includes(action)){
+ if(["climb-grab","climb-pull","climb-release","climb-foot","climb-mantle"].includes(action)){
   const blocked=Boolean(!custodyFacility||!renderer?.custodyCell||
    renderer.captureFX&&renderer.captureFX.elapsed<renderer.captureFX.duration);
   if(blocked)return {handled:true,ok:false};
@@ -2160,6 +2164,18 @@ function vrCustodyInteraction(action,detail=null){
    renderer.custodyCell=player;
    return {handled:true,ok:custodyClimbHeld(custodyClimb),amount,
     heightM:Math.max(0,player.y-BAR_FLOOR_Y)};
+  }
+  if(action==="climb-foot"){
+   const result=braceCustodyFoot(custodyClimb,player,custodyFacility.door);
+   return {handled:true,...result,message:result.ok?
+    result.braced?"鉄格子の横桟に足を掛けました。グリップを握ったまま手を下へ引いて登れます。":"足掛けを外しました。":
+    "鉄格子の近くで片手以上をグリップしてから左トリガーを押してください。"};
+  }
+  if(action==="climb-mantle"){
+   const result=beginCustodyLedgeMantle(custodyClimb,player,custodyFacility.door);
+   return {handled:true,...result,message:result.ok?
+    result.descending?"足場から室内の床へ降ります。":"縁をつかみ、独房内側の足場へ体を引き上げます。":
+    "両手のいずれかで鉄格子を握り、左トリガーで足を掛け、十分登ってから右トリガーを押してください。"};
   }
  }
  const cell=renderer?.custodyCell;
