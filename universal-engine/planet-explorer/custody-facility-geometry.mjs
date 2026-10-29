@@ -71,6 +71,13 @@ function twoFloorShell(b){
     box(b,x+.95,4.48,-8.7,.39,.10,.39,wood);
     box(b,x,6.70,-8.9,.28,.24,.08,lamp);
   }
+  // Interior maintenance/bunk ledge: 1.35 m above the upstairs cell floor.
+  // Entirely INSIDE the locked door plane (front bars at z=-6.15);
+  // climbing here cannot jump into the outer gallery.
+  box(b,0,3.8+1.22,-6.76,1.08,.13,.34,stoneDark);
+  box(b,0,3.8+1.32,-6.76,1.04,.045,.32,wood);
+  for(const x of [-.87,.87])
+    box(b,x,3.8+.66,-6.76,.055,.62,.065,iron);
   // Additional south walkway surveillance windows, lamps and entrance.
   for(let x=-9;x<=9;x+=3){
     box(b,x,5.95,9.55,.45,.65,.07,lamp);
@@ -129,6 +136,10 @@ export function custodyFacilityDoorGeometry(){
   box(b,.04,.06,0,.04,2.2,.048,iron);
   box(b,1.08,.06,0,.04,2.2,.048,iron);
   for(let x=.16;x<1.10;x+=.16)box(b,x,.13,0,.023,2.05,.024,iron);
+  // Feet use these visible 0.38m / 0.83m rungs on a locked door;
+  // the rungs rotate with the hinged leaf when the guard opens it.
+  for(const height of [.38,.83])
+    box(b,.56,height,-.08,.46,.038,.085,iron);
   box(b,1.02,1.0,.12,.12,.12,.07,[.73,.65,.40]);
   return b;
 }
