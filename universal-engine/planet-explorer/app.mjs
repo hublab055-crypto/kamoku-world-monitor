@@ -3935,3 +3935,24 @@ function renderScenarioPanel(){
  const note=document.createElement("small");note.textContent="試験版：選択と履歴の保存のみ。NPC・戦闘・法廷の実処理にはまだ連動しません。保存ボタンかセーブスロットで保存してください。";scenarioPanel.append(note);
 }
 document.getElementById("scenario-panel-wrapper")?.addEventListener("toggle",event=>{if(event.currentTarget.open)renderScenarioPanel();});
+
+// New adventure is deliberately separate from a lawful release from custody.
+// Before resetting any local journals, preserve the entire current adventure in a free slot.
+document.getElementById("new-adventure-start")?.addEventListener("click",()=>{
+ const free=slotIndex(localStorage).find(entry=>!entry.slot&&!entry.error);
+ if(!free){log("新規冒険には空きセーブスロットが必要です。空きを作ってください。");return;}
+ const mode=document.getElementById("new-adventure-mode")?.value||"story";
+ const start=document.getElementById("new-adventure-location")?.value||"pioneer";
+ if(!window.confirm("現在の冒険をスロット"+free.id+"に退避して、新しい冒険を始めますか？\n既存の監獄生活は退避スロットから再開できます。"))return;
+ try{
+  writeSlot(localStorage,free.id,captureGame(),"以前の冒険（自動退避）");
+  const keys=[LIFE_JOURNAL_KEY,WORLD_JOURNAL_KEY,STRUCTURES_JOURNAL_KEY,FAUNA_JOURNAL_KEY,TOWN_JOURNAL_KEY,RAILWAY_JOURNAL_KEY,LAW_JOURNAL_KEY,TERRITORY_JOURNAL_KEY,FACTION_JOURNAL_KEY,RAILWAY_SECURITY_JOURNAL_KEY,CUSTODY_FACILITY_JOURNAL_KEY,OWNER_JOURNAL_KEY,FARM_JOURNAL_KEY,MARINE_JOURNAL_KEY,FERRY_JOURNAL_KEY];
+  for(const key of keys)localStorage.removeItem(key);
+  running=false;init();
+  scenario.start(mode);
+  const target=destinationById(start)||destinationById("pioneer");
+  if(target){const result=visitSettlement(target);if(!result.ok)log("開始地点: "+result.message);}
+  updateHUD();renderSaveSlots();renderScenarioPanel();
+  log("🌱 新規冒険を開始しました。旧冒険はスロット"+free.id+"に退避済みです。");
+ }catch(error){log("新規冒険の開始に失敗: "+error.message);}
+});
