@@ -18,7 +18,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
- onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),notify=()=>{}}){
+ onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -37,7 +37,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
- let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set();
+ let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
  let vrWearables=(()=>{
   try{
@@ -141,6 +141,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function endCleanup(){
   onVRCustody("climb-reset");
+  vrCustodyTriggerConsumed.clear();
   const renderer=getRenderer();
   if(renderer){renderer.xrView=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
@@ -151,7 +152,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrRTS=false;vrThird=false;vrTableYaw=0;
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
   if(activeMode==="vr"){
@@ -213,7 +214,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
     projectionAttempted=true;
@@ -472,8 +473,21 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
  function onVRSelectStart(event){
-  if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
+  if(onVRCustody("state")?.handled){
+   const hand=event.inputSource?.handedness;
+   if(!["left","right"].includes(hand))return;
+   sampleVRRig(event.frame);
+   let grip=null;
+   try{const ref=event.inputSource?.gripSpace||event.inputSource?.targetRaySpace;
+    grip=ref&&space?event.frame.getPose(ref,space)?.transform.matrix||null:null;
+   }catch(_){/* No virtual ledge grab without controller tracking. */}
+   const result=hand==="left"?onVRCustody("climb-foot",{hand}):
+    onVRCustody("climb-mantle",{hand,pose:grip,stage:vrCurrentStage});
+   if(result?.ok)vrCustodyTriggerConsumed.add(hand);
+   if(result?.message)statusText("🥽 "+result.message);
+   return;
+  }
   sampleVRRig(event.frame);
   if(vrPhysical.triggerStart(event.inputSource?.handedness)==="draw")
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
@@ -500,6 +514,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(!ray)return;
   if(activeMode==="vr"){
    if(onVRCustody("state")?.handled){
+    if(vrCustodyTriggerConsumed.delete(source.handedness))return;
     const result=onVRCustody("talk");
     if(result?.message)statusText("🛡️ "+result.message);
     return;
@@ -739,6 +754,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"")+
       (movement.jailWalkable?"／牢内歩行":"")+
       (movement.barClimbing?"／鉄格子登攀 "+movement.barHeightM.toFixed(2)+"m":"")+
+      (movement.barFootBraced?"／足掛け":"")+(movement.barOnLedge?"／内側足場":"")+
       (movement.restraintReason?"／"+movement.restraintReason:"");
      const requested=Math.hypot(vrMovement.forward,vrMovement.strafe)>.45&&!vrRTS;
      if(requested&&movement.detained&&!movement.jailWalkable&&!movement.jailStunned&&movement.restraintReason?.includes("勾留")&&!vrCustodyTipShown){
@@ -955,6 +971,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     renderer.frame(frameState,index===0?dt:0);
     if(mode==="vr")renderer.drawVRBody?.(renderer.xrView,{
       ...vrPhysical.snapshot(),backpack:onVRHasBag(),
+      custodyFootBraced:Boolean(getVRCustodyPose()?.footBraced),
+      custodyOnLedge:Boolean(getVRCustodyPose()?.onLedge),
       appearance:getVRAppearance(),arrowCount:Math.max(0,getVRArrowCount()||0),
       bagOpen:vrWearables.containers.get("travel-backpack")?.open&&onVRHasBag(),
       pocketContainsNote:vrWearables.containers.get("trouser-pocket")?.items.includes("field-note"),
