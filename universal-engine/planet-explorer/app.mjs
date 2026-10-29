@@ -4,7 +4,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-vr-wearables";
+import {ExplorerRenderer} from "./render.mjs?v=0.9z-atrium-vr-wearables-footledge-v09zb";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -2172,7 +2172,8 @@ function vrCustodyInteraction(action,detail=null){
     "鉄格子の近くで片手以上をグリップしてから左トリガーを押してください。"};
   }
   if(action==="climb-mantle"){
-   const result=beginCustodyLedgeMantle(custodyClimb,player,custodyFacility.door);
+   const result=beginCustodyLedgeMantle(custodyClimb,player,custodyFacility.door,
+    detail?.pose,detail?.stage);
    return {handled:true,...result,message:result.ok?
     result.descending?"足場から室内の床へ降ります。":"縁をつかみ、独房内側の足場へ体を引き上げます。":
     "両手のいずれかで鉄格子を握り、左トリガーで足を掛け、十分登ってから右トリガーを押してください。"};
@@ -3702,6 +3703,10 @@ xrUI=installXRUI({
  getVRArrowCount:()=>frontierUI?.vrArrowCount("player")||0,
  onVRFrame:(t,input)=>doFrame(t,"xr",input),
   onVRCustody:vrCustodyInteraction,
+ getVRCustodyPose:()=>custodyFacility?{
+  footBraced:custodyClimb.footBraced,onLedge:custodyClimb.onLedge,
+  mantling:Boolean(custodyClimb.mantle)
+ }:null,
  onPlanetPick:(lat,lon)=>{
   if(!terrain||!renderer||!Number.isFinite(lat)||!Number.isFinite(lon))return false;
   orbitalCitiesUI?.clearChoice();
