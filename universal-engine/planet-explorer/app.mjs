@@ -3913,4 +3913,4 @@ function renderScenarioPanel(){
  }
  const note=document.createElement("small");note.textContent="試験版：選択と履歴の保存のみ。NPC・戦闘・法廷の実処理にはまだ連動しません。保存ボタンかセーブスロットで保存してください。";scenarioPanel.append(note);
 }
-document.getElementById("scenario-panel-toggle")?.addEventListener("click",()=>{const details=document.getElementById("scenario-panel-wrapper");details.open=!details.open;if(details.open)renderScenarioPanel();});
+document.getElementById("scenario-panel-wrapper")?.addEventListener("toggle",event=>{if(event.currentTarget.open)renderScenarioPanel();});
