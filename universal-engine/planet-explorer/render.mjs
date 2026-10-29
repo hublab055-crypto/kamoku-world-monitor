@@ -44,7 +44,7 @@ import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometr
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {railwayStationGeometry,railwayConcourseGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8y-station";
-import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardrailGeometry} from "./custody-facility-geometry.mjs?v=0.9z-twofloor-jail";
+import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardrailGeometry} from "./custody-facility-geometry.mjs?v=0.9z-twofloor-jail-foothold-ledge-v09zb";
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
@@ -2074,7 +2074,14 @@ export class ExplorerRenderer{
      .082,.012,[.90,.83,.64]);
   }
   for(const side of ["left","right"]){
-   const sign=side==="left"?-1:1,knee=a[side+"Knee"],foot=a[side+"Foot"],
+   const sign=side==="left"?-1:1,
+    restingKnee=a[side+"Knee"],restingFoot=a[side+"Foot"],
+    // Quest lacks tracked feet. Only the left virtual leg is positioned
+    // on the visible cell-door rung when a grip+left-trigger supports weight.
+    foot=rig.custodyFootBraced&&side==="left"?
+     add(restingFoot,add(scale(a.forward,.28),[0,.35,0])):restingFoot,
+    knee=rig.custodyFootBraced&&side==="left"?
+     add(restingKnee,add(scale(a.forward,.15),[0,.19,0])):restingKnee,
     shoulder=a["shoulder"+(side==="left"?"Left":"Right")],wrist=side==="left"?left:right;
    segment(add(a.pelvis,scale(a.right,sign*.13)),knee,.20,.21,pants);
    segment(knee,foot,.16,.18,pants);
