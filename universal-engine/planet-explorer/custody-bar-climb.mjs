@@ -116,13 +116,21 @@ export function braceCustodyFoot(state,player,door=0){
 /** Mantle onto the raised INSIDE ledge only. The gallery is across locked bars:
  * this is not a shortcut around the barred wall, even at maximum height.
  */
-export function beginCustodyLedgeMantle(state,player,door=0){
+export function custodyLedgeReachable(pose,stage,player){
+ const hand=custodyGripPoint(pose,stage,player);
+ if(!hand)return false;
+ return Math.abs(hand.x)<=1.24&&Math.abs(hand.z-BAR_LEDGE_Z)<=.62&&
+  hand.y>=BAR_FLOOR_Y+BAR_LEDGE_HEIGHT_M-.58&&
+  hand.y<=BAR_FLOOR_Y+BAR_LEDGE_HEIGHT_M+.85;
+}
+export function beginCustodyLedgeMantle(state,player,door=0,pose=null,stage=null){
  if(!state||!player||door>.88)return {ok:false};
  if(state.onLedge)return {ok:true,descending:beginCustodyLedgeDescent(state,player)};
  if(state.mantle)return {ok:false,reason:"animating"};
  if(!state.footBraced||!custodyClimbHeld(state)||
     player.y<BAR_FLOOR_Y+.83||Math.abs(player.x)>1.01||
-    player.z< -7.12||player.z>-6.20)
+    player.z< -7.12||player.z>-6.20||
+    !custodyLedgeReachable(pose,stage,player))
   return {ok:false,reason:"need-grip-foot-and-height"};
  state.mantle={progress:0,fromY:player.y,fromZ:player.z};
  state.hands.left=null;state.hands.right=null;state.footBraced=false;
