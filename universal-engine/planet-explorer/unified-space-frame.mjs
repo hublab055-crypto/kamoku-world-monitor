@@ -115,7 +115,8 @@ export function shipJourneyFrame(v,days){
  const o=v.launchSite?.bodyId===v.originId?v.launchSite:{lat:0,lon:0,yaw:0,padElevationM:0};
  const originHeight=(Number.isFinite(o.padElevationM)?o.padElevationM:0)+SHIP_FLOOR_CLEARANCE_M;
  const originNow=h=>surfaceShipFrame(v.originId,days,o.lat,o.lon,h,o.yaw||0);
- const departure=surfaceShipFrame(v.originId,v.launchDay,o.lat,o.lon,
+ const transferDay=Number.isFinite(v.transferStartDay)?v.transferStartDay:v.launchDay;
+ const departure=surfaceShipFrame(v.originId,transferDay,o.lat,o.lon,
   PARKING_ORBIT_ALTITUDE_M,o.yaw||0);
  const status=v.status,stage=easing(v.stageProgress||0);
  if(status==="docked")return {...originNow(originHeight),status};
@@ -125,7 +126,7 @@ export function shipJourneyFrame(v,days){
  const targetId=v.destinationId;
  if(!bodyById(targetId)?.landable)return {...departure,status};
  const flightDays=Number.isFinite(v.flightDays)?v.flightDays:0;
- const arrivalDay=v.launchDay+flightDays;
+ const arrivalDay=transferDay+flightDays;
  const destinationAt=(at,h= PARKING_ORBIT_ALTITUDE_M)=>surfaceShipFrame(targetId,at,0,0,h);
  const arrival=destinationAt(arrivalDay);
  if(["cruise","approach"].includes(status)){
