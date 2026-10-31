@@ -37,7 +37,7 @@ function sphere(data,x,y,z,r,c){
   return [x+nx*r,y+ny*r,z+nz*r,nx,ny,nz,...col];
  }
  for(let a=0;a<rings;a++)for(let b=0;b<sectors;b++){
-  for(const vtx of [v(a,b),v(a+1,b),v(a+1,b+1),v(a,b),v(a+1,b+1),v(a,b+1)])data.push(...vtx);
+  for(const vtx of [v(a,b),v(a+1,b+1),v(a+1,b),v(a,b),v(a,b+1),v(a+1,b+1)])data.push(...vtx);
  }
 }
 function createShipGeometry(){
@@ -102,6 +102,12 @@ function createShipGeometry(){
   const z=-11.1+j*2.7;
   box(a,-3.98,3.05,z,.1,.18,1.5,"line");
   box(a,3.98,3.05,z,.1,.18,1.5,"line");
+ }
+ // Exterior star field is visible through the forward observation window.
+ for(let i=0;i<65;i++){
+  const sx=((i*7919)%101-50)*.82,sy=((i*1597)%47-14)*.72;
+  const sz=-45-(i*2377%73);
+  box(a,sx,sy,sz,.10+i%3*.045,.10+i%3*.045,.10+i%3*.045,[.69+i%3*.09,.78+i%4*.055,.88]);
  }
  // Crew are simplified stand-in models, each at a fixed station.
  for(const crew of SHIP_CREW){
