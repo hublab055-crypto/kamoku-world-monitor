@@ -1,6 +1,6 @@
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
-import {SolarSystem,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=1";
+import {SolarSystem,BODIES,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=1";
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
@@ -1563,6 +1563,8 @@ function canDepartCelestial(){
  return {ok:true};
 }
 function startCelestialVoyage(id){
+ if(controller?.altitudeM<=12.1)
+  return {ok:false,message:"地表からは宇宙船後部のハッチを開けて乗船し、軌道上で目的惑星を選択してください"};
  if(voyage?.active)return {ok:false,message:"すでに惑星間航行中です"};
  const valid=canDepartCelestial();if(!valid.ok)return valid;
  const plan=solarSystem.travelPlan(id);if(!plan.ok)return plan;
@@ -1576,7 +1578,14 @@ function startCelestialVoyage(id){
   return {ok:true,message:"🛰️ "+bodyById(id).name+"へ出発準備。操縦席の「離陸」を押してください"};
  }catch(error){voyage=null;return {ok:false,message:"航行準備エラー："+error.message};}
 }
-function launchCelestialVoyage(){return voyage?.launch()||{ok:false,message:"宇宙船がありません"};}
+function launchCelestialVoyage(){
+ const result=voyage?.launch()||{ok:false,message:"宇宙船がありません"};
+ if(result.ok&&voyage?.kind==="surface-to-surface"){
+  surfaceShip?.takeOff();
+  voyageUI?.render();shipInteractionUI?.update(true);
+ }
+ return result;
+}
 function cancelCelestialVoyage(){
  const result=voyage?.cancel()||{ok:false,message:"宇宙船がありません"};
  if(result.ok){voyage=null;running=true;simWorld.clock.paused=false;voyageUI?.close();updateHUD();}
@@ -1588,11 +1597,12 @@ function saveCelestialVoyage(){
  catch(error){return {ok:false,message:"航行セーブエラー："+error.message};}
 }
 function finishCelestialVoyage(){
+ if(voyage?.kind==="surface-to-surface")return voyage.enterAtmosphere();
  if(!voyage?.readyToLand)return {ok:false,message:"周回軌道に到達し進路を整えてから着陸してください"};
  const id=voyage.destinationId;
  return travelToCelestial(id,0);
 }
-function travelToCelestial(id,flightDays){
+function travelToCelestial(id,flightDays,stayAboard=false){
  if(xrUI?.active)return {ok:false,message:"VR/MRを終了してから航行してください"};
  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
   return {ok:false,message:"拘束・継承処理中は他天体に移動できません"};
@@ -1609,18 +1619,28 @@ function travelToCelestial(id,flightDays){
    next.v0_8s={...new TownLife().snapshot(),coins:current.v0_8s.coins};
   solarSystem.arrive(id,flightDays);
   next.planet.timeDays=solarSystem.days;
-  next.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:null};
+  next.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),
+   voyage:stayAboard?voyage?.snapshot():null,ship:surfaceShip?.snapshot()||null};
   running=false;init(next);
   if(!$("fatal").hidden)throw Error($("fatal").textContent);
   if(!previouslyVisited){
    controller.setLanding(terrain.landscapeAnchor.lat,terrain.landscapeAnchor.lon);
-   controller.altitudeM=Math.min(1600000,Math.max(80000,planet.radiusM*.22));
+   controller.altitudeM=stayAboard?2.5:Math.min(1600000,Math.max(80000,planet.radiusM*.22));
    squad.repositionAfterLanding();renderer.patchKey=null;
   }
   controller.targetAltitude(2.5);
-  lastTime=0;
-  solarUI?.refresh();updateHUD();
-  return {ok:true,message:"🚀 "+bodyById(id).name+"に到着。指定地点への降下を開始しました。天体別の開拓記録は保持されます。"};
+  if(stayAboard){
+   controller.altitudeM=2.5;
+   surfaceShip.landedOn(id,controller.lat,controller.lon);
+   surfaceShip.hatchOpen=false;
+   renderer.surfaceStarship=surfaceShip;
+   running=false;simWorld.clock.paused=true;
+   voyageUI?.show();shipInteractionUI?.update(true);
+  }
+  lastTime=0;solarUI?.refresh();updateHUD();
+  return {ok:true,message:stayAboard?
+   "🛬 "+bodyById(id).name+"へ着陸しました。操縦席から立ち、船尾のハッチを開いて下船してください":
+   "🚀 "+bodyById(id).name+"に到着。指定地点への降下を開始しました。天体別の開拓記録は保持されます。"};
  }catch(error){
   running=false;init(current);updateHUD();
   return {ok:false,message:"航行エラー："+error.message+"（出発地点に復帰）"};
