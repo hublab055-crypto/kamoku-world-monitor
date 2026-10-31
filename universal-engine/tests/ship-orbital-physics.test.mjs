@@ -108,3 +108,21 @@ test("invalid free state fails closed, and guided ascent cannot enter free physi
  assert.throws(()=>createFreeFlight(orbit(),day,{warp:2}),RangeError);
  assert.throws(()=>stepFreeFlight(null,.05,day),RangeError);
 });
+
+test("stellar surface is an actual collision boundary, even without a landable star",()=>{
+ const free=createFreeFlight(orbit(),day);
+ free.position=[696340000+.5,0,0];free.velocity=[-4000,0,0];
+ const result=stepFreeFlight(free,.05,day,{fuel:0,throttle:0});
+ assert.equal(result.state.incident,"impact");
+ near(Math.hypot(...result.state.position),696340000,.05);
+ assert.equal(len(result.state.velocity),0);
+});
+test("guided orbital rendezvous offsets local gravity, rather than requiring an impossible hover",()=>{
+ const f=orbit(),state=createFreeFlight(f,day);
+ const target={position:[...state.position],velocity:[...state.velocity]};
+ state.returnToRoute=true;
+ const step=stepFreeFlight(state,.08,day,{fuel:100,guidance:target});
+ assert.ok(step.deltaV>.7,"station-keeping thrust must counter planet gravity");
+ assert.ok(step.state.incident===null);
+ assert.ok(step.state.position.every(Number.isFinite));
+});
