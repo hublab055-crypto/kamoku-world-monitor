@@ -1809,8 +1809,11 @@ export class ExplorerRenderer{
   // distance is intentionally a tiny dot, not a planet arbitrarily near glass.
   for(const id of bodyIds){
    const pose=planetRenderPose(frame,id,this.planet.timeDays);
-   const visible=pose.altitudeM>2500 || id!==frame.bodyId;
-   if(!visible)continue;
+   // Fade in the large-scale globe before the nearby spherical terrain
+   // runs out, so there is no hard "planet appears" jump at one altitude.
+   const ownPlanet=id===frame.bodyId;
+   const globeOpacity=ownPlanet?Math.max(0,Math.min(1,(altitude-1600)/8000)):1;
+   if(globeOpacity<=0)continue;
    const surface=terrain?.planet?.id===id?terrain:null;
    const rgb=(bodyById(id).color||"#84b4cd").replace("#","");
    const tint=[0,2,4].map(i=>parseInt(rgb.slice(i,i+2),16)/255);
@@ -1827,8 +1830,13 @@ export class ExplorerRenderer{
    const matrix=pose.matrix.slice();
    const recessed=surface?1-70/bodyById(id).radiusM:1;
    for(let i=0;i<12;i++)if(i%4!==3)matrix[i]*=recessed;
-   this.drawMesh(mesh,multiply4(vp,matrix),[.68,.94,.44],1,.75,
+   if(globeOpacity<1){
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+   }
+   this.drawMesh(mesh,multiply4(vp,matrix),[.68,.94,.44],globeOpacity,.75,
     surface?[1,1,1]:tint);
+   if(globeOpacity<1){gl.depthMask(true);gl.disable(gl.BLEND);}
   }
   // Local high-resolution terrain follows exactly the same body orientation
   // and floating origin as the globe. Radius increases with true altitude.
