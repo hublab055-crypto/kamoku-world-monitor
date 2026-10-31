@@ -52,7 +52,7 @@ import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5";
 import {bodyById} from "./solar-system.mjs?v=1";
-import {shipTerrainTier,curvedShipTerrainGeometry,shipSiteRenderFrame,planetRenderPose,shipPlanetSurfaceGeometry} from "./ship-planet-view.mjs?v=2";
+import {shipTerrainTier,curvedShipTerrainGeometry,shipSiteRenderFrame,planetRenderPose,shipPlanetSurfaceGeometry} from "./ship-planet-view.mjs?v=3";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
