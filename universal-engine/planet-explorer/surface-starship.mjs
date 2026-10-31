@@ -1,6 +1,6 @@
 /** Single mobile spacecraft: a parked geodetic footprint; only one planet can own it. */
+import {geoLocal} from "./geo.mjs?v=0.8y-harbor";
 const finite=n=>Number.isFinite(n);
-const radians=Math.PI/180;
 export class SurfaceStarship{
  constructor(data=null){
   this.bodyId=typeof data?.bodyId==="string"?data.bodyId:null;
@@ -42,8 +42,8 @@ export class SurfaceStarship{
  }
  offsetFromCoords(origin,x,z,radiusM){
   if(!origin||![origin.lat,origin.lon,x,z,radiusM].every(finite)||radiusM<=0)return null;
-  const northM=(this.lat-origin.lat)*radians*radiusM;
-  const eastM=(this.lon-origin.lon)*radians*radiusM*Math.cos(origin.lat*radians);
+  // Exact spherical logarithmic map avoids a 360° jump at the longitude seam.
+  const {northM,eastM}=geoLocal(origin.lat,origin.lon,this.lat,this.lon,radiusM);
   const dx=eastM-x,dz=northM-z;
   // Hatch is aft of the landed fuselage, where the ramp meets the terrain.
   const hx=eastM+Math.sin(this.yaw)*17.2;
