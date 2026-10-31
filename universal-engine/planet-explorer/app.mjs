@@ -5,14 +5,14 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
-import {ShipJourney} from "./ship-journey.mjs?v=8";
+import {ShipJourney} from "./ship-journey.mjs?v=9";
 import {geodeticToShipLocal,shipLocalToGeodetic} from "./unified-space-frame.mjs?v=1";
 import {SurfaceStarship} from "./surface-starship.mjs?v=4";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=12";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=13";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
@@ -671,7 +671,7 @@ function doFrame(t,source="window",xrFrameInput=null){
      log("着陸地点の再取得に失敗："+error.message+"。周回軌道に戻しました。");
     }
    }
-   const before=voyage.status,advanced=voyage.tick(dt);
+   const before=voyage.status,advanced=voyage.tick(dt,planet.timeDays);
    if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
    if(voyage?.kind==="surface-to-surface"&&before!=="landed"&&voyage.status==="landed"){
     const r=completeShipLanding();
