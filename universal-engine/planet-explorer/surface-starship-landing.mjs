@@ -31,7 +31,7 @@ export function findStarshipPad(terrain,point,{yaw=0,distanceM=30}={}){
   const geo=geoOffset(point.lat,point.lon,
    -Math.sin(candidateYaw)*dist,-Math.cos(candidateYaw)*dist,terrain.planet.radiusM);
   const pad=evaluateStarshipPad(terrain,geo.lat,geo.lon,candidateYaw);
-  if(!pad)continue;
+  if(!pad?.safe)continue;
   const score=pad.reliefM*8+dist*.16+Math.abs(offset)*5;
   if(!best||score<best.score)best={...pad,distanceM:dist,score};
  }
