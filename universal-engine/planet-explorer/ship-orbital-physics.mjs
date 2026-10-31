@@ -121,12 +121,18 @@ export function safeTimeWarp(requested,near){
  if(near.altitudeM<5*near.body.radiusM)return Math.min(requested,100);
  return requested;
 }
-function guidanceAcceleration(position,velocity,goal){
+function guidanceAcceleration(position,velocity,goal,gravity,drag){
  if(!goal)return [0,0,0];
  const p=sub(goal.position,position),v=sub(goal.velocity,velocity);
- // Critically damped station-keeping guidance, capped at 20m/s².
- const a=add(mul(p,.00045),mul(v,.042));
- const mag=length(a);return mag>20?mul(a,20/mag):a;
+ // Station-keeping thrusters cancel gravity and aerodynamic drag first.
+ // That leaves maneuver authority to brake into the target orbit without
+ // sacrificing altitude while cancelling orbital tangential velocity.
+ const correction=add(mul(p,.00045),mul(v,.042));
+ const km=length(correction);
+ const bounded=km>15?mul(correction,15/km):correction;
+ const desired=sub(sub(bounded,gravity),drag);
+ const magnitude=length(desired);
+ return magnitude>28?mul(desired,28/magnitude):desired;
 }
 export function freeFlightFrame(state,day,{status="origin-orbit"}={}){
  const closest=nearestFlightBody(state.position,day);
@@ -170,7 +176,7 @@ export function stepFreeFlight(state,dt,day,{
   const drag=atmosphericAcceleration(position,velocity,now,nearest);
   lastDrag=length(drag);
   const thrustAccel=initial.returnToRoute?0:fuel>0?clamp(throttle,0,1)*4.8:0;
-  const control=initial.returnToRoute?(fuel>0?guidanceAcceleration(position,velocity,guidance):[0,0,0]):
+  const control=initial.returnToRoute?(fuel>0?guidanceAcceleration(position,velocity,guidance,gravity,drag):[0,0,0]):
    mul(nose,thrustAccel);
   const acceleration=add(add(gravity,drag),control);
   const prior=[...position],stepVelocity=add(velocity,mul(acceleration,h));
@@ -179,6 +185,12 @@ export function stepFreeFlight(state,dt,day,{
   // No tunnelling through terrain: clamp at the body's nominal surface and
   // freeze a collision. The physical mode cannot claim a successful landing.
   const after=nearestFlightBody(position,day+integrated/secPerDay);
+  // The central star also has a physical surface, even though it is not a
+  // landable planet and is intentionally absent from nearestFlightBody().
+  if(length(position)<=STAR.radiusM){
+   position=mul(normalize(position),STAR.radiusM);
+   velocity=[0,0,0];incident="impact";break;
+  }
   if(after&&after.altitudeM<=0){
    const radial=normalize(sub(position,after.center));
    position=add(after.center,mul(radial,after.body.radiusM));
