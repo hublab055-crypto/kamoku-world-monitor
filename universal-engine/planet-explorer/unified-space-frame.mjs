@@ -91,9 +91,9 @@ function blendedBasis(a,b,t){
  const tentative=lerp(a.right,b.right,t);
  let projected=sub(tentative,mul(up,dot(tentative,up)));
  if(Math.hypot(...projected)<1e-8)projected=sub(a.right,mul(up,dot(a.right,up)));
- // Planet-fixed ENU uses right × up = -back. Preserve this handedness
- // across ascent/cruise/entry to avoid a sudden 180° ship flip.
- const right=norm(projected),back=norm(cross(up,right));
+ // geo.mjs planet-fixed ENU is right-handed in this renderer basis.
+ // Keep right × up = back through ascent/cruise/entry.
+ const right=norm(projected),back=norm(cross(right,up));
  return {right,up,back};
 }
 function slerpUnit(a,b,t){
