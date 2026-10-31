@@ -100,3 +100,30 @@ export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxRea
  }
  return null;
 }
+
+/** Touch-key collision against tracked Quest hand/grip pose in XR metres.
+ * A small forward offset approximates the index-finger/contact point.
+ * Tracking gaps return null instead of replaying stale hand coordinates.
+ */
+export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tolerance=.12}={}){
+ if(!handMatrix||!xrStageMatrix||!localOffset)return null;
+ const physical=[
+  handMatrix[12]-handMatrix[8]*.06-xrStageMatrix[12],
+  handMatrix[13]-handMatrix[9]*.06-xrStageMatrix[13],
+  handMatrix[14]-handMatrix[10]*.06-xrStageMatrix[14]
+ ];
+ const projected=[
+  physical[0]*xrStageMatrix[0]+physical[1]*xrStageMatrix[1]+physical[2]*xrStageMatrix[2]-localOffset[0],
+  physical[0]*xrStageMatrix[4]+physical[1]*xrStageMatrix[5]+physical[2]*xrStageMatrix[6]-localOffset[1],
+  physical[0]*xrStageMatrix[8]+physical[1]*xrStageMatrix[9]+physical[2]*xrStageMatrix[10]-localOffset[2]
+ ];
+ const c=Math.cos(yaw),sn=Math.sin(yaw);
+ const x=c*projected[0]-sn*projected[2],z=sn*projected[0]+c*projected[2];
+ if(Math.abs(projected[1]-MUSIC_KEY_Y)<tolerance&&
+    x>=-.83&&x<=.83&&z>=-.46&&z<=.23)
+  return {track:"keys",pitch:60+clamp(Math.floor((x+.81)/.125),0,12)};
+ if(Math.abs(projected[1]-MUSIC_GUITAR_Y)<tolerance&&
+    x>=1.18&&x<=1.90&&z>=-.35&&z<=.58)
+  return {track:"guitar",pitch:GUITAR_OPEN_NOTES[5-clamp(Math.floor((x-1.18)/.12),0,5)]};
+ return null;
+}
