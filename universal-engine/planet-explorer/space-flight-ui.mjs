@@ -27,6 +27,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight .flight-actions button:disabled{opacity:.43}
  #space-flight .flight-actions .primary{background:#226b68;border-color:#79bcae}
  #space-flight input[type=range]{width:min(220px,45vw);accent-color:#77dbd4}
+ #space-flight{overflow-y:auto}
+ #space-flight .flight-display{flex-shrink:1}
  #space-flight .flight-guide{font-size:11px;color:#abcbdc;text-align:center;margin:3px}
  #space-flight #ship-3d-canvas[hidden],#space-flight #flight-canvas[hidden]{display:none!important}
  #space-flight .flight-crew{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:center;min-height:36px;margin:2px 0}
