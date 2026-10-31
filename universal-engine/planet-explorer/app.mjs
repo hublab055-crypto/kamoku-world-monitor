@@ -410,6 +410,7 @@ function init(saved=null){
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
   renderer.surfaceStarship=surfaceShip;
+  renderer.shipVoyage=voyage;
   custodyClimb=newCustodyBarClimb();
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
@@ -659,6 +660,8 @@ function doFrame(t,source="window",xrFrameInput=null){
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(voyage?.active){
+  renderer.shipVoyage=voyage;
+  renderer.surfaceStarship=surfaceShip;
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"){
@@ -668,6 +671,7 @@ function doFrame(t,source="window",xrFrameInput=null){
     const r=completeShipLanding();
     if(r?.message)log(r.message);
    }
+   renderer.frame(controller,dt);
    voyageUI?.render(dt);shipInteractionUI?.update();
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    requestAnimationFrame(doFrame);
@@ -1563,7 +1567,7 @@ function shipEgress(){
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
   squad.repositionAfterLanding();
   renderer.patchKey=null;lastTime=0;
-  voyage=null;running=true;simWorld.clock.paused=false;
+  voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
   voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
   return {ok:true,message:"🌍 ランプから地表へ降り立ちました。宇宙船はハッチを開いたまま着陸地点に残ります"};
  }catch(error){return {ok:false,message:"下船エラー："+error.message};}
@@ -3959,7 +3963,8 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},
- getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],notify:log});
+ getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
+ getWorldCanvas:()=>renderer?.canvas||null,notify:log});
 shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
