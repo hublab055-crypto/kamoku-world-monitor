@@ -7,7 +7,7 @@
  * Free flight is opt-in from a parking orbit, with supervised return to route.
  */
 import {AU_M,STAR,BODIES,bodyById} from "./solar-system.mjs";
-import {bodyCenterM} from "./unified-space-frame.mjs?v=1";
+import {bodyCenterM} from "./unified-space-frame.mjs?v=2";
 const secPerDay=86400;
 const yearSeconds=365.25*secPerDay;
 export const HELIOS_MU=4*Math.PI*Math.PI*AU_M**3/yearSeconds**2;
