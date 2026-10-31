@@ -4,6 +4,8 @@ import {SolarSystem,bodyById,createCelestialPlanet,applyCelestialClimate} from "
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
+import {SpaceVoyage} from "./space-voyage.mjs?v=1";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
@@ -104,7 +106,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let solarSystem=null,solarUI=null;
+let solarSystem=null,solarUI=null,voyage=null,voyageUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
@@ -295,6 +297,7 @@ function init(saved=null){
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
+  voyage=SpaceVoyage.fromSnapshot(saved?.v0_aa?.voyage);
   if(saved?.planet&&!saved?.v0_aa)solarSystem.sync(saved.planet.timeDays);
   planet=saved?Planet.fromSnapshot(saved.planet):createCelestialPlanet("terra",.24);
   if(saved?.v0_aa)planet.timeDays=solarSystem.days;
@@ -569,7 +572,8 @@ function init(saved=null){
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
   updateCustodyFacilityPanel();
-  solarUI?.refresh();
+  if(voyage?.active){running=false;simWorld.clock.paused=true;}
+  voyageUI?.render();solarUI?.refresh();
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
@@ -634,6 +638,19 @@ function doFrame(t,source="window",xrFrameInput=null){
   return;
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
+ if(voyage?.active){
+  // Only the ship clock runs during transit. Ground AI, law, tides and
+  // terrain streaming remain at their saved planet until actual landing.
+  if(source==="window"){
+   const advanced=voyage.tick(dt);
+   if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
+   voyageUI?.render();
+   $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
+   requestAnimationFrame(doFrame);
+  }
+  return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:controller?.altitudeM||0,
+   blocked:false,indoor:true,onShip:true};
+ }
  if(controller&&renderer){
   const onTrain=Boolean(railway?.boarded),onFerry=Boolean(ferry?.boarded),
    inConcourse=Boolean(railway?.concourse===activeSettlementId&&!railway?.platform&&!onTrain);
@@ -1436,9 +1453,48 @@ function captureGame(){
   if(solarSystem){
    solarSystem.sync(planet.timeDays);
    solarSystem.store(solarSystem.currentId,state);
-   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot()};
+   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:voyage?.active?voyage.snapshot():null};
   }
   return state;
+}
+function canDepartCelestial(){
+ if(xrUI?.active)return {ok:false,message:"VR/MRを終了してから航行してください"};
+ if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
+  return {ok:false,message:"拘束・継承処理中は他天体に移動できません"};
+ if(railway?.boarded||ferry?.boarded||marine?.boarded||townLife?.inside)
+  return {ok:false,message:"乗り物や建物から出て宇宙船に搭乗してください"};
+ if(railwaySecurity?.wanted)return {ok:false,message:"鉄道保安に追跡されている間は離陸できません"};
+ return {ok:true};
+}
+function startCelestialVoyage(id){
+ if(voyage?.active)return {ok:false,message:"すでに惑星間航行中です"};
+ const valid=canDepartCelestial();if(!valid.ok)return valid;
+ const plan=solarSystem.travelPlan(id);if(!plan.ok)return plan;
+ try{
+  const origin=captureGame();
+  solarSystem.store(solarSystem.currentId,origin);
+  voyage=new SpaceVoyage({originId:solarSystem.currentId,destinationId:id,
+   flightDays:plan.flightDays,launchDay:planet.timeDays});
+  running=false;simWorld.clock.paused=true;
+  solarUI?.close();voyageUI?.show();
+  return {ok:true,message:"🛰️ "+bodyById(id).name+"へ出発準備。操縦席の「離陸」を押してください"};
+ }catch(error){voyage=null;return {ok:false,message:"航行準備エラー："+error.message};}
+}
+function launchCelestialVoyage(){return voyage?.launch()||{ok:false,message:"宇宙船がありません"};}
+function cancelCelestialVoyage(){
+ const result=voyage?.cancel()||{ok:false,message:"宇宙船がありません"};
+ if(result.ok){voyage=null;running=true;simWorld.clock.paused=false;voyageUI?.close();updateHUD();}
+ return result;
+}
+function saveCelestialVoyage(){
+ try{const data=captureGame();localStorage.setItem(SAVE_KEY,JSON.stringify(data));
+  return {ok:true,message:"💾 惑星間航行の位置・燃料・目的地・各天体の開拓記録を保存しました"};}
+ catch(error){return {ok:false,message:"航行セーブエラー："+error.message};}
+}
+function finishCelestialVoyage(){
+ if(!voyage?.readyToLand)return {ok:false,message:"周回軌道に到達し進路を整えてから着陸してください"};
+ const id=voyage.destinationId;
+ return travelToCelestial(id,0);
 }
 function travelToCelestial(id,flightDays){
  if(xrUI?.active)return {ok:false,message:"VR/MRを終了してから航行してください"};
@@ -1455,9 +1511,9 @@ function travelToCelestial(id,flightDays){
   carryCelestialInventory(next,current);
   if(!next.v0_8s&&current.v0_8s)
    next.v0_8s={...new TownLife().snapshot(),coins:current.v0_8s.coins};
-  solarSystem.arrive(id,plan.flightDays);
+  solarSystem.arrive(id,flightDays);
   next.planet.timeDays=solarSystem.days;
-  next.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot()};
+  next.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:null};
   running=false;init(next);
   if(!$("fatal").hidden)throw Error($("fatal").textContent);
   if(!previouslyVisited){
@@ -3754,8 +3810,11 @@ init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
- onTravel:travelToCelestial,onMine:mineAsteroids,notify:log});
-solarUI.refresh();
+ onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
+voyageUI=installSpaceFlightUI({get:()=>voyage,
+ onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
+ onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,notify:log});
+solarUI.refresh();voyageUI.render();
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onVRGroundStart:()=>{
