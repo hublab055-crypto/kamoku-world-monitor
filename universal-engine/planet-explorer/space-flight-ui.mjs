@@ -9,7 +9,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,notify}){
+export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,notify}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -68,15 +68,17 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const v=get(),interior=v?.interior;
   if(!interior||interior.mode!=="interior")return;
   const people=interior.nearCrew(),stations=interior.nearStations();
-  const key=[...people.map(p=>p.id),...stations.map(s=>s.id)].join(":");
+  const companionName=getCompanions?.()?.[0];
+  const key=[...people.map(p=>p.id+(p.id==="companion"?companionName||"":"")),...stations.map(s=>s.id)].join(":");
   if(key===nearKey)return;nearKey=key;
   const panel=$("flight-nearby");panel.replaceChildren();
   const label=document.createElement("span");label.textContent="近く：";panel.append(label);
   for(const person of people){
-   const button=document.createElement("button");button.type="button";button.textContent="💬 "+person.name;
+   const button=document.createElement("button");button.type="button";const displayName=person.id==="companion"&&companionName?companionName:person.name;
+   button.textContent="💬 "+displayName;
    button.addEventListener("click",()=>{
     const current=get();const reply=current?.interior?.talk(person.id,current);
-    if(reply?.message)$("flight-dialogue").textContent="💬 "+person.name+"「"+reply.message+"」";
+    if(reply?.message)$("flight-dialogue").textContent="💬 "+displayName+"「"+reply.message+"」";
    });
    panel.append(button);
   }
