@@ -52,7 +52,7 @@ export function patchSceneryHeight(patch,x,z){
  */
 export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     groundAt=()=>300, biomeAt=()=>({water:false,river:false,category:"forest",elevationM:300}),
-    settlementId="pioneer"}={}){
+    settlementId="pioneer",barren=false}={}){
   const trees=[],grass=[],buildings=[],people=[];
   const layout=settlementLayout(settlementId);
   const sites=settlementId==="pioneer"?VILLAGE_SITES:layout.buildings;
@@ -79,7 +79,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     if(biome.water||biome.river||biome.elevationM<60||biome.elevationM>2800)continue;
     // A real open plain must remain open: keep dense groves in forests,
     // sparse trees in meadows and treeless snowy highlands.
-    const density=biome.category==="forest"?.89:
+    const density=barren?.56:biome.category==="forest"?.89:
       biome.landform==="grassland"||biome.landform==="plain"||biome.category==="plains"?.10:
       biome.category==="mountain"?.25:biome.category==="highland"?.31:.49;
     if(roll>density*(distance>430?.09:1))continue;
@@ -89,7 +89,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
     const parentType=variation<.075?"boulder":variation<.16?"flowering":variation<.54?"pine":"broadleaf";
     // Preserve original coordinates as slot zero. Extra slots use a stable
     // 4x3 subcell lattice so a forest becomes dense without random clumping.
-    const slots=distance<=430?densityBoost:1;
+    const slots=distance<=430?(barren?3:densityBoost):1;
     for(let slot=0;slot<slots;slot++){
       const gx=slot?slot-1:0,noiseA=sceneryHash(ix*13+slot*17,iz*7-slot,seed),
         noiseB=sceneryHash(ix*5-slot*11,iz*19+slot*3,seed);
@@ -105,7 +105,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
       const lx=wx-cx,lz=wz-cz;
       if(lx*lx+lz*lz>reach*reach)continue;
       const v=slot?sceneryHash(ix*23+slot*13,iz*17-slot*7,seed):variation;
-      const type=!slot?parentType:
+      const type=barren?(v<.27?"pebble":v<.7?"boulder":"iron-deposit"):!slot?parentType:
         v<.022?"pebble":v<.070?"iron-deposit":v<.133?"boulder":
         v<.23?"shrub":v<.27?"large-oak":
         v<.39?"maple-red":v<.51?"maple-orange":
@@ -123,7 +123,7 @@ export function planWorldScenery({seed=77,cx=0,cz=0,radius=450,
   }
   // Meadow clumps use a denser mesh but only nearby; high-altitude views
   // show the terrain's vertex colors without generating unnecessary blades.
-  if(radius<=900){ // grass blades become subpixel beyond this ground LOD
+  if(radius<=900&&!barren){ // grass blades become subpixel beyond this ground LOD
     const stride=5.5; // Fixed world-space grass grid; no zoom-dependent reshuffle
     for(let iz=Math.floor((cz-reach)/stride);iz<=Math.ceil((cz+reach)/stride);iz++)
       for(let ix=Math.floor((cx-reach)/stride);ix<=Math.ceil((cx+reach)/stride);ix++){
