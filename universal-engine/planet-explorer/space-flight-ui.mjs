@@ -143,12 +143,12 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  const throttle=$("flight-throttle"),main=$("flight-main");
  const run=(fn)=>{const result=fn();if(result?.message)notify?.(result.message);return result;};
  throttle.addEventListener("input",()=>get()?.setThrottle(Number(throttle.value)/100));
- $("flight-left").addEventListener("click",()=>get()?.steer(-8));
- $("flight-right").addEventListener("click",()=>get()?.steer(8));
+ $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
+ $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
  $("flight-auto").addEventListener("click",()=>{const v=get();if(v)v.setAutopilot(!v.autopilot);});
  $("flight-save").addEventListener("click",()=>run(onSave));
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
- main.addEventListener("click",()=>{const v=get();if(!v)return;run(v.status==="preflight"?onLaunch:onLand);});
+ main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
  function render(dt=0){
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();return;}
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
@@ -160,7 +160,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(interiorView){updateNearby();ship3D.render();}
   if(lastView!==v.interior.mode){lastView=v.interior.mode;nearKey="";$("flight-dialogue").textContent="";}
 
-  const target=bodyById(v.destinationId),origin=bodyById(v.originId);
+  const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
   $("flight-route").textContent="🚀 "+origin.name+" → "+target.name;
   $("flight-phase").textContent="段階："+v.phase;
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
@@ -169,8 +169,16 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
   $("flight-cancel").hidden=v.status!=="preflight";
-  main.textContent=v.status==="preflight"?"🚀 離陸":v.status==="orbit"?"↓ 着陸":"🛰️ 巡航中";
-  main.disabled=v.status!=="preflight"&&!v.readyToLand;
+  const groundReady=["preflight","docked"].includes(v.status);
+  main.textContent=groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
+   v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":
+   v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
+  main.disabled=!(groundReady? (v.seated!==false&&v.hatchOpen!==true) : v.readyToLand);
+  if(v.seated===false){
+   $("flight-left").disabled=true;$("flight-right").disabled=true;
+  }else{
+   $("flight-left").disabled=false;$("flight-right").disabled=false;
+  }
   if(interiorView){
    $("flight-hud").textContent="SHIP INTERIOR · "+v.phase+"\n"+bodyById(v.destinationId).name+" "+Math.round(v.progress*100)+"%";
    return;
