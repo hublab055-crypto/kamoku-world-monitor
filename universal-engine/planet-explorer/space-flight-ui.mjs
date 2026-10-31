@@ -47,7 +47,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight.integrated #flight-dialogue,#space-flight.integrated .flight-guide{pointer-events:auto}
  #space-flight.integrated .flight-head{background:#071e30d9;border-radius:8px}
  #space-flight.integrated .flight-display{flex:1;min-height:70px;max-height:none;background:transparent;border:0;pointer-events:none}
- #space-flight.integrated #flight-canvas,#space-flight.integrated #ship-3d-canvas{display:none!important}
+ #space-flight.integrated #ship-3d-canvas{display:none!important}
+ #space-flight.integrated #flight-canvas:not([hidden]){display:block!important;position:absolute;top:4px;right:4px;width:min(300px,50vw);height:auto;max-height:150px;border:1px solid #70a5b6aa;border-radius:8px;background:#08172bd9;pointer-events:none;opacity:.86}
  #space-flight.integrated .flight-hud{top:3px;left:3px;background:#07192c88;border-radius:5px;padding:3px 6px}
  #space-flight.integrated .flight-readout{margin:3px 0}
  #space-flight.integrated .flight-guide{background:#102b3fc9;border-radius:6px}
@@ -187,7 +188,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
   const interiorView=v.interior.mode==="interior";
-  shipCanvas.hidden=unified||!interiorView;screen.hidden=unified||interiorView;
+  shipCanvas.hidden=unified||!interiorView;screen.hidden=interiorView;
   $("flight-walk").hidden=!interiorView;$("flight-nearby").hidden=!interiorView;
   $("flight-view").textContent=interiorView?"🛰️ 操縦席の星図":"🚶 3D船内";
   if(interiorView){updateNearby();if(!unified)ship3D.render();}
@@ -213,7 +214,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   }else{
    $("flight-left").disabled=false;$("flight-right").disabled=false;
   }
-  if(interiorView||unified){
+  if(interiorView){
    $("flight-hud").textContent="3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
    return;
   }
