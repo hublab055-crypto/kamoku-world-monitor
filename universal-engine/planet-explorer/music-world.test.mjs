@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {musicStageGeometry,musicStageRayHit,newMusicStage,normalizeMusicStage} from "./music-world.mjs";
+import {musicStageGeometry,musicStageRayHit,musicStageHandHit,newMusicStage,normalizeMusicStage} from "./music-world.mjs";
 
 const ray=(x,y,z)=>{const m=new Array(16).fill(0);m[0]=m[5]=m[15]=1;m[9]=1;
  m[12]=x;m[13]=y;m[14]=z;return m;};
@@ -38,4 +38,19 @@ test("XR stage rotation and translation leave musical pitch unchanged",()=>{
 test("no false hit when pointing horizontally",()=>{
  const m=ray(-.75,1.7,-.1);m[8]=0;m[9]=0;m[10]=-1;
  assert.equal(musicStageRayHit(m,identity(),[0,0,0],0),null);
+});
+
+test("direct tracked hand contact plays only when close to the key surface",()=>{
+ const hand=(x,y,z)=>{
+  const m=identity();m[12]=x;m[13]=y;m[14]=z;
+  // The controller tip is 6 cm toward -Z.
+  return m;
+ };
+ const world=identity();
+ assert.deepEqual(musicStageHandHit(hand(-.75,1.02,-.04),world,[0,0,0],0),
+  {track:"keys",pitch:60});
+ assert.equal(musicStageHandHit(hand(-.75,1.65,-.04),world,[0,0,0],0),null);
+ assert.deepEqual(musicStageHandHit(hand(1.24,1.20,.18),world,[0,0,0],0),
+  {track:"guitar",pitch:40});
+ assert.equal(musicStageHandHit(null,world,[0,0,0],0),null);
 });
