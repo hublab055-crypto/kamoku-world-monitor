@@ -45,6 +45,7 @@ export class ShipJourney{
   if(!this.isGrounded())return {ok:false,message:"飛行中はハッチを操作できません"};
   if(this.seated)return {ok:false,message:"立ち上がってハッチに近づいてください"};
   if(!this.isNearHatch())return {ok:false,message:"船尾のハッチまで歩いてください"};
+  if(this.hatchOpen&&this.interior.z>12.8)return {ok:false,message:"ランプから船内に戻ってからハッチを閉めてください"};
   this.hatchOpen=!this.hatchOpen;
   this.interior.hatchPassable=this.hatchOpen&&this.isGrounded();
   return {ok:true,message:this.hatchOpen?"🚪 ハッチを開けました。外へ出られます":"🔒 ハッチを閉じました。気密を確認しました"};
