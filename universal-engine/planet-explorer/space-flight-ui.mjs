@@ -198,9 +198,12 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
   $("flight-route").textContent="🚀 "+origin.name+" → "+target.name;
   const entryView=["entry","touchdown"].includes(v.status);
-  const height=entryView?Math.round(groundScenePhase(v).lift):null;
+  const physicalAltitude=Number.isFinite(v.currentFramePose?.altitudeM)?
+   Math.round(v.currentFramePose.altitudeM):null;
+  const height=entryView?(physicalAltitude??Math.round(groundScenePhase(v).lift)):null;
   $("flight-phase").textContent="段階："+v.phase+
-   (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
+   (physicalAltitude!==null?" ／ 高度 "+physicalAltitude.toLocaleString("ja-JP")+"m":
+    height!==null?" ／ 高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"°";
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
