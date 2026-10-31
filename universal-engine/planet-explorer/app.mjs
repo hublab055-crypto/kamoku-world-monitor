@@ -5,6 +5,10 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=3";
+import {ShipJourney} from "./ship-journey.mjs?v=1";
+import {SurfaceStarship} from "./surface-starship.mjs?v=1";
+import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=1";
+import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=1";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=3";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
@@ -107,7 +111,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null;
+let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
@@ -298,7 +302,8 @@ function init(saved=null){
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
-  voyage=SpaceVoyage.fromSnapshot(saved?.v0_aa?.voyage);
+  voyage=ShipJourney.fromSnapshot(saved?.v0_aa?.voyage)||
+   SpaceVoyage.fromSnapshot(saved?.v0_aa?.voyage);
   if(saved?.planet&&!saved?.v0_aa)solarSystem.sync(saved.planet.timeDays);
   planet=saved?Planet.fromSnapshot(saved.planet):createCelestialPlanet("terra",.24);
   if(saved?.v0_aa)planet.timeDays=solarSystem.days;
@@ -320,6 +325,14 @@ function init(saved=null){
    ownerUI?.reset();
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
+  surfaceShip=SurfaceStarship.fromSnapshot(saved?.v0_aa?.ship);
+  if(!surfaceShip.bodyId&&!voyage){
+   const at=controller.locationAt(controller.x,controller.z-20);
+   const ground=terrainSurface(terrain,at.lat,at.lon);
+   if(!ground.water&&!ground.river&&ground.elevationM<2800)
+    surfaceShip.place(solarSystem.currentId,at.lat,at.lon);
+   else surfaceShip.place(solarSystem.currentId,controller.lat,controller.lon);
+  }
   footVoyage=new VoyageLog(saved?.v0_9u?.footVoyage||null,{lat:controller.lat,lon:controller.lon});
   scenario=createScenario(saved?.v0_9v?.scenario||null);
   if(!saved?.v0_9v?.scenario)for(const quest of INTRO_QUESTS)scenario.addQuest(quest);
@@ -391,6 +404,7 @@ function init(saved=null){
    planet.advance(gameDaysForRealSeconds(dt,$("days-per-second").value)));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+  renderer.surfaceStarship=surfaceShip;
   custodyClimb=newCustodyBarClimb();
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
@@ -574,7 +588,7 @@ function init(saved=null){
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
   updateCustodyFacilityPanel();
   if(voyage?.active){running=false;simWorld.clock.paused=true;}
-  voyageUI?.render();solarUI?.refresh();
+  voyageUI?.render();shipInteractionUI?.update(true);surfaceShipUI?.update(true);solarUI?.refresh();
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
@@ -643,9 +657,13 @@ function doFrame(t,source="window",xrFrameInput=null){
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"){
-   const advanced=voyage.tick(dt);
+   const before=voyage.status,advanced=voyage.tick(dt);
    if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
-   voyageUI?.render(dt);
+   if(voyage?.kind==="surface-to-surface"&&before!=="landed"&&voyage.status==="landed"){
+    const r=completeShipLanding();
+    if(r?.message)log(r.message);
+   }
+   voyageUI?.render(dt);shipInteractionUI?.update();
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    requestAnimationFrame(doFrame);
   }
@@ -1112,7 +1130,7 @@ function refreshShipCrewChoices(){
 function updateHUD(){
   if(solarSystem&&planet)solarSystem.sync(planet.timeDays);
   solarUI?.update();
-  celestialSky?.update();
+  celestialSky?.update();surfaceShipUI?.update();
   if(territoryEconomy&&ownerWorld){
    const changed=territoryEconomy.syncOwnerBuildings(ownerWorld);
    const months=territoryEconomy.collectUntil(planet?.timeDays);
@@ -1455,7 +1473,7 @@ function captureGame(){
   if(solarSystem){
    solarSystem.sync(planet.timeDays);
    solarSystem.store(solarSystem.currentId,state);
-   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:voyage?.active?voyage.snapshot():null};
+   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:voyage?.active?voyage.snapshot():null,ship:surfaceShip?.snapshot()||null};
   }
   return state;
 }
