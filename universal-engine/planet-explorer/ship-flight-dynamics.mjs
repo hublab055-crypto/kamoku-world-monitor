@@ -112,7 +112,11 @@ export function applyShipDynamics(frame,v){
  const rr=add(scale(right,cr),scale(up,sr));
  up=add(scale(up,cr),scale(right,-sr));right=rr;
  // The underlying route frame may be numerically approximate: reorthogonalize.
- right=norm(right);up=norm(up);back=norm(cross(right,up));
+ right=norm(right);up=norm(up);
+ // Preserve the parent frame handedness (planet ENU is left-handed in
+ // x=starboard,y=up,z=aft). Never flip the cockpit 180° at liftoff.
+ const handedness=Math.sign(dot(cross(frame.right,frame.up),frame.back))||1;
+ back=norm(scale(cross(right,up),handedness));
  const offset=add(add(scale(frame.right,(d.rightM||0)*weight),
   scale(frame.up,(d.upM||0)*weight)),scale(frame.back,(d.backM||0)*weight));
  const position=add(frame.position,offset);
