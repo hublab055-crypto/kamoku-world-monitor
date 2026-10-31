@@ -40,14 +40,21 @@ function sphere(data,x,y,z,r,c){
   for(const vtx of [v(a,b),v(a+1,b+1),v(a+1,b),v(a,b),v(a,b+1),v(a+1,b+1)])data.push(...vtx);
  }
 }
-function createShipGeometry(){
+function createShipGeometry(open=false){
  const a=[];
  // Main pressure hull: 26m long, 8m wide, 3.5m ceiling
  box(a,0,-.17,0,8,.36,26.2,"floor");
  box(a,0,3.67,0,8,.26,26.2,"roof");
  box(a,-4.08,1.71,0,.23,3.5,26.2,"wall");
  box(a,4.08,1.71,0,.23,3.5,26.2,"wall");
- box(a,0,1.7,13.08,8,3.5,.27,"wall");
+ // Genuine rear opening and airlock ramp in the same cabin mesh.
+ for(const side of [-1,1])box(a,side*2.65,1.7,13.08,2.68,3.5,.27,"wall");
+ box(a,0,3.13,13.08,2.65,.62,.28,"wall");
+ for(const side of [-1,1])box(a,side*1.31,1.71,13.1,.08,2.78,.24,"frame");
+ if(open){
+  for(let j=0;j<7;j++)box(a,0,-.15-j*.25,13.1+j*.85,2.46,.12,.87,"frame");
+  for(const side of [-1,1])box(a,side*1.24,-.65,15.9,.09,.15,5.6,"line");
+ }else box(a,0,1.47,13.17,2.42,2.83,.28,"dark");
  // Front observation glazing is open to the view of the approaching world.
  box(a,-3.6,1.7,-13.08,.85,3.5,.32,"wall");
  box(a,3.6,1.7,-13.08,.85,3.5,.32,"wall");
@@ -161,7 +168,7 @@ function multiply(a,b){
 }
 export function installShipInterior3D(canvas,{get}){
  if(!canvas)return {render:()=>false,destroy:()=>{}};
- let gl=null,p=null,buf=null,sceneCount=0,loc=null,planetBuffer=null;
+ let gl=null,p=null,buf=null,sceneCount=0,loc=null,planetBuffer=null,openBuffer=null,openSceneCount=0;
  try{
   gl=canvas.getContext("webgl",{alpha:false,antialias:true,depth:true});
   if(!gl)throw Error("WebGL not available");
@@ -169,6 +176,10 @@ export function installShipInterior3D(canvas,{get}){
   const geometry=createShipGeometry();
   buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,geometry,gl.STATIC_DRAW);
   sceneCount=geometry.length/9;
+  const openGeometry=createShipGeometry(true);
+  openBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,openBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,openGeometry,gl.STATIC_DRAW);
+  openSceneCount=openGeometry.length/9;
   planetBuffer=gl.createBuffer();
   loc={pos:gl.getAttribLocation(p,"aPos"),normal:gl.getAttribLocation(p,"aNormal"),
    color:gl.getAttribLocation(p,"aColor"),vp:gl.getUniformLocation(p,"uVP")};
@@ -195,13 +206,20 @@ export function installShipInterior3D(canvas,{get}){
   // Their visible angular size changes as the voyage progresses.
   const target=bodyById(voyage.destinationId),origin=bodyById(voyage.originId);
   const planetData=[];
-  sphere(planetData,0,2,-43,1.8+Math.pow(voyage.progress,2.5)*15,color(target.color));
-  if(voyage.progress<.78)sphere(planetData,-22,4,-70,5*Math.pow(1-voyage.progress,2),color(origin.color));
+  if(target){
+   const approaching=voyage.status==="entry"?Math.max(voyage.progress,voyage.stageProgress||0):voyage.progress;
+   sphere(planetData,0,2,-43,1.8+Math.pow(approaching,2.5)*15,color(target.color));
+  }else if(origin){
+   sphere(planetData,0,-2,-50,["docked","landed"].includes(voyage.status)?11:4,color(origin.color));
+  }
+  if(target&&origin&&voyage.progress<.78)
+   sphere(planetData,-22,4,-70,5*Math.pow(1-voyage.progress,2),color(origin.color));
   gl.bindBuffer(gl.ARRAY_BUFFER,planetBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(planetData),gl.DYNAMIC_DRAW);
   bind(planetBuffer);gl.drawArrays(gl.TRIANGLES,0,planetData.length/9);
-  bind(buf);gl.drawArrays(gl.TRIANGLES,0,sceneCount);
+  if(voyage.hatchOpen){bind(openBuffer);gl.drawArrays(gl.TRIANGLES,0,openSceneCount);}
+  else{bind(buf);gl.drawArrays(gl.TRIANGLES,0,sceneCount);}
   return true;
  }
- function destroy(){if(!gl)return;if(buf)gl.deleteBuffer(buf);if(planetBuffer)gl.deleteBuffer(planetBuffer);if(p)gl.deleteProgram(p);}
+ function destroy(){if(!gl)return;if(buf)gl.deleteBuffer(buf);if(openBuffer)gl.deleteBuffer(openBuffer);if(planetBuffer)gl.deleteBuffer(planetBuffer);if(p)gl.deleteProgram(p);}
  return {render,destroy,supported:Boolean(gl)};
 }
