@@ -673,6 +673,11 @@ function doFrame(t,source="window",xrFrameInput=null){
    }
    renderer.frame(controller,dt);
    voyageUI?.render(dt);shipInteractionUI?.update();
+   if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>18.3){
+    const leave=shipEgress();if(leave?.message)log(leave.message);
+    requestAnimationFrame(doFrame);
+    return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:2.5,blocked:false};
+   }
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    requestAnimationFrame(doFrame);
   }
@@ -1522,9 +1527,11 @@ function boardSurfaceStarship(){
  if(!surfaceShip.hatchOpen)return {ok:false,message:"ハッチを開けてください"};
  try{
   const state=captureGame();solarSystem.store(solarSystem.currentId,state);
+  const local=shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
   voyage=new ShipJourney({originId:solarSystem.currentId,
-   launchDay:planet.timeDays,hatchOpen:true,status:"docked",
-   interior:{schemaVersion:1,x:0,z:11.4,yaw:0,mode:"interior"}});
+   launchDay:planet.timeDays,launchSite:surfaceShip.snapshot(),hatchOpen:true,status:"docked",
+   interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
+    z:Math.max(16.0,Math.min(18.1,local.z)),yaw:0,mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
@@ -1559,9 +1566,10 @@ function shipEgress(){
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
+  const cabinX=voyage.interior.x,cabinZ=Math.max(17.3,voyage.interior.z);
   controller.setLanding(surfaceShip.lat,surfaceShip.lon);
-  controller.x=Math.sin(surfaceShip.yaw)*19;
-  controller.z=Math.cos(surfaceShip.yaw)*19;
+  const ground=shipLocalToWorld(0,0,surfaceShip.yaw,cabinX,cabinZ);
+  controller.x=ground.x;controller.z=ground.z;
   const geo=controller.locationAt(controller.x,controller.z);
   controller.lat=geo.lat;controller.lon=geo.lon;
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
