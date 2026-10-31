@@ -198,7 +198,12 @@ export function installShipInterior3D(canvas,{get}){
   const width=Math.max(1,Math.floor(canvas.clientWidth*dpr));
   const height=Math.max(1,Math.floor(canvas.clientHeight*dpr));
   if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-  gl.viewport(0,0,width,height);gl.clearColor(.018,.04,.071,1);
+  // Atmosphere visibly thins during liftoff and reappears during reentry.
+  const skyIntensity=["docked","landed"].includes(voyage.status)?1:
+   voyage.status==="ascent"?1-(voyage.stageProgress||0):
+   voyage.status==="entry"?(voyage.stageProgress||0):0;
+  gl.viewport(0,0,width,height);
+  gl.clearColor(.018+.29*skyIntensity,.04+.49*skyIntensity,.071+.60*skyIntensity,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(p);
   const vp=multiply(perspective(74*rad,width/height,.08,180),view(interior.x,1.62,interior.z,interior.yaw,interior.pitch));
   gl.uniformMatrix4fv(loc.vp,false,vp);
