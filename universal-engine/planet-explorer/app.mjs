@@ -1515,7 +1515,7 @@ function boardSurfaceStarship(){
   const state=captureGame();solarSystem.store(solarSystem.currentId,state);
   voyage=new ShipJourney({originId:solarSystem.currentId,
    launchDay:planet.timeDays,hatchOpen:true,status:"docked",
-   interior:{schemaVersion:1,x:0,z:11.4,yaw:Math.PI,mode:"interior"}});
+   interior:{schemaVersion:1,x:0,z:11.4,yaw:0,mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
@@ -1657,7 +1657,12 @@ function travelToCelestial(id,flightDays,stayAboard=false){
    "🛬 "+bodyById(id).name+"へ着陸しました。操縦席から立ち、船尾のハッチを開いて下船してください":
    "🚀 "+bodyById(id).name+"に到着。指定地点への降下を開始しました。天体別の開拓記録は保持されます。"};
  }catch(error){
-  running=false;init(current);updateHUD();
+  running=false;init(current);
+  if(stayAboard&&voyage?.kind==="surface-to-surface"){
+   voyage.status="orbit";voyage.stageProgress=0;
+   voyageUI?.show();shipInteractionUI?.update(true);
+  }
+  updateHUD();
   return {ok:false,message:"航行エラー："+error.message+"（出発地点に復帰）"};
  }
 }
