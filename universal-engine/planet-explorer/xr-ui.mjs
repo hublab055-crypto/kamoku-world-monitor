@@ -17,7 +17,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onRTSAll=()=>{},onPlanetPick=()=>false,onPlanetLand=()=>false,onVRGroundStart=()=>false,
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
- onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
+ onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),onVRMusic=()=>({handled:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
@@ -38,6 +38,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set();
+ const vrMusicActive=new Set(),vrMusicSelectionConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
  let vrWearables=(()=>{
   try{
@@ -489,6 +490,19 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   sampleVRRig(event.frame);
+  const hand=event.inputSource?.handedness;
+  if(["left","right"].includes(hand)&&vrCurrentStage){
+   let ray=null;
+   try{const spaceRef=event.inputSource?.targetRaySpace;
+    ray=spaceRef&&space?event.frame.getPose(spaceRef,space)?.transform.matrix||null:null;
+   }catch(_){/* Missing controller pose must never be fabricated. */}
+   const played=onVRMusic({phase:"start",hand,rayMatrix:ray,stageMatrix:vrCurrentStage});
+   if(played?.handled){
+    vrMusicActive.add(hand);
+    statusText("🎵 "+(played.track==="keys"?"ピアノ":"ギター")+"を演奏");
+    return; // Do not begin sword/bow action while playing the instrument.
+   }
+  }
   if(vrPhysical.triggerStart(event.inputSource?.handedness)==="draw")
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
@@ -496,6 +510,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   sampleVRRig(event.frame);
+  const hand=event.inputSource?.handedness;
+  if(vrMusicActive.delete(hand)){
+   onVRMusic({phase:"end",hand,stageMatrix:vrCurrentStage});
+   vrMusicSelectionConsumed.add(hand);
+   return; // Matching WebXR select is suppressed separately.
+  }
   const outcome=vrPhysical.triggerEnd(event.inputSource?.handedness);
   if(!outcome)return;
   if(outcome.kind==="shoot"){
@@ -509,6 +529,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  function onSelect(event){
   if(!session||!anchor||!space||!event.frame)return;
   const source=event.inputSource;
+  if(activeMode==="vr"&&vrMusicSelectionConsumed.delete(source?.handedness))return;
   if(!source?.targetRaySpace)return;
   const ray=event.frame.getPose(source.targetRaySpace,space);
   if(!ray)return;
