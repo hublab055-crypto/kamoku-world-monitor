@@ -776,6 +776,21 @@ function doFrame(t,source="window",xrFrameInput=null){
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
+  // Fuselage collision while walking on a planetary surface. Hatch remains
+  // accessible at the rear, just outside the impassable pressure hull.
+  if(surfaceShip?.present(planet.id)&&controller.altitudeM<=12.01&&
+     !onShip&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&!detained){
+   const position=surfaceShip.offsetFromCoords(controller.origin,controller.x,controller.z,planet.radiusM);
+   if(position){
+    const dx=controller.x-position.x,dz=controller.z-position.z,angle=surfaceShip.yaw||0;
+    const lx=dx*Math.cos(angle)-dz*Math.sin(angle),lz=dx*Math.sin(angle)+dz*Math.cos(angle);
+    if(Math.abs(lx)<4&&Math.abs(lz)<13.3){
+     controller.x=previous.x;controller.z=previous.z;
+     controller.lat=previous.lat;controller.lon=previous.lon;
+     controller.moving=false;controller.blocked=true;controller.clearMoveTarget();
+    }
+   }
+  }
   if(!jailCellActive&&controller.moving&&controller.altitudeM<=12&&controller.travelMode==="walk"&&
       !onTrain&&!onFerry&&!inConcourse&&!onShip&&!marine?.cabinId&&!townLife.inside){
    if(footVoyage?.advance(controller.lat,controller.lon,terrain.planet.radiusM))
