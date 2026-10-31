@@ -19,7 +19,7 @@ const blockers=[
  {x1:-3.95,x2:-2.35,z1:5,z2:11.0}, // cargo storage banks
  {x1:2.35,x2:3.95,z1:5,z2:11.0},
  {x1:-1.0,x2:1.0,z1:-12.9,z2:-11.1}, // helm console
- {x1:-1.0,x2:1.0,z1:11.5,z2:13.0}
+ {x1:1.18,x2:2.08,z1:10.9,z2:12.2}
 ];
 export class ShipInterior{
  constructor(data={}){
