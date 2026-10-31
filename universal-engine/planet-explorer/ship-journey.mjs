@@ -17,7 +17,8 @@ export class ShipJourney{
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
-   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0}:null;
+   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0,
+    padElevationM:finite(data.launchSite.padElevationM)?data.launchSite.padElevationM:0}:null;
   // Pre-selected safe touchdown site stays fixed through atmospheric entry.
   const pad=data.landingSite;
   this.landingSite=pad&&pad.bodyId===this.destinationId&&
