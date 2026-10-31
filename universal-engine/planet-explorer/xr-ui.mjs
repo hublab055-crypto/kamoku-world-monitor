@@ -141,6 +141,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function endCleanup(){
+  onVRMusic({phase:"reset"});
+  vrMusicActive.clear();vrMusicSelectionConsumed.clear();
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   const renderer=getRenderer();
