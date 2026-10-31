@@ -182,8 +182,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  const throttle=$("flight-throttle"),main=$("flight-main");
  const run=(fn)=>{const result=fn();if(result?.message)notify?.(result.message);return result;};
  throttle.addEventListener("input",()=>get()?.setThrottle(Number(throttle.value)/100));
- $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
- $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
+ $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false)){if(v.kind==="surface-to-surface")v.setAutopilot(false);v.steer(-8);}});
+ $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false)){if(v.kind==="surface-to-surface")v.setAutopilot(false);v.steer(8);}});
  $("flight-auto").addEventListener("click",()=>{const v=get();if(v)v.setAutopilot(!v.autopilot);});
  const manualControls=[["flight-pitch-up","pitch",5],["flight-pitch-down","pitch",-5],
   ["flight-roll-left","roll",-7],["flight-roll-right","roll",7]];
