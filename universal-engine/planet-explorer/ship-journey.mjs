@@ -1,9 +1,9 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
-import {shipJourneyFrame} from "./unified-space-frame.mjs?v=1";
-import {restoreShipDynamics,advanceShipDynamics,applyShipDynamics,emptyShipDynamics} from "./ship-flight-dynamics.mjs?v=1";
+import {shipJourneyFrame} from "./unified-space-frame.mjs?v=2";
+import {restoreShipDynamics,advanceShipDynamics,applyShipDynamics,emptyShipDynamics} from "./ship-flight-dynamics.mjs?v=2";
 import {ALLOWED_WARPS,bodyVelocityMps,createFreeFlight,restoreFreeFlight,
- freeFlightFrame,stepFreeFlight,nearestFlightBody} from "./ship-orbital-physics.mjs?v=1";
+ freeFlightFrame,stepFreeFlight,nearestFlightBody} from "./ship-orbital-physics.mjs?v=2";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
