@@ -50,7 +50,7 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {shipTerrainTier,curvedShipTerrainGeometry,shipSiteRenderFrame,planetRenderPose,shipPlanetSurfaceGeometry} from "./ship-planet-view.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
