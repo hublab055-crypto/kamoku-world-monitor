@@ -6,6 +6,7 @@ import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=1";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=1";
+import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
@@ -106,7 +107,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let solarSystem=null,solarUI=null,voyage=null,voyageUI=null;
+let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
@@ -1111,6 +1112,7 @@ function refreshShipCrewChoices(){
 function updateHUD(){
   if(solarSystem&&planet)solarSystem.sync(planet.timeDays);
   solarUI?.update();
+  celestialSky?.update();
   if(territoryEconomy&&ownerWorld){
    const changed=territoryEconomy.syncOwnerBuildings(ownerWorld);
    const months=territoryEconomy.collectUntil(planet?.timeDays);
@@ -3817,7 +3819,11 @@ solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
 voyageUI=installSpaceFlightUI({get:()=>voyage,
  onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,notify:log});
-solarUI.refresh();voyageUI.render();
+celestialSky=installCelestialSkyViewport({get:()=>({
+ solarSystem,planet,controller,xrActive:Boolean(xrUI?.active),
+ inside:Boolean(townLife?.inside||marine?.cabinId||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
+})});
+solarUI.refresh();voyageUI.render();celestialSky.update(true);
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onVRGroundStart:()=>{
