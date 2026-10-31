@@ -10,7 +10,8 @@ export const SHIP_STATIONS=Object.freeze([
  {id:"helm",name:"操縦席",x:0,z:-11.7,radius:2.3},
  {id:"navigation",name:"航法コンソール",x:-2.3,z:-10.6,radius:1.8},
  {id:"cargo",name:"船倉マニフェスト",x:0,z:10.2,radius:2.9},
- {id:"engine",name:"エンジン監視盤",x:2.8,z:10.8,radius:1.7}
+ {id:"engine",name:"エンジン監視盤",x:2.8,z:10.8,radius:1.7},
+ {id:"hatch",name:"船尾ハッチ",x:0,z:12.0,radius:3.0}
 ]);
 const blockers=[
  {x1:-3.95,x2:-2.95,z1:-12.6,z2:-9.1}, // pilot navigation consoles
