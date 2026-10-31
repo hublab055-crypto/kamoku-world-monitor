@@ -42,5 +42,5 @@ export function groundScenePhase(voyage){
  // before the spacecraft drops into the low-altitude landing corridor.
  const terrainDistance=status==="entry"?5000:1100;
  return {near,lift,sky,showGround:near&&lift<terrainDistance,
-  showGlobe:status!=="docked"&&status!=="landed"&&status!=="touchdown"&&!(status==="entry"&&lift<4700)};
+  showGlobe:status!=="docked"&&status!=="landed"&&status!=="touchdown"&&!(status==="entry"&&lift<3500)};
 }
