@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {ShipInterior} from "./ship-interior.mjs?v=3";
+import {ShipInterior} from "./ship-interior.mjs?v=4";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -25,6 +25,7 @@ export class ShipJourney{
   this.seated=Boolean(data.seated);
   this.interior=ShipInterior.fromSnapshot(data.interior);
   this.interior.mode=this.seated?"cockpit":"interior";
+  this.interior.seated=this.seated;
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
@@ -47,12 +48,12 @@ export class ShipJourney{
  sit(){
   if(this.seated)return {ok:false,message:"すでに着席しています"};
   if(!this.isNearSeat())return {ok:false,message:"操縦席まで歩いてください"};
-  this.seated=true;this.interior.mode="cockpit";
+  this.seated=true;this.interior.seated=true;this.interior.mode="cockpit";
   return {ok:true,message:"🪑 操縦席に着席しました。航行システムを操作できます"};
  }
  stand(){
   if(!this.seated)return {ok:false,message:"すでに立っています"};
-  this.seated=false;this.interior.mode="interior";
+  this.seated=false;this.interior.seated=false;this.interior.mode="interior";
   this.interior.x=0;this.interior.z=-8.8;
   return {ok:true,message:"🚶 操縦席から立ち上がりました"};
  }
