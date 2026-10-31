@@ -104,6 +104,16 @@ export function serenoteHarborSurface(terrain,lat,lon,base){
 }
 export function terrainSurface(terrain,lat,lon){
  const base=terrain.sample(lat,lon),landform=landformAt(terrain,lat,lon,base);
+ if(terrain.planet.id!=="terra"){
+  const n=geoNormal(lat,lon),seed=terrain.planet.seed;
+  const ridge=noise3(n[0]*5200,n[1]*5200,n[2]*5200,seed+709)*18;
+  const detail=noise3(n[0]*27000,n[1]*27000,n[2]*27000,seed+718)*3;
+  const elevationM=Math.max(1,base.elevationM+ridge+detail+
+   (terrain.earthworks?.deltaAt(lat,lon)||0));
+  return {...base,river:false,water:false,lake:false,
+   landform:terrain.planet.id==="nix"?"tundra":"barren",
+   elevationM:terrain.ownerWorld?.heightAt(lat,lon,elevationM)??elevationM};
+ }
  const port=serenoteHarborSurface(terrain,lat,lon,base);
  if(port){
   if(port.water)return port;
@@ -152,7 +162,10 @@ export function samplePatch(terrain, lat, lon, radiusM, resolution=48) {
       const s=terrainSurface(terrain,geo.lat,geo.lon);
       const h=s.water ? 0 : s.elevationM;
       vertices.push(eastM,h,northM); heights.push(h);
-      const c=s.water?[0.09,0.36,0.62] :
+      const c=terrain.planet.id==="cinder"?[.57,.34,.24]:
+        terrain.planet.id==="nix"?[.66,.80,.89]:
+        terrain.planet.id==="selene"?[.52,.53,.57]:
+        s.water?[0.09,0.36,0.62] :
         s.landform==="lake"?[.13,.40,.58] :
         s.landform==="lakeshore"?[.67,.68,.42] :
         s.elevationM>2400?[0.85,0.86,0.83] :
