@@ -1,6 +1,7 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
 import {shipJourneyFrame} from "./unified-space-frame.mjs?v=1";
+import {restoreShipDynamics,advanceShipDynamics,applyShipDynamics} from "./ship-flight-dynamics.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -27,6 +28,9 @@ export class ShipJourney{
   this.touchdownElapsed=finite(data.touchdownElapsed)?clamp(data.touchdownElapsed,0,1.7):0;
   this.elapsedSeconds=Math.max(0,finite(data.elapsedSeconds)?data.elapsedSeconds:0);
   this.heading=clamp(data.heading??0,-60,60);
+  this.pitchCommand=clamp(data.pitchCommand??0,-35,35);
+  this.rollCommand=clamp(data.rollCommand??0,-45,45);
+  this.flightDynamics=restoreShipDynamics(data.flightDynamics);
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,0,1);
   this.autopilot=data.autopilot!==false;
@@ -39,7 +43,7 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  /** Authoritative SI-metre star / body / ship transform at the current simulation day. */
- framePose(days){return shipJourneyFrame(this,days);}
+ framePose(days){return applyShipDynamics(shipJourneyFrame(this,days),this);}
  get active(){return true;}
  get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
  get phase(){
@@ -79,6 +83,7 @@ export class ShipJourney{
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<3)return {ok:false,message:"燃料が不足しています"};
   this.stageProgress=0;this.status="ascent";this.interior.hatchPassable=false;
+  this.flightDynamics=restoreShipDynamics(null);
   return {ok:true,message:"🚀 エンジン始動。地表を離れ、大気圏上昇を開始しました"};
  }
  chooseDestination(id,flightDays){
@@ -114,9 +119,18 @@ export class ShipJourney{
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
  steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
+ pitch(n){if(!finite(n))throw Error("Invalid pitch");this.pitchCommand=clamp(this.pitchCommand+n,-35,35);}
+ roll(n){if(!finite(n))throw Error("Invalid roll");this.rollCommand=clamp(this.rollCommand+n,-45,45);}
+ get maneuverSpeedMps(){return Math.hypot(this.flightDynamics.rightMps,this.flightDynamics.upMps,this.flightDynamics.backMps);}
+
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  this.flightDynamics=advanceShipDynamics(this.flightDynamics,{
+   dt:step,status:this.status,autopilot:this.autopilot,heading:this.heading,
+   pitchCommand:this.pitchCommand,rollCommand:this.rollCommand,
+   throttle:this.throttle,fuel:this.fuel
+  });
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -124,7 +138,8 @@ export class ShipJourney{
   }
   if(!["ascent","cruise","approach","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;
-  if(this.autopilot)this.heading*=Math.exp(-step*2);
+  if(this.autopilot){this.heading*=Math.exp(-step*2);
+   this.pitchCommand*=Math.exp(-step*2);this.rollCommand*=Math.exp(-step*2);}
   const thr=this.fuel>0?this.throttle:0;
   this.fuel=Math.max(0,this.fuel-step*thr*.28);
   const align=clamp(1-Math.abs(this.heading)/110,.5,1);
@@ -149,6 +164,7 @@ export class ShipJourney{
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
+   pitchCommand:this.pitchCommand,rollCommand:this.rollCommand,flightDynamics:{...this.flightDynamics},
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
  }
