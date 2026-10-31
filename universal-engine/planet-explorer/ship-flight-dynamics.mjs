@@ -80,6 +80,7 @@ export function advanceShipDynamics(state,{
 const add=(a,b)=>a.map((n,i)=>n+b[i]);
 const scale=(v,k)=>v.map(n=>n*k);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const dot=(a,b)=>a.reduce((n,x,i)=>n+x*b[i],0);
 const norm=v=>{const m=Math.hypot(...v);return m?scale(v,1/m):v;};
 const blend=(a,b,u)=>add(scale(a,1-u),scale(b,u));
 /** Continuous supervised offset goes to zero at the target pad.
