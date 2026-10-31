@@ -33,7 +33,7 @@ test("ship and astronaut transforms are metre-accurate at heliocentric distances
  almost(Math.hypot(...relative),Math.hypot(local.x,local.y,local.z),1e-4);
 });
 test("boarding and disembark across antimeridian share an exact geodesic frame",()=>{
- const geo=geoOffset(site.lat,site.lon,50,120,bodyById("terra").radiusM);
+ const geo=geoOffset(site.lat,site.lon,320,120,bodyById("terra").radiusM);
  assert.ok(geo.lon<0,"crossed the dateline");
  const aboard=geodeticToShipLocal(site,bodyById("terra").radiusM,geo.lat,geo.lon);
  const out=shipLocalToGeodetic(site,bodyById("terra").radiusM,aboard.x,aboard.z);
@@ -41,7 +41,7 @@ test("boarding and disembark across antimeridian share an exact geodesic frame",
  almost(out.lon,geo.lon,1e-8);
  const parked=new SurfaceStarship();parked.place("terra",site.lat,site.lon,site.yaw);
  const offset=parked.offsetFromCoords({lat:geo.lat,lon:geo.lon},0,0,bodyById("terra").radiusM);
- assert.ok(offset.hullDistanceM<150,"hull is close even after crossing the longitude seam");
+ assert.ok(offset.hullDistanceM<400,"hull is close even after crossing the longitude seam");
 });
 test("launch surface -> ascent -> origin orbit is position-continuous",()=>{
  const v=ship(),day=v.launchDay;
