@@ -3935,11 +3935,18 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],notify:log});
+shipInteractionUI=installShipInteractionUI({get:()=>voyage,
+ getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
+ onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
+surfaceShipUI=installSurfaceStarshipUI({get:()=>({
+ ship:surfaceShip,planet,controller,voyage,xrActive:Boolean(xrUI?.active),
+ inside:Boolean(townLife?.inside||marine?.boarded||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
+}),onHatch:toggleSurfaceShipHatch,onBoard:boardSurfaceStarship,notify:log});
 celestialSky=installCelestialSkyViewport({get:()=>({
  solarSystem,planet,controller,xrActive:Boolean(xrUI?.active),
  inside:Boolean(townLife?.inside||marine?.cabinId||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
 })});
-solarUI.refresh();voyageUI.render();celestialSky.update(true);
+solarUI.refresh();voyageUI.render();shipInteractionUI.update(true);surfaceShipUI.update(true);celestialSky.update(true);
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onVRGroundStart:()=>{
