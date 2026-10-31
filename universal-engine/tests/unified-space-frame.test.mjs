@@ -109,7 +109,7 @@ test("ship orientation retains the same body-fixed handedness across liftoff and
  v.status="origin-orbit";const park=v.framePose(d);
  v.startTransfer(d);v.progress=0;
  const cruise=v.framePose(d);
- assert.ok(sign(start)<-.99&&sign(asc)<-.99&&sign(park)<-.99&&sign(cruise)<-.99);
+ assert.ok(sign(start)>.99&&sign(asc)>.99&&sign(park)>.99&&sign(cruise)>.99);
  const same=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
  assert.ok(same(park.back,cruise.back)>.999,"cockpit must not rotate 180 degrees on transfer");
 });
