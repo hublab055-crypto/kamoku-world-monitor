@@ -4,8 +4,8 @@ import {SolarSystem,bodyById,createCelestialPlanet,applyCelestialClimate} from "
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
-import {SpaceVoyage} from "./space-voyage.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=2";
+import {SpaceVoyage} from "./space-voyage.mjs?v=3";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=3";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
