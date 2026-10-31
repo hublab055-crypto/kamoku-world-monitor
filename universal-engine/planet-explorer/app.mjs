@@ -662,6 +662,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  if(voyage?.active){
   renderer.shipVoyage=voyage;
   renderer.surfaceStarship=surfaceShip;
+  renderer.shipGroundState=controller;
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"){
