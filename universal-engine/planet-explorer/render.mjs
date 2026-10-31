@@ -1696,7 +1696,7 @@ export class ExplorerRenderer{
    this.railJourneyTrack=geom.indices.length?new Mesh(gl,geom):null;
    // LOD: native grass/trees from the same planetary seed as free exploration.
    const groundAt=(x,z)=>patchSceneryHeight(this.railJourneyData,x,z);
-   const plan=planWorldScenery({seed:this.planet.seed,cx:0,cz:0,radius:880,
+   const plan=planWorldScenery({seed:this.planet.seed,cx:0,cz:0,radius:880,barren:this.planet.id!=="terra",
     groundAt,settlementId:"wilderness",
     biomeAt:(x,z)=>{
      const p=geoOffset(anchor.lat,anchor.lon,x,z,R);
@@ -2393,7 +2393,7 @@ export class ExplorerRenderer{
     this.groundClouds=clouds.indices.length?new Mesh(gl,clouds):null;
    const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
    const plan=planWorldScenery({
-    seed:this.planet.seed,cx,cz,radius:sceneryRadiusForQuality(radius,detail),groundAt:heightAt,settlementId:this.settlementId,
+    seed:this.planet.seed,cx,cz,radius:sceneryRadiusForQuality(radius,detail),groundAt:heightAt,settlementId:this.settlementId,barren:this.planet.id!=="terra",
     biomeAt:(wx,wz)=>{
      const pos=geoOffset(s.origin.lat,s.origin.lon,wx,wz,this.planet.radiusM);
      return terrainSurface(this.terrain,pos.lat,pos.lon);
