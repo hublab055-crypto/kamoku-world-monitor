@@ -38,5 +38,9 @@ export function groundScenePhase(voyage){
  const lift=status==="ascent"?Math.pow(p,2)*7000:status==="entry"?Math.pow(1-p,2)*7000:0;
  const sky=status==="docked"||status==="landed"?1:
    status==="ascent"?1-p:status==="entry"?p:0;
- return {near,lift,sky,showGround:near&&lift<1100,showGlobe:status!=="docked"&&status!=="landed"};
+ // While entering, a wide destination terrain patch replaces the orbit planet
+ // before the spacecraft drops into the low-altitude landing corridor.
+ const terrainDistance=status==="entry"?5000:1100;
+ return {near,lift,sky,showGround:near&&lift<terrainDistance,
+  showGlobe:status!=="docked"&&status!=="landed"&&!(status==="entry"&&lift<4700)};
 }
