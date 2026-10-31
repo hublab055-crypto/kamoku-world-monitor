@@ -26,7 +26,7 @@
 ## 今回合わせて修正した重要な整合
 
 - 出発惑星の軌道に到達後、物理自由航行で何日も経過してから案内巡航を開始しても、古い`launchDay`の惑星位置から巡航を開始しないよう、`transferStartDay`を保存。現時刻の公転・自転を採用する。
-- `surfaceShipFrame`のローカル軸の左右を混同せず、`blendedBasis`と`applyShipDynamics`で一貫した座標系の手系を維持する。離陸や巡航境界で船内カメラが180°反転しない。
+- `surfaceShipFrame`のローカル軸の左右を混同せず、`geo.mjs`の右手系ENUに合わせ`blendedBasis`と`applyShipDynamics`で一貫した座標系の手系を維持する。離陸や巡航境界で船内カメラが180°反転しない。
 
 ## 制約／注意
 
