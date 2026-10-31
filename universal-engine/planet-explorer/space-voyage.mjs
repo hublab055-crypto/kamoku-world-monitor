@@ -1,4 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
+import {ShipInterior} from "./ship-interior.mjs";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const valid=n=>Number.isFinite(n);
 export class SpaceVoyage{
@@ -17,6 +18,7 @@ export class SpaceVoyage{
   this.autopilot=data.autopilot!==false;
   this.status=["preflight","launch","cruise","approach","orbit"].includes(data.status)?data.status:"preflight";
   this.launchDay=valid(data.launchDay)?data.launchDay:0;
+  this.interior=ShipInterior.fromSnapshot(data.interior);
  }
  get active(){return this.status!=="landed"&&this.status!=="cancelled";}
  get readyToLand(){return this.status==="orbit"&&Math.abs(this.heading)<=12;}
@@ -63,7 +65,8 @@ export class SpaceVoyage{
   return {schemaVersion:1,originId:this.originId,destinationId:this.destinationId,
    launchDay:this.launchDay,flightDays:this.flightDays,progress:this.progress,
    elapsedSeconds:this.elapsedSeconds,throttle:this.throttle,fuel:this.fuel,
-   heading:this.heading,autopilot:this.autopilot,status:this.status};
+   heading:this.heading,autopilot:this.autopilot,status:this.status,
+   interior:this.interior.snapshot()};
  }
  static fromSnapshot(data){
   if(!data||data.schemaVersion!==1)return null;
