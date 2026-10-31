@@ -1710,6 +1710,18 @@ export class ExplorerRenderer{
     const groundMatrix=multiply4(translate(0,-ground-2.0-phase.lift,0),
       rotateY(-(site.yaw||0)));
     this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),[.64,.89,.42],1,.63);
+    // Reuse cached trees and settlement meshes from the SAME surface scene;
+    // transform from the planetary tangent origin into the ship's local frame.
+    if(phase.lift<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
+     const origin=this.shipGroundState.origin;
+     const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
+     const toShip=multiply4(rotateY(-(site.yaw||0)),translate(
+      this.cx-offset.eastM,-ground-2.0-phase.lift,this.cz-offset.northM));
+     const groundVP=multiply4(vp,toShip);
+     for(const mesh of this.settlement.slice(0,48))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.64);
+     for(const mesh of this.settlementDecor.slice(0,20))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.69);
+     for(const mesh of this.trees.slice(0,20))this.drawInstancedMesh(mesh,groundVP,[.65,.88,.46],1,.63);
+    }
    }
    if(phase.showGlobe){
     const progress=v.progress||0;
