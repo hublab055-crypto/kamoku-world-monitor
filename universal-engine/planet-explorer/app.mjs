@@ -331,7 +331,12 @@ function init(saved=null){
    const ground=terrainSurface(terrain,at.lat,at.lon);
    if(!ground.water&&!ground.river&&ground.elevationM<2800)
     surfaceShip.place(solarSystem.currentId,at.lat,at.lon);
-   else surfaceShip.place(solarSystem.currentId,controller.lat,controller.lon);
+   else {
+    const here=terrainSurface(terrain,controller.lat,controller.lon);
+    const place=!here.water&&!here.river&&here.elevationM<2800?
+     {lat:controller.lat,lon:controller.lon}:terrain.landscapeAnchor;
+    surfaceShip.place(solarSystem.currentId,place.lat,place.lon);
+   }
   }
   footVoyage=new VoyageLog(saved?.v0_9u?.footVoyage||null,{lat:controller.lat,lon:controller.lon});
   scenario=createScenario(saved?.v0_9v?.scenario||null);
