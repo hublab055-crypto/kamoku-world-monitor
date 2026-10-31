@@ -29,6 +29,8 @@ export class ShipInterior{
   this.pitch=valid(data.pitch)?clamp(data.pitch,-.8,.8):0;
   this.mode=["interior","cockpit"].includes(data.mode)?data.mode:"interior";
   this.lastCrewId=typeof data.lastCrewId==="string"?data.lastCrewId:null;
+  this.seated=Boolean(data.seated);
+  this.suitOn=Boolean(data.suitOn);
   if(!this.canOccupy(this.x,this.z)){this.x=0;this.z=-8.2;}
  }
  canOccupy(x,z){
@@ -37,7 +39,7 @@ export class ShipInterior{
   return !blockers.some(b=>x+r>b.x1&&x-r<b.x2&&z+r>b.z1&&z-r<b.z2);
  }
  walk(forward=0,sideways=0,dt=1){
-  if(!valid(forward)||!valid(sideways)||!valid(dt)||dt<=0)return false;
+  if(this.seated||!valid(forward)||!valid(sideways)||!valid(dt)||dt<=0)return false;
   const magnitude=Math.hypot(forward,sideways);
   if(magnitude===0)return false;
   const speed=2.6*Math.min(dt,.16)/Math.max(1,magnitude);
@@ -55,6 +57,19 @@ export class ShipInterior{
   this.pitch=clamp(this.pitch+dy,-.78,.78);
  }
  distance(point){return Math.hypot(this.x-point.x,this.z-point.z);}
+ get nearHatch(){return Math.hypot(this.x,this.z-11.55)<2.0;}
+ get nearHelm(){return Math.hypot(this.x,this.z+10.65)<2.7;}
+ sit(){
+  if(this.seated)return {ok:false,message:"すでに操縦席に着席中です"};
+  if(!this.nearHelm)return {ok:false,message:"操縦席の前まで歩いてください"};
+  this.seated=true;this.x=0;this.z=-10.45;this.yaw=0;this.pitch=0;this.mode="interior";
+  return {ok:true,message:"🪑 操縦席に着席しました。航行操作が使用できます"};
+ }
+ stand(){
+  if(!this.seated)return {ok:false,message:"操縦席に座っていません"};
+  this.seated=false;this.x=0;this.z=-10.20;this.mode="interior";
+  return {ok:true,message:"🚶 操縦席から立ち上がりました"};
+ }
  nearCrew(radius=2.6){return SHIP_CREW.filter(c=>this.distance(c)<=radius).sort((a,b)=>this.distance(a)-this.distance(b));}
  nearStations(radius=2.8){return SHIP_STATIONS.filter(c=>this.distance(c)<=Math.min(radius,c.radius)).sort((a,b)=>this.distance(a)-this.distance(b));}
  talk(id,voyage){
@@ -74,6 +89,6 @@ export class ShipInterior{
   };
   return {ok:true,name:crew.name,message:responses[crew.id]};
  }
- snapshot(){return {schemaVersion:1,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,lastCrewId:this.lastCrewId};}
+ snapshot(){return {schemaVersion:1,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,lastCrewId:this.lastCrewId,seated:this.seated,suitOn:this.suitOn};}
  static fromSnapshot(data){return new ShipInterior(data?.schemaVersion===1?data:{});}
 }
