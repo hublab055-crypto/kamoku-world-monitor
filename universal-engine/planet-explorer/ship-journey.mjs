@@ -247,7 +247,7 @@ export class ShipJourney{
   this.fuel=Math.max(0,this.fuel-step*thr*.28);
   const align=clamp(1-Math.abs(this.heading)/110,.5,1);
   const rate=(.30+thr*1.2)*align;
-  let days=0,advanced=0;
+  let elapsedDays=0,advanced=0;
   if(this.status==="ascent"){
    this.stageProgress=clamp(this.stageProgress+step*(.07+thr*.10),0,1);
    if(this.stageProgress>=1){this.status="origin-orbit";this.stageProgress=0;}
@@ -257,11 +257,11 @@ export class ShipJourney{
   }else{
    const before=this.progress;
    this.progress=clamp(this.progress+step*rate/38,0,1);
-   advanced=this.progress-before;days=advanced*this.flightDays;
+   advanced=this.progress-before;elapsedDays=advanced*this.flightDays;
    if(this.progress>=1){this.status="orbit";this.stageProgress=0;}
    else this.status=this.progress<.82?"cruise":"approach";
   }
-  return {days,advanced,status:this.status};
+  return {days:elapsedDays,advanced,status:this.status};
  }
  snapshot(){
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
