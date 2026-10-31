@@ -28,6 +28,7 @@ export class ShipInterior{
   this.pitch=valid(data.pitch)?clamp(data.pitch,-.8,.8):0;
   this.mode=["interior","cockpit"].includes(data.mode)?data.mode:"interior";
   this.lastCrewId=typeof data.lastCrewId==="string"?data.lastCrewId:null;
+  if(!this.canOccupy(this.x,this.z)){this.x=0;this.z=-8.2;}
  }
  canOccupy(x,z){
   if(!valid(x)||!valid(z)||Math.abs(x)>3.48||z< -12.75||z>12.7)return false;
