@@ -12,10 +12,10 @@ const start=()=>new ShipJourney({
  hatchOpen:false,seated:true,throttle:1,fuel:100
 });
 test("manual yaw changes the planet direction in cockpit coordinates",()=>{
- const v=start(),days=.24,baseline=planetRenderPose(v.framePose(days),"terra",days);
+ const v=start(),days=.24,baseline=planetRenderPose(v.framePose(days),"selene",days);
  v.setAutopilot(false);v.steer(30);
  for(let i=0;i<150;i++)v.tick(.02);
- const rotated=planetRenderPose(v.framePose(days),"terra",days);
+ const rotated=planetRenderPose(v.framePose(days),"selene",days);
  near(v.flightDynamics.yaw,30*Math.PI/180,.08);
  assert.ok(Math.abs(rotated.position[0]-baseline.position[0])>50,
   "planet must move in viewport when steering instead of only changing HUD");
