@@ -4,7 +4,7 @@
  * Only the final render-space body is scaled for WebGL's finite depth precision.
  */
 import {bodyById} from "./solar-system.mjs";
-import {bodyCenterM,bodySpinRadians,inertialToShipLocal,surfaceShipFrame} from "./unified-space-frame.mjs?v=2";
+import {bodyCenterM,bodySpinRadians,inertialToShipLocal,surfaceShipFrame} from "./unified-space-frame.mjs?v=3";
 import {samplePatch,terrainSurface,geoNormal} from "./geo.mjs?v=0.8y-harbor";
 
 const finite=Number.isFinite;
