@@ -39,7 +39,8 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
     cruise:"巡航中。スロットル・旋回・自動航行で進行方向を調整できます。",
     approach:"目的地へ接近しています。着陸するには操縦席に座ってください。",
     orbit:"目的地の周回軌道上。着陸ボタンで大気圏へ突入します。",
-    entry:"着陸降下中。ハッチはロックされています。",
+    entry:"着陸降下中。操縦席から目的惑星の地表を確認できます。ハッチはロックされています。",
+    touchdown:"🛬 着陸脚が接地しました。エンジン停止と着陸地点の確定を確認中です。",
     landed:"着陸しました。立ち上がって船尾へ移動し、ハッチを開いて降りてください。"
    };
    $("ship-instructions").textContent=instructions[v.status]||"";
