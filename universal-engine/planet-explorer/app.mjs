@@ -9,7 +9,7 @@ import {ShipJourney} from "./ship-journey.mjs?v=2";
 import {SurfaceStarship} from "./surface-starship.mjs?v=2";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=1";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=1";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=4";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=5";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
