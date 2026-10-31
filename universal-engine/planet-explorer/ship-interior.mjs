@@ -24,17 +24,19 @@ const blockers=[
 export class ShipInterior{
  constructor(data={}){
   this.x=valid(data.x)?clamp(data.x,-3.45,3.45):0;
-  this.z=valid(data.z)?clamp(data.z,-12.4,12.4):-8.2;
+  this.z=valid(data.z)?clamp(data.z,-12.4,18.7):-8.2;
   this.yaw=valid(data.yaw)?data.yaw:0;
   this.pitch=valid(data.pitch)?clamp(data.pitch,-.8,.8):0;
   this.mode=["interior","cockpit"].includes(data.mode)?data.mode:"interior";
   this.lastCrewId=typeof data.lastCrewId==="string"?data.lastCrewId:null;
   this.seated=Boolean(data.seated);
+  this.hatchPassable=Boolean(data.hatchPassable);
   this.suitOn=Boolean(data.suitOn);
   if(!this.canOccupy(this.x,this.z)){this.x=0;this.z=-8.2;}
  }
  canOccupy(x,z){
-  if(!valid(x)||!valid(z)||Math.abs(x)>3.48||z< -12.75||z>12.7)return false;
+  if(!valid(x)||!valid(z)||Math.abs(x)>3.48||z< -12.75||z>18.7)return false;
+  if(z>12.7&&(!this.hatchPassable||Math.abs(x)>1.05))return false;
   const r=.27;
   return !blockers.some(b=>x+r>b.x1&&x-r<b.x2&&z+r>b.z1&&z-r<b.z2);
  }
@@ -89,6 +91,6 @@ export class ShipInterior{
   };
   return {ok:true,name:crew.name,message:responses[crew.id]};
  }
- snapshot(){return {schemaVersion:1,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,lastCrewId:this.lastCrewId,seated:this.seated,suitOn:this.suitOn};}
+ snapshot(){return {schemaVersion:1,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,lastCrewId:this.lastCrewId,seated:this.seated,suitOn:this.suitOn,hatchPassable:this.hatchPassable};}
  static fromSnapshot(data){return new ShipInterior(data?.schemaVersion===1?data:{});}
 }
