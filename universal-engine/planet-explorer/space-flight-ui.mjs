@@ -1,5 +1,6 @@
 import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
+import {groundScenePhase} from "./ship-shared-scene.mjs?v=3";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
@@ -196,7 +197,10 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
 
   const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
   $("flight-route").textContent="🚀 "+origin.name+" → "+target.name;
-  $("flight-phase").textContent="段階："+v.phase;
+  const entryView=["entry","touchdown"].includes(v.status);
+  const height=entryView?Math.round(groundScenePhase(v).lift):null;
+  $("flight-phase").textContent="段階："+v.phase+
+   (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"°";
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
@@ -206,7 +210,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const groundReady=["preflight","docked"].includes(v.status);
   main.textContent=groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
    v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":
-   v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
+   v.status==="touchdown"?"🛬 接地確認":v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
   main.disabled=v.kind==="surface-to-surface"?
    !["docked","orbit"].includes(v.status):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
   if(v.seated===false){
@@ -215,7 +219,11 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    $("flight-left").disabled=false;$("flight-right").disabled=false;
   }
   if(interiorView){
-   $("flight-hud").textContent="3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
+   $("flight-hud").textContent=entryView?
+    "🛬 "+target.name+" / "+(v.landingSite?"着陸地点を捕捉":"地表測量中")+
+    "\\n"+(v.status==="touchdown"?"接地・エンジン停止":("高度 約"+height.toLocaleString("ja-JP")+"m"))+
+    "\\n"+(v.status==="touchdown"?"操縦席から外の地表を確認できます":"進入姿勢を維持してください"):
+    "3D SHARED SCENE · "+v.phase+"\\n"+target.name+" "+Math.round(v.progress*100)+"%";
    return;
   }
   const w=screen.width,h=screen.height,p=v.progress,elapsed=v.elapsedSeconds;
