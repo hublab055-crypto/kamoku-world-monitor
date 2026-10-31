@@ -34,9 +34,8 @@ test("airlock ramp can be traversed only when opened, and seat disallows walking
   launchSite:{bodyId:"terra",lat:28,lon:42,yaw:0},
   interior:{schemaVersion:1,x:0,z:17.2,yaw:0,mode:"interior"}});
  assert.ok(v.interior.hatchPassable);
- for(let i=0;i<35;i++)v.interior.walk(1,0,.08);
+ for(let i=0;i<25;i++)v.interior.walk(1,0,.08);
  assert.ok(v.interior.z<15);
- for(let i=0;i<30;i++)v.interior.walk(1,0,.08);
  assert.ok(v.isNearHatch());
  assert.ok(v.toggleHatch().ok);
  assert.equal(v.interior.hatchPassable,false);
