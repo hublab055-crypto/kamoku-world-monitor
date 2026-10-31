@@ -29,8 +29,8 @@ export class SurfaceStarship{
   const eastM=(this.lon-origin.lon)*radians*radiusM*Math.cos(origin.lat*radians);
   const dx=eastM-x,dz=northM-z;
   // Hatch is aft of the landed fuselage, where the ramp meets the terrain.
-  const hx=eastM+Math.sin(this.yaw)*14;
-  const hz=northM+Math.cos(this.yaw)*14;
+  const hx=eastM+Math.sin(this.yaw)*17.2;
+  const hz=northM+Math.cos(this.yaw)*17.2;
   return {x:eastM,z:northM,hatchX:hx,hatchZ:hz,distanceM:Math.hypot(hx-x,hz-z),hullDistanceM:Math.hypot(dx,dz)};
  }
  snapshot(){return {schemaVersion:1,bodyId:this.bodyId,lat:this.lat,lon:this.lon,yaw:this.yaw,hatchOpen:this.hatchOpen,flight:this.flight};}
