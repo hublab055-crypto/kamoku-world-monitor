@@ -81,7 +81,8 @@ export function parkingOrbitVelocity(frame,day){
  const body=bodyById(frame.bodyId);
  if(!body?.landable)throw new RangeError("Cannot orbit unlandable body");
  const radial=sub(frame.position,bodyCenterM(body.id,day)),r=length(radial);
- const tangent=normalize(sub(frame.right,mul(radial,dot(frame.right,radial)/(r*r))));
+ const nose=mul(frame.back,-1);
+ const tangent=normalize(sub(nose,mul(radial,dot(nose,radial)/(r*r))));
  const speed=Math.sqrt(gravityMu(body.id)/r);
  return add(bodyVelocityMps(body.id,day),mul(tangent,speed));
 }
@@ -90,7 +91,7 @@ export function createFreeFlight(frame,day,{warp=1}={}){
  if(!ALLOWED_WARPS.includes(warp))throw new RangeError("Invalid warp");
  return {version:1,position:[...frame.position],velocity:parkingOrbitVelocity(frame,day),
   right:[...frame.right],up:[...frame.up],back:[...frame.back],
-  warp,returnToRoute:false,incident:null,lastDay:day,
+  warp,yawTargetDeg:0,returnToRoute:false,incident:null,lastDay:day,
   elapsedSimSeconds:0,totalThrustDeltaVMps:0};
 }
 export function restoreFreeFlight(input){
@@ -107,7 +108,8 @@ export function restoreFreeFlight(input){
     Math.abs(length(input.back)-1)>.01)return null;
  return {version:1,position:[...input.position],velocity:[...input.velocity],
   right:[...input.right],up:[...input.up],back:[...input.back],
-  warp:input.warp,returnToRoute:input.returnToRoute===true,
+  warp:input.warp,yawTargetDeg:clamp(finite(input.yawTargetDeg)?input.yawTargetDeg:0,-180,180),
+  returnToRoute:input.returnToRoute===true,
   incident:input.incident==="impact"?"impact":null,
   lastDay:input.lastDay,elapsedSimSeconds:Math.max(0,input.elapsedSimSeconds),
   totalThrustDeltaVMps:Math.max(0,input.totalThrustDeltaVMps)};
@@ -152,7 +154,7 @@ export function stepFreeFlight(state,dt,day,{
  const requested=initial.returnToRoute?Math.min(10,initial.warp):initial.warp;
  const warp=safeTimeWarp(requested,near);
  const wanted=clamp(dt,0,.12)*warp;
- const stepMax=near?.altitudeM<120000?0.08:
+ const stepMax=near?.altitudeM<20000?0.08:
   near?.altitudeM<300000?1:
   near?.altitudeM<5*near.body.radiusM?4:120;
  const slices=Math.max(1,Math.ceil(wanted/stepMax));
@@ -168,7 +170,7 @@ export function stepFreeFlight(state,dt,day,{
   const drag=atmosphericAcceleration(position,velocity,now,nearest);
   lastDrag=length(drag);
   const thrustAccel=initial.returnToRoute?0:fuel>0?clamp(throttle,0,1)*4.8:0;
-  const control=initial.returnToRoute?guidanceAcceleration(position,velocity,guidance):
+  const control=initial.returnToRoute?(fuel>0?guidanceAcceleration(position,velocity,guidance):[0,0,0]):
    mul(nose,thrustAccel);
   const acceleration=add(add(gravity,drag),control);
   const prior=[...position],stepVelocity=add(velocity,mul(acceleration,h));
@@ -191,7 +193,7 @@ export function stepFreeFlight(state,dt,day,{
    elapsedSimSeconds:initial.elapsedSimSeconds+integrated,
    totalThrustDeltaVMps:initial.totalThrustDeltaVMps+deltaV},
   days:integrated/secPerDay,simSeconds:integrated,deltaV,atmosphericDragMps2:lastDrag,
-  effectiveWarp:warp};
+  effectiveWarp:integrated/(Math.max(dt,1e-12))};
 }
 export function closestApproachToBody(state,bodyId,day){
  const b=bodyById(bodyId);if(!b?.radiusM)return null;
