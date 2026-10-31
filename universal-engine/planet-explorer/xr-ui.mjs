@@ -352,6 +352,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   if(vrRTS)return;
+  // Only freshly tracked hand poses can contact virtual keys/strings.
+  // Contacting a musical instrument suppresses the matching sword gesture.
+  const musicLeft=onVRMusic({phase:"touch",hand:"left",handMatrix:trackedLeft,stageMatrix:vrCurrentStage});
+  const musicRight=onVRMusic({phase:"touch",hand:"right",handMatrix:trackedRight,stageMatrix:vrCurrentStage});
+  const playingInstrument=Boolean(musicLeft?.handled||musicRight?.handled);
   const carried=vrPhysical.heldDrop;
   if(carried){
    const handMatrix=gear[carried.hand];
@@ -368,6 +373,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   for(const action of events){
    if(action==="swordSwing"){
+    if(playingInstrument)continue;
     const yaw=gear.rightRay&&vrCurrentStage?xrPointerYaw(gear.rightRay,vrCurrentStage):null;
     if(yaw!==null)onVRAim(yaw,"right");
     if(onVRCommand("sweep")?.ok)statusText("⚔️ VR：剣の振り動作で攻撃");
@@ -491,6 +497,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   sampleVRRig(event.frame);
   const hand=event.inputSource?.handedness;
+  vrMusicSelectionConsumed.delete(hand);
   if(["left","right"].includes(hand)&&vrCurrentStage){
    let ray=null;
    try{const spaceRef=event.inputSource?.targetRaySpace;
