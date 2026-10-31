@@ -38,3 +38,6 @@
 .ue-music-panel .ue-music-step.is-active{background:#d5a151;color:#111c29;font-weight:bold}
 .ue-music-panel [data-status]{min-height:1.7em;color:#f6dfac;white-space:pre-wrap}
 @media(max-width:580px){.ue-music-header{padding:7px 10px}.ue-music-scroll{padding:7px}.ue-music-section{padding:7px}.ue-music-panel .ue-music-pad{min-width:39px}}
+
+.ue-music-panel [data-world-status]{display:block;color:#e4d6a5;min-height:1.7em}
+.ue-music-panel [data-world-place]{background:#2c5360;border-color:#8ba9b2}
