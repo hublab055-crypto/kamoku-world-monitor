@@ -7,7 +7,8 @@ import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
 import {ShipJourney} from "./ship-journey.mjs?v=4";
 import {SurfaceStarship} from "./surface-starship.mjs?v=3";
-import {findStarshipPad} from "./surface-starship-landing.mjs?v=2";
+import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
+import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=1";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=7";
@@ -112,7 +113,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null;
+let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
@@ -301,6 +302,7 @@ function init(saved=null){
   $("orbit-landing-preview").hidden=true;
   $("orbit-pick-marker").hidden=true;
   if(renderer)renderer.destroy();
+  shipArrivalPreview=null;
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
   voyage=ShipJourney.fromSnapshot(saved?.v0_aa?.voyage)||
@@ -660,6 +662,14 @@ function doFrame(t,source="window",xrFrameInput=null){
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"){
+   if(voyage?.kind==="surface-to-surface"&&voyage.status==="entry"&&
+      (!shipArrivalPreview||shipArrivalPreview.bodyId!==voyage.destinationId)){
+    try{prepareShipArrival();}
+    catch(error){
+     voyage.status="orbit";voyage.stageProgress=0;
+     log("着陸地点の再取得に失敗："+error.message+"。周回軌道に戻しました。");
+    }
+   }
    const before=voyage.status,advanced=voyage.tick(dt);
    if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
    if(voyage?.kind==="surface-to-surface"&&before!=="landed"&&voyage.status==="landed"){
@@ -1652,8 +1662,30 @@ function saveCelestialVoyage(){
   return {ok:true,message:"💾 惑星間航行の位置・燃料・目的地・各天体の開拓記録を保存しました"};}
  catch(error){return {ok:false,message:"航行セーブエラー："+error.message};}
 }
+function prepareShipArrival(){
+ if(voyage?.kind!=="surface-to-surface"||!voyage.destinationId)
+  throw Error("目的惑星が指定されていません");
+ const preview=prepareShipArrivalTerrain({
+  destinationId:voyage.destinationId,
+  visitedSave:solarSystem.load(voyage.destinationId),
+  days:solarSystem.days,preferredSite:voyage.landingSite
+ });
+ if(!voyage.setLandingSite(preview.site))throw Error("着陸地点を航行記録に設定できません");
+ shipArrivalPreview=preview;
+ if(renderer)renderer.shipArrivalPreview=preview;
+ return preview;
+}
 function finishCelestialVoyage(){
- if(voyage?.kind==="surface-to-surface")return voyage.enterAtmosphere();
+ if(voyage?.kind==="surface-to-surface"){
+  if(!voyage.readyToLand)return voyage.enterAtmosphere();
+  try{
+   const preview=prepareShipArrival();
+   const result=voyage.enterAtmosphere();
+   if(!result.ok){shipArrivalPreview=null;renderer.shipArrivalPreview=null;return result;}
+   return {...result,message:result.message+"。着陸予定地 "+
+    preview.site.lat.toFixed(3)+"° / "+preview.site.lon.toFixed(3)+"°。窓から地形を確認できます。"};
+  }catch(e){return {ok:false,message:"安全な着陸地点を確保できません："+e.message};}
+ }
  if(!voyage?.readyToLand)return {ok:false,message:"周回軌道に到達し進路を整えてから着陸してください"};
  const id=voyage.destinationId;
  return travelToCelestial(id,0);
@@ -1686,13 +1718,21 @@ function travelToCelestial(id,flightDays,stayAboard=false){
   }
   controller.targetAltitude(2.5);
   if(stayAboard){
-   controller.altitudeM=2.5;
-   const pad=findStarshipPad(terrain,{lat:controller.lat,lon:controller.lon})||
+   // Use exactly the same safe footprint seen through the cockpit.
+   const planned=voyage?.kind==="surface-to-surface"&&voyage.landingSite?.bodyId===id?
+    voyage.landingSite:null;
+   const scanned=planned?evaluateStarshipPad(terrain,planned.lat,planned.lon,planned.yaw):null;
+   const pad=scanned?.safe?scanned:
+    findStarshipPad(terrain,{lat:controller.lat,lon:controller.lon})||
     findStarshipPad(terrain,terrain.landscapeAnchor);
    if(!pad)throw Error("目的惑星に安全な宇宙船着陸地点を確保できません");
+   controller.setLanding(pad.lat,pad.lon);
+   controller.altitudeM=2.5;controller.targetAltitude(2.5);
+   squad.repositionAfterLanding();renderer.patchKey=null;
    surfaceShip.landedOn(id,pad.lat,pad.lon,pad.yaw,pad.padElevationM);
    surfaceShip.hatchOpen=false;
    renderer.surfaceStarship=surfaceShip;
+   if(voyage?.kind==="surface-to-surface")voyage.setLandingSite({...pad,bodyId:id});
    running=false;simWorld.clock.paused=true;
    voyageUI?.show();shipInteractionUI?.update(true);
   }
