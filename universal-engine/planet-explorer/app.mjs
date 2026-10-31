@@ -85,7 +85,7 @@ import {installXRUI} from "./xr-ui.mjs?v=0.9u-vr-roaming-portable-save-20261027-
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
-import {installMusicUI} from "./music-ui.mjs?v=0.9ak-music";
+import {installMusicUI} from "./music-ui.mjs?v=0.9al-music-world";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -656,6 +656,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   return;
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
+ musicUI?.syncWorldStage();
  if(voyage?.active){
   renderer.shipVoyage=voyage;
   renderer.surfaceStarship=surfaceShip;
@@ -4041,7 +4042,12 @@ window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal()
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
-musicUI=installMusicUI({getMediaUI:()=>mediaUI,notify:log});
+musicUI=installMusicUI({
+ getMediaUI:()=>mediaUI,getRenderer:()=>renderer,getController:()=>controller,
+ getTerrain:()=>terrain,getPlanet:()=>planet,
+ canPlayWorld:()=>!law?.custody&&!law?.pendingDeath&&!law?.gameOver&&!railwaySecurity?.jailed
+  &&!railway?.boarded&&!ferry?.boarded&&!townLife?.inside&&!marine?.cabinId&&!voyage?.active,
+ notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
@@ -4079,6 +4085,7 @@ xrUI=installXRUI({
  getVRArrowCount:()=>frontierUI?.vrArrowCount("player")||0,
  onVRFrame:(t,input)=>doFrame(t,"xr",input),
   onVRCustody:vrCustodyInteraction,
+ onVRMusic:input=>musicUI?.handleXR(input)||{handled:false},
  getVRCustodyPose:()=>custodyFacility?{
   footBraced:custodyClimb.footBraced,onLedge:custodyClimb.onLedge,
   mantling:Boolean(custodyClimb.mantle)
