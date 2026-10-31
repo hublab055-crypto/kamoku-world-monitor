@@ -57,6 +57,9 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  @media(max-width:590px){#space-flight.integrated .flight-display{min-height:24px}
  #space-flight.integrated .flight-guide{font-size:10px}#space-flight.integrated .flight-actions button{min-height:33px}}
 
+ #space-flight .flight-manual{margin:3px 0;border:1px solid #426b8199;border-radius:7px;background:#071b2db8;padding:4px 7px}
+ #space-flight .flight-manual summary{cursor:pointer;color:#b8e8ff;font-size:12px}
+ #space-flight .flight-manual .flight-actions{display:flex;flex-wrap:wrap;gap:4px}
  #space-flight .flight-hud{white-space:pre-line}
 
  @media(max-width:560px){#space-flight .flight-readout{font-size:11px}#space-flight .flight-head strong{font-size:13px}#space-flight .flight-actions button{min-width:55px}}
@@ -65,9 +68,10 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  const root=document.createElement("section");root.id="space-flight";root.hidden=true;root.setAttribute("role","region");root.setAttribute("aria-label","惑星間宇宙船の操縦席");
  root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
   '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-hud" id="flight-hud"></div></div>'+
-  '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
+  '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div><div class="flight-stat" id="flight-attitude"></div><div class="flight-stat" id="flight-maneuver-speed"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><label>スロットル <input id="flight-throttle" type="range" min="0" max="100" step="5" value="70"></label><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
-  '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し、近くの乗員と会話・貨物確認。航行操作は船内からも可能です。着陸は目的地に接近後。</div>';
+  '<details class="flight-manual" id="flight-manual"><summary>🕹️ 姿勢制御（機首・ロール）</summary><div class="flight-actions"><button type="button" id="flight-pitch-up">⬆ 機首上げ</button><button type="button" id="flight-pitch-down">⬇ 機首下げ</button><button type="button" id="flight-roll-left">↶ 左ロール</button><button type="button" id="flight-roll-right">↷ 右ロール</button><button type="button" id="flight-level">⊕ 水平復帰</button></div></details>'+
+  '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し、近くの乗員と会話・貨物確認。航行操作は船内からも可能です。手動モードで機首・ロールを操作すると船体が傾きます。相対速度は小型スラスター分のみで、公転・恒星系移動速度とは異なります。着陸は目的地に接近後。</div>';
  (document.querySelector(".canvas-wrap")||document.body).append(root);
  const $=id=>root.querySelector("#"+id);
  const screen=$("flight-canvas"),ctx=screen.getContext("2d"),shipCanvas=$("ship-3d-canvas");
@@ -181,6 +185,20 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
  $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
  $("flight-auto").addEventListener("click",()=>{const v=get();if(v)v.setAutopilot(!v.autopilot);});
+ const manualControls=[["flight-pitch-up","pitch",5],["flight-pitch-down","pitch",-5],
+  ["flight-roll-left","roll",-7],["flight-roll-right","roll",7]];
+ for(const [id,kind,amount] of manualControls){
+  $(id).addEventListener("click",()=>{
+   const v=get();if(!v?.seated||!v.pitch||!v.roll)return;
+   v.setAutopilot(false);v[kind](amount);
+  });
+ }
+ $("flight-level").addEventListener("click",()=>{
+  const v=get();if(!v?.seated||!v.pitch||!v.roll)return;
+  v.pitch(-v.pitchCommand);v.roll(-v.rollCommand);v.steer(-v.heading);
+  v.setAutopilot(true);
+ });
+
  $("flight-save").addEventListener("click",()=>run(onSave));
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
  main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
@@ -206,6 +224,14 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
     height!==null?" ／ 高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"°";
+ const attitude=v.flightDynamics||{},radToDeg=180/Math.PI;
+ $("flight-attitude").textContent="姿勢：ヨー "+Math.round((attitude.yaw||0)*radToDeg)+
+  "° ／ ピッチ "+Math.round((attitude.pitch||0)*radToDeg)+
+  "° ／ ロール "+Math.round((attitude.roll||0)*radToDeg)+"°";
+ $("flight-maneuver-speed").textContent="推進相対速度："+Math.round(v.maneuverSpeedMps||0)+" m/s";
+ for(const [id] of manualControls)$(id).disabled=!v.seated;
+ $("flight-level").disabled=!v.seated;
+
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
