@@ -77,3 +77,13 @@ test("invalid/broken dynamic saves never introduce NaNs or unbounded velocity",(
  const zero=advanceShipDynamics(emptyShipDynamics(),{dt:1,status:"landed",throttle:1,fuel:100});
  assert.equal(zero.backM,0);
 });
+
+test("damped manual angular control preserves planetary cockpit forward direction at first tick",()=>{
+ const v=start(),d=.24;
+ const before=v.framePose(d),orig=v.flightDynamics.yaw;
+ v.tick(.016,d);
+ const after=v.framePose(d);
+ const dprod=before.back.reduce((s,x,i)=>s+x*after.back[i],0);
+ assert.ok(dprod>.999999,"no instantaneous 180 degree rotation after starting ascent");
+ assert.equal(v.flightDynamics.yaw,orig);
+});
