@@ -1518,10 +1518,13 @@ function travelToCelestial(id,flightDays){
   if(!$("fatal").hidden)throw Error($("fatal").textContent);
   if(!previouslyVisited){
    controller.setLanding(terrain.landscapeAnchor.lat,terrain.landscapeAnchor.lon);
+   controller.altitudeM=Math.min(1600000,Math.max(80000,planet.radiusM*.22));
    squad.repositionAfterLanding();renderer.patchKey=null;
   }
+  controller.targetAltitude(2.5);
+  lastTime=0;
   solarUI?.refresh();updateHUD();
-  return {ok:true,message:"🚀 "+bodyById(id).name+"へ到着。開拓・建築記録は天体別に保存されます。"};
+  return {ok:true,message:"🚀 "+bodyById(id).name+"に到着。指定地点への降下を開始しました。天体別の開拓記録は保持されます。"};
  }catch(error){
   running=false;init(current);updateHUD();
   return {ok:false,message:"航行エラー："+error.message+"（出発地点に復帰）"};
