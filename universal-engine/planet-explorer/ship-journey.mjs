@@ -1,5 +1,6 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
+import {shipJourneyFrame} from "./unified-space-frame.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -37,6 +38,8 @@ export class ShipJourney{
   this.interior.seated=this.seated;
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
+ /** Authoritative SI-metre star / body / ship transform at the current simulation day. */
+ framePose(days){return shipJourneyFrame(this,days);}
  get active(){return true;}
  get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
  get phase(){
