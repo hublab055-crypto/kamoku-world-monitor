@@ -12,7 +12,7 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=10";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=11";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
