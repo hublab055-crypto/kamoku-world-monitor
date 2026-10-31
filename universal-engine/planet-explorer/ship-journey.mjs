@@ -1,7 +1,9 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
 import {shipJourneyFrame} from "./unified-space-frame.mjs?v=1";
-import {restoreShipDynamics,advanceShipDynamics,applyShipDynamics} from "./ship-flight-dynamics.mjs?v=1";
+import {restoreShipDynamics,advanceShipDynamics,applyShipDynamics,emptyShipDynamics} from "./ship-flight-dynamics.mjs?v=1";
+import {ALLOWED_WARPS,bodyVelocityMps,createFreeFlight,restoreFreeFlight,
+ freeFlightFrame,stepFreeFlight,nearestFlightBody} from "./ship-orbital-physics.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -32,6 +34,8 @@ export class ShipJourney{
   this.pitchCommand=clamp(data.pitchCommand??0,-35,35);
   this.rollCommand=clamp(data.rollCommand??0,-45,45);
   this.flightDynamics=restoreShipDynamics(data.flightDynamics);
+  this.freeFlight=restoreFreeFlight(data.freeFlight);
+  this.flightDragMps2=0;
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,0,1);
   this.autopilot=data.autopilot!==false;
@@ -44,10 +48,16 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  /** Authoritative SI-metre star / body / ship transform at the current simulation day. */
- framePose(days){return applyShipDynamics(shipJourneyFrame(this,days),this);}
+ framePose(days){
+  if(this.freeFlight)
+   return applyShipDynamics(freeFlightFrame(this.freeFlight,days,{status:this.status}),this);
+  return applyShipDynamics(shipJourneyFrame(this,days),this);
+ }
  get active(){return true;}
- get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
+ get readyToLand(){return !this.freeFlight&&this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
  get phase(){
+  if(this.freeFlight)return this.freeFlight.incident?"物理自由飛行：地表衝突・航行停止":
+   this.freeFlight.returnToRoute?"物理自由飛行：航路復帰中":"物理自由飛行：慣性航行";
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
    cruise:"惑星間巡航",approach:"目的惑星へ接近",orbit:"目的惑星の周回軌道",
    entry:"大気圏突入・着陸降下",touchdown:"接地・エンジン停止",landed:"地表・着陸完了"}[this.status]||"航行中";
@@ -84,7 +94,7 @@ export class ShipJourney{
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<3)return {ok:false,message:"燃料が不足しています"};
   this.stageProgress=0;this.status="ascent";this.interior.hatchPassable=false;
-  this.flightDynamics=restoreShipDynamics(null);
+  this.flightDynamics=restoreShipDynamics(null);this.freeFlight=null;
   return {ok:true,message:"🚀 エンジン始動。地表を離れ、大気圏上昇を開始しました"};
  }
  chooseDestination(id,flightDays){
@@ -100,10 +110,12 @@ export class ShipJourney{
   if(!this.destinationId)return {ok:false,message:"先に目的惑星を選択してください"};
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<2)return {ok:false,message:"燃料が不足しています"};
+  if(this.freeFlight)return {ok:false,message:"物理自由飛行中です。先に案内航路へ復帰してください"};
   this.status="cruise";
   return {ok:true,message:"🛰️ "+bodyById(this.destinationId).name+"への惑星間巡航を開始"};
  }
  enterAtmosphere(){
+  if(this.freeFlight)return {ok:false,message:"手動物理飛行中は案内着陸できません。先に航路へ復帰してください"};
   if(!this.readyToLand)return {ok:false,message:"目標の周回軌道上で着席し、進路偏差を±12°以内にしてください"};
   if(this.hatchOpen)return {ok:false,message:"ハッチを閉じてください"};
   this.status="entry";this.stageProgress=0;this.interior.hatchPassable=false;
@@ -119,19 +131,109 @@ export class ShipJourney{
  }
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
- steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
+ steer(n){
+  if(!finite(n))throw Error("Invalid heading");
+  if(this.freeFlight){this.freeFlight.yawTargetDeg=clamp(this.freeFlight.yawTargetDeg+n,-180,180);return;}
+  this.heading=clamp(this.heading+n,-60,60);
+ }
  pitch(n){if(!finite(n))throw Error("Invalid pitch");this.pitchCommand=clamp(this.pitchCommand+n,-35,35);}
  roll(n){if(!finite(n))throw Error("Invalid roll");this.rollCommand=clamp(this.rollCommand+n,-45,45);}
- get maneuverSpeedMps(){return Math.hypot(this.flightDynamics.rightMps,this.flightDynamics.upMps,this.flightDynamics.backMps);}
+ get maneuverSpeedMps(){
+  return this.freeFlight?.velocity?Math.hypot(...this.freeFlight.velocity):
+   Math.hypot(this.flightDynamics.rightMps,this.flightDynamics.upMps,this.flightDynamics.backMps);
+ }
+ /** Free physics is explicitly enabled only after the guided ascent has
+  * reached a parking orbit. The existing mission state stays unchanged.
+  */
+ beginFreeFlight(days){
+  if(!finite(days))return {ok:false,message:"恒星系時刻が不正です"};
+  if(!this.seated)return {ok:false,message:"物理操縦は操縦席に着席してください"};
+  if(!["origin-orbit","orbit"].includes(this.status))
+   return {ok:false,message:"物理自由飛行は周回軌道で開始してください"};
+  if(this.freeFlight)return {ok:false,message:"すでに物理自由飛行中です"};
+  const current=this.framePose(days);
+  this.freeFlight=createFreeFlight(current,days);
+  // Freeze the previously guided relative displacement into the physical
+  // starting position. Only attitude moves the craft from this point on.
+  this.flightDynamics=emptyShipDynamics();
+  this.heading=0;this.pitchCommand=0;this.rollCommand=0;
+  this.autopilot=false;
+  return {ok:true,message:"🚀 物理自由飛行を開始しました。重力・慣性・推力で航路が変わります"};
+ }
+ setFreeFlightWarp(warp){
+  if(!this.freeFlight||!ALLOWED_WARPS.includes(Number(warp)))
+   return {ok:false,message:"物理航行中のみ時間倍率を変更できます"};
+  this.freeFlight.warp=Number(warp);
+  return {ok:true,message:"物理シミュレーションの希望倍率：×"+warp};
+ }
+ requestGuidedReturn(days){
+  if(!this.freeFlight)return {ok:false,message:"物理自由飛行中ではありません"};
+  if(this.freeFlight.incident)return {ok:false,message:"船体は地表衝突で停止しています。保存データから再開してください"};
+  if(!finite(days))return {ok:false,message:"恒星系時刻が不正です"};
+  const nearest=nearestFlightBody(this.freeFlight.position,days);
+  if(this.destinationId&&nearest.id===this.destinationId&&
+     nearest.altitudeM<Math.max(5e6,nearest.body.radiusM*2))
+   this.status="orbit"; // Capture into the selected target body's guided orbit.
+  else if(this.status!=="orbit")this.status="origin-orbit";
+  this.freeFlight.returnToRoute=true;
+  this.autopilot=true;
+  this.freeFlight.warp=Math.min(10,this.freeFlight.warp);
+  return {ok:true,message:"🧭 案内軌道への復帰を開始しました。位置と速度を連続的に合わせます"};
+ }
+ cancelGuidedReturn(){
+  if(!this.freeFlight?.returnToRoute)return {ok:false,message:"航路復帰中ではありません"};
+  this.freeFlight.returnToRoute=false;this.autopilot=false;
+  return {ok:true,message:"🕹️ 物理自由飛行へ戻りました"};
+ }
 
- tick(dt){
-  if(!finite(dt)||dt<0)throw Error("Invalid clock");
+
+
+ tick(dt,days=this.launchDay){
+  if(!finite(dt)||dt<0||!finite(days))throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
   this.flightDynamics=advanceShipDynamics(this.flightDynamics,{
    dt:step,status:this.status,autopilot:this.autopilot,heading:this.heading,
    pitchCommand:this.pitchCommand,rollCommand:this.rollCommand,
-   throttle:this.throttle,fuel:this.fuel
+   throttle:this.throttle,fuel:this.fuel,attitudeOnly:Boolean(this.freeFlight),
+   physicalYawDegrees:this.freeFlight?.yawTargetDeg??null
   });
+  if(this.freeFlight){
+   const pose=this.framePose(days);
+   const direction=pose.back.map(x=>-x);
+   let guidance=null;
+   if(this.freeFlight.returnToRoute){
+    const guided=shipJourneyFrame(this,days);
+    const h=1/86400;
+    const before=shipJourneyFrame(this,days-h);
+    const after=shipJourneyFrame(this,days+h);
+    guidance={position:guided.position,velocity:guided.position.map(
+     (_,i)=>(after.position[i]-before.position[i])/2)};
+   }
+   const result=stepFreeFlight(this.freeFlight,step,days,{
+    direction,throttle:this.throttle,fuel:this.fuel,guidance
+   });
+   this.freeFlight=result.state;
+   this.flightDragMps2=result.atmosphericDragMps2;
+   this.elapsedSeconds+=step;
+   this.fuel=Math.max(0,this.fuel-result.deltaV*.004);
+   // Handover occurs only when the physics solution has actually joined the
+   // guided position and velocity, avoiding a planetary teleport.
+   if(this.freeFlight.returnToRoute&&!this.freeFlight.incident){
+    const at=days+result.days,route=shipJourneyFrame(this,at);
+    const near=route.position.map((n,i)=>n-this.freeFlight.position[i]);
+    const a=shipJourneyFrame(this,at-1/86400);
+    const b=shipJourneyFrame(this,at+1/86400);
+    const rel=b.position.map((n,i)=>
+     (n-a.position[i])/2-this.freeFlight.velocity[i]);
+    if(Math.hypot(...near)<8&&Math.hypot(...rel)<2){
+     this.freeFlight=null;this.flightDynamics=emptyShipDynamics();
+     this.heading=0;this.pitchCommand=0;this.rollCommand=0;
+     this.autopilot=true;
+    }
+   }
+   return {days:result.days,advanced:0,status:this.status,physical:true,
+    effectiveWarp:result.effectiveWarp,incident:result.state.incident};
+  }
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -166,6 +268,7 @@ export class ShipJourney{
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    pitchCommand:this.pitchCommand,rollCommand:this.rollCommand,flightDynamics:{...this.flightDynamics},
+   freeFlight:this.freeFlight?{...this.freeFlight,position:[...this.freeFlight.position],velocity:[...this.freeFlight.velocity]}:null,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
  }
