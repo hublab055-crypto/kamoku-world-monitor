@@ -5,7 +5,10 @@
 import {MUSIC_STEPS,MUSIC_TRACKS,GUITAR_OPEN_NOTES,newScore,normalizeScore,
  addNote,toggleStep,noteName,renderScoreWav} from "./music-core.mjs";
 import {readMediaFile} from "./media-storage.mjs";
+import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
+import {newMusicStage,normalizeMusicStage,musicStageRayHit} from "./music-world.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
+const WORLD_KEY="universal-engine:music:instruments:v1";
 const TRACK_LABEL={keys:"🎹 キーボード",guitar:"🎸 ギター",bass:"🎼 ベース",drums:"🥁 ドラム"};
 const $=(root,q)=>root.querySelector(q);
 const create=(tag,className,text)=>{
@@ -14,7 +17,8 @@ const create=(tag,className,text)=>{
 };
 const button=(text,fn)=>{const b=create("button","",text);b.type="button";b.addEventListener("click",fn);return b;};
 const notePadLabel=n=>({36:"キック",38:"スネア",42:"ハイハット",39:"クラップ"})[n]||noteName(n);
-export function installMusicUI({getMediaUI,notify=()=>{}}){
+export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()=>null,
+ getTerrain=()=>null,getPlanet=()=>null,canPlayWorld=()=>true,notify=()=>{}}){
  const toolbar=document.getElementById("viewport-toolbar"),quick=document.getElementById("viewport-quick-panel");
  if(!toolbar||!quick)throw Error("Music Studioを設置するためのツールバーがありません");
  const toggle=button("🎵 音楽スタジオ",open);toggle.id="toolbar-music";
@@ -44,6 +48,13 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
  <button data-stop type="button">■ 停止</button>
  <button data-record-toggle type="button">● 演奏を録音</button></div>
  <small>鍵盤・弦をタップして演奏。録音中の演奏は16分音符に量子化されます。楽譜はこの端末に保存します。</small></section>
+ <section class="ue-music-section"><h3>🌍 3D楽器・VR演奏</h3>
+ <div class="ue-music-row">
+ <button type="button" data-world-place>🎹🎸 目の前に楽器を設置</button>
+ <button type="button" data-world-remove>3D楽器を撤去</button></div>
+ <small>地表にピアノとギターを配置。VRでは楽器を狙い、左右のトリガーで音を鳴らします。
+ 地形座標に固定するため歩いて離れても置き場所は変わりません。各惑星に1セット。</small>
+ <output data-world-status role="status"></output></section>
  <section class="ue-music-section"><h3>🎹 キーボード・ギター・ドラム</h3>
  <div class="ue-music-row"><label>選択中の音 <output data-pitch>C4</output></label>
  <label>ステップに入力する楽器 <select data-track>
@@ -65,6 +76,24 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
  const player=el("[data-player]");
  let scores=[],score=newScore(),selected=-1,pitch=60,recordingAt=null;
  let audioUrl=null,audioCtx=null;const presses=new Map();
+ const stages={};
+ try{const data=JSON.parse(localStorage.getItem(WORLD_KEY)||"{}");
+  if(data&&typeof data==="object"&&!Array.isArray(data))
+   for(const [key,raw] of Object.entries(data).slice(0,24)){
+    const normalized=normalizeMusicStage(raw);
+    if(key===normalized.planetId)stages[key]=normalized;
+   }
+ }catch(_){notify("3D楽器の設置情報を読み込めませんでした");}
+ const planetId=()=>String(getPlanet()?.id||"");
+ const currentStage=()=>stages[planetId()]||null;
+ function syncWorldStage(){
+  const renderer=getRenderer();if(renderer)renderer.musicStage=currentStage();
+ }
+ function stageMessage(message){el("[data-world-status]").textContent=message;report(message);}
+ function persistWorld(){
+  localStorage.setItem(WORLD_KEY,JSON.stringify(stages));
+  syncWorldStage();
+ }
  try{
   const data=JSON.parse(localStorage.getItem(SAVE_KEY)||"[]");
   if(Array.isArray(data))scores=data.slice(0,30).map(normalizeScore);
@@ -74,6 +103,8 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
   localStorage.setItem(SAVE_KEY,JSON.stringify(scores));
  }
  function open(){
+  syncWorldStage();
+  el("[data-world-status]").textContent=currentStage()?"🎹 楽器を設置済みです":"この惑星には楽器がありません";
   getMediaUI()?.close();
   panel.hidden=false;quick.hidden=true;
   document.getElementById("viewport-quick-toggle")?.setAttribute("aria-expanded","false");
@@ -81,6 +112,25 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
  }
  function close(){panel.hidden=true;stopRecording();}
  el("[data-close]").addEventListener("click",close);
+ el("[data-world-place]").addEventListener("click",()=>{
+  try{
+   if(!canPlayWorld())throw Error("拘束・移動中・室内では3D楽器を設置できません");
+   const c=getController(),planet=getPlanet(),terrain=getTerrain();
+   if(!c||!planet||!terrain||!Number.isFinite(c.lat)||!Number.isFinite(c.lon)
+      ||!Number.isFinite(c.yaw)||c.altitudeM>12)
+    throw Error("惑星の地表に降りてから設置してください");
+   const yaw=((c.yaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+   const point=geoOffset(c.lat,c.lon,Math.sin(yaw)*2.5,Math.cos(yaw)*2.5,planet.radiusM);
+   const heightM=Math.max(0,terrainSurface(terrain,point.lat,point.lon).elevationM);
+   stages[planet.id]=newMusicStage({planetId:planet.id,lat:point.lat,lon:point.lon,yaw,heightM});
+   persistWorld();stageMessage("🎹🎸 現在位置の前方に設置しました。VRではトリガーで演奏できます");
+  }catch(e){stageMessage(e.message);}
+ });
+ el("[data-world-remove]").addEventListener("click",()=>{
+  const id=planetId();if(!stages[id])return stageMessage("設置されていません");
+  delete stages[id];try{persistWorld();stageMessage("楽器を撤去しました");}
+  catch(e){stageMessage("撤去状態の保存に失敗: "+e.message);}
+ });
  document.getElementById("toolbar-media")?.addEventListener("click",close);
  document.getElementById("viewport-media")?.addEventListener("click",close);
  panel.addEventListener("keydown",e=>{if(e.key==="Escape"){e.stopPropagation();close();}});
@@ -94,7 +144,7 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
   pitch=p;el("[data-pitch]").textContent=notePadLabel(p);
   if(track)el("[data-track]").value=track;
  }
- function liveVoice(track,p){
+ function liveVoice(track,p,spatial=null){
   const AudioCtx=window.AudioContext||window.webkitAudioContext;
   if(!AudioCtx){report("このブラウザはWeb Audioに対応していません");return ()=>{};}
   try{
@@ -106,7 +156,17 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
    osc.frequency.setValueAtTime(track==="drums"?p===36?110:250:hz,now);
    gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(track==="drums"?.08:.14,now+.012);
    if(track==="guitar"||track==="drums")gain.gain.exponentialRampToValueAtTime(.0001,now+(track==="drums"?.18:1.2));
-   osc.connect(gain).connect(audioCtx.destination);osc.start(now);
+   osc.connect(gain);
+   if(spatial&&typeof audioCtx.createPanner==="function"){
+    const panner=audioCtx.createPanner();panner.panningModel="HRTF";
+    panner.distanceModel="inverse";panner.refDistance=1;panner.maxDistance=18;
+    panner.rolloffFactor=1.1;
+    panner.positionX.value=spatial[0];
+    panner.positionY.value=spatial[1];
+    panner.positionZ.value=-spatial[2];
+    gain.connect(panner).connect(audioCtx.destination);
+   }else gain.connect(audioCtx.destination);
+   osc.start(now);
    const end=()=>{const t=audioCtx.currentTime;gain.gain.cancelScheduledValues(t);
      gain.gain.setTargetAtTime(.0001,t,.065);
      try{osc.stop(t+.4);}catch(_){}};
@@ -114,10 +174,10 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
    return end;
   }catch(err){report("演奏できません: "+err.message);return ()=>{};}
  }
- function beginNote(key,track,p){
+ function beginNote(key,track,p,spatial=null){
   if(presses.has(key))return;
   setPitch(p,track);
-  presses.set(key,{track,p,start:performance.now(),end:liveVoice(track,p)});
+  presses.set(key,{track,p,start:performance.now(),end:liveVoice(track,p,spatial)});
  }
  function finishNote(key){
   const current=presses.get(key);if(!current)return;
@@ -288,5 +348,26 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
   for(const key of Array.from(presses.keys()))finishNote(key);
   if(audioUrl)URL.revokeObjectURL(audioUrl);
  });
- return {open,close,refreshRecords,get score(){return normalizeScore(score);}};
+ function handleXR({phase,rayMatrix,stageMatrix,hand="right"}){
+  if(!canPlayWorld()||!stageMatrix)return {handled:false};
+  const id=planetId(),placement=stages[id],controller=getController();
+  if(!placement||!controller||controller.altitudeM>12)return {handled:false};
+  const key="xr-music-"+hand;
+  if(phase==="end"){
+   if(presses.has(key)){finishNote(key);return {handled:true};}
+   return {handled:false};
+  }
+  if(phase!=="start"||!rayMatrix)return {handled:false};
+  const delta=geoLocal(controller.lat,controller.lon,placement.lat,placement.lon,getPlanet().radiusM);
+  const here=Math.max(0,terrainSurface(getTerrain(),controller.lat,controller.lon).elevationM);
+  const offset=[delta.eastM,placement.heightM-here,delta.northM];
+  if(Math.hypot(offset[0],offset[2])>4)return {handled:false};
+  const hit=musicStageRayHit(rayMatrix,stageMatrix,offset,placement.yaw);
+  if(!hit)return {handled:false};
+  beginNote(key,hit.track,hit.pitch,[offset[0],offset[1]+1,offset[2]]);
+  return {handled:true,track:hit.track,pitch:hit.pitch};
+ }
+ syncWorldStage();
+ return {open,close,refreshRecords,syncWorldStage,handleXR,
+  get score(){return normalizeScore(score);}};
 }
