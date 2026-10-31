@@ -18,6 +18,7 @@ export class ShipJourney{
   this.status=["docked","ascent","origin-orbit","cruise","approach","orbit","entry","touchdown","landed"].includes(data.status)?data.status:"docked";
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
+  this.transferStartDay=finite(data.transferStartDay)?data.transferStartDay:this.launchDay;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
    {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0,
     padElevationM:finite(data.launchSite.padElevationM)?data.launchSite.padElevationM:0}:null;
@@ -105,12 +106,14 @@ export class ShipJourney{
   this.destinationId=id;this.flightDays=flightDays;this.progress=0;
   return {ok:true,message:"🧭 航路設定完了："+bodyById(id).name+"／推定"+flightDays.toFixed(1)+"ゲーム日"};
  }
- startTransfer(){
+ startTransfer(days=this.launchDay){
+  if(!finite(days))return {ok:false,message:"恒星系時刻が不正です"};
   if(this.status!=="origin-orbit")return {ok:false,message:"出発惑星の軌道から開始してください"};
   if(!this.destinationId)return {ok:false,message:"先に目的惑星を選択してください"};
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<2)return {ok:false,message:"燃料が不足しています"};
   if(this.freeFlight)return {ok:false,message:"物理自由飛行中です。先に案内航路へ復帰してください"};
+  this.transferStartDay=days;
   this.status="cruise";
   return {ok:true,message:"🛰️ "+bodyById(this.destinationId).name+"への惑星間巡航を開始"};
  }
@@ -129,7 +132,9 @@ export class ShipJourney{
    yaw:site.yaw,padElevationM:site.padElevationM};
   return true;
  }
- setAutopilot(on){this.autopilot=Boolean(on);}
+ setAutopilot(on){this.autopilot=Boolean(on);if(this.autopilot&&this.freeFlight){
+  this.freeFlight.yawTargetDeg=0;this.pitchCommand=0;this.rollCommand=0;
+ }}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
  steer(n){
   if(!finite(n))throw Error("Invalid heading");
@@ -265,7 +270,7 @@ export class ShipJourney{
  }
  snapshot(){
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
-   status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
+   status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,transferStartDay:this.transferStartDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    pitchCommand:this.pitchCommand,rollCommand:this.rollCommand,flightDynamics:{...this.flightDynamics},
    freeFlight:this.freeFlight?{...this.freeFlight,position:[...this.freeFlight.position],velocity:[...this.freeFlight.velocity]}:null,
