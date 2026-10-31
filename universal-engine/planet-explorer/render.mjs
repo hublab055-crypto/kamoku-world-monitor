@@ -1696,7 +1696,8 @@ export class ExplorerRenderer{
    // Reentry automatically tilts the pilot's sight toward the landing terrain.
    // Player look input is still added on top of this gentle approach attitude.
    const landingAttitude=v.status==="entry"&&v.seated?
-    -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):0;
+    -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
+    v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
    const pitch=Math.max(-1.2,Math.min(1.2,(person.pitch||0)+landingAttitude));
    const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
    const eye=[person.x,eyeY,person.z];
@@ -1705,7 +1706,7 @@ export class ExplorerRenderer{
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
-   const arrival=v.status==="entry"&&
+   const arrival=["entry","touchdown"].includes(v.status)&&
     this.shipArrivalPreview?.bodyId===v.destinationId?this.shipArrivalPreview:null;
    const groundTerrain=arrival?.terrain||this.terrain;
    const site=arrival?.site||(this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
