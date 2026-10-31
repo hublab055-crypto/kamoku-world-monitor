@@ -49,6 +49,7 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
+import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=1";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=2";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
@@ -2633,12 +2634,27 @@ export class ExplorerRenderer{
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
    this.drawHarbor(vp,light,s,radius);
    const starship=this.surfaceStarship;
-   if(starship?.present(this.planet.id)){
+   if(starship?.visible(this.planet.id)){
     const land=geoLocal(s.origin.lat,s.origin.lon,starship.lat,starship.lon,this.planet.radiusM);
-    if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+32){
+    if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+125){
      const gx=land.eastM-this.cx,gz=land.northM-this.cz;
-     const height=Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
-     const matrix=multiply4(translate(gx,height,gz),rotateY(starship.yaw||0));
+     const height=Number.isFinite(starship.padElevationM)?starship.padElevationM:
+      Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
+     const descent=starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0;
+     const matrix=multiply4(translate(gx,height+descent,gz),rotateY(starship.yaw||0));
+     if(starship.flight==="landing"){
+      // A glowing elliptical pad marks where the engines are lowering the ship.
+      const ring=multiply4(translate(gx,height+.07,gz),
+       multiply4(rotateY(starship.yaw||0),scale3(6.4,1,11.0)));
+      this.drawMesh(this.selectionRing,multiply4(vp,ring),light,1,.95,[.52,.96,1]);
+      // Three exhaust rings move with the hull; they shrink as the ship touches down.
+      if(descent>.3)for(const ex of [-2.15,0,2.15]){
+       const jet=multiply4(translate(gx+Math.cos(starship.yaw||0)*ex,
+        height+descent*.50, gz-Math.sin(starship.yaw||0)*ex+12),
+        scale3(.45,1,.45));
+       this.drawMesh(this.selectionRing,multiply4(vp,jet),light,1,.98,[.35,.85,1]);
+      }
+     }
      this.drawMesh(this.surfaceShipMeshes[starship.hatchOpen?1:0],multiply4(vp,matrix),light,1,.88);
     }
    }
