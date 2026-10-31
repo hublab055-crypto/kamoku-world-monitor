@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
+import {installShipInterior3D} from "./ship-interior-3d.mjs?v=9";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
