@@ -645,7 +645,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(source==="window"){
    const advanced=voyage.tick(dt);
    if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
-   voyageUI?.render();
+   voyageUI?.render(dt);
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    requestAnimationFrame(doFrame);
   }
@@ -3818,7 +3818,8 @@ solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
  onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
- onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,notify:log});
+ onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
+ getCargo:()=>actions?.resources||{},notify:log});
 celestialSky=installCelestialSkyViewport({get:()=>({
  solarSystem,planet,controller,xrActive:Boolean(xrUI?.active),
  inside:Boolean(townLife?.inside||marine?.cabinId||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
