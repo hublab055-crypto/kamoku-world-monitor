@@ -154,10 +154,13 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
    ["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
   const idx="asdfghjkl".indexOf(e.key.toLowerCase());
   if(idx===-1)return;
-  e.preventDefault();const key="kbd-"+e.key.toLowerCase();
+  e.preventDefault();e.stopPropagation();const key="kbd-"+e.key.toLowerCase();
   beginNote(key,el("[data-track]").value==="bass"?"bass":"keys",60+idx);
- });
- document.addEventListener("keyup",e=>finishNote("kbd-"+e.key.toLowerCase()));
+ },true);
+ document.addEventListener("keyup",e=>{
+  const key="kbd-"+e.key.toLowerCase();
+  if(presses.has(key)){e.preventDefault();e.stopPropagation();finishNote(key);}
+ },true);
  function readFields(){
   score.title=el("[data-title]").value.trim();
   score.bpm=Number(el("[data-bpm]").value);
