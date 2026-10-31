@@ -100,8 +100,8 @@ export function createShipGeometry(open=false){
   box(a,x,.92,z,1.48,.09,1.60,"frame");
   box(a,x,.46,z,.11,.87,1.61,"line");
  }
- box(a,0,.62,12.16,2,1.2,.75,"dark");
- box(a,0,1.4,12.10,1.64,.13,.54,"screen");
+ box(a,1.62,.62,11.55,1.5,1.2,.75,"dark");
+ box(a,1.62,1.4,11.48,1.3,.13,.54,"screen");
  // Engine room panels and reactor housing at aft wall.
  box(a,2.9,1.26,12.2,1.45,2.5,.65,"dark");
  for(let j=0;j<4;j++)box(a,2.75,1.0+j*.35,11.83,.65,.09,.08,j%2?"line":"light");
