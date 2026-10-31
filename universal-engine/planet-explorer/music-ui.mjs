@@ -74,12 +74,15 @@ export function installMusicUI({getMediaUI,notify=()=>{}}){
   localStorage.setItem(SAVE_KEY,JSON.stringify(scores));
  }
  function open(){
+  getMediaUI()?.close();
   panel.hidden=false;quick.hidden=true;
   document.getElementById("viewport-quick-toggle")?.setAttribute("aria-expanded","false");
   refreshRecords();refreshScores();refreshGrid();
  }
  function close(){panel.hidden=true;stopRecording();}
  el("[data-close]").addEventListener("click",close);
+ document.getElementById("toolbar-media")?.addEventListener("click",close);
+ document.getElementById("viewport-media")?.addEventListener("click",close);
  panel.addEventListener("keydown",e=>{if(e.key==="Escape"){e.stopPropagation();close();}});
  function stopRecording(){
   if(recordingAt===null)return;
