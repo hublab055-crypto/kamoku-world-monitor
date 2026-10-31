@@ -25,7 +25,8 @@ export class ShipJourney{
   this.autopilot=data.autopilot!==false;
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
-  this.interior=ShipInterior.fromSnapshot(data.interior);
+  this.interior=ShipInterior.fromSnapshot({...data.interior,
+   schemaVersion:1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
   this.interior.mode=this.seated?"cockpit":"interior";
   this.interior.seated=this.seated;
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
@@ -45,6 +46,7 @@ export class ShipJourney{
   if(this.seated)return {ok:false,message:"立ち上がってハッチに近づいてください"};
   if(!this.isNearHatch())return {ok:false,message:"船尾のハッチまで歩いてください"};
   this.hatchOpen=!this.hatchOpen;
+  this.interior.hatchPassable=this.hatchOpen&&this.isGrounded();
   return {ok:true,message:this.hatchOpen?"🚪 ハッチを開けました。外へ出られます":"🔒 ハッチを閉じました。気密を確認しました"};
  }
  sit(){
@@ -59,13 +61,14 @@ export class ShipJourney{
   this.interior.x=0;this.interior.z=-8.8;
   return {ok:true,message:"🚶 操縦席から立ち上がりました"};
  }
- canDisembark(){return this.isGrounded()&&!this.seated&&this.hatchOpen&&this.isNearHatch();}
+ canDisembark(){return this.isGrounded()&&!this.seated&&this.hatchOpen&&
+  (this.isNearHatch()||this.interior.z>=17.8);}
  launch(){
   if(this.status!=="docked")return {ok:false,message:"現在は地表から離陸できません"};
   if(this.hatchOpen)return {ok:false,message:"ハッチを閉めてから離陸してください"};
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<3)return {ok:false,message:"燃料が不足しています"};
-  this.stageProgress=0;this.status="ascent";
+  this.stageProgress=0;this.status="ascent";this.interior.hatchPassable=false;
   return {ok:true,message:"🚀 エンジン始動。地表を離れ、大気圏上昇を開始しました"};
  }
  chooseDestination(id,flightDays){
@@ -87,7 +90,7 @@ export class ShipJourney{
  enterAtmosphere(){
   if(!this.readyToLand)return {ok:false,message:"目標の周回軌道上で着席し、進路偏差を±12°以内にしてください"};
   if(this.hatchOpen)return {ok:false,message:"ハッチを閉じてください"};
-  this.status="entry";this.stageProgress=0;
+  this.status="entry";this.stageProgress=0;this.interior.hatchPassable=false;
   return {ok:true,message:"🔥 大気圏突入開始。着陸姿勢を保持してください"};
  }
  setAutopilot(on){this.autopilot=Boolean(on);}
