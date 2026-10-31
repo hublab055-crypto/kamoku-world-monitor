@@ -1594,7 +1594,7 @@ function setShipDestination(id){
  return voyage.chooseDestination(id,plan.flightDays);
 }
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
- voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
+ voyage.startTransfer(planet.timeDays):{ok:false,message:"軌道上で航路を設定してください"};}
 function shipEgress(){
  if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
