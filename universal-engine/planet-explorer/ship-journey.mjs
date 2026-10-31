@@ -14,6 +14,8 @@ export class ShipJourney{
   this.status=["docked","ascent","origin-orbit","cruise","approach","orbit","entry","landed"].includes(data.status)?data.status:"docked";
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
+  this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
+   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0}:null;
   this.progress=clamp(data.progress??0,0,1);
   this.stageProgress=clamp(data.stageProgress??0,0,1);
   this.elapsedSeconds=Math.max(0,finite(data.elapsedSeconds)?data.elapsedSeconds:0);
@@ -119,7 +121,7 @@ export class ShipJourney{
  }
  snapshot(){
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
-   status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,progress:this.progress,
+   status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,progress:this.progress,
    stageProgress:this.stageProgress,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
