@@ -1532,7 +1532,7 @@ function boardSurfaceStarship(){
   voyage=new ShipJourney({originId:solarSystem.currentId,
    launchDay:planet.timeDays,launchSite:surfaceShip.snapshot(),hatchOpen:true,status:"docked",
    interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
-    z:Math.max(16.0,Math.min(18.1,local.z)),yaw:0,mode:"interior"}});
+    z:Math.max(16.0,Math.min(18.1,local.z)),yaw:controller.yaw-(surfaceShip.yaw||0),mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
@@ -1571,6 +1571,7 @@ function shipEgress(){
   controller.setLanding(surfaceShip.lat,surfaceShip.lon);
   const ground=shipLocalToWorld(0,0,surfaceShip.yaw,cabinX,cabinZ);
   controller.x=ground.x;controller.z=ground.z;
+  controller.yaw=voyage.interior.yaw+(surfaceShip.yaw||0);
   const geo=controller.locationAt(controller.x,controller.z);
   controller.lat=geo.lat;controller.lon=geo.lon;
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
