@@ -136,6 +136,10 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  }
  $("flight-view").addEventListener("click",()=>{
   const current=get();if(!current)return;
+  if(current.kind==="surface-to-surface"&&!current.seated){
+   $("flight-dialogue").textContent="操縦席まで歩いて着席すると航行星図に切り替えられます";
+   return;
+  }
   current.interior.mode=current.interior.mode==="interior"?"cockpit":"interior";
   nearKey="";held.clear();render();
  });
@@ -168,19 +172,20 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
-  $("flight-cancel").hidden=v.status!=="preflight";
+  $("flight-cancel").hidden=v.kind==="surface-to-surface"||v.status!=="preflight";
   const groundReady=["preflight","docked"].includes(v.status);
   main.textContent=groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
    v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":
    v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
-  main.disabled=!(groundReady? (v.seated!==false&&v.hatchOpen!==true) : v.readyToLand);
+  main.disabled=v.kind==="surface-to-surface"?
+   !["docked","orbit"].includes(v.status):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
   if(v.seated===false){
    $("flight-left").disabled=true;$("flight-right").disabled=true;
   }else{
    $("flight-left").disabled=false;$("flight-right").disabled=false;
   }
   if(interiorView){
-   $("flight-hud").textContent="SHIP INTERIOR · "+v.phase+"\n"+bodyById(v.destinationId).name+" "+Math.round(v.progress*100)+"%";
+   $("flight-hud").textContent="SHIP INTERIOR · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
    return;
   }
   const w=screen.width,h=screen.height,p=v.progress,elapsed=v.elapsedSeconds;
