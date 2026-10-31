@@ -3,7 +3,7 @@
  * The board overlay is a lightweight 3D-projected prototype: no changes to WebGL shaders.
  */
 import {MediaLibrary} from "./media-library.mjs";
-import {createMediaBlobKey,storeMediaFile,readMediaFile} from "./media-storage.mjs";
+import {createMediaBlobKey,storeMediaFile,readMediaFile,deleteMediaFile} from "./media-storage.mjs";
 import {geoLocal,terrainSurface} from "./geo.mjs";
 import {projectScreen} from "./render.mjs";
 const SAVE_KEY="universal-engine:explorer:media:v1";
@@ -253,7 +253,18 @@ export function installMediaUI({getController,getRenderer,getTerrain,getGameDays
  }
  refreshSurfaces();raf=requestAnimationFrame(updateWorld);
  window.addEventListener("pagehide",persist);
- return {get library(){return library;},open,close,save:persist,refresh:commit,
+ async function registerAudioRecord(file,{title,author="player"}={}){
+  if(!(file instanceof Blob))throw Error("音声ファイルが必要です");
+  if(!["audio/mpeg","audio/mp4","audio/wav","audio/ogg","audio/webm"].includes(file.type))
+   throw Error("対応していない音声形式です");
+  const key=createMediaBlobKey();
+  const saved=await storeMediaFile(file,key);
+  try{
+   const item=library.create({kind:"record",title:String(title||file.name||"新しいレコード"),author,source:{type:"blob",...saved}});
+   commit();return item;
+  }catch(e){await deleteMediaFile(key).catch(()=>{});throw e;}
+ }
+ return {get library(){return library;},open,close,save:persist,refresh:commit,registerAudioRecord,
   loadSnapshot:snapshot=>{library=new MediaLibrary(snapshot);commit();},destroy(){
   cancelAnimationFrame(raf);closePreview();panel.remove();world.remove();toggle.remove();q.remove();
   for(const url of cache.values())URL.revokeObjectURL(url);
