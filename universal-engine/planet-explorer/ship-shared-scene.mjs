@@ -34,13 +34,13 @@ export function celestialBallGeometry(color=[.5,.65,.84],rings=22,sectors=42){
 /** Coordinate mapping from starship world frame to its local camera origin; floor at y=0. */
 export function groundScenePhase(voyage){
  const status=voyage?.status||"docked",p=Math.max(0,Math.min(1,voyage?.stageProgress||0));
- const near=status==="docked"||status==="landed"||status==="ascent"||status==="entry";
+ const near=status==="docked"||status==="landed"||status==="touchdown"||status==="ascent"||status==="entry";
  const lift=status==="ascent"?Math.pow(p,2)*7000:status==="entry"?Math.pow(1-p,2)*7000:0;
- const sky=status==="docked"||status==="landed"?1:
+ const sky=status==="docked"||status==="landed"||status==="touchdown"?1:
    status==="ascent"?1-p:status==="entry"?p:0;
  // While entering, a wide destination terrain patch replaces the orbit planet
  // before the spacecraft drops into the low-altitude landing corridor.
  const terrainDistance=status==="entry"?5000:1100;
  return {near,lift,sky,showGround:near&&lift<terrainDistance,
-  showGlobe:status!=="docked"&&status!=="landed"&&!(status==="entry"&&lift<4700)};
+  showGlobe:status!=="docked"&&status!=="landed"&&status!=="touchdown"&&!(status==="entry"&&lift<4700)};
 }
