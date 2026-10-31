@@ -9,7 +9,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,notify}){
+export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,notify}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -40,6 +40,21 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight #flight-dialogue:not(:empty){background:#102f3fe9;padding:5px 10px;border-radius:7px;color:#ccefe8;max-height:82px;overflow:auto}
  #space-flight #flight-view{background:#2d5061;color:#e4f5ff}
  #space-flight #ship-3d-canvas{touch-action:none}
+ #space-flight.integrated{position:absolute;inset:0;z-index:3500;padding:3px;background:transparent;pointer-events:none;overflow-y:auto}
+ #space-flight.integrated .flight-head,#space-flight.integrated .flight-readout,
+ #space-flight.integrated .flight-actions,#space-flight.integrated .flight-walk,
+ #space-flight.integrated .flight-crew,#space-flight.integrated #seamless-ship,
+ #space-flight.integrated #flight-dialogue,#space-flight.integrated .flight-guide{pointer-events:auto}
+ #space-flight.integrated .flight-head{background:#071e30d9;border-radius:8px}
+ #space-flight.integrated .flight-display{flex:1;min-height:70px;max-height:none;background:transparent;border:0;pointer-events:none}
+ #space-flight.integrated #flight-canvas,#space-flight.integrated #ship-3d-canvas{display:none!important}
+ #space-flight.integrated .flight-hud{top:3px;left:3px;background:#07192c88;border-radius:5px;padding:3px 6px}
+ #space-flight.integrated .flight-readout{margin:3px 0}
+ #space-flight.integrated .flight-guide{background:#102b3fc9;border-radius:6px}
+ #space-flight.integrated .flight-actions{background:#10263ac9;border-radius:7px}
+ @media(max-width:590px){#space-flight.integrated .flight-display{min-height:24px}
+ #space-flight.integrated .flight-guide{font-size:10px}#space-flight.integrated .flight-actions button{min-height:33px}}
+
  #space-flight .flight-hud{white-space:pre-line}
 
  @media(max-width:560px){#space-flight .flight-readout{font-size:11px}#space-flight .flight-head strong{font-size:13px}#space-flight .flight-actions button{min-width:55px}}
@@ -51,12 +66,16 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><label>スロットル <input id="flight-throttle" type="range" min="0" max="100" step="5" value="70"></label><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
   '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し、近くの乗員と会話・貨物確認。航行操作は船内からも可能です。着陸は目的地に接近後。</div>';
- document.body.append(root);
+ (document.querySelector(".canvas-wrap")||document.body).append(root);
  const $=id=>root.querySelector("#"+id);
  const screen=$("flight-canvas"),ctx=screen.getContext("2d"),shipCanvas=$("ship-3d-canvas");
- const ship3D=installShipInterior3D(shipCanvas,{get:()=>{
-  const voyage=get();return {voyage,interior:voyage?.interior};
- }});
+ const worldCanvas=getWorldCanvas?.();
+ const unified=Boolean(worldCanvas);
+ const ship3D=unified?{supported:true,render:()=>true,destroy:()=>{}}:
+  installShipInterior3D(shipCanvas,{get:()=>{
+   const voyage=get();return {voyage,interior:voyage?.interior};
+  }});
+ root.classList.toggle("integrated",unified);
  const held=new Set();let nearKey="",lastView="";
  function cockpitAvailable(){const v=get();return Boolean(v?.interior&&ship3D.supported);}
  function showCargo(){
@@ -124,14 +143,19 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  document.addEventListener("keyup",event=>{const key=keys.get(event.key.toLowerCase());if(key)held.delete(key);});
  window.addEventListener("blur",()=>held.clear());
  let drag=null;
- shipCanvas.addEventListener("pointerdown",event=>{drag={id:event.pointerId,x:event.clientX,y:event.clientY};shipCanvas.setPointerCapture?.(event.pointerId);});
- shipCanvas.addEventListener("pointermove",event=>{
+ const dragTarget=unified?worldCanvas:shipCanvas;
+ dragTarget.addEventListener("pointerdown",event=>{
+  if(root.hidden||get()?.interior?.mode!=="interior")return;
+  drag={id:event.pointerId,x:event.clientX,y:event.clientY};
+  dragTarget.setPointerCapture?.(event.pointerId);
+ });
+ dragTarget.addEventListener("pointermove",event=>{
   if(!drag||event.pointerId!==drag.id)return;
   const state=get()?.interior;if(state)state.turn((event.clientX-drag.x)*.006,(drag.y-event.clientY)*.004);
   drag.x=event.clientX;drag.y=event.clientY;
  });
  for(const type of ["pointerup","pointercancel","lostpointercapture"])
-  shipCanvas.addEventListener(type,()=>{drag=null;});
+  dragTarget.addEventListener(type,()=>{drag=null;});
  function applyMove(dt){
   const state=get()?.interior;
   if(!state||state.mode!=="interior")return;
@@ -163,10 +187,10 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
   const interiorView=v.interior.mode==="interior";
-  shipCanvas.hidden=!interiorView;screen.hidden=interiorView;
+  shipCanvas.hidden=unified||!interiorView;screen.hidden=unified||interiorView;
   $("flight-walk").hidden=!interiorView;$("flight-nearby").hidden=!interiorView;
   $("flight-view").textContent=interiorView?"🛰️ 操縦席の星図":"🚶 3D船内";
-  if(interiorView){updateNearby();ship3D.render();}
+  if(interiorView){updateNearby();if(!unified)ship3D.render();}
   if(lastView!==v.interior.mode){lastView=v.interior.mode;nearKey="";$("flight-dialogue").textContent="";}
 
   const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
@@ -189,8 +213,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   }else{
    $("flight-left").disabled=false;$("flight-right").disabled=false;
   }
-  if(interiorView){
-   $("flight-hud").textContent="SHIP INTERIOR · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
+  if(interiorView||unified){
+   $("flight-hud").textContent="3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
    return;
   }
   const w=screen.width,h=screen.height,p=v.progress,elapsed=v.elapsedSeconds;
