@@ -48,6 +48,7 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
+import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -766,6 +767,8 @@ export class ExplorerRenderer{
    box(shipDoor,.37,.81,.085,.052,.14,.035,[.91,.72,.38]);
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
+   this.surfaceStarship=null;
+   this.surfaceShipMeshes=[new Mesh(gl,spacecraftGroundGeometry(false)),new Mesh(gl,spacecraftGroundGeometry(true))];
    this.screenMarineFurniture=[];
    const rod=builder();
    box(rod,0,.05,0,.019,2.8,.019,[.53,.35,.16]);
@@ -2557,6 +2560,16 @@ export class ExplorerRenderer{
    for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
    for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
    this.drawHarbor(vp,light,s,radius);
+   const starship=this.surfaceStarship;
+   if(starship?.present(this.planet.id)){
+    const land=geoLocal(s.origin.lat,s.origin.lon,starship.lat,starship.lon,this.planet.radiusM);
+    if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+32){
+     const gx=land.eastM-this.cx,gz=land.northM-this.cz;
+     const height=Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
+     const matrix=multiply4(translate(gx,height,gz),rotateY(starship.yaw||0));
+     this.drawMesh(this.surfaceShipMeshes[starship.hatchOpen?1:0],multiply4(vp,matrix),light,1,.88);
+    }
+   }
    const railStation=this.railway?.station(this.settlementId);
    if(railStation){
     // The rails extend beyond the platform along the actual local ground.
