@@ -1,5 +1,9 @@
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
+import {SolarSystem,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=1";
+import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
+import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
+import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
@@ -100,6 +104,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
+let solarSystem=null,solarUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
@@ -289,8 +294,14 @@ function init(saved=null){
   $("orbit-pick-marker").hidden=true;
   if(renderer)renderer.destroy();
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
-  planet=saved?Planet.fromSnapshot(saved.planet):new Planet({seed:77,name:"Terra Nova",timeDays:0.24});
-  terrain=new Terrain(planet);weather=new Weather(planet);
+  solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
+  if(saved?.planet&&!saved?.v0_aa)solarSystem.sync(saved.planet.timeDays);
+  planet=saved?Planet.fromSnapshot(saved.planet):createCelestialPlanet("terra",.24);
+  if(saved?.v0_aa)planet.timeDays=solarSystem.days;
+  terrain=new Terrain(planet);adjustDryWorld(terrain,solarSystem.currentId);
+  weather=applyCelestialClimate(new Weather(planet),solarSystem.currentId);
+  const heading=document.querySelector(".view-header h2")?.firstChild;
+  if(heading?.nodeType===Node.TEXT_NODE)heading.textContent=planet.name+" ";
    // This seed-specific starter valley remains at a fixed planet coordinate
    // even when the player later lands on another continent.
    terrain.landscapeAnchor=findLand(terrain);
@@ -558,6 +569,7 @@ function init(saved=null){
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
   updateCustodyFacilityPanel();
+  solarUI?.refresh();
   log(saved?"探索状態と人物設定を読み込みました。":"v0.7c：カメラ6モードを設定から選べます。v0.7b・v0.7a・v0.6へ戻れます。");
  }catch(e){$("fatal").hidden=false;$("fatal").textContent="3D初期化エラー: "+e.message;log(e.message);running=false;}
 }
@@ -1080,6 +1092,8 @@ function refreshShipCrewChoices(){
  }
 }
 function updateHUD(){
+  if(solarSystem&&planet)solarSystem.sync(planet.timeDays);
+  solarUI?.update();
   if(territoryEconomy&&ownerWorld){
    const changed=territoryEconomy.syncOwnerBuildings(ownerWorld);
    const months=territoryEconomy.collectUntil(planet?.timeDays);
