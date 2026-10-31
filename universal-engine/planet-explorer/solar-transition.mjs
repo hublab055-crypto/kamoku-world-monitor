@@ -24,6 +24,12 @@ export function carryCelestialInventory(next,current){
  next.avatarStyle=current.avatarStyle;
  for(const key of ["v0_7b","v0_7i","v0_9n","v0_9v"])next[key]=current[key];
  next.actions.resources={...current.actions.resources};
+ if(next.v0_7g&&current.v0_7g){
+  next.v0_7g.inventory={...current.v0_7g.inventory};
+  next.v0_7g.stats={...current.v0_7g.stats};
+  next.v0_7g.readPages=[...(current.v0_7g.readPages||[])];
+ }
+ if(current.v0_7f)next.v0_7f=current.v0_7f;
  if(next.v0_7d?.squad?.frontier&&current.v0_7d?.squad?.frontier)
   next.v0_7d.squad.frontier.people=current.v0_7d.squad.frontier.people;
  if(next.v0_8s&&current.v0_8s)next.v0_8s.coins=current.v0_8s.coins;
