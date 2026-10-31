@@ -88,7 +88,12 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    const button=document.createElement("button");button.type="button";button.textContent=station.id==="cargo"?"📦 貨物確認":station.id==="helm"?"🪑 操縦席":station.id==="engine"?"⚙️ 機関監視":"🧭 航法盤";
    button.addEventListener("click",()=>{
     if(station.id==="cargo"){showCargo();return;}
-    if(station.id==="helm"){const current=get();if(current)current.interior.mode="cockpit";render();return;}
+    if(station.id==="helm"){
+     const current=get();if(current?.kind==="surface-to-surface"){
+      const result=current.sit();if(result?.message)$("flight-dialogue").textContent=result.message;
+     }else if(current)current.interior.mode="cockpit";
+     render();return;
+    }
     const current=get();
     $("flight-dialogue").textContent=station.id==="engine"?
      "⚙️ 推進系：燃料"+Math.round(current?.fuel||0)+"%／スロットル"+Math.round((current?.throttle||0)*100)+"%":
