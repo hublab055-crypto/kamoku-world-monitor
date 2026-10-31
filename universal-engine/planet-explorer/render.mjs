@@ -49,6 +49,8 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=1";
+import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -768,6 +770,12 @@ export class ExplorerRenderer{
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
+   this.shipVoyage=null;this.shipUnifiedMeshes=[
+    new Mesh(gl,sharedShipInteriorGeometry(false)),
+    new Mesh(gl,sharedShipInteriorGeometry(true))
+   ];
+   this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
+   this.shipTerrainPatch=null;this.shipTerrainKey="";
    this.surfaceShipMeshes=[new Mesh(gl,spacecraftGroundGeometry(false)),new Mesh(gl,spacecraftGroundGeometry(true))];
    this.screenMarineFurniture=[];
    const rod=builder();
@@ -1660,6 +1668,7 @@ export class ExplorerRenderer{
    if(this.townInterior)return this.renderTownInterior(asp);
   }
   if(!xr){
+   if(this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
   if((this.custodyCell||this.railwaySecurity?.jailed)&&
      (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
@@ -1671,6 +1680,57 @@ export class ExplorerRenderer{
   }
   return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
  }
+  /** Cabin, exterior ground and celestial sphere share the WORLD WebGL2 framebuffer. */
+  renderUnifiedShip(asp,dt=1/60){
+   const gl=this.gl,v=this.shipVoyage;
+   if(!v?.interior)return "ground";
+   const phase=groundScenePhase(v),person=v.interior,sky=phase.sky;
+   gl.clearColor(.012+sky*.39,.023+sky*.58,.051+sky*.71,1);
+   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+   gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
+   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+   gl.uniform1f(this.uXROcclusionEnabled,0);
+   const eyeY=person.seated?1.25:person.z>13.0&&v.hatchOpen?1.62-.25*(person.z-13):1.62;
+   const yaw=person.yaw||0,pitch=person.pitch||0;
+   const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
+   const eye=[person.x,eyeY,person.z];
+   const vp=multiply4(perspective(75*DEG,asp,.12,42000),lookAt(eye,
+    [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
+   this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
+   const site=this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
+    v.launchSite?.bodyId===this.planet.id?v.launchSite:null;
+   if(phase.showGround&&site&&this.terrain){
+    const key=[this.planet.id,site.lat.toFixed(5),site.lon.toFixed(5)].join(":");
+    if(key!==this.shipTerrainKey){
+     this.shipTerrainPatch?.destroy();this.shipTerrainPatch=null;
+     this.shipTerrainPatch=new Mesh(gl,samplePatch(this.terrain,site.lat,site.lon,640,42));
+     this.shipTerrainKey=key;
+    }
+    const ground=terrainSurface(this.terrain,site.lat,site.lon).elevationM;
+    const groundMatrix=multiply4(translate(0,-ground-2.0-phase.lift,0),
+      rotateY(-(site.yaw||0)));
+    this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),[.64,.89,.42],1,.63);
+   }
+   if(phase.showGlobe){
+    const progress=v.progress||0;
+    const target=v.destinationId&&bodyById(v.destinationId);
+    const origin=bodyById(v.originId);
+    let hex=(target?.color||origin?.color||"#95bee5");
+    if(v.status==="ascent"||v.status==="origin-orbit")hex=origin?.color||hex;
+    hex=hex.replace("#","");
+    const rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+    const radius=v.status==="ascent"?100+phase.lift*.020:
+     v.status==="entry"?120+Math.max(0,v.stageProgress||0)*300:
+     ["cruise","approach","orbit"].includes(v.status)?10+Math.pow(progress,2.5)*210:120;
+    const z=v.status==="ascent"?-950:v.status==="entry"?-390:
+      ["cruise","approach"].includes(v.status)?-420:-460;
+    const globe=multiply4(translate(0,-50,z),scale3(radius,radius,radius));
+    this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
+   }
+   this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+   return "ship-interior";
+  }
+
  /** A train follows its actual geodesic rail path, never a free-flight camera proxy. */
  renderRailJourney(asp,dt=1/60){
   const pose=this.railJourney?.pose,locations=this.railJourney?.locations||[];
@@ -2801,7 +2861,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
