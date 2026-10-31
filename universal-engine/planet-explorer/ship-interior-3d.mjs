@@ -58,11 +58,13 @@ export function createShipGeometry(open=false){
  // Front observation glazing is open to the view of the approaching world.
  box(a,-3.6,1.7,-13.08,.85,3.5,.32,"wall");
  box(a,3.6,1.7,-13.08,.85,3.5,.32,"wall");
- box(a,0,.53,-13.08,6.4,1.1,.32,"wall");
+ // Panoramic lower glazing lets a seated pilot see the receding terrain
+ // and planetary horizon instead of staring across a solid chest-high wall.
+ box(a,0,.24,-13.08,6.4,.52,.32,"wall");
  box(a,0,3.18,-13.08,6.4,.96,.32,"wall");
  box(a,0,2.61,-13.1,6.25,.085,.19,"frame");
- box(a,0,1.1,-13.1,6.25,.10,.19,"frame");
- box(a,0,1.9,-13.09,.10,1.72,.12,"frame");
+ box(a,0,.52,-13.1,6.25,.09,.19,"frame");
+ box(a,0,1.56,-13.09,.10,2.08,.12,"frame");
  // Cockpit/corridor and cargo partitions have a central 2.6m doorway.
  for(const z of [-4.8,4.5]){
   box(a,-2.7,1.72,z,2.55,3.48,.26,"wall");
