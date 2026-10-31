@@ -22,7 +22,7 @@ export class SpaceVoyage{
  get readyToLand(){return this.status==="orbit"&&Math.abs(this.heading)<=12;}
  get phase(){
   return this.status==="preflight"?"離陸準備":
-   this.status==="launch"?"大気圏離脱":this.status==="cruise"?"恒星間ではなく惑星間巡航":
+   this.status==="launch"?"大気圏離脱":this.status==="cruise"?"惑星間巡航":
    this.status==="approach"?"目的天体へ接近":"周回軌道・着陸待機";
  }
  launch(){
