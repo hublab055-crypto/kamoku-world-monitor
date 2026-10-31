@@ -34,7 +34,7 @@ export function maneuverSpeedMps(state){
 }
 export function advanceShipDynamics(state,{
  dt=0,status="docked",autopilot=true,heading=0,pitchCommand=0,rollCommand=0,
- throttle=0,fuel=0
+ throttle=0,fuel=0,attitudeOnly=false,physicalYawDegrees=null
 }={}){
  if(!finite(dt)||dt<0)throw new RangeError("Invalid dynamics clock");
  const result=restoreShipDynamics(state);
@@ -42,7 +42,8 @@ export function advanceShipDynamics(state,{
  const s=clamp(dt,0,.12);
  if(s===0)return result;
  const targets={
-  yaw:autopilot?0:clamp(heading,-60,60)*DEG,
+  yaw:autopilot?0:clamp(finite(physicalYawDegrees)?physicalYawDegrees:heading,
+   finite(physicalYawDegrees)?-180:-60,finite(physicalYawDegrees)?180:60)*DEG,
   pitch:autopilot?0:clamp(pitchCommand,-35,35)*DEG,
   roll:autopilot?0:clamp(rollCommand,-45,45)*DEG
  };
@@ -57,6 +58,7 @@ export function advanceShipDynamics(state,{
    result[axis]+=result[rateKey]*h;
    if(Math.abs(result[axis])<eps&&Math.abs(result[rateKey])<eps){result[axis]=0;result[rateKey]=0;}
   }
+  if(attitudeOnly)continue; // Physical integrator owns all translation and velocity.
   const active=["ascent","origin-orbit","cruise","approach","orbit","entry"].includes(status);
   if(!active)continue;
   const thrust=active&&fuel>0?clamp(throttle,0,1)*4.8:0; // m/s² local maneuver thrusters
