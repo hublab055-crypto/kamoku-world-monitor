@@ -1477,6 +1477,82 @@ function captureGame(){
   }
   return state;
 }
+function currentShipHatch(){
+ if(!surfaceShip?.present(solarSystem.currentId)||controller.altitudeM>12.1)return null;
+ return surfaceShip.offsetFromCoords(controller.origin,controller.x,controller.z,planet.radiusM);
+}
+function toggleSurfaceShipHatch(){
+ const permitted=canDepartCelestial();if(!permitted.ok)return permitted;
+ const hatch=currentShipHatch();
+ if(!hatch||hatch.distanceM>5.5)return {ok:false,message:"宇宙船後部のハッチに近づいてください"};
+ surfaceShip.hatchOpen=!surfaceShip.hatchOpen;
+ renderer.patchKey=null;
+ surfaceShipUI?.update(true);
+ return {ok:true,message:surfaceShip.hatchOpen?"🚪 宇宙船のハッチを開け、ランプを展開しました":"🔒 宇宙船のハッチを閉じました"};
+}
+function boardSurfaceStarship(){
+ if(voyage?.active)return {ok:false,message:"すでに宇宙船に乗っています"};
+ const permitted=canDepartCelestial();if(!permitted.ok)return permitted;
+ const hatch=currentShipHatch();
+ if(!hatch||hatch.distanceM>4.5)return {ok:false,message:"宇宙船の船尾まで歩いてください"};
+ if(!surfaceShip.hatchOpen)return {ok:false,message:"ハッチを開けてください"};
+ try{
+  const state=captureGame();solarSystem.store(solarSystem.currentId,state);
+  voyage=new ShipJourney({originId:solarSystem.currentId,
+   launchDay:planet.timeDays,hatchOpen:true,status:"docked",
+   interior:{schemaVersion:1,x:0,z:11.4,yaw:Math.PI,mode:"interior"}});
+  running=false;simWorld.clock.paused=true;lastTime=0;
+  solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
+  return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
+ }catch(error){voyage=null;return {ok:false,message:"乗船に失敗："+error.message};}
+}
+function shipToggleHatch(){
+ if(voyage?.kind!=="surface-to-surface")return {ok:false,message:"船内にいません"};
+ const result=voyage.toggleHatch();
+ if(result.ok&&surfaceShip?.present(solarSystem.currentId)){
+  surfaceShip.hatchOpen=voyage.hatchOpen;renderer.patchKey=null;
+ }
+ return result;
+}
+function shipSit(){return voyage?.kind==="surface-to-surface"?voyage.sit():{ok:false,message:"3D船内で操作してください"};}
+function shipStand(){return voyage?.kind==="surface-to-surface"?voyage.stand():{ok:false,message:"3D船内で操作してください"};}
+function shipRoutes(){
+ if(voyage?.kind!=="surface-to-surface")return [];
+ return BODIES.filter(body=>body.landable&&body.id!==voyage.originId)
+  .map(body=>{const plan=solarSystem.travelPlan(body.id);
+   return plan.ok?{id:body.id,name:body.name,flightDays:plan.flightDays}:null;
+  }).filter(Boolean);
+}
+function setShipDestination(id){
+ if(voyage?.kind!=="surface-to-surface")return {ok:false,message:"宇宙船に乗ってください"};
+ const plan=solarSystem.travelPlan(id);if(!plan.ok)return plan;
+ return voyage.chooseDestination(id,plan.flightDays);
+}
+function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
+ voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
+function shipEgress(){
+ if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
+  return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
+ if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
+ try{
+  controller.setLanding(surfaceShip.lat,surfaceShip.lon);
+  controller.x=Math.sin(surfaceShip.yaw)*19;
+  controller.z=Math.cos(surfaceShip.yaw)*19;
+  const geo=controller.locationAt(controller.x,controller.z);
+  controller.lat=geo.lat;controller.lon=geo.lon;
+  controller.altitudeM=2.5;controller.targetAltitude(2.5);
+  squad.repositionAfterLanding();
+  renderer.patchKey=null;lastTime=0;
+  voyage=null;running=true;simWorld.clock.paused=false;
+  voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
+  return {ok:true,message:"🌍 ランプから地表へ降り立ちました。宇宙船はハッチを開いたまま着陸地点に残ります"};
+ }catch(error){return {ok:false,message:"下船エラー："+error.message};}
+}
+function completeShipLanding(){
+ if(voyage?.kind!=="surface-to-surface"||voyage.status!=="landed"||!voyage.destinationId)
+  return {ok:false,message:"着陸条件が成立していません"};
+ return travelToCelestial(voyage.destinationId,0,true);
+}
 function canDepartCelestial(){
  if(xrUI?.active)return {ok:false,message:"VR/MRを終了してから航行してください"};
  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
