@@ -40,7 +40,7 @@ function sphere(data,x,y,z,r,c){
   for(const vtx of [v(a,b),v(a+1,b+1),v(a+1,b),v(a,b),v(a,b+1),v(a+1,b+1)])data.push(...vtx);
  }
 }
-function createShipGeometry(open=false){
+export function createShipGeometry(open=false){
  const a=[];
  // Main pressure hull: 26m long, 8m wide, 3.5m ceiling
  box(a,0,-.17,0,8,.36,26.2,"floor");
