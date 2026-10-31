@@ -3819,7 +3819,8 @@ solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
 voyageUI=installSpaceFlightUI({get:()=>voyage,
  onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
- getCargo:()=>actions?.resources||{},notify:log});
+ getCargo:()=>actions?.resources||{},
+ getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],notify:log});
 celestialSky=installCelestialSkyViewport({get:()=>({
  solarSystem,planet,controller,xrActive:Boolean(xrUI?.active),
  inside:Boolean(townLife?.inside||marine?.cabinId||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
