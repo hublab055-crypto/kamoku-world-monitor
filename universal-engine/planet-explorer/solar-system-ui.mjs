@@ -11,7 +11,7 @@ export function installSolarSystemUI({get,onTravel,onMine,notify}){
  const header=document.createElement("div");header.className="line";header.append(title,close);
  const status=document.createElement("p"),orbit=document.createElement("canvas"),sky=document.createElement("canvas"),skyText=document.createElement("p"),targets=document.createElement("div");
  orbit.width=350;orbit.height=180;sky.width=350;sky.height=140;
- const explanation=document.createElement("p");explanation.textContent="公転・自転に連動する試験版。船の操縦と軌道遷移アニメーションは未対応で、航行はゲーム時間を進めた画面切替です。";
+ const explanation=document.createElement("p");explanation.textContent="公転・自転に連動する試験版。航行先を選ぶと宇宙船の操縦席へ移り、離陸・巡航・接近・着陸を操作できます。物理計算や距離はゲーム向けに簡略化しています。";
  panel.append(header,status,orbit,document.createTextNode("地表から見える天体（方位角・高度）"),sky,skyText,targets,explanation);
  document.querySelector(".canvas-wrap").append(panel);
  const hint=document.createElement("div");hint.id="solar-sky-hint";document.querySelector(".canvas-wrap").append(hint);
@@ -61,7 +61,7 @@ export function installSolarSystemUI({get,onTravel,onMine,notify}){
    const el=document.createElement("div");el.className="body";const row=document.createElement("div");row.className="line";
    const title=document.createElement("strong");title.textContent=b.name;
    const btn=document.createElement("button");btn.type="button";
-   btn.textContent=b.id===system.currentId?"滞在中":b.kind==="asteroid-belt"?"☄ 採掘":b.landable?"🚀 航行":"着陸不可";
+   btn.textContent=b.id===system.currentId?"滞在中":b.kind==="asteroid-belt"?"☄ 採掘":b.landable?"🚀 操縦席へ":"着陸不可";
    btn.disabled=b.id===system.currentId||(!b.landable&&b.kind!=="asteroid-belt");
    btn.addEventListener("click",()=>{
     if(b.kind==="asteroid-belt"){const result=onMine();notify?.(result.message);render(true);return;}
