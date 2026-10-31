@@ -16,6 +16,11 @@ export class ShipJourney{
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
    {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0}:null;
+  // Pre-selected safe touchdown site stays fixed through atmospheric entry.
+  const pad=data.landingSite;
+  this.landingSite=pad&&pad.bodyId===this.destinationId&&
+   [pad.lat,pad.lon,pad.yaw,pad.padElevationM].every(finite)?
+   {bodyId:pad.bodyId,lat:pad.lat,lon:pad.lon,yaw:pad.yaw,padElevationM:pad.padElevationM}:null;
   this.progress=clamp(data.progress??0,0,1);
   this.stageProgress=clamp(data.stageProgress??0,0,1);
   this.elapsedSeconds=Math.max(0,finite(data.elapsedSeconds)?data.elapsedSeconds:0);
@@ -94,6 +99,14 @@ export class ShipJourney{
   this.status="entry";this.stageProgress=0;this.interior.hatchPassable=false;
   return {ok:true,message:"🔥 大気圏突入開始。着陸姿勢を保持してください"};
  }
+ setLandingSite(site){
+  if(!["orbit","entry","landed"].includes(this.status))return false;
+  if(!site||site.bodyId!==this.destinationId||
+     ![site.lat,site.lon,site.yaw,site.padElevationM].every(finite))return false;
+  this.landingSite={bodyId:site.bodyId,lat:site.lat,lon:site.lon,
+   yaw:site.yaw,padElevationM:site.padElevationM};
+  return true;
+ }
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
  steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
@@ -125,7 +138,7 @@ export class ShipJourney{
  }
  snapshot(){
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
-   status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,progress:this.progress,
+   status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
