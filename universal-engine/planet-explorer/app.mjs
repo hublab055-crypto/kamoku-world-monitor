@@ -662,7 +662,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"){
-   if(voyage?.kind==="surface-to-surface"&&voyage.status==="entry"&&
+   if(voyage?.kind==="surface-to-surface"&&["entry","touchdown"].includes(voyage.status)&&
       (!shipArrivalPreview||shipArrivalPreview.bodyId!==voyage.destinationId)){
     try{prepareShipArrival();}
     catch(error){
