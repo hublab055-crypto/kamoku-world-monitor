@@ -1411,7 +1411,7 @@ function completeSuccession(id){
  saveLawJournal();saveLifeJournal();updateHUD();return result;
 }
 function captureGame(){
-  return {format:"ue/explorer-demo",version:1,
+  const state={format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
@@ -1433,6 +1433,58 @@ function captureGame(){
     v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
+  if(solarSystem){
+   solarSystem.sync(planet.timeDays);
+   solarSystem.store(solarSystem.currentId,state);
+   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot()};
+  }
+  return state;
+}
+function travelToCelestial(id,flightDays){
+ if(xrUI?.active)return {ok:false,message:"VR/MRを終了してから航行してください"};
+ if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
+  return {ok:false,message:"拘束・継承処理中は他天体に移動できません"};
+ if(railway?.boarded||ferry?.boarded||marine?.boarded||townLife?.inside)
+  return {ok:false,message:"乗り物や建物から出て宇宙船に搭乗してください"};
+ const plan=solarSystem.travelPlan(id);
+ if(!plan.ok)return plan;
+ const current=captureGame();
+ try{
+  const previouslyVisited=solarSystem.load(id);
+  const next=previouslyVisited||freshCelestialSave(current,id,solarSystem.days);
+  carryCelestialInventory(next,current);
+  if(!next.v0_8s&&current.v0_8s)
+   next.v0_8s={...new TownLife().snapshot(),coins:current.v0_8s.coins};
+  solarSystem.arrive(id,plan.flightDays);
+  next.planet.timeDays=solarSystem.days;
+  next.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot()};
+  running=false;init(next);
+  if(!$("fatal").hidden)throw Error($("fatal").textContent);
+  if(!previouslyVisited){
+   controller.setLanding(terrain.landscapeAnchor.lat,terrain.landscapeAnchor.lon);
+   squad.repositionAfterLanding();renderer.patchKey=null;
+  }
+  solarUI?.refresh();updateHUD();
+  return {ok:true,message:"🚀 "+bodyById(id).name+"へ到着。開拓・建築記録は天体別に保存されます。"};
+ }catch(error){
+  running=false;init(current);updateHUD();
+  return {ok:false,message:"航行エラー："+error.message+"（出発地点に復帰）"};
+ }
+}
+function mineAsteroids(){
+ if(xrUI?.active)return {ok:false,message:"VR/MRを終了して探査機を操作してください"};
+ if(controller.altitudeM<=ORBIT_GROUND_CUTOFF_M)
+  return {ok:false,message:"探査機は宇宙視点から操作してください"};
+ if(law?.custody||railwaySecurity?.jailed)
+  return {ok:false,message:"勾留中は採掘できません"};
+ const result=solarSystem.mineBelt();
+ actions.resources.ironOre=(actions.resources.ironOre||0)+result.iron;
+ actions.resources.stone=(actions.resources.stone||0)+result.stone;
+ actions.resources.metal=(actions.resources.metal||0)+result.rare;
+ planet.advance(result.days);solarSystem.sync(planet.timeDays);
+ updateHUD();
+ return {ok:true,message:"☄️ 小惑星帯から鉄鉱石+"+result.iron+"、石材+"+
+  result.stone+"、希少金属+"+result.rare+"回収（探査機・試験版）"};
 }
 $("save").addEventListener("click",()=>{
  try{
@@ -3701,6 +3753,9 @@ window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal()
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
+solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
+ onTravel:travelToCelestial,onMine:mineAsteroids,notify:log});
+solarUI.refresh();
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onVRGroundStart:()=>{
