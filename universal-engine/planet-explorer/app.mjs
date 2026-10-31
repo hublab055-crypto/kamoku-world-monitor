@@ -84,7 +84,8 @@ import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
 import {installXRUI} from "./xr-ui.mjs?v=0.9u-vr-roaming-portable-save-20261027-foothold-ledge-v09zb";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
-import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
+import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
+import {installMusicUI} from "./music-ui.mjs?v=0.9ak-music";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -114,7 +115,7 @@ const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null;
-let xrUI=null,mediaUI=null,footVoyage=null;
+let xrUI=null,mediaUI=null,musicUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -4040,6 +4041,7 @@ window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal()
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
+musicUI=installMusicUI({getMediaUI:()=>mediaUI,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,

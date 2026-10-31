@@ -1,0 +1,40 @@
+/* Music Studio: independent of viewport rendering, touch and Quest browser friendly. */
+.ue-music-panel[hidden]{display:none!important}
+.ue-music-panel{position:fixed;z-index:525;inset:max(6px,env(safe-area-inset-top)) 6px max(6px,env(safe-area-inset-bottom));max-width:850px;margin:auto;display:flex;flex-direction:column;overflow:hidden;color:#eef8fd;background:#091b29f5;border:1px solid #5b8396;border-radius:12px;box-shadow:0 20px 65px #0009;font:13px/1.5 system-ui,sans-serif}
+.ue-music-header{padding:10px 14px;background:#173949;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ue-music-header strong{font-size:17px}
+.ue-music-scroll{display:grid;gap:10px;overflow:auto;overscroll-behavior:contain;padding:10px;min-height:0}
+.ue-music-section{border:1px solid #365a68;background:#112e3d;border-radius:9px;padding:9px;display:grid;gap:8px;min-width:0}
+.ue-music-section h3{font-size:14px;margin:0}
+.ue-music-section small{color:#bdd2d7}
+.ue-music-row{display:flex;flex-wrap:wrap;gap:7px;align-items:end}
+.ue-music-row label{display:grid;gap:3px;flex:1;min-width:120px}
+.ue-music-row label.ue-music-check{display:flex;align-items:center;gap:4px;min-width:80px;flex:0}
+.ue-music-panel button,.ue-music-panel input,.ue-music-panel select{font:inherit}
+.ue-music-panel button{cursor:pointer;border:1px solid #7497a4;border-radius:6px;background:#24516a;color:white;padding:6px 9px;min-height:34px;touch-action:manipulation}
+.ue-music-panel button:active{background:#3985a9}
+.ue-music-panel input:not([type="checkbox"]):not([type="file"]),.ue-music-panel select{background:#0a2534;color:white;border:1px solid #7692a0;border-radius:6px;min-width:0;width:100%;padding:8px;font-size:16px}
+.ue-music-panel input[type="file"]{max-width:100%;font-size:12px}
+.ue-music-panel audio{width:100%;min-height:40px}
+.ue-music-keys{display:flex;max-width:100%;overflow-x:auto;gap:2px;padding-bottom:5px}
+.ue-music-panel .ue-music-pad{user-select:none;-webkit-user-select:none;touch-action:none;min-height:56px;min-width:43px;padding:5px 3px;background:#e4ecef;color:#153243;border-color:#7896a4;font-size:12px}
+.ue-music-panel .ue-music-pad.is-black{background:#1d2b38;color:#eef7ff}
+.ue-music-panel .ue-music-pad:active{background:#efbe78;color:#13222c}
+.ue-music-guitar{overflow:auto;padding-bottom:4px}
+.ue-music-string{display:flex;gap:3px;align-items:center;width:max-content;margin:3px 0}
+.ue-music-string>span{width:30px;flex:none}
+.ue-music-string .ue-music-pad{min-height:38px;min-width:43px}
+.ue-music-drums{display:flex;gap:6px;flex-wrap:wrap}
+.ue-music-drums .ue-music-pad{min-width:80px}
+.ue-music-section details{border:1px solid #3e6575;border-radius:6px;padding:6px}
+.ue-music-section summary{cursor:pointer}
+.ue-music-grid-scroll{overflow-x:auto;max-width:100%;border:1px solid #375a6b;border-radius:7px}
+.ue-music-grid{width:max-content;min-width:100%;padding:5px}
+.ue-music-step-row{display:grid;grid-template-columns:112px repeat(32,39px);gap:3px;margin:3px 0;align-items:center}
+.ue-music-track-name{font-size:11px;white-space:nowrap}
+.ue-music-step-number{text-align:center;color:#a9c5ca;font-size:10px}
+.ue-music-panel .ue-music-step{font-size:9px;min-width:0;width:39px;height:36px;min-height:36px;padding:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;background:#193d4b;border-color:#3b6575}
+.ue-music-panel .ue-music-step.is-beat{border-left:3px solid #91b7c6}
+.ue-music-panel .ue-music-step.is-active{background:#d5a151;color:#111c29;font-weight:bold}
+.ue-music-panel [data-status]{min-height:1.7em;color:#f6dfac;white-space:pre-wrap}
+@media(max-width:580px){.ue-music-header{padding:7px 10px}.ue-music-scroll{padding:7px}.ue-music-section{padding:7px}.ue-music-panel .ue-music-pad{min-width:39px}}
