@@ -6,7 +6,7 @@ import {MUSIC_STEPS,MUSIC_TRACKS,GUITAR_OPEN_NOTES,newScore,normalizeScore,
  addNote,toggleStep,noteName,renderScoreWav} from "./music-core.mjs";
 import {readMediaFile} from "./media-storage.mjs";
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
-import {newMusicStage,normalizeMusicStage,musicStageRayHit} from "./music-world.mjs";
+import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
 const WORLD_KEY="universal-engine:music:instruments:v1";
 const TRACK_LABEL={keys:"🎹 キーボード",guitar:"🎸 ギター",bass:"🎼 ベース",drums:"🥁 ドラム"};
@@ -75,7 +75,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
  const el=q=>$(panel,q);
  const player=el("[data-player]");
  let scores=[],score=newScore(),selected=-1,pitch=60,recordingAt=null;
- let audioUrl=null,audioCtx=null;const presses=new Map();
+ let audioUrl=null,audioCtx=null;const presses=new Map(),touching=new Map();
  const stages={};
  try{const data=JSON.parse(localStorage.getItem(WORLD_KEY)||"{}");
   if(data&&typeof data==="object"&&!Array.isArray(data))
@@ -348,19 +348,42 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   for(const key of Array.from(presses.keys()))finishNote(key);
   if(audioUrl)URL.revokeObjectURL(audioUrl);
  });
- function handleXR({phase,rayMatrix,stageMatrix,hand="right"}){
+ function handleXR({phase,rayMatrix,handMatrix,stageMatrix,hand="right"}={}){
+  if(phase==="reset"){
+   for(const h of ["left","right"]){
+    finishNote("xr-music-"+h);finishNote("xr-touch-"+h);touching.delete(h);
+   }
+   return {handled:false};
+  }
+  if(phase==="end"){
+   const key="xr-music-"+hand;
+   if(presses.has(key)){finishNote(key);return {handled:true};}
+   return {handled:false};
+  }
   if(!canPlayWorld()||!stageMatrix)return {handled:false};
   const id=planetId(),placement=stages[id],controller=getController();
   if(!placement||!controller||controller.altitudeM>12)return {handled:false};
   const key="xr-music-"+hand;
-  if(phase==="end"){
-   if(presses.has(key)){finishNote(key);return {handled:true};}
-   return {handled:false};
-  }
-  if(phase!=="start"||!rayMatrix)return {handled:false};
+  if(phase!=="start"&&phase!=="touch")return {handled:false};
+  if(phase==="start"&&presses.has("xr-touch-"+hand))
+   return {handled:true,track:touching.get(hand)?.track||"keys"};
   const delta=geoLocal(controller.lat,controller.lon,placement.lat,placement.lon,getPlanet().radiusM);
   const here=Math.max(0,terrainSurface(getTerrain(),controller.lat,controller.lon).elevationM);
   const offset=[delta.eastM,placement.heightM-here,delta.northM];
+  if(phase==="touch"){
+   const contact=Math.hypot(offset[0],offset[2])<=4?
+    musicStageHandHit(handMatrix,stageMatrix,offset,placement.yaw):null;
+   const old=touching.get(hand),contactKey="xr-touch-"+hand;
+   if(!contact||old?.track!==contact.track||old?.pitch!==contact.pitch){
+    finishNote(contactKey);touching.delete(hand);
+    if(contact){
+     beginNote(contactKey,contact.track,contact.pitch,[offset[0],offset[1]+1,offset[2]]);
+     touching.set(hand,contact);
+    }
+   }
+   return {handled:Boolean(contact),track:contact?.track,pitch:contact?.pitch};
+  }
+  if(!rayMatrix)return {handled:false};
   if(Math.hypot(offset[0],offset[2])>4)return {handled:false};
   const hit=musicStageRayHit(rayMatrix,stageMatrix,offset,placement.yaw);
   if(!hit)return {handled:false};
