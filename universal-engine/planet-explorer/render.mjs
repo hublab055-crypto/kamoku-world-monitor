@@ -50,8 +50,9 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5";
 import {bodyById} from "./solar-system.mjs?v=1";
+import {shipTerrainTier,curvedShipTerrainGeometry,shipSiteRenderFrame,planetRenderPose,shipPlanetSurfaceGeometry} from "./ship-planet-view.mjs?v=3";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -777,6 +778,7 @@ export class ExplorerRenderer{
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipTerrainPatch=null;this.shipTerrainKey="";
+   this.shipPlanetSurfaceMesh=null;this.shipPlanetSurfaceKey="";
    this.surfaceShipMeshes=[new Mesh(gl,spacecraftGroundGeometry(false)),new Mesh(gl,spacecraftGroundGeometry(true))];
    this.screenMarineFurniture=[];
    const rod=builder();
@@ -1686,6 +1688,12 @@ export class ExplorerRenderer{
    const gl=this.gl,v=this.shipVoyage;
    if(!v?.interior)return "ground";
    const phase=groundScenePhase(v),person=v.interior,sky=phase.sky;
+   // An authoritative double-precision pose is shared by ship, crew and planet.
+   // Keep visual LOD compression separate until full spherical terrain streaming lands.
+   this.shipFramePose=typeof v.framePose==="function"?v.framePose(this.planet.timeDays):null;
+   v.currentFramePose=this.shipFramePose; // runtime HUD only; never written to saves
+   // Physical rendering is opt-in for the new voyage; legacy SpaceVoyage stays intact.
+   if(this.shipFramePose)return this.renderShipPhysicalScene(asp,dt);
    gl.clearColor(.012+sky*.39,.023+sky*.58,.051+sky*.71,1);
    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
@@ -1759,6 +1767,116 @@ export class ExplorerRenderer{
    this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
    return "ship-interior";
   }
+
+ /**
+  * Ship cabin and terrain share one camera. Globe centre/radius comes from the
+  * same double-precision solar frame as the landing pad, not a fixed Z prop.
+  */
+ renderShipPhysicalScene(asp,dt=1/60){
+  const gl=this.gl,v=this.shipVoyage,frame=this.shipFramePose,person=v.interior;
+  const arrival=["entry","touchdown","landed"].includes(v.status);
+  const site=arrival?
+   (v.landingSite?.bodyId===v.destinationId?v.landingSite:this.shipArrivalPreview?.site):
+   v.launchSite;
+  const terrain=arrival?
+   (this.shipArrivalPreview?.bodyId===v.destinationId?this.shipArrivalPreview.terrain:
+    this.terrain?.planet?.id===v.destinationId?this.terrain:null):
+   this.terrain?.planet?.id===v.originId?this.terrain:null;
+  const nearBody=frame.bodyId&&bodyById(frame.bodyId);
+  const altitude=Number.isFinite(frame.altitudeM)?frame.altitudeM:Infinity;
+  const sky=nearBody?.pressure>0.05?
+   Math.max(0,Math.min(1,(90000-altitude)/90000)):0;
+  gl.clearColor(.012+sky*.39,.023+sky*.58,.051+sky*.71,1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  const eyeY=person.seated?1.25:person.z>13&&v.hatchOpen?1.62-.25*(person.z-13):1.62;
+  const yaw=person.yaw||0;
+  // Pilot's eyes naturally face slightly toward the ground as altitude grows.
+  // Standing/walking crew retain their own uncompensated look direction.
+  const pitchAuto=person.seated?
+   v.status==="entry"?-.18*Math.sin(Math.PI*Math.min(1,v.stageProgress||0)):
+   v.status==="ascent"?-.12*Math.min(1,altitude/25000):0:0;
+  const pitch=Math.max(-1.2,Math.min(1.2,(person.pitch||0)+pitchAuto));
+  const eye=[person.x,eyeY,person.z];
+  const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
+  const vp=multiply4(perspective(75*DEG,asp,.12,58000),lookAt(eye,
+   [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
+  this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
+  const bodyIds=[v.originId,v.destinationId].filter((id,i,a)=>id&&a.indexOf(id)===i&&bodyById(id)?.radiusM);
+  // Preserve true angular size and orientation; a target at interplanetary
+  // distance is intentionally a tiny dot, not a planet arbitrarily near glass.
+  for(const id of bodyIds){
+   const pose=planetRenderPose(frame,id,this.planet.timeDays);
+   // Fade in the large-scale globe before the nearby spherical terrain
+   // runs out, so there is no hard "planet appears" jump at one altitude.
+   const ownPlanet=id===frame.bodyId;
+   const globeOpacity=ownPlanet?Math.max(0,Math.min(1,(altitude-1600)/8000)):1;
+   if(globeOpacity<=0)continue;
+   const surface=terrain?.planet?.id===id?terrain:null;
+   const rgb=(bodyById(id).color||"#84b4cd").replace("#","");
+   const tint=[0,2,4].map(i=>parseInt(rgb.slice(i,i+2),16)/255);
+   let mesh=this.shipPlanetSphere;
+   if(surface){
+    if(this.shipPlanetSurfaceKey!==id||!this.shipPlanetSurfaceMesh){
+     const replacement=new Mesh(gl,shipPlanetSurfaceGeometry(surface));
+     this.shipPlanetSurfaceMesh?.destroy();
+     this.shipPlanetSurfaceMesh=replacement;this.shipPlanetSurfaceKey=id;
+    }
+    mesh=this.shipPlanetSurfaceMesh;
+   }
+   // Small recess behind the detailed surface tile avoids z-fighting.
+   const matrix=pose.matrix.slice();
+   const recessed=surface?1-70/bodyById(id).radiusM:1;
+   for(let i=0;i<12;i++)if(i%4!==3)matrix[i]*=recessed;
+   if(globeOpacity<1){
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+   }
+   this.drawMesh(mesh,multiply4(vp,matrix),[.68,.94,.44],globeOpacity,.75,
+    surface?[1,1,1]:tint);
+   if(globeOpacity<1){gl.depthMask(true);gl.disable(gl.BLEND);}
+  }
+  // Local high-resolution terrain follows exactly the same body orientation
+  // and floating origin as the globe. Radius increases with true altitude.
+  const tier=site&&terrain&&frame.bodyId===site.bodyId?
+   shipTerrainTier(altitude):null;
+  if(tier){
+   const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
+    terrainSurface(terrain,site.lat,site.lon).elevationM;
+   const stableSite={...site,padElevationM:pad,yaw:site.yaw||0};
+   const key=[terrain.planet.id,site.lat.toFixed(6),site.lon.toFixed(6),
+    stableSite.yaw.toFixed(4),pad.toFixed(1),tier.radiusM].join(":");
+   if(key!==this.shipTerrainKey||!this.shipTerrainPatch){
+    const geometry=curvedShipTerrainGeometry(terrain,stableSite,
+     tier.radiusM,tier.resolution);
+    const mesh=new Mesh(gl,geometry);
+    this.shipTerrainPatch?.destroy();this.shipTerrainPatch=mesh;
+    this.shipTerrainKey=key;
+   }
+   const siteMatrix=shipSiteRenderFrame(frame,stableSite,this.planet.timeDays);
+   this.drawMesh(this.shipTerrainPatch,multiply4(vp,siteMatrix),
+    [.63,.90,.43],1,.72);
+   // Close-range villages and trees retain their existing positions on launch.
+   if(!arrival&&altitude<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
+    const origin=this.shipGroundState.origin;
+    const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
+    const landscape=multiply4(siteMatrix,multiply4(
+     rotateY(-stableSite.yaw),translate(this.cx-offset.eastM,
+      -pad-2,this.cz-offset.northM)));
+    const sceneVP=multiply4(vp,landscape);
+    for(const mesh of this.settlement.slice(0,48))
+     this.drawMesh(mesh,sceneVP,[.64,.89,.42],1,.64);
+    for(const mesh of this.settlementDecor.slice(0,20))
+     this.drawMesh(mesh,sceneVP,[.64,.89,.42],1,.69);
+    for(const mesh of this.trees.slice(0,20))
+     this.drawInstancedMesh(mesh,sceneVP,[.65,.88,.46],1,.63);
+   }
+  }
+  this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+  return "ship-interior";
+ }
 
  /** A train follows its actual geodesic rail path, never a free-flight camera proxy. */
  renderRailJourney(asp,dt=1/60){
@@ -2905,7 +3023,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipPlanetSurfaceMesh,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

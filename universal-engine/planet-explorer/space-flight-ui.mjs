@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
+import {installShipInterior3D} from "./ship-interior-3d.mjs?v=9";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -43,7 +43,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight #ship-3d-canvas{touch-action:none}
  #space-flight.integrated{position:absolute;inset:0;z-index:3500;padding:3px;background:transparent;pointer-events:none;overflow-y:auto}
  #space-flight.integrated .flight-head,#space-flight.integrated .flight-readout,
- #space-flight.integrated .flight-actions,#space-flight.integrated .flight-walk,
+ #space-flight.integrated .flight-actions,#space-flight.integrated .flight-manual,#space-flight.integrated .flight-walk,
  #space-flight.integrated .flight-crew,#space-flight.integrated #seamless-ship,
  #space-flight.integrated #flight-dialogue,#space-flight.integrated .flight-guide{pointer-events:auto}
  #space-flight.integrated .flight-head{background:#071e30d9;border-radius:8px}
@@ -57,6 +57,10 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  @media(max-width:590px){#space-flight.integrated .flight-display{min-height:24px}
  #space-flight.integrated .flight-guide{font-size:10px}#space-flight.integrated .flight-actions button{min-height:33px}}
 
+ #space-flight .flight-manual{margin:3px 0;border:1px solid #426b8199;border-radius:7px;background:#071b2db8;padding:4px 7px}
+ #space-flight .flight-manual summary{cursor:pointer;color:#b8e8ff;font-size:12px}
+ #space-flight .flight-physical-monitor{font:11px/1.45 ui-monospace,monospace;color:#c6eaf8;padding:4px}
+ #space-flight .flight-manual .flight-actions{display:flex;flex-wrap:wrap;gap:4px}
  #space-flight .flight-hud{white-space:pre-line}
 
  @media(max-width:560px){#space-flight .flight-readout{font-size:11px}#space-flight .flight-head strong{font-size:13px}#space-flight .flight-actions button{min-width:55px}}
@@ -65,9 +69,11 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  const root=document.createElement("section");root.id="space-flight";root.hidden=true;root.setAttribute("role","region");root.setAttribute("aria-label","惑星間宇宙船の操縦席");
  root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
   '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-hud" id="flight-hud"></div></div>'+
-  '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
-  '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><label>スロットル <input id="flight-throttle" type="range" min="0" max="100" step="5" value="70"></label><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
-  '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し、近くの乗員と会話・貨物確認。航行操作は船内からも可能です。着陸は目的地に接近後。</div>';
+  '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div><div class="flight-stat" id="flight-attitude"></div><div class="flight-stat" id="flight-maneuver-speed"></div></div>'+
+  '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><label>スロットル <input id="flight-throttle" type="range" min="0" max="100" step="5" value="70"></label><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-physics">🌌 物理自由飛行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
+  '<details class="flight-manual" id="flight-manual"><summary>🕹️ 姿勢制御（機首・ロール）</summary><div class="flight-actions"><button type="button" id="flight-pitch-up">⬆ 機首上げ</button><button type="button" id="flight-pitch-down">⬇ 機首下げ</button><button type="button" id="flight-roll-left">↶ 左ロール</button><button type="button" id="flight-roll-right">↷ 右ロール</button><button type="button" id="flight-level">⊕ 水平復帰</button></div>'+
+  '<div class="flight-physical-monitor">物理航行の時間倍率 <select id="flight-warp" aria-label="物理航行の時間倍率"><option value="1">×1</option><option value="10">×10</option><option value="100">×100</option><option value="1000">×1000</option></select> <span id="flight-physics-stat"></span></div></details>'+
+  '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し、近くの乗員と会話・貨物確認。航行操作は船内からも可能です。🌌物理自由飛行は周回軌道で開始し、重力・推力・空気抵抗によって実際の航路が変わります。着陸は案内航路へ復帰して実施してください。手動モードで機首・ロールを操作すると船体が傾きます。案内航行ではスラスター相対速度、物理自由飛行では恒星系の慣性速度を表示します。着陸は目的地に接近後。</div>';
  (document.querySelector(".canvas-wrap")||document.body).append(root);
  const $=id=>root.querySelector("#"+id);
  const screen=$("flight-canvas"),ctx=screen.getContext("2d"),shipCanvas=$("ship-3d-canvas");
@@ -178,9 +184,35 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  const throttle=$("flight-throttle"),main=$("flight-main");
  const run=(fn)=>{const result=fn();if(result?.message)notify?.(result.message);return result;};
  throttle.addEventListener("input",()=>get()?.setThrottle(Number(throttle.value)/100));
- $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
- $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
+ $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false)){if(v.kind==="surface-to-surface")v.setAutopilot(false);v.steer(-8);}});
+ $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false)){if(v.kind==="surface-to-surface")v.setAutopilot(false);v.steer(8);}});
  $("flight-auto").addEventListener("click",()=>{const v=get();if(v)v.setAutopilot(!v.autopilot);});
+ $("flight-physics").addEventListener("click",()=>{
+  const v=get();if(!v?.seated||v.kind!=="surface-to-surface")return;
+  const day=v.currentFramePose?.days??v.freeFlight?.lastDay??v.launchDay;
+  const result=!v.freeFlight?v.beginFreeFlight(day):
+   v.freeFlight.returnToRoute?v.cancelGuidedReturn():v.requestGuidedReturn(day);
+  if(result?.message)notify?.(result.message);
+  render();
+ });
+ $("flight-warp").addEventListener("change",()=>{
+  const v=get();if(v?.freeFlight)v.setFreeFlightWarp(Number($("flight-warp").value));
+ });
+
+ const manualControls=[["flight-pitch-up","pitch",5],["flight-pitch-down","pitch",-5],
+  ["flight-roll-left","roll",-7],["flight-roll-right","roll",7]];
+ for(const [id,kind,amount] of manualControls){
+  $(id).addEventListener("click",()=>{
+   const v=get();if(!v?.seated||!v.pitch||!v.roll)return;
+   v.setAutopilot(false);v[kind](amount);
+  });
+ }
+ $("flight-level").addEventListener("click",()=>{
+  const v=get();if(!v?.seated||!v.pitch||!v.roll)return;
+  v.pitch(-v.pitchCommand);v.roll(-v.rollCommand);v.steer(-v.heading);
+  v.setAutopilot(true);
+ });
+
  $("flight-save").addEventListener("click",()=>run(onSave));
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
  main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
@@ -198,11 +230,40 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
   $("flight-route").textContent="🚀 "+origin.name+" → "+target.name;
   const entryView=["entry","touchdown"].includes(v.status);
-  const height=entryView?Math.round(groundScenePhase(v).lift):null;
+  const physicalAltitude=Number.isFinite(v.currentFramePose?.altitudeM)?
+   Math.round(v.currentFramePose.altitudeM):null;
+  const height=entryView?(physicalAltitude??Math.round(groundScenePhase(v).lift)):null;
   $("flight-phase").textContent="段階："+v.phase+
-   (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
+   (physicalAltitude!==null?" ／ 高度 "+physicalAltitude.toLocaleString("ja-JP")+"m":
+    height!==null?" ／ 高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"°";
+ const attitude=v.flightDynamics||{},radToDeg=180/Math.PI;
+ $("flight-attitude").textContent="姿勢：ヨー "+Math.round((attitude.yaw||0)*radToDeg)+
+  "° ／ ピッチ "+Math.round((attitude.pitch||0)*radToDeg)+
+  "° ／ ロール "+Math.round((attitude.roll||0)*radToDeg)+"°";
+ $("flight-maneuver-speed").textContent=v.freeFlight?
+  "恒星系慣性速度："+Math.round(v.maneuverSpeedMps||0).toLocaleString("ja-JP")+" m/s":
+  "推進相対速度："+Math.round(v.maneuverSpeedMps||0)+" m/s";
+ $("flight-physics").textContent=!v.freeFlight?"🌌 物理自由飛行":
+  v.freeFlight.incident?"⚠️ 地表衝突・停止":
+  v.freeFlight.returnToRoute?"🕹️ 復帰を中断":"🧭 案内航路へ復帰";
+ $("flight-physics").disabled=!v.seated||Boolean(v.freeFlight?.incident)||
+  (!v.freeFlight&&!["origin-orbit","orbit"].includes(v.status));
+ $("flight-physics").setAttribute("aria-pressed",String(Boolean(v.freeFlight)));
+ $("flight-warp").disabled=!v.freeFlight||Boolean(v.freeFlight?.returnToRoute);
+ if(document.activeElement!==$("flight-warp"))
+  $("flight-warp").value=String(v.freeFlight?.warp||1);
+ const physical=v.currentFramePose;
+ $("flight-physics-stat").textContent=v.freeFlight?
+  "重力・大気抵抗有効 ／ "+
+  (Number.isFinite(physical?.altitudeM)?"高度"+Math.round(physical.altitudeM).toLocaleString("ja-JP")+"m ／ ":"")+
+  "抗力 "+(v.flightDragMps2||0).toFixed(2)+"m/s²"+
+  (v.freeFlight.returnToRoute?" ／ 案内軌道へ復帰中":""):
+  "周回軌道でのみ開始可能。時間倍率は高度に応じ自動制限。";
+ for(const [id] of manualControls)$(id).disabled=!v.seated;
+ $("flight-level").disabled=!v.seated;
+
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
@@ -211,8 +272,9 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   main.textContent=groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
    v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":
    v.status==="touchdown"?"🛬 接地確認":v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
+  if(v.freeFlight)main.textContent=v.freeFlight.incident?"⚠️ 航行停止":"🛰️ 慣性自由飛行中";
   main.disabled=v.kind==="surface-to-surface"?
-   !["docked","orbit"].includes(v.status):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
+   (Boolean(v.freeFlight)||!["docked","orbit"].includes(v.status)):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
   if(v.seated===false){
    $("flight-left").disabled=true;$("flight-right").disabled=true;
   }else{

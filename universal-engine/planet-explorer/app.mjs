@@ -5,19 +5,20 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
-import {ShipJourney} from "./ship-journey.mjs?v=6";
-import {SurfaceStarship} from "./surface-starship.mjs?v=3";
+import {ShipJourney} from "./ship-journey.mjs?v=13";
+import {geodeticToShipLocal,shipLocalToGeodetic} from "./unified-space-frame.mjs?v=3";
+import {SurfaceStarship} from "./surface-starship.mjs?v=4";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=9";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=14";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9aj-cockpit-reentry-terrain-20261031";
+import {ExplorerRenderer} from "./render.mjs?v=0.9an2-solar-physics-flight-20261031";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -69,7 +70,7 @@ import {AgricultureWorld} from "./agriculture.mjs?v=0.8g-farming";
 import {installAgricultureUI} from "./agriculture-ui.mjs?v=0.8g-panel";
 import {MarineWorld,BOATS,resolveLanding} from "./marine.mjs?v=0.8v-alpine-horizon";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES} from "./ocean-exploration.mjs?v=0.8o-seabed";
-import {shipLocalToWorld,shipWorldToLocal,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
+import {shipLocalToWorld,SHIP_HELM} from "./shipboard.mjs?v=0.8n-crew-walking";
 import {FISH_CATALOG} from "./ship-life.mjs?v=0.8p-cast-reel";
 import {mapToWorld,routePreview} from "./map-navigation.mjs?v=0.8q-map-goal";
 import {installRouteMapUI} from "./map-route-ui.mjs?v=0.8q-chart";
@@ -670,7 +671,7 @@ function doFrame(t,source="window",xrFrameInput=null){
      log("着陸地点の再取得に失敗："+error.message+"。周回軌道に戻しました。");
     }
    }
-   const before=voyage.status,advanced=voyage.tick(dt);
+   const before=voyage.status,advanced=voyage.tick(dt,planet.timeDays);
    if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
    if(voyage?.kind==="surface-to-surface"&&before!=="landed"&&voyage.status==="landed"){
     const r=completeShipLanding();
@@ -1560,7 +1561,7 @@ function boardSurfaceStarship(){
  if(!surfaceShip.hatchOpen)return {ok:false,message:"ハッチを開けてください"};
  try{
   const state=captureGame();solarSystem.store(solarSystem.currentId,state);
-  const local=shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
+  const local=geodeticToShipLocal(surfaceShip,planet.radiusM,controller.lat,controller.lon);
   voyage=new ShipJourney({originId:solarSystem.currentId,
    launchDay:planet.timeDays,launchSite:surfaceShip.snapshot(),hatchOpen:true,status:"docked",
    interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
@@ -1593,16 +1594,16 @@ function setShipDestination(id){
  return voyage.chooseDestination(id,plan.flightDays);
 }
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
- voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
+ voyage.startTransfer(planet.timeDays):{ok:false,message:"軌道上で航路を設定してください"};}
 function shipEgress(){
  if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
   const cabinX=voyage.interior.x,cabinZ=Math.max(17.3,voyage.interior.z);
-  controller.setLanding(surfaceShip.lat,surfaceShip.lon);
-  const ground=shipLocalToWorld(0,0,surfaceShip.yaw,cabinX,cabinZ);
-  controller.x=ground.x;controller.z=ground.z;
+  // Exit at the true geodetic ramp position, not a second approximate planar origin.
+  const ground=shipLocalToGeodetic(surfaceShip,planet.radiusM,cabinX,cabinZ);
+  controller.setLanding(ground.lat,ground.lon);
   controller.yaw=voyage.interior.yaw+(surfaceShip.yaw||0);
   const geo=controller.locationAt(controller.x,controller.z);
   controller.lat=geo.lat;controller.lon=geo.lon;
