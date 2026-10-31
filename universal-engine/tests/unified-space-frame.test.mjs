@@ -85,3 +85,31 @@ test("save/load retains trajectory inputs and continuous geospatial pose",()=>{
  almost(distance(before,after),0,1e-4);
  assert.equal(restored.snapshot().schemaVersion,2);
 });
+
+test("transfer started days after launch uses the live departure body, not launch-day coordinates",()=>{
+ const v=ship();v.status="origin-orbit";
+ const now=19.24,atOrbit=v.framePose(now);
+ assert.ok(v.startTransfer(now).ok);
+ almost(distance(v.framePose(now).position,atOrbit.position),0,.001);
+ const clone=ShipJourney.fromSnapshot(v.snapshot());
+ almost(clone.transferStartDay,now,1e-12);
+ almost(distance(clone.framePose(now).position,atOrbit.position),0,.001);
+});
+test("ship orientation retains the same body-fixed handedness across liftoff and cruise",()=>{
+ const v=ship(),d=v.launchDay;
+ const sign=f=>{
+  const c=[f.right[1]*f.up[2]-f.right[2]*f.up[1],
+   f.right[2]*f.up[0]-f.right[0]*f.up[2],
+   f.right[0]*f.up[1]-f.right[1]*f.up[0]];
+  return c.reduce((s,x,i)=>s+x*f.back[i],0);
+ };
+ const start=v.framePose(d);
+ v.status="ascent";v.stageProgress=1;
+ const asc=v.framePose(d);
+ v.status="origin-orbit";const park=v.framePose(d);
+ v.startTransfer(d);v.progress=0;
+ const cruise=v.framePose(d);
+ assert.ok(sign(start)<-.99&&sign(asc)<-.99&&sign(park)<-.99&&sign(cruise)<-.99);
+ const same=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
+ assert.ok(same(park.back,cruise.back)>.999,"cockpit must not rotate 180 degrees on transfer");
+});
