@@ -221,9 +221,9 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(interiorView){
    $("flight-hud").textContent=entryView?
     "🛬 "+target.name+" / "+(v.landingSite?"着陸地点を捕捉":"地表測量中")+
-    "\\n"+(v.status==="touchdown"?"接地・エンジン停止":("高度 約"+height.toLocaleString("ja-JP")+"m"))+
-    "\\n"+(v.status==="touchdown"?"操縦席から外の地表を確認できます":"進入姿勢を維持してください"):
-    "3D SHARED SCENE · "+v.phase+"\\n"+target.name+" "+Math.round(v.progress*100)+"%";
+    "\n"+(v.status==="touchdown"?"接地・エンジン停止":("高度 約"+height.toLocaleString("ja-JP")+"m"))+
+    "\n"+(v.status==="touchdown"?"操縦席から外の地表を確認できます":"進入姿勢を維持してください"):
+    "3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
    return;
   }
   const w=screen.width,h=screen.height,p=v.progress,elapsed=v.elapsedSeconds;
