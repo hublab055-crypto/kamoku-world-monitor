@@ -1,4 +1,4 @@
-import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs";
+import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=2";
 import {bodyById} from "./solar-system.mjs";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
