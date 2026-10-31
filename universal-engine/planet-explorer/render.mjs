@@ -1686,6 +1686,10 @@ export class ExplorerRenderer{
    const gl=this.gl,v=this.shipVoyage;
    if(!v?.interior)return "ground";
    const phase=groundScenePhase(v),person=v.interior,sky=phase.sky;
+   // An authoritative double-precision pose is shared by ship, crew and planet.
+   // Keep visual LOD compression separate until full spherical terrain streaming lands.
+   this.shipFramePose=typeof v.framePose==="function"?v.framePose(this.planet.timeDays):null;
+   v.currentFramePose=this.shipFramePose; // runtime HUD only; never written to saves
    gl.clearColor(.012+sky*.39,.023+sky*.58,.051+sky*.71,1);
    gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
