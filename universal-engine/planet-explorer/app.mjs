@@ -5,7 +5,8 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
-import {ShipJourney} from "./ship-journey.mjs?v=6";
+import {ShipJourney} from "./ship-journey.mjs?v=7";
+import {geodeticToShipLocal,shipLocalToGeodetic} from "./unified-space-frame.mjs?v=1";
 import {SurfaceStarship} from "./surface-starship.mjs?v=3";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
@@ -1560,7 +1561,7 @@ function boardSurfaceStarship(){
  if(!surfaceShip.hatchOpen)return {ok:false,message:"ハッチを開けてください"};
  try{
   const state=captureGame();solarSystem.store(solarSystem.currentId,state);
-  const local=shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
+  const local=geodeticToShipLocal(surfaceShip,planet.radiusM,controller.lat,controller.lon);
   voyage=new ShipJourney({originId:solarSystem.currentId,
    launchDay:planet.timeDays,launchSite:surfaceShip.snapshot(),hatchOpen:true,status:"docked",
    interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
@@ -1600,9 +1601,9 @@ function shipEgress(){
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
   const cabinX=voyage.interior.x,cabinZ=Math.max(17.3,voyage.interior.z);
-  controller.setLanding(surfaceShip.lat,surfaceShip.lon);
-  const ground=shipLocalToWorld(0,0,surfaceShip.yaw,cabinX,cabinZ);
-  controller.x=ground.x;controller.z=ground.z;
+  // Exit at the true geodetic ramp position, not a second approximate planar origin.
+  const ground=shipLocalToGeodetic(surfaceShip,planet.radiusM,cabinX,cabinZ);
+  controller.setLanding(ground.lat,ground.lon);
   controller.yaw=voyage.interior.yaw+(surfaceShip.yaw||0);
   const geo=controller.locationAt(controller.x,controller.z);
   controller.lat=geo.lat;controller.lon=geo.lon;
