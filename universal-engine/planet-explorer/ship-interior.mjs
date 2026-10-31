@@ -3,7 +3,7 @@ const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const valid=v=>Number.isFinite(v);
 export const SHIP_CREW=Object.freeze([
  {id:"navigator",name:"航法士",role:"航法・通信",x:-2.3,z:-10.8},
- {id:"engineer",name:"機関士",role:"機関・整備",x:2.4,z:7.2},
+ {id:"engineer",name:"機関士",role:"機関・整備",x:1.6,z:7.2},
  {id:"companion",name:"同行者",role:"探索・支援",x:-2.5,z:3.0}
 ]);
 export const SHIP_STATIONS=Object.freeze([
