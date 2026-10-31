@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {ShipInterior} from "./ship-interior.mjs?v=4";
+import {ShipInterior} from "./ship-interior.mjs?v=6";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
