@@ -771,7 +771,7 @@ export class ExplorerRenderer{
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
-   this.shipVoyage=null;this.shipUnifiedMeshes=[
+   this.shipVoyage=null;this.shipArrivalPreview=null;this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
@@ -1692,32 +1692,47 @@ export class ExplorerRenderer{
    gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
    gl.uniform1f(this.uXROcclusionEnabled,0);
    const eyeY=person.seated?1.25:person.z>13.0&&v.hatchOpen?1.62-.25*(person.z-13):1.62;
-   const yaw=person.yaw||0,pitch=person.pitch||0;
+   const yaw=person.yaw||0;
+   // Reentry automatically tilts the pilot's sight toward the landing terrain.
+   // Player look input is still added on top of this gentle approach attitude.
+   const landingAttitude=v.status==="entry"&&v.seated?
+    -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):0;
+   const pitch=Math.max(-1.2,Math.min(1.2,(person.pitch||0)+landingAttitude));
    const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
    const eye=[person.x,eyeY,person.z];
    const vp=multiply4(perspective(75*DEG,asp,.12,42000),lookAt(eye,
     [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
-   const site=this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
-    v.launchSite?.bodyId===this.planet.id?v.launchSite:null;
-   if(phase.showGround&&site&&this.terrain){
-    const key=[this.planet.id,site.lat.toFixed(5),site.lon.toFixed(5)].join(":");
+   // Entry needs the *destination's* terrain before the player reaches it.
+   // Exactly the same geodetic pad is later used to place the visible hull.
+   const arrival=v.status==="entry"&&
+    this.shipArrivalPreview?.bodyId===v.destinationId?this.shipArrivalPreview:null;
+   const groundTerrain=arrival?.terrain||this.terrain;
+   const site=arrival?.site||(this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
+    v.launchSite?.bodyId===this.planet.id?v.launchSite:null);
+   if(phase.showGround&&site&&groundTerrain){
+    const radius=phase.lift>1800?18000:phase.lift>350?6200:phase.lift>80?1850:650;
+    const key=[groundTerrain.planet.id,site.lat.toFixed(5),site.lon.toFixed(5),
+     radius,site.yaw?.toFixed(3)||0].join(":");
     if(key!==this.shipTerrainKey){
      this.shipTerrainPatch?.destroy();this.shipTerrainPatch=null;
-     this.shipTerrainPatch=new Mesh(gl,samplePatch(this.terrain,site.lat,site.lon,640,42));
+     this.shipTerrainPatch=new Mesh(gl,samplePatch(groundTerrain,site.lat,site.lon,radius,
+      radius>650?40:52));
      this.shipTerrainKey=key;
     }
-    const ground=terrainSurface(this.terrain,site.lat,site.lon).elevationM;
-    const groundMatrix=multiply4(translate(0,-ground-2.0-phase.lift,0),
-      rotateY(-(site.yaw||0)));
-    this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),[.64,.89,.42],1,.63);
-    // Reuse cached trees and settlement meshes from the SAME surface scene;
-    // transform from the planetary tangent origin into the ship's local frame.
-    if(phase.lift<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
+    const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
+     terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
+    const groundMatrix=multiply4(translate(0,-pad-2.0-phase.lift,0),
+     rotateY(-(site.yaw||0)));
+    this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
+     [.64,.89,.42],1,.68);
+    // Existing nearby settlements belong only to the origin planetary terrain;
+    // never show an old planet's village in the destination landing window.
+    if(!arrival&&phase.lift<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
      const origin=this.shipGroundState.origin;
      const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
      const toShip=multiply4(rotateY(-(site.yaw||0)),translate(
-      this.cx-offset.eastM,-ground-2.0-phase.lift,this.cz-offset.northM));
+      this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
      const groundVP=multiply4(vp,toShip);
      for(const mesh of this.settlement.slice(0,48))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.64);
      for(const mesh of this.settlementDecor.slice(0,20))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.69);
