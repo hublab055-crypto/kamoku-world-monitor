@@ -1,3 +1,6 @@
+import {StarshipEntity} from "./starship-entity.mjs?v=2";
+import {cabinSurfacePose,starshipRampSupport,DockedShipCamera} from "./starship-hatch-portal.mjs";
+import {groundRegionKey,replaceGroundRenderFrame,groundHitToWorld} from "./ground-render-frame.mjs?v=1";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
 import {regionalLakeMesh} from "./regional-landforms.mjs";
@@ -48,10 +51,10 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
-import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
+import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=3";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
-import {bodyById} from "./solar-system.mjs?v=1";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=6";
+import {bodyById,BODIES,STAR} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -108,24 +111,35 @@ function shader(gl,mode,src){
 }
 class Mesh{
  constructor(gl,b){
-  this.gl=gl;this.vao=gl.createVertexArray();this.buffers=[];
+  this.gl=gl;this.vao=null;this.buffers=[];this.indices=null;this.destroyed=false;
+  try{
+  this.vao=gl.createVertexArray();
+  if(!this.vao)throw Error("Could not allocate mesh vertex array");
   gl.bindVertexArray(this.vao);
   for(const [i,values]of [[0,b.positions],[1,b.normals],[2,b.colors]]){
-   const buffer=gl.createBuffer();this.buffers.push(buffer);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+   const buffer=gl.createBuffer();if(!buffer)throw Error("Could not allocate mesh buffer");
+   this.buffers.push(buffer);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(values ?? b.vertices),gl.STATIC_DRAW);
    gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,3,gl.FLOAT,false,0,0);
   }
   this.indices=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indices);
+  if(!this.indices)throw Error("Could not allocate mesh index buffer");
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(b.indices),gl.STATIC_DRAW);
   this.count=b.indices.length;gl.bindVertexArray(null);
+  }catch(error){this.destroy();throw error;}
  }
  draw(){const gl=this.gl;gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0)}
- destroy(){const gl=this.gl;for(const v of this.buffers)gl.deleteBuffer(v);gl.deleteBuffer(this.indices);gl.deleteVertexArray(this.vao)}
+ destroy(){
+  if(this.destroyed)return;this.destroyed=true;
+  const gl=this.gl;for(const v of this.buffers)gl.deleteBuffer(v);
+  if(this.indices)gl.deleteBuffer(this.indices);if(this.vao)gl.deleteVertexArray(this.vao);
+ }
 }
 class InstancedMesh extends Mesh{
  constructor(gl,geometry,transforms){
-  super(gl,geometry);
   if(transforms.length%6)throw new RangeError("Invalid scenery instance transforms");
+  super(gl,geometry);
+  try{
   this.instanceCount=transforms.length/6;
   // Older GL mocks lack WebGL2 instancing APIs; keep nonvisual unit tests
   // compatible. Production WebGL2 browsers use the fast instanced path.
@@ -133,7 +147,8 @@ class InstancedMesh extends Mesh{
     typeof gl.drawElementsInstanced==="function";
   if(!this.supported)return;
   gl.bindVertexArray(this.vao);
-  const buffer=gl.createBuffer();this.buffers.push(buffer);
+  const buffer=gl.createBuffer();if(!buffer)throw Error("Could not allocate instance buffer");
+  this.buffers.push(buffer);
   gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
   gl.bufferData(gl.ARRAY_BUFFER,transforms,gl.DYNAMIC_DRAW);
   this.instanceBuffer=buffer;
@@ -142,6 +157,7 @@ class InstancedMesh extends Mesh{
   gl.enableVertexAttribArray(4);gl.vertexAttribPointer(4,2,gl.FLOAT,false,24,16);
   gl.vertexAttribDivisor(4,1);
   gl.bindVertexArray(null);
+  }catch(error){this.destroy();throw error;}
  }
  draw(){
   if(!this.instanceCount)return;
@@ -653,7 +669,7 @@ export class ExplorerRenderer{
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
 
-  this.cameraController=new CameraController();
+  this.cameraController=new CameraController();this.dockedShipCamera=new DockedShipCamera();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
   this.actorMarker=null;
   this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;this.mapFocus=null;
@@ -771,7 +787,7 @@ export class ExplorerRenderer{
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
-   this.shipVoyage=null;this.shipArrivalPreview=null;this.shipUnifiedMeshes=[
+   this.shipVoyage=null;this.shipEntity=new StarshipEntity();this.shipArrivalPreview=null;this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
@@ -1074,12 +1090,14 @@ export class ExplorerRenderer{
    return pickOrbitalGeo(this.orbitVP,nx,ny,this.R,this.orbitOffsetDeg);
   }
   pickGround(clientX,clientY){
-   if(!this.pickVP||!this.groundPatchData)return null;
+   if(this.shipVoyage?.active)return null;
+   const pick=this.groundPickFrame;
+   if(!this.pickVP||!pick||pick.frame!==this.groundFrame)return null;
    const r=this.canvas.getBoundingClientRect();
    if(!r.width||!r.height)return null;
    const nx=((clientX-r.left)/r.width)*2-1,ny=1-((clientY-r.top)/r.height)*2;
-   const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
-   return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
+   const hit=pickSurface(pick.patch.vertices,pick.patch.indices,pick.vp,nx,ny);
+   return groundHitToWorld(pick.frame,this.groundFrame,hit);
  }
  drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0},tint=[1,1,1],actorId="player"){
    const face=expression.update(dt);
@@ -1620,6 +1638,9 @@ export class ExplorerRenderer{
  }
  clearCapture(){this.captureFX=null;}
  frame(state,dt=1/60){
+  this.dockedShipPose=null;
+  this.shipEntity.sync({journey:this.shipVoyage,surfaceShip:this.surfaceStarship,
+   planet:this.planet,arrivalPlanet:this.shipArrivalPreview?.terrain?.planet,days:this.planet.timeDays});
   // Visual-only frame time continues while law simulation is paused in custody.
   if(this.captureFX)this.captureFX.elapsed=Math.min(CAPTURE_DURATION_SECONDS,
     this.captureFX.elapsed+Math.max(0,Math.min(dt,.10)));
@@ -1669,7 +1690,26 @@ export class ExplorerRenderer{
    if(this.townInterior)return this.renderTownInterior(asp);
   }
   if(!xr){
-   if(this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
+   if(this.shipVoyage?.active){
+    const v=this.shipVoyage,base=this.shipGroundState||state;
+    if(v.kind==="surface-to-surface"&&v.isGrounded()&&this.surfaceStarship?.present(this.planet.id)){
+     const site=this.surfaceStarship;
+     const ground=terrainSurface(this.terrain,site.lat,site.lon).elevationM;
+     const pose=cabinSurfacePose(site,base,v.interior,{radiusM:this.planet.radiusM,elevationM:ground});
+     if(pose){
+      this.dockedShipPose=pose;
+      this.ground({...base,...pose,altitudeM:2.5,travelMode:"walk",jumpY:0,
+       moving:Boolean(v.interior.moving),origin:base.origin},asp,dt);
+      // Share scenery, not outdoor commands. The cabin UI owns all pointer
+      // input while aboard, including a docked ship with visible terrain.
+      this.pickVP=null;this.groundPickFrame=null;this.actorMarker=null;
+      for(const key of Object.keys(this))if(/^screen[A-Z]/.test(key)&&Array.isArray(this[key]))this[key]=[];
+      return "ship-interior";
+     }
+    }
+    this.dockedShipCamera=new DockedShipCamera();
+    return this.renderUnifiedShip(asp,dt);
+   }
   if((this.custodyCell||this.railwaySecurity?.jailed)&&
      (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
@@ -1695,15 +1735,28 @@ export class ExplorerRenderer{
    const yaw=person.yaw||0;
    // Reentry automatically tilts the pilot's sight toward the landing terrain.
    // Player look input is still added on top of this gentle approach attitude.
-   const landingAttitude=v.status==="entry"&&v.seated?
-    -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
-    v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
+   const landingAttitude=0; // attitude is owned by the ship Transform, not a camera phase trick
    const pitch=Math.max(-1.2,Math.min(1.2,(person.pitch||0)+landingAttitude));
    const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
    const eye=[person.x,eyeY,person.z];
-   const vp=multiply4(perspective(75*DEG,asp,.12,42000),lookAt(eye,
+   const vp=multiply4(perspective(75*DEG,asp,.12,65000),lookAt(eye,
     [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
+   const spatial=v.kind==="surface-to-surface"&&this.shipEntity.pose;
+   this.shipCelestialPoses=spatial?[STAR,...BODIES.filter(b=>b.kind!=="asteroid-belt")]
+    .map(body=>this.shipEntity.celestialView(body,eye)).filter(Boolean).sort((a,b)=>b.distanceM-a.distanceM):[];
+   // Camera-relative sky first, without writing near-scene depth. Local terrain
+   // and the real cabin then occlude it in the ordinary depth buffer.
+   if(spatial){
+    gl.depthMask(false);
+    for(const body of this.shipCelestialPoses){
+     const h=body.color.replace("#","");
+     const rgb=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255);
+     const model=multiply4(translate(...body.position),scale3(body.radiusM,body.radiusM,body.radiusM));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),[.86,.91,.55],1,.88,rgb);
+    }
+    gl.depthMask(true);
+   }
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
    const arrival=["entry","touchdown"].includes(v.status)&&
@@ -1723,8 +1776,8 @@ export class ExplorerRenderer{
     }
     const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
      terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
-    const groundMatrix=multiply4(translate(0,-pad-2.0-phase.lift,0),
-     rotateY(-(site.yaw||0)));
+    const groundMatrix=spatial&&this.shipEntity.groundToCabinMatrix(site,groundTerrain.planet.id)||
+     multiply4(translate(0,-pad-2.0-phase.lift,0),rotateY(-(site.yaw||0)));
     this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
      [.64,.89,.42],1,.68);
     // Existing nearby settlements belong only to the origin planetary terrain;
@@ -1732,15 +1785,17 @@ export class ExplorerRenderer{
     if(!arrival&&phase.lift<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
      const origin=this.shipGroundState.origin;
      const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
-     const toShip=multiply4(rotateY(-(site.yaw||0)),translate(
-      this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
+     const cacheSite=geoOffset(origin.lat,origin.lon,this.cx,this.cz,this.planet.radiusM);
+     const toShip=spatial&&this.shipEntity.groundToCabinMatrix(cacheSite,this.planet.id)||
+      multiply4(rotateY(-(site.yaw||0)),translate(
+       this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
      const groundVP=multiply4(vp,toShip);
      for(const mesh of this.settlement.slice(0,48))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.64);
      for(const mesh of this.settlementDecor.slice(0,20))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.69);
      for(const mesh of this.trees.slice(0,20))this.drawInstancedMesh(mesh,groundVP,[.65,.88,.46],1,.63);
     }
    }
-   if(phase.showGlobe){
+   if(phase.showGlobe&&!spatial){
     const progress=v.progress||0;
     const target=v.destinationId&&bodyById(v.destinationId);
     const origin=bodyById(v.originId);
@@ -2448,42 +2503,29 @@ export class ExplorerRenderer{
    this.drawMesh(deep?this.deepFishMesh:this.fishMesh,multiply4(vp,transform),light,1,.86);
   }
  }
- ground(s,asp,dt=1/60){
-  const gl=this.gl,alt=s.altitudeM,cameraMode=this.cameraController.mode;
-  const cfg=this.cameraController.config;
-  const cameraAltitude=cameraMode==="tactical"?cfg.tacticalHeightM:
-    cameraMode==="free"?Math.max(2.5,cfg.freeHeightM):cameraMode==="legacy"?alt:
-    Math.max(2.5,cfg.distanceM);
-  const requestedRadius=Math.max(alt,cameraAltitude)*4+350;
-  const radius=clamp(450*Math.pow(2,Math.ceil(Math.log2(requestedRadius/450))),450,55000);
-  const snap=radius<2200?110:radius<6500?600:3000;
-  const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
-  const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
-  const baseResolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56;
-  const detail=this.adaptiveTerrainLOD.level;
-  const resolution=Math.max(28,Math.round(baseResolution*(detail===2?.6:detail===1?.8:1)));
-  const key=[cx,cz,Math.round(radius/90),resolution,detail,this.settlementId].join("/");
-  if(key!==this.patchKey){
+ prepareGroundRenderFrame(s,{cx,cz,radius,resolution,detail,regionKey},own){
+  const gl=this.gl;
+  const mesh=data=>own(new Mesh(gl,data));
+  const instances=(geometry,transforms)=>own(new InstancedMesh(gl,geometry,transforms));
+  const next={oceanWave:null,lastWaveAt:-1};
    const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
-   this.patch?.destroy();this.riverWater?.destroy();this.lakeWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
-   this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
-   this.ownerRoadMesh?.destroy();
+   next.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
    const ownerRoads=ownerRoadGeometry(this.ownerWorld,this.terrain,s.origin);
-   this.ownerRoadMesh=ownerRoads.indices.length?new Mesh(gl,ownerRoads):null;
-   this.patch=new Mesh(gl,this.groundPatchData);
+   next.ownerRoadMesh=ownerRoads.indices.length?mesh(ownerRoads):null;
+   next.patch=mesh(next.groundPatchData);
    const channel=buildRiverWaterPatch(this.terrain,geo,radius);
-   this.riverWater=channel.indices.length?new Mesh(gl,channel):null;
+   next.riverWater=channel.indices.length?mesh(channel):null;
    const lake=regionalLakeMesh(this.terrain,geo,radius);
-   this.lakeWater=lake.indices.length?new Mesh(gl,lake):null;
+   next.lakeWater=lake.indices.length?mesh(lake):null;
     const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
     const clouds=groundCloudGeometry({seed:this.planet.seed,cx,cz,radius,
      baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM,
      cloudCover:climate?.cloudCover??.55,precipitation:climate?.precipitation??"none",
      driftEast:this.cloudEast,driftNorth:this.cloudNorth});
-    this.cloudOriginEast=this.cloudEast;this.cloudOriginNorth=this.cloudNorth;
-    this.cloudCoverBand=Math.floor((climate?.cloudCover??.55)*6);
-    this.groundClouds=clouds.indices.length?new Mesh(gl,clouds):null;
-   const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
+    next.cloudOriginEast=this.cloudEast;next.cloudOriginNorth=this.cloudNorth;
+    next.cloudCoverBand=Math.floor((climate?.cloudCover??.55)*6);
+    next.groundClouds=clouds.indices.length?mesh(clouds):null;
+   const heightAt=(x,z)=>patchSceneryHeight(next.groundPatchData,x,z);
    const plan=planWorldScenery({
     seed:this.planet.seed,cx,cz,radius:sceneryRadiusForQuality(radius,detail),groundAt:heightAt,settlementId:this.settlementId,barren:this.planet.id!=="terra",
     biomeAt:(wx,wz)=>{
@@ -2519,16 +2561,16 @@ export class ExplorerRenderer{
    const instanced=buildSceneryInstances({...plan,grass:ownerGrass,trees:visible});
    // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
-   this.resourceNodes=visible;
-   this.townSites=plan.buildings;
-   this.sceneryStats={trees:visible.filter(n=>n.kind==="wood").length,
+   next.resourceNodes=visible;
+   next.townSites=plan.buildings;
+   next.sceneryStats={trees:visible.filter(n=>n.kind==="wood").length,
     rocks:visible.filter(n=>n.kind==="stone").length,
     grass:plan.grass.length,buildings:plan.buildings.length};
-   this.trees=instanced.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
-   this.meadow=instanced.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
-   this.settlement=scenery.settlement.map(g=>new Mesh(gl,g));
-   this.settlementDecor=[];
-   this.residentMeshes=[];
+   next.trees=instanced.woods.map(g=>instances(sceneryPrototype(g.kind),g.transforms));
+   next.meadow=instanced.meadow.map(g=>instances(sceneryPrototype(g.kind),g.transforms));
+   next.settlement=scenery.settlement.map(g=>mesh(g));
+   next.settlementDecor=[];
+   next.residentMeshes=[];
    // One moving crowd draw call per clothing variant rather than per person.
    for(let clothing=0;clothing<6;clothing++){
     const residents=plan.people.filter(p=>p.clothing===clothing);
@@ -2540,27 +2582,71 @@ export class ExplorerRenderer{
      transforms.set([p.localX,p.elevationM,p.localZ,1,
       Math.cos(p.facing),Math.sin(p.facing)],k);
     }
-    const mesh=new InstancedMesh(gl,prototype,transforms);
+    const mesh=instances(prototype,transforms);
     mesh.residents=residents;mesh.dynamicTransforms=transforms;
-    this.residentMeshes.push(mesh);
+    next.residentMeshes.push(mesh);
    }
-   if(plan.landmark)this.settlementDecor.push(new Mesh(gl,observationTowerGeometry({
+   if(plan.landmark)next.settlementDecor.push(mesh(observationTowerGeometry({
     x:plan.landmark.localX,z:plan.landmark.localZ,y:plan.landmark.elevationM
    })));
-   this.patchKey=key;this.cx=cx;this.cz=cz;
-   this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
+
+  // The panorama has a separate spatial cadence, but must share the region
+  // identity. Build it before publishing a region change.
+  const cfg=this.cameraController.config;
+  const focusX=this.cameraController.mode==="free"?cfg.freeX:s.x;
+  const focusZ=this.cameraController.mode==="free"?cfg.freeZ:s.z;
+  const farCx=Math.round(focusX/900)*900,farCz=Math.round(focusZ/900)*900;
+  const farKey=[regionKey,farCx,farCz].join("/");
+  if(radius<=6500){
+   if(this.distantKey===farKey&&this.distantLandscape){
+    next.distantLandscape=this.distantLandscape;next.distantCenter=this.distantCenter;next.distantKey=farKey;
+   }else{
+    const farGeo=geoOffset(s.origin.lat,s.origin.lon,farCx,farCz,this.planet.radiusM);
+    next.distantLandscape=mesh(buildDistantLandscape(this.terrain,farGeo.lat,farGeo.lon));
+    next.distantCenter={cx:farCx,cz:farCz};next.distantKey=farKey;
+   }
+  }else{next.distantLandscape=null;next.distantCenter=null;next.distantKey=null;}
+  return next;
+ }
+ ground(s,asp,dt=1/60){
+  const gl=this.gl,alt=s.altitudeM,cameraMode=this.cameraController.mode;
+  const cfg=this.cameraController.config;
+  const cameraAltitude=cameraMode==="tactical"?cfg.tacticalHeightM:
+    cameraMode==="free"?Math.max(2.5,cfg.freeHeightM):cameraMode==="legacy"?alt:
+    Math.max(2.5,cfg.distanceM);
+  const requestedRadius=Math.max(alt,cameraAltitude)*4+350;
+  let radius=clamp(450*Math.pow(2,Math.ceil(Math.log2(requestedRadius/450))),450,55000);
+  const snap=radius<2200?110:radius<6500?600:3000;
+  const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
+  const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
+  const baseResolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56;
+  const detail=this.adaptiveTerrainLOD.level;
+  const resolution=Math.max(28,Math.round(baseResolution*(detail===2?.6:detail===1?.8:1)));
+  const key=[groundRegionKey(this.planet,s.origin,this.settlementId),cx,cz,Math.round(radius/90),resolution,detail].join("/");
+  const regionKey=groundRegionKey(this.planet,s.origin,this.settlementId);
+  const request={key,regionKey,cx,cz,radius};
+  if(key!==this.patchKey){
+   const result=replaceGroundRenderFrame(this,request,own=>
+    this.prepareGroundRenderFrame(s,{cx,cz,radius,resolution,detail,regionKey},own));
+   if(!result.ok){
+    if(!result.retained)throw result.error;
+    // Keep the complete preceding frame, including its clip and picking range.
+    radius=this.groundFrame.radius;
+   }
   }
   // Cache the low-poly 47 km panorama independently of the 110 m ground
   // patch snaps, minimizing rebuild cost on mobile WebGL2.
   const panoramaAllowed=radius<=6500;
   const farCx=Math.round(focusX/900)*900,farCz=Math.round(focusZ/900)*900;
-  const farKey=[farCx,farCz,this.planet.seed].join("/");
+  const farKey=[regionKey,farCx,farCz].join("/");
   if(panoramaAllowed&&farKey!==this.distantKey){
-   this.distantLandscape?.destroy();
    const farGeo=geoOffset(s.origin.lat,s.origin.lon,farCx,farCz,this.planet.radiusM);
-   this.distantLandscape=new Mesh(gl,buildDistantLandscape(this.terrain,farGeo.lat,farGeo.lon));
-   this.distantCenter={cx:farCx,cz:farCz};
-   this.distantKey=farKey;
+   try{
+    const next=new Mesh(gl,buildDistantLandscape(this.terrain,farGeo.lat,farGeo.lon));
+    const old=this.distantLandscape;
+    this.distantLandscape=next;this.distantCenter={cx:farCx,cz:farCz};this.distantKey=farKey;
+    old?.destroy();
+   }catch(error){this.groundRebaseError=error;}
   }else if(!panoramaAllowed&&this.distantLandscape){
    this.distantLandscape.destroy();this.distantLandscape=null;this.distantCenter=null;this.distantKey=null;
   }
@@ -2582,14 +2668,16 @@ export class ExplorerRenderer{
    const p=1-this.marine.entrySeconds/this.marine.entryDuration;
    marinePose={action:"splash",pitch:.50+.8*p,baseY:waterY-1.12+1.8*Math.sin(Math.PI*p)};
   }
-  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
+  const ramp=starshipRampSupport(this.surfaceStarship,{...s,terrain:this.terrain},this.planet.radiusM);
+  const rampFeet=ramp===null?null:(Number.isFinite(this.surfaceStarship.padElevationM)?this.surfaceStarship.padElevationM:ground)+ramp;
+  const feet=this.dockedShipPose?.feetM??rampFeet??marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
   const room=this.sceneActions?.structures.find(b=>b.id===this.interiorBuildingId&&b.progress>=1);
   const cabinActive=Boolean(this.marine?.cabinId&&this.marine.boarded?.id===this.marine.cabinId);
   const camYaw=viewS.yaw||0;
-  const camera=room?{
+  let camera=room?{
    eye:[room.x-this.cx+1.5,room.height+8.1,room.z-this.cz+4.4],
    target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
    fovDeg:64,heightM:8,marker:false
@@ -2600,6 +2688,15 @@ export class ExplorerRenderer{
   }:this.cameraController.groundView(viewS,{
     cx:this.cx,cz:this.cz,groundM:marinePose?.action==="swim"||marinePose?.action==="tread"?waterY-1:feet,focusGroundM:focusGround,dt
   });
+  let cabinCamera=null;
+  if(this.dockedShipPose){
+   const person=this.shipVoyage.interior,pitch=person.pitch||0;
+   const eye=[px,feet+(this.shipVoyage.seated?1.25:1.62),pz];
+   cabinCamera={eye,target:[eye[0]+Math.sin(viewS.yaw)*Math.cos(pitch),
+    eye[1]+Math.sin(pitch),eye[2]+Math.cos(viewS.yaw)*Math.cos(pitch)],fovDeg:75};
+  }
+  camera=this.dockedShipCamera.view(camera,{cabin:cabinCamera,cx:this.cx,cz:this.cz,
+   regionKey:this.groundFrame.regionKey,dt});
   if(s.travelMode==="dive"&&!room&&!cabinActive&&cameraMode!=="free"&&cameraMode!=="tactical"){
    camera.eye[1]=Math.min(waterY-.35,feet+2.35);camera.target[1]=feet+.65;
   }
@@ -2612,6 +2709,7 @@ export class ExplorerRenderer{
    multiply4(perspective(camera.fovDeg*DEG,asp,.12,Math.max(radius*8,65000)),
     lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
   this.pickVP=this.xrView?null:vp;
+  this.groundPickFrame=this.pickVP?{frame:this.groundFrame,vp,patch:this.groundPatchData}:null;
   const sunlight=this.planet.illumination(s.lat,s.lon);
   const light=[.4,Math.max(.3,sunlight),.2];
   const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,ground));
@@ -2651,12 +2749,14 @@ export class ExplorerRenderer{
    this.drawHarbor(vp,light,s,radius);
    const starship=this.surfaceStarship;
    if(starship?.visible(this.planet.id)){
-    const land=geoLocal(s.origin.lat,s.origin.lon,starship.lat,starship.lon,this.planet.radiusM);
+    const address=this.shipEntity.pose?.bodyId===this.planet.id?this.shipEntity.pose:null;
+    const shipSite=address?.site||starship;
+    const land=geoLocal(s.origin.lat,s.origin.lon,shipSite.lat,shipSite.lon,this.planet.radiusM);
     if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+125){
      const gx=land.eastM-this.cx,gz=land.northM-this.cz;
      const height=Number.isFinite(starship.padElevationM)?starship.padElevationM:
       Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
-     const descent=starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0;
+     const descent=address?.liftM??(starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0);
      const matrix=multiply4(translate(gx,height+descent,gz),rotateY(starship.yaw||0));
      if(starship.flight==="landing"){
       // A glowing elliptical pad marks where the engines are lowering the ship.
@@ -2824,7 +2924,7 @@ export class ExplorerRenderer{
    baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   // In standing VR, the avatar's head would overlap the real user's eyes.
-  if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
+  if(!this.dockedShipPose&&(this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
     !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   if(capture?.stars){
@@ -2905,7 +3005,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.railCrossingMesh,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

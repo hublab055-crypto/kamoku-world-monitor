@@ -15,7 +15,8 @@ export class ShipJourney{
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
-   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0}:null;
+   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0,
+    ...(finite(data.launchSite.padElevationM)?{padElevationM:data.launchSite.padElevationM}:{})}:null;
   // Pre-selected safe touchdown site stays fixed through atmospheric entry.
   const pad=data.landingSite;
   this.landingSite=pad&&pad.bodyId===this.destinationId&&
@@ -26,6 +27,10 @@ export class ShipJourney{
   this.touchdownElapsed=finite(data.touchdownElapsed)?clamp(data.touchdownElapsed,0,1.7):0;
   this.elapsedSeconds=Math.max(0,finite(data.elapsedSeconds)?data.elapsedSeconds:0);
   this.heading=clamp(data.heading??0,-60,60);
+  this.pitch=clamp(finite(data.pitch)?data.pitch:0,-45,45);
+  this.roll=clamp(finite(data.roll)?data.roll:0,-75,75);
+  this.brake=clamp(finite(data.brake)?data.brake:0,0,1);
+  this.gearDown=data.gearDown!==false;
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,0,1);
   this.autopilot=data.autopilot!==false;
@@ -38,6 +43,7 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
+ get canOperateHelm(){return this.seated&&["docked","ascent","origin-orbit","cruise","approach","orbit","entry"].includes(this.status);}
  get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
  get phase(){
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
@@ -83,7 +89,7 @@ export class ShipJourney{
   if(!this.seated)return {ok:false,message:"航法設定には操縦席に着席してください"};
   if(!bodyById(id)?.landable||id===this.originId||!finite(flightDays)||flightDays<=0)
    return {ok:false,message:"航行先を指定できません"};
-  this.destinationId=id;this.flightDays=flightDays;this.progress=0;
+  this.destinationId=id;this.flightDays=flightDays;this.progress=0;this.landingSite=null;
   return {ok:true,message:"🧭 航路設定完了："+bodyById(id).name+"／推定"+flightDays.toFixed(1)+"ゲーム日"};
  }
  startTransfer(){
@@ -97,23 +103,51 @@ export class ShipJourney{
  enterAtmosphere(){
   if(!this.readyToLand)return {ok:false,message:"目標の周回軌道上で着席し、進路偏差を±12°以内にしてください"};
   if(this.hatchOpen)return {ok:false,message:"ハッチを閉じてください"};
+  if(!this.gearDown)return {ok:false,message:"ランディングギアを展開してください"};
   this.status="entry";this.stageProgress=0;this.interior.hatchPassable=false;
   return {ok:true,message:"🔥 大気圏突入開始。着陸姿勢を保持してください"};
  }
  setLandingSite(site){
-  if(!["orbit","entry","touchdown","landed"].includes(this.status))return false;
+  if(!["origin-orbit","orbit","entry","touchdown","landed"].includes(this.status))return false;
   if(!site||site.bodyId!==this.destinationId||
      ![site.lat,site.lon,site.yaw,site.padElevationM].every(finite))return false;
   this.landingSite={bodyId:site.bodyId,lat:site.lat,lon:site.lon,
    yaw:site.yaw,padElevationM:site.padElevationM};
   return true;
  }
- setAutopilot(on){this.autopilot=Boolean(on);}
- setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
- steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
+ setAttitude(yaw,pitch,roll,dt){
+  if(![yaw,pitch,roll,dt].every(finite)||dt<0)throw Error("Invalid attitude input");
+  if(!this.canOperateHelm)return false;
+  const step=clamp(dt,0,.12);
+  if(step&&(yaw||pitch||roll)){
+   this.steer(clamp(yaw,-1,1)*30*step);
+   this.pitch=clamp(this.pitch+clamp(pitch,-1,1)*25*step,-45,45);
+   this.roll=clamp(this.roll+clamp(roll,-1,1)*45*step,-75,75);
+   this.autopilot=false;
+  }
+  return true;
+ }
+ setBrake(n){if(!finite(n))throw Error("Invalid brake");if(!this.canOperateHelm)return false;this.brake=clamp(n,0,1);return true;}
+ toggleGear(){
+  if(!this.seated||["entry","touchdown","landed"].includes(this.status)||this.isGrounded())
+   return {ok:false,message:"ギアは着席して飛行中、降下開始前に操作してください"};
+  this.gearDown=!this.gearDown;return {ok:true,message:this.gearDown?"ランディングギア展開":"ランディングギア格納"};
+ }
+ cockpitHatch(){
+  if(!this.seated||!this.isGrounded())return {ok:false,message:"ハッチ遠隔操作は停泊中の操縦席で行ってください"};
+  this.hatchOpen=!this.hatchOpen;this.interior.hatchPassable=this.hatchOpen;
+  return {ok:true,message:this.hatchOpen?"ハッチを開けました":"ハッチを閉じました"};
+ }
+ setAutopilot(on){if(!this.canOperateHelm)return false;this.autopilot=Boolean(on);return true;}
+ setThrottle(n){if(!finite(n))throw Error("Invalid throttle");if(!this.canOperateHelm)return false;this.throttle=clamp(n,0,1);return true;}
+ steer(n){if(!finite(n))throw Error("Invalid heading");if(!this.canOperateHelm)return false;this.heading=clamp(this.heading+n,-60,60);if(n!==0)this.autopilot=false;return true;}
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  // Attitude hold remains active at both orbital waiting points, even if the
+  // pilot is walking in the cabin. It never starts transfer or entry itself.
+  if(this.autopilot&&["ascent","origin-orbit","cruise","approach","orbit","entry"].includes(this.status))
+   {const decay=Math.exp(-step*2);this.heading*=decay;this.pitch*=decay;this.roll*=decay;}
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -121,21 +155,21 @@ export class ShipJourney{
   }
   if(!["ascent","cruise","approach","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;
-  if(this.autopilot)this.heading*=Math.exp(-step*2);
   const thr=this.fuel>0?this.throttle:0;
   this.fuel=Math.max(0,this.fuel-step*thr*.28);
   const align=clamp(1-Math.abs(this.heading)/110,.5,1);
   const rate=(.30+thr*1.2)*align;
+  const travelStep=step*(1-this.brake);
   let days=0,advanced=0;
   if(this.status==="ascent"){
-   this.stageProgress=clamp(this.stageProgress+step*(.07+thr*.10),0,1);
+   this.stageProgress=clamp(this.stageProgress+travelStep*(.07+thr*.10),0,1);
    if(this.stageProgress>=1){this.status="origin-orbit";this.stageProgress=0;}
   }else if(this.status==="entry"){
-   this.stageProgress=clamp(this.stageProgress+step*(.055+thr*.12),0,1);
+   this.stageProgress=clamp(this.stageProgress+travelStep*(.055+thr*.12),0,1);
    if(this.stageProgress>=1){this.status="touchdown";this.stageProgress=1;this.touchdownElapsed=0;}
   }else{
    const before=this.progress;
-   this.progress=clamp(this.progress+step*rate/38,0,1);
+   this.progress=clamp(this.progress+travelStep*rate/38,0,1);
    advanced=this.progress-before;days=advanced*this.flightDays;
    if(this.progress>=1){this.status="orbit";this.stageProgress=0;}
    else this.status=this.progress<.82?"cruise":"approach";
@@ -146,6 +180,7 @@ export class ShipJourney{
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
+   pitch:this.pitch,roll:this.roll,brake:this.brake,gearDown:this.gearDown,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
  }

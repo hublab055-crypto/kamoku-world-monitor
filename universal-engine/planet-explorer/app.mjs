@@ -1,3 +1,6 @@
+import {StarshipEntity,needsStarshipArrival} from "./starship-entity.mjs?v=2";
+import {crossingIntoStarship} from "./starship-hatch-portal.mjs";
+import {RAMP_END_Z,cabinYawFromGround} from "./starship-layout.mjs";
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
 import {SolarSystem,BODIES,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=1";
@@ -5,19 +8,20 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
-import {ShipJourney} from "./ship-journey.mjs?v=6";
-import {SurfaceStarship} from "./surface-starship.mjs?v=3";
+import {ShipJourney} from "./ship-journey.mjs?v=9";
+import {SurfaceStarship} from "./surface-starship.mjs?v=4";
+import {starshipSurfaceExit,starshipSurfaceLanding} from "./starship-surface-exit.mjs?v=2";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
-import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
-import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
+import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=2";
+import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=3";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=9";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=13";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9aj-cockpit-reentry-terrain-20261031";
+import {ExplorerRenderer} from "./render.mjs?v=0.9an-shared-flight-transform-20261101";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -290,7 +294,7 @@ function guardGroundPassable(fx,fz,tx,tz){
  return !after.water&&!after.river&&after.elevationM<2800&&
   Math.abs(after.elevationM-before.elevationM)<=Math.max(.5,step*1.8);
 }
-let scenario=null;
+let scenario=null,shipEntity=null;
 function init(saved=null){
  try{
   // A freshly loaded game must not inherit the previous session's paused state.
@@ -329,6 +333,7 @@ function init(saved=null){
    harvest=new ResourceHarvest(restoredWorld?.resources||null);
   controller=saved?ExplorerController.fromSnapshot(terrain,saved.explorer):new ExplorerController(terrain);
   surfaceShip=SurfaceStarship.fromSnapshot(saved?.v0_aa?.ship);
+  shipEntity=StarshipEntity.fromSnapshot(saved?.v0_aa?.shipEntity);
   if(!surfaceShip.bodyId&&!voyage&&surfaceShip.flight!=="airborne"){
    const pad=findStarshipPad(terrain,{lat:controller.lat,lon:controller.lon})||
     findStarshipPad(terrain,terrain.landscapeAnchor);
@@ -406,7 +411,7 @@ function init(saved=null){
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
   renderer.surfaceStarship=surfaceShip;
-  renderer.shipVoyage=voyage;
+  renderer.shipVoyage=voyage;renderer.shipEntity=shipEntity;
   custodyClimb=newCustodyBarClimb();
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
@@ -670,19 +675,23 @@ function doFrame(t,source="window",xrFrameInput=null){
      log("着陸地点の再取得に失敗："+error.message+"。周回軌道に戻しました。");
     }
    }
-   const before=voyage.status,advanced=voyage.tick(dt);
+   const advanced=voyage.tick(dt);
    if(advanced.days>0){planet.advance(advanced.days);solarSystem.sync(planet.timeDays);}
-   if(voyage?.kind==="surface-to-surface"&&before!=="landed"&&voyage.status==="landed"){
+   if(needsStarshipArrival(voyage,solarSystem.currentId)){
     const r=completeShipLanding();
     if(r?.message)log(r.message);
    }
-   renderer.frame(controller,dt);
+   // Resolve cabin movement and the portal BEFORE rendering the next frame.
    voyageUI?.render(dt);shipInteractionUI?.update();
-   if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>18.3){
-    const leave=shipEgress();if(leave?.message)log(leave.message);
-    requestAnimationFrame(doFrame);
-    return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:2.5,blocked:false};
+   syncShipEntity();
+   if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>RAMP_END_Z){
+    const leave=shipEgress({walkThrough:true});if(leave?.message)log(leave.message);
+    if(leave.ok){
+     renderer.frame(controller,dt);requestAnimationFrame(doFrame);
+     return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:2.5,blocked:false};
+    }
    }
+   renderer.frame(controller,dt);
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    requestAnimationFrame(doFrame);
   }
@@ -801,6 +810,26 @@ function doFrame(t,source="window",xrFrameInput=null){
     renderer.patchKey=null;
     log("🛬 宇宙船が地表へ着陸しました。船尾に回るとハッチを開けられます。");
     surfaceShipUI?.update(true);
+   }
+  }
+  // A real swept crossing of the open ramp transfers the current endpoint
+  // into the cabin, retaining region origin and held movement input.
+  if(source==="window"&&running&&!detained&&!law?.pendingDeath&&!law?.gameOver&&
+     !onShip&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&!fauna?.mount&&
+     controller.nearGround&&controller.travelMode==="walk"&&!(controller.jumpY>.1)){
+   const crossing=crossingIntoStarship(surfaceShip,controller,previous);
+   if(crossing){
+    const permitted=canDepartCelestial();
+    if(permitted.ok){
+     footVoyage?.advance(controller.lat,controller.lon,planet.radiusM);
+     const boarded=boardSurfaceStarship({walkThrough:true,pose:crossing});
+     if(boarded.ok){
+      cancelHarvestOrder("player");renderer.shipVoyage=voyage;renderer.shipGroundState=controller;
+      renderer.frame(controller,dt);requestAnimationFrame(doFrame);
+      return {forward:input.forward,strafe:input.strafe,turn:input.turn,traveledM:0,
+       altitudeM:2.5,blocked:false,indoor:true,onShip:true};
+     }
+    }
    }
   }
   // Fuselage collision while walking on a planetary surface. Hatch remains
@@ -1489,6 +1518,17 @@ function completeSuccession(id){
  squad.repositionAfterLanding();running=true;simWorld.clock.paused=false;
  saveLawJournal();saveLifeJournal();updateHUD();return result;
 }
+function syncShipEntity(){
+ if(!shipEntity)return null;
+ const site=voyage?.kind==="surface-to-surface"?voyage.launchSite:null;
+ // Older v2 journeys omitted the launch pad height. Resolve it once in the
+ // source world, then retain it in the existing optional launchSite record.
+ if(site&&!Number.isFinite(site.padElevationM)&&terrain?.planet?.id===site.bodyId)
+  site.padElevationM=terrainSurface(terrain,site.lat,site.lon).elevationM;
+ shipEntity.sync({journey:voyage,surfaceShip,planet,arrivalPlanet:shipArrivalPreview?.terrain?.planet,days:planet.timeDays});
+ if(renderer)renderer.shipEntity=shipEntity;
+ return shipEntity;
+}
 function captureGame(){
   const state={format:"ue/explorer-demo",version:1,
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
@@ -1513,9 +1553,10 @@ function captureGame(){
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
   if(solarSystem){
+   syncShipEntity();
    solarSystem.sync(planet.timeDays);
    solarSystem.store(solarSystem.currentId,state);
-   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:voyage?.active?voyage.snapshot():null,ship:surfaceShip?.snapshot()||null};
+   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:voyage?.active?voyage.snapshot():null,ship:surfaceShip?.snapshot()||null,shipEntity:shipEntity?.snapshot()||null};
   }
   return state;
 }
@@ -1552,7 +1593,7 @@ function toggleSurfaceShipHatch(){
  surfaceShipUI?.update(true);
  return {ok:true,message:surfaceShip.hatchOpen?"🚪 宇宙船のハッチを開け、ランプを展開しました":"🔒 宇宙船のハッチを閉じました"};
 }
-function boardSurfaceStarship(){
+function boardSurfaceStarship({walkThrough=false,pose=null}={}){
  if(voyage?.active)return {ok:false,message:"すでに宇宙船に乗っています"};
  const permitted=canDepartCelestial();if(!permitted.ok)return permitted;
  const hatch=currentShipHatch();
@@ -1560,12 +1601,14 @@ function boardSurfaceStarship(){
  if(!surfaceShip.hatchOpen)return {ok:false,message:"ハッチを開けてください"};
  try{
   const state=captureGame();solarSystem.store(solarSystem.currentId,state);
-  const local=shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
+  const local=pose||shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
   voyage=new ShipJourney({originId:solarSystem.currentId,
    launchDay:planet.timeDays,launchSite:surfaceShip.snapshot(),hatchOpen:true,status:"docked",
-   interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
-    z:Math.max(16.0,Math.min(18.1,local.z)),yaw:controller.yaw-(surfaceShip.yaw||0),mode:"interior"}});
+   interior:{schemaVersion:1,x:walkThrough?local.x:Math.max(-.85,Math.min(.85,local.x)),
+    z:walkThrough?local.z:Math.max(16.0,Math.min(18.1,local.z)),
+    yaw:cabinYawFromGround(controller.yaw,surfaceShip.yaw||0),mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
+  renderer.shipVoyage=voyage;renderer.pickVP=null;
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
  }catch(error){voyage=null;return {ok:false,message:"乗船に失敗："+error.message};}
@@ -1590,24 +1633,33 @@ function shipRoutes(){
 function setShipDestination(id){
  if(voyage?.kind!=="surface-to-surface")return {ok:false,message:"宇宙船に乗ってください"};
  const plan=solarSystem.travelPlan(id);if(!plan.ok)return plan;
- return voyage.chooseDestination(id,plan.flightDays);
+ try{
+  // Pin a safe target before cruise, so orbit -> entry has one address.
+  const preview=prepareShipArrivalTerrain({destinationId:id,visitedSave:solarSystem.load(id),days:solarSystem.days});
+  const result=voyage.chooseDestination(id,plan.flightDays);
+  if(!result.ok)return result;
+  if(!voyage.setLandingSite(preview.site))throw Error("着陸地点を航路へ登録できません");
+  shipArrivalPreview=preview;renderer.shipArrivalPreview=preview;
+  return {...result,message:result.message+"（到着地点も確定）"};
+ }catch(error){return {ok:false,message:"航路設定エラー："+error.message};}
 }
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
  voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
-function shipEgress(){
+function shipEgress({walkThrough=false}={}){
  if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
-  const cabinX=voyage.interior.x,cabinZ=Math.max(17.3,voyage.interior.z);
-  controller.setLanding(surfaceShip.lat,surfaceShip.lon);
-  const ground=shipLocalToWorld(0,0,surfaceShip.yaw,cabinX,cabinZ);
-  controller.x=ground.x;controller.z=ground.z;
-  controller.yaw=voyage.interior.yaw+(surfaceShip.yaw||0);
-  const geo=controller.locationAt(controller.x,controller.z);
-  controller.lat=geo.lat;controller.lon=geo.lon;
+  // Keep the region's origin: scenery, NPCs, buildings and rail coordinates
+  // are still relative to it. Only the player's pose leaves the cabin frame.
+  const exit=starshipSurfaceExit(surfaceShip,controller,voyage.interior,{walkThrough});
+  controller.x=exit.x;controller.z=exit.z;controller.yaw=exit.yaw;
+  controller.lat=exit.lat;controller.lon=exit.lon;
+  controller.moveTarget=null;controller.jumpY=0;controller.jumpV=0;
+  controller.travelMode="walk";
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
-  squad.repositionAfterLanding();
+  // Transport is not credited as foot travel on the next walking update.
+  if(footVoyage)footVoyage.last={lat:controller.lat,lon:controller.lon};
   renderer.patchKey=null;lastTime=0;
   voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
   voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
@@ -1670,6 +1722,9 @@ function prepareShipArrival(){
   visitedSave:solarSystem.load(voyage.destinationId),
   days:solarSystem.days,preferredSite:voyage.landingSite
  });
+ const pinned=voyage.landingSite;
+ if(pinned&&["lat","lon","yaw","padElevationM"].some(k=>Math.abs(pinned[k]-preview.site[k])>1e-6))
+  throw Error("確定済みの着陸地点が変化しました。降下せず周回軌道で待機します");
  if(!voyage.setLandingSite(preview.site))throw Error("着陸地点を航行記録に設定できません");
  shipArrivalPreview=preview;
  if(renderer)renderer.shipArrivalPreview=preview;
@@ -1708,7 +1763,8 @@ function travelToCelestial(id,flightDays,stayAboard=false){
   solarSystem.arrive(id,flightDays);
   next.planet.timeDays=solarSystem.days;
   next.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),
-   voyage:stayAboard?voyage?.snapshot():null,ship:surfaceShip?.snapshot()||null};
+   voyage:stayAboard?voyage?.snapshot():null,ship:surfaceShip?.snapshot()||null,
+   shipEntity:current.v0_aa?.shipEntity||null};
   running=false;init(next);
   if(!$("fatal").hidden)throw Error($("fatal").textContent);
   if(!previouslyVisited){
@@ -1722,11 +1778,18 @@ function travelToCelestial(id,flightDays,stayAboard=false){
    const planned=voyage?.kind==="surface-to-surface"&&voyage.landingSite?.bodyId===id?
     voyage.landingSite:null;
    const scanned=planned?evaluateStarshipPad(terrain,planned.lat,planned.lon,planned.yaw):null;
+   if(planned&&(!scanned?.safe||Math.abs(scanned.padElevationM-planned.padElevationM)>1e-3))
+    throw Error("確定済みの着陸地点を復元できません。別地点へ移動せず航行を中止します");
    const pad=scanned?.safe?scanned:
     findStarshipPad(terrain,{lat:controller.lat,lon:controller.lon})||
     findStarshipPad(terrain,terrain.landscapeAnchor);
    if(!pad)throw Error("目的惑星に安全な宇宙船着陸地点を確保できません");
-   controller.setLanding(pad.lat,pad.lon);
+   // A visited world's NPCs, resources and rail positions retain their saved
+   // origin. Place the player at the pad within that chart, without rebasing it.
+   const landing=starshipSurfaceLanding(controller,{...pad,bodyId:id});
+   controller.x=landing.x;controller.z=landing.z;
+   controller.lat=landing.lat;controller.lon=landing.lon;controller.yaw=landing.yaw;
+   controller.moveTarget=null;controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
    controller.altitudeM=2.5;controller.targetAltitude(2.5);
    squad.repositionAfterLanding();renderer.patchKey=null;
    surfaceShip.landedOn(id,pad.lat,pad.lon,pad.yaw,pad.padElevationM);
@@ -2749,7 +2812,7 @@ function interactOnShip(hit){
  updateHUD();return true;
 }
 function handleSceneTap({x,y,shiftKey=false}){
- if(!renderer)return;
+ if(!renderer||voyage?.active)return;
  if(townLife.inside){townUI?.open();return;}
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   selectOrbitLanding(x,y);return;
@@ -2833,6 +2896,7 @@ $("water-entry-accept").addEventListener("click",()=>{
  if(result.ok){renderer.patchKey=null;saveMarineJournal();updateHUD();}
 });
 function handleSceneDoubleTap({x,y,shiftKey=false}){
+ if(voyage?.active)return;
  if(!renderer)return;
  if(townLife.inside){townUI?.open();return;}
  if(marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId){
@@ -2963,13 +3027,13 @@ $("warehouse-deposit").addEventListener("click",()=>{
 viewportGestures=bindViewportGestures($("world"),{
  deferTap:true,onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
-  if(!renderer||!controller)return;
+  if(!renderer||!controller||voyage?.active)return;
   if(constructionUI?.dragging())return;
   if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M)renderer.panOrbit(dx,dy);
   else if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
   else renderer.cameraController.rotate(dx,dy);
  },
- onPinch:factor=>{if(renderer&&controller){zoomScene(factor);syncCameraControls();}}
+ onPinch:factor=>{if(renderer&&controller&&!voyage?.active){zoomScene(factor);syncCameraControls();}}
 });
 $("world").addEventListener("wheel",e=>{
  e.preventDefault();zoomScene(e.deltaY>0?1.3:.77);syncCameraControls();
@@ -4042,7 +4106,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
-voyageUI=installSpaceFlightUI({get:()=>voyage,
+voyageUI=installSpaceFlightUI({get:()=>voyage,getMovement:inputVector,
  onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},

@@ -34,7 +34,7 @@ test("orbital waypoint selection follows ascent and is required for transfer",()
 });
 test("atmospheric descent only begins when seated and aligned",()=>{
  const ship=newShip();
- ship.status="orbit";ship.destinationId="nix";
+ ship.status="orbit";ship.destinationId="nix";ship.hatchOpen=false;
  ship.heading=24;ship.seated=true;
  assert.equal(ship.enterAtmosphere().ok,false);
  ship.heading=0;
@@ -59,9 +59,11 @@ test("save round trip preserves location, autopilot, chosen destination and airl
 });
 test("manual heading and throttle affect transfer time while still being bounded",()=>{
  const a=newShip();
+ a.seated=true;
  a.status="cruise";a.destinationId="selene";a.flightDays=5;a.autopilot=false;a.setThrottle(0.3);a.steer(40);
  assert.equal(a.heading,40);
  const fast=newShip();
+ fast.seated=true;
  fast.status="cruise";fast.destinationId="selene";fast.flightDays=5;fast.setThrottle(1);
  for(let n=0;n<30;n++){a.tick(.08);fast.tick(.08);}
  assert.ok(fast.progress>a.progress);

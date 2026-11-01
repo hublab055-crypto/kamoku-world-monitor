@@ -1,0 +1,12 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {ShipJourney} from '../planet-explorer/ship-journey.mjs';
+import {StarshipEntity} from '../planet-explorer/starship-entity.mjs';
+import {stickAxes} from '../planet-explorer/starship-cockpit-controls.mjs';
+const ship=(extra={})=>new ShipJourney({originId:'terra',destinationId:'selene',status:'orbit',seated:true,hatchOpen:false,...extra});
+test('stick circular limit, deadzone and roll mode',()=>{assert.deepEqual(stickAxes(.01,.01),{yaw:0,pitch:0,roll:0});const a=stickAxes(1,-1);assert.ok(Math.abs(Math.hypot(a.yaw,a.pitch)-1)<1e-10);assert.deepEqual(stickAxes(1,0,true),{yaw:0,pitch:0,roll:1});});
+test('bounded attitude and seat ownership',()=>{const v=ship();for(let i=0;i<100;i++)v.setAttitude(1,1,1,.1);assert.equal(v.heading,60);assert.equal(v.pitch,45);assert.equal(v.roll,75);assert.equal(v.autopilot,false);v.stand();assert.equal(v.setAttitude(-1,-1,-1,.1),false);assert.equal(v.setBrake(1),false);assert.throws(()=>v.setAttitude(0,NaN,0,.1));});
+test('brake holds progress and save resumes',()=>{const v=ship({status:'cruise',progress:.3});v.setBrake(1);v.tick(.1);assert.equal(v.progress,.3);const r=ShipJourney.fromSnapshot(v.snapshot());assert.equal(r.brake,1);r.setBrake(0);r.tick(.1);assert.ok(r.progress>.3);});
+test('gear interlocks descent',()=>{const v=ship();assert.equal(v.toggleGear().ok,true);assert.equal(v.enterAtmosphere().ok,false);v.toggleGear();assert.equal(v.enterAtmosphere().ok,true);assert.equal(v.toggleGear().ok,false);assert.equal(ship({status:'docked'}).toggleGear().ok,false);});
+test('remote hatch ground only',()=>{const v=ship({status:'docked'});assert.equal(v.cockpitHatch().ok,true);assert.equal(v.interior.hatchPassable,true);assert.equal(v.launch().ok,false);v.cockpitHatch();assert.equal(v.launch().ok,true);assert.equal(v.cockpitHatch().ok,false);});
+test('saved bank affects axes but touchdown keeps pad orientation',()=>{const v=ship({pitch:25,roll:30});const e=new StarshipEntity();e.sync({journey:v,days:2});const axes=e.pose.axes;const r=ShipJourney.fromSnapshot(v.snapshot());assert.equal(r.pitch,25);assert.equal(r.roll,30);r.pitch=0;r.roll=0;e.sync({journey:r,days:2});assert.notDeepEqual(e.pose.axes,axes);v.status='touchdown';r.status='touchdown';e.sync({journey:v,days:2});const pad=e.pose.axes;e.sync({journey:r,days:2});assert.deepEqual(e.pose.axes,pad);});
