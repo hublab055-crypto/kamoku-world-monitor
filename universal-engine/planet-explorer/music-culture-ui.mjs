@@ -12,7 +12,8 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
  onChange=()=>{},notify=()=>{},canJoin=()=>true,
  onEnterVenue=()=>({ok:false,message:"入場できません"}),
  onExitVenue=()=>({ok:false,message:"退出できません"}),
- onSeatAction=()=>({ok:false,message:"客席を操作できません"})}={}){
+ onSeatAction=()=>({ok:false,message:"客席を操作できません"}),
+ onToggleDoor=()=>({ok:false,message:"扉を操作できません"})}={}){
  const toolbar=$("toolbar"),quick=$("viewport-quick-menu");
  const openBtn=document.createElement("button");openBtn.textContent="🎭 音楽文化";
  openBtn.type="button";openBtn.id="toolbar-music-culture";toolbar?.append(openBtn);
@@ -51,9 +52,9 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   if(!culture||!canJoin())return say("現在は音楽活動に参加できません");
   const near=nearby(venue),wallet=getTownLife();
   let result;
-  if(kind==="enter"||kind==="exit"||kind==="sit"||kind==="stand"){
+  if(kind==="enter"||kind==="exit"||kind==="sit"||kind==="stand"||kind==="door"){
    const operation=kind==="enter"?onEnterVenue(venue):kind==="exit"?onExitVenue(venue):
-    onSeatAction(kind);
+    kind==="door"?onToggleDoor(venue):onSeatAction(kind);
    say(operation?.message||"会場の操作を実行できません");
    if(operation?.ok)refresh();
    return;
@@ -142,11 +143,18 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
     if(hallRoom(venue.id)){
      const inside=getTownLife()?.inside,room=inside?.townId===townId?
       getTownLife().find(townId,inside.buildingId,"village"):null;
+     const buildingIndex=getTownLife().layout(townId).buildings.findIndex(b=>b.type===venue.id);
+     const buildingId="village-"+buildingIndex;
+     const doorOpen=getTownLife().hallDoorOpen(townId,buildingId);
      if(room?.type===venue.id){
+      row.append(makeButton(doorOpen?"🚪 扉を閉める":"🚪 扉を開ける",()=>action(venue,"door")));
       row.append(makeButton("🚪 会場を出る",()=>action(venue,"exit")));
       row.append(makeButton(inside.seat?"🧍 立ち上がる":"💺 客席へ座る",
        ()=>action(venue,inside.seat?"stand":"sit")));
-     }else if(!inside)row.append(makeButton("🚪 建物に入る",()=>action(venue,"enter")));
+     }else if(!inside){
+      row.append(makeButton(doorOpen?"🚪 扉を閉める":"🚪 扉を開ける",()=>action(venue,"door")));
+      row.append(makeButton("🚶 開いた扉から入る",()=>action(venue,"enter")));
+     }
     }
     if(venue.id==="school")row.append(makeButton("🎓 授業を受ける (12G)",()=>action(venue,"lesson")));
     else{
