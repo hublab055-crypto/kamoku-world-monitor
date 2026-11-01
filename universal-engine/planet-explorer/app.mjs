@@ -53,6 +53,7 @@ import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.9ap-
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
 import {TownLife} from "./town-life.mjs?v=0.9aq-hall-doors";
+import {syncHallActorWorld} from "./music-hall-world.mjs?v=0.9as";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.9aq-hall-doors";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
@@ -732,6 +733,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
   if(townLife.inside&&!jailCellActive){
    townLife.walk(running?dt:0,input);
+   syncHallActorWorld(townLife,controller);
    if(townLife.portalExitRequested){
     const exit=townLife.portalExit(controller);
     if(exit.ok){syncTownState();log(exit.message);}
@@ -3741,7 +3743,9 @@ groupUI=installGroupUI({
 function syncTownState(){
  const room=townLife.inside;
  const building=room?townLife.find(room.townId,room.buildingId,"village"):null;
- renderer.townInterior=building?{type:building.type,title:building.title,pose:room.pose,seat:room.seat||null}:null;
+ renderer.townInterior=building?{type:building.type,title:building.title,pose:room.pose,seat:room.seat||null,
+  buildingId:room.buildingId,townId:room.townId}:null;
+ if(building)syncHallActorWorld(townLife,controller);
  $("town-interior-exit").hidden=!building;
  if(room){controller.clearMoveTarget();renderer.mapFocus=null;}
  saveTownJournal();saveLifeJournal();updateHUD();
