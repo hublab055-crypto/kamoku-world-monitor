@@ -40,6 +40,8 @@ export const MOBILE_ACTIONS=Object.freeze({
   throttleDown:{icon:"➖",label:"出力を下げる"},
   shipSettings:{icon:"🎮",label:"宇宙船UI設定"},
   saveVoyage:{icon:"💾",label:"宇宙船の状態を保存"},
+  landingGear:{icon:"🛬",label:"ランディングギア切替"},
+  attitudeMode:{icon:"↔️",label:"ヨー／ロール操作切替"},
   none:{icon:"－",label:"割り当てなし"}
 });
 export const MOBILE_LAYERS=Object.freeze({
@@ -65,7 +67,7 @@ const DEFAULT_BUTTONS={
         {tap:"inventory",hold:"menu"},{tap:"vehicleExit",hold:"vehiclePanel"}],
   shipInterior:[{tap:"interact",hold:"talk"},{tap:"hatch",hold:"disembark"},
         {tap:"cargo",hold:"inventory"},{tap:"navigation",hold:"saveVoyage"}],
-  shipCockpit:[{tap:"launchLand",hold:"throttleUp"},{tap:"autopilot",hold:"throttleDown"},
+  shipCockpit:[{tap:"launchLand",hold:"landingGear"},{tap:"autopilot",hold:"attitudeMode"},
         {tap:"navigation",hold:"transfer"},{tap:"stand",hold:"saveVoyage"}]
 };
 export function defaultMobileConfig(){
