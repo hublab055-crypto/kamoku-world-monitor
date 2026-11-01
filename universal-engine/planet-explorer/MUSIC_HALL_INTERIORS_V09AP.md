@@ -43,7 +43,7 @@
 ## 自動テスト
 - `node --test universal-engine/planet-explorer/music-hall.test.mjs universal-engine/planet-explorer/music-band.test.mjs universal-engine/planet-explorer/music-culture.test.mjs`
 - 新規7件（位置・既存ID維持・室内歩行・着席・教室・ジオメトリ・指先判定）、先行17件の合計24件をJSコード上で確認。
-- 変更JavaScript16ファイルの構文確認を実施。
+- 変更JavaScript15ファイルの構文確認を実施。
 - **未検証**：Quest 3/3Sの実機での手指追跡/アバター姿勢、Safariでの音声再生/屋内挙動、ゲーム全体のWebGL負荷測定、実際の動線でのドア入退室。
 
 ## 次段階
