@@ -32,6 +32,8 @@ function fixture(initial=null){
   "mobile-action-buttons","viewport-quick-toggle","viewport-quick-panel"]){
   ids.set(name,new Element(name));
  }
+ ids.get("ui-display-panel").hidden=true;
+ ids.get("viewport-quick-panel").hidden=true;
  const canvas=new Element("canvas-wrap");
  const world=new Element("world");world.setAttribute("aria-hidden","true");
  canvas.children.push(world,ids.get("stick-area"),ids.get("mobile-action-buttons"));
