@@ -2789,7 +2789,10 @@ export class ExplorerRenderer{
    const p=1-this.marine.entrySeconds/this.marine.entryDuration;
    marinePose={action:"splash",pitch:.50+.8*p,baseY:waterY-1.12+1.8*Math.sin(Math.PI*p)};
   }
-  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
+  const roomFloor=this.townInterior&&isSharedHallRoom(this.townInterior)?
+   this.townSites?.find(p=>p.id===this.townInterior.buildingId):null;
+  const feet=roomFloor?roomFloor.elevationM+.28:
+   marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
