@@ -1,4 +1,4 @@
-import {AssetStudioModel,partAnchor,snapCandidates} from "./asset-studio-model.mjs?v=0.9c-asset-v2";
+import {AssetStudioModel,partAnchor,snapCandidates} from "./asset-studio-model.mjs?v=0.9am-music-controls";
 import {AssetCamera} from "./asset-camera.mjs?v=0.9c-asset-v2";
 
 const DRAFT_KEY="universal-engine:asset-studio:v0.9c";
