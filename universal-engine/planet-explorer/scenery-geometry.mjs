@@ -114,6 +114,27 @@ function building(b,t){
     box(b,x,y+1.30,z+1.3,3.1,.17,.2,[.79,.65,.41]);
     return;
   }
+  if(kind==="theater"||kind==="school"){
+    const theater=kind==="theater",hw=theater?8.25:5.7,hd=theater?9.1:6.2,h=theater?6.8:4.7;
+    const wall=theater?[.54,.42,.34]:[.64,.61,.49];
+    box(b,x,y-1.25,z,hw+.5,1.5,hd+.5,stone);
+    box(b,x,y,z,hw,h,hd,wall);
+    for(const xx of [-hw+.9,hw-.9]){
+     box(b,x+xx,y+.1,z+hd+.15,.52,h-.3,.23,kind==="theater"?[.72,.53,.29]:timber);
+     box(b,x+xx,y+2.9,z+hd+.24,.38,1.15,.10,[.32,.54,.60]);
+    }
+    // Openable façade is handled by TownLife.enter; leave visual door marker.
+    box(b,x,y+.02,z+hd+.23,1.05,3.05,.16,[.24,.20,.19]);
+    box(b,x,y+3.28,z+hd+.32,2.4,.48,.19,theater?[.65,.23,.22]:[.27,.54,.42]);
+    pitched(b,x,z,y+h+.1,hw,hd,theater?2.35:1.7,roof);
+    if(theater){
+     box(b,x,y+4.7,z+hd+.25,2.8,.60,.14,[.78,.56,.27]);
+     for(const xx of [-hw+1,hw-1])box(b,x+xx,y+6.4,z+hd+.3,.25,.65,.24,[.90,.78,.50]);
+    }else{
+     box(b,x,y+3.38,z+hd+.36,1.3,.38,.14,[.84,.84,.74]);
+    }
+    return;
+  }
   const large=["lodge","barn","stable","workshop"].includes(kind);
   const hw=large?6.6:4.15,hd=large?5.15:3.62,h=large?4.9:3.7;
   box(b,x,y-1.2,z,hw+.65,1.8,hd+.65,stone);
