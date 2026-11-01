@@ -1089,6 +1089,7 @@ export class ExplorerRenderer{
    return pickOrbitalGeo(this.orbitVP,nx,ny,this.R,this.orbitOffsetDeg);
   }
   pickGround(clientX,clientY){
+   if(this.shipVoyage?.active)return null;
    const pick=this.groundPickFrame;
    if(!this.pickVP||!pick||pick.frame!==this.groundFrame)return null;
    const r=this.canvas.getBoundingClientRect();
@@ -1696,6 +1697,10 @@ export class ExplorerRenderer{
       this.dockedShipPose=pose;
       this.ground({...base,...pose,altitudeM:2.5,travelMode:"walk",jumpY:0,
        moving:Boolean(v.interior.moving),origin:base.origin},asp,dt);
+      // Share scenery, not outdoor commands. The cabin UI owns all pointer
+      // input while aboard, including a docked ship with visible terrain.
+      this.pickVP=null;this.groundPickFrame=null;this.actorMarker=null;
+      for(const key of Object.keys(this))if(/^screen[A-Z]/.test(key)&&Array.isArray(this[key]))this[key]=[];
       return "ship-interior";
      }
     }

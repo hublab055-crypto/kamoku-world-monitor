@@ -1593,6 +1593,7 @@ function boardSurfaceStarship({walkThrough=false,pose=null}={}){
     z:walkThrough?local.z:Math.max(16.0,Math.min(18.1,local.z)),
     yaw:cabinYawFromGround(controller.yaw,surfaceShip.yaw||0),mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
+  renderer.shipVoyage=voyage;renderer.pickVP=null;
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
  }catch(error){voyage=null;return {ok:false,message:"乗船に失敗："+error.message};}
@@ -2782,7 +2783,7 @@ function interactOnShip(hit){
  updateHUD();return true;
 }
 function handleSceneTap({x,y,shiftKey=false}){
- if(!renderer)return;
+ if(!renderer||voyage?.active)return;
  if(townLife.inside){townUI?.open();return;}
  if(controller?.altitudeM>ORBIT_GROUND_CUTOFF_M){
   selectOrbitLanding(x,y);return;
@@ -2866,6 +2867,7 @@ $("water-entry-accept").addEventListener("click",()=>{
  if(result.ok){renderer.patchKey=null;saveMarineJournal();updateHUD();}
 });
 function handleSceneDoubleTap({x,y,shiftKey=false}){
+ if(voyage?.active)return;
  if(!renderer)return;
  if(townLife.inside){townUI?.open();return;}
  if(marine?.boarded?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId){
@@ -2996,13 +2998,13 @@ $("warehouse-deposit").addEventListener("click",()=>{
 viewportGestures=bindViewportGestures($("world"),{
  deferTap:true,onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
-  if(!renderer||!controller)return;
+  if(!renderer||!controller||voyage?.active)return;
   if(constructionUI?.dragging())return;
   if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M)renderer.panOrbit(dx,dy);
   else if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
   else renderer.cameraController.rotate(dx,dy);
  },
- onPinch:factor=>{if(renderer&&controller){zoomScene(factor);syncCameraControls();}}
+ onPinch:factor=>{if(renderer&&controller&&!voyage?.active){zoomScene(factor);syncCameraControls();}}
 });
 $("world").addEventListener("wheel",e=>{
  e.preventDefault();zoomScene(e.deltaY>0?1.3:.77);syncCameraControls();

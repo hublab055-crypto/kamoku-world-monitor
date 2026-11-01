@@ -215,7 +215,8 @@ test("docked cabin uses the same ground scene and hollow spacecraft mesh on both
   renderer.renderUnifiedShip=()=>{throw Error("docked cabin must not switch to the flight scene");};
   assert.equal(renderer.frame(actor,.016),"ship-interior");
   assert.equal(renderer.groundFrame.regionKey,region);assert.ok(renderer.dockedShipPose);
-  assert.equal(renderer.groundPickFrame.frame,renderer.groundFrame);
+  assert.equal(renderer.groundPickFrame,null);assert.equal(renderer.pickGround(480,280),null);
+  assert.deepEqual(renderer.screenResources,[]);
   renderer.shipVoyage=null;
   assert.equal(renderer.frame(actor,.016),"ground");assert.equal(renderer.dockedShipPose,null);
   assert.deepEqual(actor.origin,origin);
