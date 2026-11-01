@@ -50,7 +50,9 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {musicStageGeometry} from "./music-world.mjs?v=0.9am-music-craft";
-import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9an";
+import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9ao";
+import {bandAppearance} from "./music-band.mjs?v=0.9ao";
+import {bandFigureGeometry,MUSIC_BAND_RENDER_ROLES,MUSIC_POSE_FRAMES} from "./music-band-geometry.mjs?v=0.9ao";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {bodyById} from "./solar-system.mjs?v=1";
@@ -658,6 +660,9 @@ export class ExplorerRenderer{
   const podium=builder();box(podium,0,0,0,2.7,.27,1.65,[.31,.21,.13]);
   box(podium,0,.24,-1.34,2.75,.18,.20,[.67,.48,.23]);
   this.musicPodiumMesh=new Mesh(gl,podium);this.screenMusicVenues=[];
+  this.musicBandMeshes=Object.fromEntries(MUSIC_BAND_RENDER_ROLES.map(role=>
+   [role,Array.from({length:MUSIC_POSE_FRAMES},(_,phase)=>
+    new Mesh(gl,bandFigureGeometry(role,phase)))]));
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
 
@@ -1541,12 +1546,19 @@ export class ExplorerRenderer{
     if(now?.performing){
      // A persistent resident model stands at the stage. Other NPC systems,
      // schedules, custody and navigation remain unchanged.
-     const actor=multiply4(model,multiply4(translate(0,.28,-1.95),rotateY(Math.PI)));
-     this.drawMesh(this.railGuardMesh,multiply4(vp,actor),light,1,.87);
+     const frame=Math.floor(this.marineClock*3.5)%MUSIC_POSE_FRAMES;
+     const members=bandAppearance(venue,culture.bandContracts,this.planet.timeDays);
+     for(let i=0;i<members.length;i++){
+      const member=members[i],role=member.role;
+      const artist=multiply4(translate(x+member.x,y+.28,z+member.z),rotateY(Math.PI));
+      this.drawMesh(this.musicBandMeshes[role][(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,artist),light,1,.87);
+     }
      for(let i=0;i<Math.min(7,Math.ceil(venue.audienceCount/3));i++){
       const dx=(i%4-1.5)*1.45,dz=3.7+Math.floor(i/4)*2.0;
       const seat=multiply4(translate(x+dx,y,z+dz),rotateY(Math.PI));
-      this.drawMesh(this.railGuardMesh,multiply4(vp,seat),light,1,.7);
+      this.drawMesh(this.musicBandMeshes.audience[(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,seat),light,1,.7);
      }
     }
     const p=projectScreen(vp,[x,y+2.3,z]);
@@ -2056,6 +2068,33 @@ export class ExplorerRenderer{
     lookAt([8,6.6,10],[0,1.0,-.2]));
   this.pickVP=null;
   this.drawMesh(this.townRoomMeshes.get(kind),vp,[.5,.9,.45],1,.86);
+  // Inn music room: reuse the existing walkable lodge interior geometry.
+  // No teleport or second copy of the room; the town indoor pose stays authoritative.
+  if(kind==="lodge"&&this.musicCulture){
+   const venue=this.musicCulture.venue(this.settlementId,"tavern");
+   if(venue){
+    const light=[.62,.82,.59],stage=translate(0,0,-1.20);
+    this.drawMesh(this.musicPodiumMesh,multiply4(vp,stage),light,1,.84);
+    this.drawMesh(this.musicVenueMesh,multiply4(vp,
+     multiply4(stage,translate(-.25,.27,0))),light,1,.8);
+    const show=musicNow(venue,this.planet?.timeDays||0);
+    if(show?.performing){
+     const frame=Math.floor(this.marineClock*3.5)%MUSIC_POSE_FRAMES;
+     const band=bandAppearance(venue,this.musicCulture.bandContracts,this.planet.timeDays);
+     for(let i=0;i<band.length;i++){
+      const member=band[i];
+      const performer=multiply4(translate(member.x,.28,-1.20+member.z),rotateY(Math.PI));
+      this.drawMesh(this.musicBandMeshes[member.role][(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,performer),light,1,.9);
+     }
+     for(let i=0;i<3;i++){
+      const spectator=translate((i-1)*1.5,0,1.3+(i%2)*.8);
+      this.drawMesh(this.musicBandMeshes.audience[(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,spectator),light,1,.78);
+     }
+    }
+   }
+  }
   if(!this.townIndoorAvatarMesh){
    const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
    this.townIndoorAvatarMesh=new Mesh(gl,g);
@@ -2961,7 +3000,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.musicStageMesh,this.musicVenueMesh,this.musicPodiumMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.musicStageMesh,this.musicVenueMesh,this.musicPodiumMesh,...Object.values(this.musicBandMeshes).flat(),this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

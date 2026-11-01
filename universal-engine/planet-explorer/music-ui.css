@@ -53,3 +53,13 @@
 .ue-culture-panel [data-journal]{color:#bcd2db;line-height:1.8;max-height:160px;overflow:auto}
 .ue-culture-panel .ue-music-check{display:flex;gap:6px;align-items:center}
 @media(max-width:580px){.ue-culture-panel .ue-music-body{padding:8px}.ue-culture-panel .ue-culture-venue{padding:8px}}
+
+/* Contracted NPC band management; large touch controls for Quest/iOS. */
+.ue-culture-panel .ue-culture-band{border:1px solid #52758a;border-radius:8px;padding:9px;background:#0c2535}
+.ue-culture-panel .ue-culture-band>summary{font-weight:650;cursor:pointer;padding:4px 0}
+.ue-culture-panel .ue-culture-band>p{margin:7px 0;color:#c1d7e1}
+.ue-culture-panel .ue-culture-band select{flex:1;min-width:145px;max-width:100%}
+.ue-culture-panel .ue-culture-band .ue-music-row{align-items:center;margin:7px 0;gap:8px}
+.ue-culture-panel .ue-culture-band .ue-music-row>span{flex:1;min-width:130px}
+.ue-culture-panel .ue-culture-band small{color:#afc4cf}
+@media(max-width:600px){.ue-culture-panel .ue-culture-band .ue-music-row{flex-direction:column;align-items:stretch}}
