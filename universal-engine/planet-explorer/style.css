@@ -1298,7 +1298,7 @@ body.immersive{overflow:hidden}
 .mobile-action-buttons[hidden],.mobile-action-settings[hidden]{display:none!important}
 .mobile-action-buttons{display:none}
 .mobile-action-settings{display:none}
-@media (max-width:760px) and (pointer:coarse){
+@media (max-width:1024px) and (pointer:coarse){
   #viewport-mobile-actions{display:block}
   body.mobile-minimal-ui:not(.mobile-show-legacy) #action-pad,
   body.mobile-minimal-ui:not(.mobile-show-decks) #quick-items,
@@ -1366,7 +1366,7 @@ body.immersive{overflow:hidden}
   .mobile-action-layer input{width:18px;height:18px;flex-shrink:0;accent-color:#5cc0cc}
   .mobile-action-reset{align-self:flex-end}
 }
-@media (max-width:760px) and (pointer:coarse) and (orientation:landscape){
+@media (max-width:1024px) and (pointer:coarse) and (orientation:landscape){
   .mobile-action-buttons{grid-template-columns:repeat(2,51px);gap:6px;
     bottom:calc(7px + env(safe-area-inset-bottom,0px))}
   .mobile-action-button{width:51px;height:51px;min-width:51px;min-height:51px}
