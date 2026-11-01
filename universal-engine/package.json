@@ -8,6 +8,6 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs planet-explorer/mobile-controls.test.mjs planet-explorer/ship-mobile-ui.test.mjs planet-explorer/ship-flight-control.test.mjs planet-explorer/ship-mission-actions.test.mjs"
   }
 }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=0.9t-xr-compact">
+<link rel="stylesheet" href="./style.css?v=0.9au-mobile-four-actions">
 <link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
@@ -292,6 +292,7 @@
     <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
     <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
     <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
+    <button type="button" id="viewport-mobile-actions" aria-controls="mobile-action-settings">🎮 スマホ操作設定</button>
   </div>
 </div>
 <section id="strategy-panel" class="strategy-panel" role="dialog" aria-label="経済・軍事・外交シミュレーション" hidden>
@@ -875,6 +876,8 @@
   <div class="stick-base"><div id="stick-nub" class="stick-nub"></div></div>
   <span>MOVE</span>
 </div>
+<div id="mobile-action-buttons" class="mobile-action-buttons" role="group" aria-label="スマホ用4アクションボタン" hidden></div>
+<section id="mobile-action-settings" class="mobile-action-settings" role="dialog" aria-label="スマホ操作の設定" hidden></section>
 <div id="door-controls" class="door-controls" hidden role="group" aria-label="小屋の出入り操作">
   <button type="button" id="door-actions-toggle" aria-expanded="false" aria-controls="door-options" aria-label="ドア操作を開く">🚪 ドア</button>
   <div id="door-options" class="door-options" hidden>
@@ -1348,7 +1351,7 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9aj-cockpit-reentry-terrain-20261031"></script>
+<script type="module" src="./app.mjs?v=0.9ay-mission-operations"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */
 (() => {

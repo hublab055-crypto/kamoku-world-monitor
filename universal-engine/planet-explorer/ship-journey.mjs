@@ -1,5 +1,7 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
+import {ShipFlightControl} from "./ship-flight-control.mjs?v=1-flight-attitude";
+import {ShipMissionActions} from "./ship-mission-actions.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -29,6 +31,8 @@ export class ShipJourney{
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,0,1);
   this.autopilot=data.autopilot!==false;
+  this.flightControl=new ShipFlightControl(data.flightControl);
+  this.mission=new ShipMissionActions(data.mission);
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
   this.interior=ShipInterior.fromSnapshot({...data.interior,
@@ -38,7 +42,7 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
- get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
+ get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12&&this.flightControl.gearDeployed&&this.flightControl.landingAligned;}
  get phase(){
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
    cruise:"惑星間巡航",approach:"目的惑星へ接近",orbit:"目的惑星の周回軌道",
@@ -76,6 +80,7 @@ export class ShipJourney{
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<3)return {ok:false,message:"燃料が不足しています"};
   this.stageProgress=0;this.status="ascent";this.interior.hatchPassable=false;
+  this.flightControl.gearDeployed=false;
   return {ok:true,message:"🚀 エンジン始動。地表を離れ、大気圏上昇を開始しました"};
  }
  chooseDestination(id,flightDays){
@@ -95,7 +100,7 @@ export class ShipJourney{
   return {ok:true,message:"🛰️ "+bodyById(this.destinationId).name+"への惑星間巡航を開始"};
  }
  enterAtmosphere(){
-  if(!this.readyToLand)return {ok:false,message:"目標の周回軌道上で着席し、進路偏差を±12°以内にしてください"};
+  if(!this.readyToLand)return {ok:false,message:"着席し、進路±12°、ピッチ±15°、ロール±20°、降着脚の展開を確認してください"};
   if(this.hatchOpen)return {ok:false,message:"ハッチを閉じてください"};
   this.status="entry";this.stageProgress=0;this.interior.hatchPassable=false;
   return {ok:true,message:"🔥 大気圏突入開始。着陸姿勢を保持してください"};
@@ -111,9 +116,14 @@ export class ShipJourney{
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
  steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
+ toggleLandingGear(){return this.flightControl.setGear(!this.flightControl.gearDeployed,this.status);}
+ fireWeapon(){return this.mission.fire(this);}
+ dropCargo(resources,item,quantity){return this.mission.drop(resources,item,quantity,this);}
+ applyPilotStick(input){const result=this.flightControl.input(input);if(result.yawDelta)this.steer(result.yawDelta);return result;}
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  this.mission.tick(step);
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -121,10 +131,10 @@ export class ShipJourney{
   }
   if(!["ascent","cruise","approach","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;
-  if(this.autopilot)this.heading*=Math.exp(-step*2);
+  if(this.autopilot){this.heading*=Math.exp(-step*2);this.flightControl.stabilize(step);}
   const thr=this.fuel>0?this.throttle:0;
   this.fuel=Math.max(0,this.fuel-step*thr*.28);
-  const align=clamp(1-Math.abs(this.heading)/110,.5,1);
+  const align=clamp(1-Math.abs(this.heading)/110,.5,1)*this.flightControl.maneuverEfficiency;
   const rate=(.30+thr*1.2)*align;
   let days=0,advanced=0;
   if(this.status==="ascent"){
@@ -137,7 +147,7 @@ export class ShipJourney{
    const before=this.progress;
    this.progress=clamp(this.progress+step*rate/38,0,1);
    advanced=this.progress-before;days=advanced*this.flightDays;
-   if(this.progress>=1){this.status="orbit";this.stageProgress=0;}
+   if(this.progress>=1){this.status="orbit";this.stageProgress=0;if(this.autopilot)this.flightControl.gearDeployed=true;}
    else this.status=this.progress<.82?"cruise":"approach";
   }
   return {days,advanced,status:this.status};
@@ -146,7 +156,7 @@ export class ShipJourney{
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
-   fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
+   fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,flightControl:this.flightControl.snapshot(),mission:this.mission.snapshot(),hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
  }
  static fromSnapshot(data){

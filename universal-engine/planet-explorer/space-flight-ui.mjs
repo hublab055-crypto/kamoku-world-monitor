@@ -2,6 +2,7 @@ import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
+import {installShipMobileUI} from "./ship-mobile-ui.mjs?v=4-cargo";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -10,7 +11,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,notify}){
+export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,notify,onMobileAction,getRoutes,onChooseRoute,onTransfer}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -22,7 +23,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight canvas{width:100%;height:100%;display:block}
  #space-flight .flight-hud{position:absolute;top:12px;left:12px;color:#cde7f7;font:12px/1.5 ui-monospace,monospace;text-shadow:0 1px 4px #000}
  #space-flight .flight-readout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
- #space-flight .flight-stat{background:#122d3f;padding:5px;border-radius:6px;text-align:center}
+ #space-flight .flight-stat{background:#122d3f;padding:5px;border-radius:6px;text-align:center;overflow-wrap:anywhere}
  #space-flight .flight-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:center;padding:3px}
  #space-flight .flight-actions button{min-height:42px;min-width:68px;padding:5px 10px;border:1px solid #6595b1;border-radius:8px;background:#183b55;color:#effaff;font-size:13px}
  #space-flight .flight-actions button:disabled{opacity:.43}
@@ -79,6 +80,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   }});
  root.classList.toggle("integrated",unified);
  const held=new Set();let nearKey="",lastView="";
+ const mobileUI=installShipMobileUI({host:root,get,onAction:onMobileAction,getRoutes,onChooseRoute,onTransfer,getCargo,notify});
  function cockpitAvailable(){const v=get();return Boolean(v?.interior&&ship3D.supported);}
  function showCargo(){
   const resources=getCargo?.()||{};
@@ -188,6 +190,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();return;}
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
+  mobileUI?.render(dt);
   const interiorView=v.interior.mode==="interior";
   shipCanvas.hidden=unified||!interiorView;screen.hidden=interiorView;
   $("flight-walk").hidden=!interiorView;$("flight-nearby").hidden=!interiorView;
@@ -202,7 +205,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
-  $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"°";
+  $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"° ／ ピッチ："+Math.round(v.flightControl?.pitch||0)+"° ／ ロール："+Math.round(v.flightControl?.roll||0)+"° ／ 脚："+(v.flightControl?.gearDeployed===false?"格納":"展開");
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
@@ -263,5 +266,5 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ctx.fillText(Math.round(p*100)+"% / "+v.flightDays.toFixed(1)+" ゲーム日",w*.32,h*.90);
   $("flight-hud").textContent="HELIO NAV · "+v.status.toUpperCase()+"\n"+target.name+"  接近"+Math.round(p*100)+"%";
  }
- return {render,close:()=>{held.clear();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
+ return {render,close:()=>{held.clear();mobileUI?.clear();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
 }

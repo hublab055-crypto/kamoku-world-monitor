@@ -1703,6 +1703,12 @@ export class ExplorerRenderer{
    const eye=[person.x,eyeY,person.z];
    const vp=multiply4(perspective(75*DEG,asp,.12,42000),lookAt(eye,
     [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
+   // Exterior reflects spacecraft attitude; cabin stays level to its occupants.
+   // This is view-level coupling, not rigid-body translation.
+   const fc=v.flightControl;
+   const outerAttitude=multiply4(rotateY(-(v.heading||0)*DEG),
+    multiply4(rotX(-(fc?.pitch||0)*DEG),rotZ(-(fc?.roll||0)*DEG)));
+   const exteriorVP=(person.seated||person.mode==="cockpit")?multiply4(vp,outerAttitude):vp;
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
@@ -1725,7 +1731,7 @@ export class ExplorerRenderer{
      terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
     const groundMatrix=multiply4(translate(0,-pad-2.0-phase.lift,0),
      rotateY(-(site.yaw||0)));
-    this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
+    this.drawMesh(this.shipTerrainPatch,multiply4(exteriorVP,groundMatrix),
      [.64,.89,.42],1,.68);
     // Existing nearby settlements belong only to the origin planetary terrain;
     // never show an old planet's village in the destination landing window.
@@ -1734,7 +1740,7 @@ export class ExplorerRenderer{
      const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
      const toShip=multiply4(rotateY(-(site.yaw||0)),translate(
       this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
-     const groundVP=multiply4(vp,toShip);
+     const groundVP=multiply4(exteriorVP,toShip);
      for(const mesh of this.settlement.slice(0,48))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.64);
      for(const mesh of this.settlementDecor.slice(0,20))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.69);
      for(const mesh of this.trees.slice(0,20))this.drawInstancedMesh(mesh,groundVP,[.65,.88,.46],1,.63);
@@ -1754,7 +1760,23 @@ export class ExplorerRenderer{
     const z=v.status==="ascent"?-950:v.status==="entry"?-390:
       ["cruise","approach"].includes(v.status)?-420:-460;
     const globe=multiply4(translate(0,-50,z),scale3(radius,radius,radius));
-    this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
+    this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,globe),[.86,.91,.55],1,.88,rgb);
+   }
+   // Pulse bolts and supply pods use actual saved ship-mission state.
+   // Pulse impact damage is not yet connected to planet combat targets.
+   if(v.mission?.shots?.length){
+    for(const shot of v.mission.shots){
+     const size=shot.ttl>4.37?.52:.28;
+     const model=multiply4(translate(shot.x,shot.y,shot.z),scale3(size,size,size));
+     this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,model),[.95,.79,.38],1,.96,[1,.65,.18]);
+    }
+   }
+   if(v.mission?.drops?.length&&["entry","touchdown","landed"].includes(v.status)){
+    for(const pod of v.mission.drops){
+     if(!Number.isFinite(pod.height)||pod.height<=0)continue;
+     const model=multiply4(translate(1.3,-2.0-(18-pod.height),-17),scale3(.55,.55,.55));
+     this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,model),[.72,.94,.67],1,.86,[.64,.9,.95]);
+    }
    }
    this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
    return "ship-interior";

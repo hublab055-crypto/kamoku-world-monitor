@@ -1,5 +1,5 @@
 /** Small proximity panel: parked craft, landing plume, or optional call-to-land command. */
-export function installSurfaceStarshipUI({get,onHatch,onBoard,onLand,notify}){
+export function installSurfaceStarshipUI({get,onHatch,onBoard,onLand,onRecoverCargo,notify}){
  const style=document.createElement("style");
  style.textContent=`#surface-starship[hidden]{display:none!important}
  #surface-starship{position:absolute;bottom:54px;left:9px;z-index:29;background:#082535ef;
@@ -15,14 +15,15 @@ export function installSurfaceStarshipUI({get,onHatch,onBoard,onLand,notify}){
  const root=document.createElement("section");
  root.id="surface-starship";root.hidden=true;
  const head=document.createElement("strong"),note=document.createElement("div");
- const hatch=document.createElement("button"),board=document.createElement("button"),land=document.createElement("button");
- hatch.type="button";board.type="button";land.type="button";
- root.append(head,note,hatch,board,land);
+ const hatch=document.createElement("button"),board=document.createElement("button"),land=document.createElement("button"),recover=document.createElement("button");
+ hatch.type="button";board.type="button";land.type="button";recover.type="button";recover.hidden=true;
+ root.append(head,note,hatch,board,land,recover);
  document.querySelector(".canvas-wrap")?.append(root);
  const run=(fn)=>{const r=fn?.();if(r?.message)notify?.(r.message);update(true);};
  hatch.addEventListener("click",()=>run(onHatch));
  board.addEventListener("click",()=>run(onBoard));
  land.addEventListener("click",()=>run(onLand));
+ recover.addEventListener("click",()=>run(onRecoverCargo));
  let prev="";
  function update(force=false){
   const state=get(),ship=state?.ship,planet=state?.planet,controller=state?.controller;
@@ -36,10 +37,13 @@ export function installSurfaceStarshipUI({get,onHatch,onBoard,onLand,notify}){
   const nearby=Boolean(pos&&pos.distanceM<=25);
   const landing=own&&ship.flight==="landing";
   const mode=landing?"landing":nearby?"near":"call";
-  const key=[mode,Math.round((pos?.distanceM??0)*2),ship.hatchOpen,
+  const cargo=Array.isArray(state?.cargoNear)?state.cargoNear:[];
+  const key=[mode,cargo.map(c=>c.id).join(","),Math.round((pos?.distanceM??0)*2),ship.hatchOpen,
    Math.floor((ship.landingProgress||0)*20)].join(":");
   if(!force&&key===prev)return;prev=key;
   root.hidden=false;root.classList.toggle("compact",mode==="call");
+  recover.hidden=!cargo.length;
+  if(cargo.length)recover.textContent="📦 投下物資を回収（"+cargo[0].resource+" ×"+cargo[0].quantity+"）";
   if(mode==="call"){
    head.textContent="🚀 宇宙船";
    note.textContent="近くの開けた土地へ船を着陸させます。";
