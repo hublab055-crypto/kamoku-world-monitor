@@ -183,7 +183,10 @@ export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxRea
   if(t<=0||t>maxReach)continue;
   const wx=from[0]+dir[0]*t-localOffset[0],wz=from[2]+dir[2]*t-localOffset[2];
   const x=c*wx-s*wz,z=s*wx+c*wz;
-  if(Math.abs(x-control.x)<=control.width/2&&Math.abs(z-control.z)<=control.depth/2)
+  const angle=control.yaw||0,co=Math.cos(angle),si=Math.sin(angle);
+  const dx=x-control.x,dz=z-control.z;
+  const localX=co*dx+si*dz,localZ=-si*dx+co*dz;
+  if(Math.abs(localX)<=control.width/2&&Math.abs(localZ)<=control.depth/2)
    return {track:control.track,pitch:control.pitch,distanceM:t};
  }
  if(controls.length)return null;
@@ -226,8 +229,10 @@ export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tole
  const x=c*projected[0]-sn*projected[2],z=sn*projected[0]+c*projected[2];
  if(controls.length){
   for(const control of controls){
+   const angle=control.yaw||0,co=Math.cos(angle),si=Math.sin(angle);
+   const dx=x-control.x,dz=z-control.z,lx=co*dx+si*dz,lz=-si*dx+co*dz;
    if(Math.abs(projected[1]-(control.y+control.height))<tolerance&&
-      Math.abs(x-control.x)<=control.width/2&&Math.abs(z-control.z)<=control.depth/2)
+      Math.abs(lx)<=control.width/2&&Math.abs(lz)<=control.depth/2)
     return {track:control.track,pitch:control.pitch};
   }
   return null;
