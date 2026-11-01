@@ -1,6 +1,6 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
-import {ShipFlightControl} from "./ship-flight-control.mjs?v=1";
+import {ShipFlightControl} from "./ship-flight-control.mjs?v=1-flight-attitude";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
