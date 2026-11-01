@@ -38,8 +38,8 @@ import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splas
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
-import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8x-rail-safety";
-import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
+import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.9ap-music-hall";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.9ap-music-hall";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
