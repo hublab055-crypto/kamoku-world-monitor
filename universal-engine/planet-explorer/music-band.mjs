@@ -41,7 +41,7 @@ export function restoreBandContracts(raw){
   const roster=new Set(),roles=new Set(),clean=[];
   for(const entry of contracts){
    if(++total>28||!contractValid(entry)||entry.townId!==town||
-     !musicianCandidates(town,"theater").some(c=>c.id===entry.residentId)||
+     !settlementLayout(town).residents.some(c=>c.id===entry.residentId)||
      roster.has(entry.residentId)||roles.has(entry.role))
     throw Error("楽団契約が不正です");
    roster.add(entry.residentId);roles.add(entry.role);clean.push({...entry});
