@@ -1,6 +1,7 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
 import {ShipFlightControl} from "./ship-flight-control.mjs?v=1-flight-attitude";
+import {ShipMissionActions} from "./ship-mission-actions.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const valid=n=>Number.isFinite(n);
 /** Ground -> airlock -> ascent -> origin orbit -> transfer -> destination orbit -> descent -> surface. */
@@ -19,6 +20,7 @@ export class SpaceVoyage{
   this.heading=clamp(data.heading??0,-60,60);
   this.autopilot=data.autopilot!==false;
   this.flightControl=new ShipFlightControl(data.flightControl);
+  this.mission=new ShipMissionActions(data.mission);
   const states=["preflight","ascent","parking-orbit","launch","cruise","approach","orbit","descent","landed"];
   this.status=states.includes(data.status)?data.status:"preflight";
   this.launchDay=valid(data.launchDay)?data.launchDay:0;
@@ -62,6 +64,8 @@ export class SpaceVoyage{
  setThrottle(value){if(!valid(value))throw new TypeError("Invalid throttle");this.throttle=clamp(value,0,1);}
  setAutopilot(on){this.autopilot=Boolean(on);}
  toggleLandingGear(){return this.flightControl.setGear(!this.flightControl.gearDeployed,this.status);}
+ fireWeapon(){return this.mission.fire(this);}
+ dropCargo(resources,item,quantity){return this.mission.drop(resources,item,quantity,this);}
  applyPilotStick(input){const result=this.flightControl.input(input);if(result.yawDelta)this.steer(result.yawDelta);return result;}
  cancel(){
   if(this.status!=="preflight")return {ok:false,message:"離陸後は航行を中断できません"};
@@ -70,6 +74,7 @@ export class SpaceVoyage{
  tick(dt){
   if(!valid(dt)||dt<0)throw new RangeError("Invalid simulation step");
   const step=clamp(dt,0,.12);
+  this.mission.tick(step);
   if(this.status==="preflight"||this.status==="parking-orbit"||this.status==="orbit"||this.status==="landed"||this.status==="cancelled")
    return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;
@@ -101,7 +106,7 @@ export class SpaceVoyage{
   return {schemaVersion:1,originId:this.originId,destinationId:this.destinationId,
    launchDay:this.launchDay,flightDays:this.flightDays,progress:this.progress,
    elapsedSeconds:this.elapsedSeconds,throttle:this.throttle,fuel:this.fuel,
-   heading:this.heading,autopilot:this.autopilot,flightControl:this.flightControl.snapshot(),status:this.status,
+   heading:this.heading,autopilot:this.autopilot,flightControl:this.flightControl.snapshot(),mission:this.mission.snapshot(),status:this.status,
    ascentSeconds:this.ascentSeconds,descentSeconds:this.descentSeconds,
    interior:this.interior.snapshot()};
  }
