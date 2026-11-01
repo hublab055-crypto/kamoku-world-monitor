@@ -462,6 +462,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   catch(e){report("自作曲を再生できません: "+e.message);}
  }
  function hasCraftedInstrument(){
+  if(creative)return true;
   if(Object.values(inventory.items).some(n=>n>0))return true;
   return Object.values(stages).some(s=>s?.owned===true);
  }
