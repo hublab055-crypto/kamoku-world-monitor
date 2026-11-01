@@ -3,6 +3,7 @@
  * timers. A single authoritative transaction debits shared town-life coins.
  */
 import {destinationById,settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+import {restoreBandContracts,currentBand,hireBandContract,releaseBandContract} from "./music-band.mjs?v=0.9ao";
 export const MUSIC_CULTURE_FORMAT="ue/music-culture";
 export const MUSIC_VENUES=Object.freeze([
  {id:"tavern",name:"🍺 宿場の演奏会",kind:"tavern",hours:[18,23],shows:[19,21],ticket:5,capacity:12},
@@ -47,7 +48,7 @@ function defaultSave(){return {format:MUSIC_CULTURE_FORMAT,version:1,treasury:{}
 export class MusicCulture{
  constructor(saved=null){
   const d=defaultSave();
-  this.treasury={};this.skill=0;this.reputation=0;this.showsAttended={};this.showsPlayed={};this.lessons={};this.npcPaid={};this.npcEarnings={};this.npcExperience={};this.journal=[];
+  this.treasury={};this.skill=0;this.reputation=0;this.showsAttended={};this.showsPlayed={};this.lessons={};this.npcPaid={};this.npcEarnings={};this.npcExperience={};this.bandContracts={};this.artistTalked={};this.journal=[];
   if(!saved)return;
   if(saved.format!==MUSIC_CULTURE_FORMAT||saved.version!==1)throw Error("音楽文化セーブ形式が不正です");
   if(!int(saved.skill,0,1000)||!int(saved.reputation,0,1000))throw Error("音楽文化の値が不正です");
@@ -60,9 +61,40 @@ export class MusicCulture{
   };
   load("treasury",1000000);load("showsAttended");load("showsPlayed");
   load("lessons");load("npcPaid");load("npcEarnings");load("npcExperience",1000);
+  this.bandContracts=restoreBandContracts(saved.bandContracts);
+  load("artistTalked");
   this.journal=Array.isArray(saved.journal)?saved.journal.slice(-30).filter(x=>typeof x==="string").map(x=>x.slice(0,140)):[];
  }
  venue(townId,venueId){return musicVenue(townId,venueId);}
+ activeBand(townId,day){return currentBand(this.bandContracts,townId,day);}
+ hireArtist(townId,venueId,residentId,role,day,wallet,{near=false}={}){
+  const result=hireBandContract(this.bandContracts,townId,venueId,residentId,role,day,wallet,{near});
+  if(!result.ok)return result;
+  this.bandContracts=result.bands;
+  const id=townId+":"+residentId;
+  this.npcEarnings[id]=bound((this.npcEarnings[id]||0)+result.contract.fee,0,1000000);
+  this.log("楽団員 "+residentId+" と "+role+" で3日契約");
+  return result;
+ }
+ releaseArtist(townId,residentId,day){
+  const result=releaseBandContract(this.bandContracts,townId,residentId,day);
+  if(result.ok){this.bandContracts=result.bands;this.log(residentId+" の楽団契約を終了");}
+  return result;
+ }
+ talkArtist(townId,venueId,day,townLife,{near=false}={}){
+  const venue=this.venue(townId,venueId);
+  if(!venue||!near)return {ok:false,message:"舞台の演奏家の近くで話してください"};
+  const id=townId+":"+venue.musicianId,previous=this.artistTalked[id],d=cultureDay(day);
+  if(previous===d+1)return {ok:false,message:"今日はすでに話しました"};
+  if(!townLife?.friendship||typeof townLife.friendship!=="object")
+   return {ok:false,message:"住民との関係を取得できません"};
+  const relationship=bound((townLife.friendship[id]||0)+2,0,100);
+  townLife.friendship[id]=relationship;this.artistTalked[id]=d+1;
+  this.reputation=bound(this.reputation+1,0,1000);
+  this.log(venue.musicianLabel+" と演奏・作曲について会話");
+  const lines=["楽団にはリズムを支える人も必要ですよ","歌には街の歴史が残るものです","次の公演では、あなたの曲を聴いてみたいですね"];
+  return {ok:true,message:"💬 "+venue.musicianLabel+"：「"+lines[d%lines.length]+"」 親交 "+relationship+"／評判+1"};
+ }
  balance(townId,venueId){return this.treasury[key(townId,venueId)]??120;}
  log(message){this.journal.push(String(message).slice(0,140));if(this.journal.length>30)this.journal.shift();}
  /** NPC salary is paid from an existing venue budget at most once/day.
@@ -117,9 +149,13 @@ export class MusicCulture{
    return {ok:false,message:"所持金の上限を確認してください"};
   wallet.coins+=salary;this.treasury[id]=this.balance(townId,venueId)-salary;
   this.showsPlayed[now.showId]=1;
-  this.skill=bound(this.skill+2,0,1000);this.reputation=bound(this.reputation+2,0,1000);
+  const bandSize=this.activeBand(townId,day).length;
+  this.skill=bound(this.skill+2+Math.min(2,bandSize),0,1000);
+  this.reputation=bound(this.reputation+2+Math.min(2,bandSize),0,1000);
   this.log(venue.name+"に出演し "+salary+"G 受領");
-  return {ok:true,salary,message:"🎸 公演に出演しました。報酬 "+salary+"G／演奏技能+2／評判+2"};
+  return {ok:true,salary,message:"🎸 公演に出演しました。報酬 "+salary+
+   "G／演奏技能+"+(2+Math.min(2,bandSize))+"／評判+"+(2+Math.min(2,bandSize))+
+   (bandSize?"（楽団 "+bandSize+"人との共演）":"")};
  }
  lesson(townId,day,wallet,{near=false}={}){
   const venue=this.venue(townId,"school"),error=this.check(venue,day,near);
@@ -137,5 +173,6 @@ export class MusicCulture{
   skill:this.skill,reputation:this.reputation,showsAttended:{...this.showsAttended},
   showsPlayed:{...this.showsPlayed},lessons:{...this.lessons},
   npcPaid:{...this.npcPaid},npcEarnings:{...this.npcEarnings},
-  npcExperience:{...this.npcExperience},journal:[...this.journal]};}
+  npcExperience:{...this.npcExperience},bandContracts:restoreBandContracts(this.bandContracts),
+  artistTalked:{...this.artistTalked},journal:[...this.journal]};}
 }
