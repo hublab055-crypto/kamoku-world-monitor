@@ -2,6 +2,7 @@ import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
+import {installShipMobileUI} from "./ship-mobile-ui.mjs?v=1";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -10,7 +11,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,notify}){
+export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,notify,onMobileAction,getRoutes,onChooseRoute,onTransfer}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -79,6 +80,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   }});
  root.classList.toggle("integrated",unified);
  const held=new Set();let nearKey="",lastView="";
+ const mobileUI=installShipMobileUI({host:root,get,onAction:onMobileAction,getRoutes,onChooseRoute,onTransfer,notify});
  function cockpitAvailable(){const v=get();return Boolean(v?.interior&&ship3D.supported);}
  function showCargo(){
   const resources=getCargo?.()||{};
@@ -188,6 +190,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();return;}
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
+  mobileUI?.render(dt);
   const interiorView=v.interior.mode==="interior";
   shipCanvas.hidden=unified||!interiorView;screen.hidden=interiorView;
   $("flight-walk").hidden=!interiorView;$("flight-nearby").hidden=!interiorView;
@@ -263,5 +266,5 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ctx.fillText(Math.round(p*100)+"% / "+v.flightDays.toFixed(1)+" ゲーム日",w*.32,h*.90);
   $("flight-hud").textContent="HELIO NAV · "+v.status.toUpperCase()+"\n"+target.name+"  接近"+Math.round(p*100)+"%";
  }
- return {render,close:()=>{held.clear();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
+ return {render,close:()=>{held.clear();mobileUI?.clear();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
 }
