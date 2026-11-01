@@ -1540,6 +1540,14 @@ export class ExplorerRenderer{
     const surface=terrainSurface(this.terrain,geo.lat,geo.lon);
     if(surface.water||surface.river)continue;
     const y=Math.max(0,surface.elevationM);
+    if(hallRoom(venue.id)){
+     // Dedicated enclosed venue: draw its exterior through town scenery,
+     // rather than drawing an outdoor podium *through* the hall walls.
+     const p=projectScreen(vp,[x,y+5,z]);
+     if(p?.onScreen)this.screenMusicVenues.push({...p,id:def.id,name:venue.name,
+      performing:musicNow(venue,this.planet.timeDays)?.performing});
+     continue;
+    }
     const model=translate(x,y+.05,z);
     this.drawMesh(this.musicPodiumMesh,multiply4(vp,model),light,1,.85);
     const instrument=multiply4(model,translate(-.4,.27,0));
