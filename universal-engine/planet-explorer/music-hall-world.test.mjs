@@ -73,3 +73,18 @@ test("building shell and detachable roof are separate valid world meshes",()=>{
   assert.ok(shell.positions.length+roof.positions.length>shell.positions.length);
  }
 });
+
+test("manual exit puts the ground actor beyond the true door facade",()=>{
+ const t=new TownLife(),a=actor(),door=hallDoor(site);
+ a.x=site.x;a.z=door.z;
+ assert.equal(t.toggleHallDoor(townId,site.id,a).ok,true);
+ assert.equal(t.enter(townId,site.id,a).ok,true);
+ t.inside.pose.x=3.4;t.inside.pose.z=-2;
+ assert.equal(syncHallActorWorld(t,a),true);
+ const before={...a.origin};
+ assert.equal(t.leave(a).ok,true);
+ assert.equal(t.inside,null);
+ assert.ok(a.z>door.front);
+ assert.equal(a.lat,before.lat+a.z/100000);
+ assert.deepEqual(a.origin,before);
+});
