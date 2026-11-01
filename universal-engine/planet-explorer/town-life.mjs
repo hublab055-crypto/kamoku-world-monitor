@@ -1,11 +1,13 @@
 /** Town social and economy state. Independent of DOM/WebGL; reproducible and saveable.
  * No generative-AI API dependency: dialogue is branching, location-aware dialogue.
  */
-import {settlementLayout,destinationById} from "./settlements.mjs?v=0.8r-towns";
+import {settlementLayout,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
+import {hallRoom,nearestHallSeat} from "./music-hall.mjs?v=0.9ap";
 
 export const TOWN_NAMES=Object.freeze({
  lodge:"宿屋・集会所",cabin:"民家",barn:"納屋",workshop:"工房",
- watchtower:"見張り台",granary:"穀物倉庫",well:"共同井戸",market:"市場",stable:"厩舎"
+ watchtower:"見張り台",granary:"穀物倉庫",well:"共同井戸",market:"市場",stable:"厩舎",
+ theater:"音楽劇場",school:"音楽教室"
 });
 export const TOWN_WARES=Object.freeze({
  market:[{item:"apple",name:"リンゴ",price:3,bag:"resources"},
@@ -98,24 +100,45 @@ export class TownLife{
    return result(false,"この施設は屋内に入れません");
   const near=this.canInteract(townId,actor,building,{radius:9});
   if(!near.ok)return near;
-  this.inside={townId,buildingId,pose:{x:0,z:2.4,yaw:0,moving:false}};
+  const hall=hallRoom(building.type);
+  this.inside={townId,buildingId,pose:{x:0,z:hall?.entranceZ??2.4,yaw:0,moving:false},seat:null};
   actor.clearMoveTarget?.();
   return result(true,"🚪 "+building.title+"に入りました。室内を見学できます。",{building});
  }
  walk(dt,{forward=0,strafe=0,turn=0}={}){
   if(!this.inside)return false;
   const p=this.inside.pose;
-  if(!p||!Number.isFinite(dt)||dt<0)return false;
+  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat)return false;
   const step=limit(dt,0,.1),turnRate=1.75;
   const f=limit(Number(forward)||0,-1,1),side=limit(Number(strafe)||0,-1,1);
   p.yaw+=limit(Number(turn)||0,-1,1)*step*turnRate;
   const mag=Math.max(1,Math.hypot(f,side));
   const dx=(Math.sin(p.yaw)*f+Math.cos(p.yaw)*side)*2.5*step/mag;
   const dz=(Math.cos(p.yaw)*f-Math.sin(p.yaw)*side)*2.5*step/mag;
-  const nextX=limit(p.x+dx,-3.55,3.55),nextZ=limit(p.z+dz,-3.0,3.5);
+  const building=this.find(this.inside.townId,this.inside.buildingId,"village"),hall=hallRoom(building?.type);
+  const nextX=limit(p.x+dx,hall?-hall.halfWidth:-3.55,hall?hall.halfWidth:3.55),
+   nextZ=limit(p.z+dz,hall?hall.zMin:-3,hall?hall.zMax:3.5);
   p.moving=Math.hypot(nextX-p.x,nextZ-p.z)>.001;
   p.x=nextX;p.z=nextZ;
   return p.moving;
+ }
+ sitMusicSeat(){
+  if(!this.inside)return result(false,"音楽施設の室内へ入ってください");
+  if(this.inside.seat)return result(false,"すでに着席しています");
+  const building=this.find(this.inside.townId,this.inside.buildingId,"village");
+  const seat=nearestHallSeat(building?.type,this.inside.pose);
+  if(!seat)return result(false,"客席・教室の椅子に近づいてください（約1.3m以内）");
+  this.inside.seat=seat.id;
+  this.inside.pose={...this.inside.pose,x:seat.x,z:seat.z,yaw:seat.yaw,moving:false};
+  return result(true,"💺 着席しました。立ち上がるまで移動しません");
+ }
+ standMusicSeat(){
+  if(!this.inside?.seat)return result(false,"現在着席していません");
+  const building=this.find(this.inside.townId,this.inside.buildingId,"village");
+  const seat=nearestHallSeat(building?.type,this.inside.pose,{reach:.25});
+  this.inside.seat=null;
+  if(seat)this.inside.pose.x=seat.x>0?seat.x-.45:seat.x+.45;
+  return result(true,"🧍 立ち上がりました");
  }
  leave(){
   if(!this.inside)return result(false,"屋外にいます");
