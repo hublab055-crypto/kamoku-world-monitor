@@ -41,6 +41,8 @@ export const MOBILE_ACTIONS=Object.freeze({
   shipSettings:{icon:"🎮",label:"宇宙船UI設定"},
   saveVoyage:{icon:"💾",label:"宇宙船の状態を保存"},
   landingGear:{icon:"🛬",label:"ランディングギア切替"},
+  fireWeapon:{icon:"🔆",label:"艦載パルス砲"},
+  cargoDrop:{icon:"📦",label:"物資投下"},
   attitudeMode:{icon:"↔️",label:"ヨー／ロール操作切替"},
   none:{icon:"－",label:"割り当てなし"}
 });
@@ -68,7 +70,7 @@ const DEFAULT_BUTTONS={
   shipInterior:[{tap:"interact",hold:"talk"},{tap:"hatch",hold:"disembark"},
         {tap:"cargo",hold:"inventory"},{tap:"navigation",hold:"saveVoyage"}],
   shipCockpit:[{tap:"launchLand",hold:"landingGear"},{tap:"autopilot",hold:"attitudeMode"},
-        {tap:"navigation",hold:"transfer"},{tap:"stand",hold:"saveVoyage"}]
+        {tap:"navigation",hold:"fireWeapon"},{tap:"stand",hold:"cargoDrop"}]
 };
 export function defaultMobileConfig(){
   return {version:1,profiles:JSON.parse(JSON.stringify(DEFAULT_BUTTONS)),
