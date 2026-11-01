@@ -1762,6 +1762,22 @@ export class ExplorerRenderer{
     const globe=multiply4(translate(0,-50,z),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,globe),[.86,.91,.55],1,.88,rgb);
    }
+   // Pulse bolts and supply pods use actual saved ship-mission state.
+   // Pulse impact damage is not yet connected to planet combat targets.
+   if(v.mission?.shots?.length){
+    for(const shot of v.mission.shots){
+     const size=shot.ttl>4.37?.52:.28;
+     const model=multiply4(translate(shot.x,shot.y,shot.z),scale3(size,size,size));
+     this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,model),[.95,.79,.38],1,.96,[1,.65,.18]);
+    }
+   }
+   if(v.mission?.drops?.length&&["entry","touchdown","landed"].includes(v.status)){
+    for(const pod of v.mission.drops){
+     if(!Number.isFinite(pod.height)||pod.height<=0)continue;
+     const model=multiply4(translate(1.3,-2.0-pod.height,-17),scale3(.55,.55,.55));
+     this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,model),[.72,.94,.67],1,.86,[.64,.9,.95]);
+    }
+   }
    this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
    return "ship-interior";
   }
