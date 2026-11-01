@@ -1629,6 +1629,17 @@ function setShipDestination(id){
 }
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
  voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
+function recoverShipCargo(){
+ if(voyage?.active)return {ok:false,message:"投下カプセルは地表へ降りてから回収してください"};
+ const result=shipCargoCaches.recover(controller,solarSystem.currentId,planet.radiusM,actions.resources);
+ if(result.ok){
+  saveLifeJournal();
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify(captureGame()));}
+  catch(error){log("投下物資の保存に失敗："+error.message);}
+  updateHUD();surfaceShipUI?.update(true);
+ }
+ return result;
+}
 function shipEgress(){
  if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
@@ -3719,6 +3730,9 @@ mobileUI=installMobileFourActions({
   const click=id=>$(id)?.click();
   switch(action){
    case "interact":{
+    if(!voyage?.active&&shipCargoCaches?.near(controller,solarSystem.currentId,planet.radiusM)?.length){
+     const result=recoverShipCargo();log(result.message);break;
+    }
     if(railway?.boarded){
      const members=squad?.agents?.slice(1).map(a=>a.name)||[];
      const person=railway.people(members)[0];
@@ -4231,9 +4245,10 @@ shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
 surfaceShipUI=installSurfaceStarshipUI({get:()=>({
  ship:surfaceShip,planet,controller,voyage,xrActive:Boolean(xrUI?.active),
+ cargoNear:shipCargoCaches?.near(controller,solarSystem.currentId,planet.radiusM)||[],
  inside:Boolean(townLife?.inside||marine?.boarded||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
 }),onHatch:toggleSurfaceShipHatch,onBoard:boardSurfaceStarship,
- onLand:()=>landStarshipNearPlayer(),notify:log});
+ onLand:()=>landStarshipNearPlayer(),onRecoverCargo:recoverShipCargo,notify:log});
 celestialSky=installCelestialSkyViewport({get:()=>({
  solarSystem,planet,controller,xrActive:Boolean(xrUI?.active),
  inside:Boolean(townLife?.inside||marine?.cabinId||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
