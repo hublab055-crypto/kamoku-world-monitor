@@ -1,4 +1,4 @@
-import {StarshipEntity} from "./starship-entity.mjs";
+import {StarshipEntity} from "./starship-entity.mjs?v=2";
 import {cabinSurfacePose,starshipRampSupport,DockedShipCamera} from "./starship-hatch-portal.mjs";
 import {groundRegionKey,replaceGroundRenderFrame,groundHitToWorld} from "./ground-render-frame.mjs?v=1";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";

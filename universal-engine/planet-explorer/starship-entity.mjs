@@ -133,6 +133,13 @@ export class StarshipEntity{
     v.status==="entry"?1-flightEase(v.stageProgress):["origin-orbit","orbit"].includes(v.status)?1:0;
    pose=this.nearPose(site.bodyId,site,journeyLift(v),days,site.yaw+angle*weight);
   }
+  // Fade pitch/bank to the common pad orientation at both ground endpoints.
+  const weight=v.status==="ascent"?flightEase(v.stageProgress):v.status==="entry"?1-flightEase(v.stageProgress):
+   ["origin-orbit","cruise","approach","orbit"].includes(v.status)?1:0;
+  const pitch=(v.pitch||0)*Math.PI/180*weight,roll=(v.roll||0)*Math.PI/180*weight;
+  const attitude=multiplyAxes([[1,0,0],[0,Math.cos(pitch),Math.sin(pitch)],[0,-Math.sin(pitch),Math.cos(pitch)]],
+   [[Math.cos(roll),Math.sin(roll),0],[-Math.sin(roll),Math.cos(roll),0],[0,0,1]]);
+  pose.axes=multiplyAxes(pose.axes,attitude);pose.stellarAxes=multiplyAxes(pose.stellarAxes,attitude);
   pose.phase=v.status;pose.legacyDerived=!v.launchSite||Boolean(v.destinationId&&!v.landingSite);
   this.pose=pose;return pose;
  }

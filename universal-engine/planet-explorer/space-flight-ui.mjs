@@ -1,3 +1,4 @@
+import {installCockpitControls} from "./starship-cockpit-controls.mjs";
 import {cabinMovement} from "./starship-hatch-portal.mjs";
 import {installStarshipHelmInput} from "./starship-helm-input.mjs";
 import {bodyById} from "./solar-system.mjs";
@@ -69,7 +70,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
   '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-hud" id="flight-hud"></div></div>'+
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
-  '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><label>スロットル <input id="flight-throttle" type="range" min="0" max="100" step="5" value="70"></label><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
+  '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><label>アクセル <input id="flight-throttle" type="range" min="0" max="100" step="5" value="70"></label><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
   '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。着席中：旋回ボタン長押し／J・Lで進路調整（自動OFFへ切替）。自動ONで進路偏差を補正。着陸は目的地の軌道上から。</div>';
  (document.querySelector(".canvas-wrap")||document.body).append(root);
  const $=id=>root.querySelector("#"+id);
@@ -178,6 +179,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   nearKey="";held.clear();render();
  });
 
+ const cockpit=installCockpitControls({root,get,notify});
  const throttle=$("flight-throttle"),main=$("flight-main");
  const run=(fn)=>{const result=fn();if(result?.message)notify?.(result.message);return result;};
  throttle.addEventListener("input",()=>get()?.setThrottle(Number(throttle.value)/100));
@@ -192,8 +194,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
  main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
  function render(dt=0){
-  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();helm.clear();return;}
-  helm.advance(dt);
+  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();helm.clear();cockpit.reset();return;}
+  helm.advance(dt);cockpit.render(dt);
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
   const interiorView=v.interior.mode==="interior";
@@ -268,5 +270,5 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ctx.fillText(Math.round(p*100)+"% / "+v.flightDays.toFixed(1)+" ゲーム日",w*.32,h*.90);
   $("flight-hud").textContent="HELIO NAV · "+v.status.toUpperCase()+"\n"+target.name+"  接近"+Math.round(p*100)+"%";
  }
- return {render,close:()=>{held.clear();helm.clear();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:()=>{helm.destroy();ship3D.destroy();}};
+ return {render,close:()=>{held.clear();helm.clear();cockpit.reset();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:()=>{helm.destroy();cockpit.destroy();ship3D.destroy();}};
 }
