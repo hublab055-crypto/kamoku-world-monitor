@@ -42,6 +42,9 @@ test("NPC professional salary is funded and once per planetary day",()=>{
  assert.equal(c.payNPC("capital","theater",afternoon).salary,10);
  assert.equal(c.payNPC("capital","theater",afternoon).ok,false);
  assert.equal(c.balance("capital","theater"),start-10);
+ const musician=musicVenue("capital","theater").musicianId;
+ assert.equal(c.npcEarnings["capital:"+musician],10);
+ assert.equal(c.npcExperience["capital:"+musician],1);
  assert.equal(c.payNPC("capital","theater",afternoon+1).ok,true);
 });
 test("music school charges tuition and awards skill once per planetary day",()=>{
