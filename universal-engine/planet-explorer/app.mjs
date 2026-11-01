@@ -3756,7 +3756,7 @@ townUI=installTownInteractionUI({
  onChange:syncTownState,onNotice:log
 });
 $("town-interior-exit").addEventListener("click",()=>{
- const result=townLife.leave();
+ const result=townLife.leave(controller);
  if(result.ok){syncTownState();log(result.message);townUI?.refresh();}
 });
 $("viewport-town").addEventListener("click",()=>{
@@ -4104,7 +4104,7 @@ musicCultureUI=installMusicCultureUI({
   if(!room||room.townId!==activeSettlementId||
    townLife.find(room.townId,room.buildingId,"village")?.type!==venue.id)
    return {ok:false,message:"この会場内にいません"};
-  const result=townLife.leave();
+  const result=townLife.leave(controller);
   if(result.ok){syncTownState();townUI?.refresh();}
   return result;
  },
