@@ -81,7 +81,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  const ring=$(".ship-mobile-stick"),nub=$(".ship-mobile-stick-nub"),
   grid=$(".ship-mobile-actions"),settings=$(".ship-mobile-settings"),
   nav=$(".ship-mobile-nav"),toggle=$(".ship-mobile-settings-toggle");
- let config=load(),lastMode="",stateMode="shipInterior",pointer=null,stick={x:0,y:0};
+ let config=load(),lastMode="",stateMode="shipInterior",pointer=null,stick={x:0,y:0},wasVisible=false;
  let advanced=false,navOpen=false;
  const notifyResult=result=>{if(result?.message){const feedback=host.querySelector("#flight-dialogue");if(feedback)feedback.textContent=result.message;notify?.(result.message);}return result};
  function clearStick(){pointer=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
@@ -214,6 +214,8 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  function render(dt=0){
   const v=get(),shown=mobile()&&Boolean(v?.active);
   host.classList.toggle("ship-mobile-active",shown);
+  if(shown&&!wasVisible){config=load();lastMode="";}
+  wasVisible=shown;
   ui.hidden=!shown;
   if(!shown){clearStick();openSettings(false);showNavigation(false);return;}
   const mode=v?.seated===true||v?.interior?.mode==="cockpit"?"shipCockpit":"shipInterior";
@@ -223,5 +225,5 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
   apply(dt);
  }
  ui.hidden=true;
- return {render,clear:clearStick,openSettings:()=>openSettings(true),get stick(){return {...stick};}};
+ return {render,clear:()=>{clearStick();wasVisible=false;lastMode="";openSettings(false);showNavigation(false);},openSettings:()=>openSettings(true),get stick(){return {...stick};}};
 }
