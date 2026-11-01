@@ -37,7 +37,8 @@ export const MOBILE_ACTIONS=Object.freeze({
   transfer:{icon:"🛰️",label:"惑星間航行開始"},
   throttleUp:{icon:"➕",label:"出力を上げる"},
   throttleDown:{icon:"➖",label:"出力を下げる"},
-  shipSettings:{icon:"🎮",label:"宇宙船UI設定"}
+  shipSettings:{icon:"🎮",label:"宇宙船UI設定"},
+  none:{icon:"－",label:"割り当てなし"}
 });
 export const MOBILE_LAYERS=Object.freeze({
   legacy:"従来の道具・ジャンプボタン",
