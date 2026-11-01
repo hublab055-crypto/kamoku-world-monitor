@@ -442,6 +442,30 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   for(const key of Array.from(presses.keys()))finishNote(key);
   if(audioUrl)URL.revokeObjectURL(audioUrl);
  });
+ function cultureNPCScore(venue){
+  // Small original melody, not a recording or quotation of existing songs.
+  const melody=venue.id==="tavern"?[60,64,67,64,62,65,69,67]:
+   venue.id==="theater"?[60,67,69,72,69,67,65,64]:[60,62,64,65,67,69,71,72];
+  let song=newScore("街の演奏家・"+venue.name);song.bpm=venue.id==="theater"?96:112;
+  melody.forEach((pitch,i)=>{song=addNote(song,{track:"keys",step:i*4,pitch,length:3,velocity:.65});});
+  return song;
+ }
+ async function playCultureNPC(venue,{auto=false}={}){
+  if(!venue||!["tavern","theater","school"].includes(venue.id))return;
+  if(auto&&!player.paused)return; // Never interrupt the player's own music.
+  try{await playBlob(renderScoreWav(cultureNPCScore(venue)),venue.musicianLabel||"街の演奏");}
+  catch(e){if(!auto)report("NPC演奏を再生できません: "+e.message);}
+ }
+ async function playCultureOwn(venue){
+  if(!venue)return;
+  try{readFields();await playBlob(renderScoreWav(score),score.title);}
+  catch(e){report("自作曲を再生できません: "+e.message);}
+ }
+ function hasCraftedInstrument(){
+  if(creative)return true;
+  if(Object.values(inventory.items).some(n=>n>0))return true;
+  return Object.values(stages).some(s=>s?.owned===true);
+ }
  function handleXR({phase,rayMatrix,handMatrix,stageMatrix,hand="right"}={}){
   if(phase==="reset"){
    for(const h of ["left","right"]){
@@ -485,7 +509,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   return {handled:true,track:hit.track,pitch:hit.pitch};
  }
  syncWorldStage();
- return {open,close,refreshRecords,syncWorldStage,handleXR,
+ return {open,close,refreshRecords,syncWorldStage,handleXR,playCultureNPC,playCultureOwn,hasCraftedInstrument,
   snapshot:()=>({version:1,inventory:normalizeMusicInventory(inventory),
    stages:JSON.parse(JSON.stringify(stages)),creative}),
   loadSnapshot:data=>{

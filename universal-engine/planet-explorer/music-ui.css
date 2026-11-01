@@ -41,3 +41,15 @@
 
 .ue-music-panel [data-world-status]{display:block;color:#e4d6a5;min-height:1.7em}
 .ue-music-panel [data-world-place]{background:#2c5360;border-color:#8ba9b2}
+
+/* Civic music culture: readable on mobile and headset browser overlays. */
+.ue-culture-panel .ue-music-body{padding:12px;display:grid;gap:10px;overflow:auto;overscroll-behavior:contain;min-height:0}
+.ue-culture-panel .ue-music-body>p{margin:0}
+.ue-culture-panel .ue-culture-venues{display:grid;gap:10px}
+.ue-culture-panel .ue-culture-venue{display:grid;gap:6px;padding:10px;background:#132f40;border:1px solid #416574;border-radius:9px}
+.ue-culture-panel .ue-culture-venue>strong{font-size:14px}
+.ue-culture-panel .ue-culture-venue>p{margin:0}
+.ue-culture-panel .ue-culture-venue>small{color:#b3cfd8}
+.ue-culture-panel [data-journal]{color:#bcd2db;line-height:1.8;max-height:160px;overflow:auto}
+.ue-culture-panel .ue-music-check{display:flex;gap:6px;align-items:center}
+@media(max-width:580px){.ue-culture-panel .ue-music-body{padding:8px}.ue-culture-panel .ue-culture-venue{padding:8px}}
