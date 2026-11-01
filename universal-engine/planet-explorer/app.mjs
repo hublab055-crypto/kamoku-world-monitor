@@ -4108,6 +4108,13 @@ musicCultureUI=installMusicCultureUI({
   if(result.ok){syncTownState();townUI?.refresh();}
   return result;
  },
+ onToggleDoor:venue=>{
+  const index=townLife.layout(activeSettlementId).buildings.findIndex(b=>b.type===venue.id);
+  if(index<0)return {ok:false,message:"この街に会場の扉がありません"};
+  const result=townLife.toggleHallDoor(activeSettlementId,"village-"+index,controller);
+  if(result.ok){townUI?.refresh();musicCultureUI?.refresh();}
+  return result;
+ },
  canJoin:()=>!law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver
   &&!voyage?.active&&!ferry?.boarded&&!railway?.boarded&&!marine?.boarded
   &&(!townLife?.inside||(
