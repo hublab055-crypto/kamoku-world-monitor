@@ -16,7 +16,7 @@ const valid=(n,min,max)=>Number.isSafeInteger(n)&&n>=min&&n<=max;
 const citizenId=id=>/^resident-\d{1,3}$/.test(id);
 const contractValid=c=>c&&typeof c.townId==="string"&&
  /^[a-z]{1,16}$/.test(c.townId)&&citizenId(c.residentId)&&
- MUSIC_BAND_ROLES.some(role=>role.id===c.role)&&
+ MUSIC_BAND_ROLES.some(role=>role.id===c.role&&role.fee===c.fee)&&
  valid(c.startsDay,0,1000000)&&valid(c.endsDay,0,1000000)&&
  c.endsDay===c.startsDay+MUSIC_CONTRACT_DAYS&&valid(c.fee,0,1000);
 
