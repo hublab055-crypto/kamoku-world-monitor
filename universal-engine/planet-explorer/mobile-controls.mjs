@@ -18,7 +18,26 @@ export const MOBILE_ACTIONS=Object.freeze({
   equipment:{icon:"⚙️",label:"装備設定"},
   leftHand:{icon:"🫲",label:"左手装備"},
   settings:{icon:"🎮",label:"スマホUI設定"},
-  logs:{icon:"▤",label:"ログ"}
+  logs:{icon:"▤",label:"ログ"},
+  vehicleExit:{icon:"🚶",label:"降車・下船"},
+  cruise:{icon:"🧭",label:"巡航切替"},
+  anchor:{icon:"⚓",label:"錨の上げ下げ"},
+  sailsUp:{icon:"⛵",label:"帆を広げる"},
+  sailsDown:{icon:"🛑",label:"帆を絞る"},
+  gait:{icon:"🐎",label:"歩法切替"},
+  vehiclePanel:{icon:"🎛️",label:"乗り物の操作盤"},
+  sit:{icon:"🪑",label:"操縦席に座る"},
+  stand:{icon:"🚶",label:"操縦席から立つ"},
+  hatch:{icon:"🚪",label:"ハッチ開閉"},
+  disembark:{icon:"🌍",label:"地表へ降りる"},
+  cargo:{icon:"📦",label:"船倉・貨物"},
+  launchLand:{icon:"🚀",label:"離陸・着陸"},
+  autopilot:{icon:"🤖",label:"自動操縦切替"},
+  navigation:{icon:"🪐",label:"航路設定"},
+  transfer:{icon:"🛰️",label:"惑星間航行開始"},
+  throttleUp:{icon:"➕",label:"出力を上げる"},
+  throttleDown:{icon:"➖",label:"出力を下げる"},
+  shipSettings:{icon:"🎮",label:"宇宙船UI設定"}
 });
 export const MOBILE_LAYERS=Object.freeze({
   legacy:"従来の道具・ジャンプボタン",
@@ -43,7 +62,7 @@ export function defaultMobileConfig(){
 export function normalizeMobileConfig(raw){
   const result=defaultMobileConfig();
   if(!raw||raw.version!==1)return result;
-  for(const mode of ["walk","rts"]){
+  for(const mode of Object.keys(DEFAULT_BUTTONS)){
     const entries=raw.profiles?.[mode];
     if(!Array.isArray(entries))continue;
     for(let i=0;i<4;i++){
