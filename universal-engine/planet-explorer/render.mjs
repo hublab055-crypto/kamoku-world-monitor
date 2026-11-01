@@ -1774,7 +1774,7 @@ export class ExplorerRenderer{
    if(v.mission?.drops?.length&&["entry","touchdown","landed"].includes(v.status)){
     for(const pod of v.mission.drops){
      if(!Number.isFinite(pod.height)||pod.height<=0)continue;
-     const model=multiply4(translate(1.3,-2.0-pod.height,-17),scale3(.55,.55,.55));
+     const model=multiply4(translate(1.3,-2.0-(18-pod.height),-17),scale3(.55,.55,.55));
      this.drawMesh(this.shipPlanetSphere,multiply4(exteriorVP,model),[.72,.94,.67],1,.86,[.64,.9,.95]);
     }
    }
