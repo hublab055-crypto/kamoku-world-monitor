@@ -2114,12 +2114,18 @@ export class ExplorerRenderer{
       this.drawMesh(this.musicBandMeshes[player.role][(frame+i)%MUSIC_POSE_FRAMES],
        multiply4(vp,pose),light,1,.90);
      }
-     for(const [i,seat]of hallOccupancy(kind,venue.audienceCount).entries()){
-      if(seat.id===this.townInterior.seat)continue;
-      const seated=multiply4(translate(seat.x,0,seat.z),scale3(.90,.79,.90));
-      this.drawMesh(this.musicBandMeshes.audience[(frame+i)%MUSIC_POSE_FRAMES],
-       multiply4(vp,seated),light,1,.74);
-     }
+    }
+    // Guests approach the center aisle, turn to their row, then sit.
+    // No physics or NPC allocation occurs in the XR draw loop.
+    const frame=Math.floor(performance.now()/1000*3.5)%MUSIC_POSE_FRAMES;
+    for(const [i,seat]of hallOccupancy(kind,venue.audienceCount).entries()){
+     if(seat.id===this.townInterior.seat)continue;
+     const walk=hallAudiencePose(kind,i,this.planet.timeDays,venue.shows);
+     if(!walk)continue;
+     const height=walk.seated?.79:1;
+     const model=multiply4(translate(walk.x,0,walk.z),scale3(.90,height,.90));
+     this.drawMesh(this.musicBandMeshes.audience[(frame+i)%MUSIC_POSE_FRAMES],
+      multiply4(vp,model),light,1,.74);
     }
    }
   }
