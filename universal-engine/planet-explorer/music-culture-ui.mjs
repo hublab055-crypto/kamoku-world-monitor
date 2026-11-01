@@ -2,7 +2,8 @@
  * Civic music UI. Works in 2D/VR browser layers without locking player input.
  * All money mutations are delegated to MusicCulture's atomic model methods.
  */
-import {MUSIC_VENUES,musicNow} from "./music-culture.mjs";
+import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9ao";
+import {MUSIC_BAND_ROLES,musicianCandidates,MUSIC_CONTRACT_DAYS} from "./music-band.mjs?v=0.9ao";
 const $=(id)=>document.getElementById(id);
 const hour=h=>String(h).padStart(2,"0")+":00";
 export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor,
@@ -18,7 +19,7 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
  panel.innerHTML=`
  <div class="ue-music-body"><header class="ue-music-header"><strong>🎭 街の音楽文化</strong>
  <button type="button" data-close>× 閉じる</button></header>
- <p>酒場・広場・教室では、街の住人が音楽活動を行います。演奏家として出演し、報酬や技能を得られます。</p>
+ <p>酒場・広場・教室で演奏、音楽を学習。街の住人と話し、3日間の契約で楽団を結成できます。</p>
  <p data-summary></p>
  <label class="ue-music-check"><input type="checkbox" data-auto checked>
  公演時間に近づいたらNPCの演奏を一度再生</label>
@@ -40,6 +41,7 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   const near=nearby(venue),wallet=getTownLife();
   let result;
   if(kind==="attend")result=culture.attend(townId,venue.id,day,wallet,{near});
+  else if(kind==="talk")result=culture.talkArtist(townId,venue.id,day,wallet,{near});
   else if(kind==="perform")result=culture.perform(townId,venue.id,day,wallet,
    {near,hasInstrument:hasInstrument()});
   else if(kind==="lesson")result=culture.lesson(townId,day,wallet,{near});
@@ -53,6 +55,45 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   say(result.message);refresh();
  }
  function makeButton(label,fn){const b=document.createElement("button");b.type="button";b.textContent=label;b.addEventListener("click",fn);return b;}
+ function bandControls(venue,days){
+  const culture=getCulture(),townId=getTownId(),area=document.createElement("details");
+  area.className="ue-culture-band";
+  const heading=document.createElement("summary");
+  heading.textContent="🎼 楽団の結成・雇用契約（"+MUSIC_CONTRACT_DAYS+"惑星日）";
+  area.append(heading);
+  const label=document.createElement("p");label.textContent=
+   "NPC住民を演奏者として雇用します。契約金は所持金から一括払い。途中解約しても返金されません。";
+  area.append(label);
+  const available=musicianCandidates(townId,venue.id);
+  const people=document.createElement("select");people.setAttribute("aria-label","雇う住人");
+  for(const a of available)people.add(new Option(a.name,a.id));
+  const roles=document.createElement("select");roles.setAttribute("aria-label","担当楽器");
+  for(const role of MUSIC_BAND_ROLES)roles.add(new Option(role.name+" / 契約金 "+role.fee+"G",role.id));
+  const row=document.createElement("div");row.className="ue-music-row";row.append(people,roles,
+   makeButton("🤝 この住人を雇う",()=>{
+    if(!canJoin())return say("現在は契約できません");
+    const outcome=culture.hireArtist(townId,venue.id,people.value,roles.value,days,getTownLife(),{near:nearby(venue)});
+    if(outcome.ok)onChange();
+    say(outcome.message);refresh();
+   }));
+  area.append(row);
+  const members=culture.activeBand(townId,days);
+  if(!members.length){const empty=document.createElement("small");empty.textContent="この街の契約中の楽団員はまだいません";area.append(empty);}
+  for(const member of members){
+   const contracted=document.createElement("div");contracted.className="ue-music-row";
+   const detail=document.createElement("span");const role=MUSIC_BAND_ROLES.find(r=>r.id===member.role);
+   detail.textContent=member.residentId+" / "+(role?.name||member.role)+
+    " / 契約終了日 "+member.endsDay;
+   contracted.append(detail,makeButton("契約終了",()=>{
+    if(!canJoin()||!nearby(venue))return say("会場の近くで契約を変更してください");
+    const outcome=culture.releaseArtist(townId,member.residentId,days);
+    if(outcome.ok)onChange();
+    say(outcome.message);refresh();
+   }));
+   area.append(contracted);
+  }
+  return area;
+ }
  function refresh(){
   const culture=getCulture(),townId=getTownId(),days=getPlanet()?.timeDays??0;
   if(!culture)return;list.replaceChildren();
@@ -79,13 +120,16 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
       (nearby(venue)?" ／ 会場にいます":" ／ 参加には11m以内に移動");
     const row=document.createElement("div");row.className="ue-music-row";
     row.append(makeButton("▶ NPC演奏を聴く",()=>action(venue,"npc")));
+    row.append(makeButton("💬 演奏家と話す",()=>action(venue,"talk")));
     if(venue.id==="school")row.append(makeButton("🎓 授業を受ける (12G)",()=>action(venue,"lesson")));
     else{
      row.append(makeButton("🎟 鑑賞 ("+venue.ticket+"G)",()=>action(venue,"attend")));
      row.append(makeButton("🎸 出演して報酬を得る",()=>action(venue,"perform")));
      row.append(makeButton("🎼 自作曲を披露",()=>action(venue,"own")));
     }
-    card.append(title,status,where,row);list.append(card);
+    card.append(title,status,where,row);
+    if(venue.id!=="school")card.append(bandControls(venue,days));
+    list.append(card);
    }
   }
   el("[data-journal]").textContent=culture.journal.slice(-15).reverse().join(" ／ ")||"まだ活動記録はありません";
