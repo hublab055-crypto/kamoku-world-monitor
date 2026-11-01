@@ -51,7 +51,7 @@ test("room walking updates same planetary world avatar coordinates",()=>{
 test("only purpose-built music halls share the outdoor WebGL frame",()=>{
  assert.equal(isSharedHallRoom({type:"theater"}),true);
  assert.equal(isSharedHallRoom({type:"school"}),true);
- assert.equal(isSharedHallRoom({type:"lodge"}),false);
+ assert.equal(isSharedHallRoom({type:"lodge"}),true);
  assert.equal(isSharedHallRoom(null),false);
 });
 test("world furniture mesh is different from full-room cutaway",()=>{
