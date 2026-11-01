@@ -11,7 +11,7 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=9";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=10-mobile";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
@@ -36,7 +36,7 @@ import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
 import {joystickMovement} from "./stick-input.mjs";
-import {resolveMobileFacing} from "./mobile-controls.mjs?v=1";
+import {resolveMobileFacing} from "./mobile-controls.mjs?v=2";
 import {installMobileFourActions} from "./mobile-four-actions.mjs?v=1";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
