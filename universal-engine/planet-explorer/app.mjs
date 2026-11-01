@@ -1281,7 +1281,7 @@ function updateHUD(){
   "選択: "+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
  frontierUI?.quick();
- mobileUI?.sync({surface:isSurface&&!voyage?.active,rts:rtsMode,vr:xrUI?.mode==="vr"});
+ mobileUI?.sync({surface:isSurface&&!voyage?.active,rts:rtsMode,vr:Boolean(xrUI?.active)});
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
  $("rts-multi").setAttribute("aria-pressed",String(rtsMulti));
   $("rts-sync").setAttribute("aria-pressed",String(syncMode));
@@ -3732,7 +3732,7 @@ mobileUI=installMobileFourActions({
   }
  }
 });
-mobileUI?.sync({surface:controller.nearGround,rts:rtsMode,vr:xrUI?.mode==="vr"});
+mobileUI?.sync({surface:controller.nearGround,rts:rtsMode,vr:Boolean(xrUI?.active)});
 worldUI=installWorldFeedbackUI({
  getRenderer:()=>renderer,getController:()=>controller,
  onCommand:(name,arg)=>{
