@@ -1,4 +1,4 @@
-import {MOBILE_ACTIONS,normalizeMobileConfig,defaultMobileConfig} from "./mobile-controls.mjs?v=2";
+import {MOBILE_ACTIONS,normalizeMobileConfig,defaultMobileConfig} from "./mobile-controls.mjs?v=3-flight-attitude";
 
 const KEY="universal-engine:mobile-four-actions:v1";
 const mobile=()=>typeof matchMedia==="function"&&matchMedia("(max-width: 1024px) and (pointer: coarse)").matches;
