@@ -83,7 +83,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
   nav=$(".ship-mobile-nav"),toggle=$(".ship-mobile-settings-toggle");
  let config=load(),lastMode="",stateMode="shipInterior",pointer=null,stick={x:0,y:0};
  let advanced=false,navOpen=false;
- const notifyResult=result=>{if(result?.message)notify?.(result.message);return result};
+ const notifyResult=result=>{if(result?.message){const feedback=host.querySelector("#flight-dialogue");if(feedback)feedback.textContent=result.message;notify?.(result.message);}return result};
  function clearStick(){pointer=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
  function moveStick(e){
   const r=ring.getBoundingClientRect(),radius=Math.max(1,Math.min(r.width,r.height)*.33);
