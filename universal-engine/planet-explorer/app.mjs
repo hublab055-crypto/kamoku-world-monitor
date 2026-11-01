@@ -589,6 +589,7 @@ function init(saved=null){
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
+  if(saved?.v0_9am?.music&&musicUI)musicUI.loadSnapshot(saved.v0_9am.music);
   updateCustodyFacilityPanel();
   if(voyage?.active){running=false;simWorld.clock.paused=true;}
   voyageUI?.render();shipInteractionUI?.update(true);surfaceShipUI?.update(true);solarUI?.refresh();
@@ -1510,6 +1511,7 @@ function captureGame(){
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
+    v0_9am:{schemaVersion:1,music:musicUI?.snapshot()??null},
     v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
     v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
@@ -4044,7 +4046,8 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 musicUI=installMusicUI({
  getMediaUI:()=>mediaUI,getRenderer:()=>renderer,getController:()=>controller,
- getTerrain:()=>terrain,getPlanet:()=>planet,
+ getTerrain:()=>terrain,getPlanet:()=>planet,getOwnerWorld:()=>ownerWorld,
+ getResources:()=>actions?.resources||{},onCraftCommit:()=>{saveLifeJournal();updateHUD();},
  canPlayWorld:()=>!law?.custody&&!law?.pendingDeath&&!law?.gameOver&&!railwaySecurity?.jailed
   &&!railway?.boarded&&!ferry?.boarded&&!townLife?.inside&&!marine?.cabinId&&!voyage?.active,
  notify:log});
