@@ -1,4 +1,5 @@
-import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9aq-hall-doors";
+import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9at-shared-buildings";
+import {sharedRoom} from "./town-shared-world.mjs?v=0.9at";
 
 /** Mobile-sized town interaction desk. All mutations go through TownLife. */
 export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
@@ -44,6 +45,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
    " / 所持 "+town.coins+" コイン";
   if(room){
    actions.append(button("🚪 外へ出る","leave"));
+   if(sharedRoom(room.type))actions.append(button(town.hallDoorOpen(townId,room.id)?"🚪 扉を閉める":"🚪 扉を開ける","door"));
    if(room.type==="theater"||room.type==="school"){
     actions.append(button(town.hallDoorOpen(townId,room.id)?"🚪 扉を閉める":"🚪 扉を開ける","door"));
     if(inside.seat)actions.append(button("🧍 席から立ち上がる","stand"));
@@ -61,7 +63,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
    const note=document.createElement("small");note.textContent="親しさ："+bond+"/100";
    actions.append(note);
   }else{
-   if(["theater","school"].includes(chosen.type))
+   if(["theater","school"].includes(chosen.type)||sharedRoom(chosen.type))
     actions.append(button(town.hallDoorOpen(townId,chosen.id)?"🚪 扉を閉める":"🚪 扉を開ける","door"));
    if(!["well","watchtower"].includes(chosen.type))
     actions.append(button("🚪 建物に入る","enter",!near.ok));

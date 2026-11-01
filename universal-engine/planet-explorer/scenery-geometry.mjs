@@ -168,6 +168,36 @@ function building(b,t,{includeRoof=true}={}){
     box(b,x,y+2.9,z+hd+1.8,hw+.1,.16,.16,timber);
   }
 }
+/** Separate shell/roof for already-enclosed ordinary town buildings.
+ * The entrance contains an actual geometry gap, not a black painted panel. */
+export function sharedTownShellGeometry(t){
+ const large=["lodge","barn","stable","workshop"].includes(t.type);
+ const hw=large?6.6:4.15,hd=large?5.15:3.62,h=large?4.9:3.7;
+ const x=t.localX,z=t.localZ,y=t.elevationM+.02;
+ const b=fresh(),wall=t.type==="barn"?[.45,.29,.19]:[.49,.35,.23],dark=[.27,.21,.16];
+ box(b,x,y-.8,z,hw+.4,.85,hd+.4,[.47,.46,.44]);
+ for(const sx of [-1,1])box(b,x+sx*(hw-.14),y,z,.17,h,hd,wall);
+ box(b,x,y,z-hd+.15,hw,h,.18,wall);
+ // Split the front at the doorway, leaving a walkable 1.98m opening.
+ const sideWidth=(hw-.99)/2;
+ for(const sx of [-1,1])
+  box(b,x+sx*(hw+.99)/2,y,z+hd-.16,sideWidth,h,.18,wall);
+ box(b,x,y+3.10,z+hd-.16,1.0,h-3.10,.18,wall);
+ for(const sx of [-1,1]){
+  box(b,x+sx*1.02,y,z+hd+.09,.10,3.12,.15,dark);
+  box(b,x+sx*(hw*.70),y+1.55,z+hd+.10,.65,.78,.07,[.33,.53,.58]);
+ }
+ box(b,x,y+3.12,z+hd+.15,1.10,.14,.17,[.67,.51,.26]);
+ return b;
+}
+export function sharedTownRoofGeometry(t){
+ const large=["lodge","barn","stable","workshop"].includes(t.type);
+ const hw=large?6.6:4.15,hd=large?5.15:3.62,h=large?4.9:3.7;
+ const b=fresh(),x=t.localX,z=t.localZ,y=t.elevationM+.02;
+ box(b,x,y+h-.22,z,hw,.17,hd,[.32,.26,.23]);
+ pitched(b,x,z,y+h+.08,hw,hd,large?2.45:1.97,[.30,.27,.26]);
+ return b;
+}
 /** Separate roof allows view into the same hall mesh in FPS, VR and RTS. */
 export function musicHallShellGeometry(t){
  const b=fresh();building(b,t,{includeRoof:false});return b;

@@ -52,7 +52,7 @@ test("town interior theater supports walking, sitting, standing and leaving",()=
  assert.equal(town.leave().ok,true);
  assert.equal(town.inside,null);
 });
-test("music classroom has a larger room and seat interactions, existing cabins remain unchanged",()=>{
+test("music classroom seats stay distinct from shared cabin interiors",()=>{
  const town=new TownLife(),layout=town.layout("capital"),
   index=layout.buildings.findIndex(b=>b.type==="school"),site=layout.buildings[index];
  const actor={x:site.x,z:site.z+6.65,nearGround:true,travelMode:"walk"};
@@ -63,9 +63,10 @@ test("music classroom has a larger room and seat interactions, existing cabins r
  assert.equal(town.sitMusicSeat().ok,true);
  town.leave();
  const cabin=layout.buildings.findIndex(b=>b.type==="cabin"),house=layout.buildings[cabin];
- actor.x=house.x;actor.z=house.z;
+ actor.x=house.x;actor.z=house.z+3.85;
+ assert.equal(town.toggleHallDoor("capital","village-"+cabin,actor).ok,true);
  assert.equal(town.enter("capital","village-"+cabin,actor).ok,true);
- assert.equal(town.inside.pose.z,2.4);
+ assert.equal(town.inside.pose.z,3.62-.85);
  assert.equal(town.sitMusicSeat().ok,false);
 });
 test("theater and classroom geometry have valid triangles and color vertex data",()=>{

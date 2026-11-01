@@ -4,7 +4,8 @@
 import {settlementLayout,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
 import {hallRoom,nearestHallSeat,hallSeats} from "./music-hall.mjs?v=0.9aq";
 import {hallDoor,hallDoorNear,hallExteriorStep} from "./music-hall-portal.mjs?v=0.9aq";
-import {hallLocalPoint} from "./music-hall-world.mjs?v=0.9as";
+import {hallLocalPoint} from "./music-hall-world.mjs?v=0.9at-shared-rooms";
+import {sharedRoom,sharedDoor,sharedDoorNear,sharedExteriorStep,sharedWalkStep} from "./town-shared-world.mjs?v=0.9at";
 
 export const TOWN_NAMES=Object.freeze({
  lodge:"宿屋・集会所",cabin:"民家",barn:"納屋",workshop:"工房",
@@ -99,12 +100,13 @@ export class TownLife{
  hallDoorOpen(townId,buildingId){return Boolean(this.hallDoors[townId+":"+buildingId]);}
  toggleHallDoor(townId,buildingId,actor){
   const building=this.find(townId,buildingId,"village");
-  if(!building||!hallRoom(building.type))return result(false,"開閉可能な音楽施設の扉ではありません");
+  if(!building||!(hallRoom(building.type)||sharedRoom(building.type)))return result(false,"開閉可能な施設の扉ではありません");
   const inside=this.inside?.townId===townId&&this.inside.buildingId===buildingId;
   if(inside&&this.inside.seat)return result(false,"先に席を立ってから扉へ向かってください");
   if(!inside&&(!actor?.nearGround||actor.travelMode!=="walk"))
    return result(false,"地表で歩行中に扉を操作してください");
-  if(!hallDoorNear(building,inside?this.inside.pose:actor,{inside}))
+  if(!(hallRoom(building.type)?hallDoorNear(building,inside?this.inside.pose:actor,{inside}):
+   sharedDoorNear(building,inside?this.inside.pose:actor,{inside})))
    return result(false,"入口の扉から約2.5m以内に近づいてください");
   const id=townId+":"+buildingId,open=!this.hallDoors[id];this.hallDoors[id]=open;
   return result(true,open?"🚪 扉を開けました。前進すると室内に入れます":"🚪 扉を閉じました",{open});
@@ -112,8 +114,10 @@ export class TownLife{
  hallStep(townId,previous,controller){
   if(this.inside||!controller?.nearGround||controller.travelMode!=="walk")return {blocked:false};
   const sites=this._hallSites[townId]??=this.layout(townId).buildings
-   .map((p,i)=>({...p,id:"village-"+i})).filter(p=>hallRoom(p.type));
-  const step=hallExteriorStep(previous,controller,sites,site=>this.hallDoorOpen(townId,site.id));
+   .map((p,i)=>({...p,id:"village-"+i})).filter(p=>hallRoom(p.type)||sharedRoom(p.type));
+  const hall=hallExteriorStep(previous,controller,sites,site=>this.hallDoorOpen(townId,site.id));
+  const step=hall.blocked||hall.portal?hall:sharedExteriorStep(previous,controller,sites,
+   site=>this.hallDoorOpen(townId,site.id));
   if(step.portal){
    const entered=this.enter(townId,step.portal.id,controller);
    if(entered.ok){
@@ -132,7 +136,7 @@ export class TownLife{
   const inside=this.inside,building=this.find(inside.townId,inside.buildingId,"village");
   if(!building||!this.hallDoorOpen(inside.townId,inside.buildingId))
    return result(false,"扉が閉まっています");
-  const door=hallDoor(building);
+  const door=hallDoor(building)||sharedDoor(building);
   if(!actor?.locationAt||!door)return result(false,"地表位置を復元できません");
   const x=door.x,z=door.z+1.05,point=actor.locationAt(x,z);
   if(!Number.isFinite(point.lat)||!Number.isFinite(point.lon))
@@ -146,12 +150,13 @@ export class TownLife{
   const building=this.find(townId,buildingId,"village");
   if(!building||["well","watchtower"].includes(building.type))
    return result(false,"この施設は屋内に入れません");
-  const near=this.canInteract(townId,actor,building,{radius:hallRoom(building.type)?12:9});
+  const near=this.canInteract(townId,actor,building,{radius:hallRoom(building.type)?12:
+   sharedRoom(building.type)?Math.max(9,sharedRoom(building.type).halfZ+3):9});
   if(!near.ok)return near;
-  const hall=hallRoom(building.type);
-  if(hall&&!this.hallDoorOpen(townId,buildingId))
+  const hall=hallRoom(building.type),common=sharedRoom(building.type);
+  if((hall||common)&&!this.hallDoorOpen(townId,buildingId))
    return result(false,"まず入口で扉を開けてください");
-  this.inside={townId,buildingId,pose:{x:0,z:hall?.entranceZ??2.4,yaw:0,moving:false},seat:null};
+  this.inside={townId,buildingId,pose:{x:0,z:hall?.entranceZ??(common?common.halfZ-.85:2.4),yaw:0,moving:false},seat:null};
   actor.clearMoveTarget?.();
   return result(true,"🚪 "+building.title+"に入りました。室内を見学できます。",{building});
  }
@@ -166,12 +171,14 @@ export class TownLife{
   const mag=Math.max(1,Math.hypot(f,side));
   const dx=(Math.sin(p.yaw)*f+Math.cos(p.yaw)*side)*2.5*step/mag;
   const dz=(Math.cos(p.yaw)*f-Math.sin(p.yaw)*side)*2.5*step/mag;
-  const building=this.find(this.inside.townId,this.inside.buildingId,"village"),hall=hallRoom(building?.type);
-  const nextX=limit(p.x+dx,hall?-hall.halfWidth+.35:-3.55,hall?hall.halfWidth-.35:3.55),
-   nextZ=limit(p.z+dz,hall?hall.zMin+.35:-3,hall?hall.zMax-.30:3.5);
-  if(hall&&nextZ>hall.zMax-.8&&Math.abs(nextX)<1.05&&
+  const building=this.find(this.inside.townId,this.inside.buildingId,"village"),hall=hallRoom(building?.type),common=sharedRoom(building?.type);
+  let nextX=limit(p.x+dx,hall?-hall.halfWidth+.35:common?-common.halfX+.35:-3.55,
+   hall?hall.halfWidth-.35:common?common.halfX-.35:3.55),
+   nextZ=limit(p.z+dz,hall?hall.zMin+.35:common?-common.halfZ+.35:-3,
+    hall?hall.zMax-.30:common?common.halfZ-.30:3.5);
+  if((hall||common)&&nextZ>(hall?hall.zMax:common.halfZ)-.8&&Math.abs(nextX)<.85&&
    this.hallDoorOpen(this.inside.townId,this.inside.buildingId)){
-   this.portalExitRequested=true;this.inside.pose.z=hall.zMax-.75;
+   this.portalExitRequested=true;this.inside.pose.z=(hall?hall.zMax:common.halfZ)-.75;
    return true;
   }
   if(hall){
@@ -183,6 +190,11 @@ export class TownLife{
    if(nextZ<hall.stageZ+1.5&&Math.abs(nextX)<hall.halfWidth-1){
     p.moving=false;p.blocked=true;return false;
    }
+  }
+  if(common){
+   const result=sharedWalkStep(building.type,p,nextX,nextZ);
+   nextX=result.x;nextZ=result.z;
+   if(result.blocked){p.moving=false;p.blocked=true;return false;}
   }
   p.moving=Math.hypot(nextX-p.x,nextZ-p.z)>.001;
   p.x=nextX;p.z=nextZ;
@@ -210,8 +222,8 @@ export class TownLife{
  leave(actor=null){
   if(!this.inside)return result(false,"屋外にいます");
   const room=this.inside,building=this.find(room.townId,room.buildingId,"village");
-  if(hallRoom(building?.type)&&actor){
-   const door=hallDoor(building);
+  if((hallRoom(building?.type)||sharedRoom(building?.type))&&actor){
+   const door=hallDoor(building)||sharedDoor(building);
    if(!actor.locationAt||!door)return result(false,"地表座標を取得できません");
    const x=door.x,z=door.z+1.05,geo=actor.locationAt(x,z);
    if(!Number.isFinite(geo?.lat)||!Number.isFinite(geo?.lon))

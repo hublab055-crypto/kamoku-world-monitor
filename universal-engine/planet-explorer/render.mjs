@@ -39,7 +39,7 @@ import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.9ap-music-hall";
-import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype,musicHallShellGeometry,musicHallRoofGeometry} from "./scenery-geometry.mjs?v=0.9as-shared-hall";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype,musicHallShellGeometry,musicHallRoofGeometry,sharedTownShellGeometry,sharedTownRoofGeometry} from "./scenery-geometry.mjs?v=0.9at-shared-towns";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
@@ -55,7 +55,9 @@ import {bandAppearance} from "./music-band.mjs?v=0.9ao";
 import {bandFigureGeometry,MUSIC_BAND_RENDER_ROLES,MUSIC_POSE_FRAMES} from "./music-band-geometry.mjs?v=0.9ao";
 import {musicHallInteriorGeometry} from "./music-hall-geometry.mjs?v=0.9as-seamless-halls";
 import {hallRoom,hallOccupancy} from "./music-hall.mjs?v=0.9as";
-import {isSharedHallRoom} from "./music-hall-world.mjs?v=0.9as";
+import {isSharedHallRoom} from "./music-hall-world.mjs?v=0.9at-shared-rooms";
+import {sharedRoom,SHARED_TOWN_ROOMS} from "./town-shared-world.mjs?v=0.9at";
+import {sharedTownFurnitureGeometry} from "./town-shared-geometry.mjs?v=0.9at";
 import {HALL_EXTERIOR,hallAudiencePose} from "./music-hall-portal.mjs?v=0.9aq";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
@@ -672,6 +674,8 @@ export class ExplorerRenderer{
   this.musicHallFurnitureMeshes=Object.fromEntries(["theater","school"].map(kind=>
    [kind,new Mesh(gl,musicHallInteriorGeometry(kind,{furnishingsOnly:true}))]));
   this.musicHallRoofs=[];
+  this.townSharedFurnitureMeshes=Object.fromEntries(Object.keys(SHARED_TOWN_ROOMS).map(kind=>
+   [kind,new Mesh(gl,sharedTownFurnitureGeometry(kind))]));
   this.musicBandMeshes=Object.fromEntries(MUSIC_BAND_RENDER_ROLES.map(role=>
    [role,Array.from({length:MUSIC_POSE_FRAMES},(_,phase)=>
     new Mesh(gl,bandFigureGeometry(role,phase)))]));
@@ -1578,6 +1582,22 @@ export class ExplorerRenderer{
      this.drawMesh(this.musicBandMeshes.audience[(phase+i)%MUSIC_POSE_FRAMES],
       multiply4(vp,model),lightHall,1,.74);
     }
+   }
+  }
+  /** World-space interiors for ordinary shops and homes. Uses the same VP
+   * and depth buffer as roads, music halls, vegetation, and the player. */
+  drawSharedTownWorld(vp,light,s,radius){
+   if(!this.townSites?.length||this.planet?.id!=="terra")return;
+   for(const site of this.townSites){
+    const kind=site.type,room=sharedRoom(kind);
+    if(!room||Math.hypot(site.x-s.x,site.z-s.z)>Math.min(radius+18,180))continue;
+    const x=site.localX,z=site.localZ,y=site.elevationM+.16;
+    const matrix=translate(x,y,z);
+    this.drawMesh(this.townSharedFurnitureMeshes[kind],multiply4(vp,matrix),light,1,.79);
+    const doorOpen=Boolean(this.musicHallDoors?.[this.settlementId+":"+site.id]);
+    const leaf=multiply4(translate(x-1.05,site.elevationM+.02,z+room.halfZ+.23),
+     rotateY(doorOpen?-Math.PI*.54:0));
+    this.drawMesh(this.musicHallDoorMesh,multiply4(vp,leaf),light,1,.86);
    }
   }
   drawMusicCulture(vp,light,s,radius){
@@ -2719,8 +2739,9 @@ export class ExplorerRenderer{
     plan.grass.filter(g=>!blockedByOwner(g.x+cx,g.z+cz)):plan.grass;
    const instanced=buildSceneryInstances({...plan,grass:ownerGrass,trees:visible});
    // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
-   const ordinary=plan.buildings.filter(p=>!hallRoom(p.type));
+   const ordinary=plan.buildings.filter(p=>!hallRoom(p.type)&&!sharedRoom(p.type));
    const dedicatedHalls=plan.buildings.filter(p=>hallRoom(p.type));
+   const sharedHouses=plan.buildings.filter(p=>sharedRoom(p.type));
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:ordinary});
    this.resourceNodes=visible;
    this.townSites=plan.buildings;
@@ -2733,6 +2754,10 @@ export class ExplorerRenderer{
    for(const site of dedicatedHalls){
     this.settlement.push(new Mesh(gl,musicHallShellGeometry(site)));
     this.musicHallRoofs.push({site,mesh:new Mesh(gl,musicHallRoofGeometry(site))});
+   }
+   for(const site of sharedHouses){
+    this.settlement.push(new Mesh(gl,sharedTownShellGeometry(site)));
+    this.musicHallRoofs.push({site,mesh:new Mesh(gl,sharedTownRoofGeometry(site))});
    }
    this.settlementDecor=[];
    this.residentMeshes=[];
@@ -3019,6 +3044,7 @@ export class ExplorerRenderer{
   this.drawLifestyle(vp,light,s,radius);
   this.drawMusicStage(vp,light,s,radius);
   this.drawMusicHallWorld(vp,light,s,radius);
+  this.drawSharedTownWorld(vp,light,s,radius);
   this.drawMusicCulture(vp,light,s,radius);
   // The grounded avatar remains at real scale even when the observer ascends.
   const capture=this.captureFX?capturePose(this.captureFX.elapsed):null;
@@ -3124,7 +3150,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.musicStageMesh,this.musicVenueMesh,this.musicPodiumMesh,this.musicHallDoorMesh,...Object.values(this.musicHallFurnitureMeshes),...this.musicHallRoofs.map(r=>r.mesh),...Object.values(this.musicBandMeshes).flat(),this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.musicStageMesh,this.musicVenueMesh,this.musicPodiumMesh,this.musicHallDoorMesh,...Object.values(this.musicHallFurnitureMeshes),...Object.values(this.townSharedFurnitureMeshes),...this.musicHallRoofs.map(r=>r.mesh),...Object.values(this.musicBandMeshes).flat(),this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
