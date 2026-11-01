@@ -39,7 +39,7 @@ import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
 import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.9ap-music-hall";
-import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.9ap-music-hall";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.9aq-hall-doors";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
@@ -50,7 +50,7 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {musicStageGeometry} from "./music-world.mjs?v=0.9am-music-craft";
-import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9ao";
+import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9aq-hall-doors";
 import {bandAppearance} from "./music-band.mjs?v=0.9ao";
 import {bandFigureGeometry,MUSIC_BAND_RENDER_ROLES,MUSIC_POSE_FRAMES} from "./music-band-geometry.mjs?v=0.9ao";
 import {musicHallInteriorGeometry} from "./music-hall-geometry.mjs?v=0.9ap";
