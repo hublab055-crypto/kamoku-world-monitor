@@ -59,7 +59,7 @@ export function extractAssetMusicControls(document){
     size.x<.1||size.y<.1||size.z<.1||size.x>4||size.y>4||size.z>4)
    throw Error("楽器パーツ寸法が不正です");
   items.push({kind:control.kind,track:control.track,pitch:control.pitch,
-   x:p.x,y:p.z,z:p.y,width:size.x,height:size.z,depth:size.y});
+   x:p.x,y:p.z,z:p.y,width:size.x,height:size.z,depth:size.y,yaw:Number(node.transform?.rotation?.z)||0});
  }
  if(!items.length||items.length>80)throw Error("音が鳴るキー・ボタン・弦を1〜80個配置してください");
  return items;
@@ -81,4 +81,23 @@ export function presetMusicControls(item){
   width:.40,height:.17,depth:.40
  }));
  return [];
+}
+
+/** Full geometry, including decorative parts, for a custom crafted Asset instrument. */
+export function extractAssetMusicParts(document){
+ // Require at least one playable control before accepting a musical prefab.
+ extractAssetMusicControls(document);
+ if(document.nodes.length>96)throw Error("Assetのパーツ数が多すぎます");
+ return document.nodes.map(node=>{
+  const p=node.transform?.position,rot=node.transform?.rotation,size=node.geometry?.size,
+   shape=node.geometry?.shape,color=node.material?.baseColor;
+  if(!p||!size||!["cube","cylinder","cone","sphere"].includes(shape)||
+    ![p.x,p.y,p.z,size.x,size.y,size.z,rot?.x??0,rot?.y??0,rot?.z??0].every(Number.isFinite)||
+    [p.x,p.y,p.z].some(v=>Math.abs(v)>12)||
+    [size.x,size.y,size.z].some(v=>v<.1||v>4)||
+    !Array.isArray(color)||color.length!==3||color.some(v=>!Number.isFinite(v)||v<0||v>1))
+    throw Error("Assetの形状・寸法・色が不正です（原点から12m以内、寸法4m以内）");
+  return {shape,x:p.x,y:p.z,z:p.y,width:size.x,height:size.z,depth:size.y,
+   rx:rot?.x??0,ry:rot?.y??0,rz:rot?.z??0,color:[...color]};
+ });
 }
