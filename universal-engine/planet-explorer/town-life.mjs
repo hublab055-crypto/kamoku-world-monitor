@@ -43,7 +43,7 @@ export class TownLife{
   for(const [key,day] of Object.entries(saved?.talked||{}))
    if(/^[a-z]+:resident-\d+:(greeting|work|rumor)$/.test(key)&&good(day))
     this.talked[key]=day;
-  this.inside=null;this.hallDoors={};this.portalExitRequested=false;
+  this.inside=null;this.hallDoors={};this.portalExitRequested=false;this._hallSites={};
  }
  layout(townId){return settlementLayout(townId);}
  find(townId,id,category){
@@ -110,7 +110,7 @@ export class TownLife{
  }
  hallStep(townId,previous,controller){
   if(this.inside||!controller?.nearGround||controller.travelMode!=="walk")return {blocked:false};
-  const sites=this.layout(townId).buildings
+  const sites=this._hallSites[townId]??=this.layout(townId).buildings
    .map((p,i)=>({...p,id:"village-"+i})).filter(p=>hallRoom(p.type));
   const step=hallExteriorStep(previous,controller,sites,site=>this.hallDoorOpen(townId,site.id));
   if(step.portal){
