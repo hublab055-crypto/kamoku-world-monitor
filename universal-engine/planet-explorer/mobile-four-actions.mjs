@@ -1,4 +1,4 @@
-import {MOBILE_ACTIONS,MOBILE_LAYERS,defaultMobileConfig,normalizeMobileConfig} from "./mobile-controls.mjs?v=3-flight-attitude";
+import {MOBILE_ACTIONS,MOBILE_LAYERS,defaultMobileConfig,normalizeMobileConfig} from "./mobile-controls.mjs?v=4-mission";
 
 const STORAGE_KEY="universal-engine:mobile-four-actions:v1";
 const $=id=>document.getElementById(id);
