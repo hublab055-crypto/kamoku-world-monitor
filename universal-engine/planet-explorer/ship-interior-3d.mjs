@@ -1,5 +1,6 @@
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 import {bodyById} from "./solar-system.mjs";
+import {CABIN_FLOOR_M,RAMP_START_Z,RAMP_END_Z,starshipFloorHeight} from "./starship-layout.mjs";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 function color(hex){const h=hex.replace("#","");return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255];}
@@ -52,7 +53,13 @@ export function createShipGeometry(open=false){
  box(a,0,3.13,13.08,2.65,.62,.28,"wall");
  for(const side of [-1,1])box(a,side*1.31,1.71,13.1,.08,2.78,.24,"frame");
  if(open){
-  for(let j=0;j<7;j++)box(a,0,-.15-j*.25,13.1+j*.85,2.46,.12,.87,"frame");
+  // One continuous ramp profile, shared with support/camera height.
+  const top=starshipFloorHeight(RAMP_START_Z)-CABIN_FLOOR_M;
+  const end=starshipFloorHeight(RAMP_END_Z)-CABIN_FLOOR_M;
+  const points=[[-1.25,top,RAMP_START_Z],[1.25,top,RAMP_START_Z],
+   [1.25,end,RAMP_END_Z],[-1.25,end,RAMP_END_Z]];
+  const slope=CABIN_FLOOR_M/(RAMP_END_Z-RAMP_START_Z),length=Math.hypot(1,slope);
+  for(const i of [0,2,1,0,3,2])a.push(...points[i],0,1/length,slope/length,...palette.frame);
   for(const side of [-1,1])box(a,side*1.24,-.65,15.9,.09,.15,5.6,"line");
  }else box(a,0,1.47,13.17,2.42,2.83,.28,"dark");
  // Front observation glazing is open to the view of the approaching world.

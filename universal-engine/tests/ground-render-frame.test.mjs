@@ -5,6 +5,9 @@ import {ExplorerRenderer,lookAt,perspective,multiply4,projectScreen} from "../pl
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs";
 import {ExplorerController} from "../planet-explorer/controller.mjs";
+import {SurfaceStarship} from "../planet-explorer/surface-starship.mjs";
+import {ShipJourney} from "../planet-explorer/ship-journey.mjs";
+import {terrainSurface} from "../planet-explorer/geo.mjs";
 
 const request=(n,regionKey="terra/start")=>({key:`${regionKey}/${n}`,regionKey,cx:n*110,cz:-n*110,radius:450});
 function stage(own,tag,onDestroy=()=>{}){
@@ -195,5 +198,26 @@ test("real renderer changes cache identity when the fixed landing origin changes
   assert.notEqual(renderer.groundFrame.regionKey,first.regionKey);
   assert.notEqual(renderer.distantLandscape,panorama);assert.equal(panorama.destroyed,true);
   assert.equal(renderer.groundPickFrame.frame,renderer.groundFrame);
+ }finally{renderer.destroy();}
+});
+
+test("docked cabin uses the same ground scene and hollow spacecraft mesh on both sides",()=>{
+ const {renderer,actor,terrain}=realScene();
+ const origin={...actor.origin};
+ try{
+  const ship=new SurfaceStarship();ship.place("terra",actor.lat,actor.lon,0,
+   terrainSurface(terrain,actor.lat,actor.lon).elevationM+.12);ship.hatchOpen=true;
+  renderer.surfaceStarship=ship;
+  renderer.frame(actor,.016);const region=renderer.groundFrame.regionKey;
+  renderer.shipVoyage=new ShipJourney({originId:"terra",status:"docked",hatchOpen:true,
+   launchSite:ship.snapshot(),interior:{schemaVersion:1,x:0,z:18.4,yaw:0}});
+  renderer.shipGroundState=actor;
+  renderer.renderUnifiedShip=()=>{throw Error("docked cabin must not switch to the flight scene");};
+  assert.equal(renderer.frame(actor,.016),"ship-interior");
+  assert.equal(renderer.groundFrame.regionKey,region);assert.ok(renderer.dockedShipPose);
+  assert.equal(renderer.groundPickFrame.frame,renderer.groundFrame);
+  renderer.shipVoyage=null;
+  assert.equal(renderer.frame(actor,.016),"ground");assert.equal(renderer.dockedShipPose,null);
+  assert.deepEqual(actor.origin,origin);
  }finally{renderer.destroy();}
 });

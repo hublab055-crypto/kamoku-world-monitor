@@ -138,9 +138,9 @@ test("exit commits only player pose in the existing region; no origin or compani
  const controller={origin,terrain:{planet},x:0,z:0,moveTarget:{x:20,z:20},totalDistanceM:250};
  const snapshot=copy({origin,ship:ship.snapshot(),controller:{x:0,z:0,moveTarget:controller.moveTarget,totalDistanceM:250}});
  const pose=starshipSurfaceExit(ship,controller,{x:.4,z:18,yaw:.6});
- near(pose.x,127+Math.cos(.37)*.4+Math.sin(.37)*18,.001);
- near(pose.z,-81-Math.sin(.37)*.4+Math.cos(.37)*18,.001);
- near(pose.yaw,.97);
+ near(pose.x,127+Math.cos(.37)*.4+Math.sin(.37)*18.6,.001);
+ near(pose.z,-81-Math.sin(.37)*.4+Math.cos(.37)*18.6,.001);
+ near(pose.yaw,Math.PI+.37-.6);
  assert.deepEqual(geoOffset(origin.lat,origin.lon,pose.x,pose.z,R),{lat:pose.lat,lon:pose.lon});
  assert.deepEqual({origin,ship:ship.snapshot(),controller:{x:controller.x,z:controller.z,
   moveTarget:controller.moveTarget,totalDistanceM:controller.totalDistanceM}},snapshot);

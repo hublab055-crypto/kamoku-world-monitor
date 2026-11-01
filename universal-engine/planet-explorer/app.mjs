@@ -1,3 +1,5 @@
+import {crossingIntoStarship} from "./starship-hatch-portal.mjs";
+import {RAMP_END_Z,cabinYawFromGround} from "./starship-layout.mjs";
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
 import {SolarSystem,BODIES,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=1";
@@ -7,18 +9,18 @@ import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
 import {ShipJourney} from "./ship-journey.mjs?v=6";
 import {SurfaceStarship} from "./surface-starship.mjs?v=4";
-import {starshipSurfaceExit,starshipSurfaceLanding} from "./starship-surface-exit.mjs?v=1";
+import {starshipSurfaceExit,starshipSurfaceLanding} from "./starship-surface-exit.mjs?v=2";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=2";
-import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
+import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=3";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=9";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=10";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9al-atomic-ground-frame-20261101";
+import {ExplorerRenderer} from "./render.mjs?v=0.9am-walk-through-hatch-20261101";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -677,13 +679,16 @@ function doFrame(t,source="window",xrFrameInput=null){
     const r=completeShipLanding();
     if(r?.message)log(r.message);
    }
-   renderer.frame(controller,dt);
+   // Resolve cabin movement and the portal BEFORE rendering the next frame.
    voyageUI?.render(dt);shipInteractionUI?.update();
-   if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>18.3){
-    const leave=shipEgress();if(leave?.message)log(leave.message);
-    requestAnimationFrame(doFrame);
-    return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:2.5,blocked:false};
+   if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>RAMP_END_Z){
+    const leave=shipEgress({walkThrough:true});if(leave?.message)log(leave.message);
+    if(leave.ok){
+     renderer.frame(controller,dt);requestAnimationFrame(doFrame);
+     return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:2.5,blocked:false};
+    }
    }
+   renderer.frame(controller,dt);
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    requestAnimationFrame(doFrame);
   }
@@ -802,6 +807,26 @@ function doFrame(t,source="window",xrFrameInput=null){
     renderer.patchKey=null;
     log("🛬 宇宙船が地表へ着陸しました。船尾に回るとハッチを開けられます。");
     surfaceShipUI?.update(true);
+   }
+  }
+  // A real swept crossing of the open ramp transfers the current endpoint
+  // into the cabin, retaining region origin and held movement input.
+  if(source==="window"&&running&&!detained&&!law?.pendingDeath&&!law?.gameOver&&
+     !onShip&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&!fauna?.mount&&
+     controller.nearGround&&controller.travelMode==="walk"&&!(controller.jumpY>.1)){
+   const crossing=crossingIntoStarship(surfaceShip,controller,previous);
+   if(crossing){
+    const permitted=canDepartCelestial();
+    if(permitted.ok){
+     footVoyage?.advance(controller.lat,controller.lon,planet.radiusM);
+     const boarded=boardSurfaceStarship({walkThrough:true,pose:crossing});
+     if(boarded.ok){
+      cancelHarvestOrder("player");renderer.shipVoyage=voyage;renderer.shipGroundState=controller;
+      renderer.frame(controller,dt);requestAnimationFrame(doFrame);
+      return {forward:input.forward,strafe:input.strafe,turn:input.turn,traveledM:0,
+       altitudeM:2.5,blocked:false,indoor:true,onShip:true};
+     }
+    }
    }
   }
   // Fuselage collision while walking on a planetary surface. Hatch remains
@@ -1553,7 +1578,7 @@ function toggleSurfaceShipHatch(){
  surfaceShipUI?.update(true);
  return {ok:true,message:surfaceShip.hatchOpen?"🚪 宇宙船のハッチを開け、ランプを展開しました":"🔒 宇宙船のハッチを閉じました"};
 }
-function boardSurfaceStarship(){
+function boardSurfaceStarship({walkThrough=false,pose=null}={}){
  if(voyage?.active)return {ok:false,message:"すでに宇宙船に乗っています"};
  const permitted=canDepartCelestial();if(!permitted.ok)return permitted;
  const hatch=currentShipHatch();
@@ -1561,11 +1586,12 @@ function boardSurfaceStarship(){
  if(!surfaceShip.hatchOpen)return {ok:false,message:"ハッチを開けてください"};
  try{
   const state=captureGame();solarSystem.store(solarSystem.currentId,state);
-  const local=shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
+  const local=pose||shipWorldToLocal(hatch.x,hatch.z,surfaceShip.yaw,controller.x,controller.z);
   voyage=new ShipJourney({originId:solarSystem.currentId,
    launchDay:planet.timeDays,launchSite:surfaceShip.snapshot(),hatchOpen:true,status:"docked",
-   interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
-    z:Math.max(16.0,Math.min(18.1,local.z)),yaw:controller.yaw-(surfaceShip.yaw||0),mode:"interior"}});
+   interior:{schemaVersion:1,x:walkThrough?local.x:Math.max(-.85,Math.min(.85,local.x)),
+    z:walkThrough?local.z:Math.max(16.0,Math.min(18.1,local.z)),
+    yaw:cabinYawFromGround(controller.yaw,surfaceShip.yaw||0),mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
@@ -1595,19 +1621,21 @@ function setShipDestination(id){
 }
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
  voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
-function shipEgress(){
+function shipEgress({walkThrough=false}={}){
  if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
   // Keep the region's origin: scenery, NPCs, buildings and rail coordinates
   // are still relative to it. Only the player's pose leaves the cabin frame.
-  const exit=starshipSurfaceExit(surfaceShip,controller,voyage.interior);
+  const exit=starshipSurfaceExit(surfaceShip,controller,voyage.interior,{walkThrough});
   controller.x=exit.x;controller.z=exit.z;controller.yaw=exit.yaw;
   controller.lat=exit.lat;controller.lon=exit.lon;
   controller.moveTarget=null;controller.jumpY=0;controller.jumpV=0;
   controller.travelMode="walk";
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
+  // Transport is not credited as foot travel on the next walking update.
+  if(footVoyage)footVoyage.last={lat:controller.lat,lon:controller.lon};
   renderer.patchKey=null;lastTime=0;
   voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
   voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
@@ -4047,7 +4075,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
-voyageUI=installSpaceFlightUI({get:()=>voyage,
+voyageUI=installSpaceFlightUI({get:()=>voyage,getMovement:inputVector,
  onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},

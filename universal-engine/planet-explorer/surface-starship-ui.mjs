@@ -51,7 +51,7 @@ export function installSurfaceStarshipUI({get,onHatch,onBoard,onLand,notify}){
    hatch.hidden=true;board.hidden=true;land.hidden=true;
   }else{
    head.textContent="🚀 地表の宇宙船 ／ ハッチまで "+pos.distanceM.toFixed(1)+"m";
-   note.textContent="船尾に近づいてハッチを開け、乗降ランプから船内へ入れます。";
+   note.textContent="ハッチを開け、ランプ中央へ歩くと乗船します。乗船ボタンも使えます。";
    hatch.hidden=false;board.hidden=false;land.hidden=true;
    hatch.textContent=ship.hatchOpen?"🔒 ハッチを閉める":"🚪 ハッチを開ける";
    hatch.disabled=pos.distanceM>5.5;

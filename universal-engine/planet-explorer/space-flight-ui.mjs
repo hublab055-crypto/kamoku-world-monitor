@@ -1,6 +1,7 @@
+import {cabinMovement} from "./starship-hatch-portal.mjs";
 import {bodyById} from "./solar-system.mjs";
-import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
-import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
+import {installShipInterior3D} from "./ship-interior-3d.mjs?v=9";
+import {groundScenePhase} from "./ship-shared-scene.mjs?v=5";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
@@ -10,7 +11,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,notify}){
+export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getMovement,notify}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -153,7 +154,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  });
  dragTarget.addEventListener("pointermove",event=>{
   if(!drag||event.pointerId!==drag.id)return;
-  const state=get()?.interior;if(state)state.turn((event.clientX-drag.x)*.006,(drag.y-event.clientY)*.004);
+  const state=get()?.interior;if(state)state.turn(-(event.clientX-drag.x)*.006,(drag.y-event.clientY)*.004);
   drag.x=event.clientX;drag.y=event.clientY;
  });
  for(const type of ["pointerup","pointercancel","lostpointercapture"])
@@ -161,9 +162,9 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  function applyMove(dt){
   const state=get()?.interior;
   if(!state||state.mode!=="interior")return;
-  const n=key=>Number(held.has(key));
-  state.turn((n("rightTurn")-n("leftTurn"))*dt*1.7);
-  state.walk(n("forward")-n("back"),n("right")-n("left"),dt);
+  const input=cabinMovement(held,getMovement?.()||{});
+  state.turn(input.turn*dt*1.7);
+  state.moving=state.walk(input.forward,input.strafe,dt);
  }
  $("flight-view").addEventListener("click",()=>{
   const current=get();if(!current)return;

@@ -1,3 +1,4 @@
+import {cabinSurfacePose,starshipRampSupport,DockedShipCamera} from "./starship-hatch-portal.mjs";
 import {groundRegionKey,replaceGroundRenderFrame,groundHitToWorld} from "./ground-render-frame.mjs?v=1";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
@@ -49,9 +50,9 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
-import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
+import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=2";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -667,7 +668,7 @@ export class ExplorerRenderer{
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
 
-  this.cameraController=new CameraController();
+  this.cameraController=new CameraController();this.dockedShipCamera=new DockedShipCamera();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
   this.actorMarker=null;
   this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;this.mapFocus=null;
@@ -1635,6 +1636,7 @@ export class ExplorerRenderer{
  }
  clearCapture(){this.captureFX=null;}
  frame(state,dt=1/60){
+  this.dockedShipPose=null;
   // Visual-only frame time continues while law simulation is paused in custody.
   if(this.captureFX)this.captureFX.elapsed=Math.min(CAPTURE_DURATION_SECONDS,
     this.captureFX.elapsed+Math.max(0,Math.min(dt,.10)));
@@ -1684,7 +1686,22 @@ export class ExplorerRenderer{
    if(this.townInterior)return this.renderTownInterior(asp);
   }
   if(!xr){
-   if(this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
+   if(this.shipVoyage?.active){
+    const v=this.shipVoyage,base=this.shipGroundState||state;
+    if(v.kind==="surface-to-surface"&&v.isGrounded()&&this.surfaceStarship?.present(this.planet.id)){
+     const site=this.surfaceStarship;
+     const ground=terrainSurface(this.terrain,site.lat,site.lon).elevationM;
+     const pose=cabinSurfacePose(site,base,v.interior,{radiusM:this.planet.radiusM,elevationM:ground});
+     if(pose){
+      this.dockedShipPose=pose;
+      this.ground({...base,...pose,altitudeM:2.5,travelMode:"walk",jumpY:0,
+       moving:Boolean(v.interior.moving),origin:base.origin},asp,dt);
+      return "ship-interior";
+     }
+    }
+    this.dockedShipCamera=new DockedShipCamera();
+    return this.renderUnifiedShip(asp,dt);
+   }
   if((this.custodyCell||this.railwaySecurity?.jailed)&&
      (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
   if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
@@ -2628,14 +2645,16 @@ export class ExplorerRenderer{
    const p=1-this.marine.entrySeconds/this.marine.entryDuration;
    marinePose={action:"splash",pitch:.50+.8*p,baseY:waterY-1.12+1.8*Math.sin(Math.PI*p)};
   }
-  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
+  const ramp=starshipRampSupport(this.surfaceStarship,{...s,terrain:this.terrain},this.planet.radiusM);
+  const rampFeet=ramp===null?null:(Number.isFinite(this.surfaceStarship.padElevationM)?this.surfaceStarship.padElevationM:ground)+ramp;
+  const feet=this.dockedShipPose?.feetM??rampFeet??marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
   const focusGeo=cameraMode==="free"?
     geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
   const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
   const room=this.sceneActions?.structures.find(b=>b.id===this.interiorBuildingId&&b.progress>=1);
   const cabinActive=Boolean(this.marine?.cabinId&&this.marine.boarded?.id===this.marine.cabinId);
   const camYaw=viewS.yaw||0;
-  const camera=room?{
+  let camera=room?{
    eye:[room.x-this.cx+1.5,room.height+8.1,room.z-this.cz+4.4],
    target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
    fovDeg:64,heightM:8,marker:false
@@ -2646,6 +2665,15 @@ export class ExplorerRenderer{
   }:this.cameraController.groundView(viewS,{
     cx:this.cx,cz:this.cz,groundM:marinePose?.action==="swim"||marinePose?.action==="tread"?waterY-1:feet,focusGroundM:focusGround,dt
   });
+  let cabinCamera=null;
+  if(this.dockedShipPose){
+   const person=this.shipVoyage.interior,pitch=person.pitch||0;
+   const eye=[px,feet+(this.shipVoyage.seated?1.25:1.62),pz];
+   cabinCamera={eye,target:[eye[0]+Math.sin(viewS.yaw)*Math.cos(pitch),
+    eye[1]+Math.sin(pitch),eye[2]+Math.cos(viewS.yaw)*Math.cos(pitch)],fovDeg:75};
+  }
+  camera=this.dockedShipCamera.view(camera,{cabin:cabinCamera,cx:this.cx,cz:this.cz,
+   regionKey:this.groundFrame.regionKey,dt});
   if(s.travelMode==="dive"&&!room&&!cabinActive&&cameraMode!=="free"&&cameraMode!=="tactical"){
    camera.eye[1]=Math.min(waterY-.35,feet+2.35);camera.target[1]=feet+.65;
   }
@@ -2871,7 +2899,7 @@ export class ExplorerRenderer{
    baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   // In standing VR, the avatar's head would overlap the real user's eyes.
-  if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
+  if(!this.dockedShipPose&&(this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
     !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   if(capture?.stars){
