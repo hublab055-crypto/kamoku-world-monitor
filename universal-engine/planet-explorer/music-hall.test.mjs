@@ -63,7 +63,8 @@ test("music classroom has a larger room and seat interactions, existing cabins r
  assert.equal(town.sitMusicSeat().ok,true);
  town.leave();
  const cabin=layout.buildings.findIndex(b=>b.type==="cabin"),house=layout.buildings[cabin];
- actor.x=house.x;actor.z=house.z;
+ actor.x=house.x;actor.z=house.z+3.85;
+ assert.equal(town.toggleHallDoor("capital","village-"+cabin,actor).ok,true);
  assert.equal(town.enter("capital","village-"+cabin,actor).ok,true);
  assert.equal(town.inside.pose.z,2.4);
  assert.equal(town.sitMusicSeat().ok,false);
