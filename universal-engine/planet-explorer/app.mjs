@@ -3721,6 +3721,15 @@ mobileUI=installMobileFourActions({
      log(result.message);break;
     }
     if(ferry?.boarded){const result=ferry.talk("steward");log(result.message);break;}
+    const hatch=currentShipHatch();
+    if(hatch?.distanceM<=5.5){
+     const result=surfaceShip.hatchOpen?
+      (hatch.distanceM<=4.5?boardSurfaceStarship():
+        {ok:false,message:"乗船するにはハッチから4.5m以内へ近づいてください"}):
+      toggleSurfaceShipHatch();
+     if(result?.message)log(result.message);
+     updateHUD();break;
+    }
     if(!$("door-controls").hidden){
       const available=["door-enter","door-exit","door-toggle"].find(id=>!$(id).hidden);
       if(available){click(available);break;}
@@ -3763,6 +3772,11 @@ mobileUI=installMobileFourActions({
     if(!fauna?.mount){log("騎乗中のみ歩法を変更できます");break;}
     const gait=["walk","trot","gallop"],next=gait[(gait.indexOf(fauna.gait)+1)%gait.length];
     fauna.setGait(next);saveFaunaJournal();log("🐎 歩法："+({walk:"常歩",trot:"速歩",gallop:"駈歩"}[next]));updateHUD();break;
+   }
+   case "hatch":{
+    const result=toggleSurfaceShipHatch();
+    if(result?.message)log(result.message);
+    updateHUD();break;
    }
    case "takeHelm":{
     if(marine?.boarded?.kind!=="sailing_ship"){log("帆船の甲板から舵輪を操作してください");break;}
