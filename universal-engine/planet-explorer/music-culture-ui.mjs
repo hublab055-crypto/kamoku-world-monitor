@@ -27,7 +27,7 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
  <output data-status role="status" aria-live="polite"></output></div>`;
  document.body.append(panel);
  const el=q=>panel.querySelector(q),list=el("[data-venues]");
- let lastTown="",lastShow="",lastAutoAttempt="",lastFrame=-1;
+ let lastAutoAttempt="",lastFrame=-1,lastUiRefresh=-1;
  const coins=()=>getTownLife()?.coins??0;
  const nearby=(venue)=>{
   const actor=getActor();if(!actor||actor.altitudeM>12.01||actor.travelMode!=="walk")return false;
@@ -106,7 +106,7 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
    if(venue&&musicNow(venue,now)?.performing&&culture.payNPC(town,venue.id,now).ok)
     onChange(); // At most one salary transaction per venue / planetary day
   }
-  if(!panel.hidden)refresh();
+  if(!panel.hidden&&nowMs-lastUiRefresh>5000){lastUiRefresh=nowMs;refresh();}
   const current=MUSIC_VENUES.map(v=>culture.venue(town,v.id)).filter(Boolean)
    .find(v=>musicNow(v,now)?.performing&&nearby(v));
   const show=current?musicNow(current,now).showId:"";
