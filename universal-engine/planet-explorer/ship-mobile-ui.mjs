@@ -1,4 +1,4 @@
-import {MOBILE_ACTIONS,normalizeMobileConfig,defaultMobileConfig} from "./mobile-controls.mjs?v=4-mission";
+import {MOBILE_ACTIONS,normalizeMobileConfig,defaultMobileConfig} from "./mobile-controls.mjs?v=5-cockpit-migration";
 
 const KEY="universal-engine:mobile-four-actions:v1";
 const mobile=()=>typeof matchMedia==="function"&&matchMedia("(max-width: 1024px) and (pointer: coarse)").matches;
