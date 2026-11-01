@@ -2,7 +2,8 @@
  * No generative-AI API dependency: dialogue is branching, location-aware dialogue.
  */
 import {settlementLayout,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
-import {hallRoom,nearestHallSeat} from "./music-hall.mjs?v=0.9ap";
+import {hallRoom,nearestHallSeat,hallSeats} from "./music-hall.mjs?v=0.9aq";
+import {hallDoor,hallDoorNear,hallExteriorStep} from "./music-hall-portal.mjs?v=0.9aq";
 
 export const TOWN_NAMES=Object.freeze({
  lodge:"宿屋・集会所",cabin:"民家",barn:"納屋",workshop:"工房",
@@ -42,7 +43,7 @@ export class TownLife{
   for(const [key,day] of Object.entries(saved?.talked||{}))
    if(/^[a-z]+:resident-\d+:(greeting|work|rumor)$/.test(key)&&good(day))
     this.talked[key]=day;
-  this.inside=null;
+  this.inside=null;this.hallDoors={};this.portalExitRequested=false;
  }
  layout(townId){return settlementLayout(townId);}
  find(townId,id,category){
@@ -94,13 +95,58 @@ export class TownLife{
   }
   return result(true,"💬 "+resident.title+"：「"+phrase+"」",{friendship:this.friendship[key]});
  }
+ hallDoorOpen(townId,buildingId){return Boolean(this.hallDoors[townId+":"+buildingId]);}
+ toggleHallDoor(townId,buildingId,actor){
+  const building=this.find(townId,buildingId,"village");
+  if(!building||!hallRoom(building.type))return result(false,"開閉可能な音楽施設の扉ではありません");
+  const inside=this.inside?.townId===townId&&this.inside.buildingId===buildingId;
+  if(inside&&this.inside.seat)return result(false,"先に席を立ってから扉へ向かってください");
+  if(!inside&&(!actor?.nearGround||actor.travelMode!=="walk"))
+   return result(false,"地表で歩行中に扉を操作してください");
+  if(!hallDoorNear(building,inside?this.inside.pose:actor,{inside}))
+   return result(false,"入口の扉から約2.5m以内に近づいてください");
+  const id=townId+":"+buildingId,open=!this.hallDoors[id];this.hallDoors[id]=open;
+  return result(true,open?"🚪 扉を開けました。前進すると室内に入れます":"🚪 扉を閉じました",{open});
+ }
+ hallStep(townId,previous,controller){
+  if(this.inside||!controller?.nearGround||controller.travelMode!=="walk")return {blocked:false};
+  const sites=this.layout(townId).buildings
+   .map((p,i)=>({...p,id:"village-"+i})).filter(p=>hallRoom(p.type));
+  const step=hallExteriorStep(previous,controller,sites,site=>this.hallDoorOpen(townId,site.id));
+  if(step.portal){
+   const entered=this.enter(townId,step.portal.id,controller);
+   if(entered.ok){
+    this.inside.pose.z=hallRoom(step.portal.type).entranceZ-.7;
+    return {blocked:false,entered:true,message:"🚪 扉を通って"+entered.building.title+"に入りました"};
+   }
+   return {blocked:true,message:entered.message};
+  }
+  return step;
+ }
+ portalExit(actor){
+  if(!this.portalExitRequested||!this.inside)return result(false,"出口に到達していません");
+  const inside=this.inside,building=this.find(inside.townId,inside.buildingId,"village");
+  if(!building||!this.hallDoorOpen(inside.townId,inside.buildingId))
+   return result(false,"扉が閉まっています");
+  const door=hallDoor(building);
+  if(!actor?.locationAt||!door)return result(false,"地表位置を復元できません");
+  const x=door.x,z=door.z+1.05,point=actor.locationAt(x,z);
+  if(!Number.isFinite(point.lat)||!Number.isFinite(point.lon))
+   return result(false,"入口の座標が不正です");
+  actor.x=x;actor.z=z;actor.lat=point.lat;actor.lon=point.lon;
+  actor.clearMoveTarget?.();actor.moving=false;
+  this.portalExitRequested=false;this.inside=null;
+  return result(true,"🚪 扉を通って建物の外へ出ました");
+ }
  enter(townId,buildingId,actor){
   const building=this.find(townId,buildingId,"village");
   if(!building||["well","watchtower"].includes(building.type))
    return result(false,"この施設は屋内に入れません");
-  const near=this.canInteract(townId,actor,building,{radius:9});
+  const near=this.canInteract(townId,actor,building,{radius:hallRoom(building.type)?12:9});
   if(!near.ok)return near;
   const hall=hallRoom(building.type);
+  if(hall&&!this.hallDoorOpen(townId,buildingId))
+   return result(false,"まず入口で扉を開けてください");
   this.inside={townId,buildingId,pose:{x:0,z:hall?.entranceZ??2.4,yaw:0,moving:false},seat:null};
   actor.clearMoveTarget?.();
   return result(true,"🚪 "+building.title+"に入りました。室内を見学できます。",{building});
@@ -116,8 +162,20 @@ export class TownLife{
   const dx=(Math.sin(p.yaw)*f+Math.cos(p.yaw)*side)*2.5*step/mag;
   const dz=(Math.cos(p.yaw)*f-Math.sin(p.yaw)*side)*2.5*step/mag;
   const building=this.find(this.inside.townId,this.inside.buildingId,"village"),hall=hallRoom(building?.type);
-  const nextX=limit(p.x+dx,hall?-hall.halfWidth:-3.55,hall?hall.halfWidth:3.55),
-   nextZ=limit(p.z+dz,hall?hall.zMin:-3,hall?hall.zMax:3.5);
+  const nextX=limit(p.x+dx,hall?-hall.halfWidth+.35:-3.55,hall?hall.halfWidth-.35:3.55),
+   nextZ=limit(p.z+dz,hall?hall.zMin+.35:-3,hall?hall.zMax-.30:3.5);
+  if(hall&&nextZ>hall.zMax-.8&&Math.abs(nextX)<1.05&&
+   this.hallDoorOpen(this.inside.townId,this.inside.buildingId)){
+   this.portalExitRequested=true;this.inside.pose.z=hall.zMax-.75;
+   return true;
+  }
+  if(hall){
+   const seats=hallSeats(building.type);
+   if(seats.some(seat=>Math.abs(nextX-seat.x)<.62&&Math.abs(nextZ-seat.z)<.64)&&
+      !seats.some(seat=>Math.abs(p.x-seat.x)<.62&&Math.abs(p.z-seat.z)<.64))
+    return false;
+   if(nextZ<hall.stageZ+1.5&&Math.abs(nextX)<hall.halfWidth-1)return false;
+  }
   p.moving=Math.hypot(nextX-p.x,nextZ-p.z)>.001;
   p.x=nextX;p.z=nextZ;
   return p.moving;
@@ -142,7 +200,7 @@ export class TownLife{
  }
  leave(){
   if(!this.inside)return result(false,"屋外にいます");
-  this.inside=null;return result(true,"🚪 建物から外に出ました");
+  this.inside=null;this.portalExitRequested=false;return result(true,"🚪 建物から外に出ました");
  }
  trade(townId,buildingId,item,direction,actor,actions,life){
   const shop=this.find(townId,buildingId,"village");
