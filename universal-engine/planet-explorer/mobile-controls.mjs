@@ -53,7 +53,17 @@ const DEFAULT_BUTTONS={
   walk:[{tap:"interact",hold:"talk"},{tap:"attack",hold:"guard"},
         {tap:"jump",hold:"camera"},{tap:"inventory",hold:"menu"}],
   rts:[{tap:"rts",hold:"camera"},{tap:"attack",hold:"shoot"},
-       {tap:"map",hold:"inventory"},{tap:"menu",hold:"settings"}]
+       {tap:"map",hold:"inventory"},{tap:"menu",hold:"settings"}],
+  ride:[{tap:"gait",hold:"vehiclePanel"},{tap:"attack",hold:"guard"},
+        {tap:"map",hold:"camera"},{tap:"vehicleExit",hold:"inventory"}],
+  boat:[{tap:"cruise",hold:"sailsUp"},{tap:"anchor",hold:"sailsDown"},
+        {tap:"vehiclePanel",hold:"map"},{tap:"vehicleExit",hold:"camera"}],
+  passenger:[{tap:"interact",hold:"talk"},{tap:"map",hold:"camera"},
+        {tap:"inventory",hold:"menu"},{tap:"vehicleExit",hold:"vehiclePanel"}],
+  shipInterior:[{tap:"interact",hold:"talk"},{tap:"hatch",hold:"disembark"},
+        {tap:"cargo",hold:"inventory"},{tap:"navigation",hold:"shipSettings"}],
+  shipCockpit:[{tap:"launchLand",hold:"throttleUp"},{tap:"autopilot",hold:"throttleDown"},
+        {tap:"navigation",hold:"transfer"},{tap:"stand",hold:"shipSettings"}]
 };
 export function defaultMobileConfig(){
   return {version:1,profiles:JSON.parse(JSON.stringify(DEFAULT_BUTTONS)),
