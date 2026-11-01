@@ -4107,7 +4107,52 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
- getWorldCanvas:()=>renderer?.canvas||null,notify:log});
+ getWorldCanvas:()=>renderer?.canvas||null,notify:log,
+ getRoutes:shipRoutes,onChooseRoute:setShipDestination,onTransfer:startShipTransfer,
+ onMobileAction:action=>{
+  const v=voyage;
+  if(!v?.active)return {ok:false,message:"宇宙船に乗船していません"};
+  const surface=v.kind==="surface-to-surface";
+  switch(action){
+   case "interact":{
+    if(surface&&!v.seated&&v.isNearSeat())return shipSit();
+    if(surface&&!v.seated&&v.isGrounded()&&v.isNearHatch())return shipToggleHatch();
+    const crew=v.interior.nearCrew()[0];
+    if(crew)return v.interior.talk(crew.id,v);
+    const station=v.interior.nearStations()[0];
+    if(station?.id==="cargo")return {ok:true,message:"📦 "+Object.entries(actions?.resources||{}).filter(([,n])=>n>0).slice(0,12).map(([k,n])=>k+"×"+n).join(" / ")};
+    return {ok:false,message:"近くに操作できる座席・乗員・設備がありません"};
+   }
+   case "sit":return surface?shipSit():
+    v.interior.sit();
+   case "stand":return surface?shipStand():
+    v.interior.stand();
+   case "talk":{
+    const crew=v.interior.nearCrew()[0];
+    return crew?v.interior.talk(crew.id,v):{ok:false,message:"乗員の近くで話してください"};
+   }
+   case "hatch":return shipToggleHatch();
+   case "disembark":return shipEgress();
+   case "cargo":case "inventory":{
+    const items=Object.entries(actions?.resources||{}).filter(([,n])=>n>0);
+    return {ok:true,message:items.length?"📦 船倉："+items.slice(0,15).map(([k,n])=>k+"×"+n).join(" / "):"📦 船倉は空です"};
+   }
+   case "launchLand":
+    if(["docked","preflight"].includes(v.status))return launchCelestialVoyage();
+    if(v.status==="orbit")return finishCelestialVoyage();
+    return {ok:false,message:"この航行段階では離着陸できません。航路設定・飛行完了を確認してください"};
+   case "autopilot":
+    v.setAutopilot(!v.autopilot);
+    return {ok:true,message:v.autopilot?"🤖 自動操縦を有効化":"🎮 手動操縦を有効化"};
+   case "throttleUp":case "throttleDown":{
+    v.setThrottle(Math.max(0,Math.min(1,v.throttle+(action==="throttleUp"?.1:-.1))));
+    return {ok:true,message:"🚀 推力："+Math.round(v.throttle*100)+"%"};
+   }
+   case "transfer":return startShipTransfer();
+   case "logs":return {ok:true,message:"📟 "+v.phase+" / 燃料"+Math.round(v.fuel)+"% / 出力"+Math.round(v.throttle*100)+"%"};
+   default:return {ok:false,message:"船内ではこのアクションを使用できません"};
+  }
+ }});
 shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
