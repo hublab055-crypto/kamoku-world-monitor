@@ -1,3 +1,11 @@
+## 2026-11-01 — v0.9ak Starship reference frames / Preserve regional origins
+
+- 星系・天体・船体の位置／速度変換、AU→m、カメラ相対差と固定地域アンカーのCPU基盤を追加。
+- 船との距離計算を球面局所変換へ統一し、日付変更線を挟む近距離乗船を修正。
+- 宇宙船の下船・到着時に既存地域のoriginを維持し、下船だけでの仲間再配置を廃止。
+- 再訪問時の着陸候補を旧セーブのorigin+x/zから探し、目的天体と保存記録の不一致を拒否。
+- 実装範囲と未実装の描画再基準化・連続歩行は `STARSHIP_REFERENCE_FRAMES_V09AK.md` に記載。
+
 ## 2026-10-23 — v0.9c AssetDocument v2 / Six-axis / Number Pad
 
 - 旧v1下書きを自動移行する `ue/asset-document` v2を追加。用途、単位、ノード、親ID、位置、RX/RY/RZ、ピボット、形状、材質、将来のソケット領域を保存

@@ -6,9 +6,10 @@ import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
 import {ShipJourney} from "./ship-journey.mjs?v=6";
-import {SurfaceStarship} from "./surface-starship.mjs?v=3";
+import {SurfaceStarship} from "./surface-starship.mjs?v=4";
+import {starshipSurfaceExit,starshipSurfaceLanding} from "./starship-surface-exit.mjs?v=1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
-import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
+import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=2";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=9";
@@ -1599,15 +1600,14 @@ function shipEgress(){
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
-  const cabinX=voyage.interior.x,cabinZ=Math.max(17.3,voyage.interior.z);
-  controller.setLanding(surfaceShip.lat,surfaceShip.lon);
-  const ground=shipLocalToWorld(0,0,surfaceShip.yaw,cabinX,cabinZ);
-  controller.x=ground.x;controller.z=ground.z;
-  controller.yaw=voyage.interior.yaw+(surfaceShip.yaw||0);
-  const geo=controller.locationAt(controller.x,controller.z);
-  controller.lat=geo.lat;controller.lon=geo.lon;
+  // Keep the region's origin: scenery, NPCs, buildings and rail coordinates
+  // are still relative to it. Only the player's pose leaves the cabin frame.
+  const exit=starshipSurfaceExit(surfaceShip,controller,voyage.interior);
+  controller.x=exit.x;controller.z=exit.z;controller.yaw=exit.yaw;
+  controller.lat=exit.lat;controller.lon=exit.lon;
+  controller.moveTarget=null;controller.jumpY=0;controller.jumpV=0;
+  controller.travelMode="walk";
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
-  squad.repositionAfterLanding();
   renderer.patchKey=null;lastTime=0;
   voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
   voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
@@ -1726,7 +1726,12 @@ function travelToCelestial(id,flightDays,stayAboard=false){
     findStarshipPad(terrain,{lat:controller.lat,lon:controller.lon})||
     findStarshipPad(terrain,terrain.landscapeAnchor);
    if(!pad)throw Error("目的惑星に安全な宇宙船着陸地点を確保できません");
-   controller.setLanding(pad.lat,pad.lon);
+   // A visited world's NPCs, resources and rail positions retain their saved
+   // origin. Place the player at the pad within that chart, without rebasing it.
+   const landing=starshipSurfaceLanding(controller,{...pad,bodyId:id});
+   controller.x=landing.x;controller.z=landing.z;
+   controller.lat=landing.lat;controller.lon=landing.lon;controller.yaw=landing.yaw;
+   controller.moveTarget=null;controller.jumpY=0;controller.jumpV=0;controller.travelMode="walk";
    controller.altitudeM=2.5;controller.targetAltitude(2.5);
    squad.repositionAfterLanding();renderer.patchKey=null;
    surfaceShip.landedOn(id,pad.lat,pad.lon,pad.yaw,pad.padElevationM);
