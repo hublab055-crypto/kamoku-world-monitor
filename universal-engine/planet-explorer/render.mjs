@@ -1538,6 +1538,48 @@ export class ExplorerRenderer{
     this.drawMesh(mesh,multiply4(vp,translate(n.x-this.cx,Math.max(0,elevation),n.z-this.cz)),light,1,.75);
    }
   }
+  /** Ground and hall share one camera, depth buffer and planetary origin. */
+  drawMusicHallWorld(vp,light,s,radius){
+   if(!this.musicCulture||this.planet?.id!=="terra"||!s?.origin)return;
+   const town=this.settlementId;
+   for(const kind of ["theater","school"]){
+    const venue=this.musicCulture.venue(town,kind);
+    if(!venue)continue;
+    const site=this.townSites?.find(p=>p.id===venue.buildingId&&p.type===kind);
+    if(!site||Math.hypot(site.x-s.x,site.z-s.z)>radius+20)continue;
+    const x=site.localX,z=site.localZ,y=site.elevationM+.16;
+    const base=translate(x,y,z),lightHall=[.70,.86,.57];
+    this.drawMesh(this.musicHallFurnitureMeshes[kind],multiply4(vp,base),lightHall,1,.84);
+    const room=hallRoom(kind),stageZ=room.stageZ;
+    const instrument=multiply4(base,multiply4(
+     translate(-.5,kind==="theater"?.67:0,stageZ+.2),scale3(.84,.84,.84)));
+    this.drawMesh(this.musicVenueMesh,multiply4(vp,instrument),lightHall,1,.80);
+    const show=musicNow(venue,this.planet.timeDays),
+      performing=kind==="school"?show?.open:show?.performing,
+      phase=Math.floor(performance.now()/1000*3.5)%MUSIC_POSE_FRAMES;
+    if(performing){
+     const band=bandAppearance(venue,this.musicCulture.bandContracts,this.planet.timeDays);
+     if(kind==="school")band.length=1;
+     for(let i=0;i<band.length;i++){
+      const player=band[i],model=multiply4(base,
+       multiply4(translate(player.x,kind==="theater"?.67:0,stageZ+player.z),rotateY(Math.PI)));
+      this.drawMesh(this.musicBandMeshes[player.role][(phase+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,model),lightHall,1,.87);
+     }
+    }
+    const selected=this.townInterior?.townId===town&&
+     this.townInterior?.buildingId===venue.buildingId?this.townInterior.seat:null;
+    for(const [i,seat]of hallOccupancy(kind,venue.audienceCount).entries()){
+     if(seat.id===selected)continue;
+     const pose=hallAudiencePose(kind,i,this.planet.timeDays,venue.shows);
+     if(!pose)continue;
+     const model=multiply4(base,multiply4(translate(pose.x,0,pose.z),
+      scale3(.90,pose.seated?.79:1,.90)));
+     this.drawMesh(this.musicBandMeshes.audience[(phase+i)%MUSIC_POSE_FRAMES],
+      multiply4(vp,model),lightHall,1,.74);
+    }
+   }
+  }
   drawMusicCulture(vp,light,s,radius){
    this.screenMusicVenues=[];
    const culture=this.musicCulture,town=this.settlementId;
