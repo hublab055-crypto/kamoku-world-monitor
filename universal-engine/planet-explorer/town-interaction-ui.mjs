@@ -45,6 +45,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   if(room){
    actions.append(button("🚪 外へ出る","leave"));
    if(room.type==="theater"||room.type==="school"){
+    actions.append(button(town.hallDoorOpen(townId,room.id)?"🚪 扉を閉める":"🚪 扉を開ける","door"));
     if(inside.seat)actions.append(button("🧍 席から立ち上がる","stand"));
     else actions.append(button("💺 近くの椅子に座る","sit"));
    }
@@ -60,6 +61,8 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
    const note=document.createElement("small");note.textContent="親しさ："+bond+"/100";
    actions.append(note);
   }else{
+   if(["theater","school"].includes(chosen.type))
+    actions.append(button(town.hallDoorOpen(townId,chosen.id)?"🚪 扉を閉める":"🚪 扉を開ける","door"));
    if(!["well","watchtower"].includes(chosen.type))
     actions.append(button("🚪 建物に入る","enter",!near.ok));
    const wares=TOWN_WARES[chosen.type]||[];
@@ -113,6 +116,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   const chosen=currentSelection(),value=target.dataset.townAction;
   let output=null;
   if(value==="leave")output=town.leave();
+  else if(value==="door"&&chosen)output=town.toggleHallDoor(townId,chosen.id,controller);
   else if(value==="sit")output=town.sitMusicSeat();
   else if(value==="stand")output=town.standMusicSeat();
   else if(value==="enter"&&chosen)output=town.enter(townId,chosen.id,controller);
