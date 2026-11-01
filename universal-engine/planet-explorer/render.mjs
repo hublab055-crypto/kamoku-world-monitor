@@ -1590,7 +1590,7 @@ export class ExplorerRenderer{
    if(!this.townSites?.length||this.planet?.id!=="terra")return;
    for(const site of this.townSites){
     const kind=site.type,room=sharedRoom(kind);
-    if(!room||Math.hypot(site.x-s.x,site.z-s.z)>radius+18)continue;
+    if(!room||Math.hypot(site.x-s.x,site.z-s.z)>Math.min(radius+18,180))continue;
     const x=site.localX,z=site.localZ,y=site.elevationM+.16;
     const matrix=translate(x,y,z);
     this.drawMesh(this.townSharedFurnitureMeshes[kind],multiply4(vp,matrix),light,1,.79);
