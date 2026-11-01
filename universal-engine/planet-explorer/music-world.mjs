@@ -24,8 +24,61 @@ function box(g,x,y,z,hx,height,hz,color){
   }
  }
 }
+/** Exact Asset primitives with preserved RX/RY/RZ and colour.
+ * Asset coordinates are X/Y horizontal, Z vertical; world coordinates X/Y vertical/Z.
+ */
+function musicAssetPart(g,part){
+ const point=v=>{
+  let [x,y,z]=v;let c=Math.cos(part.rx),s=Math.sin(part.rx);[y,z]=[y*c-z*s,y*s+z*c];
+  c=Math.cos(part.ry);s=Math.sin(part.ry);[x,z]=[x*c+z*s,-x*s+z*c];
+  c=Math.cos(part.rz);s=Math.sin(part.rz);[x,y]=[x*c-y*s,x*s+y*c];
+  return [part.x+x,part.y+z,part.z+y];
+ };
+ const face=(a,b,c)=>{
+  const A=point(a),B=point(b),C=point(c);
+  const u=B.map((v,i)=>v-A[i]),v=C.map((q,i)=>q-A[i]);
+  const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const length=Math.hypot(...n)||1,k=g.positions.length/3;
+  for(const p of [A,B,C]){g.positions.push(...p);g.normals.push(...n.map(q=>q/length));g.colors.push(...part.color);}
+  g.indices.push(k,k+1,k+2);
+ };
+ const q=(a,b,c,d)=>{face(a,b,c);face(a,c,d);};
+ const rx=part.width/2,ry=part.depth/2,h=part.height;
+ if(part.shape==="cube"){
+  const a=[[-rx,-ry,0],[rx,-ry,0],[rx,ry,0],[-rx,ry,0],
+           [-rx,-ry,h],[rx,-ry,h],[rx,ry,h],[-rx,ry,h]];
+  for(const [i,j,k,l] of [[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]])q(a[i],a[j],a[k],a[l]);
+ }else{
+  const sides=12,base=[],top=[],center=[0,0,h/2];
+  for(let i=0;i<sides;i++){const a=i*2*Math.PI/sides;
+   base.push([Math.cos(a)*rx,Math.sin(a)*ry,part.shape==="sphere"?h*.5:0]);
+   top.push([Math.cos(a)*rx,Math.sin(a)*ry,h]);
+  }
+  if(part.shape==="cylinder"||part.shape==="cone"){
+   for(let i=0;i<sides;i++){
+    const j=(i+1)%sides;face([0,0,0],base[j],base[i]);
+    if(part.shape==="cone")face(base[i],base[j],[0,0,h]);
+    else{q(base[i],base[j],top[j],top[i]);face([0,0,h],top[i],top[j]);}
+   }
+  }else{
+   // Ellipsoid assembled from latitude rings; no external mesh files.
+   const rings=8;
+   for(let j=0;j<rings;j++)for(let i=0;i<sides;i++){
+    const a=i*2*Math.PI/sides,b=(i+1)%sides*2*Math.PI/sides;
+    const t0=-Math.PI/2+j*Math.PI/rings,t1=-Math.PI/2+(j+1)*Math.PI/rings;
+    const v=(angle,t)=>[Math.cos(t)*Math.cos(angle)*rx,
+      Math.cos(t)*Math.sin(angle)*ry,h/2+Math.sin(t)*h/2];
+    q(v(a,t0),v(b,t0),v(b,t1),v(a,t1));
+   }
+  }
+ }
+}
+
 /** Piano plus acoustic-guitar-inspired physical prop. No external assets. */
-export function musicStageGeometry(controls=null){
+export function musicStageGeometry(controls=null,parts=null){
+ if(Array.isArray(parts)&&parts.length){
+  const mesh=builder();for(const part of parts)musicAssetPart(mesh,part);return mesh;
+ }
  if(Array.isArray(controls)&&controls.length){
   const g=builder();
   for(const control of controls){
@@ -73,7 +126,21 @@ function normalizedControls(raw){
    [control.x,control.z].some(v=>Math.abs(v)>12)||control.y<0||control.y>8||
    [control.width,control.height,control.depth].some(v=>v<.1||v>4))throw Error("楽器パーツ情報が不正です");
   return {kind:control.kind,track:control.track,pitch:control.pitch,
-   x:control.x,y:control.y,z:control.z,width:control.width,height:control.height,depth:control.depth};
+   x:control.x,y:control.y,z:control.z,width:control.width,height:control.height,depth:control.depth,
+   yaw:Number.isFinite(control.yaw)?control.yaw:0};
+ });
+}
+function normalizedAssetParts(raw){
+ if(raw==null)return [];
+ if(!Array.isArray(raw)||raw.length>96)throw Error("Assetパーツ数が不正です");
+ return raw.map(part=>{
+  if(!part||!["cube","cylinder","cone","sphere"].includes(part.shape)||
+   ![part.x,part.y,part.z,part.width,part.height,part.depth,part.rx,part.ry,part.rz].every(Number.isFinite)||
+   [part.x,part.y,part.z].some(x=>Math.abs(x)>12)||
+   [part.width,part.height,part.depth].some(x=>x<.1||x>4)||
+   !Array.isArray(part.color)||part.color.length!==3||part.color.some(x=>!Number.isFinite(x)||x<0||x>1))
+   throw Error("Assetの形状が不正です");
+  return {...part,color:[...part.color]};
  });
 }
 export function normalizeMusicStage(raw){
@@ -86,12 +153,13 @@ export function normalizeMusicStage(raw){
  const item=raw.item||"music-stage";
  if(!VALID_ITEMS.has(item))throw Error("不明な楽器種別です");
  const controls=normalizedControls(raw.controls);
+ const parts=normalizedAssetParts(raw.parts);
  if(item==="music-custom"&&!controls.length)throw Error("自作楽器には音が鳴るパーツが必要です");
  return {format:MUSIC_WORLD_FORMAT,version:1,planetId:raw.planetId,
-  lat:raw.lat,lon:raw.lon,yaw:raw.yaw,heightM:raw.heightM,item,controls,owned:raw.owned===true};
+  lat:raw.lat,lon:raw.lon,yaw:raw.yaw,heightM:raw.heightM,item,controls,parts,owned:raw.owned===true};
 }
-export function newMusicStage({planetId,lat,lon,yaw,heightM,item="music-stage",controls=[]}){
- return normalizeMusicStage({format:MUSIC_WORLD_FORMAT,version:1,planetId,lat,lon,yaw,heightM,item,controls});
+export function newMusicStage({planetId,lat,lon,yaw,heightM,item="music-stage",controls=[],parts=[]}){
+ return normalizeMusicStage({format:MUSIC_WORLD_FORMAT,version:1,planetId,lat,lon,yaw,heightM,item,controls,parts});
 }
 /** Inverse-transform controller rays to the instrument's plane. The stage
  * matrix maps avatar-relative world metres into XR tracking coordinates.
