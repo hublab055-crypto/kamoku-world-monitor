@@ -8,7 +8,7 @@ import {readMediaFile} from "./media-storage.mjs";
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
 import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs";
 import {MUSIC_RECIPES,normalizeMusicInventory,craftMusicInstrument,takeMusicInstrument,
- returnMusicInstrument,extractAssetMusicControls,recipeById,presetMusicControls} from "./music-crafting.mjs";
+ returnMusicInstrument,extractAssetMusicControls,extractAssetMusicParts,recipeById,presetMusicControls} from "./music-crafting.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
 const WORLD_KEY="universal-engine:music:instruments:v1";
 const INVENTORY_KEY="universal-engine:music:crafted:v1";
@@ -193,17 +193,18 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
    const point=geoOffset(c.lat,c.lon,Math.sin(yaw)*2.5,Math.cos(yaw)*2.5,planet.radiusM);
    const heightM=Math.max(0,terrainSurface(terrain,point.lat,point.lon).elevationM);
    const recipe=selectedRecipe(),item=recipe.item;
-   let controls=presetMusicControls(item);
+   let controls=presetMusicControls(item),parts=[];
    if(item==="music-custom"){
     const assetName=el("[data-asset]").value;
     const prefab=getOwnerWorld()?.prefabs?.find(p=>p.name===assetName);
     if(!prefab)throw Error("自作Asset楽器を選択してください");
     controls=extractAssetMusicControls(prefab.assetDocument);
+    parts=extractAssetMusicParts(prefab.assetDocument);
    }
    if(stages[planet.id])throw Error("すでにこの惑星に楽器があります。回収してから交換してください");
    const old=inventory;
    inventory=takeMusicInstrument(inventory,item,{creative});
-   const placement=newMusicStage({planetId:planet.id,lat:point.lat,lon:point.lon,yaw,heightM,item,controls});
+   const placement=newMusicStage({planetId:planet.id,lat:point.lat,lon:point.lon,yaw,heightM,item,controls,parts});
    placement.owned=!creative;
    try{
     stages[planet.id]=placement;
