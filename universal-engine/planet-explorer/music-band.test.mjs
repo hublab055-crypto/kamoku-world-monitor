@@ -88,4 +88,6 @@ test("static frame geometry has valid indices, different poses and roles",()=>{
 test("tampered contract data is rejected on restore",()=>{
  assert.throws(()=>restoreBandContracts({capital:[{townId:"capital",residentId:"resident-888",
   role:"drums",startsDay:0,endsDay:3,fee:26}]}),/不正/);
+ assert.throws(()=>restoreBandContracts({capital:[{townId:"capital",residentId:"resident-0",
+  role:"drums",startsDay:0,endsDay:3,fee:0}]}),/不正/);
 });
