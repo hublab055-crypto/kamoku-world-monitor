@@ -32,7 +32,7 @@ export function musicVenue(townId,venueId){
 }
 export function musicNow(venue,day){
  if(!venue)return null;
- const hour=cultureHour(day),time=hour*60;
+ const hour=cultureHour(day),time=hour*60+1e-7;
  let showIndex=-1,minutesToStart=Infinity;
  for(let i=0;i<venue.shows.length;i++){
   const next=venue.shows[i]*60;
