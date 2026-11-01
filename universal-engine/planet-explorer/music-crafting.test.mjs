@@ -1,7 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {MUSIC_RECIPES,normalizeMusicInventory,craftMusicInstrument,
- takeMusicInstrument,returnMusicInstrument,extractAssetMusicControls,presetMusicControls} from "./music-crafting.mjs";
+ takeMusicInstrument,returnMusicInstrument,extractAssetMusicControls,extractAssetMusicParts,presetMusicControls} from "./music-crafting.mjs";
 import {newMusicStage,normalizeMusicStage,musicStageGeometry,musicStageRayHit,musicStageHandHit} from "./music-world.mjs";
 
 test("recipes consume real materials and increment crafted item count",()=>{
