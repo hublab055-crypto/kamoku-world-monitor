@@ -48,7 +48,8 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   else if(kind==="own"){if(!near)return say("会場の近くへ移動してください");
    onPerform(venue);return;}
   if(!result)return;
-  if(result.ok){try{onChange();}catch(e){notify(e.message);}}
+  if(result.ok){if(kind==="perform")onPerform(venue);
+   try{onChange();}catch(e){notify(e.message);}}
   say(result.message);refresh();
  }
  function makeButton(label,fn){const b=document.createElement("button");b.type="button";b.textContent=label;b.addEventListener("click",fn);return b;}
@@ -95,9 +96,14 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
  el("[data-close]").addEventListener("click",close);
  panel.addEventListener("keydown",e=>{if(e.key==="Escape"){e.stopPropagation();close();}});
  function tick(now){
-  if(!Number.isFinite(now)||!getCulture()||!getActor())return;
+  if(!Number.isFinite(now)||!getCulture()||!getActor()||!canJoin())return;
   const nowMs=performance.now();if(nowMs-lastFrame<900)return;lastFrame=nowMs;
   const town=getTownId(),culture=getCulture();
+  for(const def of MUSIC_VENUES){
+   const venue=culture.venue(town,def.id);
+   if(venue&&musicNow(venue,now)?.performing&&culture.payNPC(town,venue.id,now).ok)
+    onChange(); // At most one salary transaction per venue / planetary day
+  }
   if(!panel.hidden)refresh();
   const current=MUSIC_VENUES.map(v=>culture.venue(town,v.id)).filter(Boolean)
    .find(v=>musicNow(v,now)?.performing&&nearby(v));
