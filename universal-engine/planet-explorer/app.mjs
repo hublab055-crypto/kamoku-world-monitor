@@ -739,6 +739,13 @@ function doFrame(t,source="window",xrFrameInput=null){
       input.forward=input.forward-raw.forward+facing.forward;
       input.strafe=input.strafe-raw.strafe+facing.strafe;
       controller.turn(facing.turn);
+      // Preserve the camera's world heading when the avatar turns under
+      // a held mobile stick. Otherwise "right" makes the view spin around.
+      const cam=renderer.cameraController;
+      if(["follow","shoulder","orbitTarget","tactical"].includes(cam.mode)){
+       const offset=(cam.config.yawOffset||0)-facing.turn;
+       cam.config.yawOffset=Math.atan2(Math.sin(offset),Math.cos(offset));
+      }
     }
   }
   const helming=onShip&&marine.shipboard.canHelm();
@@ -3367,6 +3374,7 @@ function releaseStick(){stickPointer=null;stickHeadingYaw=null;stick={x:0,y:0};n
 stickArea.addEventListener("pointerdown",e=>{
  if(controlMode!=="stick")return;
  e.preventDefault();stickPointer=e.pointerId;
+ if(mobileUI?.active&&renderer.cameraController.mode==="legacy")setCameraMode("follow");
  const camera=renderer.cameraController;
  stickHeadingYaw=camera.mode==="free"?camera.config.freeYaw:
    controller.yaw+(camera.config.yawOffset||0);
