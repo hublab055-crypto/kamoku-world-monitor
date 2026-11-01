@@ -180,10 +180,11 @@ export class TownLife{
   p.x=nextX;p.z=nextZ;
   return p.moving;
  }
- sitMusicSeat(){
+ sitMusicSeat({admitted=true}={}){
   if(!this.inside)return result(false,"音楽施設の室内へ入ってください");
   if(this.inside.seat)return result(false,"すでに着席しています");
   const building=this.find(this.inside.townId,this.inside.buildingId,"village");
+  if(building?.type==="theater"&&!admitted)return result(false,"公演中の客席はチケットの購入が必要です");
   const seat=nearestHallSeat(building?.type,this.inside.pose);
   if(!seat)return result(false,"客席・教室の椅子に近づいてください（約1.3m以内）");
   this.inside.seat=seat.id;
