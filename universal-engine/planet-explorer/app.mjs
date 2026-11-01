@@ -4194,6 +4194,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
     return {ok:true,message:"🚀 推力："+Math.round(v.throttle*100)+"%"};
    }
    case "transfer":return startShipTransfer();
+   case "saveVoyage":return saveCelestialVoyage();
    case "logs":return {ok:true,message:"📟 "+v.phase+" / 燃料"+Math.round(v.fuel)+"% / 出力"+Math.round(v.throttle*100)+"%"};
    default:return {ok:false,message:"船内ではこのアクションを使用できません"};
   }
