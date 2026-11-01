@@ -1,4 +1,4 @@
-import {MOBILE_ACTIONS,normalizeMobileConfig,defaultMobileConfig} from "./mobile-controls.mjs?v=3-flight-attitude";
+import {MOBILE_ACTIONS,normalizeMobileConfig,defaultMobileConfig} from "./mobile-controls.mjs?v=4-mission";
 
 const KEY="universal-engine:mobile-four-actions:v1";
 const mobile=()=>typeof matchMedia==="function"&&matchMedia("(max-width: 1024px) and (pointer: coarse)").matches;
@@ -27,7 +27,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  const css=el("style");css.textContent=`
 #space-flight .ship-mobile-layer[hidden]{display:none!important}
 #space-flight .ship-mobile-layer{position:absolute;inset:0;z-index:35;pointer-events:none}
-#space-flight .ship-mobile-stick,#space-flight .ship-mobile-throttle,#space-flight .ship-mobile-actions,
+#space-flight .ship-mobile-stick,#space-flight .ship-mobile-throttle,#space-flight .ship-mobile-cargo,#space-flight .ship-mobile-actions,
 #space-flight .ship-mobile-settings-toggle,#space-flight .ship-mobile-settings,
 #space-flight .ship-mobile-nav{pointer-events:auto}
 #space-flight .ship-mobile-stick{position:absolute;left:calc(13px + env(safe-area-inset-left,0px));bottom:calc(13px + env(safe-area-inset-bottom,0px));
