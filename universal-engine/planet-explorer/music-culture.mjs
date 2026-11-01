@@ -22,14 +22,16 @@ export function musicVenue(townId,venueId){
  // Deterministic stage sites in road/square space, near existing buildings.
  const layout=settlementLayout(townId);
  const lodge=layout.buildings.find(b=>b.type==="lodge");
- const dedicated=layout.buildings.find(b=>b.type===venueId);
+ const dedicatedIndex=layout.buildings.findIndex(b=>b.type===venueId),
+  dedicated=layout.buildings[dedicatedIndex];
  const site=dedicated?{x:dedicated.x,z:dedicated.z}:
   venueId==="tavern"&&lodge?{x:lodge.x+9,z:lodge.z+2}:
   venueId==="theater"?{x:0,z:0}:{x:-10,z:-10};
  const count=layout.residents.length;
  const musician=layout.residents[(venueId==="tavern"?4:venueId==="theater"?7:2)%count];
  const audienceCount=bound(Math.floor(count*(venueId==="theater"?.42:.27)),2,venue.capacity);
- return {...venue,townId,site,musicianId:musician.id,musicianLabel:"街の演奏家 "+(1+Number(musician.id.split("-")[1])),
+ return {...venue,townId,site,buildingId:dedicatedIndex>=0?"village-"+dedicatedIndex:null,
+  musicianId:musician.id,musicianLabel:"街の演奏家 "+(1+Number(musician.id.split("-")[1])),
   audienceCount};
 }
 export function musicNow(venue,day){
