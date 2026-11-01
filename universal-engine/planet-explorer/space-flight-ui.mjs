@@ -80,7 +80,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   }});
  root.classList.toggle("integrated",unified);
  const held=new Set();let nearKey="",lastView="";
- const mobileUI=installShipMobileUI({host:root,get,onAction:onMobileAction,getRoutes,onChooseRoute,onTransfer,notify});
+ const mobileUI=installShipMobileUI({host:root,get,onAction:onMobileAction,getRoutes,onChooseRoute,onTransfer,getCargo,notify});
  function cockpitAvailable(){const v=get();return Boolean(v?.interior&&ship3D.supported);}
  function showCargo(){
   const resources=getCargo?.()||{};
