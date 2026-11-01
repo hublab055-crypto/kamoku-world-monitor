@@ -4214,6 +4214,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
     v.setThrottle(Math.max(0,Math.min(1,v.throttle+(action==="throttleUp"?.1:-.1))));
     return {ok:true,message:"🚀 推力："+Math.round(v.throttle*100)+"%"};
    }
+   case "landingGear":return typeof v.toggleLandingGear==="function"?v.toggleLandingGear():{ok:false,message:"ランディングギアに対応していません"};
    case "transfer":return startShipTransfer();
    case "saveVoyage":return saveCelestialVoyage();
    case "logs":return {ok:true,message:"📟 "+v.phase+" / 燃料"+Math.round(v.fuel)+"% / 出力"+Math.round(v.throttle*100)+"%"};
