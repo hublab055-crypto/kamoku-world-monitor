@@ -39,6 +39,7 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
+ get canOperateHelm(){return this.seated&&["docked","ascent","origin-orbit","cruise","approach","orbit","entry"].includes(this.status);}
  get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
  get phase(){
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
@@ -109,12 +110,16 @@ export class ShipJourney{
    yaw:site.yaw,padElevationM:site.padElevationM};
   return true;
  }
- setAutopilot(on){this.autopilot=Boolean(on);}
- setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
- steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
+ setAutopilot(on){if(!this.canOperateHelm)return false;this.autopilot=Boolean(on);return true;}
+ setThrottle(n){if(!finite(n))throw Error("Invalid throttle");if(!this.canOperateHelm)return false;this.throttle=clamp(n,0,1);return true;}
+ steer(n){if(!finite(n))throw Error("Invalid heading");if(!this.canOperateHelm)return false;this.heading=clamp(this.heading+n,-60,60);if(n!==0)this.autopilot=false;return true;}
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  // Attitude hold remains active at both orbital waiting points, even if the
+  // pilot is walking in the cabin. It never starts transfer or entry itself.
+  if(this.autopilot&&["ascent","origin-orbit","cruise","approach","orbit","entry"].includes(this.status))
+   this.heading*=Math.exp(-step*2);
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -122,7 +127,6 @@ export class ShipJourney{
   }
   if(!["ascent","cruise","approach","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;
-  if(this.autopilot)this.heading*=Math.exp(-step*2);
   const thr=this.fuel>0?this.throttle:0;
   this.fuel=Math.max(0,this.fuel-step*thr*.28);
   const align=clamp(1-Math.abs(this.heading)/110,.5,1);
