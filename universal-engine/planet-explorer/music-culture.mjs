@@ -48,6 +48,7 @@ function defaultSave(){return {format:MUSIC_CULTURE_FORMAT,version:1,treasury:{}
 export class MusicCulture{
  constructor(saved=null){
   const d=defaultSave();
+  this._venueCache=new Map();
   this.treasury={};this.skill=0;this.reputation=0;this.showsAttended={};this.showsPlayed={};this.lessons={};this.npcPaid={};this.npcEarnings={};this.npcExperience={};this.bandContracts={};this.artistTalked={};this.journal=[];
   if(!saved)return;
   if(saved.format!==MUSIC_CULTURE_FORMAT||saved.version!==1)throw Error("音楽文化セーブ形式が不正です");
@@ -65,7 +66,11 @@ export class MusicCulture{
   load("artistTalked");
   this.journal=Array.isArray(saved.journal)?saved.journal.slice(-30).filter(x=>typeof x==="string").map(x=>x.slice(0,140)):[];
  }
- venue(townId,venueId){return musicVenue(townId,venueId);}
+ venue(townId,venueId){
+  const id=key(townId,venueId);
+  if(!this._venueCache.has(id))this._venueCache.set(id,musicVenue(townId,venueId));
+  return this._venueCache.get(id);
+ }
  activeBand(townId,day){return currentBand(this.bandContracts,townId,day);}
  hireArtist(townId,venueId,residentId,role,day,wallet,{near=false}={}){
   const result=hireBandContract(this.bandContracts,townId,venueId,residentId,role,day,wallet,{near});
