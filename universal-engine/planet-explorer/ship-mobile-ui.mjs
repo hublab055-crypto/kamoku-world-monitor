@@ -8,6 +8,14 @@ function load(){
 }
 const save=config=>{try{localStorage.setItem(KEY,JSON.stringify(config));}catch(_){}};
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+/** Pure ship input conversion. x:right, y:down; never alters XR input. */
+export function shipStickAxes(stick,dt){
+ const step=clamp(Number.isFinite(dt)?dt:0,0,.08);
+ const x=clamp(Number(stick?.x)||0,-1,1),y=clamp(Number(stick?.y)||0,-1,1);
+ const strafe=Math.abs(x)<.12?0:x,forward=Math.abs(y)<.12?0:-y;
+ return {forward,strafe,headingDelta:strafe*step*42,throttleDelta:forward*step*.42};
+}
+
 const el=(tag,cls,text)=>{
  const node=document.createElement(tag);if(cls)node.className=cls;
  if(text!==undefined)node.textContent=text;return node;
@@ -193,13 +201,14 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  function apply(dt){
   if(pointer===null||!mobile())return;
   const v=get();if(!v||!v.active||!Number.isFinite(dt)||dt<=0)return;
-  const dead=.12,x=Math.abs(stick.x)>dead?stick.x:0,y=Math.abs(stick.y)>dead?-stick.y:0;
+  const axes=shipStickAxes(stick,dt);
   if(v.seated===true||v.interior?.mode==="cockpit"){
    if(v.seated===false)return; // never fly a surface-to-surface ship standing
-   if(x&&typeof v.steer==="function")v.steer(x*Math.min(dt,.08)*42);
-   if(y&&typeof v.setThrottle==="function")v.setThrottle(clamp(v.throttle+y*Math.min(dt,.08)*.42,0,1));
+   if(axes.headingDelta&&typeof v.steer==="function")v.steer(axes.headingDelta);
+   if(axes.throttleDelta&&typeof v.setThrottle==="function")
+     v.setThrottle(clamp(v.throttle+axes.throttleDelta,0,1));
   }else if(v.interior?.mode==="interior"){
-   v.interior.walk(y,x,Math.min(dt,.08));
+   v.interior.walk(axes.forward,axes.strafe,Math.min(dt,.08));
   }
  }
  function render(dt=0){
