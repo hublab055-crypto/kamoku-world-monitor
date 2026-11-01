@@ -36,6 +36,8 @@ import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
 import {joystickMovement} from "./stick-input.mjs";
+import {resolveMobileFacing} from "./mobile-controls.mjs?v=1";
+import {installMobileFourActions} from "./mobile-four-actions.mjs?v=1";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
 import {Lifestyle} from "./lifestyle.mjs?v=0.8e-chest-mass";
@@ -249,10 +251,10 @@ function doEarthwork(mode,site){
  renderer.patchKey=null;log(r.message);saveWorldJournal();saveLifeJournal();updateHUD();
 }
 let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,syncMode=false,autoActorId="player";
-let controlMode="stick",stick={x:0,y:0},stickPointer=null;
+let controlMode="stick",stick={x:0,y:0},stickPointer=null,stickHeadingYaw=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0,voyageSaveElapsed=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
-let frontierUI=null,worldUI=null,groupUI=null;
+let frontierUI=null,worldUI=null,groupUI=null,mobileUI=null;
 const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚",ancientCoins:"🪙 古代金貨",dragonRelic:"🐉 竜人文明遺物"};
 const keys=new Set(),touches=new Set();
@@ -725,6 +727,19 @@ function doFrame(t,source="window",xrFrameInput=null){
    if(marine.shipboard.player.moving&&life.activity!=="idle"){
     life.activity="idle";life.activityFurnitureId=null;marine.cabinActivity="idle";
    }
+  }
+  // Mobile thumb direction is relative to the camera heading when touch began.
+  // Turn the avatar smoothly but move immediately along the requested vector.
+  if(mobileUI?.active&&stickPointer!==null&&controlMode==="stick"&&
+     !detained&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&
+     !onShip&&!marine?.cabinId&&renderer.cameraController.mode!=="free"){
+    const facing=resolveMobileFacing(stick,controller.yaw,stickHeadingYaw??controller.yaw,dt);
+    if(facing.active){
+      const raw=joystickMovement(stick);
+      input.forward=input.forward-raw.forward+facing.forward;
+      input.strafe=input.strafe-raw.strafe+facing.strafe;
+      controller.turn(facing.turn);
+    }
   }
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
@@ -1259,6 +1274,7 @@ function updateHUD(){
   "選択: "+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
  frontierUI?.quick();
+ mobileUI?.sync({surface:isSurface&&!voyage?.active,rts:rtsMode,vr:xrUI?.mode==="vr"});
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
  $("rts-multi").setAttribute("aria-pressed",String(rtsMulti));
   $("rts-sync").setAttribute("aria-pressed",String(syncMode));
@@ -3132,7 +3148,7 @@ $("camera-home").addEventListener("click",()=>{
 function setControlMode(mode){
  controlMode=mode;
  controller?.clearMoveTarget();
- stick={x:0,y:0};
+ stick={x:0,y:0};stickPointer=null;stickHeadingYaw=null;
  $("stick-nub").style.transform="translate(0px,0px)";
  updateHUD();
 }
@@ -3347,10 +3363,13 @@ function updateStick(e){
  stick={x:px/radius,y:py/radius};
  nub.style.transform="translate("+px.toFixed(1)+"px,"+py.toFixed(1)+"px)";
 }
-function releaseStick(){stickPointer=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
+function releaseStick(){stickPointer=null;stickHeadingYaw=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
 stickArea.addEventListener("pointerdown",e=>{
  if(controlMode!=="stick")return;
  e.preventDefault();stickPointer=e.pointerId;
+ const camera=renderer.cameraController;
+ stickHeadingYaw=camera.mode==="free"?camera.config.freeYaw:
+   controller.yaw+(camera.config.yawOffset||0);
  stickArea.setPointerCapture?.(e.pointerId);controller.clearMoveTarget();updateStick(e);
 });
 stickArea.addEventListener("pointermove",e=>{if(e.pointerId===stickPointer)updateStick(e);});
@@ -3673,6 +3692,39 @@ frontierUI=installFrontierInteractions({
  showEffect:effect=>worldUI?.float(effect),
  onFish:()=>castFromEquippedRod()
 });
+mobileUI=installMobileFourActions({
+ onAction:action=>{
+  const click=id=>$(id)?.click();
+  switch(action){
+   case "interact":{
+    if(!$("door-controls").hidden){
+      const available=["door-enter","door-exit","door-toggle"].find(id=>!$(id).hidden);
+      if(available){click(available);break;}
+    }
+    frontierUI?.runCommand("talk");break;
+   }
+   case "attack":{
+    const hand=frontierUI?.activeHand("right")==="none"?"left":"right";
+    frontierUI?.useHand(hand);break;
+   }
+   case "jump":click("jump");break;
+   case "inventory":frontierUI?.runCommand("inventory");break;
+   case "talk":frontierUI?.runCommand("talk");break;
+   case "guard":case "shoot":case "heal":case "mine":case "chop":
+    frontierUI?.runCommand(action);break;
+   case "craft":click("viewport-life");break;
+   case "map":click("viewport-directory");break;
+   case "rts":click("viewport-rts");break;
+   case "camera":click("viewport-camera");break;
+   case "menu":click("viewport-quick-toggle");break;
+   case "equipment":click("quick-config");break;
+   case "leftHand":frontierUI?.useHand("left");break;
+   case "settings":click("viewport-mobile-actions");break;
+   case "logs":click("viewport-console-toggle");break;
+  }
+ }
+});
+mobileUI?.sync({surface:controller.nearGround,rts:rtsMode,vr:xrUI?.mode==="vr"});
 worldUI=installWorldFeedbackUI({
  getRenderer:()=>renderer,getController:()=>controller,
  onCommand:(name,arg)=>{
