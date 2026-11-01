@@ -24,8 +24,69 @@ function box(g,x,y,z,hx,height,hz,color){
   }
  }
 }
+/** Exact Asset primitives with preserved RX/RY/RZ and colour.
+ * Asset coordinates are X/Y horizontal, Z vertical; world coordinates X/Y vertical/Z.
+ */
+function musicAssetPart(g,part){
+ const point=v=>{
+  let [x,y,z]=v;let c=Math.cos(part.rx),s=Math.sin(part.rx);[y,z]=[y*c-z*s,y*s+z*c];
+  c=Math.cos(part.ry);s=Math.sin(part.ry);[x,z]=[x*c+z*s,-x*s+z*c];
+  c=Math.cos(part.rz);s=Math.sin(part.rz);[x,y]=[x*c-y*s,x*s+y*c];
+  return [part.x+x,part.y+z,part.z+y];
+ };
+ const face=(a,b,c)=>{
+  const A=point(a),B=point(b),C=point(c);
+  const u=B.map((v,i)=>v-A[i]),v=C.map((q,i)=>q-A[i]);
+  const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const length=Math.hypot(...n)||1,k=g.positions.length/3;
+  for(const p of [A,B,C]){g.positions.push(...p);g.normals.push(...n.map(q=>q/length));g.colors.push(...part.color);}
+  g.indices.push(k,k+1,k+2);
+ };
+ const q=(a,b,c,d)=>{face(a,b,c);face(a,c,d);};
+ const rx=part.width/2,ry=part.depth/2,h=part.height;
+ if(part.shape==="cube"){
+  const a=[[-rx,-ry,0],[rx,-ry,0],[rx,ry,0],[-rx,ry,0],
+           [-rx,-ry,h],[rx,-ry,h],[rx,ry,h],[-rx,ry,h]];
+  for(const [i,j,k,l] of [[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]])q(a[i],a[j],a[k],a[l]);
+ }else{
+  const sides=12,base=[],top=[],center=[0,0,h/2];
+  for(let i=0;i<sides;i++){const a=i*2*Math.PI/sides;
+   base.push([Math.cos(a)*rx,Math.sin(a)*ry,part.shape==="sphere"?h*.5:0]);
+   top.push([Math.cos(a)*rx,Math.sin(a)*ry,h]);
+  }
+  if(part.shape==="cylinder"||part.shape==="cone"){
+   for(let i=0;i<sides;i++){
+    const j=(i+1)%sides;face([0,0,0],base[j],base[i]);
+    if(part.shape==="cone")face(base[i],base[j],[0,0,h]);
+    else{q(base[i],base[j],top[j],top[i]);face([0,0,h],top[i],top[j]);}
+   }
+  }else{
+   // Ellipsoid assembled from latitude rings; no external mesh files.
+   const rings=8;
+   for(let j=0;j<rings;j++)for(let i=0;i<sides;i++){
+    const a=i*2*Math.PI/sides,b=(i+1)%sides*2*Math.PI/sides;
+    const t0=-Math.PI/2+j*Math.PI/rings,t1=-Math.PI/2+(j+1)*Math.PI/rings;
+    const v=(angle,t)=>[Math.cos(t)*Math.cos(angle)*rx,
+      Math.cos(t)*Math.sin(angle)*ry,h/2+Math.sin(t)*h/2];
+    q(v(a,t0),v(b,t0),v(b,t1),v(a,t1));
+   }
+  }
+ }
+}
+
 /** Piano plus acoustic-guitar-inspired physical prop. No external assets. */
-export function musicStageGeometry(){
+export function musicStageGeometry(controls=null,parts=null){
+ if(Array.isArray(parts)&&parts.length){
+  const mesh=builder();for(const part of parts)musicAssetPart(mesh,part);return mesh;
+ }
+ if(Array.isArray(controls)&&controls.length){
+  const g=builder();
+  for(const control of controls){
+   const color=control.kind==="string"?[.82,.70,.41]:control.kind==="button"?[.26,.69,.72]:[.89,.87,.78];
+   box(g,control.x,control.y,control.z,control.width/2,control.height,control.depth/2,color);
+  }
+  return g;
+ }
  const g=builder(),wood=[.31,.19,.12],dark=[.11,.14,.19],light=[.90,.91,.85];
  // The piano: supports and contrasting 13 semitone pads.
  box(g,0,.66,-.06,.89,.32,.48,wood);
@@ -53,6 +114,35 @@ export function musicStageGeometry(){
  box(g,-1.33,1.05,.35,.32,.28,.006,[.82,.78,.64]);
  return g;
 }
+const VALID_ITEMS=new Set(["music-stage","music-keyboard","music-guitar","music-drums","music-custom"]);
+function normalizedControls(raw){
+ if(raw==null)return [];
+ if(!Array.isArray(raw)||raw.length>80)throw Error("演奏部品の数が不正です");
+ return raw.map(control=>{
+  if(!["key","button","string"].includes(control?.kind)||
+   !["keys","guitar","bass","drums"].includes(control.track)||
+   !Number.isInteger(control.pitch)||control.pitch<28||control.pitch>96||
+   ![control.x,control.y,control.z,control.width,control.height,control.depth].every(Number.isFinite)||
+   [control.x,control.z].some(v=>Math.abs(v)>12)||control.y<0||control.y>8||
+   [control.width,control.height,control.depth].some(v=>v<.1||v>4))throw Error("楽器パーツ情報が不正です");
+  return {kind:control.kind,track:control.track,pitch:control.pitch,
+   x:control.x,y:control.y,z:control.z,width:control.width,height:control.height,depth:control.depth,
+   yaw:Number.isFinite(control.yaw)?control.yaw:0};
+ });
+}
+function normalizedAssetParts(raw){
+ if(raw==null)return [];
+ if(!Array.isArray(raw)||raw.length>96)throw Error("Assetパーツ数が不正です");
+ return raw.map(part=>{
+  if(!part||!["cube","cylinder","cone","sphere"].includes(part.shape)||
+   ![part.x,part.y,part.z,part.width,part.height,part.depth,part.rx,part.ry,part.rz].every(Number.isFinite)||
+   [part.x,part.y,part.z].some(x=>Math.abs(x)>12)||
+   [part.width,part.height,part.depth].some(x=>x<.1||x>4)||
+   !Array.isArray(part.color)||part.color.length!==3||part.color.some(x=>!Number.isFinite(x)||x<0||x>1))
+   throw Error("Assetの形状が不正です");
+  return {...part,color:[...part.color]};
+ });
+}
 export function normalizeMusicStage(raw){
  if(!raw||raw.format!==MUSIC_WORLD_FORMAT||raw.version!==1||
   typeof raw.planetId!=="string"||raw.planetId.length>64||
@@ -60,18 +150,23 @@ export function normalizeMusicStage(raw){
   Math.abs(raw.lat)>90||Math.abs(raw.lon)>180||
   Math.abs(raw.yaw)>Math.PI*2||raw.heightM< -12000||raw.heightM>12000)
   throw Error("楽器の設置データが不正です");
+ const item=raw.item||"music-stage";
+ if(!VALID_ITEMS.has(item))throw Error("不明な楽器種別です");
+ const controls=normalizedControls(raw.controls);
+ const parts=normalizedAssetParts(raw.parts);
+ if(item==="music-custom"&&!controls.length)throw Error("自作楽器には音が鳴るパーツが必要です");
  return {format:MUSIC_WORLD_FORMAT,version:1,planetId:raw.planetId,
-  lat:raw.lat,lon:raw.lon,yaw:raw.yaw,heightM:raw.heightM};
+  lat:raw.lat,lon:raw.lon,yaw:raw.yaw,heightM:raw.heightM,item,controls,parts,owned:raw.owned===true};
 }
-export function newMusicStage({planetId,lat,lon,yaw,heightM}){
- return normalizeMusicStage({format:MUSIC_WORLD_FORMAT,version:1,planetId,lat,lon,yaw,heightM});
+export function newMusicStage({planetId,lat,lon,yaw,heightM,item="music-stage",controls=[],parts=[]}){
+ return normalizeMusicStage({format:MUSIC_WORLD_FORMAT,version:1,planetId,lat,lon,yaw,heightM,item,controls,parts});
 }
 /** Inverse-transform controller rays to the instrument's plane. The stage
  * matrix maps avatar-relative world metres into XR tracking coordinates.
  * localOffset = instrument origin relative to the avatar (x, y, z).
  * This only consumes rays that actually touch the musical stage.
  */
-export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxReach=2.6}={}){
+export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxReach=2.6,controls=[]}={}){
  if(!rayMatrix||!xrStageMatrix||!localOffset)return null;
  const origin=[rayMatrix[12]-xrStageMatrix[12],rayMatrix[13]-xrStageMatrix[13],rayMatrix[14]-xrStageMatrix[14]];
  const forward=[-rayMatrix[8],-rayMatrix[9],-rayMatrix[10]];
@@ -83,12 +178,25 @@ export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxRea
  const from=world(origin),dir=world(forward);
  if(!(dir[1]<-.12))return null; // play by pointing down, not through the side
  const c=Math.cos(yaw),s=Math.sin(yaw);
+ if(controls.length)for(const control of controls){
+  const t=(localOffset[1]+control.y+control.height-from[1])/dir[1];
+  if(t<=0||t>maxReach)continue;
+  const wx=from[0]+dir[0]*t-localOffset[0],wz=from[2]+dir[2]*t-localOffset[2];
+  const x=c*wx-s*wz,z=s*wx+c*wz;
+  const angle=control.yaw||0,co=Math.cos(angle),si=Math.sin(angle);
+  const dx=x-control.x,dz=z-control.z;
+  const localX=co*dx+si*dz,localZ=-si*dx+co*dz;
+  if(Math.abs(localX)<=control.width/2&&Math.abs(localZ)<=control.depth/2)
+   return {track:control.track,pitch:control.pitch,distanceM:t};
+ }
+ if(controls.length)return null;
  for(const surface of [{kind:"keys",y:MUSIC_KEY_Y},{kind:"guitar",y:MUSIC_GUITAR_Y}]){
   const t=(localOffset[1]+surface.y-from[1])/dir[1];
   if(t<=0||t>maxReach)continue;
   const wx=from[0]+dir[0]*t-localOffset[0];
   const wz=from[2]+dir[2]*t-localOffset[2];
   const x=c*wx-s*wz,z=s*wx+c*wz;
+  if(controls.length)continue;
   if(surface.kind==="keys"&&x>=-.83&&x<=.83&&z>=-.46&&z<=.23){
    const i=clamp(Math.floor((x+.81)/.125),0,12);
    return {track:"keys",pitch:60+i,distanceM:t};
@@ -105,7 +213,7 @@ export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxRea
  * A small forward offset approximates the index-finger/contact point.
  * Tracking gaps return null instead of replaying stale hand coordinates.
  */
-export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tolerance=.12}={}){
+export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tolerance=.12,controls=[]}={}){
  if(!handMatrix||!xrStageMatrix||!localOffset)return null;
  const physical=[
   handMatrix[12]-handMatrix[8]*.06-xrStageMatrix[12],
@@ -119,6 +227,16 @@ export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tole
  ];
  const c=Math.cos(yaw),sn=Math.sin(yaw);
  const x=c*projected[0]-sn*projected[2],z=sn*projected[0]+c*projected[2];
+ if(controls.length){
+  for(const control of controls){
+   const angle=control.yaw||0,co=Math.cos(angle),si=Math.sin(angle);
+   const dx=x-control.x,dz=z-control.z,lx=co*dx+si*dz,lz=-si*dx+co*dz;
+   if(Math.abs(projected[1]-(control.y+control.height))<tolerance&&
+      Math.abs(lx)<=control.width/2&&Math.abs(lz)<=control.depth/2)
+    return {track:control.track,pitch:control.pitch};
+  }
+  return null;
+ }
  if(Math.abs(projected[1]-MUSIC_KEY_Y)<tolerance&&
     x>=-.83&&x<=.83&&z>=-.46&&z<=.23)
   return {track:"keys",pitch:60+clamp(Math.floor((x+.81)/.125),0,12)};

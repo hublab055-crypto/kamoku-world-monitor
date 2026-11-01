@@ -49,7 +49,7 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
-import {musicStageGeometry} from "./music-world.mjs?v=0.9al";
+import {musicStageGeometry} from "./music-world.mjs?v=0.9am-music-craft";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {bodyById} from "./solar-system.mjs?v=1";
@@ -652,7 +652,7 @@ export class ExplorerRenderer{
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.xrView=null; // ephemeral per-eye WebXR pass, never serialized
   this.musicStage=null;
-  this.musicStageMesh=new Mesh(gl,musicStageGeometry());
+  this.musicStageMesh=new Mesh(gl,musicStageGeometry());this.musicStageMeshSource=null;
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
 
@@ -1519,6 +1519,11 @@ export class ExplorerRenderer{
   drawMusicStage(vp,light,s,radius){
    const stage=this.musicStage;
    if(!stage||stage.planetId!==this.planet?.id||!s?.origin)return;
+   const source=stage.parts?.length?stage.parts:stage.controls?.length?stage.controls:null;
+   if(source!==this.musicStageMeshSource){
+    const next=new Mesh(this.gl,musicStageGeometry(stage.controls,stage.parts));
+    this.musicStageMesh?.destroy();this.musicStageMesh=next;this.musicStageMeshSource=source;
+   }
    const point=geoLocal(s.origin.lat,s.origin.lon,stage.lat,stage.lon,this.planet.radiusM);
    if(Math.hypot(point.eastM-s.x,point.northM-s.z)>radius+10)return;
    const model=multiply4(translate(point.eastM-this.cx,stage.heightM,point.northM-this.cz),

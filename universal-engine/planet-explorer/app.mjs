@@ -17,7 +17,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9aj-cockpit-reentry-terrain-20261031";
+import {ExplorerRenderer} from "./render.mjs?v=0.9am-music-craft";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -32,7 +32,7 @@ import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
-import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
+import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9am-music-controls";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
 import {joystickMovement} from "./stick-input.mjs";
@@ -81,11 +81,11 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9u-vr-roaming-portable-save-20261027-foothold-ledge-v09zb";
+import {installXRUI} from "./xr-ui.mjs?v=0.9am-music-craft";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
-import {installMusicUI} from "./music-ui.mjs?v=0.9al-music-world";
+import {installMusicUI} from "./music-ui.mjs?v=0.9am-music-craft";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -589,6 +589,7 @@ function init(saved=null){
   $("fatal").hidden=true;$("world").hidden=false;
   $("landing").textContent=controller.origin.lat.toFixed(3)+"°, "+controller.origin.lon.toFixed(3)+"°";
   if(saved?.v0_9n?.media&&mediaUI)mediaUI.loadSnapshot(saved.v0_9n.media);
+  if(saved?.v0_9am?.music&&musicUI)musicUI.loadSnapshot(saved.v0_9am.music);
   updateCustodyFacilityPanel();
   if(voyage?.active){running=false;simWorld.clock.paused=true;}
   voyageUI?.render();shipInteractionUI?.update(true);surfaceShipUI?.update(true);solarUI?.refresh();
@@ -1510,6 +1511,7 @@ function captureGame(){
           v0_9f:{schemaVersion:1,territory:territoryEconomy.snapshot()},
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
+    v0_9am:{schemaVersion:1,music:musicUI?.snapshot()??null},
     v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
     v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
@@ -4044,7 +4046,8 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 musicUI=installMusicUI({
  getMediaUI:()=>mediaUI,getRenderer:()=>renderer,getController:()=>controller,
- getTerrain:()=>terrain,getPlanet:()=>planet,
+ getTerrain:()=>terrain,getPlanet:()=>planet,getOwnerWorld:()=>ownerWorld,
+ getResources:()=>actions?.resources||{},onCraftCommit:()=>{saveLifeJournal();updateHUD();},
  canPlayWorld:()=>!law?.custody&&!law?.pendingDeath&&!law?.gameOver&&!railwaySecurity?.jailed
   &&!railway?.boarded&&!ferry?.boarded&&!townLife?.inside&&!marine?.cabinId&&!voyage?.active,
  notify:log});
