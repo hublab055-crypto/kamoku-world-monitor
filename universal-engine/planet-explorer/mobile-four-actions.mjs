@@ -21,7 +21,7 @@ export function installMobileFourActions({onAction}){
   const root=$("mobile-action-buttons"),settings=$("mobile-action-settings");
   const toggle=$("viewport-mobile-actions"),menu=$("viewport-quick-toggle");
   if(!root||!settings||!toggle)return null;
-  let config=safeLoad(),active=false,surface=false,rts=false,vr=false,editing="walk",shownMode="";
+  let config=safeLoad(),active=false,surface=false,rts=false,vr=false,vehicle=null,editing="walk",shownMode="";
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(config));}catch(_){}
   }
@@ -30,7 +30,7 @@ export function installMobileFourActions({onAction}){
     onAction(action);
   }
   function drawButtons(){
-    const mode=rts?"rts":"walk";
+    const mode=rts?"rts":vehicle||"walk";
     if(mode===shownMode&&root.childElementCount===4)return;
     shownMode=mode;root.replaceChildren();
     config.profiles[mode].forEach((slot,i)=>{
@@ -90,7 +90,7 @@ export function installMobileFourActions({onAction}){
     settings.append(make("p","mobile-action-help","左下は移動スティック、右下は4ボタン。短押し／長押しを別々に設定できます。"));
     const profile=make("label","mobile-action-profile","設定する操作モード");
     const profileSelect=make("select","");
-    for(const [key,name] of [["walk","徒歩・冒険"],["rts","RTS・部隊指揮"]]){
+    for(const [key,name] of [["walk","徒歩・冒険"],["rts","RTS・部隊指揮"],["ride","騎乗"],["boat","帆船・ボート"],["passenger","列車・客船"],["shipInterior","宇宙船内"],["shipCockpit","宇宙船操縦席"]]){
       const option=document.createElement("option");
       option.value=key;option.textContent=name;profileSelect.append(option);
     }
@@ -135,6 +135,7 @@ export function installMobileFourActions({onAction}){
     if(typeof next.surface==="boolean")surface=next.surface;
     if(typeof next.rts==="boolean")rts=next.rts;
     if(typeof next.vr==="boolean")vr=next.vr;
+    if(Object.hasOwn(next,"vehicle"))vehicle=["ride","boat","passenger"].includes(next.vehicle)?next.vehicle:null;
     active=isMobile()&&!vr;
     document.body.classList.toggle("mobile-minimal-ui",active);
     applyLayers();
@@ -145,7 +146,7 @@ export function installMobileFourActions({onAction}){
   toggle.addEventListener("click",()=>{
     if(!isMobile())return;
     settings.hidden=!settings.hidden;
-    if(!settings.hidden){editing=rts?"rts":"walk";drawSettings();}
+    if(!settings.hidden){config=safeLoad();editing=rts?"rts":vehicle||"walk";drawSettings();}
     const quickPanel=$("viewport-quick-panel");
     if(quickPanel&&!quickPanel.hidden)menu?.click();
   });
@@ -154,5 +155,5 @@ export function installMobileFourActions({onAction}){
   });
   window.addEventListener("resize",()=>sync());
   sync();
-  return {sync,get active(){return active&&!rts&&surface&&!vr;}};
+  return {sync,get active(){return active&&!rts&&surface&&!vr;},get mode(){return rts?"rts":vehicle||"walk";}};
 }
