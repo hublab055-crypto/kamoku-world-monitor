@@ -2,7 +2,7 @@
  * Civic music UI. Works in 2D/VR browser layers without locking player input.
  * All money mutations are delegated to MusicCulture's atomic model methods.
  */
-import {MUSIC_VENUES,musicNow,cultureHour} from "./music-culture.mjs?v=0.9ao";
+import {MUSIC_VENUES,musicNow,cultureHour} from "./music-culture.mjs?v=0.9aq-hall-doors";
 import {MUSIC_BAND_ROLES,musicianCandidates,MUSIC_CONTRACT_DAYS} from "./music-band.mjs?v=0.9ao";
 import {hallRoom} from "./music-hall.mjs?v=0.9ap";
 const $=(id)=>document.getElementById(id);
