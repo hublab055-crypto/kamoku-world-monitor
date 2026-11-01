@@ -7,8 +7,12 @@ import {MUSIC_STEPS,MUSIC_TRACKS,GUITAR_OPEN_NOTES,newScore,normalizeScore,
 import {readMediaFile} from "./media-storage.mjs";
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
 import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs";
+import {MUSIC_RECIPES,normalizeMusicInventory,craftMusicInstrument,takeMusicInstrument,
+ returnMusicInstrument,extractAssetMusicControls,recipeById} from "./music-crafting.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
 const WORLD_KEY="universal-engine:music:instruments:v1";
+const INVENTORY_KEY="universal-engine:music:crafted:v1";
+const CREATIVE_KEY="universal-engine:music:creator:v1";
 const TRACK_LABEL={keys:"🎹 キーボード",guitar:"🎸 ギター",bass:"🎼 ベース",drums:"🥁 ドラム"};
 const $=(root,q)=>root.querySelector(q);
 const create=(tag,className,text)=>{
@@ -18,7 +22,8 @@ const create=(tag,className,text)=>{
 const button=(text,fn)=>{const b=create("button","",text);b.type="button";b.addEventListener("click",fn);return b;};
 const notePadLabel=n=>({36:"キック",38:"スネア",42:"ハイハット",39:"クラップ"})[n]||noteName(n);
 export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()=>null,
- getTerrain=()=>null,getPlanet=()=>null,canPlayWorld=()=>true,notify=()=>{}}){
+ getTerrain=()=>null,getPlanet=()=>null,getOwnerWorld=()=>null,getResources=()=>({}),
+ onCraftCommit=()=>{},canPlayWorld=()=>true,notify=()=>{}}){
  const toolbar=document.getElementById("viewport-toolbar"),quick=document.getElementById("viewport-quick-panel");
  if(!toolbar||!quick)throw Error("Music Studioを設置するためのツールバーがありません");
  const toggle=button("🎵 音楽スタジオ",open);toggle.id="toolbar-music";
@@ -49,11 +54,20 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
  <button data-record-toggle type="button">● 演奏を録音</button></div>
  <small>鍵盤・弦をタップして演奏。録音中の演奏は16分音符に量子化されます。楽譜はこの端末に保存します。</small></section>
  <section class="ue-music-section"><h3>🌍 3D楽器・VR演奏</h3>
+ <div class="ue-music-row"><label>レシピ
+ <select data-recipe></select></label>
+ <label class="ue-music-check"><input type="checkbox" data-creative>クリエイターモード（材料無制限）</label></div>
+ <small data-cost></small>
+ <div class="ue-music-row"><button type="button" data-craft>🔨 レシピで製作</button>
+ <strong data-stock></strong></div>
+ <div class="ue-music-row"><label>自作Asset楽器<select data-asset><option value="">保存Assetを選択</option></select></label>
+ <button type="button" data-assets-refresh>Asset一覧更新</button></div>
  <div class="ue-music-row">
- <button type="button" data-world-place>🎹🎸 目の前に楽器を設置</button>
- <button type="button" data-world-remove>3D楽器を撤去</button></div>
- <small>地表にピアノとギターを配置。VRでは楽器を狙い、左右のトリガーで音を鳴らします。
- 地形座標に固定するため歩いて離れても置き場所は変わりません。各惑星に1セット。</small>
+ <button type="button" data-world-place>🎹🎸 所持楽器を設置</button>
+ <button type="button" data-world-remove>3D楽器を回収</button></div>
+ <small>通常モードは木材・金属・繊維などの手持ち資源を消費。クリエイターモードでは消費せず自由に製作・設置できます。
+ Asset制作で音付きパーツを置いた作品は「自作Asset楽器」レシピで製作して使用できます。
+ VRでは鍵盤・ボタン・弦を狙ってトリガーで演奏します。各惑星1セットまで。</small>
  <output data-world-status role="status"></output></section>
  <section class="ue-music-section"><h3>🎹 キーボード・ギター・ドラム</h3>
  <div class="ue-music-row"><label>選択中の音 <output data-pitch>C4</output></label>
@@ -76,6 +90,11 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
  const player=el("[data-player]");
  let scores=[],score=newScore(),selected=-1,pitch=60,recordingAt=null;
  let audioUrl=null,audioCtx=null;const presses=new Map(),touching=new Map();
+ let inventory;
+ try{inventory=normalizeMusicInventory(JSON.parse(localStorage.getItem(INVENTORY_KEY)||"null"));}
+ catch(_){inventory=normalizeMusicInventory();}
+ let creative=false;
+ try{creative=localStorage.getItem(CREATIVE_KEY)==="true";}catch(_){}
  const stages={};
  try{const data=JSON.parse(localStorage.getItem(WORLD_KEY)||"{}");
   if(data&&typeof data==="object"&&!Array.isArray(data))
@@ -94,6 +113,30 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   localStorage.setItem(WORLD_KEY,JSON.stringify(stages));
   syncWorldStage();
  }
+ function persistCraft(){
+  localStorage.setItem(INVENTORY_KEY,JSON.stringify(inventory));
+  localStorage.setItem(CREATIVE_KEY,String(creative));
+  onCraftCommit();
+ }
+ function selectedRecipe(){return recipeById(el("[data-recipe]").value);}
+ function refreshAssetChoices(){
+  const list=el("[data-asset]"),old=list.value;
+  list.replaceChildren(new Option("自作楽器Assetを選択",""));
+  for(const prefab of getOwnerWorld()?.prefabs||[]){
+   if(prefab?.assetDocument?.meta?.assetType!=="instrument")continue;
+   try{extractAssetMusicControls(prefab.assetDocument);}
+   catch(_){continue;}
+   list.add(new Option(prefab.name,prefab.name));
+  }
+  if([...list.options].some(x=>x.value===old))list.value=old;
+ }
+ function updateCraftInfo(){
+  const recipe=selectedRecipe();if(!recipe)return;
+  el("[data-cost]").textContent=creative?"素材無制限・所持品消費なし":
+   "必要資源："+Object.entries(recipe.cost).map(([k,v])=>k+" "+v+"個（手持ち "+(getResources()?.[k]??0)+"）").join(" / ");
+  el("[data-stock]").textContent="所持 "+(inventory.items[recipe.item]||0)+"個";
+ }
+ 
  try{
   const data=JSON.parse(localStorage.getItem(SAVE_KEY)||"[]");
   if(Array.isArray(data))scores=data.slice(0,30).map(normalizeScore);
@@ -103,6 +146,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   localStorage.setItem(SAVE_KEY,JSON.stringify(scores));
  }
  function open(){
+  refreshAssetChoices();updateCraftInfo();
   syncWorldStage();
   el("[data-world-status]").textContent=currentStage()?"🎹 楽器を設置済みです":"この惑星には楽器がありません";
   getMediaUI()?.close();
@@ -112,6 +156,32 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
  }
  function close(){panel.hidden=true;stopRecording();}
  el("[data-close]").addEventListener("click",close);
+ const craftSelect=el("[data-recipe]");
+ for(const recipe of MUSIC_RECIPES)craftSelect.add(new Option(recipe.name,recipe.id));
+ craftSelect.value=MUSIC_RECIPES[0].id;
+ el("[data-creative]").checked=creative;
+ craftSelect.addEventListener("change",updateCraftInfo);
+ el("[data-creative]").addEventListener("change",()=>{
+  creative=el("[data-creative]").checked;
+  try{persistCraft();}catch(e){report("制作モードの保存に失敗: "+e.message);}
+  updateCraftInfo();
+ });
+ el("[data-assets-refresh]").addEventListener("click",refreshAssetChoices);
+ el("[data-craft]").addEventListener("click",()=>{
+  const old=inventory;
+  try{
+   if(!canPlayWorld())throw Error("現在は楽器を製作できません");
+   const recipe=selectedRecipe(),resources=getResources();
+   if(recipe.id==="music-custom"&&!el("[data-asset]").value)
+    throw Error("先にAsset制作で保存した楽器を選んでください");
+   inventory=craftMusicInstrument(inventory,resources,recipe.id,{creative});
+   try{persistCraft();}catch(e){
+    if(!creative)for(const [k,v]of Object.entries(recipe.cost))resources[k]+=v;
+    inventory=old;throw e;
+   }
+   updateCraftInfo();report("🔨 "+recipe.name+" を製作しました");
+  }catch(e){report("製作できません："+e.message);}
+ });
  el("[data-world-place]").addEventListener("click",()=>{
   try{
    if(!canPlayWorld())throw Error("拘束・移動中・室内では3D楽器を設置できません");
@@ -122,14 +192,37 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
    const yaw=((c.yaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
    const point=geoOffset(c.lat,c.lon,Math.sin(yaw)*2.5,Math.cos(yaw)*2.5,planet.radiusM);
    const heightM=Math.max(0,terrainSurface(terrain,point.lat,point.lon).elevationM);
-   stages[planet.id]=newMusicStage({planetId:planet.id,lat:point.lat,lon:point.lon,yaw,heightM});
-   persistWorld();stageMessage("🎹🎸 現在位置の前方に設置しました。VRではトリガーで演奏できます");
+   const recipe=selectedRecipe(),item=recipe.item;
+   let controls=[];
+   if(item==="music-custom"){
+    const assetName=el("[data-asset]").value;
+    const prefab=getOwnerWorld()?.prefabs?.find(p=>p.name===assetName);
+    if(!prefab)throw Error("自作Asset楽器を選択してください");
+    controls=extractAssetMusicControls(prefab.assetDocument);
+   }
+   if(stages[planet.id])throw Error("すでにこの惑星に楽器があります。回収してから交換してください");
+   const old=inventory;
+   inventory=takeMusicInstrument(inventory,item,{creative});
+   const placement=newMusicStage({planetId:planet.id,lat:point.lat,lon:point.lon,yaw,heightM,item,controls});
+   placement.owned=!creative;
+   try{
+    stages[planet.id]=placement;
+    persistWorld();persistCraft();
+   }catch(e){
+    delete stages[planet.id];inventory=old;throw e;
+   }
+   updateCraftInfo();stageMessage("🎹🎸 楽器を設置しました。VRで演奏できます");
   }catch(e){stageMessage(e.message);}
  });
  el("[data-world-remove]").addEventListener("click",()=>{
   const id=planetId();if(!stages[id])return stageMessage("設置されていません");
-  delete stages[id];try{persistWorld();stageMessage("楽器を撤去しました");}
-  catch(e){stageMessage("撤去状態の保存に失敗: "+e.message);}
+  const original=stages[id],previous=inventory;
+  try{
+   if(original.owned)inventory=returnMusicInstrument(inventory,original.item);
+   delete stages[id];persistWorld();persistCraft();updateCraftInfo();stageMessage("楽器を回収しました");
+  }catch(e){
+   stages[id]=original;inventory=previous;stageMessage("回収に失敗: "+e.message);
+  }
  });
  document.getElementById("toolbar-media")?.addEventListener("click",close);
  document.getElementById("viewport-media")?.addEventListener("click",close);
@@ -372,7 +465,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   const offset=[delta.eastM,placement.heightM-here,delta.northM];
   if(phase==="touch"){
    const contact=Math.hypot(offset[0],offset[2])<=4?
-    musicStageHandHit(handMatrix,stageMatrix,offset,placement.yaw):null;
+    musicStageHandHit(handMatrix,stageMatrix,offset,placement.yaw,{controls:placement.controls}):null;
    const old=touching.get(hand),contactKey="xr-touch-"+hand;
    if(!contact||old?.track!==contact.track||old?.pitch!==contact.pitch){
     finishNote(contactKey);touching.delete(hand);
@@ -385,12 +478,26 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   }
   if(!rayMatrix)return {handled:false};
   if(Math.hypot(offset[0],offset[2])>4)return {handled:false};
-  const hit=musicStageRayHit(rayMatrix,stageMatrix,offset,placement.yaw);
+  const hit=musicStageRayHit(rayMatrix,stageMatrix,offset,placement.yaw,{controls:placement.controls});
   if(!hit)return {handled:false};
   beginNote(key,hit.track,hit.pitch,[offset[0],offset[1]+1,offset[2]]);
   return {handled:true,track:hit.track,pitch:hit.pitch};
  }
  syncWorldStage();
  return {open,close,refreshRecords,syncWorldStage,handleXR,
+  snapshot:()=>({version:1,inventory:normalizeMusicInventory(inventory),
+   stages:JSON.parse(JSON.stringify(stages)),creative}),
+  loadSnapshot:data=>{
+   if(data?.version!==1)throw Error("楽器のセーブデータが不正です");
+   const loaded={};for(const [id,item] of Object.entries(data.stages||{})){
+    const p=normalizeMusicStage(item);
+    if(id!==p.planetId)throw Error("設置惑星が一致しません");
+    loaded[id]={...p,owned:item.owned===true};
+   }
+   inventory=normalizeMusicInventory(data.inventory);
+   for(const k of Object.keys(stages))delete stages[k];Object.assign(stages,loaded);
+   creative=data.creative===true;
+   persistWorld();persistCraft();syncWorldStage();updateCraftInfo();
+  },
   get score(){return normalizeScore(score);}};
 }
