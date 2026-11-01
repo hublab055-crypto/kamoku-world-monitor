@@ -14,13 +14,15 @@ function block(g,x,y,z,halfX,height,halfZ,color){
   [x-halfX,y,z+halfZ],[x+halfX,y,z+halfZ],[x+halfX,y+height,z+halfZ],[x-halfX,y+height,z+halfZ]];
  for(const [i,j,k,l]of [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[1,5,6,2],[4,0,3,7]])quad(g,v[i],v[j],v[k],v[l],color);
 }
-export function musicHallInteriorGeometry(kind){
+export function musicHallInteriorGeometry(kind,{furnishingsOnly=false}={}){
  const room=hallRoom(kind);
  if(!room)throw Error("音楽室の種類が不正です");
  const g=fresh(),w=room.halfWidth,z0=room.zMin,z1=room.zMax;
  const timber=[.32,.22,.18],wall=[.61,.55,.48],floor=[.38,.28,.23];
  const height=kind==="theater"?6.4:4.5;
- // Cutaway front wall leaves the door and visible auditorium for 3P camera.
+ // The full-room path remains supported, but the shared world uses only furniture.
+ // Ground-side building walls and roof are drawn by the planet renderer.
+ if(!furnishingsOnly){
  block(g,0,-.25,(z0+z1)*.5,w,.30,(z1-z0)/2,floor);
  block(g,-w+.17,0,(z0+z1)/2,.22,height,(z1-z0)/2,wall);
  block(g,w-.17,0,(z0+z1)/2,.22,height,(z1-z0)/2,wall);
@@ -29,6 +31,8 @@ export function musicHallInteriorGeometry(kind){
   block(g,x,2.25,z0+.39,.70,1.25,.03,[.30,.48,.53]);
   block(g,x,2.25,z0+.48,.05,1.30,.05,timber);
  }
+ }
+ if(furnishingsOnly)block(g,0,.02,(z0+z1)*.5,w-.18,.10,(z1-z0)/2-.18,floor);
  if(kind==="theater"){
   // Raised music stage, side curtains, proscenium arch and house lights.
   block(g,0,0,-7.7,w-1.3,.64,2.2,[.43,.27,.17]);
@@ -58,8 +62,10 @@ export function musicHallInteriorGeometry(kind){
   }
   block(g,0,3.65,0,1.1,.12,.46,[.93,.81,.57]);
  }
- // Exit lintel and a sign identify the visible way out, without blocking it.
+ // Exit marker belongs to the interior wall only, not to the floor furniture mesh.
+ if(!furnishingsOnly){
  block(g,0,3.20,z1-.22,1.05,.33,.14,[.31,.63,.47]);
  for(const x of [-w+1,w-1])block(g,x,.4,z1-.55,.08,2.7,.15,timber);
+ }
  return g;
 }

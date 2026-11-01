@@ -87,7 +87,7 @@ function pitched(b,x,z,y,w,d,rise,col){
   tri(b,[x0,y,z0],[x1,y,z0],[x,y+rise,z0],[.37,.28,.20]);
   tri(b,[x1,y,z1],[x0,y,z1],[x,y+rise,z1],[.37,.28,.20]);
 }
-function building(b,t){
+function building(b,t,{includeRoof=true}={}){
   const x=t.localX,z=t.localZ,y=t.elevationM-1.25,kind=t.type;
   const timber=[.47,.34,.22],dark=[.27,.20,.14],roof=[.30,.27,.26],stone=[.48,.48,.45];
   if(kind==="watchtower"){
@@ -126,7 +126,7 @@ function building(b,t){
     box(b,x+(hw+1.14)/2,y,z+hd-.18,(hw-1.14)/2,h,.20,wall);
     box(b,x,y+3.12,z+hd-.18,1.14,h-3.12,.20,wall);
     // Side and rear hall interiors remain covered by a roof.
-    box(b,x,y+h-.18,z,hw,.18,hd,[.37,.29,.22]);
+    if(includeRoof)box(b,x,y+h-.18,z,hw,.18,hd,[.37,.29,.22]);
     for(const xx of [-hw+.9,hw-.9]){
      box(b,x+xx,y+.1,z+hd+.15,.52,h-.3,.23,kind==="theater"?[.72,.53,.29]:timber);
      box(b,x+xx,y+2.9,z+hd+.24,.38,1.15,.10,[.32,.54,.60]);
@@ -136,7 +136,7 @@ function building(b,t){
     box(b,x,y-.12,z+hd+.23,1.18,.13,.33,[.42,.38,.29]);
     for(const xx of [-1.12,1.12])box(b,x+xx,y,z+hd+.20,.13,3.15,.18,timber);
     box(b,x,y+3.28,z+hd+.32,2.4,.48,.19,theater?[.65,.23,.22]:[.27,.54,.42]);
-    pitched(b,x,z,y+h+.1,hw,hd,theater?2.35:1.7,roof);
+    if(includeRoof)pitched(b,x,z,y+h+.1,hw,hd,theater?2.35:1.7,[.30,.27,.26]);
     if(theater){
      box(b,x,y+4.7,z+hd+.25,2.8,.60,.14,[.78,.56,.27]);
      for(const xx of [-hw+1,hw-1])box(b,x+xx,y+6.4,z+hd+.3,.25,.65,.24,[.90,.78,.50]);
@@ -167,6 +167,19 @@ function building(b,t){
     for(let j=0;j<4;j++)box(b,x-hw+1.0+j*3.3,y+.1,z+hd+1.8,.14,2.9,.14,dark);
     box(b,x,y+2.9,z+hd+1.8,hw+.1,.16,.16,timber);
   }
+}
+/** Separate roof allows view into the same hall mesh in FPS, VR and RTS. */
+export function musicHallShellGeometry(t){
+ const b=fresh();building(b,t,{includeRoof:false});return b;
+}
+export function musicHallRoofGeometry(t){
+ const b=fresh(),theater=t.type==="theater";
+ if(!theater&&t.type!=="school")return b;
+ const hw=theater?8.25:5.7,hd=theater?9.1:6.2,h=theater?6.8:4.7;
+ const x=t.localX,z=t.localZ,y=t.elevationM-1.25;
+ box(b,x,y+h-.18,z,hw,.18,hd,[.37,.29,.22]);
+ pitched(b,x,z,y+h+.1,hw,hd,theater?2.35:1.7,[.30,.27,.26]);
+ return b;
 }
 export function meshBatch(items,append,maxVertices=50000){
   let b=fresh(),meshes=[];

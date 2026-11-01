@@ -115,7 +115,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   const {town,townId,controller,actions:resource,life,day,musicCulture}=get();
   const chosen=currentSelection(),value=target.dataset.townAction;
   let output=null;
-  if(value==="leave")output=town.leave();
+  if(value==="leave")output=town.leave(controller);
   else if(value==="door"&&chosen)output=town.toggleHallDoor(townId,chosen.id,controller);
   else if(value==="sit")output=town.sitMusicSeat({admitted:musicCulture?.hasTicket(townId,"theater",day)??true});
   else if(value==="stand")output=town.standMusicSeat();

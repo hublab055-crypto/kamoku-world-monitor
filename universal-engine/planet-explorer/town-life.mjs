@@ -4,6 +4,7 @@
 import {settlementLayout,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
 import {hallRoom,nearestHallSeat,hallSeats} from "./music-hall.mjs?v=0.9aq";
 import {hallDoor,hallDoorNear,hallExteriorStep} from "./music-hall-portal.mjs?v=0.9aq";
+import {hallLocalPoint} from "./music-hall-world.mjs?v=0.9as";
 
 export const TOWN_NAMES=Object.freeze({
  lodge:"宿屋・集会所",cabin:"民家",barn:"納屋",workshop:"工房",
@@ -116,7 +117,10 @@ export class TownLife{
   if(step.portal){
    const entered=this.enter(townId,step.portal.id,controller);
    if(entered.ok){
-    this.inside.pose.z=hallRoom(step.portal.type).entranceZ-.7;
+    // The crossing is a shared world-space point, not an indoor spawn jump.
+    const local=hallLocalPoint(step.portal,controller);
+    if(local){this.inside.pose.x=local.x;this.inside.pose.z=local.z;
+     this.inside.pose.yaw=local.yaw;this.inside.pose.moving=true;}
     return {blocked:false,entered:true,message:"🚪 扉を通って"+entered.building.title+"に入りました"};
    }
    return {blocked:true,message:entered.message};
@@ -155,6 +159,7 @@ export class TownLife{
   if(!this.inside)return false;
   const p=this.inside.pose;
   if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat)return false;
+  p.blocked=false;
   const step=limit(dt,0,.1),turnRate=1.75;
   const f=limit(Number(forward)||0,-1,1),side=limit(Number(strafe)||0,-1,1);
   p.yaw+=limit(Number(turn)||0,-1,1)*step*turnRate;
@@ -172,9 +177,12 @@ export class TownLife{
   if(hall){
    const seats=hallSeats(building.type);
    if(seats.some(seat=>Math.abs(nextX-seat.x)<.62&&Math.abs(nextZ-seat.z)<.64)&&
-      !seats.some(seat=>Math.abs(p.x-seat.x)<.62&&Math.abs(p.z-seat.z)<.64))
-    return false;
-   if(nextZ<hall.stageZ+1.5&&Math.abs(nextX)<hall.halfWidth-1)return false;
+      !seats.some(seat=>Math.abs(p.x-seat.x)<.62&&Math.abs(p.z-seat.z)<.64)){
+    p.moving=false;p.blocked=true;return false;
+   }
+   if(nextZ<hall.stageZ+1.5&&Math.abs(nextX)<hall.halfWidth-1){
+    p.moving=false;p.blocked=true;return false;
+   }
   }
   p.moving=Math.hypot(nextX-p.x,nextZ-p.z)>.001;
   p.x=nextX;p.z=nextZ;
@@ -199,9 +207,20 @@ export class TownLife{
   if(seat)this.inside.pose.x=seat.x>0?seat.x-.45:seat.x+.45;
   return result(true,"🧍 立ち上がりました");
  }
- leave(){
+ leave(actor=null){
   if(!this.inside)return result(false,"屋外にいます");
-  this.inside=null;this.portalExitRequested=false;return result(true,"🚪 建物から外に出ました");
+  const room=this.inside,building=this.find(room.townId,room.buildingId,"village");
+  if(hallRoom(building?.type)&&actor){
+   const door=hallDoor(building);
+   if(!actor.locationAt||!door)return result(false,"地表座標を取得できません");
+   const x=door.x,z=door.z+1.05,geo=actor.locationAt(x,z);
+   if(!Number.isFinite(geo?.lat)||!Number.isFinite(geo?.lon))
+    return result(false,"出口の地表座標を取得できません");
+   actor.x=x;actor.z=z;actor.lat=geo.lat;actor.lon=geo.lon;
+   actor.clearMoveTarget?.();actor.moving=false;
+  }
+  this.inside=null;this.portalExitRequested=false;
+  return result(true,"🚪 建物から外に出ました");
  }
  trade(townId,buildingId,item,direction,actor,actions,life){
   const shop=this.find(townId,buildingId,"village");
