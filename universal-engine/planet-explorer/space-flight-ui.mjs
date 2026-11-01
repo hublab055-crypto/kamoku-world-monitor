@@ -23,7 +23,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight canvas{width:100%;height:100%;display:block}
  #space-flight .flight-hud{position:absolute;top:12px;left:12px;color:#cde7f7;font:12px/1.5 ui-monospace,monospace;text-shadow:0 1px 4px #000}
  #space-flight .flight-readout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}
- #space-flight .flight-stat{background:#122d3f;padding:5px;border-radius:6px;text-align:center}
+ #space-flight .flight-stat{background:#122d3f;padding:5px;border-radius:6px;text-align:center;overflow-wrap:anywhere}
  #space-flight .flight-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:center;padding:3px}
  #space-flight .flight-actions button{min-height:42px;min-width:68px;padding:5px 10px;border:1px solid #6595b1;border-radius:8px;background:#183b55;color:#effaff;font-size:13px}
  #space-flight .flight-actions button:disabled{opacity:.43}
@@ -205,7 +205,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
-  $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"°";
+  $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"° ／ ピッチ："+Math.round(v.flightControl?.pitch||0)+"° ／ ロール："+Math.round(v.flightControl?.roll||0)+"° ／ 脚："+(v.flightControl?.gearDeployed===false?"格納":"展開");
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
