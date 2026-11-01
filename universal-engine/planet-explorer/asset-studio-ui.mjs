@@ -64,6 +64,7 @@ export function installAssetStudio({getWorld,onCommit,log}){
  const say=message=>{status.value=message;status.textContent=message;log(message);};
  const persist=()=>{try{localStorage.setItem(DRAFT_KEY,JSON.stringify(studio.snapshot()));}catch(_){say("Asset下書きの保存に失敗しました");}};
  const persistUi=()=>{try{localStorage.setItem(UI_PREFS_KEY,JSON.stringify(uiPrefs));}catch(_){}};
+ $("asset-type").add(new Option("🎼 楽器","instrument"));
  const audioPanel=document.createElement("fieldset");
  audioPanel.className="asset-music-controls";
  audioPanel.innerHTML='<legend>🎼 演奏部品（楽器Asset）</legend>'+
