@@ -1,4 +1,4 @@
-import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.8s-towns";
+import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9ap-music-hall";
 
 /** Mobile-sized town interaction desk. All mutations go through TownLife. */
 export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
@@ -44,6 +44,10 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
    " / 所持 "+town.coins+" コイン";
   if(room){
    actions.append(button("🚪 外へ出る","leave"));
+   if(room.type==="theater"||room.type==="school"){
+    if(inside.seat)actions.append(button("🧍 席から立ち上がる","stand"));
+    else actions.append(button("💺 近くの椅子に座る","sit"));
+   }
    const wares=TOWN_WARES[room.type]||[];
    if(wares.length)addTrade(wares,resources,life,town);
    return;
@@ -109,6 +113,8 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   const chosen=currentSelection(),value=target.dataset.townAction;
   let output=null;
   if(value==="leave")output=town.leave();
+  else if(value==="sit")output=town.sitMusicSeat();
+  else if(value==="stand")output=town.standMusicSeat();
   else if(value==="enter"&&chosen)output=town.enter(townId,chosen.id,controller);
   else if(value.startsWith("talk:")&&chosen)
    output=town.dialogue(townId,chosen.id,value.slice(5),controller,day);
