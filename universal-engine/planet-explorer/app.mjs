@@ -85,7 +85,9 @@ import {installXRUI} from "./xr-ui.mjs?v=0.9am-music-craft";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
-import {installMusicUI} from "./music-ui.mjs?v=0.9am-music-craft";
+import {installMusicUI} from "./music-ui.mjs?v=0.9an-culture";
+import {MusicCulture} from "./music-culture.mjs?v=0.9an";
+import {installMusicCultureUI} from "./music-culture-ui.mjs?v=0.9an";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -108,6 +110,12 @@ const CUSTODY_FACILITY_JOURNAL_KEY="universal-engine:explorer:custody-facility:v
 const LAW_JOURNAL_KEY="universal-engine:explorer:law:v0.9d";
 const TERRITORY_JOURNAL_KEY="universal-engine:explorer:territory:v0.9f";
 const FACTION_JOURNAL_KEY="universal-engine:explorer:factions:v0.9g";
+const MUSIC_CULTURE_JOURNAL_KEY="universal-engine:music:culture:v1";
+function loadMusicCultureJournal(){try{return JSON.parse(localStorage.getItem(MUSIC_CULTURE_JOURNAL_KEY)||"null");}catch(_){return null;}}
+function saveMusicCultureJournal(){
+ try{if(musicCulture)localStorage.setItem(MUSIC_CULTURE_JOURNAL_KEY,JSON.stringify(musicCulture.snapshot()));}
+ catch(_){log("音楽文化の保存に失敗しました");}
+}
 const TIME_SCALE_KEY="universal-engine:explorer:time-scale:v0.8x";
 const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
@@ -115,7 +123,7 @@ const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null;
-let xrUI=null,mediaUI=null,musicUI=null,footVoyage=null;
+let xrUI=null,mediaUI=null,musicUI=null,musicCulture=null,musicCultureUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -339,6 +347,7 @@ function init(saved=null){
   scenario=createScenario(saved?.v0_9v?.scenario||null);
   if(!saved?.v0_9v?.scenario)for(const quest of INTRO_QUESTS)scenario.addQuest(quest);
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
+  musicCulture=new MusicCulture(saved?.v0_9an?.culture||(!saved?loadMusicCultureJournal():null));
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
   railwaySecurity=new RailwaySecurity(saved?.v0_8x?.security||(!saved?loadRailwaySecurityJournal():null));
@@ -658,6 +667,8 @@ function doFrame(t,source="window",xrFrameInput=null){
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  musicUI?.syncWorldStage();
+ if(renderer)renderer.musicCulture=musicCulture;
+ musicCultureUI?.tick(planet?.timeDays);
  if(voyage?.active){
   renderer.shipVoyage=voyage;
   renderer.surfaceStarship=surfaceShip;
@@ -1512,6 +1523,7 @@ function captureGame(){
            v0_9g:{schemaVersion:1,factions:factionStrategy.snapshot()},
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
     v0_9am:{schemaVersion:1,music:musicUI?.snapshot()??null},
+    v0_9an:{schemaVersion:1,culture:musicCulture?.snapshot()??null},
     v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
     v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
@@ -4051,6 +4063,17 @@ musicUI=installMusicUI({
  canPlayWorld:()=>!law?.custody&&!law?.pendingDeath&&!law?.gameOver&&!railwaySecurity?.jailed
   &&!railway?.boarded&&!ferry?.boarded&&!townLife?.inside&&!marine?.cabinId&&!voyage?.active,
  notify:log});
+musicCultureUI=installMusicCultureUI({
+ getCulture:()=>musicCulture,getTownLife:()=>townLife,
+ getTownId:()=>activeSettlementId,getActor:()=>controller,getPlanet:()=>planet,
+ onPlayNPC:(venue,options)=>musicUI?.playCultureNPC(venue,options),
+ onPerform:venue=>musicUI?.playCultureOwn(venue),
+ hasInstrument:()=>musicUI?.hasCraftedInstrument()||false,
+ canJoin:()=>!law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver
+  &&!voyage?.active&&!ferry?.boarded&&!railway?.boarded&&!marine?.boarded
+  &&!townLife?.inside&&!marine?.cabinId&&planet?.id==="terra",
+ onChange:()=>{saveTownJournal();saveMusicCultureJournal();updateHUD();},notify:log
+});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
