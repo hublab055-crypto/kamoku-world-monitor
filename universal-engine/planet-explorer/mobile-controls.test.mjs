@@ -39,3 +39,16 @@ test("yaw wrapping takes the shortest turn",()=>{
  const r=resolveMobileFacing({x:0,y:-1},Math.PI-.05,-Math.PI+.05,.016);
  assert.ok(r.turn>0&&r.turn<.2);
 });
+
+test("previous default cockpit binding migrates to fire and drop without overwriting custom slots",()=>{
+ const old={version:1,profiles:{
+  shipCockpit:[{tap:"launchLand",hold:"landingGear"},{tap:"autopilot",hold:"attitudeMode"},
+   {tap:"navigation",hold:"transfer"},{tap:"stand",hold:"saveVoyage"}]}};
+ const migrated=normalizeMobileConfig(old);
+ assert.equal(migrated.profiles.shipCockpit[2].hold,"fireWeapon");
+ assert.equal(migrated.profiles.shipCockpit[3].hold,"cargoDrop");
+ old.profiles.shipCockpit[2].hold="throttleUp";
+ const preserved=normalizeMobileConfig(old);
+ assert.equal(preserved.profiles.shipCockpit[2].hold,"throttleUp");
+ assert.equal(preserved.profiles.shipCockpit[3].hold,"saveVoyage");
+});
