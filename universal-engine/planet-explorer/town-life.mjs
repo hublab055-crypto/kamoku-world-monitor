@@ -207,9 +207,20 @@ export class TownLife{
   if(seat)this.inside.pose.x=seat.x>0?seat.x-.45:seat.x+.45;
   return result(true,"🧍 立ち上がりました");
  }
- leave(){
+ leave(actor=null){
   if(!this.inside)return result(false,"屋外にいます");
-  this.inside=null;this.portalExitRequested=false;return result(true,"🚪 建物から外に出ました");
+  const room=this.inside,building=this.find(room.townId,room.buildingId,"village");
+  if(hallRoom(building?.type)&&actor){
+   const door=hallDoor(building);
+   if(!actor.locationAt||!door)return result(false,"地表座標を取得できません");
+   const x=door.x,z=door.z+1.05,geo=actor.locationAt(x,z);
+   if(!Number.isFinite(geo?.lat)||!Number.isFinite(geo?.lon))
+    return result(false,"出口の地表座標を取得できません");
+   actor.x=x;actor.z=z;actor.lat=geo.lat;actor.lon=geo.lon;
+   actor.clearMoveTarget?.();actor.moving=false;
+  }
+  this.inside=null;this.portalExitRequested=false;
+  return result(true,"🚪 建物から外に出ました");
  }
  trade(townId,buildingId,item,direction,actor,actions,life){
   const shop=this.find(townId,buildingId,"village");
