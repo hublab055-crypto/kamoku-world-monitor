@@ -4194,7 +4194,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
  getWorldCanvas:()=>renderer?.canvas||null,notify:log,
  getRoutes:shipRoutes,onChooseRoute:setShipDestination,onTransfer:startShipTransfer,
- onMobileAction:action=>{
+ onMobileAction:(action,payload)=>{
   const v=voyage;
   if(!v?.active)return {ok:false,message:"宇宙船に乗船していません"};
   const surface=v.kind==="surface-to-surface";
@@ -4234,6 +4234,13 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
     return {ok:true,message:"🚀 推力："+Math.round(v.throttle*100)+"%"};
    }
    case "landingGear":return typeof v.toggleLandingGear==="function"?v.toggleLandingGear():{ok:false,message:"ランディングギアに対応していません"};
+   case "fireWeapon":return typeof v.fireWeapon==="function"?v.fireWeapon():{ok:false,message:"火器管制を利用できません"};
+   case "cargoDrop":{
+    if(typeof v.dropCargo!=="function")return {ok:false,message:"この宇宙船は投下に対応していません"};
+    const result=v.dropCargo(actions.resources,payload?.resource,payload?.quantity);
+    if(result.ok){saveLifeJournal();saveCelestialVoyage();}
+    return result;
+   }
    case "transfer":return startShipTransfer();
    case "saveVoyage":return saveCelestialVoyage();
    case "logs":return {ok:true,message:"📟 "+v.phase+" / 燃料"+Math.round(v.fuel)+"% / 出力"+Math.round(v.throttle*100)+"%"};
