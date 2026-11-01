@@ -27,7 +27,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  const css=el("style");css.textContent=`
 #space-flight .ship-mobile-layer[hidden]{display:none!important}
 #space-flight .ship-mobile-layer{position:absolute;inset:0;z-index:35;pointer-events:none}
-#space-flight .ship-mobile-stick,#space-flight .ship-mobile-actions,
+#space-flight .ship-mobile-stick,#space-flight .ship-mobile-throttle,#space-flight .ship-mobile-actions,
 #space-flight .ship-mobile-settings-toggle,#space-flight .ship-mobile-settings,
 #space-flight .ship-mobile-nav{pointer-events:auto}
 #space-flight .ship-mobile-stick{position:absolute;left:calc(13px + env(safe-area-inset-left,0px));bottom:calc(13px + env(safe-area-inset-bottom,0px));
@@ -35,11 +35,16 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
 #space-flight .ship-mobile-stick-ring{width:94px;height:94px;border-radius:50%;display:grid;place-items:center;background:#123f5baa;border:2px solid #9bd9e6;box-shadow:0 0 0 5px #001a2b44}
 #space-flight .ship-mobile-stick-nub{width:43px;height:43px;border-radius:50%;background:#88b9ca;border:2px solid #e7faff;pointer-events:none}
 #space-flight .ship-mobile-stick-caption{font-size:10px;text-shadow:0 1px 3px #001}
+#space-flight .ship-mobile-throttle{position:absolute;left:calc(133px + env(safe-area-inset-left,0px));bottom:calc(17px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px;background:#0a2f46c9;color:#e8f6fc;border:1px solid #80b4c5;border-radius:9px;font-size:10px}
+#space-flight .ship-mobile-throttle input{width:27px;height:91px;writing-mode:vertical-lr;direction:rtl;accent-color:#8ad7c7;touch-action:none}
+#space-flight .ship-mobile-layer:not(.is-cockpit) .ship-mobile-throttle{display:none}
 #space-flight .ship-mobile-actions{position:absolute;right:calc(13px + env(safe-area-inset-right,0px));bottom:calc(13px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(2,59px);gap:7px}
 #space-flight .ship-mobile-button{border-radius:50%;width:59px;height:59px;min-width:59px;min-height:59px;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#effbff;background:#153b55e8;border:1px solid #91c6d7;touch-action:manipulation;user-select:none}
 #space-flight .ship-mobile-button:active{background:#267a91}
 #space-flight .ship-mobile-button-icon{font-size:22px}
 #space-flight .ship-mobile-button-name{font-size:9px;text-align:center;line-height:1.08}
+#space-flight .ship-mobile-attitude{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(137px + env(safe-area-inset-bottom,0px));padding:4px 7px;background:#103951d9;border-radius:6px;color:#e0f5fa;font-size:10px}
+#space-flight .ship-mobile-layer:not(.is-cockpit) .ship-mobile-attitude{display:none}
 #space-flight .ship-mobile-settings-toggle{position:absolute;top:calc(7px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));background:#0b354fdc;color:white;border:1px solid #88becc;min-width:44px;min-height:43px}
 #space-flight .ship-mobile-settings,#space-flight .ship-mobile-nav{position:absolute;top:calc(55px + env(safe-area-inset-top,0px));right:8px;width:min(340px,calc(100% - 16px));max-height:65%;overflow-y:auto;touch-action:pan-y;background:#092c43f7;color:#e9f7fa;border:1px solid #78aabb;border-radius:11px;padding:10px;box-shadow:0 8px 23px #000a}
 #space-flight .ship-mobile-settings[hidden],#space-flight .ship-mobile-nav[hidden]{display:none!important}
@@ -68,10 +73,15 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  #space-flight .ship-mobile-actions{grid-template-columns:repeat(2,49px);gap:5px}
  #space-flight .ship-mobile-button{width:49px;height:49px;min-width:49px;min-height:49px}
  #space-flight .ship-mobile-button-icon{font-size:18px}
- #space-flight .ship-mobile-button-name{font-size:8px}}
+ #space-flight .ship-mobile-button-name{font-size:8px}
+ #space-flight .ship-mobile-throttle{left:calc(112px + env(safe-area-inset-left,0px));bottom:8px}
+ #space-flight .ship-mobile-throttle input{height:68px}
+ #space-flight .ship-mobile-attitude{bottom:118px}}
 `;document.head.append(css);
  const ui=el("div","ship-mobile-layer");
  ui.innerHTML='<div class="ship-mobile-stick" role="group" aria-label="宇宙船の移動または操縦スティック"><div class="ship-mobile-stick-ring"><div class="ship-mobile-stick-nub"></div></div><small class="ship-mobile-stick-caption"></small></div>'+
+  '<label class="ship-mobile-throttle">推力<input type="range" min="0" max="100" step="1" aria-label="宇宙船推力レバー"><output>72%</output></label>'+
+  '<div class="ship-mobile-attitude" role="status"></div>'+
   '<div class="ship-mobile-actions" role="group" aria-label="宇宙船の4アクション"></div>'+
   '<button class="ship-mobile-settings-toggle" type="button" aria-label="宇宙船の操作設定">⚙</button>'+
   '<section class="ship-mobile-settings" role="dialog" aria-label="宇宙船のスマホ操作設定" hidden></section>'+
@@ -80,9 +90,11 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  const $=sel=>ui.querySelector(sel);
  const ring=$(".ship-mobile-stick"),nub=$(".ship-mobile-stick-nub"),
   grid=$(".ship-mobile-actions"),settings=$(".ship-mobile-settings"),
-  nav=$(".ship-mobile-nav"),toggle=$(".ship-mobile-settings-toggle");
+  nav=$(".ship-mobile-nav"),toggle=$(".ship-mobile-settings-toggle"),
+  throttle=$(".ship-mobile-throttle input"),throttleOutput=$(".ship-mobile-throttle output");
  let config=load(),lastMode="",stateMode="shipInterior",pointer=null,stick={x:0,y:0},wasVisible=false;
- let advanced=false,navOpen=false;
+ let advanced=false,navOpen=false,pilotAxis="yaw";
+ throttle.addEventListener("input",()=>{const v=get();if(v?.setThrottle)v.setThrottle(Number(throttle.value)/100);throttleOutput.textContent=throttle.value+"%";});
  const notifyResult=result=>{if(result?.message){const feedback=host.querySelector("#flight-dialogue");if(feedback)feedback.textContent=result.message;notify?.(result.message);}return result};
  function clearStick(){pointer=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
  function moveStick(e){
@@ -103,6 +115,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  function dispatch(action){
   if(action==="none")return;
   if(action==="shipSettings"){openSettings(true);return;}
+  if(action==="attitudeMode"){pilotAxis=pilotAxis==="yaw"?"roll":"yaw";notifyResult({ok:true,message:pilotAxis==="yaw"?"🎮 スティック：ヨー＋ピッチ":"🎮 スティック：ロール＋ピッチ"});return;}
   if(action==="navigation"){showNavigation(!navOpen);return;}
   notifyResult(onAction?.(action));
  }
@@ -151,7 +164,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  }
  function makeSelect(value,callback,label){
   const select=el("select");select.setAttribute("aria-label",label);
-  const allowed=["interact","talk","sit","stand","hatch","disembark","cargo","launchLand","autopilot","navigation","transfer","throttleUp","throttleDown","shipSettings","saveVoyage","logs","menu","none"];
+  const allowed=["interact","talk","sit","stand","hatch","disembark","cargo","launchLand","autopilot","navigation","transfer","throttleUp","throttleDown","shipSettings","landingGear","attitudeMode","saveVoyage","logs","menu","none"];
   for(const key of allowed){const info=MOBILE_ACTIONS[key];
    const option=el("option","",info.icon+" "+info.label);option.value=key;select.append(option);
   }
@@ -204,9 +217,9 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
   const axes=shipStickAxes(stick,dt);
   if(v.seated===true||v.interior?.mode==="cockpit"){
    if(v.seated===false)return; // never fly a surface-to-surface ship standing
-   if(axes.headingDelta&&typeof v.steer==="function")v.steer(axes.headingDelta);
-   if(axes.throttleDelta&&typeof v.setThrottle==="function")
-     v.setThrottle(clamp(v.throttle+axes.throttleDelta,0,1));
+   if((axes.strafe||axes.forward)&&typeof v.setAutopilot==="function")v.setAutopilot(false);
+   if(typeof v.applyPilotStick==="function")v.applyPilotStick({x:axes.strafe,y:axes.forward,mode:pilotAxis,dt:Math.min(dt,.08)});
+   else if(axes.headingDelta&&typeof v.steer==="function")v.steer(axes.headingDelta);
   }else if(v.interior?.mode==="interior"){
    v.interior.walk(axes.forward,axes.strafe,Math.min(dt,.08));
   }
@@ -220,7 +233,15 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
   if(!shown){clearStick();openSettings(false);showNavigation(false);return;}
   const mode=v?.seated===true||v?.interior?.mode==="cockpit"?"shipCockpit":"shipInterior";
   if(mode!==stateMode){stateMode=mode;clearStick();showNavigation(false);openSettings(false);}
-  $(".ship-mobile-stick-caption").textContent=mode==="shipCockpit"?"操舵 ↔ ／ 出力 ↕":"船内を移動";
+  ui.classList.toggle("is-cockpit",mode==="shipCockpit");
+  if(mode==="shipCockpit"){
+   const fc=v.flightControl;
+   $(".ship-mobile-attitude").textContent=(pilotAxis==="yaw"?"ヨー":"ロール")+" / ピッチ "+
+    Math.round(fc?.pitch||0)+"° / ロール "+Math.round(fc?.roll||0)+"° / 脚 "+(fc?.gearDeployed===false?"格納":"展開");
+   if(document.activeElement!==throttle)throttle.value=String(Math.round((v.throttle||0)*100));
+   throttleOutput.textContent=Math.round((v.throttle||0)*100)+"%";
+  }
+  $(".ship-mobile-stick-caption").textContent=mode==="shipCockpit"?(pilotAxis==="yaw"?"ヨー ↔ ／ ピッチ ↕":"ロール ↔ ／ ピッチ ↕"):"船内を移動";
   renderButtons();
   apply(dt);
  }
