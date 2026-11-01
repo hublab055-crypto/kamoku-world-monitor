@@ -2091,6 +2091,7 @@ export class ExplorerRenderer{
     if(stageOn){
      const frame=Math.floor(performance.now()/1000*3.5)%MUSIC_POSE_FRAMES;
      const band=bandAppearance(venue,this.musicCulture.bandContracts,this.planet.timeDays);
+     if(kind==="school")band.length=1; // Class teacher, not the hired concert band.
      for(let i=0;i<band.length;i++){
       const player=band[i],pose=multiply4(translate(player.x,kind==="theater"?.67:0,
        stageZ+player.z),rotateY(Math.PI));
