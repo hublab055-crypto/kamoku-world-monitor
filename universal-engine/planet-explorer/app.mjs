@@ -3714,6 +3714,13 @@ mobileUI=installMobileFourActions({
   const click=id=>$(id)?.click();
   switch(action){
    case "interact":{
+    if(railway?.boarded){
+     const members=squad?.agents?.slice(1).map(a=>a.name)||[];
+     const person=railway.people(members)[0];
+     const result=person?railway.talk(person.id,members):{ok:false,message:"列車内で話せる人がいません"};
+     log(result.message);break;
+    }
+    if(ferry?.boarded){const result=ferry.talk("steward");log(result.message);break;}
     if(!$("door-controls").hidden){
       const available=["door-enter","door-exit","door-toggle"].find(id=>!$(id).hidden);
       if(available){click(available);break;}
