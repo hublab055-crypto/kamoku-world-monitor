@@ -89,6 +89,17 @@ export function normalizeMobileConfig(raw){
       }
     }
   }
+  // Upgrade only the exact previous cockpit defaults. Preserve explicitly
+  // customized ship slots and all on-foot / RTS profiles unchanged.
+  const previous=raw.profiles?.shipCockpit;
+  if(Array.isArray(previous)&&previous.length===4&&
+   previous[0]?.tap==="launchLand"&&previous[0]?.hold==="landingGear"&&
+   previous[1]?.tap==="autopilot"&&previous[1]?.hold==="attitudeMode"&&
+   previous[2]?.tap==="navigation"&&previous[2]?.hold==="transfer"&&
+   previous[3]?.tap==="stand"&&previous[3]?.hold==="saveVoyage"){
+   result.profiles.shipCockpit[2].hold="fireWeapon";
+   result.profiles.shipCockpit[3].hold="cargoDrop";
+  }
   for(const key of Object.keys(MOBILE_LAYERS))result.layers[key]=raw.layers?.[key]===true;
   return result;
 }
