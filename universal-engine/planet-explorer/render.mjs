@@ -652,7 +652,7 @@ export class ExplorerRenderer{
   this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
   this.xrView=null; // ephemeral per-eye WebXR pass, never serialized
   this.musicStage=null;
-  this.musicStageMesh=new Mesh(gl,musicStageGeometry());
+  this.musicStageMesh=new Mesh(gl,musicStageGeometry());this.musicStageMeshKey="default";
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
 
@@ -1519,6 +1519,11 @@ export class ExplorerRenderer{
   drawMusicStage(vp,light,s,radius){
    const stage=this.musicStage;
    if(!stage||stage.planetId!==this.planet?.id||!s?.origin)return;
+   const meshKey=stage.controls?.length?JSON.stringify(stage.controls):"default";
+   if(meshKey!==this.musicStageMeshKey){
+    const next=new Mesh(this.gl,musicStageGeometry(stage.controls));
+    this.musicStageMesh?.destroy();this.musicStageMesh=next;this.musicStageMeshKey=meshKey;
+   }
    const point=geoLocal(s.origin.lat,s.origin.lon,stage.lat,stage.lon,this.planet.radiusM);
    if(Math.hypot(point.eastM-s.x,point.northM-s.z)>radius+10)return;
    const model=multiply4(translate(point.eastM-this.cx,stage.heightM,point.northM-this.cz),
