@@ -1658,6 +1658,8 @@ function shipEgress(){
   const cargoCount=shipCargoCaches?.storeDrops(voyage?.mission?.drops,solarSystem.currentId)||0;
   voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
   voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
+  if(cargoCount)try{localStorage.setItem(SAVE_KEY,JSON.stringify(captureGame()));}
+  catch(error){log("投下物資の保存に失敗："+error.message);}
   return {ok:true,message:"🌍 ランプから地表へ降り立ちました。宇宙船は着陸地点に残ります"+(cargoCount?" ／ 投下物資 "+cargoCount+"件を回収できます":"")};
  }catch(error){return {ok:false,message:"下船エラー："+error.message};}
 }
