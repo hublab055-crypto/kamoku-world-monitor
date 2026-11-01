@@ -1,4 +1,4 @@
-import {MOBILE_ACTIONS,MOBILE_LAYERS,defaultMobileConfig,normalizeMobileConfig} from "./mobile-controls.mjs?v=1";
+import {MOBILE_ACTIONS,MOBILE_LAYERS,defaultMobileConfig,normalizeMobileConfig} from "./mobile-controls.mjs?v=2";
 
 const STORAGE_KEY="universal-engine:mobile-four-actions:v1";
 const $=id=>document.getElementById(id);
