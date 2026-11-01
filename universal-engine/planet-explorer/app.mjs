@@ -17,7 +17,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9ap-music-hall";
+import {ExplorerRenderer} from "./render.mjs?v=0.9aq-hall-doors";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -52,8 +52,8 @@ import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
-import {TownLife} from "./town-life.mjs?v=0.9ap-music-hall";
-import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.9ap-music-hall";
+import {TownLife} from "./town-life.mjs?v=0.9aq-hall-doors";
+import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.9aq-hall-doors";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {installRailwayUI} from "./railway-ui.mjs?v=0.8y-station";
@@ -86,8 +86,8 @@ import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
 import {installMusicUI} from "./music-ui.mjs?v=0.9ap-fingertips";
-import {MusicCulture} from "./music-culture.mjs?v=0.9ap-music-hall";
-import {installMusicCultureUI} from "./music-culture-ui.mjs?v=0.9ap-music-hall";
+import {MusicCulture} from "./music-culture.mjs?v=0.9aq-hall-doors";
+import {installMusicCultureUI} from "./music-culture-ui.mjs?v=0.9aq-hall-doors";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -667,7 +667,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  musicUI?.syncWorldStage();
- if(renderer)renderer.musicCulture=musicCulture;
+ if(renderer){renderer.musicCulture=musicCulture;renderer.musicHallDoors=townLife?.hallDoors||{};}
  musicCultureUI?.tick(planet?.timeDays);
  if(voyage?.active){
   renderer.shipVoyage=voyage;
@@ -730,7 +730,13 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(onTrain&&!jailCellActive)railway.walk(running?dt:0,input);
   if(onFerry&&!jailCellActive)ferry.walk(running?dt:0,input);
   if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
-  if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
+  if(townLife.inside&&!jailCellActive){
+   townLife.walk(running?dt:0,input);
+   if(townLife.portalExitRequested){
+    const exit=townLife.portalExit(controller);
+    if(exit.ok){syncTownState();log(exit.message);}
+   }
+  }
   const ship=marine?.boarded;
   const onShip=!detained&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
@@ -809,6 +815,18 @@ function doFrame(t,source="window",xrFrameInput=null){
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
+  // Foot traversal across real door thresholds. Preserve the planetary origin.
+  if(!townLife.inside&&!detained&&!onTrain&&!onFerry&&!inConcourse&&!onShip&&
+     !marine?.cabinId&&activeSettlementId!=="pioneer"&&activeSettlementId!=="wilderness"&&
+     controller.nearGround&&controller.travelMode==="walk"){
+   const crossing=townLife.hallStep(activeSettlementId,previous,controller);
+   if(crossing.blocked){
+    controller.x=previous.x;controller.z=previous.z;
+    controller.lat=previous.lat;controller.lon=previous.lon;
+    controller.blocked=true;controller.moving=false;controller.clearMoveTarget();
+   }
+   if(crossing.entered){syncTownState();log(crossing.message);}
+  }
   // Lower a spacecraft onto the ground while the player descends with it.
   if(surfaceShip?.flight==="landing"&&controller.altitudeM<=300){
    if(surfaceShip.tick(dt)){
@@ -3729,7 +3747,8 @@ function syncTownState(){
  saveTownJournal();saveLifeJournal();updateHUD();
 }
 townUI=installTownInteractionUI({
- get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays}),
+ get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays,
+  musicCulture}),
  onChange:syncTownState,onNotice:log
 });
 $("town-interior-exit").addEventListener("click",()=>{
@@ -4086,8 +4105,16 @@ musicCultureUI=installMusicCultureUI({
   return result;
  },
  onSeatAction:action=>{
-  const result=action==="sit"?townLife.sitMusicSeat():townLife.standMusicSeat();
+  const allowed=musicCulture?.hasTicket(activeSettlementId,"theater",planet?.timeDays||0)??true;
+  const result=action==="sit"?townLife.sitMusicSeat({admitted:allowed}):townLife.standMusicSeat();
   if(result.ok){syncTownState();townUI?.refresh();}
+  return result;
+ },
+ onToggleDoor:venue=>{
+  const index=townLife.layout(activeSettlementId).buildings.findIndex(b=>b.type===venue.id);
+  if(index<0)return {ok:false,message:"この街に会場の扉がありません"};
+  const result=townLife.toggleHallDoor(activeSettlementId,"village-"+index,controller);
+  if(result.ok){townUI?.refresh();musicCultureUI?.refresh();}
   return result;
  },
  canJoin:()=>!law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver

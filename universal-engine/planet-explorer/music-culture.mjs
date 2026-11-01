@@ -22,14 +22,16 @@ export function musicVenue(townId,venueId){
  // Deterministic stage sites in road/square space, near existing buildings.
  const layout=settlementLayout(townId);
  const lodge=layout.buildings.find(b=>b.type==="lodge");
- const dedicated=layout.buildings.find(b=>b.type===venueId);
+ const dedicatedIndex=layout.buildings.findIndex(b=>b.type===venueId),
+  dedicated=layout.buildings[dedicatedIndex];
  const site=dedicated?{x:dedicated.x,z:dedicated.z}:
   venueId==="tavern"&&lodge?{x:lodge.x+9,z:lodge.z+2}:
   venueId==="theater"?{x:0,z:0}:{x:-10,z:-10};
  const count=layout.residents.length;
  const musician=layout.residents[(venueId==="tavern"?4:venueId==="theater"?7:2)%count];
  const audienceCount=bound(Math.floor(count*(venueId==="theater"?.42:.27)),2,venue.capacity);
- return {...venue,townId,site,musicianId:musician.id,musicianLabel:"街の演奏家 "+(1+Number(musician.id.split("-")[1])),
+ return {...venue,townId,site,buildingId:dedicatedIndex>=0?"village-"+dedicatedIndex:null,
+  musicianId:musician.id,musicianLabel:"街の演奏家 "+(1+Number(musician.id.split("-")[1])),
   audienceCount};
 }
 export function musicNow(venue,day){
@@ -101,6 +103,11 @@ export class MusicCulture{
   this.log(venue.musicianLabel+" と演奏・作曲について会話");
   const lines=["楽団にはリズムを支える人も必要ですよ","歌には街の歴史が残るものです","次の公演では、あなたの曲を聴いてみたいですね"];
   return {ok:true,message:"💬 "+venue.musicianLabel+"：「"+lines[d%lines.length]+"」 親交 "+relationship+"／評判+1"};
+ }
+ hasTicket(townId,venueId,day){
+  const venue=this.venue(townId,venueId),show=musicNow(venue,day);
+  return !show?.performing||venueId!=="theater"||
+   Boolean(this.showsAttended[show.showId]||this.showsPlayed[show.showId]);
  }
  balance(townId,venueId){return this.treasury[key(townId,venueId)]??120;}
  log(message){this.journal.push(String(message).slice(0,140));if(this.journal.length>30)this.journal.shift();}
