@@ -1,6 +1,7 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
 import {ShipFlightControl} from "./ship-flight-control.mjs?v=1-flight-attitude";
+import {ShipMissionActions} from "./ship-mission-actions.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -31,6 +32,7 @@ export class ShipJourney{
   this.throttle=clamp(data.throttle??.72,0,1);
   this.autopilot=data.autopilot!==false;
   this.flightControl=new ShipFlightControl(data.flightControl);
+  this.mission=new ShipMissionActions(data.mission);
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
   this.interior=ShipInterior.fromSnapshot({...data.interior,
@@ -115,10 +117,13 @@ export class ShipJourney{
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
  steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
  toggleLandingGear(){return this.flightControl.setGear(!this.flightControl.gearDeployed,this.status);}
+ fireWeapon(){return this.mission.fire(this);}
+ dropCargo(resources,item,quantity){return this.mission.drop(resources,item,quantity,this);}
  applyPilotStick(input){const result=this.flightControl.input(input);if(result.yawDelta)this.steer(result.yawDelta);return result;}
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  this.mission.tick(step);
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -151,7 +156,7 @@ export class ShipJourney{
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
-   fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,flightControl:this.flightControl.snapshot(),hatchOpen:this.hatchOpen,
+   fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,flightControl:this.flightControl.snapshot(),mission:this.mission.snapshot(),hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
  }
  static fromSnapshot(data){
