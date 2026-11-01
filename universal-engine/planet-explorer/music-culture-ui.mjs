@@ -2,7 +2,7 @@
  * Civic music UI. Works in 2D/VR browser layers without locking player input.
  * All money mutations are delegated to MusicCulture's atomic model methods.
  */
-import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9ao";
+import {MUSIC_VENUES,musicNow,cultureHour} from "./music-culture.mjs?v=0.9ao";
 import {MUSIC_BAND_ROLES,musicianCandidates,MUSIC_CONTRACT_DAYS} from "./music-band.mjs?v=0.9ao";
 const $=(id)=>document.getElementById(id);
 const hour=h=>String(h).padStart(2,"0")+":00";
@@ -98,7 +98,7 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   const culture=getCulture(),townId=getTownId(),days=getPlanet()?.timeDays??0;
   if(!culture)return;list.replaceChildren();
   el("[data-summary]").textContent="所持金 "+coins()+"G ／ 演奏技能 "+culture.skill+
-   " ／ 評判 "+culture.reputation+" ／ 惑星標準時 "+hour(Math.floor(((days%1)+1)%1*24));
+   " ／ 評判 "+culture.reputation+" ／ 惑星標準時 "+hour(Math.floor(cultureHour(days)+1e-8));
   if(!culture.venue(townId,"tavern")){
    const p=document.createElement("p");p.textContent="音楽文化施設は都市・村で利用できます。街を訪れてください。";list.append(p);
   }else{
