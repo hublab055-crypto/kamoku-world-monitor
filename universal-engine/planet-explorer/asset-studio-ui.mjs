@@ -64,6 +64,46 @@ export function installAssetStudio({getWorld,onCommit,log}){
  const say=message=>{status.value=message;status.textContent=message;log(message);};
  const persist=()=>{try{localStorage.setItem(DRAFT_KEY,JSON.stringify(studio.snapshot()));}catch(_){say("Asset下書きの保存に失敗しました");}};
  const persistUi=()=>{try{localStorage.setItem(UI_PREFS_KEY,JSON.stringify(uiPrefs));}catch(_){}};
+ const audioPanel=document.createElement("fieldset");
+ audioPanel.className="asset-music-controls";
+ audioPanel.innerHTML='<legend>🎼 演奏部品（楽器Asset）</legend>'+
+  '<label>部品種別<select id="asset-audio-kind"><option value="none">音なし（外装・装飾）</option><option value="key">鍵盤</option><option value="button">ボタン</option><option value="string">弦</option></select></label>'+
+  '<label>音色<select id="asset-audio-track"><option value="keys">🎹 キーボード</option><option value="guitar">🎸 ギター</option><option value="bass">🎼 ベース</option><option value="drums">🥁 ドラム</option></select></label>'+
+  '<label>MIDI音程 (28〜96)<input id="asset-audio-pitch" type="number" min="28" max="96" step="1" value="60" style="font-size:16px"></label>'+
+  '<div class="asset-group-row"><button id="asset-audio-add" type="button">＋ 演奏パーツを配置</button><button id="asset-audio-apply" type="button">選択パーツへ音を設定</button></div>'+
+  '<small>配置・移動・コピー・6軸回転・寸法・色は既存のAsset操作で自由に変更できます。音設定も保存されます。</small>';
+ $("asset-apply").insertAdjacentElement("afterend",audioPanel);
+ const audioField=id=>document.getElementById("asset-audio-"+id);
+ const chosenAudio=()=>{
+  const kind=audioField("kind").value,track=audioField("track").value,pitch=Number(audioField("pitch").value);
+  if(kind==="none")return null;
+  if(!["key","button","string"].includes(kind)||!["keys","guitar","bass","drums"].includes(track)||
+   !Number.isInteger(pitch)||pitch<28||pitch>96)throw Error("音程を28〜96の整数で指定してください");
+  return {kind,track,pitch};
+ };
+ audioField("apply").addEventListener("click",()=>{
+  try{
+   if(!studio.selection().length){say("先にパーツを選択してください");return;}
+   const audioControl=chosenAudio();
+   if(!studio.update({audioControl})){say("演奏設定の適用に失敗しました");return;}
+   studio.setMeta({assetType:"instrument"});$("asset-type").value="instrument";
+   persist();draw();say(audioControl?"🎵 音程 "+audioControl.pitch+" を選択パーツへ割当":"パーツの音設定を解除しました");
+  }catch(e){say(e.message);}
+ });
+ audioField("add").addEventListener("click",()=>{
+  try{
+   const audioControl=chosenAudio();if(!audioControl)throw Error("鍵盤・ボタン・弦を選んでください");
+   const partTemplate={shape:"cube",width:audioControl.kind==="string"?.1:audioControl.kind==="key"?.22:.30,
+    depth:audioControl.kind==="string"?1.0:.38,height:.1,
+    rx:0,ry:0,rz:0,color:audioControl.kind==="string"?[.78,.75,.52]:[.91,.89,.83],
+    name:audioControl.kind+" "+audioControl.pitch,group:"music",audioControl};
+   const made=studio.add(partTemplate,cursor.x,cursor.y,{snapMode:"none"});
+   if(!made)throw Error("演奏パーツを追加できません。最大96パーツです");
+   studio.setMeta({assetType:"instrument"});$("asset-type").value="instrument";
+   loadFields(made);persist();draw();
+   setMode("move");say("🎼 演奏パーツを追加。XYZダイヤルや数値入力で自由に位置変更できます");
+  }catch(e){say(e.message);}
+ });
  const selected=()=>studio.selected;
  function resize(){const box=canvas.getBoundingClientRect();pixelRatio=Math.min(2,window.devicePixelRatio||1);const w=Math.max(300,Math.round(box.width*pixelRatio)),h=Math.max(260,Math.round(box.height*pixelRatio));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}draw();}
  const canvasPoint=e=>{const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*pixelRatio,y:(e.clientY-r.top)*pixelRatio};};
@@ -100,7 +140,10 @@ export function installAssetStudio({getWorld,onCommit,log}){
   if(p){$("asset-rx").value=cleanNumber(deg(p.rx));$("asset-ry").value=cleanNumber(deg(p.ry));$("asset-rz").value=cleanNumber(deg(p.rz));}
   syncCommon();
  }
- function loadFields(part){if(!part)return;$("asset-shape").value=part.shape;$("asset-width").value=cleanNumber(part.width);$("asset-height").value=cleanNumber(part.height);$("asset-depth").value=cleanNumber(part.depth);
+ function loadFields(part){if(!part)return;
+  audioField("kind").value=part.audioControl?.kind||"none";
+  audioField("track").value=part.audioControl?.track||"keys";
+  audioField("pitch").value=String(part.audioControl?.pitch??60);$("asset-shape").value=part.shape;$("asset-width").value=cleanNumber(part.width);$("asset-height").value=cleanNumber(part.height);$("asset-depth").value=cleanNumber(part.depth);
   $("asset-rx").value=cleanNumber(deg(part.rx));$("asset-ry").value=cleanNumber(deg(part.ry));$("asset-rz").value=cleanNumber(deg(part.rz));$("asset-color").value=rgbToHex(part.color);$("asset-group").value=part.group||"";syncValues();}
  function setMode(next){mode=next;document.querySelectorAll("[data-asset-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.assetMode===mode)));canvas.style.cursor=mode==="view"?($("asset-camera-tool").value==="pan"?"move":"grab"):"crosshair";
   say(mode==="place"?"配置：表示中の床面をタップ。Zダイヤルで床レベルを変更":mode==="select"?"選択：パーツをタップ。カメラは選択中心を注視":mode==="move"?"移動：移動先の床面をタップまたはXYZダイヤルを回す":"視点：ドラッグで"+($("asset-camera-tool").value==="pan"?"パン":"回転")+"、ホイール／ピンチでズーム");draw();}
