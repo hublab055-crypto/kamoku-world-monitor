@@ -6,7 +6,7 @@ import {MUSIC_STEPS,MUSIC_TRACKS,GUITAR_OPEN_NOTES,newScore,normalizeScore,
  addNote,toggleStep,noteName,renderScoreWav} from "./music-core.mjs";
 import {readMediaFile} from "./media-storage.mjs";
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
-import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs?v=0.9am-music-craft";
+import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs?v=0.9ap-fingertips";
 import {MUSIC_RECIPES,normalizeMusicInventory,craftMusicInstrument,takeMusicInstrument,
  returnMusicInstrument,extractAssetMusicControls,extractAssetMusicParts,recipeById,presetMusicControls} from "./music-crafting.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
