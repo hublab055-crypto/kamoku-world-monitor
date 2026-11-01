@@ -8,7 +8,7 @@ import {readMediaFile} from "./media-storage.mjs";
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
 import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs";
 import {MUSIC_RECIPES,normalizeMusicInventory,craftMusicInstrument,takeMusicInstrument,
- returnMusicInstrument,extractAssetMusicControls,recipeById} from "./music-crafting.mjs";
+ returnMusicInstrument,extractAssetMusicControls,recipeById,presetMusicControls} from "./music-crafting.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
 const WORLD_KEY="universal-engine:music:instruments:v1";
 const INVENTORY_KEY="universal-engine:music:crafted:v1";
@@ -193,7 +193,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
    const point=geoOffset(c.lat,c.lon,Math.sin(yaw)*2.5,Math.cos(yaw)*2.5,planet.radiusM);
    const heightM=Math.max(0,terrainSurface(terrain,point.lat,point.lon).elevationM);
    const recipe=selectedRecipe(),item=recipe.item;
-   let controls=[];
+   let controls=presetMusicControls(item);
    if(item==="music-custom"){
     const assetName=el("[data-asset]").value;
     const prefab=getOwnerWorld()?.prefabs?.find(p=>p.name===assetName);
