@@ -732,7 +732,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   // Turn the avatar smoothly but move immediately along the requested vector.
   if(mobileUI?.active&&stickPointer!==null&&controlMode==="stick"&&
      !detained&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&
-     !onShip&&!marine?.cabinId&&renderer.cameraController.mode!=="free"){
+     !onShip&&!marine?.cabinId&&!marine?.boarded&&renderer.cameraController.mode!=="free"){
     const facing=resolveMobileFacing(stick,controller.yaw,stickHeadingYaw??controller.yaw,dt);
     if(facing.active){
       const raw=joystickMovement(stick);
@@ -747,6 +747,14 @@ function doFrame(t,source="window",xrFrameInput=null){
        cam.config.yawOffset=Math.atan2(Math.sin(offset),Math.cos(offset));
       }
     }
+  }
+  // Boat and ship helm: left/right controls rudder; up/down controls propulsion.
+  // Shipboard passengers walking on deck retain ordinary on-foot movement.
+  if(mobileUI?.active&&stickPointer!==null&&marine?.boarded&&controlMode==="stick"&&
+     (!onShip||marine.shipboard.helmId==="player")&&!marine.cabinId){
+    input.turn=stick.x;
+    input.forward=-stick.y;
+    input.strafe=0;
   }
   const helming=onShip&&marine.shipboard.canHelm();
   // When walking on deck, input belongs to the pedestrian, not the hull.
@@ -1281,7 +1289,8 @@ function updateHUD(){
   "選択: "+squad.selectedAgents().map(a=>a.name).join("・");
  $("viewport-rts").setAttribute("aria-pressed",String(rtsMode));
  frontierUI?.quick();
- mobileUI?.sync({surface:isSurface&&!voyage?.active,rts:rtsMode,vr:Boolean(xrUI?.active)});
+ mobileUI?.sync({surface:isSurface&&!voyage?.active,rts:rtsMode,vr:Boolean(xrUI?.active),
+   vehicle:marine?.boarded?"boat":fauna?.mount?"ride":railway?.boarded||ferry?.boarded?"passenger":null});
  $("viewport-rts").textContent=rtsMode?"⚓ RTS終了":"⚓ RTS視点";
  $("rts-multi").setAttribute("aria-pressed",String(rtsMulti));
   $("rts-sync").setAttribute("aria-pressed",String(syncMode));
@@ -3727,12 +3736,43 @@ mobileUI=installMobileFourActions({
    case "menu":click("viewport-quick-toggle");break;
    case "equipment":click("quick-config");break;
    case "leftHand":frontierUI?.useHand("left");break;
+   case "vehicleExit":{
+    if(fauna?.mount){
+      const result=fauna.dismount(controller,(x,z)=>faunaGroundPassable(controller.x,controller.z,x,z));
+      log(result.message);if(result.ok){saveFaunaJournal();renderer.patchKey=null;}updateHUD();
+    }else if(marine?.boarded)click("marine-leave");
+    else if(railway?.boarded)click("railway-hud-alight");
+    else if(ferry?.boarded)click("harbor-alight");
+    else log("降車・下船できる乗り物に乗っていません");
+    break;
+   }
+   case "vehiclePanel":
+    if(marine?.boarded)click("marine-toggle");
+    else if(fauna?.mount)click("fauna-toggle");
+    else if(railway?.boarded)click("viewport-railway");
+    else if(ferry?.boarded)click("viewport-harbor");
+    break;
+   case "gait":{
+    if(!fauna?.mount){log("騎乗中のみ歩法を変更できます");break;}
+    const gait=["walk","trot","gallop"],next=gait[(gait.indexOf(fauna.gait)+1)%gait.length];
+    fauna.setGait(next);saveFaunaJournal();log("🐎 歩法："+({walk:"常歩",trot:"速歩",gallop:"駈歩"}[next]));updateHUD();break;
+   }
+   case "cruise":click("marine-cruise");break;
+   case "anchor":click("marine-anchor");break;
+   case "sailsUp":case "sailsDown":{
+    if(marine?.boarded?.kind!=="sailing_ship"){log("帆船に乗ってから操作してください");break;}
+    const next=Math.max(0,Math.min(1,marine.boarded.sailTrim+(action==="sailsUp"?.15:-.15)));
+    const result=marine.setSails(next);log(result.message);
+    if(result.ok){controller.boatSpeed=marine.sailingSpeed();saveMarineJournal();}
+    updateHUD();break;
+   }
    case "settings":click("viewport-mobile-actions");break;
    case "logs":click("viewport-console-toggle");break;
   }
  }
 });
-mobileUI?.sync({surface:controller.nearGround,rts:rtsMode,vr:Boolean(xrUI?.active)});
+mobileUI?.sync({surface:controller.nearGround,rts:rtsMode,vr:Boolean(xrUI?.active),
+ vehicle:marine?.boarded?"boat":fauna?.mount?"ride":railway?.boarded||ferry?.boarded?"passenger":null});
 worldUI=installWorldFeedbackUI({
  getRenderer:()=>renderer,getController:()=>controller,
  onCommand:(name,arg)=>{
