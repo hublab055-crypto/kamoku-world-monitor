@@ -81,11 +81,11 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9am-music-craft";
+import {installXRUI} from "./xr-ui.mjs?v=0.9ap-fingertips";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
-import {installMusicUI} from "./music-ui.mjs?v=0.9an-culture";
+import {installMusicUI} from "./music-ui.mjs?v=0.9ap-fingertips";
 import {MusicCulture} from "./music-culture.mjs?v=0.9ap-music-hall";
 import {installMusicCultureUI} from "./music-culture-ui.mjs?v=0.9ap-music-hall";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
