@@ -90,7 +90,7 @@ test("manual exit returns outside the actual building without altering origin",(
 });
 test("walls and workbenches block walking, center aisle remains traversable",()=>{
  assert.equal(sharedWalkStep("workshop",{x:0,z:-1.5},0,-1.7).blocked,false);
- assert.equal(sharedWalkStep("workshop",{x:-1,z:-1.5},-1.7,-1.5).blocked,true);
+ assert.equal(sharedWalkStep("workshop",{x:0,z:-1.5},-1.7,-1.5).blocked,true);
  assert.equal(sharedWalkStep("cabin",{x:0,z:0},5,0).blocked,true);
  assert.equal(sharedWalkStep("lodge",{x:0,z:2},0,1.75).blocked,false);
 });
