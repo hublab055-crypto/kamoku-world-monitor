@@ -2,7 +2,7 @@
  * Planet-time civic music venues. Pure model: no audio, DOM, WebGL or global
  * timers. A single authoritative transaction debits shared town-life coins.
  */
-import {destinationById,settlementLayout} from "./settlements.mjs?v=0.8r-towns";
+import {destinationById,settlementLayout} from "./settlements.mjs?v=0.9ap-music-hall";
 import {restoreBandContracts,currentBand,hireBandContract,releaseBandContract} from "./music-band.mjs?v=0.9ao";
 export const MUSIC_CULTURE_FORMAT="ue/music-culture";
 export const MUSIC_VENUES=Object.freeze([
@@ -22,7 +22,9 @@ export function musicVenue(townId,venueId){
  // Deterministic stage sites in road/square space, near existing buildings.
  const layout=settlementLayout(townId);
  const lodge=layout.buildings.find(b=>b.type==="lodge");
- const site=venueId==="tavern"&&lodge?{x:lodge.x+9,z:lodge.z+2}:
+ const dedicated=layout.buildings.find(b=>b.type===venueId);
+ const site=dedicated?{x:dedicated.x,z:dedicated.z}:
+  venueId==="tavern"&&lodge?{x:lodge.x+9,z:lodge.z+2}:
   venueId==="theater"?{x:0,z:0}:{x:-10,z:-10};
  const count=layout.residents.length;
  const musician=layout.residents[(venueId==="tavern"?4:venueId==="theater"?7:2)%count];

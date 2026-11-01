@@ -340,6 +340,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(!head)try{head=frame.getViewerPose(space)?.transform.matrix||null;}catch(_){}
   const last=vrPhysical.pose||{};
   const trackedLeft=matrix(left,"grip"),trackedRight=matrix(right,"grip");
+  const fingertip=source=>{
+   const joint=source?.hand?.get?.("index-finger-tip");
+   if(!joint||!frame.getJointPose)return null;
+   try{return frame.getJointPose(joint,space)?.transform.matrix||null;}
+   catch(_){return null;}
+  };
+  const leftTip=fingertip(left),rightTip=fingertip(right);
   const gear={head:head||last.head,left:trackedLeft||last.left,
    right:trackedRight||last.right,
    leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
@@ -356,8 +363,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(vrRTS)return;
   // Only freshly tracked hand poses can contact virtual keys/strings.
   // Contacting a musical instrument suppresses the matching sword gesture.
-  const musicLeft=onVRMusic({phase:"touch",hand:"left",handMatrix:trackedLeft,stageMatrix:vrCurrentStage});
-  const musicRight=onVRMusic({phase:"touch",hand:"right",handMatrix:trackedRight,stageMatrix:vrCurrentStage});
+  const musicLeft=onVRMusic({phase:"touch",hand:"left",handMatrix:trackedLeft,
+   fingerTipMatrix:leftTip,stageMatrix:vrCurrentStage});
+  const musicRight=onVRMusic({phase:"touch",hand:"right",handMatrix:trackedRight,
+   fingerTipMatrix:rightTip,stageMatrix:vrCurrentStage});
   const playingInstrument=Boolean(musicLeft?.handled||musicRight?.handled);
   const carried=vrPhysical.heldDrop;
   if(carried){

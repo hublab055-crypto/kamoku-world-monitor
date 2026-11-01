@@ -4,11 +4,15 @@
  */
 import {MUSIC_VENUES,musicNow,cultureHour} from "./music-culture.mjs?v=0.9ao";
 import {MUSIC_BAND_ROLES,musicianCandidates,MUSIC_CONTRACT_DAYS} from "./music-band.mjs?v=0.9ao";
+import {hallRoom} from "./music-hall.mjs?v=0.9ap";
 const $=(id)=>document.getElementById(id);
 const hour=h=>String(h).padStart(2,"0")+":00";
 export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor,
  getPlanet,onPlayNPC=()=>{},onPerform=()=>{},hasInstrument=()=>false,
- onChange=()=>{},notify=()=>{},canJoin=()=>true}={}){
+ onChange=()=>{},notify=()=>{},canJoin=()=>true,
+ onEnterVenue=()=>({ok:false,message:"入場できません"}),
+ onExitVenue=()=>({ok:false,message:"退出できません"}),
+ onSeatAction=()=>({ok:false,message:"客席を操作できません"})}={}){
  const toolbar=$("toolbar"),quick=$("viewport-quick-menu");
  const openBtn=document.createElement("button");openBtn.textContent="🎭 音楽文化";
  openBtn.type="button";openBtn.id="toolbar-music-culture";toolbar?.append(openBtn);
@@ -35,7 +39,8 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   if(townLife?.inside){
    const indoor=townLife.inside;
    const building=townLife.find?.(indoor.townId,indoor.buildingId,"village");
-   return venue.id==="tavern"&&indoor.townId===venue.townId&&building?.type==="lodge";
+   return indoor.townId===venue.townId&&
+    (venue.id==="tavern"&&building?.type==="lodge"||venue.id===building?.type);
   }
   if(!actor||actor.altitudeM>12.01||actor.travelMode!=="walk")return false;
   return Math.hypot(actor.x-venue.site.x,actor.z-venue.site.z)<=11;
@@ -46,6 +51,13 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
   if(!culture||!canJoin())return say("現在は音楽活動に参加できません");
   const near=nearby(venue),wallet=getTownLife();
   let result;
+  if(kind==="enter"||kind==="exit"||kind==="sit"||kind==="stand"){
+   const operation=kind==="enter"?onEnterVenue(venue):kind==="exit"?onExitVenue(venue):
+    onSeatAction(kind);
+   say(operation?.message||"会場の操作を実行できません");
+   if(operation?.ok)refresh();
+   return;
+  }
   if(kind==="attend")result=culture.attend(townId,venue.id,day,wallet,{near});
   else if(kind==="talk")result=culture.talkArtist(townId,venue.id,day,wallet,{near});
   else if(kind==="perform")result=culture.perform(townId,venue.id,day,wallet,
@@ -127,6 +139,15 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
     const row=document.createElement("div");row.className="ue-music-row";
     row.append(makeButton("▶ NPC演奏を聴く",()=>action(venue,"npc")));
     row.append(makeButton("💬 演奏家と話す",()=>action(venue,"talk")));
+    if(hallRoom(venue.id)){
+     const inside=getTownLife()?.inside,room=inside?.townId===townId?
+      getTownLife().find(townId,inside.buildingId,"village"):null;
+     if(room?.type===venue.id){
+      row.append(makeButton("🚪 会場を出る",()=>action(venue,"exit")));
+      row.append(makeButton(inside.seat?"🧍 立ち上がる":"💺 客席へ座る",
+       ()=>action(venue,inside.seat?"stand":"sit")));
+     }else if(!inside)row.append(makeButton("🚪 建物に入る",()=>action(venue,"enter")));
+    }
     if(venue.id==="school")row.append(makeButton("🎓 授業を受ける (12G)",()=>action(venue,"lesson")));
     else{
      row.append(makeButton("🎟 鑑賞 ("+venue.ticket+"G)",()=>action(venue,"attend")));

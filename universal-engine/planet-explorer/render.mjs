@@ -38,8 +38,8 @@ import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splas
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
-import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8x-rail-safety";
-import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
+import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.9ap-music-hall";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.9ap-music-hall";
 import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
 import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
@@ -53,6 +53,8 @@ import {musicStageGeometry} from "./music-world.mjs?v=0.9am-music-craft";
 import {MUSIC_VENUES,musicNow} from "./music-culture.mjs?v=0.9ao";
 import {bandAppearance} from "./music-band.mjs?v=0.9ao";
 import {bandFigureGeometry,MUSIC_BAND_RENDER_ROLES,MUSIC_POSE_FRAMES} from "./music-band-geometry.mjs?v=0.9ao";
+import {musicHallInteriorGeometry} from "./music-hall-geometry.mjs?v=0.9ap";
+import {hallRoom,hallOccupancy} from "./music-hall.mjs?v=0.9ap";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {bodyById} from "./solar-system.mjs?v=1";
@@ -1538,6 +1540,14 @@ export class ExplorerRenderer{
     const surface=terrainSurface(this.terrain,geo.lat,geo.lon);
     if(surface.water||surface.river)continue;
     const y=Math.max(0,surface.elevationM);
+    if(hallRoom(venue.id)){
+     // Dedicated enclosed venue: draw its exterior through town scenery,
+     // rather than drawing an outdoor podium *through* the hall walls.
+     const p=projectScreen(vp,[x,y+5,z]);
+     if(p?.onScreen)this.screenMusicVenues.push({...p,id:def.id,name:venue.name,
+      performing:musicNow(venue,this.planet.timeDays)?.performing});
+     continue;
+    }
     const model=translate(x,y+.05,z);
     this.drawMesh(this.musicPodiumMesh,multiply4(vp,model),light,1,.85);
     const instrument=multiply4(model,translate(-.4,.27,0));
@@ -1546,7 +1556,7 @@ export class ExplorerRenderer{
     if(now?.performing){
      // A persistent resident model stands at the stage. Other NPC systems,
      // schedules, custody and navigation remain unchanged.
-     const frame=Math.floor(this.marineClock*3.5)%MUSIC_POSE_FRAMES;
+     const frame=Math.floor(performance.now()/1000*3.5)%MUSIC_POSE_FRAMES;
      const members=bandAppearance(venue,culture.bandContracts,this.planet.timeDays);
      for(let i=0;i<members.length;i++){
       const member=members[i],role=member.role;
@@ -2060,14 +2070,43 @@ export class ExplorerRenderer{
  renderTownInterior(asp){
   const gl=this.gl,kind=this.townInterior.type||"cabin";
   if(!this.townRoomMeshes.has(kind))
-   this.townRoomMeshes.set(kind,new Mesh(gl,townInteriorGeometry(kind)));
+   this.townRoomMeshes.set(kind,new Mesh(gl,
+    hallRoom(kind)?musicHallInteriorGeometry(kind):townInteriorGeometry(kind)));
   gl.clearColor(.08,.13,.15,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   const vp=this.xrInteriorVP(this.townInterior.pose||{x:0,z:2.4})||
    multiply4(perspective(55*DEG,asp,.1,90),
-    lookAt([8,6.6,10],[0,1.0,-.2]));
+    hallRoom(kind)?lookAt([13,10,17],[0,1.5,-1.2]):
+     lookAt([8,6.6,10],[0,1.0,-.2]));
   this.pickVP=null;
   this.drawMesh(this.townRoomMeshes.get(kind),vp,[.5,.9,.45],1,.86);
+  if(hallRoom(kind)&&this.musicCulture){
+   const venue=this.musicCulture.venue(this.settlementId,kind);
+   if(venue){
+    const state=musicNow(venue,this.planet.timeDays),
+      stageOn=kind==="school"?state?.open:state?.performing;
+    const light=[.70,.87,.57],stageZ=hallRoom(kind).stageZ;
+    const instrument=multiply4(translate(-.5,kind==="theater"?.67:0,stageZ+.2),scale3(.84,.84,.84));
+    this.drawMesh(this.musicVenueMesh,multiply4(vp,instrument),light,1,.80);
+    if(stageOn){
+     const frame=Math.floor(performance.now()/1000*3.5)%MUSIC_POSE_FRAMES;
+     const band=bandAppearance(venue,this.musicCulture.bandContracts,this.planet.timeDays);
+     if(kind==="school")band.length=1; // Class teacher, not the hired concert band.
+     for(let i=0;i<band.length;i++){
+      const player=band[i],pose=multiply4(translate(player.x,kind==="theater"?.67:0,
+       stageZ+player.z),rotateY(Math.PI));
+      this.drawMesh(this.musicBandMeshes[player.role][(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,pose),light,1,.90);
+     }
+     for(const [i,seat]of hallOccupancy(kind,venue.audienceCount).entries()){
+      if(seat.id===this.townInterior.seat)continue;
+      const seated=multiply4(translate(seat.x,0,seat.z),scale3(.90,.79,.90));
+      this.drawMesh(this.musicBandMeshes.audience[(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,seated),light,1,.74);
+     }
+    }
+   }
+  }
   // Inn music room: reuse the existing walkable lodge interior geometry.
   // No teleport or second copy of the room; the town indoor pose stays authoritative.
   if(kind==="lodge"&&this.musicCulture){
@@ -2079,7 +2118,7 @@ export class ExplorerRenderer{
      multiply4(stage,translate(-.25,.27,0))),light,1,.8);
     const show=musicNow(venue,this.planet?.timeDays||0);
     if(show?.performing){
-     const frame=Math.floor(this.marineClock*3.5)%MUSIC_POSE_FRAMES;
+     const frame=Math.floor(performance.now()/1000*3.5)%MUSIC_POSE_FRAMES;
      const band=bandAppearance(venue,this.musicCulture.bandContracts,this.planet.timeDays);
      for(let i=0;i<band.length;i++){
       const member=band[i];

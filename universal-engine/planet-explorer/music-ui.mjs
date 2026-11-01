@@ -6,7 +6,7 @@ import {MUSIC_STEPS,MUSIC_TRACKS,GUITAR_OPEN_NOTES,newScore,normalizeScore,
  addNote,toggleStep,noteName,renderScoreWav} from "./music-core.mjs";
 import {readMediaFile} from "./media-storage.mjs";
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs";
-import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs?v=0.9am-music-craft";
+import {newMusicStage,normalizeMusicStage,musicStageRayHit,musicStageHandHit} from "./music-world.mjs?v=0.9ap-fingertips";
 import {MUSIC_RECIPES,normalizeMusicInventory,craftMusicInstrument,takeMusicInstrument,
  returnMusicInstrument,extractAssetMusicControls,extractAssetMusicParts,recipeById,presetMusicControls} from "./music-crafting.mjs";
 const SAVE_KEY="universal-engine:music:scores:v1";
@@ -466,7 +466,7 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   if(Object.values(inventory.items).some(n=>n>0))return true;
   return Object.values(stages).some(s=>s?.owned===true);
  }
- function handleXR({phase,rayMatrix,handMatrix,stageMatrix,hand="right"}={}){
+ function handleXR({phase,rayMatrix,handMatrix,fingerTipMatrix,stageMatrix,hand="right"}={}){
   if(phase==="reset"){
    for(const h of ["left","right"]){
     finishNote("xr-music-"+h);finishNote("xr-touch-"+h);touching.delete(h);
@@ -490,7 +490,9 @@ export function installMusicUI({getMediaUI,getRenderer=()=>null,getController=()
   const offset=[delta.eastM,placement.heightM-here,delta.northM];
   if(phase==="touch"){
    const contact=Math.hypot(offset[0],offset[2])<=4?
-    musicStageHandHit(handMatrix,stageMatrix,offset,placement.yaw,{controls:placement.controls}):null;
+    musicStageHandHit(fingerTipMatrix||handMatrix,stageMatrix,offset,placement.yaw,
+     {controls:placement.controls,tipOffset:fingerTipMatrix?0:.06,
+      tolerance:fingerTipMatrix?.065:.12}):null;
    const old=touching.get(hand),contactKey="xr-touch-"+hand;
    if(!contact||old?.track!==contact.track||old?.pitch!==contact.pitch){
     finishNote(contactKey);touching.delete(hand);
