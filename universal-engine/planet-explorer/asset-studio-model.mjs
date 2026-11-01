@@ -13,7 +13,7 @@ const vector=(value,fallback={x:0,y:0,z:0})=>({
 
 export const ASSET_DOCUMENT_FORMAT="ue/asset-document";
 export const ASSET_DOCUMENT_VERSION=2;
-export const ASSET_TYPES=Object.freeze(["building","machine","vehicle","equipment","plant","creature","avatar"]);
+export const ASSET_TYPES=Object.freeze(["building","machine","vehicle","equipment","plant","creature","avatar","instrument"]);
 export const ASSET_SNAP_MODES=Object.freeze(["none","endpoint","face","center","centroid","auto"]);
 export const ASSET_ANCHORS=Object.freeze(["center","top-left","top","top-right","right","bottom-right","bottom","bottom-left","left"]);
 
@@ -28,11 +28,15 @@ function normalizePart(part,id){
   parentId:Number.isSafeInteger(part?.parentId)?part.parentId:null,shape:part?.shape,
   x:Number(part?.x),y:Number(part?.y),z:Number(part?.z),width:Number(part?.width),height:Number(part?.height),depth:Number(part?.depth),
   rx:r.rx,ry:r.ry,rz:r.rz,rotation:r.rz,pivot,color:Array.isArray(part?.color)?[...part.color]:part?.color,
-  group:safeText(part?.group),sockets};
+  group:safeText(part?.group),sockets,audioControl:part?.audioControl?clone(part.audioControl):null};
 }
 
 const validSocket=socket=>socket&&typeof socket.name==="string"&&socket.name.length<=40&&
  [socket.position?.x,socket.position?.y,socket.position?.z].every(finite);
+const validAudioControl=control=>control===null||control&&
+ ["key","button","string"].includes(control.kind)&&
+ ["keys","guitar","bass","drums"].includes(control.track)&&
+ Number.isInteger(control.pitch)&&control.pitch>=28&&control.pitch<=96;
 const validPart=part=>part&&Number.isSafeInteger(part.id)&&part.id>0&&OWNER_PRIMITIVES.includes(part.shape)&&
  [part.x,part.y,part.z,part.width,part.height,part.depth,part.rx,part.ry,part.rz,part.rotation,
   part.pivot?.x,part.pivot?.y,part.pivot?.z].every(finite)&&
@@ -42,7 +46,7 @@ const validPart=part=>part&&Number.isSafeInteger(part.id)&&part.id>0&&OWNER_PRIM
  (part.parentId===null||Number.isSafeInteger(part.parentId))&&
  typeof part.name==="string"&&part.name.length<=40&&typeof part.group==="string"&&part.group.length<=40&&
  Array.isArray(part.color)&&part.color.length===3&&part.color.every(value=>finite(value)&&value>=0&&value<=1)&&
- Array.isArray(part.sockets)&&part.sockets.length<=32&&part.sockets.every(validSocket);
+ Array.isArray(part.sockets)&&part.sockets.length<=32&&part.sockets.every(validSocket)&&validAudioControl(part.audioControl);
 
 function nodeToPart(node,index){
  if(node?.type!=="primitive")return null;
@@ -50,14 +54,14 @@ function nodeToPart(node,index){
  return normalizePart({id:node.id,name:node.name,parentId:node.parentId,shape:node.geometry?.shape,
   x:position.x,y:position.y,z:position.z,width:size.x,height:size.z,depth:size.y,
   rx:rotation.x,ry:rotation.y,rz:rotation.z,pivot:node.transform?.pivot,
-  color:node.material?.baseColor,group:node.group,sockets:node.sockets},index+1);
+  color:node.material?.baseColor,group:node.group,sockets:node.sockets,audioControl:node.audioControl},index+1);
 }
 
 function partToNode(part){
  return {id:part.id,type:"primitive",name:part.name||"Part "+part.id,parentId:part.parentId??null,group:part.group||"",
   transform:{position:{x:part.x,y:part.y,z:part.z},rotation:{x:part.rx,y:part.ry,z:part.rz},pivot:{...part.pivot}},
   geometry:{shape:part.shape,size:{x:part.width,y:part.depth,z:part.height}},
-  material:{baseColor:[...part.color]},sockets:clone(part.sockets||[])};
+  material:{baseColor:[...part.color]},sockets:clone(part.sockets||[]),...(part.audioControl?{audioControl:clone(part.audioControl)}:{})};
 }
 
 function validateHierarchy(parts){
@@ -138,7 +142,7 @@ export class AssetStudioModel{
   const id=this.nextId,r=rotations(template),draft=normalizePart({id,name:template.name||"Part "+id,parentId:null,
    shape:template.shape,x:Number(x),y:Number(y),z:this.planeZ,width:Number(template.width),height:Number(template.height),
    depth:Number(template.depth),rx:r.rx,ry:r.ry,rz:r.rz,pivot:template.pivot||{x:0,y:0,z:0},
-   color:[...template.color],group:template.group,sockets:[]},id);
+   color:[...template.color],group:template.group,sockets:[],audioControl:template.audioControl??null},id);
   if(!validPart(draft)||this.parts.length>=96)return null;
   const source=partAnchor(draft,sourceAnchor),target=this.nearestSnap(source.x,source.y,snapMode,snapDistance);
   if(target){draft.x+=target.x-source.x;draft.y+=target.y-source.y;}
