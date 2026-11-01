@@ -74,7 +74,8 @@ export function installUiVisibility({doc=document,store=globalThis.localStorage}
  let lastOpener=access;
 
  function add(key,label,element,group){
-  if(!element||registered.has(key)||element===panel||element===access)return;
+  if(!element||element===panel||element===access)return;
+  if(registered.get(key)?.element===element)return;
   registered.set(key,{key,label,element,group});
  }
  function collect(){
@@ -147,7 +148,7 @@ export function installUiVisibility({doc=document,store=globalThis.localStorage}
  }
  function close(){
   panel.hidden=true;access.setAttribute("aria-expanded","false");
-  if(lastOpener?.isConnected&&!lastOpener.closest("[data-ui-user-hidden='true']"))
+  if(lastOpener?.isConnected&&!lastOpener.closest("[hidden],[data-ui-user-hidden='true']"))
    lastOpener.focus();
   else access.focus();
  }
