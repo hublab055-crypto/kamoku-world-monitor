@@ -2,6 +2,7 @@
  * Destination browsing is separate from short-range waypoint navigation.
  */
 import {findLand,geoOffset,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
+import {MUSIC_HALL_SITES} from "./music-hall.mjs?v=0.9ap";
 
 export const DESTINATIONS=Object.freeze([
  {id:"pioneer",name:"開拓者の集落",region:"はじまりの谷",icon:"⛺",kind:"hamlet",lat:28,lon:42,
@@ -78,6 +79,9 @@ export function settlementLayout(id){
    site("market",-32,-27),site("watchtower",radius-9,0));
  }
  if(id==="tower")buildings.push(site("market",-27,106),site("lodge",34,112));
+ // Add public music venues in the pre-existing open central north/south lanes.
+ // Appending preserves every old village-N building identifier in save games.
+ buildings.push(...MUSIC_HALL_SITES.map(h=>site(h.type,h.x,h.z,h.angle)));
  // Townsfolk congregate by the market, walkways and around homes.
  const count=isCity?34:isTown?24:13;
  for(let i=0;i<count;i++){
