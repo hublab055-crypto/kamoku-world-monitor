@@ -14,7 +14,7 @@ test("Asset Studio saves playable keys and retains settings after reload",()=>{
  assert.equal(document.nodes[0].audioControl.pitch,60);
  const restored=new AssetStudioModel(document);
  assert.deepEqual(extractAssetMusicControls(restored.snapshot()),[{
-  kind:"key",track:"keys",pitch:60,x:.4,y:0,z:.2,width:.3,height:.1,depth:.5
+  kind:"key",track:"keys",pitch:60,x:.4,y:0,z:.2,width:.3,height:.1,depth:.5,yaw:0
  }]);
  restored.select(p.id);
  assert.equal(restored.update({audioControl:{kind:"button",track:"drums",pitch:38}}),true);
