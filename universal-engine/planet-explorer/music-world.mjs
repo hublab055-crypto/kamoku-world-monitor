@@ -213,12 +213,12 @@ export function musicStageRayHit(rayMatrix,xrStageMatrix,localOffset,yaw,{maxRea
  * A small forward offset approximates the index-finger/contact point.
  * Tracking gaps return null instead of replaying stale hand coordinates.
  */
-export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tolerance=.12,controls=[]}={}){
+export function musicStageHandHit(handMatrix,xrStageMatrix,localOffset,yaw,{tolerance=.12,controls=[],tipOffset=.06}={}){
  if(!handMatrix||!xrStageMatrix||!localOffset)return null;
  const physical=[
-  handMatrix[12]-handMatrix[8]*.06-xrStageMatrix[12],
-  handMatrix[13]-handMatrix[9]*.06-xrStageMatrix[13],
-  handMatrix[14]-handMatrix[10]*.06-xrStageMatrix[14]
+  handMatrix[12]-handMatrix[8]*tipOffset-xrStageMatrix[12],
+  handMatrix[13]-handMatrix[9]*tipOffset-xrStageMatrix[13],
+  handMatrix[14]-handMatrix[10]*tipOffset-xrStageMatrix[14]
  ];
  const projected=[
   physical[0]*xrStageMatrix[0]+physical[1]*xrStageMatrix[1]+physical[2]*xrStageMatrix[2]-localOffset[0],
