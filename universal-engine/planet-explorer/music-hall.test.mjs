@@ -34,7 +34,8 @@ test("theater and school layouts create ordered seating and open central aisles"
 test("town interior theater supports walking, sitting, standing and leaving",()=>{
  const town=new TownLife(),layout=town.layout("capital");
  const i=layout.buildings.findIndex(b=>b.type==="theater"),site=layout.buildings[i];
- const controller={x:site.x,z:site.z,nearGround:true,travelMode:"walk",clearMoveTarget(){}};
+ const controller={x:site.x,z:site.z+9.55,nearGround:true,travelMode:"walk",clearMoveTarget(){}};
+ assert.equal(town.toggleHallDoor("capital","village-"+i,controller).ok,true);
  assert.equal(town.enter("capital","village-"+i,controller).ok,true);
  assert.equal(town.inside.pose.z,hallRoom("theater").entranceZ);
  for(let n=0;n<16;n++)town.walk(.1,{forward:-1,strafe:1});
@@ -54,7 +55,8 @@ test("town interior theater supports walking, sitting, standing and leaving",()=
 test("music classroom has a larger room and seat interactions, existing cabins remain unchanged",()=>{
  const town=new TownLife(),layout=town.layout("capital"),
   index=layout.buildings.findIndex(b=>b.type==="school"),site=layout.buildings[index];
- const actor={x:site.x,z:site.z,nearGround:true,travelMode:"walk"};
+ const actor={x:site.x,z:site.z+6.65,nearGround:true,travelMode:"walk"};
+ assert.equal(town.toggleHallDoor("capital","village-"+index,actor).ok,true);
  assert.equal(town.enter("capital","village-"+index,actor).ok,true);
  assert.equal(town.inside.pose.z,5.2);
  town.inside.pose.x=0;town.inside.pose.z=3.2;
