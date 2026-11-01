@@ -112,12 +112,12 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
  actions.addEventListener("click",event=>{
   const target=event.target.closest("button[data-town-action]");
   if(!target||!actions.contains(target))return;
-  const {town,townId,controller,actions:resource,life,day}=get();
+  const {town,townId,controller,actions:resource,life,day,musicCulture}=get();
   const chosen=currentSelection(),value=target.dataset.townAction;
   let output=null;
   if(value==="leave")output=town.leave();
   else if(value==="door"&&chosen)output=town.toggleHallDoor(townId,chosen.id,controller);
-  else if(value==="sit")output=town.sitMusicSeat();
+  else if(value==="sit")output=town.sitMusicSeat({admitted:musicCulture?.hasTicket(townId,"theater",day)??true});
   else if(value==="stand")output=town.standMusicSeat();
   else if(value==="enter"&&chosen)output=town.enter(townId,chosen.id,controller);
   else if(value.startsWith("talk:")&&chosen)
