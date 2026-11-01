@@ -1290,3 +1290,87 @@ body.immersive{overflow:hidden}
  .xr-settings-body{gap:6px}
  .xr-settings-body .xr-buttons{flex:1 1 100%}
 }
+
+
+/* v0.9au — Minimal, configurable smartphone controls. Existing desktop / VR
+   controls and underlying 5 action decks are intentionally left untouched. */
+#viewport-mobile-actions{display:none}
+.mobile-action-buttons[hidden],.mobile-action-settings[hidden]{display:none!important}
+.mobile-action-buttons{display:none}
+.mobile-action-settings{display:none}
+@media (max-width:760px) and (pointer:coarse){
+  #viewport-mobile-actions{display:block}
+  body.mobile-minimal-ui:not(.mobile-show-legacy) #action-pad,
+  body.mobile-minimal-ui:not(.mobile-show-decks) #quick-items,
+  body.mobile-minimal-ui:not(.mobile-show-commands) #action-command-bar,
+  body.mobile-minimal-ui:not(.mobile-show-rts) #rts-controls,
+  body.mobile-minimal-ui:not(.mobile-show-doors) #door-controls,
+  body.mobile-minimal-ui:not(.mobile-show-archery) #archery-mode-bar,
+  body.mobile-minimal-ui:not(.mobile-show-vitals) .avatar-vitals,
+  body.mobile-minimal-ui:not(.mobile-show-shortcuts) #viewport-console-toggle,
+  body.mobile-minimal-ui:not(.mobile-show-shortcuts) #viewport-share{display:none!important}
+  .mobile-action-buttons{
+    display:grid;grid-template-columns:repeat(2,60px);
+    gap:9px;position:absolute;z-index:19;
+    right:calc(9px + env(safe-area-inset-right,0px));
+    bottom:calc(13px + env(safe-area-inset-bottom,0px));
+    pointer-events:auto;touch-action:manipulation;
+  }
+  .mobile-action-button{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    width:60px;height:60px;min-width:60px;min-height:60px;
+    border-radius:50%;border:1.5px solid #a4cedd;
+    background:#102f4ad9;color:#f4fdff;
+    padding:4px 2px;gap:2px;line-height:1.05;
+    touch-action:manipulation;user-select:none;-webkit-user-select:none;
+    -webkit-touch-callout:none;box-shadow:0 3px 11px #001a2b99;
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  }
+  .mobile-action-button:active{background:#216982e8;transform:scale(.96)}
+  .mobile-action-button:focus-visible{outline:3px solid #ffe8a4;outline-offset:2px}
+  .mobile-action-icon{font-size:23px;line-height:1.05}
+  .mobile-action-caption{font-size:9px;line-height:1.1;max-width:56px;
+    white-space:normal;text-align:center;overflow:hidden;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .mobile-action-settings{
+    display:flex;flex-direction:column;gap:10px;position:absolute;z-index:60;
+    top:calc(53px + env(safe-area-inset-top,0px));
+    right:calc(7px + env(safe-area-inset-right,0px));
+    width:min(365px,calc(100% - 14px));
+    max-height:calc(100% - 65px - env(safe-area-inset-top,0px));
+    overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;
+    color:#effaff;background:#0a2b42f7;
+    border:1px solid #7faebd;border-radius:13px;padding:12px;
+    box-shadow:0 9px 30px #001827bb;font-size:12px;
+  }
+  .mobile-action-settings-header{display:flex;justify-content:space-between;align-items:center;gap:9px}
+  .mobile-action-settings-header strong{font-size:14px}
+  .mobile-action-settings button,.mobile-action-settings select{
+    background:#183c52;color:#f4fdff;border:1px solid #7faebd;
+    min-height:38px;max-width:100%;font-size:12px;
+  }
+  .mobile-action-settings .mobile-action-help{margin:0;line-height:1.5;color:#c9e0e9}
+  .mobile-action-profile{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .mobile-action-profile select{max-width:66%}
+  .mobile-action-editor{display:grid;gap:6px}
+  .mobile-action-editor-row{
+    display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1fr);
+    gap:6px;align-items:end;
+  }
+  .mobile-action-editor-row label{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .mobile-action-editor-row select{width:100%;min-width:0;padding:5px 2px}
+  .mobile-action-letter{align-self:center;text-align:center}
+  .mobile-action-subhead{border-top:1px solid #638795;padding-top:9px}
+  .mobile-action-layer-list{display:grid;grid-template-columns:1fr 1fr;gap:9px 5px}
+  .mobile-action-layer{display:flex;align-items:center;gap:5px;line-height:1.3}
+  .mobile-action-layer input{width:18px;height:18px;flex-shrink:0;accent-color:#5cc0cc}
+  .mobile-action-reset{align-self:flex-end}
+}
+@media (max-width:760px) and (pointer:coarse) and (orientation:landscape){
+  .mobile-action-buttons{grid-template-columns:repeat(2,51px);gap:6px;
+    bottom:calc(7px + env(safe-area-inset-bottom,0px))}
+  .mobile-action-button{width:51px;height:51px;min-width:51px;min-height:51px}
+  .mobile-action-icon{font-size:19px}
+  .mobile-action-caption{font-size:8px;max-width:49px}
+  .mobile-action-settings{top:43px;max-height:calc(100% - 48px)}
+}
