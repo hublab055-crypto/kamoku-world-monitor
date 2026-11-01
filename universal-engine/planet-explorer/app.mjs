@@ -3757,6 +3757,11 @@ mobileUI=installMobileFourActions({
     const gait=["walk","trot","gallop"],next=gait[(gait.indexOf(fauna.gait)+1)%gait.length];
     fauna.setGait(next);saveFaunaJournal();log("🐎 歩法："+({walk:"常歩",trot:"速歩",gallop:"駈歩"}[next]));updateHUD();break;
    }
+   case "takeHelm":{
+    if(marine?.boarded?.kind!=="sailing_ship"){log("帆船の甲板から舵輪を操作してください");break;}
+    const result=marine.shipboard.assignHelm("player");
+    log(result.message);if(result.ok)saveMarineJournal();updateHUD();break;
+   }
    case "cruise":click("marine-cruise");break;
    case "anchor":click("marine-anchor");break;
    case "sailsUp":case "sailsDown":{
