@@ -26,7 +26,7 @@ export function craftMusicInstrument(inventory,resources,recipeId,{creative=fals
  const bag=resources;
  if(!bag||typeof bag!=="object")throw Error("資源インベントリを取得できません");
  if(!creative)for(const [key,amount]of Object.entries(recipe.cost)){
-  if(!validCount(bag[key])||bag[key]<amount)throw Error("材料が不足しています："+key+" "+amount+"個");
+  if(!Number.isSafeInteger(bag[key])||bag[key]<amount)throw Error("材料が不足しています："+key+" "+amount+"個");
  }
  if(state.items[recipe.item]>=999)throw Error("楽器の所持上限です");
  const next=normalizeMusicInventory(state);next.items[recipe.item]++;
@@ -63,4 +63,22 @@ export function extractAssetMusicControls(document){
  }
  if(!items.length||items.length>80)throw Error("音が鳴るキー・ボタン・弦を1〜80個配置してください");
  return items;
+}
+
+/** Standard craftable presets use the same programmable control format as Asset. */
+export function presetMusicControls(item){
+ if(item==="music-keyboard")return Array.from({length:13},(_,i)=>({
+  kind:"key",track:"keys",pitch:60+i,x:-.75+i*.125,y:.96,z:-.08,
+  width:.12,height:.10,depth:.36
+ }));
+ if(item==="music-guitar")return Array.from({length:6},(_,i)=>({
+  kind:"string",track:"guitar",pitch:[40,45,50,55,59,64][i],
+  x:-.30+i*.12,y:1.05,z:0,width:.10,height:.15,depth:.95
+ }));
+ if(item==="music-drums")return [36,38,42,39].map((pitch,i)=>({
+  kind:"button",track:"drums",pitch,
+  x:i%2*.48-.24,y:.81,z:Math.floor(i/2)*.48-.24,
+  width:.40,height:.17,depth:.40
+ }));
+ return [];
 }
