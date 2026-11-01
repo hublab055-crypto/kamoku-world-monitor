@@ -71,7 +71,9 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
      " ／ 公演 "+venue.shows.map(hour).join("・")+
      " ／ 音楽担当 "+venue.musicianLabel+
      " ／ 観客 約"+venue.audienceCount+"人"+
-     " ／ 会場資金 "+culture.balance(townId,venue.id)+"G";
+     " ／ 会場資金 "+culture.balance(townId,venue.id)+"G"+
+     " ／ 演奏家の累計収入 "+(culture.npcEarnings[townId+":"+venue.musicianId]||0)+"G"+
+     " ／ 経験 "+(culture.npcExperience[townId+":"+venue.musicianId]||0);
     const where=document.createElement("small");
     where.textContent="街の座標 東 "+venue.site.x+"m / 北 "+venue.site.z+"m"+
       (nearby(venue)?" ／ 会場にいます":" ／ 参加には11m以内に移動");
