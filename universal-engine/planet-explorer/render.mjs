@@ -2068,6 +2068,33 @@ export class ExplorerRenderer{
     lookAt([8,6.6,10],[0,1.0,-.2]));
   this.pickVP=null;
   this.drawMesh(this.townRoomMeshes.get(kind),vp,[.5,.9,.45],1,.86);
+  // Inn music room: reuse the existing walkable lodge interior geometry.
+  // No teleport or second copy of the room; the town indoor pose stays authoritative.
+  if(kind==="lodge"&&this.musicCulture){
+   const venue=this.musicCulture.venue(this.settlementId,"tavern");
+   if(venue){
+    const light=[.62,.82,.59],stage=translate(0,0,-1.20);
+    this.drawMesh(this.musicPodiumMesh,multiply4(vp,stage),light,1,.84);
+    this.drawMesh(this.musicVenueMesh,multiply4(vp,
+     multiply4(stage,translate(-.25,.27,0))),light,1,.8);
+    const show=musicNow(venue,this.planet?.timeDays||0);
+    if(show?.performing){
+     const frame=Math.floor(this.marineClock*3.5)%MUSIC_POSE_FRAMES;
+     const band=bandAppearance(venue,this.musicCulture.bandContracts,this.planet.timeDays);
+     for(let i=0;i<band.length;i++){
+      const member=band[i];
+      const performer=multiply4(translate(member.x,.28,-1.20+member.z),rotateY(Math.PI));
+      this.drawMesh(this.musicBandMeshes[member.role][(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,performer),light,1,.9);
+     }
+     for(let i=0;i<3;i++){
+      const spectator=translate((i-1)*1.5,0,1.3+(i%2)*.8);
+      this.drawMesh(this.musicBandMeshes.audience[(frame+i)%MUSIC_POSE_FRAMES],
+       multiply4(vp,spectator),light,1,.78);
+     }
+    }
+   }
+  }
   if(!this.townIndoorAvatarMesh){
    const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
    this.townIndoorAvatarMesh=new Mesh(gl,g);
