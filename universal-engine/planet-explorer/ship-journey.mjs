@@ -15,7 +15,8 @@ export class ShipJourney{
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
-   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0}:null;
+   {bodyId:data.launchSite.bodyId||this.originId,lat:data.launchSite.lat,lon:data.launchSite.lon,yaw:finite(data.launchSite.yaw)?data.launchSite.yaw:0,
+    ...(finite(data.launchSite.padElevationM)?{padElevationM:data.launchSite.padElevationM}:{})}:null;
   // Pre-selected safe touchdown site stays fixed through atmospheric entry.
   const pad=data.landingSite;
   this.landingSite=pad&&pad.bodyId===this.destinationId&&
@@ -83,7 +84,7 @@ export class ShipJourney{
   if(!this.seated)return {ok:false,message:"航法設定には操縦席に着席してください"};
   if(!bodyById(id)?.landable||id===this.originId||!finite(flightDays)||flightDays<=0)
    return {ok:false,message:"航行先を指定できません"};
-  this.destinationId=id;this.flightDays=flightDays;this.progress=0;
+  this.destinationId=id;this.flightDays=flightDays;this.progress=0;this.landingSite=null;
   return {ok:true,message:"🧭 航路設定完了："+bodyById(id).name+"／推定"+flightDays.toFixed(1)+"ゲーム日"};
  }
  startTransfer(){
@@ -101,7 +102,7 @@ export class ShipJourney{
   return {ok:true,message:"🔥 大気圏突入開始。着陸姿勢を保持してください"};
  }
  setLandingSite(site){
-  if(!["orbit","entry","touchdown","landed"].includes(this.status))return false;
+  if(!["origin-orbit","orbit","entry","touchdown","landed"].includes(this.status))return false;
   if(!site||site.bodyId!==this.destinationId||
      ![site.lat,site.lon,site.yaw,site.padElevationM].every(finite))return false;
   this.landingSite={bodyId:site.bodyId,lat:site.lat,lon:site.lon,

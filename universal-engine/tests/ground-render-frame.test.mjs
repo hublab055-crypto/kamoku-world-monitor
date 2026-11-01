@@ -8,6 +8,8 @@ import {ExplorerController} from "../planet-explorer/controller.mjs";
 import {SurfaceStarship} from "../planet-explorer/surface-starship.mjs";
 import {ShipJourney} from "../planet-explorer/ship-journey.mjs";
 import {terrainSurface} from "../planet-explorer/geo.mjs";
+import {prepareShipArrivalTerrain} from "../planet-explorer/ship-arrival-terrain.mjs";
+import {StarshipEntity} from "../planet-explorer/starship-entity.mjs";
 
 const request=(n,regionKey="terra/start")=>({key:`${regionKey}/${n}`,regionKey,cx:n*110,cz:-n*110,radius:450});
 function stage(own,tag,onDestroy=()=>{}){
@@ -220,5 +222,32 @@ test("docked cabin uses the same ground scene and hollow spacecraft mesh on both
   renderer.shipVoyage=null;
   assert.equal(renderer.frame(actor,.016),"ground");assert.equal(renderer.dockedShipPose,null);
   assert.deepEqual(actor.origin,origin);
+ }finally{renderer.destroy();}
+});
+
+test("real flight renderer uses one shared entity for ascent, celestial sky and destination terrain",()=>{
+ const {renderer,actor,terrain}=realScene(),original={...actor.origin};
+ try{
+  const shared=new StarshipEntity();renderer.shipEntity=shared;
+  const ship=new SurfaceStarship();ship.place("terra",actor.lat,actor.lon,.3,
+   terrainSurface(terrain,actor.lat,actor.lon).elevationM+.12);
+  const preview=prepareShipArrivalTerrain({destinationId:"cinder",days:terrain.planet.timeDays});
+  const v=new ShipJourney({originId:"terra",destinationId:"cinder",launchSite:ship.snapshot(),
+   landingSite:preview.site,launchDay:terrain.planet.timeDays,flightDays:4,seated:true,hatchOpen:false});
+  renderer.shipVoyage=v;renderer.shipGroundState=actor;renderer.shipArrivalPreview=preview;
+  renderer.surfaceStarship=ship;ship.takeOff();
+  v.status="ascent";v.stageProgress=.2;
+  assert.equal(renderer.frame(actor,.016),"ship-interior");
+  assert.equal(shared.pose.bodyId,"terra");assert.equal(renderer.shipEntity,shared);
+  assert.ok(renderer.shipCelestialPoses.some(p=>p.id==="helios"));
+  assert.ok(renderer.shipCelestialPoses.some(p=>p.id==="terra"));
+  v.status="cruise";v.progress=.5;renderer.frame(actor,.016);
+  assert.equal(shared.pose.frameId,"system:helios");
+  v.status="entry";v.stageProgress=.95;renderer.frame(actor,.016);
+  assert.equal(shared.pose.bodyId,"cinder");assert.ok(renderer.shipTerrainKey.startsWith("cinder:"));
+  const checkpoint=shared.snapshot();
+  renderer.shipEntity=StarshipEntity.fromSnapshot(checkpoint);renderer.frame(actor,.016);
+  assert.deepEqual(renderer.shipEntity.pose,shared.pose);
+  assert.deepEqual(actor.origin,original);
  }finally{renderer.destroy();}
 });

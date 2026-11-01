@@ -1,3 +1,4 @@
+import {StarshipEntity} from "./starship-entity.mjs";
 import {cabinSurfacePose,starshipRampSupport,DockedShipCamera} from "./starship-hatch-portal.mjs";
 import {groundRegionKey,replaceGroundRenderFrame,groundHitToWorld} from "./ground-render-frame.mjs?v=1";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
@@ -50,10 +51,10 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
-import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=2";
+import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=3";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5";
-import {bodyById} from "./solar-system.mjs?v=1";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=6";
+import {bodyById,BODIES,STAR} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -786,7 +787,7 @@ export class ExplorerRenderer{
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
-   this.shipVoyage=null;this.shipArrivalPreview=null;this.shipUnifiedMeshes=[
+   this.shipVoyage=null;this.shipEntity=new StarshipEntity();this.shipArrivalPreview=null;this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
@@ -1638,6 +1639,8 @@ export class ExplorerRenderer{
  clearCapture(){this.captureFX=null;}
  frame(state,dt=1/60){
   this.dockedShipPose=null;
+  this.shipEntity.sync({journey:this.shipVoyage,surfaceShip:this.surfaceStarship,
+   planet:this.planet,arrivalPlanet:this.shipArrivalPreview?.terrain?.planet,days:this.planet.timeDays});
   // Visual-only frame time continues while law simulation is paused in custody.
   if(this.captureFX)this.captureFX.elapsed=Math.min(CAPTURE_DURATION_SECONDS,
     this.captureFX.elapsed+Math.max(0,Math.min(dt,.10)));
@@ -1732,15 +1735,28 @@ export class ExplorerRenderer{
    const yaw=person.yaw||0;
    // Reentry automatically tilts the pilot's sight toward the landing terrain.
    // Player look input is still added on top of this gentle approach attitude.
-   const landingAttitude=v.status==="entry"&&v.seated?
-    -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
-    v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
+   const landingAttitude=0; // attitude is owned by the ship Transform, not a camera phase trick
    const pitch=Math.max(-1.2,Math.min(1.2,(person.pitch||0)+landingAttitude));
    const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
    const eye=[person.x,eyeY,person.z];
-   const vp=multiply4(perspective(75*DEG,asp,.12,42000),lookAt(eye,
+   const vp=multiply4(perspective(75*DEG,asp,.12,65000),lookAt(eye,
     [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
+   const spatial=v.kind==="surface-to-surface"&&this.shipEntity.pose;
+   this.shipCelestialPoses=spatial?[STAR,...BODIES.filter(b=>b.kind!=="asteroid-belt")]
+    .map(body=>this.shipEntity.celestialView(body,eye)).filter(Boolean).sort((a,b)=>b.distanceM-a.distanceM):[];
+   // Camera-relative sky first, without writing near-scene depth. Local terrain
+   // and the real cabin then occlude it in the ordinary depth buffer.
+   if(spatial){
+    gl.depthMask(false);
+    for(const body of this.shipCelestialPoses){
+     const h=body.color.replace("#","");
+     const rgb=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255);
+     const model=multiply4(translate(...body.position),scale3(body.radiusM,body.radiusM,body.radiusM));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),[.86,.91,.55],1,.88,rgb);
+    }
+    gl.depthMask(true);
+   }
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
    const arrival=["entry","touchdown"].includes(v.status)&&
@@ -1760,8 +1776,8 @@ export class ExplorerRenderer{
     }
     const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
      terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
-    const groundMatrix=multiply4(translate(0,-pad-2.0-phase.lift,0),
-     rotateY(-(site.yaw||0)));
+    const groundMatrix=spatial&&this.shipEntity.groundToCabinMatrix(site,groundTerrain.planet.id)||
+     multiply4(translate(0,-pad-2.0-phase.lift,0),rotateY(-(site.yaw||0)));
     this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
      [.64,.89,.42],1,.68);
     // Existing nearby settlements belong only to the origin planetary terrain;
@@ -1769,15 +1785,17 @@ export class ExplorerRenderer{
     if(!arrival&&phase.lift<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
      const origin=this.shipGroundState.origin;
      const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
-     const toShip=multiply4(rotateY(-(site.yaw||0)),translate(
-      this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
+     const cacheSite=geoOffset(origin.lat,origin.lon,this.cx,this.cz,this.planet.radiusM);
+     const toShip=spatial&&this.shipEntity.groundToCabinMatrix(cacheSite,this.planet.id)||
+      multiply4(rotateY(-(site.yaw||0)),translate(
+       this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
      const groundVP=multiply4(vp,toShip);
      for(const mesh of this.settlement.slice(0,48))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.64);
      for(const mesh of this.settlementDecor.slice(0,20))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.69);
      for(const mesh of this.trees.slice(0,20))this.drawInstancedMesh(mesh,groundVP,[.65,.88,.46],1,.63);
     }
    }
-   if(phase.showGlobe){
+   if(phase.showGlobe&&!spatial){
     const progress=v.progress||0;
     const target=v.destinationId&&bodyById(v.destinationId);
     const origin=bodyById(v.originId);
@@ -2731,12 +2749,14 @@ export class ExplorerRenderer{
    this.drawHarbor(vp,light,s,radius);
    const starship=this.surfaceStarship;
    if(starship?.visible(this.planet.id)){
-    const land=geoLocal(s.origin.lat,s.origin.lon,starship.lat,starship.lon,this.planet.radiusM);
+    const address=this.shipEntity.pose?.bodyId===this.planet.id?this.shipEntity.pose:null;
+    const shipSite=address?.site||starship;
+    const land=geoLocal(s.origin.lat,s.origin.lon,shipSite.lat,shipSite.lon,this.planet.radiusM);
     if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+125){
      const gx=land.eastM-this.cx,gz=land.northM-this.cz;
      const height=Number.isFinite(starship.padElevationM)?starship.padElevationM:
       Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
-     const descent=starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0;
+     const descent=address?.liftM??(starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0);
      const matrix=multiply4(translate(gx,height+descent,gz),rotateY(starship.yaw||0));
      if(starship.flight==="landing"){
       // A glowing elliptical pad marks where the engines are lowering the ship.

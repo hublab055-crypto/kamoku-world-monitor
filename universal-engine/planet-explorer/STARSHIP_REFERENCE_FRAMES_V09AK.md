@@ -65,6 +65,6 @@ SurfaceStarship schemaVersion 1、ShipJourney schemaVersion 2、Explorer v1の�
 
 v0.9alでは地域内の既存描画中心更新を一括公開方式へ移しました。詳細は [地域内描画原点の更新](GROUND_RENDER_FRAME_V09AL.md) を参照してください。物理・ゲーム座標を変更する再基準化はまだ有効化していません。
 
-次に、固定地域アンカーの保存とレジストリ、地域をまたぐ描画・衝突の切替、共通ShipEntity、ハッチ境界の物理歩行、連続LOD、WorldContextの準備・一括切替、遠距離都市への徒歩入場を実装します。
+停泊中のハッチ歩行はv0.9am、共通の表示用StarshipEntityはv0.9anで接続します。固定地域アンカーの保存とレジストリ、地域をまたぐ描画・衝突の切替、ShipEntityの飛行力学・属性統合、連続LOD、WorldContextの準備・一括切替、遠距離都市への徒歩入場は次段階です。
 
 今回の修正だけで、全惑星の徒歩連続移動や完全シームレスなカメラ、厳密な飛行物理が完成したとは扱いません。

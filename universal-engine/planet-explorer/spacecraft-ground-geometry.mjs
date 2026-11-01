@@ -1,4 +1,4 @@
-import {sharedShipInteriorGeometry} from "./ship-shared-scene.mjs?v=5";
+import {sharedShipInteriorGeometry} from "./ship-shared-scene.mjs?v=6";
 import {CABIN_FLOOR_M} from "./starship-layout.mjs";
 /** Procedural reusable exterior mesh; forward is local -Z and rear hatch is at +13m. */
 const unit=v=>{const l=Math.hypot(...v)||1;return v.map(n=>n/l);};

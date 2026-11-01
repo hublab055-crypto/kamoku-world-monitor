@@ -1,5 +1,6 @@
 /** Shared WebGL2 geometry: the cabin is drawn on the same framebuffer and view matrix as the world. */
 import {createShipGeometry} from "./ship-interior-3d.mjs?v=9";
+import {journeyLift} from "./starship-entity.mjs";
 export function triangleSoupToIndexed(soup){
  if(!soup||soup.length%9!==0)throw Error("Ship mesh data must have position/normal/color stride 9");
  const vertices=soup.length/9;
@@ -35,7 +36,7 @@ export function celestialBallGeometry(color=[.5,.65,.84],rings=22,sectors=42){
 export function groundScenePhase(voyage){
  const status=voyage?.status||"docked",p=Math.max(0,Math.min(1,voyage?.stageProgress||0));
  const near=status==="docked"||status==="landed"||status==="touchdown"||status==="ascent"||status==="entry";
- const lift=status==="ascent"?Math.pow(p,2)*7000:status==="entry"?Math.pow(1-p,2)*7000:0;
+ const lift=journeyLift(voyage);
  const sky=status==="docked"||status==="landed"||status==="touchdown"?1:
    status==="ascent"?1-p:status==="entry"?p:0;
  // While entering, a wide destination terrain patch replaces the orbit planet
