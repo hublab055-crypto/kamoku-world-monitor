@@ -2,7 +2,7 @@ import {MOBILE_ACTIONS,MOBILE_LAYERS,defaultMobileConfig,normalizeMobileConfig} 
 
 const STORAGE_KEY="universal-engine:mobile-four-actions:v1";
 const $=id=>document.getElementById(id);
-const mobileQuery="(max-width: 760px) and (pointer: coarse)";
+const mobileQuery="(max-width: 1024px) and (pointer: coarse)";
 const safeLoad=()=>{
   try{return normalizeMobileConfig(JSON.parse(localStorage.getItem(STORAGE_KEY)));}
   catch(_){return defaultMobileConfig();}
