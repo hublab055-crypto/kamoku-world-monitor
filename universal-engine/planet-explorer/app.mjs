@@ -5,7 +5,8 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=7";
-import {ShipJourney} from "./ship-journey.mjs?v=6";
+import {ShipJourney} from "./ship-journey.mjs?v=7-mission";
+import {ShipCargoCaches} from "./ship-cargo-cache.mjs?v=1";
 import {SurfaceStarship} from "./surface-starship.mjs?v=3";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
@@ -116,7 +117,7 @@ const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null;
-let xrUI=null,mediaUI=null,footVoyage=null;
+let xrUI=null,mediaUI=null,footVoyage=null,shipCargoCaches=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -307,6 +308,7 @@ function init(saved=null){
   shipArrivalPreview=null;
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
+  shipCargoCaches=new ShipCargoCaches(saved?.v0_ac?.shipCargo);
   voyage=ShipJourney.fromSnapshot(saved?.v0_aa?.voyage)||
    SpaceVoyage.fromSnapshot(saved?.v0_aa?.voyage);
   if(saved?.planet&&!saved?.v0_aa)solarSystem.sync(saved.planet.timeDays);
@@ -1543,6 +1545,7 @@ function captureGame(){
     v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
     v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
+    v0_ac:{schemaVersion:1,shipCargo:shipCargoCaches?.snapshot()||{schemaVersion:1,caches:[]}},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
   if(solarSystem){
    solarSystem.sync(planet.timeDays);
@@ -1641,9 +1644,10 @@ function shipEgress(){
   controller.altitudeM=2.5;controller.targetAltitude(2.5);
   squad.repositionAfterLanding();
   renderer.patchKey=null;lastTime=0;
+  const cargoCount=shipCargoCaches?.storeDrops(voyage?.mission?.drops,solarSystem.currentId)||0;
   voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
   voyageUI?.close();surfaceShipUI?.update(true);updateHUD();
-  return {ok:true,message:"🌍 ランプから地表へ降り立ちました。宇宙船はハッチを開いたまま着陸地点に残ります"};
+  return {ok:true,message:"🌍 ランプから地表へ降り立ちました。宇宙船は着陸地点に残ります"+(cargoCount?" ／ 投下物資 "+cargoCount+"件を回収できます":"")};
  }catch(error){return {ok:false,message:"下船エラー："+error.message};}
 }
 function completeShipLanding(){
@@ -1735,6 +1739,7 @@ function travelToCelestial(id,flightDays,stayAboard=false){
   const previouslyVisited=solarSystem.load(id);
   const next=previouslyVisited||freshCelestialSave(current,id,solarSystem.days);
   carryCelestialInventory(next,current);
+  if(!previouslyVisited)next.v0_ac={schemaVersion:1,shipCargo:{schemaVersion:1,caches:[]}};
   if(!next.v0_8s&&current.v0_8s)
    next.v0_8s={...new TownLife().snapshot(),coins:current.v0_8s.coins};
   solarSystem.arrive(id,flightDays);
