@@ -1,4 +1,4 @@
-import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9ap-music-hall";
+import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9aq-hall-doors";
 
 /** Mobile-sized town interaction desk. All mutations go through TownLife. */
 export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
