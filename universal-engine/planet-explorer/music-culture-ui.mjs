@@ -31,7 +31,13 @@ export function installMusicCultureUI({getCulture,getTownLife,getTownId,getActor
  let lastAutoAttempt="",lastFrame=-1,lastUiRefresh=-1;
  const coins=()=>getTownLife()?.coins??0;
  const nearby=(venue)=>{
-  const actor=getActor();if(!actor||actor.altitudeM>12.01||actor.travelMode!=="walk")return false;
+  const actor=getActor(),townLife=getTownLife();
+  if(townLife?.inside){
+   const indoor=townLife.inside;
+   const building=townLife.find?.(indoor.townId,indoor.buildingId,"village");
+   return venue.id==="tavern"&&indoor.townId===venue.townId&&building?.type==="lodge";
+  }
+  if(!actor||actor.altitudeM>12.01||actor.travelMode!=="walk")return false;
   return Math.hypot(actor.x-venue.site.x,actor.z-venue.site.z)<=11;
  };
  function say(message){el("[data-status]").textContent=message;notify(message);}
