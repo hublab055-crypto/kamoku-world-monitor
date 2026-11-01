@@ -151,7 +151,7 @@ export function installShipMobileUI({host,get,onAction,getRoutes,onChooseRoute,o
  }
  function makeSelect(value,callback,label){
   const select=el("select");select.setAttribute("aria-label",label);
-  const allowed=["interact","talk","sit","stand","hatch","disembark","cargo","launchLand","autopilot","navigation","transfer","throttleUp","throttleDown","shipSettings","logs","menu","none"];
+  const allowed=["interact","talk","sit","stand","hatch","disembark","cargo","launchLand","autopilot","navigation","transfer","throttleUp","throttleDown","shipSettings","saveVoyage","logs","menu","none"];
   for(const key of allowed){const info=MOBILE_ACTIONS[key];
    const option=el("option","",info.icon+" "+info.label);option.value=key;select.append(option);
   }
