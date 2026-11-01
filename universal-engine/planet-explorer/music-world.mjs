@@ -88,7 +88,7 @@ export function normalizeMusicStage(raw){
  const controls=normalizedControls(raw.controls);
  if(item==="music-custom"&&!controls.length)throw Error("自作楽器には音が鳴るパーツが必要です");
  return {format:MUSIC_WORLD_FORMAT,version:1,planetId:raw.planetId,
-  lat:raw.lat,lon:raw.lon,yaw:raw.yaw,heightM:raw.heightM,item,controls};
+  lat:raw.lat,lon:raw.lon,yaw:raw.yaw,heightM:raw.heightM,item,controls,owned:raw.owned===true};
 }
 export function newMusicStage({planetId,lat,lon,yaw,heightM,item="music-stage",controls=[]}){
  return normalizeMusicStage({format:MUSIC_WORLD_FORMAT,version:1,planetId,lat,lon,yaw,heightM,item,controls});
