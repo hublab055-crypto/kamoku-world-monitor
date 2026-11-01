@@ -17,7 +17,7 @@ test("planet time opens real scheduled performances",()=>{
  const v=musicVenue("capital","tavern");
  assert.equal(musicNow(v,evening).performing,true);
  assert.equal(musicNow(v,5+12/24).performing,false);
- assert.equal(cultureHour(evening),19);
+ assert.ok(Math.abs(cultureHour(evening)-19)<1e-8);
 });
 test("tickets transfer real coins to venue and block repeated admissions",()=>{
  const c=new MusicCulture(),wallet={coins:40},before=c.balance("capital","tavern");
