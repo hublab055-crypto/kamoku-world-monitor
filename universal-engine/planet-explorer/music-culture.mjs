@@ -43,11 +43,11 @@ export function musicNow(venue,day){
   showId:showIndex<0?null:key(venue.townId,venue.id)+":"+cultureDay(day)+":"+showIndex};
 }
 function defaultSave(){return {format:MUSIC_CULTURE_FORMAT,version:1,treasury:{},skill:0,reputation:0,
- showsAttended:{},showsPlayed:{},lessons:{},npcPaid:{},journal:[]};}
+ showsAttended:{},showsPlayed:{},lessons:{},npcPaid:{},npcEarnings:{},npcExperience:{},journal:[]};}
 export class MusicCulture{
  constructor(saved=null){
   const d=defaultSave();
-  this.treasury={};this.skill=0;this.reputation=0;this.showsAttended={};this.showsPlayed={};this.lessons={};this.npcPaid={};this.journal=[];
+  this.treasury={};this.skill=0;this.reputation=0;this.showsAttended={};this.showsPlayed={};this.lessons={};this.npcPaid={};this.npcEarnings={};this.npcExperience={};this.journal=[];
   if(!saved)return;
   if(saved.format!==MUSIC_CULTURE_FORMAT||saved.version!==1)throw Error("音楽文化セーブ形式が不正です");
   if(!int(saved.skill,0,1000)||!int(saved.reputation,0,1000))throw Error("音楽文化の値が不正です");
@@ -59,7 +59,7 @@ export class MusicCulture{
     if(k.length>96||!int(v,0,max))continue;this[field][k]=v;}
   };
   load("treasury",1000000);load("showsAttended");load("showsPlayed");
-  load("lessons");load("npcPaid");
+  load("lessons");load("npcPaid");load("npcEarnings");load("npcExperience",1000);
   this.journal=Array.isArray(saved.journal)?saved.journal.slice(-30).filter(x=>typeof x==="string").map(x=>x.slice(0,140)):[];
  }
  venue(townId,venueId){return musicVenue(townId,venueId);}
@@ -73,7 +73,11 @@ export class MusicCulture{
   if(this.npcPaid[id]===d+1)return {ok:false,message:"本日の演奏家報酬は支払済み"};
   const salary=Math.min(this.balance(townId,venueId),venueId==="school"?6:10);
   this.treasury[id]=this.balance(townId,venueId)-salary;
-  this.npcPaid[id]=d+1;this.log(venue.name+"：NPC演奏家へ "+salary+"G 支給");
+  this.npcPaid[id]=d+1;
+  const artistId=townId+":"+venue.musicianId;
+  this.npcEarnings[artistId]=bound((this.npcEarnings[artistId]||0)+salary,0,1000000);
+  if(salary>0)this.npcExperience[artistId]=bound((this.npcExperience[artistId]||0)+1,0,1000);
+  this.log(venue.name+"：NPC演奏家へ "+salary+"G 支給");
   return {ok:true,salary,message:"演奏家への日当を支払いました"};
  }
  check(venue,day,local){
@@ -132,5 +136,6 @@ export class MusicCulture{
  snapshot(){return {format:MUSIC_CULTURE_FORMAT,version:1,treasury:{...this.treasury},
   skill:this.skill,reputation:this.reputation,showsAttended:{...this.showsAttended},
   showsPlayed:{...this.showsPlayed},lessons:{...this.lessons},
-  npcPaid:{...this.npcPaid},journal:[...this.journal]};}
+  npcPaid:{...this.npcPaid},npcEarnings:{...this.npcEarnings},
+  npcExperience:{...this.npcExperience},journal:[...this.journal]};}
 }
