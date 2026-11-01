@@ -1,8 +1,8 @@
 /** Contracted NPC music ensemble. Pure data; no renderer or DOM dependency.
  * Performer IDs always come from the existing deterministic settlement roster.
  */
-import {settlementLayout} from "./settlements.mjs?v=0.8r-towns";
-import {musicVenue,cultureDay} from "./music-culture.mjs?v=0.9an";
+import {settlementLayout,destinationById} from "./settlements.mjs?v=0.8r-towns";
+const cultureDay=day=>Math.max(0,Math.floor(Number(day)||0));
 
 export const MUSIC_BAND_ROLES=Object.freeze([
  {id:"guitar",name:"🎸 ギター",fee:24},
@@ -21,10 +21,14 @@ const contractValid=c=>c&&typeof c.townId==="string"&&
  c.endsDay===c.startsDay+MUSIC_CONTRACT_DAYS&&valid(c.fee,0,1000);
 
 export function musicianCandidates(townId,venueId){
- const venue=musicVenue(townId,venueId);
- if(!venue)return [];
- return settlementLayout(townId).residents
-  .filter(r=>r.id!==venue.musicianId)
+ if(!destinationById(townId)||townId==="pioneer"||
+  !["tavern","theater","school"].includes(venueId))return [];
+ const residents=settlementLayout(townId).residents;
+ if(!residents.length)return [];
+ const leadIndex=venueId==="tavern"?4:venueId==="theater"?7:2;
+ const leadId=residents[leadIndex%residents.length].id;
+ return residents
+  .filter(r=>r.id!==leadId)
   .slice(0,12)
   .map((r,index)=>({
    id:r.id,name:"住人 "+(1+Number(r.id.split("-")[1])),
@@ -57,8 +61,8 @@ export function currentBand(bands,townId,day){
 }
 export function hireBandContract(bands,townId,venueId,residentId,role,day,wallet,{near=false}={}){
  if(!near)return {ok:false,message:"演奏家のいる会場近くに行ってください"};
- const venue=musicVenue(townId,venueId),definition=MUSIC_BAND_ROLES.find(r=>r.id===role);
- if(!venue||!definition||!musicianCandidates(townId,venueId).some(r=>r.id===residentId))
+ const definition=MUSIC_BAND_ROLES.find(r=>r.id===role);
+ if(!definition||!musicianCandidates(townId,venueId).some(r=>r.id===residentId))
   return {ok:false,message:"雇用対象の演奏家・役割が不正です"};
  if(!wallet||!valid(wallet.coins,0,999999))return {ok:false,message:"所持金を確認できません"};
  const d=cultureDay(day),existing=currentBand(bands,townId,d);
