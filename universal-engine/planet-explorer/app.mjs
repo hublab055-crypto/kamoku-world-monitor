@@ -733,7 +733,6 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
   if(townLife.inside&&!jailCellActive){
    townLife.walk(running?dt:0,input);
-   syncHallActorWorld(townLife,controller);
    if(townLife.portalExitRequested){
     const exit=townLife.portalExit(controller);
     if(exit.ok){syncTownState();log(exit.message);}
@@ -817,6 +816,9 @@ function doFrame(t,source="window",xrFrameInput=null){
     forward:running&&ship?.cruise&&!ship.anchor?1:0,strafe:0,turn:0
    });
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
+  // Controller.update may clear moving/blocked while inside another subsystem.
+  // Restore world-space hall pose and walking animation after that update.
+  if(townLife.inside)syncHallActorWorld(townLife,controller);
   // Foot traversal across real door thresholds. Preserve the planetary origin.
   if(!townLife.inside&&!detained&&!onTrain&&!onFerry&&!inConcourse&&!onShip&&
      !marine?.cabinId&&activeSettlementId!=="pioneer"&&activeSettlementId!=="wilderness"&&
