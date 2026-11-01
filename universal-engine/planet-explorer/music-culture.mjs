@@ -104,6 +104,11 @@ export class MusicCulture{
   const lines=["楽団にはリズムを支える人も必要ですよ","歌には街の歴史が残るものです","次の公演では、あなたの曲を聴いてみたいですね"];
   return {ok:true,message:"💬 "+venue.musicianLabel+"：「"+lines[d%lines.length]+"」 親交 "+relationship+"／評判+1"};
  }
+ hasTicket(townId,venueId,day){
+  const venue=this.venue(townId,venueId),show=musicNow(venue,day);
+  return !show?.performing||venueId!=="theater"||
+   Boolean(this.showsAttended[show.showId]||this.showsPlayed[show.showId]);
+ }
  balance(townId,venueId){return this.treasury[key(townId,venueId)]??120;}
  log(message){this.journal.push(String(message).slice(0,140));if(this.journal.length>30)this.journal.shift();}
  /** NPC salary is paid from an existing venue budget at most once/day.
