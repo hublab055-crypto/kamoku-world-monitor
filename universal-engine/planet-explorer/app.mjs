@@ -3747,7 +3747,8 @@ function syncTownState(){
  saveTownJournal();saveLifeJournal();updateHUD();
 }
 townUI=installTownInteractionUI({
- get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays}),
+ get:()=>({town:townLife,townId:activeSettlementId,controller,actions,life,day:planet.timeDays,
+  musicCulture}),
  onChange:syncTownState,onNotice:log
 });
 $("town-interior-exit").addEventListener("click",()=>{
@@ -4104,7 +4105,8 @@ musicCultureUI=installMusicCultureUI({
   return result;
  },
  onSeatAction:action=>{
-  const result=action==="sit"?townLife.sitMusicSeat():townLife.standMusicSeat();
+  const allowed=musicCulture?.hasTicket(activeSettlementId,"theater",planet?.timeDays||0)??true;
+  const result=action==="sit"?townLife.sitMusicSeat({admitted:allowed}):townLife.standMusicSeat();
   if(result.ok){syncTownState();townUI?.refresh();}
   return result;
  },
