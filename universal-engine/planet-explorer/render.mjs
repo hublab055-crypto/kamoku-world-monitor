@@ -1519,9 +1519,9 @@ export class ExplorerRenderer{
   drawMusicStage(vp,light,s,radius){
    const stage=this.musicStage;
    if(!stage||stage.planetId!==this.planet?.id||!s?.origin)return;
-   const meshKey=stage.controls?.length?JSON.stringify(stage.controls):"default";
+   const meshKey=stage.parts?.length?JSON.stringify(stage.parts):stage.controls?.length?JSON.stringify(stage.controls):"default";
    if(meshKey!==this.musicStageMeshKey){
-    const next=new Mesh(this.gl,musicStageGeometry(stage.controls));
+    const next=new Mesh(this.gl,musicStageGeometry(stage.controls,stage.parts));
     this.musicStageMesh?.destroy();this.musicStageMesh=next;this.musicStageMeshKey=meshKey;
    }
    const point=geoLocal(s.origin.lat,s.origin.lon,stage.lat,stage.lon,this.planet.radiusM);
