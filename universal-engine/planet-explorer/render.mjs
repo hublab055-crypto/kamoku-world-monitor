@@ -1708,7 +1708,7 @@ export class ExplorerRenderer{
    const fc=v.flightControl;
    const outerAttitude=multiply4(rotateY(-(v.heading||0)*DEG),
     multiply4(rotX(-(fc?.pitch||0)*DEG),rotZ(-(fc?.roll||0)*DEG)));
-   const exteriorVP=person.seated?multiply4(vp,outerAttitude):vp;
+   const exteriorVP=(person.seated||person.mode==="cockpit")?multiply4(vp,outerAttitude):vp;
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
