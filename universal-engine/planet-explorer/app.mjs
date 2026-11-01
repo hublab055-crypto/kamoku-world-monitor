@@ -17,7 +17,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9ao-music-band";
+import {ExplorerRenderer} from "./render.mjs?v=0.9ap-music-hall";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -49,11 +49,11 @@ import {installGroupUI} from "./groups-ui.mjs";
 import {installFrontierInteractions} from "./frontier-interaction-ui.mjs?v=0.9z-arrow-count";
 import {bindViewportGestures} from "./viewport-gestures.mjs?v=0.8j-map-gesture-r2";
 import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
-import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
+import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
-import {TownLife} from "./town-life.mjs?v=0.8s-towns";
-import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
+import {TownLife} from "./town-life.mjs?v=0.9ap-music-hall";
+import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.9ap-music-hall";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {installRailwayUI} from "./railway-ui.mjs?v=0.8y-station";
@@ -86,8 +86,8 @@ import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9ak-music";
 import {installMusicUI} from "./music-ui.mjs?v=0.9an-culture";
-import {MusicCulture} from "./music-culture.mjs?v=0.9ao";
-import {installMusicCultureUI} from "./music-culture-ui.mjs?v=0.9ao";
+import {MusicCulture} from "./music-culture.mjs?v=0.9ap-music-hall";
+import {installMusicCultureUI} from "./music-culture-ui.mjs?v=0.9ap-music-hall";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -3723,7 +3723,7 @@ groupUI=installGroupUI({
 function syncTownState(){
  const room=townLife.inside;
  const building=room?townLife.find(room.townId,room.buildingId,"village"):null;
- renderer.townInterior=building?{type:building.type,title:building.title,pose:room.pose}:null;
+ renderer.townInterior=building?{type:building.type,title:building.title,pose:room.pose,seat:room.seat||null}:null;
  $("town-interior-exit").hidden=!building;
  if(room){controller.clearMoveTarget();renderer.mapFocus=null;}
  saveTownJournal();saveLifeJournal();updateHUD();
@@ -4069,11 +4069,33 @@ musicCultureUI=installMusicCultureUI({
  onPlayNPC:(venue,options)=>musicUI?.playCultureNPC(venue,options),
  onPerform:venue=>musicUI?.playCultureOwn(venue),
  hasInstrument:()=>musicUI?.hasCraftedInstrument()||false,
+ onEnterVenue:venue=>{
+  const index=townLife.layout(activeSettlementId).buildings.findIndex(b=>b.type===venue.id);
+  if(index<0)return {ok:false,message:"この街に会場の建物がありません"};
+  const result=townLife.enter(activeSettlementId,"village-"+index,controller);
+  if(result.ok){syncTownState();townUI?.refresh();}
+  return result;
+ },
+ onExitVenue:venue=>{
+  const room=townLife.inside;
+  if(!room||room.townId!==activeSettlementId||
+   townLife.find(room.townId,room.buildingId,"village")?.type!==venue.id)
+   return {ok:false,message:"この会場内にいません"};
+  const result=townLife.leave();
+  if(result.ok){syncTownState();townUI?.refresh();}
+  return result;
+ },
+ onSeatAction:action=>{
+  const result=action==="sit"?townLife.sitMusicSeat():townLife.standMusicSeat();
+  if(result.ok){syncTownState();townUI?.refresh();}
+  return result;
+ },
  canJoin:()=>!law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver
   &&!voyage?.active&&!ferry?.boarded&&!railway?.boarded&&!marine?.boarded
   &&(!townLife?.inside||(
     townLife.inside.townId===activeSettlementId&&
-    townLife.find(activeSettlementId,townLife.inside.buildingId,"village")?.type==="lodge"
+    ["lodge","theater","school"].includes(
+      townLife.find(activeSettlementId,townLife.inside.buildingId,"village")?.type)
    ))&&!marine?.cabinId&&planet?.id==="terra",
  onChange:()=>{saveTownJournal();saveMusicCultureJournal();updateHUD();},notify:log
 });
