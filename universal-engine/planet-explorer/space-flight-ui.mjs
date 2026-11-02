@@ -246,11 +246,14 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  }
  $("flight-view").addEventListener("click",()=>{
   const current=get();if(!current)return;
-  if(current.kind==="surface-to-surface"&&!current.seated){
-   $("flight-dialogue").textContent="操縦席まで歩いて着席すると航行星図に切り替えられます";
-   return;
+  if(current.kind==="surface-to-surface"){
+   const result=current.seated?current.stand():
+    current.isNearSeat()?current.sit():{ok:false,message:"船内を歩いて操縦席へ近づいてください"};
+   if(result?.message)$("flight-dialogue").textContent=result.message;
+   if(!result?.ok)return;
+  }else{
+   current.interior.mode=current.interior.mode==="interior"?"cockpit":"interior";
   }
-  current.interior.mode=current.interior.mode==="interior"?"cockpit":"interior";
   nearKey="";held.clear();resetShipStick();render();
  });
 
@@ -271,7 +274,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const interiorView=v.interior.mode==="interior";
   shipCanvas.hidden=unified||!interiorView;screen.hidden=interiorView;
   $("flight-walk").hidden=!interiorView;$("flight-nearby").hidden=!interiorView;
-  $("flight-view").textContent=interiorView?"🛰️ 操縦席の星図":"🚶 3D船内";
+  $("flight-view").textContent=v.kind==="surface-to-surface"?(v.seated?"🚶 立って船内へ":"🪑 着席"):(interiorView?"🛰️ 操縦席の星図":"🚶 3D船内");
   if(interiorView){updateNearby();if(!unified)ship3D.render();}
   if(lastView!==v.interior.mode){lastView=v.interior.mode;nearKey="";$("flight-dialogue").textContent="";}
 
