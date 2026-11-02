@@ -11,12 +11,28 @@ export function shipTouchAxes(stick,{deadzone=.12}={}){
  const scale=magnitude/Math.max(1e-9,Math.hypot(x,y));
  return {forward:-y*scale,sideways:x*scale,magnitude};
 }
-export function shipTouchPilot(stick,dt,{yawDegPerSecond=38,throttlePerSecond=.46}={}){
- if(!finite(dt)||dt<=0)return {yawDelta:0,throttleDelta:0};
+/** Cockpit stick controls ATTITUDE only. Engine output belongs to the lever.
+ * Touch up is a positive nose-up command; releasing the stick zeroes both axes.
+ */
+export function shipTouchPilot(stick,dt,{yawDegPerSecond=38,pitchDegPerSecond=30}={}){
+ if(!finite(dt)||dt<=0)return {yawDelta:0,pitchDelta:0};
  const axes=shipTouchAxes(stick);
  const step=clamp(dt,0,.08);
  return {yawDelta:axes.sideways*step*yawDegPerSecond,
-  throttleDelta:axes.forward*step*throttlePerSecond};
+  pitchDelta:axes.forward*step*pitchDegPerSecond};
+}
+/** A celestial body is fixed in the inertial sky while the *ship* turns.
+ * Render it in vessel-local coordinates, preserving distance and scale.
+ * Until world-frame 6DoF is available this rotates the visual reference,
+ * not the spacecraft's physical translation.
+ */
+export function shipCelestialPosition({yawDeg=0,pitchDeg=0,distance=420,baseY=-50}={}){
+ const yaw=(finite(yawDeg)?yawDeg:0)*Math.PI/180;
+ const pitch=clamp(finite(pitchDeg)?pitchDeg:0,-80,80)*Math.PI/180;
+ const d=finite(distance)?Math.max(1,distance):420;
+ return [-Math.sin(yaw)*Math.cos(pitch)*d,
+  (finite(baseY)?baseY:0)-Math.sin(pitch)*d,
+  -Math.cos(yaw)*Math.cos(pitch)*d];
 }
 export function shipCameraPose({
  mode="cockpit",wide=true,distance=52,interior={},
