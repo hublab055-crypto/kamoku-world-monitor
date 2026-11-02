@@ -4069,7 +4069,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
- getWorldCanvas:()=>renderer?.canvas||null,notify:log});
+ getWorldCanvas:()=>renderer?.canvas||null,getWorldRenderer:()=>renderer,notify:log});
 shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
