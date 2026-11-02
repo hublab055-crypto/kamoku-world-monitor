@@ -1,4 +1,4 @@
-import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9at-shared-buildings";
+import {TOWN_NAMES,TOWN_TOPICS,TOWN_WARES} from "./town-life.mjs?v=0.9au-resident-life";
 import {sharedRoom} from "./town-shared-world.mjs?v=0.9at";
 
 /** Mobile-sized town interaction desk. All mutations go through TownLife. */
@@ -18,12 +18,13 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
  }
  function setStatus(message){status.textContent=message;}
  function currentSelection(){
-  const {townId,town}=get();
-  return selection?town.find(townId,selection.id,selection.source):null;
+  const {townId,town,day}=get();
+  return selection?(selection.source==="resident"?town.residentAt(townId,selection.id,day):
+   town.find(townId,selection.id,selection.source)):null;
  }
  function render(){
   if(panel.hidden)return;
-  const {town,townId,controller,actions:resources,life}=get();
+  const {town,townId,controller,actions:resources,life,day}=get();
   const inside=town.inside,subject=currentSelection();
   const room=inside?town.find(townId,inside.buildingId,"village"):null;
   const chosen=room||subject;
@@ -51,6 +52,12 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
     if(inside.seat)actions.append(button("🧍 席から立ち上がる","stand"));
     else actions.append(button("💺 近くの椅子に座る","sit"));
    }
+   // NPCs physically working or resting in this exact building can be spoken to.
+   const present=town.layout(townId).residents.map(p=>town.residentAt(townId,p.id,day))
+    .filter(p=>p?.inside&&p.buildingId===room.id&&town.distance(controller,p)<6)
+    .slice(0,4);
+   for(const resident of present)
+    actions.append(button("💬 "+resident.title+"（"+resident.activity+"）","resident-talk:"+resident.id));
    const wares=TOWN_WARES[room.type]||[];
    if(wares.length)addTrade(wares,resources,life,town);
    return;
@@ -100,9 +107,9 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   render();
  }
  function openNearby(){
-  const {town,townId,controller}=get();
+  const {town,townId,controller,day}=get();
   const layout=town.layout(townId),candidates=[
-   ...layout.residents.map(p=>({...p,id:p.id,source:"resident"})),
+   ...layout.residents.map(p=>({...town.residentAt(townId,p.id,day),source:"resident"})),
    ...layout.buildings.map((p,i)=>({...p,id:"village-"+i,source:"village"}))
   ];
   candidates.sort((a,b)=>town.distance(controller,a)-town.distance(controller,b));
@@ -122,6 +129,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   else if(value==="sit")output=town.sitMusicSeat({admitted:musicCulture?.hasTicket(townId,"theater",day)??true});
   else if(value==="stand")output=town.standMusicSeat();
   else if(value==="enter"&&chosen)output=town.enter(townId,chosen.id,controller);
+  else if(value.startsWith("resident-talk:"))output=town.dialogue(townId,value.slice(14),"greeting",controller,day);
   else if(value.startsWith("talk:")&&chosen)
    output=town.dialogue(townId,chosen.id,value.slice(5),controller,day);
   else if((value.startsWith("buy:")||value.startsWith("sell:"))&&chosen)
