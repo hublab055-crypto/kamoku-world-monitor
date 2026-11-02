@@ -6,6 +6,7 @@ import {hallRoom,nearestHallSeat,hallSeats} from "./music-hall.mjs?v=0.9aq";
 import {hallDoor,hallDoorNear,hallExteriorStep} from "./music-hall-portal.mjs?v=0.9aq";
 import {hallLocalPoint} from "./music-hall-world.mjs?v=0.9at-shared-rooms";
 import {sharedRoom,sharedDoor,sharedDoorNear,sharedExteriorStep,sharedWalkStep} from "./town-shared-world.mjs?v=0.9at";
+import {residentLifePlan,residentLifePose,RESIDENT_ACTION_NAMES} from "./town-resident-life.mjs?v=0.9au";
 
 export const TOWN_NAMES=Object.freeze({
  lodge:"宿屋・集会所",cabin:"民家",barn:"納屋",workshop:"工房",
@@ -45,7 +46,7 @@ export class TownLife{
   for(const [key,day] of Object.entries(saved?.talked||{}))
    if(/^[a-z]+:resident-\d+:(greeting|work|rumor)$/.test(key)&&good(day))
     this.talked[key]=day;
-  this.inside=null;this.hallDoors={};this.portalExitRequested=false;this._hallSites={};
+  this.inside=null;this.hallDoors={};this.portalExitRequested=false;this._hallSites={};this._residentPlans={};
  }
  layout(townId){return settlementLayout(townId);}
  find(townId,id,category){
@@ -62,23 +63,40 @@ export class TownLife{
   }
   return null;
  }
+ residentAt(townId,residentId,day=0){
+  const resident=this.find(townId,residentId,"resident");
+  if(!resident)return null;
+  const plans=this._residentPlans[townId]??=new Map();
+  let plan=plans.get(residentId);
+  if(!plan){plan=residentLifePlan(this.layout(townId),resident);plans.set(residentId,plan);}
+  const pose=residentLifePose(plan,day);
+  return pose?{...resident,...pose,title:resident.title,
+   occupation:plan.job,activity:RESIDENT_ACTION_NAMES[pose.activity]||resident.activity}:resident;
+ }
  distance(actor,subject){return Math.hypot(actor.x-subject.x,actor.z-subject.z);}
  canInteract(townId,actor,subject,{radius=7}={}){
   if(!actor?.nearGround||actor?.travelMode!=="walk"||
     !destinationById(townId)||townId==="pioneer")
    return result(false,"街の地上で歩行中に操作してください");
   if(!subject)return result(false,"対象が見つかりません");
+  if(this.inside&&subject.kind==="resident"){
+   return this.inside.townId===townId&&subject.inside&&
+    this.inside.buildingId===subject.buildingId&&this.distance(actor,subject)<=radius?
+    result(true,"同じ部屋にいます"):result(false,"この住民は別の場所にいます");
+  }
   if(this.inside){
    return this.inside.townId===townId&&this.inside.buildingId===subject.id?
     result(true,"屋内にいます"):result(false,"先に建物から外へ出てください");
   }
+  if(subject.kind==="resident"&&subject.inside)
+   return result(false,"この住民は建物の室内にいます。入口から入ってください");
   const distance=this.distance(actor,subject);
   if(distance>radius)return result(false,"対象まで約"+Math.ceil(distance)+"mです。近づいてから操作してください");
   return result(true,"近くにいます");
  }
  dialogue(townId,residentId,topic,actor,day=0){
   if(!topics.includes(topic))return result(false,"会話の選択肢がありません");
-  const resident=this.find(townId,residentId,"resident");
+  const resident=this.residentAt(townId,residentId,day);
   const proximity=this.canInteract(townId,actor,resident,{radius:6});
   if(!proximity.ok)return proximity;
   const key=townId+":"+residentId,dayNumber=limit(Math.floor(Number(day)||0),0,999999);
@@ -95,7 +113,7 @@ export class TownLife{
    this.friendship[key]=limit(relation+1,0,100);
    this.talked[logKey]=dayNumber;
   }
-  return result(true,"💬 "+resident.title+"：「"+phrase+"」",{friendship:this.friendship[key]});
+  return result(true,"💬 "+resident.title+"（"+resident.occupation+"・"+resident.activity+"）：「"+phrase+"」",{friendship:this.friendship[key]});
  }
  hallDoorOpen(townId,buildingId){return Boolean(this.hallDoors[townId+":"+buildingId]);}
  toggleHallDoor(townId,buildingId,actor){
