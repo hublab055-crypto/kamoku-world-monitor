@@ -48,12 +48,12 @@ function door(site){
  const room=sharedRoom(site?.type);
  return {x:site.x,z:site.z+(room?.halfZ||3.6)+1.3,inside:false,buildingId:null};
 }
-function pathBetween(home,work){
+function pathBetween(home,work,homeId,workId){
  const from=door(home),to=door(work),middleX=home.x<0?-14:14;
- return [inner(home,null),from,
+ return [inner(home,homeId),from,
   {x:middleX,z:from.z,inside:false},
   {x:middleX,z:to.z,inside:false},
-  to,inner(work,null)];
+  to,inner(work,workId)];
 }
 function pointPath(path,portion){
  if(portion<=1e-9)return {...path[0],moving:false};
@@ -77,14 +77,14 @@ export function residentLifePose(plan,day){
  if(hour<6.25||hour>=22)return sleep();
  if(hour<7)return stationary(plan,"home","breakfast");
  if(hour<8){
-  const p=pointPath(pathBetween(plan.home,plan.work),Math.min(1,(hour-7)));
+  const p=pointPath(pathBetween(plan.home,plan.work,plan.homeId,plan.workId),Math.min(1,(hour-7)));
   return {...p,activity:"commute",job:plan.job};
  }
  if(hour<12)return stationary(plan,"work",plan.workActivity);
  if(hour<13)return stationary(plan,"work","lunch");
  if(hour<17)return stationary(plan,"work",plan.workActivity);
  if(hour<18){
-  const p=pointPath(pathBetween(plan.work,plan.home),hour-17);
+  const p=pointPath(pathBetween(plan.work,plan.home,plan.workId,plan.homeId),hour-17);
   return {...p,activity:"commute",job:plan.job};
  }
  if(hour<20)return stationary(plan,"home","dinner");
