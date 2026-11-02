@@ -16,6 +16,11 @@ export class SpaceVoyage{
   this.throttle=clamp(data.throttle??.72,0,1);
   this.fuel=clamp(data.fuel??100,0,100);
   this.heading=clamp(data.heading??0,-60,60);
+  // Visual attitude is separate from the legacy ±60° course-error value.
+  // Missing fields in old saves default to a level ship facing forward.
+  this.attitudeYawDeg=Number.isFinite(data.attitudeYawDeg)?
+   ((data.attitudeYawDeg+180)%360+360)%360-180:0;
+  this.pitchDeg=Number.isFinite(data.pitchDeg)?clamp(data.pitchDeg,-65,65):0;
   this.autopilot=data.autopilot!==false;
   const states=["preflight","ascent","parking-orbit","launch","cruise","approach","orbit","descent","landed"];
   this.status=states.includes(data.status)?data.status:"preflight";
@@ -55,7 +60,16 @@ export class SpaceVoyage{
   this.status="descent";this.descentSeconds=0;
   return {ok:true,message:"🔥 大気圏突入。船体を減速し着陸シーケンスに移行します"};
  }
- steer(delta){if(!valid(delta))throw new TypeError("Invalid steering");this.heading=clamp(this.heading+delta,-60,60);return this.heading;}
+ steer(delta){
+  if(!valid(delta))throw new TypeError("Invalid steering");
+  this.heading=clamp(this.heading+delta,-60,60);
+  this.attitudeYawDeg=((this.attitudeYawDeg+delta+180)%360+360)%360-180;
+  return this.heading;
+ }
+ pitch(delta){
+  if(!valid(delta))throw new TypeError("Invalid pitch");
+  this.pitchDeg=clamp(this.pitchDeg+delta,-65,65);return this.pitchDeg;
+ }
  setThrottle(value){if(!valid(value))throw new TypeError("Invalid throttle");this.throttle=clamp(value,0,1);}
  setAutopilot(on){this.autopilot=Boolean(on);}
  cancel(){
@@ -95,7 +109,8 @@ export class SpaceVoyage{
   return {schemaVersion:1,originId:this.originId,destinationId:this.destinationId,
    launchDay:this.launchDay,flightDays:this.flightDays,progress:this.progress,
    elapsedSeconds:this.elapsedSeconds,throttle:this.throttle,fuel:this.fuel,
-   heading:this.heading,autopilot:this.autopilot,status:this.status,
+   heading:this.heading,attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
+   autopilot:this.autopilot,status:this.status,
    ascentSeconds:this.ascentSeconds,descentSeconds:this.descentSeconds,
    interior:this.interior.snapshot()};
  }
