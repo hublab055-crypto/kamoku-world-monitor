@@ -36,6 +36,7 @@ import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
 import {joystickMovement} from "./stick-input.mjs";
+import {screenStickFacing,screenHeadingForStick,keepStickCameraHeading} from "./screen-stick-motion.mjs?v=0.9ba";
 import {HutAccess,HUT} from "./buildings.mjs";
 import {BOOK_MAP,BookCollection,pagesForBook} from "./books.mjs";
 import {Lifestyle} from "./lifestyle.mjs?v=0.8e-chest-mass";
@@ -249,7 +250,7 @@ function doEarthwork(mode,site){
  renderer.patchKey=null;log(r.message);saveWorldJournal();saveLifeJournal();updateHUD();
 }
 let rtsMode=false,rtsPreviousCamera="follow",rtsMulti=false,rallyPicking=false,syncMode=false,autoActorId="player";
-let controlMode="stick",stick={x:0,y:0},stickPointer=null;
+let controlMode="stick",stick={x:0,y:0},stickPointer=null,stickHeadingYaw=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0,voyageSaveElapsed=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
@@ -701,7 +702,8 @@ function doFrame(t,source="window",xrFrameInput=null){
   const jailStunned=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell&&
    renderer.captureFX&&renderer.captureFX.elapsed<renderer.captureFX.duration);
   const jailCellActive=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell&&!jailStunned);
-  const input=(!detained||jailCellActive)&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden?inputVector():{forward:0,strafe:0,turn:0};
+  const acceptsWorldInput=(!detained||jailCellActive)&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden;
+  const input=acceptsWorldInput?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
   if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
   // Never request Quest input from window RAF: deliver it directly with the
@@ -717,6 +719,22 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(onFerry&&!jailCellActive)ferry.walk(running?dt:0,input);
   if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
   if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
+  // Only the physical on-screen stick is screen-relative. Preserve VR axes,
+  // keyboard walking, vehicle steering and scripted/automatic destinations.
+  if(source!=="xr"&&acceptsWorldInput&&stickPointer!==null&&controlMode==="stick"&&
+     !detained&&!onTrain&&!onFerry&&!inConcourse&&!townLife.inside&&
+     !marine?.boarded&&!marine?.cabinId&&!fauna?.mount&&
+     controller.altitudeM<=12.01&&renderer.cameraController.mode!=="free"){
+   const facing=screenStickFacing(stick,controller.yaw,
+     stickHeadingYaw??screenHeadingForStick(renderer.cameraController,controller.yaw),dt);
+   if(facing.active){
+    const raw=joystickMovement(stick);
+    input.forward+=facing.forward-raw.forward;
+    input.strafe+=facing.strafe-raw.strafe;
+    controller.turn(facing.turn);
+    keepStickCameraHeading(renderer.cameraController,facing.turn);
+   }
+  }
   const ship=marine?.boarded;
   const onShip=!detained&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
@@ -3132,7 +3150,7 @@ $("camera-home").addEventListener("click",()=>{
 function setControlMode(mode){
  controlMode=mode;
  controller?.clearMoveTarget();
- stick={x:0,y:0};
+ stick={x:0,y:0};stickPointer=null;stickHeadingYaw=null;
  $("stick-nub").style.transform="translate(0px,0px)";
  updateHUD();
 }
@@ -3347,16 +3365,20 @@ function updateStick(e){
  stick={x:px/radius,y:py/radius};
  nub.style.transform="translate("+px.toFixed(1)+"px,"+py.toFixed(1)+"px)";
 }
-function releaseStick(){stickPointer=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
+function releaseStick(){stickPointer=null;stickHeadingYaw=null;stick={x:0,y:0};nub.style.transform="translate(0px,0px)";}
 stickArea.addEventListener("pointerdown",e=>{
- if(controlMode!=="stick")return;
+ if(controlMode!=="stick"||stickPointer!==null)return;
  e.preventDefault();stickPointer=e.pointerId;
+ if(renderer?.cameraController?.mode==="legacy")setCameraMode("follow");
+ stickHeadingYaw=screenHeadingForStick(renderer.cameraController,controller.yaw);
  stickArea.setPointerCapture?.(e.pointerId);controller.clearMoveTarget();updateStick(e);
 });
 stickArea.addEventListener("pointermove",e=>{if(e.pointerId===stickPointer)updateStick(e);});
 for(const t of ["pointerup","pointercancel","lostpointercapture"]){
  stickArea.addEventListener(t,e=>{if(stickPointer===e.pointerId)releaseStick();});
 }
+document.addEventListener("visibilitychange",()=>{if(document.hidden)releaseStick();});
+window.addEventListener("blur",releaseStick);
 
 /* ⚓ Tactical RTS controls and eight-slot IF -> THEN automation editor. */
 const RTS_METRICS={always:"常に (1)",hunger:"🍽️満腹%",mental:"🧠メンタル%",wood:"木材",stone:"石材",houses:"完成小屋",idle:"待機 0/1",distance:"隊長との距離(m)",walked:"累計歩行(m)",stamina:"⚡スタミナ%",load_kg:"🎒重量kg",resource_nearby:"🌿半径内の資源数"};
