@@ -181,7 +181,8 @@ export class TownLife{
  walk(dt,{forward=0,strafe=0,turn=0}={}){
   if(!this.inside)return false;
   const p=this.inside.pose;
-  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat)return false;
+  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat||
+   ["sit","sleep"].includes(this.inside.furnitureAction))return false;
   p.blocked=false;
   const step=limit(dt,0,.1),turnRate=1.75;
   const f=limit(Number(forward)||0,-1,1),side=limit(Number(strafe)||0,-1,1);
@@ -217,6 +218,51 @@ export class TownLife{
   p.moving=Math.hypot(nextX-p.x,nextZ-p.z)>.001;
   p.x=nextX;p.z=nextZ;
   return p.moving;
+ }
+ /** Reuses real in-room furniture. The actor approaches via existing collision.
+  * Rest uses the existing Lifestyle stats and inventory, not a new health system.
+  */
+ useTownFurniture(action,life){
+  if(!this.inside)return result(false,"建物の中に入ってください");
+  const building=this.find(this.inside.townId,this.inside.buildingId,"village");
+  const type=building?.type,p=this.inside.pose;
+  if(!["cabin","lodge"].includes(type))
+   return result(false,"この建物には使用可能な生活家具がありません");
+  if(action==="stand"){
+   if(!this.inside.furnitureAction)return result(false,"立った状態です");
+   this.inside.furnitureAction=null;p.moving=false;
+   if(life?.activity!=="idle")life.activity="idle";
+   return result(true,"🧍 椅子・ベッドから立ち上がりました");
+  }
+  if(this.inside.furnitureAction)
+   return result(false,"先に立ち上がってください");
+  const points=type==="cabin"?{
+   sleep:{x:-2.0,z:-1.8},rest:{x:-2.0,z:-1.8},
+   sit:{x:2.6,z:1.9},eat:{x:1.45,z:-.6},read:{x:1.45,z:-.6}
+  }:{
+   sit:{x:2.65,z:-1.45},eat:{x:2.65,z:-1.45},read:{x:2.65,z:-1.45},
+   rest:{x:0,z:2.65}
+  };
+  const target=points[action];
+  if(!target)return result(false,"この家具では選択した行動ができません");
+  if(Math.hypot(p.x-target.x,p.z-target.z)>1.8)
+   return result(false,"家具のそば（約1.8m以内）へ歩いてください");
+  if(!life)return result(false,"生活データを読み込めません");
+  if(action==="eat"){
+   if((life.inventory?.meal||0)<1)
+    return result(false,"食事を持っていません。宿屋などで購入してください");
+   life.inventory.meal--;
+   if(life.stats)life.stats.hunger=Math.min(100,(life.stats.hunger||0)+30);
+   life.activity="eat";
+  }else if(action==="sleep"||action==="rest"){
+   life.rest?.(action==="sleep"?70:35);
+   life.activity=action;
+  }else life.activity=action;
+  this.inside.furnitureAction=action;
+  p.moving=false;p.yaw=Math.PI;
+  return result(true,({sleep:"🛏️ ベッドで眠り体力が回復しました",
+   rest:"🌿 休んで体力を回復しました",sit:"🪑 椅子に座りました",
+   eat:"🍽️ 食事をしました（料理を1つ消費）",read:"📖 机で読書しています"})[action]);
  }
  sitMusicSeat({admitted=true}={}){
   if(!this.inside)return result(false,"音楽施設の室内へ入ってください");
