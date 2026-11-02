@@ -149,7 +149,7 @@ export class TownLife{
   }
   return step;
  }
- portalExit(actor){
+ portalExit(actor,life=null){
   if(!this.portalExitRequested||!this.inside)return result(false,"出口に到達していません");
   const inside=this.inside,building=this.find(inside.townId,inside.buildingId,"village");
   if(!building||!this.hallDoorOpen(inside.townId,inside.buildingId))
@@ -161,6 +161,7 @@ export class TownLife{
    return result(false,"入口の座標が不正です");
   actor.x=x;actor.z=z;actor.lat=point.lat;actor.lon=point.lon;
   actor.clearMoveTarget?.();actor.moving=false;
+  if(this.inside.furnitureAction&&life)life.activity="idle";
   this.portalExitRequested=false;this.inside=null;
   return result(true,"🚪 扉を通って建物の外へ出ました");
  }
@@ -181,8 +182,7 @@ export class TownLife{
  walk(dt,{forward=0,strafe=0,turn=0}={}){
   if(!this.inside)return false;
   const p=this.inside.pose;
-  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat||
-   ["sit","sleep"].includes(this.inside.furnitureAction))return false;
+  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat||this.inside.furnitureAction)return false;
   p.blocked=false;
   const step=limit(dt,0,.1),turnRate=1.75;
   const f=limit(Number(forward)||0,-1,1),side=limit(Number(strafe)||0,-1,1);
@@ -283,7 +283,7 @@ export class TownLife{
   if(seat)this.inside.pose.x=seat.x>0?seat.x-.45:seat.x+.45;
   return result(true,"🧍 立ち上がりました");
  }
- leave(actor=null){
+ leave(actor=null,life=null){
   if(!this.inside)return result(false,"屋外にいます");
   const room=this.inside,building=this.find(room.townId,room.buildingId,"village");
   if((hallRoom(building?.type)||sharedRoom(building?.type))&&actor){
@@ -295,6 +295,7 @@ export class TownLife{
    actor.x=x;actor.z=z;actor.lat=geo.lat;actor.lon=geo.lon;
    actor.clearMoveTarget?.();actor.moving=false;
   }
+  if(this.inside.furnitureAction&&life)life.activity="idle";
   this.inside=null;this.portalExitRequested=false;
   return result(true,"🚪 建物から外に出ました");
  }
