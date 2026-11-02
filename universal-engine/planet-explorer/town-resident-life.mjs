@@ -56,7 +56,7 @@ function pathBetween(home,work){
   to,inner(work,null)];
 }
 function pointPath(path,portion){
- if(portion<=0)return {...path[0],moving:false};
+ if(portion<=1e-9)return {...path[0],moving:false};
  if(portion>=1)return {...path[path.length-1],moving:false};
  // Constant duration per waypoint for deterministic, low-cost animation.
  const k=portion*(path.length-1),index=Math.min(path.length-2,Math.floor(k)),a=path[index],b=path[index+1],t=k-index;
