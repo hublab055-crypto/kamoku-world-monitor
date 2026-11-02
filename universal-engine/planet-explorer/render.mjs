@@ -2997,11 +2997,18 @@ export class ExplorerRenderer{
     }
     mesh.updateTransforms(mesh.dynamicTransforms);
     this.drawInstancedMesh(mesh,vp,light,1,.72);
-    for(const person of mesh.residents){
-     if(Math.hypot(person.x-s.x,person.z-s.z)>25)continue;
-     const p=projectScreen(vp,[person.localX,person.elevationM+2.0,person.localZ]);
+    for(let i=0;i<mesh.residents.length;i++){
+     const person=mesh.residents[i],life=mesh.residentLifePoses?.[i];
+     const x=life?.x??person.x,z=life?.z??person.z;
+     if(Math.hypot(x-s.x,z-s.z)>25)continue;
+     if(life?.inside&&!(this.townInterior?.buildingId===life.buildingId)&&
+       !this.musicHallDoors?.[this.settlementId+":"+life.buildingId])continue;
+     const site=life?.inside?this.townSiteById?.get(life.buildingId):null;
+     if(life?.inside&&!site)continue;
+     const y=site?site.elevationM:person.elevationM;
+     const p=projectScreen(vp,[x-this.cx,y+2.0,z-this.cz]);
      if(p?.onScreen)this.screenTownResidents.push({...p,id:person.id,
-      source:"resident",x:person.x,z:person.z});
+      source:"resident",x,z,activity:life?.activity,inside:life?.inside});
     }
    }
    const guard=this.railwaySecurity?.guard;
