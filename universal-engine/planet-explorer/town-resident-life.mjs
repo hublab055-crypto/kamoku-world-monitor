@@ -57,7 +57,7 @@ function pathBetween(home,work){
 }
 function pointPath(path,portion){
  if(portion<=1e-9)return {...path[0],moving:false};
- if(portion>=1)return {...path[path.length-1],moving:false};
+ if(portion>=1-1e-9)return {...path[path.length-1],moving:false};
  // Constant duration per waypoint for deterministic, low-cost animation.
  const k=portion*(path.length-1),index=Math.min(path.length-2,Math.floor(k)),a=path[index],b=path[index+1],t=k-index;
  return {x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t,
@@ -71,7 +71,8 @@ function stationary(plan,where,activity){
 /** Planet days may advance by large steps; samples are independent of frame dt. */
 export function residentLifePose(plan,day){
  if(!plan)return null;
- const hour=frac(cleanDay(day))*24;
+ const raw=frac(cleanDay(day))*24;
+ const hour=Math.abs(raw-Math.round(raw))<1e-9?Math.round(raw):raw;
  const sleep=()=>stationary(plan,"home","sleep");
  if(hour<6.25||hour>=22)return sleep();
  if(hour<7)return stationary(plan,"home","breakfast");
