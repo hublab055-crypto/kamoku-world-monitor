@@ -98,6 +98,54 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   }});
  root.classList.toggle("integrated",unified);
  const held=new Set();let nearKey="",lastView="";
+ let chase=false,wide=typeof matchMedia==="function"&&matchMedia("(max-width: 1024px) and (pointer: coarse)").matches;
+ let chaseDistance=52,shipPointer=null,shipStick={x:0,y:0};
+ const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
+ function resetShipStick(){shipPointer=null;shipStick={x:0,y:0};touchNub.style.transform="translate(0px,0px)";}
+ function updateShipStick(e){
+  const bounds=touchPad.querySelector(".flight-touch-ring").getBoundingClientRect();
+  const radius=Math.max(1,Math.min(bounds.width,bounds.height)*.31);
+  const dx=e.clientX-(bounds.left+bounds.width/2),dy=e.clientY-(bounds.top+bounds.height/2);
+  const scale=Math.min(1,radius/Math.max(1,Math.hypot(dx,dy)));
+  shipStick={x:dx*scale/radius,y:dy*scale/radius};
+  touchNub.style.transform="translate("+Math.round(dx*scale)+"px,"+Math.round(dy*scale)+"px)";
+ }
+ touchPad.addEventListener("pointerdown",e=>{
+  if(shipPointer!==null||root.hidden||(e.pointerType==="mouse"&&e.button!==0))return;
+  e.preventDefault();shipPointer=e.pointerId;touchPad.setPointerCapture?.(e.pointerId);updateShipStick(e);
+ });
+ touchPad.addEventListener("pointermove",e=>{
+  if(e.pointerId===shipPointer){e.preventDefault();updateShipStick(e);}
+ });
+ for(const type of ["pointerup","pointercancel","lostpointercapture"])
+  touchPad.addEventListener(type,e=>{if(e.pointerId===shipPointer)resetShipStick();});
+ document.addEventListener("visibilitychange",()=>{if(document.hidden)resetShipStick();});
+ function seatedPilot(v){return Boolean(v&&(v.seated===true||v.kind!=="surface-to-surface"&&v.interior?.mode==="cockpit"));}
+ function syncShipCamera(){
+  const v=get(),seated=seatedPilot(v);
+  if(!seated)chase=false;
+  const viewer=getWorldRenderer?.();
+  if(viewer){
+   viewer.shipCameraMode=chase?"chase":"cockpit";
+   viewer.shipWideView=wide;
+   viewer.shipChaseDistance=chaseDistance;
+  }
+  root.classList.toggle("flight-wide",wide);
+  $("flight-camera").hidden=!seated;
+  $("flight-camera").textContent=chase?"🪑 操縦席視点":"🚀 船外追従";
+  $("flight-camera").setAttribute("aria-pressed",String(chase));
+  $("flight-wide").textContent=wide?"▣ 詳細UI":"⛶ 広画面";
+  $("flight-wide").setAttribute("aria-pressed",String(wide));
+  root.querySelector(".flight-view-distance").hidden=!chase;
+  touchPad.querySelector(".flight-touch-caption").textContent=seated?"↔ 旋回 / ↕ 出力":"船内歩行";
+  touchPad.style.left=seated?"50%":"";
+  touchPad.style.transform=seated?"translateX(-50%)":"";
+ }
+ $("flight-camera").addEventListener("click",()=>{if(!seatedPilot(get()))return;chase=!chase;syncShipCamera();});
+ $("flight-wide").addEventListener("click",()=>{wide=!wide;syncShipCamera();});
+ $("flight-zoom-near").addEventListener("click",()=>{chaseDistance=Math.max(28,chaseDistance-12);syncShipCamera();});
+ $("flight-zoom-far").addEventListener("click",()=>{chaseDistance=Math.min(125,chaseDistance+12);syncShipCamera();});
+
  function cockpitAvailable(){const v=get();return Boolean(v?.interior&&ship3D.supported);}
  function showCargo(){
   const resources=getCargo?.()||{};
@@ -162,7 +210,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   event.preventDefault();held.add(keys.get(event.key.toLowerCase()));
  });
  document.addEventListener("keyup",event=>{const key=keys.get(event.key.toLowerCase());if(key)held.delete(key);});
- window.addEventListener("blur",()=>held.clear());
+ window.addEventListener("blur",()=>{held.clear();resetShipStick();});
  let drag=null;
  const dragTarget=unified?worldCanvas:shipCanvas;
  dragTarget.addEventListener("pointerdown",event=>{
@@ -178,11 +226,23 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  for(const type of ["pointerup","pointercancel","lostpointercapture"])
   dragTarget.addEventListener(type,()=>{drag=null;});
  function applyMove(dt){
-  const state=get()?.interior;
-  if(!state||state.mode!=="interior")return;
+  const v=get(),state=v?.interior;
+  if(!state||!Number.isFinite(dt)||dt<=0)return;
   const n=key=>Number(held.has(key));
-  state.turn((n("rightTurn")-n("leftTurn"))*dt*1.7);
-  state.walk(n("forward")-n("back"),n("right")-n("left"),dt);
+  if(state.mode==="interior"&&!state.seated){
+   state.turn((n("rightTurn")-n("leftTurn"))*dt*1.7);
+   const axis=shipPointer===null?{forward:0,sideways:0}:shipTouchAxes(shipStick);
+   state.walk(n("forward")-n("back")+axis.forward,n("right")-n("left")+axis.sideways,dt);
+  }else if(shipPointer!==null&&seatedPilot(v)){
+   // Initial chase steering reuses the actual ship heading and throttle.
+   // Y changes engine output; independent physical ascent/descent is future work.
+   const pilot=shipTouchPilot(shipStick,dt);
+   if(pilot.yawDelta&&typeof v.steer==="function"){
+    v.setAutopilot?.(false);v.steer(pilot.yawDelta);
+   }
+   if(pilot.throttleDelta&&typeof v.setThrottle==="function")
+    v.setThrottle(clamp(v.throttle+pilot.throttleDelta,0,1));
+  }
  }
  $("flight-view").addEventListener("click",()=>{
   const current=get();if(!current)return;
@@ -191,7 +251,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    return;
   }
   current.interior.mode=current.interior.mode==="interior"?"cockpit":"interior";
-  nearKey="";held.clear();render();
+  nearKey="";held.clear();resetShipStick();render();
  });
 
  const throttle=$("flight-throttle"),main=$("flight-main");
@@ -204,7 +264,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
  main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
  function render(dt=0){
-  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();return;}
+  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();return;}
+  syncShipCamera();
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
   const interiorView=v.interior.mode==="interior";
@@ -282,5 +343,5 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ctx.fillText(Math.round(p*100)+"% / "+v.flightDays.toFixed(1)+" ゲーム日",w*.32,h*.90);
   $("flight-hud").textContent="HELIO NAV · "+v.status.toUpperCase()+"\n"+target.name+"  接近"+Math.round(p*100)+"%";
  }
- return {render,close:()=>{held.clear();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
+ return {render,close:()=>{held.clear();resetShipStick();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
 }
