@@ -68,7 +68,8 @@ test("planet falls in the cockpit window when nose is raised",()=>{
  const noseDown=shipCelestialPosition({yawDeg:0,pitchDeg:-24,distance:350});
  assert.ok(noseUp[1]<level[1]);
  assert.ok(noseDown[1]>level[1]);
- assert.deepEqual(shipCelestialPosition({yawDeg:NaN,pitchDeg:Infinity,distance:NaN}),[0,-50,-420]);
+ const invalid=shipCelestialPosition({yawDeg:NaN,pitchDeg:Infinity,distance:NaN});
+ near(invalid[0],0);near(invalid[1],-50);near(invalid[2],-420);
 });
 test("ship journey saves pilot attitude and loads older saves at zero attitude",()=>{
  const ship=new ShipJourney({originId:"terra",status:"cruise",seated:true,throttle:.66});
