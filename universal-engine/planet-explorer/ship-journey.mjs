@@ -26,6 +26,11 @@ export class ShipJourney{
   this.touchdownElapsed=finite(data.touchdownElapsed)?clamp(data.touchdownElapsed,0,1.7):0;
   this.elapsedSeconds=Math.max(0,finite(data.elapsedSeconds)?data.elapsedSeconds:0);
   this.heading=clamp(data.heading??0,-60,60);
+  // Visual attitude is separate from the legacy ±60° course-error value.
+  // Missing fields in old saves default to a level ship facing forward.
+  this.attitudeYawDeg=Number.isFinite(data.attitudeYawDeg)?
+   ((data.attitudeYawDeg+180)%360+360)%360-180:0;
+  this.pitchDeg=Number.isFinite(data.pitchDeg)?clamp(data.pitchDeg,-65,65):0;
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,0,1);
   this.autopilot=data.autopilot!==false;
@@ -110,7 +115,16 @@ export class ShipJourney{
  }
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
- steer(n){if(!finite(n))throw Error("Invalid heading");this.heading=clamp(this.heading+n,-60,60);}
+ steer(n){
+  if(!finite(n))throw Error("Invalid heading");
+  this.heading=clamp(this.heading+n,-60,60);
+  this.attitudeYawDeg=((this.attitudeYawDeg+n+180)%360+360)%360-180;
+ }
+ pitch(n){
+  if(!finite(n))throw Error("Invalid pitch");
+  this.pitchDeg=clamp(this.pitchDeg+n,-65,65);
+  return this.pitchDeg;
+ }
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
@@ -146,6 +160,7 @@ export class ShipJourney{
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
+   attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    seated:this.seated,interior:this.interior.snapshot()};
  }
