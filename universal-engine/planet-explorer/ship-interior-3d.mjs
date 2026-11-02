@@ -1,4 +1,5 @@
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
+import {shipCelestialPosition} from "./ship-view-controls.mjs?v=2-pilot-attitude";
 import {bodyById} from "./solar-system.mjs";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
@@ -213,12 +214,16 @@ export function installShipInterior3D(canvas,{get}){
   const planetData=[];
   if(target){
    const approaching=voyage.status==="entry"?Math.max(voyage.progress,voyage.stageProgress||0):voyage.progress;
-   sphere(planetData,0,2,-43,1.8+Math.pow(approaching,2.5)*15,color(target.color));
+   const pos=shipCelestialPosition({yawDeg:voyage.attitudeYawDeg,pitchDeg:voyage.pitchDeg,distance:43,baseY:2});
+   sphere(planetData,...pos,1.8+Math.pow(approaching,2.5)*15,color(target.color));
   }else if(origin){
-   sphere(planetData,0,-2,-50,["docked","landed"].includes(voyage.status)?11:4,color(origin.color));
+   const pos=shipCelestialPosition({yawDeg:voyage.attitudeYawDeg,pitchDeg:voyage.pitchDeg,distance:50,baseY:-2});
+   sphere(planetData,...pos,["docked","landed"].includes(voyage.status)?11:4,color(origin.color));
   }
-  if(target&&origin&&voyage.progress<.78)
-   sphere(planetData,-22,4,-70,5*Math.pow(1-voyage.progress,2),color(origin.color));
+  if(target&&origin&&voyage.progress<.78){
+   const pos=shipCelestialPosition({yawDeg:(voyage.attitudeYawDeg||0)+18,pitchDeg:voyage.pitchDeg,distance:70,baseY:4});
+   sphere(planetData,...pos,5*Math.pow(1-voyage.progress,2),color(origin.color));
+  }
   gl.bindBuffer(gl.ARRAY_BUFFER,planetBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(planetData),gl.DYNAMIC_DRAW);
   bind(planetBuffer);gl.drawArrays(gl.TRIANGLES,0,planetData.length/9);
   if(voyage.hatchOpen){bind(openBuffer);gl.drawArrays(gl.TRIANGLES,0,openSceneCount);}
