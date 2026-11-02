@@ -51,6 +51,7 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
+import {shipCameraPose} from "./ship-view-controls.mjs?v=1";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -771,7 +772,9 @@ export class ExplorerRenderer{
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
-   this.shipVoyage=null;this.shipArrivalPreview=null;this.shipUnifiedMeshes=[
+   this.shipVoyage=null;this.shipArrivalPreview=null;
+   this.shipCameraMode="cockpit";this.shipWideView=true;this.shipChaseDistance=52;
+   this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
@@ -1691,18 +1694,17 @@ export class ExplorerRenderer{
    gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
    gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
    gl.uniform1f(this.uXROcclusionEnabled,0);
-   const eyeY=person.seated?1.25:person.z>13.0&&v.hatchOpen?1.62-.25*(person.z-13):1.62;
-   const yaw=person.yaw||0;
-   // Reentry automatically tilts the pilot's sight toward the landing terrain.
-   // Player look input is still added on top of this gentle approach attitude.
+   // Exterior follow camera is allowed only from the pilot seat. Neither
+   // the camera nor the exterior hull is a second spacecraft simulation.
+   const chase=this.shipCameraMode==="chase"&&Boolean(v.seated||person.mode==="cockpit");
    const landingAttitude=v.status==="entry"&&v.seated?
     -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
     v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
-   const pitch=Math.max(-1.2,Math.min(1.2,(person.pitch||0)+landingAttitude));
-   const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
-   const eye=[person.x,eyeY,person.z];
-   const vp=multiply4(perspective(75*DEG,asp,.12,42000),lookAt(eye,
-    [eye[0]+sight[0],eye[1]+sight[1],eye[2]+sight[2]]));
+   const camera=shipCameraPose({mode:chase?"chase":"cockpit",
+    wide:this.shipWideView,distance:this.shipChaseDistance,
+    interior:{...person,hatchPassable:v.hatchOpen},landingAttitude});
+   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.12,42000),
+    lookAt(camera.eye,camera.target));
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
@@ -1756,8 +1758,14 @@ export class ExplorerRenderer{
     const globe=multiply4(translate(0,-50,z),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
-   this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
-   return "ship-interior";
+   if(chase){
+    // The same exterior mesh is used on the planet surface. Relative to this
+    // local camera, the vessel remains in view while its voyage state advances.
+    const courseYaw=(Number.isFinite(v.heading)?v.heading:0)*DEG*.35;
+    this.drawMesh(this.surfaceShipMeshes[v.hatchOpen?1:0],
+     multiply4(vp,rotateY(courseYaw)),[.57,.89,.49],1,.83);
+   }else this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+   return chase?"ship-exterior":"ship-interior";
   }
 
  /** A train follows its actual geodesic rail path, never a free-flight camera proxy. */
