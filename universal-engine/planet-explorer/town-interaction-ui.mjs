@@ -52,6 +52,17 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
     if(inside.seat)actions.append(button("🧍 席から立ち上がる","stand"));
     else actions.append(button("💺 近くの椅子に座る","sit"));
    }
+   if(["cabin","lodge"].includes(room.type)){
+    const furniture=inside.furnitureAction;
+    if(furniture)actions.append(button("🧍 家具から立つ","furniture:stand"));
+    else{
+     if(room.type==="cabin")actions.append(button("🛏️ ベッドで眠る","furniture:sleep"));
+     actions.append(button("🌿 休む","furniture:rest"));
+     actions.append(button("🪑 椅子に座る","furniture:sit"));
+     actions.append(button("🍽️ 食事をする","furniture:eat"));
+     actions.append(button("📖 読書する","furniture:read"));
+    }
+   }
    // NPCs physically working or resting in this exact building can be spoken to.
    const present=town.layout(townId).residents.map(p=>town.residentAt(townId,p.id,day))
     .filter(p=>p?.inside&&p.buildingId===room.id&&town.distance(controller,p)<6)
@@ -129,6 +140,7 @@ export function installTownInteractionUI({get,onChange=()=>{},onNotice=()=>{}}){
   else if(value==="sit")output=town.sitMusicSeat({admitted:musicCulture?.hasTicket(townId,"theater",day)??true});
   else if(value==="stand")output=town.standMusicSeat();
   else if(value==="enter"&&chosen)output=town.enter(townId,chosen.id,controller);
+  else if(value.startsWith("furniture:"))output=town.useTownFurniture(value.slice(10),life);
   else if(value.startsWith("resident-talk:"))output=town.dialogue(townId,value.slice(14),"greeting",controller,day);
   else if(value.startsWith("talk:")&&chosen)
    output=town.dialogue(townId,chosen.id,value.slice(5),controller,day);
