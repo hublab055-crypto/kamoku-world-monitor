@@ -734,7 +734,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(townLife.inside&&!jailCellActive){
    townLife.walk(running?dt:0,input);
    if(townLife.portalExitRequested){
-    const exit=townLife.portalExit(controller);
+    const exit=townLife.portalExit(controller,life);
     if(exit.ok){syncTownState();log(exit.message);}
    }
   }
@@ -3758,7 +3758,7 @@ townUI=installTownInteractionUI({
  onChange:syncTownState,onNotice:log
 });
 $("town-interior-exit").addEventListener("click",()=>{
- const result=townLife.leave(controller);
+ const result=townLife.leave(controller,life);
  if(result.ok){syncTownState();log(result.message);townUI?.refresh();}
 });
 $("viewport-town").addEventListener("click",()=>{
@@ -4106,7 +4106,7 @@ musicCultureUI=installMusicCultureUI({
   if(!room||room.townId!==activeSettlementId||
    townLife.find(room.townId,room.buildingId,"village")?.type!==venue.id)
    return {ok:false,message:"この会場内にいません"};
-  const result=townLife.leave(controller);
+  const result=townLife.leave(controller,life);
   if(result.ok){syncTownState();townUI?.refresh();}
   return result;
  },
