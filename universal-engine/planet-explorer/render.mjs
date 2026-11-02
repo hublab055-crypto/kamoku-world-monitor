@@ -58,6 +58,8 @@ import {hallRoom,hallOccupancy} from "./music-hall.mjs?v=0.9as";
 import {isSharedHallRoom} from "./music-hall-world.mjs?v=0.9at-shared-rooms";
 import {sharedRoom,SHARED_TOWN_ROOMS} from "./town-shared-world.mjs?v=0.9at";
 import {sharedTownFurnitureGeometry} from "./town-shared-geometry.mjs?v=0.9at";
+import {settlementLayout} from "./settlements.mjs?v=0.9ap-music-hall";
+import {residentLifePlan,residentLifePose} from "./town-resident-life.mjs?v=0.9au";
 import {HALL_EXTERIOR,hallAudiencePose} from "./music-hall-portal.mjs?v=0.9aq";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
@@ -2745,6 +2747,10 @@ export class ExplorerRenderer{
    const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:ordinary});
    this.resourceNodes=visible;
    this.townSites=plan.buildings;
+   this.townSiteById=new Map(plan.buildings.map(site=>[site.id,site]));
+   const npcLayout=settlementLayout(this.settlementId);
+   this.residentLifePlans=new Map(npcLayout.residents.map(resident=>
+    [resident.id,residentLifePlan(npcLayout,resident)]));
    this.sceneryStats={trees:visible.filter(n=>n.kind==="wood").length,
     rocks:visible.filter(n=>n.kind==="stone").length,
     grass:plan.grass.length,buildings:plan.buildings.length};
@@ -2974,21 +2980,35 @@ export class ExplorerRenderer{
    for(const mesh of this.residentMeshes){
     for(let i=0;i<mesh.residents.length;i++){
      const resident=mesh.residents[i],a=this.marineClock*.55+i*1.4+resident.clothing;
-     const dx=Math.sin(a)*.65,dz=Math.cos(a)*.55,k=i*6;
-     mesh.dynamicTransforms[k]=resident.localX+dx;
-     mesh.dynamicTransforms[k+1]=resident.elevationM+Math.max(0,Math.sin(a*4))*.035;
-     mesh.dynamicTransforms[k+2]=resident.localZ+dz;
-     mesh.dynamicTransforms[k+3]=1;
-     mesh.dynamicTransforms[k+4]=Math.cos(a+Math.PI*.5);
-     mesh.dynamicTransforms[k+5]=Math.sin(a+Math.PI*.5);
+     const plan=this.residentLifePlans?.get(resident.id);
+     const pose=plan?residentLifePose(plan,this.planet.timeDays):null;
+     const place=pose?.inside?this.townSiteById?.get(pose.buildingId):null;
+     const draw=Boolean(!pose||!pose.inside||place);
+     const k=i*6;
+     const dx=Math.sin(a)*.65,dz=Math.cos(a)*.55;
+     mesh.dynamicTransforms[k]=pose?pose.x-this.cx:resident.localX+dx;
+     mesh.dynamicTransforms[k+1]=pose?.inside&&place?place.elevationM+.16:
+      resident.elevationM+(pose?.moving?Math.max(0,Math.sin(a*4))*.035:0);
+     mesh.dynamicTransforms[k+2]=pose?pose.z-this.cz:resident.localZ+dz;
+     mesh.dynamicTransforms[k+3]=draw?1:0;
+     mesh.dynamicTransforms[k+4]=Math.cos(pose?.yaw??a+Math.PI*.5);
+     mesh.dynamicTransforms[k+5]=Math.sin(pose?.yaw??a+Math.PI*.5);
+     (mesh.residentLifePoses??=[])[i]=pose;
     }
     mesh.updateTransforms(mesh.dynamicTransforms);
     this.drawInstancedMesh(mesh,vp,light,1,.72);
-    for(const person of mesh.residents){
-     if(Math.hypot(person.x-s.x,person.z-s.z)>25)continue;
-     const p=projectScreen(vp,[person.localX,person.elevationM+2.0,person.localZ]);
+    for(let i=0;i<mesh.residents.length;i++){
+     const person=mesh.residents[i],life=mesh.residentLifePoses?.[i];
+     const x=life?.x??person.x,z=life?.z??person.z;
+     if(Math.hypot(x-s.x,z-s.z)>25)continue;
+     if(life?.inside&&!(this.townInterior?.buildingId===life.buildingId)&&
+       !this.musicHallDoors?.[this.settlementId+":"+life.buildingId])continue;
+     const site=life?.inside?this.townSiteById?.get(life.buildingId):null;
+     if(life?.inside&&!site)continue;
+     const y=site?site.elevationM:person.elevationM;
+     const p=projectScreen(vp,[x-this.cx,y+2.0,z-this.cz]);
      if(p?.onScreen)this.screenTownResidents.push({...p,id:person.id,
-      source:"resident",x:person.x,z:person.z});
+      source:"resident",x,z,activity:life?.activity,inside:life?.inside});
     }
    }
    const guard=this.railwaySecurity?.guard;

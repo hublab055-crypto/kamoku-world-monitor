@@ -6,6 +6,7 @@ import {hallRoom,nearestHallSeat,hallSeats} from "./music-hall.mjs?v=0.9aq";
 import {hallDoor,hallDoorNear,hallExteriorStep} from "./music-hall-portal.mjs?v=0.9aq";
 import {hallLocalPoint} from "./music-hall-world.mjs?v=0.9at-shared-rooms";
 import {sharedRoom,sharedDoor,sharedDoorNear,sharedExteriorStep,sharedWalkStep} from "./town-shared-world.mjs?v=0.9at";
+import {residentLifePlan,residentLifePose,RESIDENT_ACTION_NAMES} from "./town-resident-life.mjs?v=0.9au";
 
 export const TOWN_NAMES=Object.freeze({
  lodge:"宿屋・集会所",cabin:"民家",barn:"納屋",workshop:"工房",
@@ -45,7 +46,7 @@ export class TownLife{
   for(const [key,day] of Object.entries(saved?.talked||{}))
    if(/^[a-z]+:resident-\d+:(greeting|work|rumor)$/.test(key)&&good(day))
     this.talked[key]=day;
-  this.inside=null;this.hallDoors={};this.portalExitRequested=false;this._hallSites={};
+  this.inside=null;this.hallDoors={};this.portalExitRequested=false;this._hallSites={};this._residentPlans={};
  }
  layout(townId){return settlementLayout(townId);}
  find(townId,id,category){
@@ -62,23 +63,40 @@ export class TownLife{
   }
   return null;
  }
+ residentAt(townId,residentId,day=0){
+  const resident=this.find(townId,residentId,"resident");
+  if(!resident)return null;
+  const plans=this._residentPlans[townId]??=new Map();
+  let plan=plans.get(residentId);
+  if(!plan){plan=residentLifePlan(this.layout(townId),resident);plans.set(residentId,plan);}
+  const pose=residentLifePose(plan,day);
+  return pose?{...resident,...pose,title:resident.title,
+   occupation:plan.job,activity:RESIDENT_ACTION_NAMES[pose.activity]||resident.activity}:resident;
+ }
  distance(actor,subject){return Math.hypot(actor.x-subject.x,actor.z-subject.z);}
  canInteract(townId,actor,subject,{radius=7}={}){
   if(!actor?.nearGround||actor?.travelMode!=="walk"||
     !destinationById(townId)||townId==="pioneer")
    return result(false,"街の地上で歩行中に操作してください");
   if(!subject)return result(false,"対象が見つかりません");
+  if(this.inside&&subject.kind==="resident"){
+   return this.inside.townId===townId&&subject.inside&&
+    this.inside.buildingId===subject.buildingId&&this.distance(actor,subject)<=radius?
+    result(true,"同じ部屋にいます"):result(false,"この住民は別の場所にいます");
+  }
   if(this.inside){
    return this.inside.townId===townId&&this.inside.buildingId===subject.id?
     result(true,"屋内にいます"):result(false,"先に建物から外へ出てください");
   }
+  if(subject.kind==="resident"&&subject.inside)
+   return result(false,"この住民は建物の室内にいます。入口から入ってください");
   const distance=this.distance(actor,subject);
   if(distance>radius)return result(false,"対象まで約"+Math.ceil(distance)+"mです。近づいてから操作してください");
   return result(true,"近くにいます");
  }
  dialogue(townId,residentId,topic,actor,day=0){
   if(!topics.includes(topic))return result(false,"会話の選択肢がありません");
-  const resident=this.find(townId,residentId,"resident");
+  const resident=this.residentAt(townId,residentId,day);
   const proximity=this.canInteract(townId,actor,resident,{radius:6});
   if(!proximity.ok)return proximity;
   const key=townId+":"+residentId,dayNumber=limit(Math.floor(Number(day)||0),0,999999);
@@ -95,7 +113,7 @@ export class TownLife{
    this.friendship[key]=limit(relation+1,0,100);
    this.talked[logKey]=dayNumber;
   }
-  return result(true,"💬 "+resident.title+"：「"+phrase+"」",{friendship:this.friendship[key]});
+  return result(true,"💬 "+resident.title+"（"+resident.occupation+"・"+resident.activity+"）：「"+phrase+"」",{friendship:this.friendship[key]});
  }
  hallDoorOpen(townId,buildingId){return Boolean(this.hallDoors[townId+":"+buildingId]);}
  toggleHallDoor(townId,buildingId,actor){
@@ -131,7 +149,7 @@ export class TownLife{
   }
   return step;
  }
- portalExit(actor){
+ portalExit(actor,life=null){
   if(!this.portalExitRequested||!this.inside)return result(false,"出口に到達していません");
   const inside=this.inside,building=this.find(inside.townId,inside.buildingId,"village");
   if(!building||!this.hallDoorOpen(inside.townId,inside.buildingId))
@@ -143,6 +161,7 @@ export class TownLife{
    return result(false,"入口の座標が不正です");
   actor.x=x;actor.z=z;actor.lat=point.lat;actor.lon=point.lon;
   actor.clearMoveTarget?.();actor.moving=false;
+  if(this.inside.furnitureAction&&life)life.activity="idle";
   this.portalExitRequested=false;this.inside=null;
   return result(true,"🚪 扉を通って建物の外へ出ました");
  }
@@ -163,7 +182,7 @@ export class TownLife{
  walk(dt,{forward=0,strafe=0,turn=0}={}){
   if(!this.inside)return false;
   const p=this.inside.pose;
-  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat)return false;
+  if(!p||!Number.isFinite(dt)||dt<0||this.inside.seat||this.inside.furnitureAction)return false;
   p.blocked=false;
   const step=limit(dt,0,.1),turnRate=1.75;
   const f=limit(Number(forward)||0,-1,1),side=limit(Number(strafe)||0,-1,1);
@@ -200,6 +219,51 @@ export class TownLife{
   p.x=nextX;p.z=nextZ;
   return p.moving;
  }
+ /** Reuses real in-room furniture. The actor approaches via existing collision.
+  * Rest uses the existing Lifestyle stats and inventory, not a new health system.
+  */
+ useTownFurniture(action,life){
+  if(!this.inside)return result(false,"建物の中に入ってください");
+  const building=this.find(this.inside.townId,this.inside.buildingId,"village");
+  const type=building?.type,p=this.inside.pose;
+  if(!["cabin","lodge"].includes(type))
+   return result(false,"この建物には使用可能な生活家具がありません");
+  if(action==="stand"){
+   if(!this.inside.furnitureAction)return result(false,"立った状態です");
+   this.inside.furnitureAction=null;p.moving=false;
+   if(life?.activity!=="idle")life.activity="idle";
+   return result(true,"🧍 椅子・ベッドから立ち上がりました");
+  }
+  if(this.inside.furnitureAction)
+   return result(false,"先に立ち上がってください");
+  const points=type==="cabin"?{
+   sleep:{x:-2.0,z:-1.8},rest:{x:-2.0,z:-1.8},
+   sit:{x:2.6,z:1.9},eat:{x:1.45,z:-.6},read:{x:1.45,z:-.6}
+  }:{
+   sit:{x:2.65,z:-1.45},eat:{x:2.65,z:-1.45},read:{x:2.65,z:-1.45},
+   rest:{x:0,z:2.65}
+  };
+  const target=points[action];
+  if(!target)return result(false,"この家具では選択した行動ができません");
+  if(Math.hypot(p.x-target.x,p.z-target.z)>1.8)
+   return result(false,"家具のそば（約1.8m以内）へ歩いてください");
+  if(!life)return result(false,"生活データを読み込めません");
+  if(action==="eat"){
+   if((life.inventory?.meal||0)<1)
+    return result(false,"食事を持っていません。宿屋などで購入してください");
+   life.inventory.meal--;
+   if(life.stats)life.stats.hunger=Math.min(100,(life.stats.hunger||0)+30);
+   life.activity="eat";
+  }else if(action==="sleep"||action==="rest"){
+   life.rest?.(action==="sleep"?70:35);
+   life.activity=action;
+  }else life.activity=action;
+  this.inside.furnitureAction=action;
+  p.moving=false;p.yaw=Math.PI;
+  return result(true,({sleep:"🛏️ ベッドで眠り体力が回復しました",
+   rest:"🌿 休んで体力を回復しました",sit:"🪑 椅子に座りました",
+   eat:"🍽️ 食事をしました（料理を1つ消費）",read:"📖 机で読書しています"})[action]);
+ }
  sitMusicSeat({admitted=true}={}){
   if(!this.inside)return result(false,"音楽施設の室内へ入ってください");
   if(this.inside.seat)return result(false,"すでに着席しています");
@@ -219,7 +283,7 @@ export class TownLife{
   if(seat)this.inside.pose.x=seat.x>0?seat.x-.45:seat.x+.45;
   return result(true,"🧍 立ち上がりました");
  }
- leave(actor=null){
+ leave(actor=null,life=null){
   if(!this.inside)return result(false,"屋外にいます");
   const room=this.inside,building=this.find(room.townId,room.buildingId,"village");
   if((hallRoom(building?.type)||sharedRoom(building?.type))&&actor){
@@ -231,6 +295,7 @@ export class TownLife{
    actor.x=x;actor.z=z;actor.lat=geo.lat;actor.lon=geo.lon;
    actor.clearMoveTarget?.();actor.moving=false;
   }
+  if(this.inside.furnitureAction&&life)life.activity="idle";
   this.inside=null;this.portalExitRequested=false;
   return result(true,"🚪 建物から外に出ました");
  }

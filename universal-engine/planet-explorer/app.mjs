@@ -17,7 +17,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9at-shared-town";
+import {ExplorerRenderer} from "./render.mjs?v=0.9au-resident-life";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -52,9 +52,9 @@ import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.9ap-music-hall";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
-import {TownLife} from "./town-life.mjs?v=0.9at-shared-buildings";
+import {TownLife} from "./town-life.mjs?v=0.9au-resident-life";
 import {syncHallActorWorld} from "./music-hall-world.mjs?v=0.9at-shared-rooms";
-import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.9at-shared-town";
+import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.9au-resident-life";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {installRailwayUI} from "./railway-ui.mjs?v=0.8y-station";
@@ -734,7 +734,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(townLife.inside&&!jailCellActive){
    townLife.walk(running?dt:0,input);
    if(townLife.portalExitRequested){
-    const exit=townLife.portalExit(controller);
+    const exit=townLife.portalExit(controller,life);
     if(exit.ok){syncTownState();log(exit.message);}
    }
   }
@@ -3758,7 +3758,7 @@ townUI=installTownInteractionUI({
  onChange:syncTownState,onNotice:log
 });
 $("town-interior-exit").addEventListener("click",()=>{
- const result=townLife.leave(controller);
+ const result=townLife.leave(controller,life);
  if(result.ok){syncTownState();log(result.message);townUI?.refresh();}
 });
 $("viewport-town").addEventListener("click",()=>{
@@ -4106,7 +4106,7 @@ musicCultureUI=installMusicCultureUI({
   if(!room||room.townId!==activeSettlementId||
    townLife.find(room.townId,room.buildingId,"village")?.type!==venue.id)
    return {ok:false,message:"この会場内にいません"};
-  const result=townLife.leave(controller);
+  const result=townLife.leave(controller,life);
   if(result.ok){syncTownState();townUI?.refresh();}
   return result;
  },
