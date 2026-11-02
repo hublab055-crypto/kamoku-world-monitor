@@ -51,7 +51,7 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
-import {shipCameraPose} from "./ship-view-controls.mjs?v=1";
+import {shipCameraPose,shipCelestialPosition} from "./ship-view-controls.mjs?v=2-pilot-attitude";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -1755,15 +1755,22 @@ export class ExplorerRenderer{
      ["cruise","approach","orbit"].includes(v.status)?10+Math.pow(progress,2.5)*210:120;
     const z=v.status==="ascent"?-950:v.status==="entry"?-390:
       ["cruise","approach"].includes(v.status)?-420:-460;
-    const globe=multiply4(translate(0,-50,z),scale3(radius,radius,radius));
+    // The planet stays in the inertial sky: yaw and nose pitch move it
+    // relative to the cockpit window even when the throttle is held steady.
+    // This is an attitude-aware visual until full world-frame flight is built.
+    const celestial=shipCelestialPosition({yawDeg:v.attitudeYawDeg,
+     pitchDeg:v.pitchDeg,distance:-z,baseY:-50});
+    const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
    if(chase){
     // The same exterior mesh is used on the planet surface. Relative to this
     // local camera, the vessel remains in view while its voyage state advances.
-    const courseYaw=(Number.isFinite(v.heading)?v.heading:0)*DEG*.35;
+    const yaw=Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg*DEG:0;
+    const nose=Number.isFinite(v.pitchDeg)?v.pitchDeg*DEG:0;
+    const pose=multiply4(rotateY(-yaw),rotX(nose));
     this.drawMesh(this.surfaceShipMeshes[v.hatchOpen?1:0],
-     multiply4(vp,rotateY(courseYaw)),[.57,.89,.49],1,.83);
+     multiply4(vp,pose),[.57,.89,.49],1,.83);
    }else this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
    return chase?"ship-exterior":"ship-interior";
   }
