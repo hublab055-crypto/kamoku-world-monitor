@@ -75,7 +75,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight.flight-wide .flight-head{flex:0 0 auto}
  #space-flight.flight-wide .flight-display{min-height:220px;max-height:none}
  #space-flight.flight-wide .flight-actions{padding:2px}
- #space-flight.flight-wide #flight-left,#space-flight.flight-wide #flight-right{display:none!important}
+ @media(pointer:coarse){#space-flight.flight-wide #flight-left,#space-flight.flight-wide #flight-right{display:none!important}}
+ #space-flight.integrated.flight-wide #flight-canvas:not([hidden]){display:none!important}
  #space-flight.integrated .flight-touch-pad,#space-flight.integrated .flight-view-distance{pointer-events:auto}
  @media(pointer:fine){#space-flight .flight-touch-pad{display:none!important}}
  @media(max-width:590px){#space-flight .flight-head strong{font-size:12px;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#space-flight .flight-head button{font-size:11px;padding:4px 5px}#space-flight .flight-touch-pad{width:95px;height:100px}#space-flight .flight-touch-ring{width:78px;height:78px}#space-flight.flight-wide .flight-actions input[type=range]{width:90px}}
@@ -205,7 +206,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ["a","left"],["arrowleft","left"],["d","right"],["arrowright","right"],
   ["q","leftTurn"],["e","rightTurn"]]);
  document.addEventListener("keydown",event=>{
-  if(root.hidden||get()?.interior?.mode!=="interior"||!keys.has(event.key.toLowerCase())||
+  if(root.hidden||!get()?.interior||!keys.has(event.key.toLowerCase())||
      ["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName))return;
   event.preventDefault();held.add(keys.get(event.key.toLowerCase()));
  });
@@ -233,10 +234,11 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    state.turn((n("rightTurn")-n("leftTurn"))*dt*1.7);
    const axis=shipPointer===null?{forward:0,sideways:0}:shipTouchAxes(shipStick);
    state.walk(n("forward")-n("back")+axis.forward,n("right")-n("left")+axis.sideways,dt);
-  }else if(shipPointer!==null&&seatedPilot(v)){
-   // Initial chase steering reuses the actual ship heading and throttle.
-   // Y changes engine output; independent physical ascent/descent is future work.
-   const pilot=shipTouchPilot(shipStick,dt);
+  }else if(seatedPilot(v)){
+   // Legacy course heading/throttle, not yet true physical ascent/descent.
+   const joystick=shipPointer===null?{x:0,y:0}:shipStick;
+   const pilot=shipTouchPilot({x:joystick.x+n("right")-n("left"),
+    y:joystick.y+n("back")-n("forward")},dt);
    if(pilot.yawDelta&&typeof v.steer==="function"){
     v.setAutopilot?.(false);v.steer(pilot.yawDelta);
    }
