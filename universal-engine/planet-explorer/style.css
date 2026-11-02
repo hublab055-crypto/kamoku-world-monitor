@@ -1290,3 +1290,53 @@ body.immersive{overflow:hidden}
  .xr-settings-body{gap:6px}
  .xr-settings-body .xr-buttons{flex:1 1 100%}
 }
+
+/* v0.9az — persistent display settings, without modifying gameplay's [hidden] state. */
+[data-ui-user-hidden="true"]{display:none!important}
+#ui-display-panel[hidden]{display:none!important}
+.viewport-compact-bar #ui-display-access{
+ flex:none;min-width:39px;width:39px;min-height:43px;padding:4px;
+ font-size:20px;line-height:1;background:#1d4a5b;border:1px solid #8cbeca;
+}
+#ui-display-access:focus-visible,.ui-display-panel :focus-visible{outline:3px solid #f4d985;outline-offset:2px}
+.ui-display-panel{
+ position:absolute;z-index:120;right:8px;top:7px;bottom:7px;
+ display:flex;flex-direction:column;gap:8px;
+ width:min(445px,calc(100% - 16px));max-height:calc(100% - 14px);
+ overflow:hidden;touch-action:pan-y;color:#eaf6ff;
+ background:#0d2738f7;border:1px solid #7db8ca;border-radius:14px;
+ padding:12px;box-shadow:0 15px 42px #000b;overscroll-behavior:contain;
+}
+.ui-display-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ui-display-header strong{font-size:16px}
+.ui-display-panel button{
+ color:#f1faff;background:#20516b;border:1px solid #79b4c6;
+ border-radius:8px;padding:7px 9px;min-height:38px;font-size:12px;
+}
+.ui-display-hint{font-size:11px;line-height:1.45;margin:0;color:#c7dfea}
+.ui-display-commands{display:flex;flex-wrap:wrap;gap:5px}
+.ui-display-commands button{flex:1 0 auto}
+.ui-display-list{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding-right:3px}
+.ui-display-group{border:1px solid #527f91;border-radius:9px;margin:6px 0;background:#15394cb8}
+.ui-display-group>summary{cursor:pointer;font-size:13px;font-weight:750;padding:10px;min-height:42px}
+.ui-display-options{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:5px 9px 10px}
+.ui-display-options label{
+ display:flex;align-items:center;gap:7px;min-height:37px;
+ padding:5px;border-radius:5px;font-size:12px;line-height:1.25;
+ cursor:pointer;overflow-wrap:anywhere;
+}
+.ui-display-options label:has(input:focus-visible){outline:2px solid #f4d985}
+.ui-display-options input{flex:none;width:18px;height:18px;accent-color:#76d1b1;margin:0}
+@media(max-width:540px){
+ .ui-display-panel{inset:5px;width:calc(100% - 10px);max-height:calc(100% - 10px);padding:9px}
+ .ui-display-options{grid-template-columns:1fr 1fr;gap:2px;padding:4px 5px 7px}
+ .ui-display-options label{font-size:11px}
+ .ui-display-hint{font-size:10px}
+ .viewport-compact-bar{gap:3px}
+ .viewport-compact-bar #ui-display-access{min-width:35px;width:35px;min-height:42px;font-size:18px}
+}
+@media(max-width:370px){
+ .viewport-compact-bar #viewport-quick-toggle{width:60px;min-width:60px}
+ .viewport-compact-bar #viewport-console-toggle{min-width:40px}
+ .viewport-compact-bar #viewport-share{width:33px;min-width:33px}
+}
