@@ -78,8 +78,6 @@ export class SpaceCombat{
    const yawNow=t.evadeYaw||0,pitchNow=t.evadePitch||0;
    t.evadeYaw=yawNow+clamp(desiredYaw-yawNow,-maneuver*step,maneuver*step);
    t.evadePitch=pitchNow+clamp(desiredPitch-pitchNow,-maneuver*step,maneuver*step);
-   const desiredRange=role==="interceptor"?125:role==="flanker"?230:340;
-   const pursuit=role==="interceptor"?105:role==="flanker"?62:48;
    // Role-specific pursuit with lead prediction and acceleration limits.
    const desiredRange=role==="interceptor"?125:role==="flanker"?230:340;
    const offset=role==="flanker"?[95,0,-40]:role==="scout"?[-110,55,85]:[0,0,-desiredRange];
