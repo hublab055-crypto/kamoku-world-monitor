@@ -77,3 +77,28 @@ test("ammo bounds salvos and invisible targets cannot receive damage",()=>{
  c.syncVisibility([]);
  assert.deepEqual(c.locked,[]);
 });
+
+test("pirate contacts move in a common encounter frame and remain finite",()=>{
+ const c=new SpaceCombat();
+ const voyage={...flight,transferX:0,transferY:0,transferZ:0,throttle:0};
+ const initial=c.targets.map(t=>t.distance);
+ for(let i=0;i<120;i++)c.advance(.1,voyage);
+ assert.ok(c.targets.some((t,i)=>Math.abs(t.distance-initial[i])>1));
+ for(const t of c.targets){
+  assert.ok(t.position.every(Number.isFinite));
+  assert.ok(t.velocity.every(Number.isFinite));
+  assert.ok(Number.isFinite(t.bearing)&&Number.isFinite(t.pitch));
+  assert.ok(t.distance>0);
+ }
+});
+
+test("voyage translation changes relative pirate range without losing contact coordinates",()=>{
+ const c=new SpaceCombat();
+ const voyage={...flight,transferX:0,transferY:0,transferZ:0,throttle:0};
+ c.advance(.1,voyage);
+ const before=c.targets[0].distance;
+ voyage.transferZ=.01;
+ c.advance(.1,voyage);
+ assert.ok(Number.isFinite(c.targets[0].distance));
+ assert.notEqual(c.targets[0].distance,before);
+});
