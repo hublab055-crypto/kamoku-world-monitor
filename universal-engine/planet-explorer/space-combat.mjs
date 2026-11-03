@@ -48,7 +48,6 @@ export class SpaceCombat{
   this.visible=new Set(eligible?projected.filter(p=>p.onScreen&&
    Number.isFinite(p.u)&&Number.isFinite(p.v)&&
    p.u>=0&&p.u<=1&&p.v>=0&&p.v<=1&&
-   p.u>=0&&p.u<=1&&p.v>=0&&p.v<=1&&
    this.targets.some(t=>t.id===p.id&&t.hp>0)).map(p=>p.id):[]);
   this.locked=this.locked.filter(id=>this.visible.has(id));
   if(!vr||!eligible){this.dwellId=null;this.dwellSeconds=0;return;}
