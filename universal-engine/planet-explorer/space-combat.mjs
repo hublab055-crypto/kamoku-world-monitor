@@ -8,9 +8,9 @@ export const SHIP_WEAPONS=Object.freeze({
 });
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const HOSTILES=Object.freeze([
- {id:"pirate-alpha",name:"☠️ 海賊迎撃機",bearing:0,pitch:0,distance:260,hp:100},
- {id:"pirate-beta",name:"☠️ 海賊護衛機",bearing:-13,pitch:4,distance:340,hp:100},
- {id:"pirate-gamma",name:"☠️ 海賊偵察機",bearing:17,pitch:-5,distance:400,hp:75}
+ {id:"pirate-alpha",name:"☠️ 海賊迎撃機",bearing:0,pitch:0,distance:260,hp:100,phase:0},
+ {id:"pirate-beta",name:"☠️ 海賊護衛機",bearing:-13,pitch:4,distance:340,hp:100,phase:1.8},
+ {id:"pirate-gamma",name:"☠️ 海賊偵察機",bearing:17,pitch:-5,distance:400,hp:75,phase:3.6}
 ]);
 export function combatEligible(voyage){
  return Boolean(voyage?.active&&(voyage.seated===true||
@@ -20,8 +20,8 @@ export function combatEligible(voyage){
 /** Fixed inertial bearing relative to the departure attitude, displayed in vessel coordinates. */
 export function shipContactPosition(target,voyage){
  const rad=Math.PI/180;
- const yaw=((Number(voyage?.attitudeYawDeg)||0)-(target.bearing||0))*rad;
- const pitch=((Number(voyage?.pitchDeg)||0)-(target.pitch||0))*rad;
+ const yaw=((Number(voyage?.attitudeYawDeg)||0)-(target.bearing||0)-(target.evadeYaw||0))*rad;
+ const pitch=((Number(voyage?.pitchDeg)||0)-(target.pitch||0)-(target.evadePitch||0))*rad;
  const d=target.distance;
  return [-Math.sin(yaw)*Math.cos(pitch)*d,2-Math.sin(pitch)*d,
   -Math.cos(yaw)*Math.cos(pitch)*d];
@@ -31,7 +31,20 @@ export class SpaceCombat{
   this.targets=HOSTILES.map(t=>({...t}));
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
-  this.cooldown=0;this.flashes=[];this.lastMessage="";
+  this.cooldown=0;this.flashes=[];this.lastMessage="";this.elapsed=0;
+ }
+ /** Local enemy maneuver prototype: independent targets weave, pass and re-engage.
+  * This is deliberately not yet a network-authoritative physics simulation. */
+ advance(dt){
+  const step=clamp(Number.isFinite(dt)?dt:0,0,.12);
+  this.elapsed+=step;
+  for(const t of this.liveTargets){
+   const time=this.elapsed+t.phase;
+   const wave=t.id==="pirate-alpha"?1:t.id==="pirate-beta"?.75:1.4;
+   t.evadeYaw=Math.sin(time*.65)*19*wave+Math.sin(time*.21)*7;
+   t.evadePitch=Math.sin(time*.47+t.phase)*9*wave;
+   t.distance=clamp(t.distance+Math.sin(time*.9)*step*32,85,550);
+  }
  }
  get config(){return SHIP_WEAPONS[this.weapon];}
  get liveTargets(){return this.targets.filter(t=>t.hp>0);}
@@ -42,6 +55,7 @@ export class SpaceCombat{
  }
  /** Called after projection: rear, occluded/off-screen and dead targets immediately lose lock. */
  syncVisibility(projected=[],dt=0,{vr=false,eligible=true}={}){
+  this.advance(dt);
   this.cooldown=Math.max(0,this.cooldown-clamp(Number.isFinite(dt)?dt:0,0,.12));
   for(const f of this.flashes)f.seconds=Math.max(0,f.seconds-clamp(dt||0,0,.12));
   this.flashes=this.flashes.filter(f=>f.seconds>0);
