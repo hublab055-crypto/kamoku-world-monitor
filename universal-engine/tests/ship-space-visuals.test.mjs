@@ -26,7 +26,8 @@ test("engine exhaust contains separate colors for normal boost and reverse",()=>
 });
 test("HUD shows direction arrows for offscreen targets and rotates chase camera",()=>{
  const camera=shipCameraPose({mode:"chase",orbitYaw:0,orbitPitch:.31,wide:true});
- const front=projectShipHudTarget([0,4,-400],camera,900,500);
+ const straightAhead=camera.target.map((n,i)=>n+(n-camera.eye[i])*5);
+ const front=projectShipHudTarget(straightAhead,camera,900,500);
  const off=projectShipHudTarget([850,10,-400],camera,900,500);
  const behind=projectShipHudTarget([0,3,400],camera,900,500);
  assert.ok(front);assert.ok(off);assert.ok(behind);
