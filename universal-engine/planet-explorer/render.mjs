@@ -51,7 +51,8 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=4";
-import {shipCameraPose,shipCelestialPosition} from "./ship-view-controls.mjs?v=2-pilot-attitude";
+import {shipCameraPose} from "./ship-view-controls.mjs?v=3-chase-orbit";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -774,11 +775,18 @@ export class ExplorerRenderer{
    this.surfaceStarship=null;
    this.shipVoyage=null;this.shipArrivalPreview=null;
    this.shipCameraMode="cockpit";this.shipWideView=true;this.shipChaseDistance=52;
+   this.shipOrbitYaw=0;this.shipOrbitPitch=.31;
    this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
+   this.shipStars=new Mesh(gl,starfieldGeometry());
+   this.shipExhaustMeshes={
+    cruise:new Mesh(gl,exhaustGeometry("cruise")),
+    boost:new Mesh(gl,exhaustGeometry("boost")),
+    reverse:new Mesh(gl,exhaustGeometry("reverse"))
+   };
    this.shipTerrainPatch=null;this.shipTerrainKey="";
    this.surfaceShipMeshes=[new Mesh(gl,spacecraftGroundGeometry(false)),new Mesh(gl,spacecraftGroundGeometry(true))];
    this.screenMarineFurniture=[];
@@ -1702,10 +1710,19 @@ export class ExplorerRenderer{
     v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
    const camera=shipCameraPose({mode:chase?"chase":"cockpit",
     wide:this.shipWideView,distance:this.shipChaseDistance,
+    orbitYaw:this.shipOrbitYaw,orbitPitch:this.shipOrbitPitch,
     interior:{...person,hatchPassable:v.hatchOpen},landingAttitude});
    const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.12,42000),
     lookAt(camera.eye,camera.target));
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
+   // Inertial sky moves in the opposite direction to the ship's manual
+   // yaw/pitch. This same frame is used by the contact-marker overlay.
+   const yaw=(Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg:0)*DEG;
+   const nose=(Number.isFinite(v.pitchDeg)?v.pitchDeg:0)*DEG;
+   const inertialModel=multiply4(rotateY(yaw),rotX(-nose));
+   if(sky<.91||!["docked","landed","touchdown"].includes(v.status))
+    this.drawMesh(this.shipStars,multiply4(vp,inertialModel),[1,1,1],1,1);
+   const contacts=shipSensorContacts(v);
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
    const arrival=["entry","touchdown"].includes(v.status)&&
@@ -1750,16 +1767,13 @@ export class ExplorerRenderer{
     if(v.status==="ascent"||v.status==="origin-orbit")hex=origin?.color||hex;
     hex=hex.replace("#","");
     const rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+    const remaining=Math.hypot(1-(v.routeAlong??progress),v.crossTrack||0);
+    const proximity=Math.max(0,1-Math.min(1,remaining));
     const radius=v.status==="ascent"?100+phase.lift*.020:
      v.status==="entry"?120+Math.max(0,v.stageProgress||0)*300:
-     ["cruise","approach","orbit"].includes(v.status)?10+Math.pow(progress,2.5)*210:120;
-    const z=v.status==="ascent"?-950:v.status==="entry"?-390:
-      ["cruise","approach"].includes(v.status)?-420:-460;
-    // The planet stays in the inertial sky: yaw and nose pitch move it
-    // relative to the cockpit window even when the throttle is held steady.
-    // This is an attitude-aware visual until full world-frame flight is built.
-    const celestial=shipCelestialPosition({yawDeg:v.attitudeYawDeg,
-     pitchDeg:v.pitchDeg,distance:-z,baseY:-50});
+     ["cruise","approach","flyby","orbit"].includes(v.status)?
+      10+Math.pow(proximity,2.5)*210:120;
+    const celestial=contacts.find(c=>c.id==="planet")?.position||[0,-50,-420];
     const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
