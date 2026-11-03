@@ -113,6 +113,7 @@ export function projectShipHudTarget(position,camera,width,height,{margin=.12}={
  const tan=Math.tan((camera.fovDeg||80)*Math.PI/360),aspect=width/height;
  const ax=x/(Math.max(.001,Math.abs(depth))*tan*aspect);
  const ay=y/(Math.max(.001,Math.abs(depth))*tan);
+ if(!Number.isFinite(ax)||!Number.isFinite(ay))console.log("DEBUG_SENSOR_MATH",JSON.stringify({position,camera,width,height,forward,right,up,v,depth,x,y,tan,aspect,ax,ay}));
  const visible=depth>0&&Math.abs(ax)<1-margin&&Math.abs(ay)<1-margin;
  let nx=ax,ny=ay;
  if(!visible){
