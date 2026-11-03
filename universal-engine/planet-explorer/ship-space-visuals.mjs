@@ -4,7 +4,7 @@ const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const norm=v=>{const d=Math.hypot(...v)||1;return v.map(x=>x/d);};
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 const dot=(a,b)=>a.reduce((acc,x,i)=>acc+x*b[i],0);
-const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2]];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 /** Inertial world point -> ship local coordinates. A nose-right turn moves
  * the fixed starfield left, a nose-up turn moves it down. */
 export function inertialToShip(point,yawDeg=0,pitchDeg=0){
@@ -113,7 +113,6 @@ export function projectShipHudTarget(position,camera,width,height,{margin=.12}={
  const tan=Math.tan((camera.fovDeg||80)*Math.PI/360),aspect=width/height;
  const ax=x/(Math.max(.001,Math.abs(depth))*tan*aspect);
  const ay=y/(Math.max(.001,Math.abs(depth))*tan);
- if(!Number.isFinite(ax)||!Number.isFinite(ay))console.log("DEBUG_SENSOR_MATH",JSON.stringify({position,camera,width,height,forward,right,up,v,depth,x,y,tan,aspect,ax,ay}));
  const visible=depth>0&&Math.abs(ax)<1-margin&&Math.abs(ay)<1-margin;
  let nx=ax,ny=ay;
  if(!visible){
