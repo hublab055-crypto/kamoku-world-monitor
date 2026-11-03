@@ -32,7 +32,8 @@ export class SpaceCombat{
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.lastMessage="";this.elapsed=0;
-  this.lastHeading=0;this.headingRate=0;this.playerRangeTravel=0;
+  this.lastHeading=null;this.headingRate=0;this.playerRangeTravel=0;
+  this.lastShipPosition=null;
  }
  /** Local enemy maneuver prototype: independent targets weave, pass and re-engage.
   * This is deliberately not yet a network-authoritative physics simulation. */
@@ -41,13 +42,27 @@ export class SpaceCombat{
   if(!step)return;
   this.elapsed+=step;
   const heading=Number(voyage?.attitudeYawDeg)||0;
-  const turn=((heading-this.lastHeading+540)%360)-180;
+  const turn=this.lastHeading===null?0:((heading-this.lastHeading+540)%360)-180;
   this.headingRate=clamp(turn/step,-90,90);
   this.lastHeading=heading;
   const throttle=clamp(Number(voyage?.throttle)||0,0,1);
   // Positive thrust must visibly close range to contacts ahead; steering reduces closure.
   const facing=Math.max(0,Math.cos(heading*Math.PI/180));
   this.playerRangeTravel+=throttle*step*95*facing;
+  // Route coordinates are normalized; convert displacement to local encounter metres.
+  const position=[voyage?.transferX,voyage?.transferY,voyage?.transferZ];
+  const hasPosition=position.every(Number.isFinite);
+  if(hasPosition&&this.lastShipPosition){
+   const movement=position.map((value,i)=>(value-this.lastShipPosition[i])*12000);
+   for(const target of this.liveTargets){
+    const yaw=((target.bearing||0)+(target.evadeYaw||0))*Math.PI/180;
+    const pitch=((target.pitch||0)+(target.evadePitch||0))*Math.PI/180;
+    const approach=movement[0]*Math.sin(yaw)*Math.cos(pitch)+
+     movement[1]*Math.sin(pitch)+movement[2]*Math.cos(yaw)*Math.cos(pitch);
+    target.distance=clamp(target.distance-approach,50,3000);
+   }
+  }
+  this.lastShipPosition=hasPosition?position:null;
   // Intercept lead responds to observed turning and thrust. These are
   // local encounter approximations, not solar-system inertial velocities.
   for(const t of this.liveTargets){
@@ -69,7 +84,7 @@ export class SpaceCombat{
    const desiredRange=role==="interceptor"?125:role==="flanker"?230:340;
    const pursuit=role==="interceptor"?105:role==="flanker"?62:48;
    const closing=clamp((t.distance-desiredRange)*.32+
-    pursuit*.4+throttle*95*facing,-85,pursuit+95);
+    pursuit*.4,-85,pursuit);
    t.distance=clamp(t.distance-closing*step,85,850);
    t.aiState=t.distance<desiredRange*.75?"breakaway":
     Math.abs(desiredYaw-(t.evadeYaw||0))>8?"intercept":"pursuit";
