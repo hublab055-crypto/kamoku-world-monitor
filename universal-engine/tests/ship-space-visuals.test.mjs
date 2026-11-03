@@ -30,6 +30,7 @@ test("HUD shows direction arrows for offscreen targets and rotates chase camera"
  const front=projectShipHudTarget(straightAhead,camera,900,500);
  const off=projectShipHudTarget([850,10,-400],camera,900,500);
  const behind=projectShipHudTarget([0,3,400],camera,900,500);
+ console.log("DEBUG_SENSOR_CAMERA",JSON.stringify({camera,straightAhead,front,off,behind}));
  assert.ok(front);assert.ok(off);assert.ok(behind);
  assert.equal(front.visible,true);
  assert.equal(off.visible,false);
