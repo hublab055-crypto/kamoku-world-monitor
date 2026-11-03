@@ -32,18 +32,45 @@ export class SpaceCombat{
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.lastMessage="";this.elapsed=0;
+  this.lastHeading=0;this.headingRate=0;
  }
  /** Local enemy maneuver prototype: independent targets weave, pass and re-engage.
   * This is deliberately not yet a network-authoritative physics simulation. */
- advance(dt){
+ advance(dt,voyage=null){
   const step=clamp(Number.isFinite(dt)?dt:0,0,.12);
+  if(!step)return;
   this.elapsed+=step;
+  const heading=Number(voyage?.attitudeYawDeg)||0;
+  const turn=((heading-this.lastHeading+540)%360)-180;
+  this.headingRate=clamp(turn/step,-90,90);
+  this.lastHeading=heading;
+  const throttle=clamp(Number(voyage?.throttle)||0,0,1);
+  // Intercept lead responds to observed turning and thrust. These are
+  // local encounter approximations, not solar-system inertial velocities.
   for(const t of this.liveTargets){
    const time=this.elapsed+t.phase;
-   const wave=t.id==="pirate-alpha"?1:t.id==="pirate-beta"?.75:1.4;
-   t.evadeYaw=Math.sin(time*.65)*19*wave+Math.sin(time*.21)*7;
-   t.evadePitch=Math.sin(time*.47+t.phase)*9*wave;
-   t.distance=clamp(t.distance+Math.sin(time*.9)*step*32,85,550);
+   const role=t.id==="pirate-alpha"?"interceptor":
+    t.id==="pirate-beta"?"flanker":"scout";
+   const lead=clamp(this.headingRate*.35,-24,24);
+   const wave=role==="scout"?1.4:role==="flanker"?.75:1;
+   const desiredYaw=role==="flanker"?
+    22+lead*.5+Math.sin(time*.3)*12:
+    role==="scout"?-22+Math.sin(time*.8)*35:
+    lead+Math.sin(time*.45)*14;
+   const desiredPitch=(role==="scout"?15:role==="flanker"?-10:0)+
+    Math.sin(time*.55+t.phase)*7*wave;
+   const maneuver=role==="scout"?34:role==="interceptor"?25:17;
+   const yawNow=t.evadeYaw||0,pitchNow=t.evadePitch||0;
+   t.evadeYaw=yawNow+clamp(desiredYaw-yawNow,-maneuver*step,maneuver*step);
+   t.evadePitch=pitchNow+clamp(desiredPitch-pitchNow,-maneuver*step,maneuver*step);
+   const desiredRange=role==="interceptor"?125:role==="flanker"?230:340;
+   const pursuit=role==="interceptor"?105:role==="flanker"?62:48;
+   const closing=clamp((t.distance-desiredRange)*.32+
+    pursuit*(.55-throttle*.5),-85,pursuit);
+   t.distance=clamp(t.distance-closing*step,85,850);
+   t.aiState=t.distance<desiredRange*.75?"breakaway":
+    Math.abs(desiredYaw-(t.evadeYaw||0))>8?"intercept":"pursuit";
+   if(t.aiState==="breakaway")t.distance=clamp(t.distance+95*step,85,850);
   }
  }
  get config(){return SHIP_WEAPONS[this.weapon];}
@@ -54,8 +81,8 @@ export class SpaceCombat{
   this.dwellId=null;this.dwellSeconds=0;return true;
  }
  /** Called after projection: rear, occluded/off-screen and dead targets immediately lose lock. */
- syncVisibility(projected=[],dt=0,{vr=false,eligible=true}={}){
-  this.advance(dt);
+ syncVisibility(projected=[],dt=0,{vr=false,eligible=true,voyage=null}={}){
+  this.advance(dt,voyage);
   this.cooldown=Math.max(0,this.cooldown-clamp(Number.isFinite(dt)?dt:0,0,.12));
   for(const f of this.flashes)f.seconds=Math.max(0,f.seconds-clamp(dt||0,0,.12));
   this.flashes=this.flashes.filter(f=>f.seconds>0);
