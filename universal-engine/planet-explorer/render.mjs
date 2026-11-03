@@ -1777,14 +1777,32 @@ export class ExplorerRenderer{
     const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
+   // Render nearby ship contacts at the SAME positions used by HUD sensors.
+   // These are visual encounter prototypes; weapons/combat AI are future work.
+   for(const c of contacts.filter(x=>x.visual)){
+    const model=multiply4(translate(...c.position),scale3(.78,.78,.78));
+    this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.7,.9,.8],1,.88);
+   }
    if(chase){
-    // The same exterior mesh is used on the planet surface. Relative to this
-    // local camera, the vessel remains in view while its voyage state advances.
-    const yaw=Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg*DEG:0;
-    const nose=Number.isFinite(v.pitchDeg)?v.pitchDeg*DEG:0;
-    const pose=multiply4(rotateY(-yaw),rotX(nose));
+    // Chase camera is ship-local: swiping orbits the camera; ship heading
+    // rotates the inertial sky, not the camera's stored orbit offset.
     this.drawMesh(this.surfaceShipMeshes[v.hatchOpen?1:0],
-     multiply4(vp,pose),[.57,.89,.49],1,.83);
+     vp,[.57,.89,.49],1,.83);
+    const amount=Math.abs(Number.isFinite(v.throttle)?v.throttle:0);
+    if(amount>.01&&!["docked","landed","touchdown","preflight"].includes(v.status)&&v.fuel>0){
+     const backwards=v.throttle<0;
+     const color=backwards?"reverse":amount>.65?"boost":"cruise";
+     const mesh=this.shipExhaustMeshes[color];
+     const pulse=.92+.08*Math.sin((v.elapsedSeconds||0)*28);
+     const length=(2+amount*14)*pulse;
+     const radius=.48+amount*.38;
+     for(const x of [-2.15,0,2.15]){
+      const local=backwards?multiply4(translate(x,3.2,-14),
+       rotateY(Math.PI)):translate(x,3.28,13.5);
+      this.drawMesh(mesh,multiply4(vp,multiply4(local,scale3(radius,radius,length))),
+       [1,1,1],1,.98);
+     }
+    }
    }else this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
    return chase?"ship-exterior":"ship-interior";
   }
