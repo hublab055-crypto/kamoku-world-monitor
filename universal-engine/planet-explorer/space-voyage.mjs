@@ -22,7 +22,13 @@ export class SpaceVoyage{
    ((data.attitudeYawDeg+180)%360+360)%360-180:0;
   this.pitchDeg=Number.isFinite(data.pitchDeg)?clamp(data.pitchDeg,-65,65):0;
   this.autopilot=data.autopilot!==false;
-  const states=["preflight","ascent","parking-orbit","launch","cruise","approach","orbit","descent","landed"];
+  // Normalized transfer coordinates: z=distance along route, x/y=cross-track.
+  this.transferX=Number.isFinite(data.transferX)?data.transferX:0;
+  this.transferY=Number.isFinite(data.transferY)?data.transferY:0;
+  this.transferVX=Number.isFinite(data.transferVX)?data.transferVX:0;
+  this.transferVY=Number.isFinite(data.transferVY)?data.transferVY:0;
+  this.transferVZ=Number.isFinite(data.transferVZ)?data.transferVZ:0;
+  const states=["preflight","ascent","parking-orbit","launch","cruise","approach","flyby","orbit","descent","landed"];
   this.status=states.includes(data.status)?data.status:"preflight";
   this.launchDay=valid(data.launchDay)?data.launchDay:0;
   this.ascentSeconds=clamp(data.ascentSeconds||0,0,10);
@@ -38,6 +44,7 @@ export class SpaceVoyage{
    "parking-orbit":"出発惑星の周回軌道・行き先選択",
    launch:"大気圏離脱",cruise:"惑星間巡航",
    approach:"目的天体へ接近",orbit:"目的天体の周回軌道",
+   flyby:"目的天体を通過・航路修正待ち",
    descent:"大気圏突入・減速・着陸",landed:"地表に着陸・下船準備"
   })[this.status]||"航行中";
  }
@@ -52,6 +59,7 @@ export class SpaceVoyage{
   if(!bodyById(destinationId)?.landable||destinationId===this.originId||!valid(flightDays)||flightDays<=0)
    return {ok:false,message:"有効な目的天体と航行時間を選択してください"};
   this.destinationId=destinationId;this.flightDays=flightDays;this.progress=0;
+  this.transferX=0;this.transferY=0;this.transferVX=0;this.transferVY=0;this.transferVZ=0;
   this.status="cruise";
   return {ok:true,message:"🧭 "+bodyById(destinationId).name+"への航路を設定しました。自動航行／手動操舵を選べます"};
  }
@@ -95,15 +103,37 @@ export class SpaceVoyage{
    if(this.descentSeconds>=9)this.status="landed";
    return {days:0,advanced:0,status:this.status,descent:clamp(this.descentSeconds/9,0,1)};
   }
-  const efficiency=clamp(1-Math.abs(this.heading)/120,.5,1);
   const thrust=this.fuel>0?this.throttle:0;
   this.fuel=Math.max(0,this.fuel-step*thrust*.62);
-  const rate=(.24+thrust*1.16)*efficiency/36;
   const before=this.progress;
-  this.progress=clamp(before+rate*step,0,1);
-  this.status=this.progress>=1?"orbit":this.progress<.11?"launch":this.progress<.82?"cruise":"approach";
-  const advanced=this.progress-before;
-  return {days:advanced*this.flightDays,advanced,status:this.status};
+  // A compact inertial transfer model. Turning changes acceleration, not velocity.
+  // The target is at (0,0,1); passing its z coordinate off-axis is a flyby.
+  if(this.autopilot){
+   const aimYaw=clamp(Math.atan2(-this.transferX,Math.max(.05,1-this.progress))*180/Math.PI,-60,60);
+   const aimPitch=clamp(Math.atan2(-this.transferY,Math.max(.05,1-this.progress))*180/Math.PI,-45,45);
+   this.attitudeYawDeg+=clamp(aimYaw-this.attitudeYawDeg,-24*step,24*step);
+   this.pitchDeg+=clamp(aimPitch-this.pitchDeg,-24*step,24*step);
+  }
+  const yaw=this.attitudeYawDeg*Math.PI/180,pitch=this.pitchDeg*Math.PI/180;
+  const acceleration=thrust*.0011;
+  this.transferVX+=Math.sin(yaw)*Math.cos(pitch)*acceleration*step;
+  this.transferVY+=Math.sin(pitch)*acceleration*step;
+  this.transferVZ+=Math.cos(yaw)*Math.cos(pitch)*acceleration*step;
+  // Initial injection speed preserves legacy journey pacing; no passive drag.
+  if(this.elapsedSeconds<step+.001&&this.transferVZ===0)this.transferVZ=.0067;
+  const baseCruise=.0067;
+  this.transferX+=this.transferVX*step;
+  this.transferY+=this.transferVY*step;
+  this.progress=Math.max(0,this.progress+(baseCruise+this.transferVZ)*step);
+  const remaining=Math.hypot(this.transferX,this.transferY,1-this.progress);
+  const arrivalRadius=.045;
+  if(remaining<=arrivalRadius)this.status="orbit";
+  else if(this.progress>=1)this.status="flyby";
+  else this.status=this.progress<.11?"launch":this.progress<.82?"cruise":"approach";
+  const advanced=Math.max(0,this.progress-before);
+  return {days:advanced*this.flightDays,advanced,status:this.status,
+   crossTrack:Math.hypot(this.transferX,this.transferY),remaining};
+
  }
  snapshot(){
   return {schemaVersion:1,originId:this.originId,destinationId:this.destinationId,
@@ -111,6 +141,8 @@ export class SpaceVoyage{
    elapsedSeconds:this.elapsedSeconds,throttle:this.throttle,fuel:this.fuel,
    heading:this.heading,attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    autopilot:this.autopilot,status:this.status,
+   transferX:this.transferX,transferY:this.transferY,
+   transferVX:this.transferVX,transferVY:this.transferVY,transferVZ:this.transferVZ,
    ascentSeconds:this.ascentSeconds,descentSeconds:this.descentSeconds,
    interior:this.interior.snapshot()};
  }
