@@ -1,5 +1,6 @@
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
-import {shipCelestialPosition} from "./ship-view-controls.mjs?v=2-pilot-attitude";
+import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
+import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
 import {bodyById} from "./solar-system.mjs";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
@@ -45,9 +46,21 @@ export function createShipGeometry(open=false){
  const a=[];
  // Main pressure hull: 26m long, 8m wide, 3.5m ceiling
  box(a,0,-.17,0,8,.36,26.2,"floor");
- box(a,0,3.67,0,8,.26,26.2,"roof");
- box(a,-4.08,1.71,0,.23,3.5,26.2,"wall");
- box(a,4.08,1.71,0,.23,3.5,26.2,"wall");
+ // Panoramic flight deck: side glazing and two skylights are genuinely open.
+ // Keeping solid pressure-hull sections aft avoids fake painted-on windows.
+ box(a,0,3.67,3.15,8,.26,19.9,"roof");
+ for(const side of [-1,1]){
+  box(a,side*3.18,3.67,-10,1.7,.26,6.15,"roof");
+  box(a,side*4.08,1.71,3.15,.23,3.5,19.9,"wall");
+  box(a,side*4.08,.56,-10,.23,1.28,6.15,"wall");
+  box(a,side*4.08,3.24,-10,.23,.91,6.15,"wall");
+  for(const z of [-12.90,-10.15,-7.18])
+   box(a,side*4.08,2.03,z,.27,2.05,.20,"frame");
+  for(const z of [-12.8,-10,-7.2])box(a,side*2.35,3.58,z,1.8,.12,.12,"frame");
+ }
+ box(a,0,3.66,-12.95,8,.27,.38,"roof");
+ box(a,0,3.66,-7.08,8,.27,.38,"roof");
+ box(a,0,3.63,-10,.09,.13,5.9,"frame");
  // Genuine rear opening and airlock ramp in the same cabin mesh.
  for(const side of [-1,1])box(a,side*2.65,1.7,13.08,2.68,3.5,.27,"wall");
  box(a,0,3.13,13.08,2.65,.62,.28,"wall");
@@ -111,12 +124,8 @@ export function createShipGeometry(open=false){
   box(a,-3.98,3.05,z,.1,.18,1.5,"line");
   box(a,3.98,3.05,z,.1,.18,1.5,"line");
  }
- // Exterior star field is visible through the forward observation window.
- for(let i=0;i<65;i++){
-  const sx=((i*7919)%101-50)*.82,sy=((i*1597)%47-14)*.72;
-  const sz=-45-(i*2377%73);
-  box(a,sx,sy,sz,.10+i%3*.045,.10+i%3*.045,.10+i%3*.045,[.69+i%3*.09,.78+i%4*.055,.88]);
- }
+ // Starfield is rendered in the external inertial layer, never welded to
+ // the cabin mesh: changing the ship's yaw/pitch rotates the visible stars.
  // Crew are simplified stand-in models, each at a fixed station.
  for(const crew of SHIP_CREW){
   const c=crew.id==="engineer"?"uniform2":"uniform";
@@ -206,15 +215,25 @@ export function installShipInterior3D(canvas,{get}){
   gl.viewport(0,0,width,height);
   gl.clearColor(.018+.29*skyIntensity,.04+.49*skyIntensity,.071+.60*skyIntensity,1);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(p);
-  const vp=multiply(perspective(74*rad,width/height,.08,180),view(interior.x,1.62,interior.z,interior.yaw,interior.pitch));
+  const vp=multiply(perspective(88*rad,width/height,.08,180),view(interior.x,1.62,interior.z,interior.yaw,interior.pitch));
   gl.uniformMatrix4fv(loc.vp,false,vp);
   // The target and origin are actual perspective spheres behind the forward observation pane.
   // Their visible angular size changes as the voyage progresses.
   const target=bodyById(voyage.destinationId),origin=bodyById(voyage.originId);
   const planetData=[];
+  const yaw=voyage.attitudeYawDeg||0,pitch=voyage.pitchDeg||0;
+  const airborne=!["docked","landed","touchdown"].includes(voyage.status);
+  if(airborne)for(const {xyz,brightness} of starDirections(115)){
+   const pos=inertialToShip(xyz.map(v=>v*115),yaw,pitch);
+   box(planetData,...pos,.12+brightness*.13,.12+brightness*.13,.12,
+    [brightness*.85,brightness*.95,brightness]);
+  }
   if(target){
    const approaching=voyage.status==="entry"?Math.max(voyage.progress,voyage.stageProgress||0):voyage.progress;
-   const pos=shipCelestialPosition({yawDeg:voyage.attitudeYawDeg,pitchDeg:voyage.pitchDeg,distance:43,baseY:2});
+   const targetMark=shipSensorContacts(voyage).find(c=>c.id==="planet");
+   const direction=targetMark?.position||shipCelestialPosition({yawDeg:yaw,pitchDeg:pitch,distance:43,baseY:2});
+   const magnitude=Math.hypot(...direction)||1;
+   const pos=direction.map(v=>v*43/magnitude);
    sphere(planetData,...pos,1.8+Math.pow(approaching,2.5)*15,color(target.color));
   }else if(origin){
    const pos=shipCelestialPosition({yawDeg:voyage.attitudeYawDeg,pitchDeg:voyage.pitchDeg,distance:50,baseY:-2});
