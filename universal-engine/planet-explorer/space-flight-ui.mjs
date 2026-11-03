@@ -2,8 +2,8 @@ import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=8";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
-import {shipTouchAxes,shipTouchPilot,shipCameraPose} from "./ship-view-controls.mjs?v=3-chase-orbit";
-import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=1";
+import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=1";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -124,7 +124,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  const held=new Set();let nearKey="",lastView="";
  let chase=false,wide=typeof matchMedia==="function"&&matchMedia("(max-width: 1024px) and (pointer: coarse)").matches;
  let chaseDistance=52,orbitYaw=0,orbitPitch=.31,shipPointer=null,shipStick={x:0,y:0};
- const sensorLayer=$("flight-sensors"),sensorNodes=new Map();
+ const shipSensors=installShipSensorHUD(root);
  const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
  function resetShipStick(){shipPointer=null;shipStick={x:0,y:0};touchNub.style.transform="translate(0px,0px)";}
  function updateShipStick(e){
@@ -323,7 +323,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(!seatedPilot(v)||typeof v.setThrottle!=="function")return;
   v.setThrottle(Number(throttle.value)/100);
   v.setAutopilot?.(false);
-  root.querySelector(".flight-engine-lever output").textContent=Math.round(v.throttle*100)+"%";
+  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"逆噴射 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
  });
  $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
  $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
@@ -332,8 +332,10 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
  main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
  function render(dt=0){
-  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();return;}
+  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();shipSensors.hide();return;}
   syncShipCamera();
+  shipSensors.update(v,{visible:seatedPilot(v),chase,wide,
+   distance:chaseDistance,orbitYaw,orbitPitch});
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
   const interiorView=v.interior.mode==="interior";
@@ -350,11 +352,13 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
-  $("flight-heading").textContent="進路偏差："+Math.round(v.heading)+"° / 機首："+Math.round(v.pitchDeg||0)+"°";
+  const courseSpeed=Math.hypot(v.routeVelocity?.along||0,v.routeVelocity?.cross||0)*100;
+  $("flight-heading").textContent="進路："+Math.round(v.heading)+"° / 機首："+Math.round(v.pitchDeg||0)+
+   "° / 航路速度 "+courseSpeed.toFixed(2)+"%/秒";
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
-  root.querySelector(".flight-engine-lever output").textContent=Math.round(v.throttle*100)+"%";
+  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"逆噴射 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
   $("flight-cancel").hidden=v.kind==="surface-to-surface"||v.status!=="preflight";
   const groundReady=["preflight","docked"].includes(v.status);
   main.textContent=groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
@@ -372,7 +376,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
     "🛬 "+target.name+" / "+(v.landingSite?"着陸地点を捕捉":"地表測量中")+
     "\n"+(v.status==="touchdown"?"接地・エンジン停止":("高度 約"+height.toLocaleString("ja-JP")+"m"))+
     "\n"+(v.status==="touchdown"?"操縦席から外の地表を確認できます":"進入姿勢を維持してください"):
-    "3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+"%";
+    "3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+
+    "% / 航路速度 "+courseSpeed.toFixed(2)+"%/秒"+(v.status==="flyby"?"\n⚠ 高速通過・逆噴射で減速":"");
    return;
   }
   const w=screen.width,h=screen.height,p=v.progress,elapsed=v.elapsedSeconds;
@@ -410,7 +415,9 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ctx.fillRect(w*.15,h*.92,w*.7*p,12);
   ctx.fillStyle="#d9eefb";ctx.font="18px ui-monospace, monospace";
   ctx.fillText(Math.round(p*100)+"% / "+v.flightDays.toFixed(1)+" ゲーム日",w*.32,h*.90);
-  $("flight-hud").textContent="HELIO NAV · "+v.status.toUpperCase()+"\n"+target.name+"  接近"+Math.round(p*100)+"%";
+  $("flight-hud").textContent="HELIO NAV · "+v.status.toUpperCase()+"\n"+
+   target.name+"  接近"+Math.round(p*100)+"%\n航路速度 "+courseSpeed.toFixed(2)+"%/秒"+
+   (v.status==="flyby"?"\n⚠ 目標軌道を高速通過。逆噴射で減速":"");
  }
  return {render,close:()=>{held.clear();resetShipStick();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
 }
