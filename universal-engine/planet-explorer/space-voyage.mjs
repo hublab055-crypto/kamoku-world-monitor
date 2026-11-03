@@ -28,6 +28,7 @@ export class SpaceVoyage{
   this.transferVX=Number.isFinite(data.transferVX)?data.transferVX:0;
   this.transferVY=Number.isFinite(data.transferVY)?data.transferVY:0;
   this.transferVZ=Number.isFinite(data.transferVZ)?data.transferVZ:.0067;
+  this.transferZ=Number.isFinite(data.transferZ)?data.transferZ:this.progress;
   const states=["preflight","ascent","parking-orbit","launch","cruise","approach","flyby","orbit","descent","landed"];
   this.status=states.includes(data.status)?data.status:"preflight";
   this.launchDay=valid(data.launchDay)?data.launchDay:0;
@@ -59,7 +60,8 @@ export class SpaceVoyage{
   if(!bodyById(destinationId)?.landable||destinationId===this.originId||!valid(flightDays)||flightDays<=0)
    return {ok:false,message:"有効な目的天体と航行時間を選択してください"};
   this.destinationId=destinationId;this.flightDays=flightDays;this.progress=0;
-  this.transferX=0;this.transferY=0;this.transferVX=0;this.transferVY=0;this.transferVZ=.0067;
+  this.transferX=0;this.transferY=0;this.transferZ=0;
+  this.transferVX=0;this.transferVY=0;this.transferVZ=.0067;
   this.status="cruise";
   return {ok:true,message:"🧭 "+bodyById(destinationId).name+"への航路を設定しました。自動航行／手動操舵を選べます"};
  }
@@ -121,11 +123,12 @@ export class SpaceVoyage{
   this.transferVZ+=Math.cos(yaw)*Math.cos(pitch)*acceleration*step;
   this.transferX+=this.transferVX*step;
   this.transferY+=this.transferVY*step;
-  this.progress=Math.max(0,this.progress+this.transferVZ*step);
-  const remaining=Math.hypot(this.transferX,this.transferY,1-this.progress);
+  this.transferZ+=this.transferVZ*step;
+  this.progress=clamp(this.transferZ,0,1);
+  const remaining=Math.hypot(this.transferX,this.transferY,1-this.transferZ);
   const arrivalRadius=.045;
   if(remaining<=arrivalRadius&&this.progress>=.94)this.status="orbit";
-  else if(this.progress>=1)this.status="flyby";
+  else if(this.transferZ>=1)this.status="flyby";
   else this.status=this.progress<.11?"launch":this.progress<.82?"cruise":"approach";
   const advanced=Math.max(0,this.progress-before);
   return {days:advanced*this.flightDays,advanced,status:this.status,
@@ -138,7 +141,7 @@ export class SpaceVoyage{
    elapsedSeconds:this.elapsedSeconds,throttle:this.throttle,fuel:this.fuel,
    heading:this.heading,attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    autopilot:this.autopilot,status:this.status,
-   transferX:this.transferX,transferY:this.transferY,
+   transferX:this.transferX,transferY:this.transferY,transferZ:this.transferZ,
    transferVX:this.transferVX,transferVY:this.transferVY,transferVZ:this.transferVZ,
    ascentSeconds:this.ascentSeconds,descentSeconds:this.descentSeconds,
    interior:this.interior.snapshot()};
