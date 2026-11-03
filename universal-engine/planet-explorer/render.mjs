@@ -53,6 +53,7 @@ import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5-panoramic-sky";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
+import {shipContactPosition,combatEligible} from "./space-combat.mjs?v=1";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -773,7 +774,7 @@ export class ExplorerRenderer{
    this.shipDoorMesh=new Mesh(gl,shipDoor);
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
-   this.shipVoyage=null;this.shipArrivalPreview=null;
+   this.shipVoyage=null;this.shipArrivalPreview=null;this.shipCombat=null;this.shipTargets=[];
    this.shipCameraMode="cockpit";this.shipWideView=true;this.shipChaseDistance=52;
    this.shipOrbitYaw=0;this.shipOrbitPitch=.31;
    this.shipUnifiedMeshes=[
@@ -1679,6 +1680,7 @@ export class ExplorerRenderer{
    if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
    if(this.townInterior)return this.renderTownInterior(asp);
   }
+  if(xr?.mode==="vr"&&this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
   if(!xr){
    if(this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
   if((this.custodyCell||this.railwaySecurity?.jailed)&&
@@ -1712,8 +1714,10 @@ export class ExplorerRenderer{
     wide:this.shipWideView,distance:this.shipChaseDistance,
     orbitYaw:this.shipOrbitYaw,orbitPitch:this.shipOrbitPitch,
     interior:{...person,hatchPassable:v.hatchOpen},landingAttitude});
-   const vp=multiply4(perspective(camera.fovDeg*DEG,asp,.12,42000),
-    lookAt(camera.eye,camera.target));
+   const xr=this.xrView;
+   const vp=xr?.mode==="vr"?multiply4(xr.projection,multiply4(xr.view,xr.stage)):
+    multiply4(perspective(camera.fovDeg*DEG,asp,.12,42000),
+     lookAt(camera.eye,camera.target));
    this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
    // Inertial sky moves in the opposite direction to the ship's manual
    // yaw/pitch. This same frame is used by the contact-marker overlay.
@@ -1779,9 +1783,27 @@ export class ExplorerRenderer{
    }
    // Render nearby ship contacts at the SAME positions used by HUD sensors.
    // These are visual encounter prototypes; weapons/combat AI are future work.
-   for(const c of contacts.filter(x=>x.visual)){
+   for(const c of contacts.filter(x=>x.visual&&(!this.shipCombat||x.type!=="pirate"))){
     const model=multiply4(translate(...c.position),scale3(.78,.78,.78));
     this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.7,.9,.8],1,.88);
+   }
+   // Pirate combat contacts: actual target projection is the same world-space
+   // transform used for cockpit, exterior and stereoscopic VR rendering.
+   this.shipTargets=[];
+   if(this.shipCombat&&combatEligible(v)){
+    for(const contact of this.shipCombat.liveTargets){
+     const pos=shipContactPosition(contact,v);
+     const model=multiply4(translate(...pos),
+      multiply4(rotateY(Math.PI),scale3(.9,.9,.9)));
+     const locked=this.shipCombat.locked.includes(contact.id);
+     const hit=this.shipCombat.flashes.some(f=>f.id===contact.id);
+     const tint=hit?[1,.95,.56]:locked?[1,.85,.42]:
+      contact.id==="pirate-alpha"?[1,.50,.37]:[.91,.68,.55];
+     this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.8,.76,.65],1,.87,tint);
+     const projected=projectScreen(vp,pos);
+     if(projected)this.shipTargets.push({...projected,id:contact.id,name:contact.name,
+      distance:contact.distance});
+    }
    }
    if(chase){
     // Chase camera is ship-local: swiping orbits the camera; ship heading

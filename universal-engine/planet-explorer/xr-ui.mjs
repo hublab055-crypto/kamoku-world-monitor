@@ -18,7 +18,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHand=()=>{},onVRCommand=()=>{},onVRToggleRTS=()=>false,
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
- onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
+ onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
+ onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipFrame=()=>{},
+ onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
@@ -473,6 +475,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
  function onVRSelectStart(event){
+  if(activeMode==="vr"&&onVRShipCombatActive()){
+   if(event.inputSource?.handedness==="right")onVRShipTrigger();
+   return;
+  }
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   if(onVRCustody("state")?.handled){
    const hand=event.inputSource?.handedness;
@@ -493,6 +499,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
  function onVRSelectEnd(event){
+  if(activeMode==="vr"&&onVRShipCombatActive())return;
   if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   sampleVRRig(event.frame);
@@ -507,6 +514,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
  }
  function onSelect(event){
+  if(activeMode==="vr"&&onVRShipCombatActive())return;
   if(!session||!anchor||!space||!event.frame)return;
   const source=event.inputSource;
   if(!source?.targetRaySpace)return;
@@ -583,6 +591,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function onSqueeze(event){
+  if(activeMode==="vr"&&onVRShipCombatActive())return;
   if(!session||!anchor||!space||!event.frame)return;
   const raySpace=event.inputSource?.targetRaySpace;
   const pose=raySpace&&event.frame.getPose(raySpace,space);
@@ -614,6 +623,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const {next,pressed}=xrButtonEdges(sources,vrButtons);
   vrButtons=next;
   for(const button of pressed){
+   if(onVRShipCombatActive()){
+    if(button==="left:4")onVRShipWeapon(); // Quest X: cycle guns/missiles
+    continue; // Ship controls must not toggle planet RTS or ground jump.
+   }
    if(onVRCustody("state")?.handled){
     const action=button==="left:4"?"talk":button==="right:4"?"bail":button==="right:5"?"serve":null;
     if(action){
@@ -999,6 +1012,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      return;
     }
     vrSceneFrames++;
+    if(onVRShipCombatActive())onVRShipFrame(dt);
     if(vrFrames===1||vrFrames===30||vrFrames===90||vrFrames===300)
      vrMark("左右眼描画完了",{force:true,log:vrFrames===1||vrFrames===90||vrFrames===300});
    }
