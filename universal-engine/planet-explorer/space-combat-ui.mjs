@@ -104,7 +104,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const viewer=getRenderer();
   if(viewer)viewer.shipCombat=model;
   const projections=viewer?.shipTargets||[];
-  model?.syncVisibility(projections,dt,{vr,eligible:engage});
+  model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(engage&&!vr);
   weapon.hidden=!show;fireButton.hidden=!show;
   markers.hidden=!show;
