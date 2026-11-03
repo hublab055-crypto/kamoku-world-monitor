@@ -11,13 +11,14 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=11-chase-sensors";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=12-chase-sensors-combat";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=1";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9bd-chase-inertia-sensors-20261103";
+import {ExplorerRenderer} from "./render.mjs?v=0.9be-chase-inertia-combat-20261103";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -82,7 +83,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9u-vr-roaming-portable-save-20261027-foothold-ledge-v09zb";
+import {installXRUI} from "./xr-ui.mjs?v=0.9bd-ship-combat-trigger-20261103";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -114,7 +115,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null;
+let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
@@ -658,11 +659,12 @@ function doFrame(t,source="window",xrFrameInput=null){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  if(voyage?.active){
   renderer.shipVoyage=voyage;
+  renderer.shipCombat=shipCombatUI?.getCombat(voyage)||null;
   renderer.surfaceStarship=surfaceShip;
   renderer.shipGroundState=controller;
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
-  if(source==="window"){
+  if(source==="window"||source==="xr"){
    if(voyage?.kind==="surface-to-surface"&&["entry","touchdown"].includes(voyage.status)&&
       (!shipArrivalPreview||shipArrivalPreview.bodyId!==voyage.destinationId)){
     try{prepareShipArrival();}
@@ -677,15 +679,18 @@ function doFrame(t,source="window",xrFrameInput=null){
     const r=completeShipLanding();
     if(r?.message)log(r.message);
    }
-   renderer.frame(controller,dt);
-   voyageUI?.render(dt);shipInteractionUI?.update();
+   if(source==="window"){
+    renderer.frame(controller,dt);
+    voyageUI?.render(dt);shipInteractionUI?.update();
+    shipCombatUI?.update(dt,{vr:false});
+   }
    if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>18.3){
     const leave=shipEgress();if(leave?.message)log(leave.message);
-    requestAnimationFrame(doFrame);
+    if(source==="window")requestAnimationFrame(doFrame);
     return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:2.5,blocked:false};
    }
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
-   requestAnimationFrame(doFrame);
+   if(source==="window")requestAnimationFrame(doFrame);
   }
   return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:controller?.altitudeM||0,
    blocked:false,indoor:true,onShip:true};
@@ -1188,6 +1193,7 @@ function refreshShipCrewChoices(){
  }
 }
 function updateHUD(){
+  if(!voyage?.active)shipCombatUI?.update(0,{vr:false});
   if(solarSystem&&planet)solarSystem.sync(planet.timeDays);
   solarUI?.update();
   celestialSky?.update();surfaceShipUI?.update();
@@ -4070,6 +4076,8 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
  getWorldCanvas:()=>renderer?.canvas||null,getWorldRenderer:()=>renderer,notify:log});
+shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
+ isVR:()=>xrUI?.mode==="vr",notify:log});
 shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
@@ -4098,6 +4106,10 @@ xrUI=installXRUI({
  getVRAppearance:()=>appearance,
  getVRArrowCount:()=>frontierUI?.vrArrowCount("player")||0,
  onVRFrame:(t,input)=>doFrame(t,"xr",input),
+  onVRShipCombatActive:()=>Boolean(shipCombatUI?.active()),
+  onVRShipTrigger:()=>Boolean(shipCombatUI?.fire()),
+  onVRShipWeapon:()=>shipCombatUI?.switchWeapon(),
+  onVRShipFrame:dt=>shipCombatUI?.update(dt,{vr:true}),
   onVRCustody:vrCustodyInteraction,
  getVRCustodyPose:()=>custodyFacility?{
   footBraced:custodyClimb.footBraced,onLedge:custodyClimb.onLedge,
