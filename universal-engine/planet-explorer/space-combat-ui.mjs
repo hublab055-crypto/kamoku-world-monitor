@@ -105,11 +105,13 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(viewer)viewer.shipCombat=model;
   const projections=viewer?.shipTargets||[];
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
-  const show=Boolean(engage&&!vr);
+  const show=Boolean(v?.active&&!vr);
   weapon.hidden=!show;fireButton.hidden=!show;
+  weapon.disabled=!engage;fireButton.disabled=!engage;
+  weapon.title=fireButton.title=engage?"火器管制":"操縦席に着席すると使用できます";
   markers.hidden=!show;
   if(!show){for(const node of targetNodes.values())node.hidden=true;return;}
-  weapon.textContent="⚙️ "+model.config.name+" ["+model.config.locks+"ロック]";
+  weapon.textContent="🎯 火器管制： "+model.config.name+" ["+model.config.locks+"ロック]";
   fireButton.textContent=model.weapon==="missile"?"🚀 発射 ("+model.missiles+")":"🔴 発射";
   const rect=viewer?.canvas?.getBoundingClientRect();
   if(!rect||!rect.width||!rect.height)return;
@@ -133,7 +135,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    node.classList.toggle("locked",model.locked.includes(t.id));
    node.classList.toggle("hit",model.flashes.some(f=>f.id===t.id));
    node.lastElementChild.textContent=(model.locked.includes(t.id)?"🔒 ":"")+t.name+
-    " "+target?.distance+"m";
+    " "+Math.round(target?.distance||0)+"m";
   }
  }
  return {getCombat,update,fire,active,switchWeapon:setWeapon};
