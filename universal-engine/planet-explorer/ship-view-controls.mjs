@@ -36,14 +36,22 @@ export function shipCelestialPosition({yawDeg=0,pitchDeg=0,distance=420,baseY=-5
 }
 export function shipCameraPose({
  mode="cockpit",wide=true,distance=52,interior={},
- landingAttitude=0
+ orbitYaw=0,orbitPitch=.31,landingAttitude=0
 }={}){
  const chase=mode==="chase";
- const dist=clamp(finite(distance)?distance:52,28,125);
+ const dist=clamp(finite(distance)?distance:52,28,150);
  const pitch=clamp((finite(interior.pitch)?interior.pitch:0)+landingAttitude,-1.2,1.2);
  const yaw=finite(interior.yaw)?interior.yaw:0;
  if(chase){
-  return {eye:[0,Math.max(12,dist*.30),dist],target:[0,3,-3],
+  // Camera orbits the SAME ship hull. Swipe changes camera only and never
+  // changes heading, linear velocity, or the player's cockpit look angle.
+  const orbitAz=finite(orbitYaw)?orbitYaw:0;
+  const orbitEl=clamp(finite(orbitPitch)?orbitPitch:.31,-.42,1.37);
+  const center=[0,2.5,-1.5];
+  const cp=Math.cos(orbitEl);
+  return {eye:[center[0]+Math.sin(orbitAz)*cp*dist,
+   center[1]+Math.sin(orbitEl)*dist,
+   center[2]+Math.cos(orbitAz)*cp*dist],target:center,
    fovDeg:wide?96:79,drawExterior:true};
  }
  const eyeY=interior.seated?1.25:interior.z>13&&interior.hatchPassable?
