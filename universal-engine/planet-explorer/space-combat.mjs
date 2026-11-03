@@ -96,3 +96,71 @@ export class SpaceCombat{
    t.evadeYaw=0;t.evadePitch=0;
    t.aiState=t.distance<desiredRange*.7?"breakaway":
     length>desiredRange?"intercept":"pursuit";
+
+  }
+ }
+ get config(){return SHIP_WEAPONS[this.weapon];}
+ get liveTargets(){return this.targets.filter(t=>t.hp>0);}
+ setWeapon(type){
+  if(!SHIP_WEAPONS[type])return false;
+  this.weapon=type;this.locked=this.locked.slice(0,this.config.locks);
+  this.dwellId=null;this.dwellSeconds=0;return true;
+ }
+ syncVisibility(projected=[],dt=0,{vr=false,eligible=true,voyage=null}={}){
+  this.advance(dt,voyage);
+  this.cooldown=Math.max(0,this.cooldown-clamp(Number.isFinite(dt)?dt:0,0,.12));
+  for(const f of this.flashes)f.seconds=Math.max(0,f.seconds-clamp(dt||0,0,.12));
+  this.flashes=this.flashes.filter(f=>f.seconds>0);
+  this.visible=new Set(eligible?projected.filter(p=>p.onScreen&&
+   Number.isFinite(p.u)&&Number.isFinite(p.v)&&
+   p.u>=0&&p.u<=1&&p.v>=0&&p.v<=1&&
+   this.targets.some(t=>t.id===p.id&&t.hp>0)).map(p=>p.id):[]);
+  this.locked=this.locked.filter(id=>this.visible.has(id));
+  if(!vr||!eligible){this.dwellId=null;this.dwellSeconds=0;return;}
+  const nearest=projected.filter(p=>this.visible.has(p.id)).
+   map(p=>({...p,delta:Math.hypot(p.u-.5,p.v-.5)})).
+   filter(p=>p.delta<.075).sort((a,b)=>a.delta-b.delta)[0];
+  const id=nearest?.id||null;
+  if(id!==this.dwellId){this.dwellId=id;this.dwellSeconds=0;}
+  if(!id||this.locked.includes(id))return;
+  this.dwellSeconds+=clamp(Number.isFinite(dt)?dt:0,0,.12);
+  if(this.dwellSeconds>=.85){
+   this.acquire(id);this.dwellId=null;this.dwellSeconds=0;
+  }
+ }
+ acquire(id){
+  if(!this.visible.has(id)||!this.targets.some(t=>t.id===id&&t.hp>0))return false;
+  if(this.locked.includes(id))return true;
+  if(this.config.locks===1)this.locked=[id];
+  else{
+   if(this.locked.length>=this.config.locks)return false;
+   this.locked.push(id);
+  }
+  return true;
+ }
+ fire(eligible=true){
+  if(!eligible)return {ok:false,message:"操縦席に着席し、宇宙航行中に使用してください"};
+  if(this.cooldown>0)return {ok:false,message:"兵装を再装填しています"};
+  if(!this.locked.length)return {ok:false,message:"敵機をロックオンしてください"};
+  if(this.weapon==="missile"&&this.missiles<=0)return {ok:false,message:"ミサイル残弾がありません"};
+  const shots=this.locked.slice(0,this.weapon==="missile"?
+   Math.min(this.config.locks,this.missiles):this.config.locks);
+  const hits=[];
+  for(const id of shots){
+   const target=this.targets.find(t=>t.id===id);
+   if(!target||target.hp<=0||!this.visible.has(id))continue;
+   target.hp=Math.max(0,target.hp-this.config.damage);
+   hits.push({id,name:target.name,destroyed:target.hp===0,hp:target.hp});
+   this.flashes.push({id,seconds:.5});
+  }
+  if(!hits.length){this.locked=[];return {ok:false,message:"目標が視界外です"};}
+  if(this.weapon==="missile")this.missiles-=hits.length;
+  this.cooldown=this.config.cooldown;
+  this.locked=this.locked.filter(id=>this.targets.some(t=>t.id===id&&t.hp>0)&&this.visible.has(id));
+  const destroyed=hits.filter(h=>h.destroyed).length;
+  const message="🚀 "+this.config.name+" "+hits.length+"発命中"+
+   (destroyed?"／敵機"+destroyed+"機撃破":"");
+  this.lastMessage=message;
+  return {ok:true,message,hits};
+ }
+}
