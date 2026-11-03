@@ -1,5 +1,6 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
+import {advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -11,7 +12,7 @@ export class ShipJourney{
   this.kind="surface-to-surface";
   this.originId=data.originId;
   this.destinationId=bodyById(data.destinationId)?.landable?data.destinationId:null;
-  this.status=["docked","ascent","origin-orbit","cruise","approach","orbit","entry","touchdown","landed"].includes(data.status)?data.status:"docked";
+  this.status=["docked","ascent","origin-orbit","cruise","approach","flyby","orbit","entry","touchdown","landed"].includes(data.status)?data.status:"docked";
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
@@ -22,6 +23,13 @@ export class ShipJourney{
    [pad.lat,pad.lon,pad.yaw,pad.padElevationM].every(finite)?
    {bodyId:pad.bodyId,lat:pad.lat,lon:pad.lon,yaw:pad.yaw,padElevationM:pad.padElevationM}:null;
   this.progress=clamp(data.progress??0,0,1);
+  // Route-frame position/velocity are persisted independently from thrust.
+  // Older saves remain loadable; cruising ships retain a modest prior speed.
+  this.routeAlong=finite(data.routeAlong)?data.routeAlong:this.progress;
+  this.crossTrack=finite(data.crossTrack)?data.crossTrack:0;
+  this.routeVelocity={along:finite(data.routeVelocity?.along)?data.routeVelocity.along:
+   (["cruise","approach"].includes(this.status)?this.progress>0?.018:0:0),
+   cross:finite(data.routeVelocity?.cross)?data.routeVelocity.cross:0};
   this.stageProgress=clamp(data.stageProgress??0,0,1);
   this.touchdownElapsed=finite(data.touchdownElapsed)?clamp(data.touchdownElapsed,0,1.7):0;
   this.elapsedSeconds=Math.max(0,finite(data.elapsedSeconds)?data.elapsedSeconds:0);
@@ -32,7 +40,7 @@ export class ShipJourney{
    ((data.attitudeYawDeg+180)%360+360)%360-180:0;
   this.pitchDeg=Number.isFinite(data.pitchDeg)?clamp(data.pitchDeg,-65,65):0;
   this.fuel=clamp(data.fuel??100,0,100);
-  this.throttle=clamp(data.throttle??.72,0,1);
+  this.throttle=clamp(data.throttle??.72,-1,1);
   this.autopilot=data.autopilot!==false;
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
@@ -46,7 +54,7 @@ export class ShipJourney{
  get readyToLand(){return this.status==="orbit"&&this.seated&&Math.abs(this.heading)<=12;}
  get phase(){
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
-   cruise:"惑星間巡航",approach:"目的惑星へ接近",orbit:"目的惑星の周回軌道",
+   cruise:"惑星間巡航",approach:"目的惑星へ接近",flyby:"目標軌道を通過・再接近中",orbit:"目的惑星の周回軌道",
    entry:"大気圏突入・着陸降下",touchdown:"接地・エンジン停止",landed:"地表・着陸完了"}[this.status]||"航行中";
  }
  isNearHatch(){return this.interior.distance({x:0,z:12.0})<=2.9;}
@@ -89,6 +97,7 @@ export class ShipJourney{
   if(!bodyById(id)?.landable||id===this.originId||!finite(flightDays)||flightDays<=0)
    return {ok:false,message:"航行先を指定できません"};
   this.destinationId=id;this.flightDays=flightDays;this.progress=0;
+  this.routeAlong=0;this.crossTrack=0;this.routeVelocity={along:0,cross:0};
   return {ok:true,message:"🧭 航路設定完了："+bodyById(id).name+"／推定"+flightDays.toFixed(1)+"ゲーム日"};
  }
  startTransfer(){
@@ -114,7 +123,7 @@ export class ShipJourney{
   return true;
  }
  setAutopilot(on){this.autopilot=Boolean(on);}
- setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,0,1);}
+ setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,-1,1);}
  steer(n){
   if(!finite(n))throw Error("Invalid heading");
   this.heading=clamp(this.heading+n,-60,60);
@@ -133,26 +142,38 @@ export class ShipJourney{
    if(this.touchdownElapsed>=1.7)this.status="landed";
    return {days:0,advanced:0,status:this.status};
   }
-  if(!["ascent","cruise","approach","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
+  if(!["ascent","cruise","approach","flyby","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;
   if(this.autopilot)this.heading*=Math.exp(-step*2);
   const thr=this.fuel>0?this.throttle:0;
-  this.fuel=Math.max(0,this.fuel-step*thr*.28);
-  const align=clamp(1-Math.abs(this.heading)/110,.5,1);
-  const rate=(.30+thr*1.2)*align;
   let days=0,advanced=0;
   if(this.status==="ascent"){
-   this.stageProgress=clamp(this.stageProgress+step*(.07+thr*.10),0,1);
+   this.fuel=Math.max(0,this.fuel-step*Math.abs(thr)*.28);
+   // Atmospheric launch still uses the earlier simplified ascent sequence.
+   this.stageProgress=clamp(this.stageProgress+step*(.07+Math.max(0,thr)*.10),0,1);
    if(this.stageProgress>=1){this.status="origin-orbit";this.stageProgress=0;}
   }else if(this.status==="entry"){
-   this.stageProgress=clamp(this.stageProgress+step*(.055+thr*.12),0,1);
+   this.fuel=Math.max(0,this.fuel-step*Math.abs(thr)*.28);
+   this.stageProgress=clamp(this.stageProgress+step*(.055+Math.max(0,thr)*.12),0,1);
    if(this.stageProgress>=1){this.status="touchdown";this.stageProgress=1;this.touchdownElapsed=0;}
   }else{
-   const before=this.progress;
-   this.progress=clamp(this.progress+step*rate/38,0,1);
-   advanced=this.progress-before;days=advanced*this.flightDays;
-   if(this.progress>=1){this.status="orbit";this.stageProgress=0;}
-   else this.status=this.progress<.82?"cruise":"approach";
+   const before=this.routeAlong;
+   const motion=advanceRouteMotion({
+    position:{along:this.routeAlong,cross:this.crossTrack},velocity:this.routeVelocity,
+    throttle:thr,yawDeg:this.attitudeYawDeg,autopilot:this.autopilot,fuelAvailable:this.fuel>0
+   },step);
+   this.routeAlong=motion.position.along;this.crossTrack=motion.position.cross;
+   this.routeVelocity=motion.velocity;
+   this.progress=clamp(this.routeAlong,0,1);
+   // Crossing backwards never rewinds the solar clock.
+   advanced=this.routeAlong-before;
+   days=Math.abs(advanced)*this.flightDays;
+   this.fuel=Math.max(0,this.fuel-step*(this.autopilot?motion.thrustMagnitude:Math.abs(thr))*.28);
+   if(routeIntercept(motion.position,motion.velocity)&&Math.abs(this.heading)<=12){
+    this.status="orbit";this.stageProgress=0;this.routeVelocity={along:0,cross:0};
+   }else if(this.routeAlong>1.03||Math.abs(this.crossTrack)>.22&&this.progress>.70){
+    this.status="flyby"; // no forced capture at high velocity
+   }else this.status=this.routeAlong<.82?"cruise":"approach";
   }
   return {days,advanced,status:this.status};
  }
@@ -162,6 +183,7 @@ export class ShipJourney{
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
+   routeAlong:this.routeAlong,crossTrack:this.crossTrack,routeVelocity:{...this.routeVelocity},
    seated:this.seated,interior:this.interior.snapshot()};
  }
  static fromSnapshot(data){
