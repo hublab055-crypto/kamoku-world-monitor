@@ -123,7 +123,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  root.classList.toggle("integrated",unified);
  const held=new Set();let nearKey="",lastView="";
  let chase=false,wide=typeof matchMedia==="function"&&matchMedia("(max-width: 1024px) and (pointer: coarse)").matches;
- let chaseDistance=52,shipPointer=null,shipStick={x:0,y:0};
+ let chaseDistance=52,orbitYaw=0,orbitPitch=.31,shipPointer=null,shipStick={x:0,y:0};
+ const sensorLayer=$("flight-sensors"),sensorNodes=new Map();
  const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
  function resetShipStick(){shipPointer=null;shipStick={x:0,y:0};touchNub.style.transform="translate(0px,0px)";}
  function updateShipStick(e){
@@ -153,6 +154,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    viewer.shipCameraMode=chase?"chase":"cockpit";
    viewer.shipWideView=wide;
    viewer.shipChaseDistance=chaseDistance;
+   viewer.shipOrbitYaw=orbitYaw;viewer.shipOrbitPitch=orbitPitch;
   }
   root.classList.toggle("flight-wide",wide);
   root.classList.toggle("ship-piloting",seated);
@@ -170,7 +172,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  $("flight-camera").addEventListener("click",()=>{if(!seatedPilot(get()))return;chase=!chase;syncShipCamera();});
  $("flight-wide").addEventListener("click",()=>{wide=!wide;syncShipCamera();});
  $("flight-zoom-near").addEventListener("click",()=>{chaseDistance=Math.max(28,chaseDistance-12);syncShipCamera();});
- $("flight-zoom-far").addEventListener("click",()=>{chaseDistance=Math.min(125,chaseDistance+12);syncShipCamera();});
+ $("flight-zoom-far").addEventListener("click",()=>{chaseDistance=Math.min(150,chaseDistance+12);syncShipCamera();});
 
  function cockpitAvailable(){const v=get();return Boolean(v?.interior&&ship3D.supported);}
  function showCargo(){
@@ -239,18 +241,45 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  window.addEventListener("blur",()=>{held.clear();resetShipStick();});
  let drag=null;
  const dragTarget=unified?worldCanvas:shipCanvas;
+ // Capture before world picking/planet gestures, but ONLY while the ship
+ // overlay is active. Outside chase mode normal game gestures are unchanged.
  dragTarget.addEventListener("pointerdown",event=>{
-  if(root.hidden||get()?.interior?.mode!=="interior")return;
-  drag={id:event.pointerId,x:event.clientX,y:event.clientY};
+  if(root.hidden)return;
+  const roaming=chase&&seatedPilot(get());
+  if(!roaming&&get()?.interior?.mode!=="interior")return;
+  if(drag!==null||event.isPrimary===false)return;
+  drag={id:event.pointerId,x:event.clientX,y:event.clientY,roaming};
   dragTarget.setPointerCapture?.(event.pointerId);
- });
+  if(roaming){event.preventDefault();event.stopImmediatePropagation();}
+ },true);
  dragTarget.addEventListener("pointermove",event=>{
   if(!drag||event.pointerId!==drag.id)return;
-  const state=get()?.interior;if(state)state.turn((event.clientX-drag.x)*.006,(drag.y-event.clientY)*.004);
+  const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+  if(drag.roaming){
+   orbitYaw=(orbitYaw+dx*.008)%(2*Math.PI);
+   orbitPitch=clamp(orbitPitch+dy*.005,-.42,1.37);
+   syncShipCamera();
+   event.preventDefault();event.stopImmediatePropagation();
+  }else{
+   const state=get()?.interior;
+   if(state)state.turn(dx*.006,-dy*.004);
+  }
   drag.x=event.clientX;drag.y=event.clientY;
- });
+ },true);
  for(const type of ["pointerup","pointercancel","lostpointercapture"])
-  dragTarget.addEventListener(type,()=>{drag=null;});
+  dragTarget.addEventListener(type,event=>{
+   if(drag?.id===event.pointerId){
+    if(drag.roaming){event.preventDefault();event.stopImmediatePropagation();}
+    drag=null;
+   }
+  },true);
+ dragTarget.addEventListener("wheel",event=>{
+  if(root.hidden||!chase||!seatedPilot(get()))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  chaseDistance=clamp(chaseDistance+Math.sign(event.deltaY)*6,28,150);
+  syncShipCamera();
+ },{passive:false,capture:true});
+ window.addEventListener("blur",()=>{drag=null;});
  function applyMove(dt){
   const v=get(),state=v?.interior;
   if(!state||!Number.isFinite(dt)||dt<=0)return;
