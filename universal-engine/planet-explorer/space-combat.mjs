@@ -15,7 +15,7 @@ const HOSTILES=Object.freeze([
 export function combatEligible(voyage){
  return Boolean(voyage?.active&&(voyage.seated===true||
   voyage.seated!==false&&voyage.interior?.mode==="cockpit")&&
-  ["origin-orbit","parking-orbit","launch","cruise","approach","orbit"].includes(voyage.status));
+  ["origin-orbit","parking-orbit","launch","cruise","approach","flyby","orbit"].includes(voyage.status));
 }
 /** Fixed inertial bearing relative to the departure attitude, displayed in vessel coordinates. */
 export function shipContactPosition(target,voyage){
