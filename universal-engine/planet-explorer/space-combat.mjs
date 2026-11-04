@@ -74,7 +74,8 @@ export class SpaceCombat{
   const ship=validCoordinates?coordinates.map(n=>n*12000):[0,0,0];
   const previous=this.lastShipPosition||ship;
   const shipVelocity=ship.map((n,i)=>(n-previous[i])/step);
-  this.lastShipPosition=validCoordinates?ship:null;\n  this.shipPosition=ship;
+  this.lastShipPosition=validCoordinates?ship:null;
+  this.shipPosition=ship;
   // Intercept lead responds to observed turning and thrust. These are
   // local encounter approximations, not solar-system inertial velocities.
   for(const t of this.liveTargets){
