@@ -15,10 +15,25 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   text-align:center;color:#a4d8e7;text-shadow:0 1px 4px #000,0 0 4px #000}
  #ship-combat-markers .combat-contact .combat-ring{display:block;width:31px;height:31px;margin:auto;
   border:2px solid #72b7d5;border-radius:0;transform:rotate(45deg);background:transparent}
- #ship-combat-markers .combat-contact.hostile{color:#ff9c40;--contact:#ff9c40}\n #ship-combat-markers .combat-contact.friendly{color:#61b9ff;--contact:#61b9ff}\n #ship-combat-markers .combat-contact.neutral{color:#62df87;--contact:#62df87}\n #ship-combat-markers .combat-contact .combat-ring{border-color:var(--contact,#ff9c40)}\n #ship-combat-markers .combat-contact.locked{color:#ff6262;--contact:#ff3333}
+ #ship-combat-markers .combat-contact.hostile{color:#ff9c40;--contact:#ff9c40}
+ #ship-combat-markers .combat-contact.friendly{color:#61b9ff;--contact:#61b9ff}
+ #ship-combat-markers .combat-contact.neutral{color:#62df87;--contact:#62df87}
+ #ship-combat-markers .combat-contact .combat-ring{border-color:var(--contact,#ff9c40)}
+ #ship-combat-markers .combat-contact.locked{color:#ff6262;--contact:#ff3333}
  #ship-combat-markers .combat-contact.locked .combat-ring{border:3px solid #ff3333;box-shadow:0 0 12px #ff3333}
  #ship-combat-markers .combat-contact.hit .combat-ring{box-shadow:0 0 25px 12px #ff6945;border-color:#fff}
- #ship-combat-markers .combat-label{display:block;white-space:nowrap;font-size:11px}\n #ship-combat-markers .combat-bars{display:block;width:64px;height:9px;margin:3px auto;background:linear-gradient(to bottom,#17232e 0 45%,#352b2b 45%);border:1px solid #b8cbd5}\n #ship-combat-markers .combat-bars i,#ship-combat-markers .combat-bars b{display:block;height:4px;background:#45caff}\n #ship-combat-markers .combat-bars b{height:3px;background:#fa6666}\n #ship-combat-markers .combat-contact.shield .combat-ring{background:#64caff70;box-shadow:0 0 18px 10px #69bfff80}\n #ship-combat-markers .combat-shot{position:absolute;width:8px;height:8px;border-radius:50%;background:#ffde80;box-shadow:0 0 18px 5px #ff6c2e;pointer-events:none}\n #ship-combat-markers .combat-shot.missile{width:14px;height:5px;border-radius:2px;background:#fff;box-shadow:0 0 20px 6px #ff9b34}\n #ship-combat-markers .combat-shot.enemy{background:#ff4444}\n #ship-combat-markers .combat-impact{position:absolute;width:35px;height:35px;border-radius:50%;background:radial-gradient(circle,#fff 0%,#ffda4b 25%,#ff6522 50%,transparent 75%);transform:translate(-50%,-50%);pointer-events:none}\n #ship-combat-markers .combat-player-hud{position:absolute;left:50%;bottom:14%;transform:translateX(-50%);padding:5px 10px;background:#091727bb;border-radius:6px;color:#fff;white-space:nowrap}\n #ship-combat-markers .combat-player-hud.shield{box-shadow:0 0 18px 5px #6acbff}\n
+ #ship-combat-markers .combat-label{display:block;white-space:nowrap;font-size:11px}
+ #ship-combat-markers .combat-bars{display:block;width:64px;height:9px;margin:3px auto;background:linear-gradient(to bottom,#17232e 0 45%,#352b2b 45%);border:1px solid #b8cbd5}
+ #ship-combat-markers .combat-bars i,#ship-combat-markers .combat-bars b{display:block;height:4px;background:#45caff}
+ #ship-combat-markers .combat-bars b{height:3px;background:#fa6666}
+ #ship-combat-markers .combat-contact.shield .combat-ring{background:#64caff70;box-shadow:0 0 18px 10px #69bfff80}
+ #ship-combat-markers .combat-shot{position:absolute;width:8px;height:8px;border-radius:50%;background:#ffde80;box-shadow:0 0 18px 5px #ff6c2e;pointer-events:none}
+ #ship-combat-markers .combat-shot.missile{width:14px;height:5px;border-radius:2px;background:#fff;box-shadow:0 0 20px 6px #ff9b34}
+ #ship-combat-markers .combat-shot.enemy{background:#ff4444}
+ #ship-combat-markers .combat-impact{position:absolute;width:35px;height:35px;border-radius:50%;background:radial-gradient(circle,#fff 0%,#ffda4b 25%,#ff6522 50%,transparent 75%);transform:translate(-50%,-50%);pointer-events:none}
+ #ship-combat-markers .combat-player-hud{position:absolute;left:50%;bottom:14%;transform:translateX(-50%);padding:5px 10px;background:#091727bb;border-radius:6px;color:#fff;white-space:nowrap}
+ #ship-combat-markers .combat-player-hud.shield{box-shadow:0 0 18px 5px #6acbff}
+
  #ship-combat-markers .combat-gaze{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   width:17px;height:17px;border:1px solid #bfe6ff;border-radius:50%;opacity:.7}
  #space-flight .ship-weapon-switch,#space-flight .ship-fire-trigger{border-color:#b6c6aa}
@@ -29,7 +44,9 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  document.head.append(style);
  const markers=document.createElement("div");
  markers.id="ship-combat-markers";markers.hidden=true;markers.setAttribute("aria-hidden","true");
- const gaze=document.createElement("div");gaze.className="combat-gaze";markers.append(gaze);\n const playerHud=document.createElement("div");playerHud.className="combat-player-hud";markers.append(playerHud);\n const shotNodes=[];
+ const gaze=document.createElement("div");gaze.className="combat-gaze";markers.append(gaze);
+ const playerHud=document.createElement("div");playerHud.className="combat-player-hud";markers.append(playerHud);
+ const shotNodes=[];
  document.body.append(markers);
  const weapon=document.createElement("button"),fireButton=document.createElement("button");
  weapon.type="button";fireButton.type="button";
@@ -125,16 +142,43 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
     node=document.createElement("div");node.className="combat-contact";
     const ring=document.createElement("span");ring.className="combat-ring";
     const label=document.createElement("span");label.className="combat-label";
-    const bars=document.createElement("span");bars.className="combat-bars";bars.innerHTML="<i></i><b></b>";\n    node.append(ring,label,bars);markers.append(node);
+    const bars=document.createElement("span");bars.className="combat-bars";bars.innerHTML="<i></i><b></b>";
+    node.append(ring,label,bars);markers.append(node);
     targetNodes.set(t.id,node);
    }
    const target=model.targets.find(x=>x.id===t.id);
    node.hidden=false;
    node.style.left=(rect.left+t.u*rect.width)+"px";
    node.style.top=(rect.top+t.v*rect.height)+"px";
-   node.classList.toggle("locked",model.locked.includes(t.id));\n   node.classList.toggle("hostile",(target?.faction||"hostile")==="hostile");\n   node.classList.toggle("friendly",target?.faction==="friendly");\n   node.classList.toggle("neutral",target?.faction==="neutral");\n   node.classList.toggle("shield",target?.shieldFlash>0);\n   node.querySelector(".combat-bars i").style.width=(100*(target?.shield||0)/(target?.maxShield||100))+"%";\n   node.querySelector(".combat-bars b").style.width=(100*(target?.hp||0)/(target?.maxHp||100))+"%";
+   node.classList.toggle("locked",model.locked.includes(t.id));
+   node.classList.toggle("hostile",(target?.faction||"hostile")==="hostile");
+   node.classList.toggle("friendly",target?.faction==="friendly");
+   node.classList.toggle("neutral",target?.faction==="neutral");
+   node.classList.toggle("shield",target?.shieldFlash>0);
+   node.querySelector(".combat-bars i").style.width=(100*(target?.shield||0)/(target?.maxShield||100))+"%";
+   node.querySelector(".combat-bars b").style.width=(100*(target?.hp||0)/(target?.maxHp||100))+"%";
    node.classList.toggle("hit",model.flashes.some(f=>f.id===t.id));
    node.querySelector(".combat-label").textContent=(model.locked.includes(t.id)?"🔒 ":"")+t.name+
     " "+Math.round(target?.distance||0)+"m";
-  }\n  playerHud.textContent="🛡️ "+Math.round(model.player.shield)+" / "+model.player.maxShield+"   ❤️ "+Math.round(model.player.hp)+" / "+model.player.maxHp;\n  playerHud.classList.toggle("shield",model.player.shieldFlash>0);\n  for(const n of shotNodes)n.remove();shotNodes.length=0;\n  for(const shot of model.projectiles){\n   const target=projections.find(t=>t.id===shot.id);if(!target?.onScreen)continue;\n   const progress=1-Math.max(0,shot.seconds)/shot.total;\n   const u=shot.enemy?target.u+(.5-target.u)*progress:.5+(target.u-.5)*progress;\n   const w=shot.enemy?target.v+(.5-target.v)*progress:.5+(target.v-.5)*progress;\n   const dot=document.createElement("span");dot.className="combat-shot "+(shot.enemy?"enemy":shot.weapon);\n   dot.style.left=(rect.left+u*rect.width)+"px";dot.style.top=(rect.top+w*rect.height)+"px";\n   markers.append(dot);shotNodes.push(dot);\n  }\n  for(const flash of model.flashes){\n   if(flash.shield)continue;const target=projections.find(t=>t.id===flash.id);if(!target?.onScreen)continue;\n   const blast=document.createElement("span");blast.className="combat-impact";\n   blast.style.left=(rect.left+target.u*rect.width)+"px";blast.style.top=(rect.top+target.v*rect.height)+"px";\n   markers.append(blast);shotNodes.push(blast);\n  }\n }\n return {getCombat,update,fire,active,switchWeapon:setWeapon};
+  }
+  playerHud.textContent="🛡️ "+Math.round(model.player.shield)+" / "+model.player.maxShield+"   ❤️ "+Math.round(model.player.hp)+" / "+model.player.maxHp;
+  playerHud.classList.toggle("shield",model.player.shieldFlash>0);
+  for(const n of shotNodes)n.remove();shotNodes.length=0;
+  for(const shot of model.projectiles){
+   const target=projections.find(t=>t.id===shot.id);if(!target?.onScreen)continue;
+   const progress=1-Math.max(0,shot.seconds)/shot.total;
+   const u=shot.enemy?target.u+(.5-target.u)*progress:.5+(target.u-.5)*progress;
+   const w=shot.enemy?target.v+(.5-target.v)*progress:.5+(target.v-.5)*progress;
+   const dot=document.createElement("span");dot.className="combat-shot "+(shot.enemy?"enemy":shot.weapon);
+   dot.style.left=(rect.left+u*rect.width)+"px";dot.style.top=(rect.top+w*rect.height)+"px";
+   markers.append(dot);shotNodes.push(dot);
+  }
+  for(const flash of model.flashes){
+   if(flash.shield)continue;const target=projections.find(t=>t.id===flash.id);if(!target?.onScreen)continue;
+   const blast=document.createElement("span");blast.className="combat-impact";
+   blast.style.left=(rect.left+target.u*rect.width)+"px";blast.style.top=(rect.top+target.v*rect.height)+"px";
+   markers.append(blast);shotNodes.push(blast);
+  }
+ }
+ return {getCombat,update,fire,active,switchWeapon:setWeapon};
 }
