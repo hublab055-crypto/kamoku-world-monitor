@@ -127,7 +127,7 @@ export class SpaceVoyage{
   this.progress=clamp(this.transferZ,0,1);
   const remaining=Math.hypot(this.transferX,this.transferY,1-this.transferZ);
   const arrivalRadius=.045;
-  if(remaining<=arrivalRadius&&this.progress>=.94)this.status="orbit";
+  // Manual flight never auto-captures at the destination: pilot must enable\n  // autopilot for orbital insertion, otherwise the ship continues into flyby.\n  if(this.autopilot&&remaining<=arrivalRadius&&this.progress>=.94)this.status="orbit";
   else if(this.transferZ>=1)this.status="flyby";
   else this.status=this.progress<.11?"launch":this.progress<.82?"cruise":"approach";
   const advanced=Math.max(0,this.progress-before);
