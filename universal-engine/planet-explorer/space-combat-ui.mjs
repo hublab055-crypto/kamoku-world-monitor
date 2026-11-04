@@ -14,7 +14,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  #ship-combat-markers .combat-contact{position:absolute;transform:translate(-50%,-50%);min-width:68px;
   text-align:center;color:#a4d8e7;text-shadow:0 1px 4px #000,0 0 4px #000}
  #ship-combat-markers .combat-contact .combat-ring{display:block;width:31px;height:31px;margin:auto;
-  border:2px solid #72b7d5;border-radius:6px;transform:rotate(45deg);background:#08283c35}
+  border:2px solid #72b7d5;border-radius:0;transform:rotate(45deg);background:transparent}
  #ship-combat-markers .combat-contact.hostile{color:#ff9c40;--contact:#ff9c40}\n #ship-combat-markers .combat-contact.friendly{color:#61b9ff;--contact:#61b9ff}\n #ship-combat-markers .combat-contact.neutral{color:#62df87;--contact:#62df87}\n #ship-combat-markers .combat-contact .combat-ring{border-color:var(--contact,#ff9c40)}\n #ship-combat-markers .combat-contact.locked{color:#ff6262;--contact:#ff3333}
  #ship-combat-markers .combat-contact.locked .combat-ring{border:3px solid #ff3333;box-shadow:0 0 12px #ff3333}
  #ship-combat-markers .combat-contact.hit .combat-ring{box-shadow:0 0 25px 12px #ff6945;border-color:#fff}
@@ -134,7 +134,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    node.style.top=(rect.top+t.v*rect.height)+"px";
    node.classList.toggle("locked",model.locked.includes(t.id));\n   node.classList.toggle("hostile",(target?.faction||"hostile")==="hostile");\n   node.classList.toggle("friendly",target?.faction==="friendly");\n   node.classList.toggle("neutral",target?.faction==="neutral");\n   node.classList.toggle("shield",target?.shieldFlash>0);\n   node.querySelector(".combat-bars i").style.width=(100*(target?.shield||0)/(target?.maxShield||100))+"%";\n   node.querySelector(".combat-bars b").style.width=(100*(target?.hp||0)/(target?.maxHp||100))+"%";
    node.classList.toggle("hit",model.flashes.some(f=>f.id===t.id));
-   node.querySelector(".combat-label").textContent=(model.locked.includes(t.id)?"🔒 ":"♢ ")+t.name+
+   node.querySelector(".combat-label").textContent=(model.locked.includes(t.id)?"🔒 ":"")+t.name+
     " "+Math.round(target?.distance||0)+"m";
   }\n  playerHud.textContent="🛡️ "+Math.round(model.player.shield)+" / "+model.player.maxShield+"   ❤️ "+Math.round(model.player.hp)+" / "+model.player.maxHp;\n  playerHud.classList.toggle("shield",model.player.shieldFlash>0);\n  for(const n of shotNodes)n.remove();shotNodes.length=0;\n  for(const shot of model.projectiles){\n   const target=projections.find(t=>t.id===shot.id);if(!target?.onScreen)continue;\n   const progress=1-Math.max(0,shot.seconds)/shot.total;\n   const u=shot.enemy?target.u+(.5-target.u)*progress:.5+(target.u-.5)*progress;\n   const w=shot.enemy?target.v+(.5-target.v)*progress:.5+(target.v-.5)*progress;\n   const dot=document.createElement("span");dot.className="combat-shot "+(shot.enemy?"enemy":shot.weapon);\n   dot.style.left=(rect.left+u*rect.width)+"px";dot.style.top=(rect.top+w*rect.height)+"px";\n   markers.append(dot);shotNodes.push(dot);\n  }\n  for(const flash of model.flashes){\n   if(flash.shield)continue;const target=projections.find(t=>t.id===flash.id);if(!target?.onScreen)continue;\n   const blast=document.createElement("span");blast.className="combat-impact";\n   blast.style.left=(rect.left+target.u*rect.width)+"px";blast.style.top=(rect.top+target.v*rect.height)+"px";\n   markers.append(blast);shotNodes.push(blast);\n  }\n }\n return {getCombat,update,fire,active,switchWeapon:setWeapon};
 }
