@@ -30,12 +30,12 @@ export class SpaceCombat{
  constructor(){
   this.targets=HOSTILES.map(t=>{
    const yaw=t.bearing*Math.PI/180,pitch=t.pitch*Math.PI/180;
-   return {...t,position:[Math.sin(yaw)*t.distance,Math.sin(pitch)*t.distance,
+   return {...t,faction:"hostile",shield:100,maxShield:100,maxHp:t.hp,shieldFlash:0,position:[Math.sin(yaw)*t.distance,Math.sin(pitch)*t.distance,
     Math.cos(yaw)*Math.cos(pitch)*t.distance],velocity:[0,0,0]};
   });
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
-  this.cooldown=0;this.flashes=[];this.lastMessage="";this.elapsed=0;
+  this.cooldown=0;this.flashes=[];this.projectiles=[];this.player={hp:100,maxHp:100,shield:100,maxShield:100,shieldFlash:0};this.enemyCooldown=3;this.lastMessage="";this.elapsed=0;
   this.lastHeading=null;this.headingRate=0;this.playerRangeTravel=0;
   this.lastShipPosition=null;
  }
@@ -45,6 +45,21 @@ export class SpaceCombat{
   const step=clamp(Number.isFinite(dt)?dt:0,0,.12);
   if(!step)return;
   this.elapsed+=step;
+  this.player.shieldFlash=Math.max(0,this.player.shieldFlash-step);
+  for(const t of this.targets)t.shieldFlash=Math.max(0,t.shieldFlash-step);
+  this.enemyCooldown-=step;
+  if(this.enemyCooldown<=0&&voyage&&combatEligible(voyage)&&this.liveTargets.length){
+   const attacker=this.liveTargets.filter(t=>t.distance<650).sort((a,b)=>a.distance-b.distance)[0];
+   if(attacker){this.enemyCooldown=2.5+Math.random()*1.5;this.projectiles.push({id:attacker.id,weapon:"enemy",seconds:Math.max(.25,attacker.distance/320),total:Math.max(.25,attacker.distance/320),enemy:true});}
+  }
+  for(const shot of this.projectiles){
+   shot.seconds-=step;
+   if(shot.seconds>0)continue;
+   if(shot.enemy){this.applyDamage(this.player,12,"player");continue;}
+   const target=this.targets.find(t=>t.id===shot.id);
+   if(target?.hp>0)this.applyDamage(target,shot.damage,shot.id);
+  }
+  this.projectiles=this.projectiles.filter(p=>p.seconds>0);
   const heading=Number(voyage?.attitudeYawDeg)||0;
   const turn=this.lastHeading===null?0:((heading-this.lastHeading+540)%360)-180;
   this.headingRate=clamp(turn/step,-90,90);
@@ -60,6 +75,7 @@ export class SpaceCombat{
   const previous=this.lastShipPosition||ship;
   const shipVelocity=ship.map((n,i)=>(n-previous[i])/step);
   this.lastShipPosition=validCoordinates?ship:null;
+  this.shipPosition=ship;
   // Intercept lead responds to observed turning and thrust. These are
   // local encounter approximations, not solar-system inertial velocities.
   for(const t of this.liveTargets){
@@ -98,6 +114,14 @@ export class SpaceCombat{
     length>desiredRange?"intercept":"pursuit";
 
   }
+ }
+ applyDamage(target,damage,id){
+  const absorbed=Math.min(target.shield||0,damage);
+  target.shield=Math.max(0,(target.shield||0)-absorbed);
+  if(absorbed)target.shieldFlash=.35;
+  target.hp=Math.max(0,target.hp-(damage-absorbed));
+  this.flashes.push({id,seconds:.5,shield:absorbed>0,destroyed:target.hp===0});
+  return {id,hp:target.hp,shield:target.shield,destroyed:target.hp===0};
  }
  get config(){return SHIP_WEAPONS[this.weapon];}
  get liveTargets(){return this.targets.filter(t=>t.hp>0);}
@@ -149,17 +173,15 @@ export class SpaceCombat{
   for(const id of shots){
    const target=this.targets.find(t=>t.id===id);
    if(!target||target.hp<=0||!this.visible.has(id))continue;
-   target.hp=Math.max(0,target.hp-this.config.damage);
-   hits.push({id,name:target.name,destroyed:target.hp===0,hp:target.hp});
-   this.flashes.push({id,seconds:.5});
+   const seconds=this.weapon==="missile"?Math.max(.35,target.distance/250):Math.max(.08,target.distance/900);
+   this.projectiles.push({id,weapon:this.weapon,seconds,total:seconds,damage:this.config.damage,enemy:false});
+   hits.push({id,name:target.name,pending:true,hp:target.hp});
   }
   if(!hits.length){this.locked=[];return {ok:false,message:"目標が視界外です"};}
   if(this.weapon==="missile")this.missiles-=hits.length;
   this.cooldown=this.config.cooldown;
   this.locked=this.locked.filter(id=>this.targets.some(t=>t.id===id&&t.hp>0)&&this.visible.has(id));
-  const destroyed=hits.filter(h=>h.destroyed).length;
-  const message="🚀 "+this.config.name+" "+hits.length+"発命中"+
-   (destroyed?"／敵機"+destroyed+"機撃破":"");
+  const message="🚀 "+this.config.name+" "+hits.length+"発発射";
   this.lastMessage=message;
   return {ok:true,message,hits};
  }
