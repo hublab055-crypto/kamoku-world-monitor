@@ -19,7 +19,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
- onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipFrame=()=>{},
+ onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
  onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
@@ -476,6 +476,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function onVRSelectStart(event){
   if(activeMode==="vr"&&onVRShipCombatActive()){
+   // Physical cockpit console takes priority over the legacy trigger-to-fire shortcut.
+   const raySpace=event.inputSource?.targetRaySpace;
+   let ray=null;
+   try{if(raySpace&&event.frame&&space)ray=event.frame.getPose(raySpace,space)?.transform.matrix||null;}
+   catch(_){/* Untracked controller: retain legacy firing. */}
+   if(ray&&onVRShipButton({matrix:Array.from(ray),hand:event.inputSource?.handedness}))return;
    if(event.inputSource?.handedness==="right")onVRShipTrigger();
    return;
   }
