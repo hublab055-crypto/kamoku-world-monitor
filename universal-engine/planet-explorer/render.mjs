@@ -782,6 +782,8 @@ export class ExplorerRenderer{
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
+   this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
+   this.shipCockpitControls=[];
    this.shipStars=new Mesh(gl,starfieldGeometry());
    this.shipExhaustMeshes={
     cruise:new Mesh(gl,exhaustGeometry("cruise")),
@@ -1825,7 +1827,20 @@ export class ExplorerRenderer{
        [1,1,1],1,.98);
      }
     }
-   }else this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+   }else{
+    this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+    // Three clickable physical switch caps on the forward cockpit console.
+    this.shipCockpitControls=[];
+    if(v.seated||person.mode==="cockpit"){
+     for(const [id,x,color] of [["scan",-.75,[.18,.86,1]],["weapon",0,[1,.8,.2]],["fire",.75,[1,.22,.15]]]){
+      const position=[x,.88,-2.15];
+      const transform=multiply4(translate(...position),scale3(.23,.11,.23));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.9,.9,1],1,.98,color);
+      const projected=projectScreen(vp,position);
+      if(projected)this.shipCockpitControls.push({...projected,id});
+     }
+    }
+   }
    return chase?"ship-exterior":"ship-interior";
   }
 
