@@ -103,6 +103,21 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  const canvas=getRenderer()?.canvas;
  canvas?.addEventListener("pointerdown",event=>{
   if(!active()||isVR()||event.button!==0)return;
+  const viewer=getRenderer();
+  const controlRect=canvas.getBoundingClientRect();
+  const cockpit=viewer?.shipCameraMode!=="chase";
+  if(cockpit&&controlRect.width&&controlRect.height){
+   const physical=(viewer.shipCockpitControls||[]).find(p=>p.onScreen&&
+    Math.hypot(controlRect.left+p.u*controlRect.width-event.clientX,
+     controlRect.top+p.v*controlRect.height-event.clientY)<32);
+   if(physical){
+    event.preventDefault();event.stopImmediatePropagation();
+    if(physical.id==="scan")scan();
+    else if(physical.id==="weapon")setWeapon();
+    else if(physical.id==="fire")fire();
+    return;
+   }
+  }
   const model=getCombat(),rect=canvas.getBoundingClientRect();
   if(!model||!rect.width||!rect.height)return;
   const projected=getRenderer()?.shipTargets||[];
@@ -143,7 +158,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);
   if(Date.now()>scanUntil)scannedIds.clear();
-  consolePanel.hidden=!show;scanButton.disabled=!engage;
+  consolePanel.hidden=!show||viewer?.shipCameraMode!=="chase";scanButton.disabled=!engage;
   weapon.hidden=!show;fireButton.hidden=!show;
   weapon.disabled=!engage;fireButton.disabled=!engage;
   weapon.title=fireButton.title=engage?"火器管制":"操縦席に着席すると使用できます";
