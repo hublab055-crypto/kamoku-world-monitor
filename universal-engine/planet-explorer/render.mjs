@@ -782,6 +782,7 @@ export class ExplorerRenderer{
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
+   this.shipShieldSphere=new Mesh(gl,celestialBallGeometry([.30,.68,1]));
    this.shipStars=new Mesh(gl,starfieldGeometry());
    this.shipExhaustMeshes={
     cruise:new Mesh(gl,exhaustGeometry("cruise")),
@@ -1800,9 +1801,41 @@ export class ExplorerRenderer{
      const tint=hit?[1,.95,.56]:locked?[1,.85,.42]:
       contact.id==="pirate-alpha"?[1,.50,.37]:[.91,.68,.55];
      this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.8,.76,.65],1,.87,tint);
+     // Translucent shield envelope appears only when a shield absorbs a hit.
+     if(contact.shieldFlash>0){
+      const bubble=multiply4(translate(...pos),scale3(2.2,2.2,2.2));
+      this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.6,.9,1],
+       Math.min(.38,contact.shieldFlash*1.1),.96,[.55,.85,1]);
+     }
+     for(const flash of this.shipCombat.flashes.filter(f=>f.id===contact.id&&!f.shield)){
+      const blast=multiply4(translate(...pos),scale3(1.1+flash.seconds*3,1.1+flash.seconds*3,1.1+flash.seconds*3));
+      this.drawMesh(this.shipPlanetSphere,multiply4(vp,blast),[1,.65,.2],
+       Math.min(.85,flash.seconds*2),1,[1,.55,.12]);
+     }
      const projected=projectScreen(vp,pos);
      if(projected)this.shipTargets.push({...projected,id:contact.id,name:contact.name,
       distance:contact.distance});
+    }
+   }
+   if(this.shipCombat&&combatEligible(v)){
+    for(const shot of this.shipCombat.projectiles){
+     const target=this.shipCombat.targets.find(t=>t.id===shot.id);
+     if(!target)continue;
+     const destination=shipContactPosition(target,v);
+     const fraction=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
+     const start=shot.enemy?destination:[0,2,-7];
+     const end=shot.enemy?[0,2,-7]:destination;
+     const p=start.map((n,i)=>n+(end[i]-n)*fraction);
+     const radius=shot.weapon==="missile"?.46:.19;
+     const model=multiply4(translate(...p),scale3(radius,radius,radius*2.4));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),
+      shot.enemy?[1,.28,.15]:[1,.84,.35],1,1,
+      shot.enemy?[1,.35,.18]:[1,.95,.55]);
+    }
+    if(chase&&this.shipCombat.player.shieldFlash>0){
+     const bubble=multiply4(translate(0,0,0),scale3(19,10,25));
+     this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.55,.85,1],
+      Math.min(.28,this.shipCombat.player.shieldFlash),.97,[.6,.85,1]);
     }
    }
    if(chase){
