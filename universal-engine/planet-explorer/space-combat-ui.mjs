@@ -236,5 +236,5 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    markers.append(blast);shotNodes.push(blast);
   }
  }
- return {getCombat,update,fire,active,switchWeapon:setWeapon};
+ return {getCombat,update,fire,active,switchWeapon:setWeapon,pressVRButton};
 }
