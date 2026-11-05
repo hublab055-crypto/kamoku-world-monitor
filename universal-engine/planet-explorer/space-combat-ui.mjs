@@ -37,6 +37,13 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  #ship-combat-markers .combat-gaze{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   width:17px;height:17px;border:1px solid #bfe6ff;border-radius:50%;opacity:.7}
  #space-flight .ship-weapon-switch,#space-flight .ship-fire-trigger{border-color:#b6c6aa}
+ #space-flight .ship-combat-console{position:absolute;right:12px;bottom:12px;z-index:45;display:flex;align-items:center;gap:5px;padding:7px;background:#0a2039dc;border:1px solid #4c849e;border-radius:7px;pointer-events:auto}
+ #space-flight .ship-combat-console[hidden]{display:none!important}
+ #space-flight .ship-combat-console button{min-height:40px;padding:6px 9px;background:#193b53;color:#effaff;border:1px solid #5b9ebc;border-radius:5px;font:12px system-ui}
+ #space-flight .ship-combat-console .ship-scan-trigger{color:#8cf4ff}
+ #space-flight .ship-combat-console .ship-fire-trigger{background:#7d3434}
+ #space-flight .ship-combat-console button:disabled{opacity:.4}
+ @media(max-width:590px){#space-flight .ship-combat-console{right:4px;bottom:4px;padding:4px;gap:3px}#space-flight .ship-combat-console button{font-size:10px;padding:4px 5px;min-height:35px}}
  #space-flight .ship-fire-trigger{background:#7d3434;color:#fff}
  #space-flight .ship-weapon-switch[hidden],#space-flight .ship-fire-trigger[hidden]{display:none!important}
  @media(pointer:coarse){#space-flight .ship-fire-trigger{min-width:68px;font-size:13px}}
@@ -48,19 +55,23 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  const playerHud=document.createElement("div");playerHud.className="combat-player-hud";markers.append(playerHud);
  const shotNodes=[];
  document.body.append(markers);
+ const consolePanel=document.createElement("div");consolePanel.className="ship-combat-console";consolePanel.setAttribute("role","group");consolePanel.setAttribute("aria-label","操縦席の索敵・兵装・発射操作盤");
+ const scanButton=document.createElement("button");scanButton.type="button";scanButton.className="ship-scan-trigger";scanButton.textContent="📡 スキャン";
  const weapon=document.createElement("button"),fireButton=document.createElement("button");
  weapon.type="button";fireButton.type="button";
  weapon.className="ship-weapon-switch";fireButton.className="ship-fire-trigger";
  weapon.setAttribute("aria-label","宇宙船の兵装切り替え");
  fireButton.setAttribute("aria-label","宇宙船の選択兵装を発射");
  fireButton.textContent="🔴 発射";
- actions.append(weapon,fireButton);
+ consolePanel.append(scanButton,weapon,fireButton);
+ (root.querySelector(".flight-display")||root).append(consolePanel);
+ let scanUntil=0,scannedIds=new Set();
  let previousVoyage=null,combat=null;
  const targetNodes=new Map();
  function active(){return combatEligible(getVoyage());}
  function getCombat(v=getVoyage()){
   if(!v?.active){previousVoyage=null;combat=null;return null;}
-  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();}
+  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();scanUntil=0;scannedIds=new Set();}
   return combat;
  }
  function fire(){
@@ -77,6 +88,14 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   notify("🎯 兵装："+model.config.name+"（同時ロック "+model.config.locks+"機）");
   update(0,{vr:isVR()});
  }
+ function scan(){
+  const model=getCombat();if(!model||!active())return;
+  scannedIds=new Set(model.liveTargets.filter(t=>t.distance<=1500).map(t=>t.id));
+  scanUntil=Date.now()+30000;
+  notify("📡 周囲スキャン："+scannedIds.size+"件の船舶を捕捉（30秒間表示）");
+  update(0,{vr:isVR()});
+ }
+ scanButton.addEventListener("click",scan);
  weapon.addEventListener("click",setWeapon);
  let gamepadTriggerHeld=false;
  fireButton.addEventListener("click",fire);
@@ -94,7 +113,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
     rect.top+t.v*rect.height-event.clientY);
    if(d<nearest){chosen=t;nearest=d;}
   }
-  if(!chosen)return;
+  if(!chosen||!scannedIds.has(chosen.id)||Date.now()>scanUntil)return;
   // Re-check projection before acquisition; clicking a marker is not a fire command.
   model.syncVisibility(projected,0,{eligible:true});
   if(model.acquire(chosen.id)){
@@ -123,6 +142,8 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const projections=viewer?.shipTargets||[];
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);
+  if(Date.now()>scanUntil)scannedIds.clear();
+  consolePanel.hidden=!show;scanButton.disabled=!engage;
   weapon.hidden=!show;fireButton.hidden=!show;
   weapon.disabled=!engage;fireButton.disabled=!engage;
   weapon.title=fireButton.title=engage?"火器管制":"操縦席に着席すると使用できます";
@@ -136,7 +157,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   gaze.style.top=(rect.top+rect.height*.5)+"px";
   for(const node of targetNodes.values())node.hidden=true;
   for(const t of projections){
-   if(!t.onScreen||!model.visible.has(t.id))continue;
+   if(!t.onScreen||!model.visible.has(t.id)||!scannedIds.has(t.id))continue;
    let node=targetNodes.get(t.id);
    if(!node){
     node=document.createElement("div");node.className="combat-contact";
