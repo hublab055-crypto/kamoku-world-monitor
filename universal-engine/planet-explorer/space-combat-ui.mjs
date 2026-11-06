@@ -82,6 +82,26 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   update(0,{vr:isVR()});
   return true; // Consume an XR trigger even when no lock is available.
  }
+ function pressVRButton({matrix,hand}={}){
+  const viewer=getRenderer(),v=getVoyage();
+  if(!active()||!v?.seated||viewer?.shipCameraMode==="chase"||
+   !Array.isArray(matrix)||matrix.length!==16)return false;
+  // XR target-ray matrices are column-major, -Z points out of the controller.
+  const origin=[matrix[12],matrix[13],matrix[14]];
+  const dir=[-matrix[8],-matrix[9],-matrix[10]];
+  if(!origin.every(Number.isFinite)||!dir.every(Number.isFinite)||Math.abs(dir[2])<.0001)return false;
+  const t=(-2.15-origin[2])/dir[2];
+  if(t<.08||t>1.8)return false;
+  const x=origin[0]+dir[0]*t,y=origin[1]+dir[1]*t;
+  if(Math.abs(y-.88)>.25)return false;
+  const controls=[["scan",-.75],["weapon",0],["fire",.75]];
+  const hit=controls.find(([,cx])=>Math.abs(x-cx)<.27);
+  if(!hit)return false;
+  if(hit[0]==="scan")scan();
+  else if(hit[0]==="weapon")setWeapon();
+  else fire();
+  return true;
+ }
  function setWeapon(){
   const model=getCombat();if(!model||!active())return;
   model.setWeapon(model.weapon==="pulse"?"missile":"pulse");
@@ -216,5 +236,5 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    markers.append(blast);shotNodes.push(blast);
   }
  }
- return {getCombat,update,fire,active,switchWeapon:setWeapon};
+ return {getCombat,update,fire,active,switchWeapon:setWeapon,pressVRButton};
 }

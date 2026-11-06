@@ -4109,6 +4109,7 @@ xrUI=installXRUI({
   onVRShipCombatActive:()=>Boolean(shipCombatUI?.active()),
   onVRShipTrigger:()=>Boolean(shipCombatUI?.fire()),
   onVRShipWeapon:()=>shipCombatUI?.switchWeapon(),
+  onVRShipButton:ray=>Boolean(shipCombatUI?.pressVRButton(ray)),
   onVRShipFrame:dt=>shipCombatUI?.update(dt,{vr:true}),
   onVRCustody:vrCustodyInteraction,
  getVRCustodyPose:()=>custodyFacility?{
