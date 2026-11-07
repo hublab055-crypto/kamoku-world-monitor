@@ -476,14 +476,16 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
  function onVRSelectStart(event){
-  if(activeMode==="vr"&&onVRShipCombatActive()){
-   // Physical cockpit console takes priority over the legacy trigger-to-fire shortcut.
+  if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
+   // The switch bank always responds, even docked (with a clear flight interlock message).
    const raySpace=event.inputSource?.targetRaySpace;
    let ray=null;
    try{if(raySpace&&event.frame&&space)ray=event.frame.getPose(raySpace,space)?.transform.matrix||null;}
    catch(_){/* Untracked controller: retain legacy firing. */}
-   if(ray&&onVRShipButton({matrix:Array.from(ray),stage:vrCurrentStage,hand:event.inputSource?.handedness}))return;
-   if(event.inputSource?.handedness==="right")onVRShipTrigger();
+   if(ray&&onVRShipButton({matrix:Array.from(ray),stage:vrCurrentStage,hand:event.inputSource?.handedness})){
+    statusText("🥽 コックピットの物理スイッチを操作しました");return;
+   }
+   if(onVRShipCombatActive()&&event.inputSource?.handedness==="right")onVRShipTrigger();
    return;
   }
   // The exterior airlock switch receives trigger rays before ordinary ground weapons.
@@ -535,7 +537,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
  }
  function onSelect(event){
-  if(activeMode==="vr"&&onVRShipCombatActive())return;
+  if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active)return;
   if(!session||!anchor||!space||!event.frame)return;
   const source=event.inputSource;
   if(!source?.targetRaySpace)return;
@@ -645,9 +647,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const {next,pressed}=xrButtonEdges(sources,vrButtons);
   vrButtons=next;
   for(const button of pressed){
-   if(onVRShipCombatActive()){
-    if(button==="left:4")onVRShipWeapon(); // Quest X: cycle guns/missiles
-    continue; // Ship controls must not toggle planet RTS or ground jump.
+   if(getRenderer()?.shipVoyage?.active){
+    if(onVRShipCombatActive()){
+     if(button==="left:4")onVRShipWeapon(); // In flight, Quest X cycles guns.
+    }else if(button==="left:4"){
+     const action=onVRSurfaceShipAction("interact");
+     if(action?.handled&&action.message)statusText("🚀 "+action.message);
+    }
+    continue; // Ship controls never toggle the unrelated ground RTS mode.
    }
    if(onVRCustody("state")?.handled){
     const action=button==="left:4"?"talk":button==="right:4"?"bail":button==="right:5"?"serve":null;
