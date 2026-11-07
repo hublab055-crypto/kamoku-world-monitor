@@ -49,10 +49,10 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
-import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107";
+import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-buttons";
-import {shipCameraPose} from "./ship-view-controls.mjs?v=3-chase-orbit";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-panorama2";
+import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
 import {shipContactPosition,combatEligible} from "./space-combat.mjs?v=1";
 import {bodyById} from "./solar-system.mjs?v=1";
