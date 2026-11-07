@@ -439,7 +439,8 @@ body.immersive{overflow:hidden}
 
 /* v0.7h - Compact HUD. Two fixed top controls, one action row, context popovers.
    Every operation remains in the DOM and retains its original button id. */
-.viewport-actions{right:9px;top:9px;max-width:calc(100% - 110px);align-items:stretch;gap:0;z-index:17}
+/* Keep the ☰ control and its popover above the integrated flight/HUD layers. */
+.viewport-actions{right:9px;top:9px;max-width:calc(100% - 110px);align-items:stretch;gap:0;z-index:3700}
 .viewport-compact-bar{display:flex;justify-content:flex-end;gap:6px;align-items:center}
 .viewport-compact-bar #viewport-expand{width:43px;min-width:43px;padding:6px 0;font-size:0;min-height:43px}
 .viewport-compact-bar #viewport-expand::before{content:"⛶";font-size:21px;line-height:1}
