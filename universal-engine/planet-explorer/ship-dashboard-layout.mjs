@@ -36,5 +36,5 @@ export function shipCameraStickDelta(stick,dt){
  const strength=Math.min(1,Math.hypot(x,y));
  if(!Number.isFinite(dt)||dt<=0||strength<.12)return {yaw:0,pitch:0};
  const step=clamp(dt,0,.08);
- return {yaw:x*step*1.65,pitch:-y*step*1.20};
+ return {yaw:x===0?0:x*step*1.65,pitch:y===0?0:-y*step*1.20};
 }
