@@ -48,9 +48,10 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
-import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=1";
+import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
+import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=5-panoramic-sky";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-buttons";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
 import {shipContactPosition,combatEligible} from "./space-combat.mjs?v=1";
@@ -1862,12 +1863,12 @@ export class ExplorerRenderer{
     }
    }else{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
-    // Three clickable physical switch caps on the forward cockpit console.
+    // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
     if(v.seated||person.mode==="cockpit"){
-     for(const [id,x,color] of [["scan",-.75,[.18,.86,1]],["weapon",0,[1,.8,.2]],["fire",.75,[1,.22,.15]]]){
-      const position=[x,.88,-2.15];
-      const transform=multiply4(translate(...position),scale3(.23,.11,.23));
+     for(const {id,position} of COCKPIT_SWITCHES){
+      const color=id==="scan"?[.18,.86,1]:id==="weapon"?[1,.8,.2]:[1,.22,.15];
+      const transform=multiply4(translate(...position),scale3(.19,.07,.19));
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.9,.9,1],1,.98,color);
       const projected=projectScreen(vp,position);
       if(projected)this.shipCockpitControls.push({...projected,id});

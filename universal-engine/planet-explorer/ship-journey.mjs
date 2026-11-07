@@ -73,6 +73,9 @@ export class ShipJourney{
   if(this.seated)return {ok:false,message:"すでに着席しています"};
   if(!this.isNearSeat())return {ok:false,message:"操縦席まで歩いてください"};
   this.seated=true;this.interior.seated=true;this.interior.mode="cockpit";
+  // Snap to the actual chair so both WebGL and Quest physical buttons sit
+  // within arm's reach; an arbitrary nearby walking position is not a seat.
+  this.interior.x=0;this.interior.z=-9.8;this.interior.yaw=0;this.interior.pitch=0;
   return {ok:true,message:"🪑 操縦席に着席しました。航行システムを操作できます"};
  }
  stand(){

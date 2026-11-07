@@ -5,20 +5,21 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipJourney} from "./ship-journey.mjs?v=8-inertial-route";
+import {ShipJourney} from "./ship-journey.mjs?v=20261107-helm-seat";
 import {SurfaceStarship} from "./surface-starship.mjs?v=3";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
-import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=2";
+import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=12-chase-sensors-combat";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=1";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261107-controls";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261107-controls";
+import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261107";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=0.9be-chase-inertia-combat-20261103";
+import {ExplorerRenderer} from "./render.mjs?v=20261107-cockpit-hatch";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -83,7 +84,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=0.9bd-ship-combat-trigger-20261103";
+import {installXRUI} from "./xr-ui.mjs?v=20261107-hatch-controls";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -662,6 +663,13 @@ function doFrame(t,source="window",xrFrameInput=null){
   renderer.shipCombat=shipCombatUI?.getCombat(voyage)||null;
   renderer.surfaceStarship=surfaceShip;
   renderer.shipGroundState=controller;
+  // Quest's immersive RAF drives the same ship-local walk as touch controls.
+  // Never move the cabin actor while seated; the pilot stick is flight input.
+  if(source==="xr"&&voyage.interior&&!voyage.seated){
+   const axes=xrFrameInput||{};
+   voyage.interior.turn((Number(axes.turn)||0)*dt*1.65);
+   voyage.interior.walk(Number(axes.forward)||0,Number(axes.strafe)||0,dt);
+  }
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -1575,6 +1583,35 @@ function toggleSurfaceShipHatch(){
  renderer.patchKey=null;
  surfaceShipUI?.update(true);
  return {ok:true,message:surfaceShip.hatchOpen?"🚪 宇宙船のハッチを開け、ランプを展開しました":"🔒 宇宙船のハッチを閉じました"};
+}
+function vrExteriorHatchTrigger({matrix,stage}={}){
+ if(voyage?.active||!surfaceShip?.present(solarSystem?.currentId)||surfaceShip.flight==="landing")return false;
+ const hatch=currentShipHatch();
+ if(!hatch||hatch.distanceM>5.5)return false;
+ const height=Number.isFinite(surfaceShip.padElevationM)?surfaceShip.padElevationM:
+  Math.max(0,terrainSurface(terrain,surfaceShip.lat,surfaceShip.lon).elevationM);
+ const point=exteriorHatchWorldPoint(hatch.x,hatch.z,surfaceShip.yaw||0,
+  height,renderer?.cx||0,renderer?.cz||0);
+ if(!point||!xrRayPointDistance(matrix,stage,point,{radius:.45,maxDistance:2.8}))return false;
+ const result=toggleSurfaceShipHatch();
+ if(result?.message)log(result.message);
+ return true;
+}
+function vrSurfaceShipAction(){
+ if(voyage?.kind==="surface-to-surface"){
+  if(voyage.seated)return {handled:false};
+  const result=voyage.isNearSeat()?shipSit():
+   voyage.isGrounded()&&voyage.isNearHatch()?shipToggleHatch():null;
+  if(!result)return {handled:false};
+  if(result.message)log(result.message);
+  return {handled:true,message:result.message};
+ }
+ if(voyage?.active)return {handled:false};
+ const hatch=currentShipHatch();
+ if(!hatch||hatch.distanceM>5.5||surfaceShip.flight==="landing")return {handled:false};
+ const result=surfaceShip.hatchOpen?boardSurfaceStarship():toggleSurfaceShipHatch();
+ if(result?.message)log(result.message);
+ return {handled:true,message:result.message};
 }
 function boardSurfaceStarship(){
  if(voyage?.active)return {ok:false,message:"すでに宇宙船に乗っています"};
@@ -4111,6 +4148,8 @@ xrUI=installXRUI({
   onVRShipWeapon:()=>shipCombatUI?.switchWeapon(),
   onVRShipButton:ray=>Boolean(shipCombatUI?.pressVRButton(ray)),
   onVRShipFrame:dt=>shipCombatUI?.update(dt,{vr:true}),
+  onVRSurfaceHatch:vrExteriorHatchTrigger,
+  onVRSurfaceShipAction:vrSurfaceShipAction,
   onVRCustody:vrCustodyInteraction,
  getVRCustodyPose:()=>custodyFacility?{
   footBraced:custodyClimb.footBraced,onLedge:custodyClimb.onLedge,
