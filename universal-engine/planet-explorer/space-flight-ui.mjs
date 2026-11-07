@@ -4,7 +4,7 @@ import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261107";
-import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=1";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261107-spatial";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -88,18 +88,21 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight .flight-engine-lever small{font-size:9px;color:#afd7e0}
  #space-flight.ship-piloting .flight-touch-caption{white-space:nowrap}
  @media(max-height:430px){#space-flight .flight-engine-lever input{height:72px}#space-flight .flight-engine-lever{padding:3px}}
- #space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:35;pointer-events:none;overflow:hidden}
+ #space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:270;pointer-events:none;overflow:hidden}
  #space-flight .flight-sensor-layer[hidden]{display:none!important}
  #space-flight .flight-sensor{position:absolute;display:flex;align-items:center;gap:4px;
-  transform:translate(-50%,-50%);padding:3px 7px;border:1px solid #82d4e0b0;
-  border-radius:6px;background:#071c31d9;color:#dffaff;font:600 11px/1.25 system-ui,sans-serif;
-  text-shadow:0 1px 2px #001;white-space:nowrap;max-width:min(39vw,230px)}
- #space-flight .flight-sensor[data-type="pirate"]{border-color:#ff9d57;color:#ffda9e;background:#3c1a19e6}
- #space-flight .flight-sensor[data-offscreen="true"]{border-width:1.5px}
- #space-flight .flight-sensor-arrow{display:inline-block;min-width:15px;color:inherit;text-align:center}
- #space-flight .flight-sensor-details{display:flex;flex-direction:column;gap:1px}
- #space-flight .flight-sensor-distance{font:400 10px/1.2 ui-monospace,monospace;color:#a9d2dd}
- #space-flight .flight-sensor[data-type="pirate"] .flight-sensor-distance{color:#e7ac85}
+  transform:translate(-50%,-50%);border:0!important;border-radius:0!important;
+  padding:0;background:transparent!important;box-shadow:none!important;color:#a8dfea;
+  font:600 11px/1.3 system-ui,sans-serif;text-shadow:0 1px 3px #000,0 0 5px #000,0 0 7px #000;
+  white-space:nowrap;max-width:min(44vw,245px)}
+ #space-flight .flight-sensor[data-category="hostile"]{color:#ff9a41}
+ #space-flight .flight-sensor[data-category="friendly"]{color:#62baff}
+ #space-flight .flight-sensor[data-category="neutral"]{color:#71eea2}
+ #space-flight .flight-sensor[data-category="resource"]{color:#e6c985}
+ #space-flight .flight-sensor[data-locked="true"]{color:#ff4747}
+ #space-flight .flight-sensor-arrow{display:inline-block;min-width:17px;color:inherit;text-align:center;font-size:15px}
+ #space-flight .flight-sensor-details{display:flex;flex-direction:column;gap:1px;background:transparent!important}
+ #space-flight .flight-sensor-distance{font:400 10px/1.2 ui-monospace,monospace;color:inherit}
  @media(max-width:590px){#space-flight .flight-sensor{font-size:10px;padding:2px 4px}
  #space-flight .flight-sensor-distance{font-size:9px}}
  #space-flight .flight-look-pad{position:absolute;z-index:44;bottom:calc(79px + env(safe-area-inset-bottom,0px));right:calc(10px + env(safe-area-inset-right,0px));width:106px;height:112px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;color:#e6f9ff;pointer-events:auto;touch-action:none;user-select:none}
@@ -129,14 +132,14 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    const voyage=get();return {voyage,interior:voyage?.interior};
   }});
  root.classList.toggle("integrated",unified);
- for(const el of root.querySelectorAll(".flight-touch-pad,.flight-look-pad,.flight-engine-lever,.flight-view-distance"))root.append(el);
+ for(const el of root.querySelectorAll(".flight-sensor-layer,.flight-touch-pad,.flight-look-pad,.flight-engine-lever,.flight-view-distance"))root.append(el);
  const held=new Set();let nearKey="",lastView="";
  const viewStorageKey="ue:ship-view:v1";
  let savedView={};try{savedView=JSON.parse(localStorage.getItem(viewStorageKey)||"{}");}catch(_){}
  let viewSettings=normalizeShipViewSettings(savedView);
  let chase=false,wide=viewSettings.wide;
  let chaseDistance=52,orbitYaw=0,orbitPitch=.31,shipPointer=null,shipStick={x:0,y:0};
- const shipSensors=installShipSensorHUD(root);
+ const shipSensors=installShipSensorHUD(root,{getRenderer:getWorldRenderer});
  const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
  const lookPad=root.querySelector(".flight-look-pad"),lookNub=root.querySelector(".flight-look-nub");
  let lookPointer=null,lookStick={x:0,y:0};
@@ -381,7 +384,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  function render(dt=0){
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   syncShipCamera();
-  shipSensors.update(v,{visible:seatedPilot(v),chase,wide,
+  shipSensors.update(v,{visible:seatedPilot(v),chase,wide,fovDeg:viewSettings.fov,
    distance:chaseDistance,orbitYaw,orbitPitch});
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
