@@ -51,10 +51,10 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
 import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-panorama2";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-space-radar";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
-import {shipContactPosition,combatEligible} from "./space-combat.mjs?v=1";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261107-shared-sensors";
+import {shipContactPosition,combatEligible,missileTrailPoint} from "./space-combat.mjs?v=20261107-spatial";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -784,6 +784,11 @@ export class ExplorerRenderer{
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
+   const contactGem=builder();
+   cone(contactGem,0,0,0,.78,.41,[1,1,1],4);
+   cone(contactGem,0,0,0,-.78,.41,[1,1,1],4);
+   this.shipContactGem=new Mesh(gl,contactGem);
+   this.shipScannedIds=new Set();
    this.shipCockpitControls=[];this.shipControlLayout=["scan","weapon","fire","hatch"];
    this.shipShieldSphere=new Mesh(gl,celestialBallGeometry([.30,.68,1]));
    this.shipStars=new Mesh(gl,starfieldGeometry());
@@ -1730,7 +1735,7 @@ export class ExplorerRenderer{
    const inertialModel=multiply4(rotateY(yaw),rotX(-nose));
    if(sky<.91||!["docked","landed","touchdown"].includes(v.status))
     this.drawMesh(this.shipStars,multiply4(vp,inertialModel),[1,1,1],1,1);
-   const contacts=shipSensorContacts(v);
+   const contacts=shipSensorContacts(v,this.shipCombat);
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
    const arrival=["entry","touchdown"].includes(v.status)&&
@@ -1785,55 +1790,110 @@ export class ExplorerRenderer{
     const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
-   // Render nearby ship contacts at the SAME positions used by HUD sensors.
-   // These are visual encounter prototypes; weapons/combat AI are future work.
-   for(const c of contacts.filter(x=>x.visual&&(!this.shipCombat||x.type!=="pirate"))){
-    const model=multiply4(translate(...c.position),scale3(.78,.78,.78));
-    this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.7,.9,.8],1,.88);
+   // Every hologram/sensor glyph shares the corresponding 3D target position.
+   // Non-hostiles have no weapon locks and are drawn once, never as duplicate ships.
+   for(const c of contacts.filter(c=>c.visual&&c.faction!=="hostile")){
+    const model=multiply4(translate(...c.position),
+     scale3(c.type==="resource"?2.5:.80,c.type==="resource"?2.1:.80,c.type==="resource"?2.4:.80));
+    const mesh=c.type==="resource"?this.shipPlanetSphere:this.surfaceShipMeshes[0];
+    const color=c.faction==="friendly"?[.45,.77,1]:
+     c.faction==="neutral"?[.45,.93,.65]:[.88,.75,.42];
+    this.drawMesh(mesh,multiply4(vp,model),[.7,.9,.8],1,.88,color);
    }
-   // Pirate combat contacts: actual target projection is the same world-space
-   // transform used for cockpit, exterior and stereoscopic VR rendering.
    this.shipTargets=[];
    if(this.shipCombat&&combatEligible(v)){
-    for(const contact of this.shipCombat.liveTargets){
+    for(const contact of this.shipCombat.allContacts){
      const pos=shipContactPosition(contact,v);
-     const model=multiply4(translate(...pos),
-      multiply4(rotateY(Math.PI),scale3(.9,.9,.9)));
-     const locked=this.shipCombat.locked.includes(contact.id);
-     const hit=this.shipCombat.flashes.some(f=>f.id===contact.id);
-     const tint=hit?[1,.95,.56]:locked?[1,.85,.42]:
-      contact.id==="pirate-alpha"?[1,.50,.37]:[.91,.68,.55];
-     this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.8,.76,.65],1,.87,tint);
-     // Translucent shield envelope appears only when a shield absorbs a hit.
-     if(contact.shieldFlash>0){
-      const bubble=multiply4(translate(...pos),scale3(2.2,2.2,2.2));
-      this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.6,.9,1],
-       Math.min(.38,contact.shieldFlash*1.1),.96,[.55,.85,1]);
-     }
-     for(const flash of this.shipCombat.flashes.filter(f=>f.id===contact.id&&!f.shield)){
-      const blast=multiply4(translate(...pos),scale3(1.1+flash.seconds*3,1.1+flash.seconds*3,1.1+flash.seconds*3));
-      this.drawMesh(this.shipPlanetSphere,multiply4(vp,blast),[1,.65,.2],
-       Math.min(.85,flash.seconds*2),1,[1,.55,.12]);
-     }
+     const category=contact.faction||"hostile";
      const projected=projectScreen(vp,pos);
      if(projected)this.shipTargets.push({...projected,id:contact.id,name:contact.name,
-      distance:contact.distance});
+      faction:category,type:contact.type||"ship",distance:Math.hypot(
+       pos[0],pos[1]-2,pos[2])});
+     if(category==="hostile"){
+      const model=multiply4(translate(...pos),
+       multiply4(rotateY(Math.PI),scale3(.9,.9,.9)));
+      const locked=this.shipCombat.locked.includes(contact.id);
+      const hit=this.shipCombat.flashes.some(f=>f.id===contact.id);
+      const tint=contact.surrendered?[.72,.88,.95]:hit?[1,.95,.56]:
+       locked?[1,.85,.42]:[1,.50,.37];
+      this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.8,.76,.65],1,.87,tint);
+      if(contact.shieldFlash>0){
+       const bubble=multiply4(translate(...pos),scale3(2.2,2.2,2.2));
+       this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.6,.9,1],
+        Math.min(.38,contact.shieldFlash*1.1),.96,[.55,.85,1]);
+      }
+      for(const flash of this.shipCombat.flashes.filter(f=>f.id===contact.id&&!f.shield)){
+       const blast=multiply4(translate(...pos),scale3(1.1+flash.seconds*3,1.1+flash.seconds*3,1.1+flash.seconds*3));
+       this.drawMesh(this.shipPlanetSphere,multiply4(vp,blast),[1,.65,.2],
+        Math.min(.85,flash.seconds*2),1,[1,.55,.12]);
+      }
+     }
+     // The diamond is a true 3D marker visible in both Quest stereo eyes.
+     if(this.shipScannedIds?.has(contact.id)){
+      const tint=this.shipCombat.locked.includes(contact.id)?[1,.19,.17]:
+       category==="hostile"?[1,.53,.21]:category==="friendly"?[.27,.70,1]:
+       category==="neutral"?[.27,.95,.42]:[.95,.8,.38];
+      const markerPos=[pos[0],pos[1]+Math.max(5,Math.min(11,Math.abs(pos[2])*.012)),pos[2]];
+      const markerModel=multiply4(translate(...markerPos),
+       scale3(3.2,3.2,3.2));
+      this.drawMesh(this.shipContactGem,multiply4(vp,markerModel),[1,1,1],1,.99,tint);
+     }
     }
-   }
-   if(this.shipCombat&&combatEligible(v)){
+    // Ship destroyed: explosion persists even after hp reaches zero and the
+    // destroyed ship has disappeared from the live target list.
+    for(const effect of this.shipCombat.explosions){
+     const target=this.shipCombat.targets.find(t=>t.id===effect.id);
+     if(!target)continue;
+     const pos=shipContactPosition(target,v);
+     const age=effect.total-effect.seconds,fade=Math.max(0,effect.seconds/effect.total);
+     const outer=multiply4(translate(...pos),scale3(3+age*12,2.8+age*11,3+age*12));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,outer),[1,.68,.27],
+      fade*.68,1,[1,.48,.09]);
+     const core=multiply4(translate(...pos),scale3(1.8+age*3,1.8+age*3,1.8+age*3));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,core),[1,.92,.62],
+      fade*.82,1,[1,.83,.45]);
+     for(let k=0;k<9;k++){
+      const angle=k*2.39996+effect.id.length*.37;
+      const travel=(age*17)*(1+(k%3)*.27);
+      const spark=[pos[0]+Math.cos(angle)*travel,
+       pos[1]+Math.sin(angle*.69)*travel*.68,
+       pos[2]+Math.sin(angle)*travel];
+      const size=(.40+(k%3)*.22)*fade;
+      const p=multiply4(translate(...spark),scale3(size,size,size*2));
+      this.drawMesh(this.shipPlanetSphere,multiply4(vp,p),[1,.61,.20],fade,1,
+       k%2?[1,.53,.13]:[1,.91,.50]);
+     }
+    }
     for(const shot of this.shipCombat.projectiles){
      const target=this.shipCombat.targets.find(t=>t.id===shot.id);
      if(!target)continue;
      const destination=shipContactPosition(target,v);
-     const fraction=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
+     const progress=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
      const start=shot.enemy?destination:[0,2,-7];
      const end=shot.enemy?[0,2,-7]:destination;
-     const p=start.map((n,i)=>n+(end[i]-n)*fraction);
-     const radius=shot.weapon==="missile"?.46:.19;
-     const model=multiply4(translate(...p),scale3(radius,radius,radius*2.4));
+     const seed=shot.id.length*.7;
+     const point=shot.weapon==="missile"?missileTrailPoint(start,end,progress,seed):
+      start.map((n,i)=>n+(end[i]-n)*progress);
+     const radius=shot.weapon==="missile"?.80:.21;
+     const model=multiply4(translate(...point),scale3(radius,radius,radius*2.8));
      this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),
       shot.enemy?[1,.28,.15]:[1,.84,.35],1,1,
       shot.enemy?[1,.35,.18]:[1,.95,.55]);
+     if(shot.weapon==="missile"){
+      // A visible tapering exhaust trail follows the curved guided body.
+      for(let k=1;k<=15;k++){
+       const f=Math.max(0,progress-k*.018);
+       if(f<=0)continue;
+       const q=missileTrailPoint(start,end,f,seed);
+       const smokeSize=(.22+k*.14);
+       const trail=multiply4(translate(...q),scale3(smokeSize,smokeSize,smokeSize));
+       const flame=k<=4;
+       this.drawMesh(this.shipPlanetSphere,multiply4(vp,trail),
+        flame?[1,.76,.43]:[.58,.68,.79],
+        (flame?.85:.23)*(1-k/17),.94,
+        flame?[1,.69,.21]:[.55,.62,.68]);
+      }
+     }
     }
     if(chase&&this.shipCombat.player.shieldFlash>0){
      const bubble=multiply4(translate(0,0,0),scale3(19,10,25));

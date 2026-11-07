@@ -4,7 +4,7 @@ import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261107";
-import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=1";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261107-diamond-hud";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -88,18 +88,21 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  #space-flight .flight-engine-lever small{font-size:9px;color:#afd7e0}
  #space-flight.ship-piloting .flight-touch-caption{white-space:nowrap}
  @media(max-height:430px){#space-flight .flight-engine-lever input{height:72px}#space-flight .flight-engine-lever{padding:3px}}
- #space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:35;pointer-events:none;overflow:hidden}
+ #space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:270;pointer-events:none;overflow:hidden}
  #space-flight .flight-sensor-layer[hidden]{display:none!important}
  #space-flight .flight-sensor{position:absolute;display:flex;align-items:center;gap:4px;
-  transform:translate(-50%,-50%);padding:3px 7px;border:1px solid #82d4e0b0;
-  border-radius:6px;background:#071c31d9;color:#dffaff;font:600 11px/1.25 system-ui,sans-serif;
-  text-shadow:0 1px 2px #001;white-space:nowrap;max-width:min(39vw,230px)}
- #space-flight .flight-sensor[data-type="pirate"]{border-color:#ff9d57;color:#ffda9e;background:#3c1a19e6}
- #space-flight .flight-sensor[data-offscreen="true"]{border-width:1.5px}
- #space-flight .flight-sensor-arrow{display:inline-block;min-width:15px;color:inherit;text-align:center}
- #space-flight .flight-sensor-details{display:flex;flex-direction:column;gap:1px}
- #space-flight .flight-sensor-distance{font:400 10px/1.2 ui-monospace,monospace;color:#a9d2dd}
- #space-flight .flight-sensor[data-type="pirate"] .flight-sensor-distance{color:#e7ac85}
+  transform:translate(-50%,-50%);border:0!important;border-radius:0!important;
+  padding:0;background:transparent!important;box-shadow:none!important;color:#a8dfea;
+  font:600 11px/1.3 system-ui,sans-serif;text-shadow:0 1px 3px #000,0 0 5px #000,0 0 7px #000;
+  white-space:nowrap;max-width:min(44vw,245px)}
+ #space-flight .flight-sensor[data-category="hostile"]{color:#ff9a41}
+ #space-flight .flight-sensor[data-category="friendly"]{color:#62baff}
+ #space-flight .flight-sensor[data-category="neutral"]{color:#71eea2}
+ #space-flight .flight-sensor[data-category="resource"]{color:#e6c985}
+ #space-flight .flight-sensor[data-locked="true"]{color:#ff4747}
+ #space-flight .flight-sensor-arrow{display:inline-block;min-width:17px;color:inherit;text-align:center;font-size:15px}
+ #space-flight .flight-sensor-details{display:flex;flex-direction:column;gap:1px;background:transparent!important}
+ #space-flight .flight-sensor-distance{font:400 10px/1.2 ui-monospace,monospace;color:inherit}
  @media(max-width:590px){#space-flight .flight-sensor{font-size:10px;padding:2px 4px}
  #space-flight .flight-sensor-distance{font-size:9px}}
  #space-flight .flight-look-pad{position:absolute;z-index:44;bottom:calc(79px + env(safe-area-inset-bottom,0px));right:calc(10px + env(safe-area-inset-right,0px));width:106px;height:112px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;color:#e6f9ff;pointer-events:auto;touch-action:none;user-select:none}
@@ -118,7 +121,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><label class="flight-engine-lever" hidden>推力<input id="flight-throttle" type="range" min="-100" max="100" step="1" value="72" aria-label="宇宙船推力レバー、マイナスは逆噴射、0は慣性航行、プラスは加速"><output for="flight-throttle">72%</output><small>0 慣性</small></label><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
-  '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。操縦盤の青=スキャン、黄=兵装、赤=発射。船外ハッチ右側の点灯スイッチはVRトリガーで開閉。Quest Xは近接乗船・着席に対応。宇宙戦はVR視線保持、スマホはタップ、PCはクリックでロック。トリガー・Space・発射ボタンで攻撃。</div>';
+  '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。操縦盤の青=スキャン、黄=兵装、赤=発射。船外ハッチ右側の点灯スイッチはVRトリガーで開閉。Quest Xは近接乗船・着席に対応。宇宙戦：📡スキャンで🔹味方・♦資源・🔸敵性・🟢中立を可視化。敵をタップ／VRで視線保持してロックオン♦️、トリガー・Space・発射ボタンで攻撃。📻通信で停戦・降伏の交渉ができます。</div>';
  (document.querySelector(".canvas-wrap")||document.body).append(root);
  const $=id=>root.querySelector("#"+id);
  const screen=$("flight-canvas"),ctx=screen.getContext("2d"),shipCanvas=$("ship-3d-canvas");
@@ -129,14 +132,14 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    const voyage=get();return {voyage,interior:voyage?.interior};
   }});
  root.classList.toggle("integrated",unified);
- for(const el of root.querySelectorAll(".flight-touch-pad,.flight-look-pad,.flight-engine-lever,.flight-view-distance"))root.append(el);
+ for(const el of root.querySelectorAll(".flight-sensor-layer,.flight-touch-pad,.flight-look-pad,.flight-engine-lever,.flight-view-distance"))root.append(el);
  const held=new Set();let nearKey="",lastView="";
  const viewStorageKey="ue:ship-view:v1";
  let savedView={};try{savedView=JSON.parse(localStorage.getItem(viewStorageKey)||"{}");}catch(_){}
  let viewSettings=normalizeShipViewSettings(savedView);
  let chase=false,wide=viewSettings.wide;
  let chaseDistance=52,orbitYaw=0,orbitPitch=.31,shipPointer=null,shipStick={x:0,y:0};
- const shipSensors=installShipSensorHUD(root);
+ const shipSensors=installShipSensorHUD(root,{getRenderer:getWorldRenderer});
  const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
  const lookPad=root.querySelector(".flight-look-pad"),lookNub=root.querySelector(".flight-look-nub");
  let lookPointer=null,lookStick={x:0,y:0};
@@ -381,7 +384,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  function render(dt=0){
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   syncShipCamera();
-  shipSensors.update(v,{visible:seatedPilot(v),chase,wide,
+  shipSensors.update(v,{visible:seatedPilot(v),chase,wide,fovDeg:viewSettings.fov,
    distance:chaseDistance,orbitYaw,orbitPitch});
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);

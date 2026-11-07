@@ -1,4 +1,4 @@
-import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=1";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=20261107-spatial";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
@@ -36,7 +36,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  #ship-combat-markers .combat-shot.missile{width:14px;height:5px;border-radius:2px;background:#fff;box-shadow:0 0 20px 6px #ff9b34}
  #ship-combat-markers .combat-shot.enemy{background:#ff4444}
  #ship-combat-markers .combat-impact{position:absolute;width:35px;height:35px;border-radius:50%;background:radial-gradient(circle,#fff 0%,#ffda4b 25%,#ff6522 50%,transparent 75%);transform:translate(-50%,-50%);pointer-events:none}
- #ship-combat-markers .combat-player-hud{position:absolute;left:50%;bottom:14%;transform:translateX(-50%);padding:5px 10px;background:#091727bb;border-radius:6px;color:#fff;white-space:nowrap}
+ #ship-combat-markers .combat-player-hud{position:absolute;left:50%;bottom:14%;transform:translateX(-50%);padding:2px 5px;background:transparent;border:0;color:#fff;white-space:nowrap;text-shadow:0 1px 5px #000}
  #ship-combat-markers .combat-player-hud.shield{box-shadow:0 0 18px 5px #6acbff}
 
  #ship-combat-markers .combat-gaze{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -51,6 +51,18 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  #space-flight .ship-combat-console button:disabled{opacity:.4}
  @media(max-width:590px){#space-flight .ship-combat-console{top:55px;right:4px;max-width:calc(100% - 8px);padding:4px;gap:3px}#space-flight .ship-combat-console button{font-size:10px;padding:4px 5px;min-height:35px}}
  #space-flight .ship-fire-trigger{background:#7d3434;color:#fff}
+ #space-flight .ship-radio-overlay{position:absolute;z-index:295;left:12px;top:100px;
+  max-width:min(440px,calc(100% - 24px));background:transparent!important;
+  border:0!important;box-shadow:none!important;color:#daefff;font:12px/1.4 system-ui;
+  text-shadow:0 1px 5px #000,0 0 8px #000;pointer-events:none}
+ #space-flight .ship-radio-overlay[hidden]{display:none!important}
+ #space-flight .ship-radio-overlay .ship-radio-message{display:block;max-width:410px;min-height:17px}
+ #space-flight .ship-radio-overlay .ship-radio-options{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px;pointer-events:auto}
+ #space-flight .ship-radio-overlay .ship-radio-options[hidden]{display:none!important}
+ #space-flight .ship-radio-overlay button{border:1px solid #92c9d9;border-radius:5px;
+  min-height:32px;background:#112f4290;color:#e2fcff;padding:4px 7px;font:11px system-ui}
+ #space-flight .ship-combat-console .ship-radio-toggle{border-color:#9cbed6;color:#e2faff}
+ @media(max-width:590px){#space-flight .ship-radio-overlay{top:105px;left:6px;font-size:11px}}
  #space-flight .ship-weapon-switch[hidden],#space-flight .ship-fire-trigger[hidden]{display:none!important}
  @media(pointer:coarse){#space-flight .ship-fire-trigger{min-width:68px;font-size:13px}}
  `;
@@ -65,12 +77,52 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   getViewSettings,setViewSettings});
  const consolePanel=dashboard.panel;
  let scanUntil=0,scannedIds=new Set();
- let previousVoyage=null,combat=null;
+ let previousVoyage=null,combat=null,lastRadioId=0,radioExpanded=false;
  const targetNodes=new Map();
+ const radio=document.createElement("section");radio.className="ship-radio-overlay";
+ radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
+ const radioLine=document.createElement("span");radioLine.className="ship-radio-message";
+ radioLine.setAttribute("aria-live","polite");radio.append(radioLine);
+ const radioOptions=document.createElement("div");radioOptions.className="ship-radio-options";
+ radio.append(radioOptions);root.append(radio);
+ const radioToggle=document.createElement("button");radioToggle.type="button";
+ radioToggle.className="ship-radio-toggle";radioToggle.textContent="📻 通信";
+ radioToggle.setAttribute("aria-label","通信交渉メニュー");
+ radioToggle.setAttribute("aria-expanded","false");consolePanel.append(radioToggle);
+ function radioButton(label,callback){
+  const b=document.createElement("button");b.type="button";b.textContent=label;
+  b.addEventListener("click",()=>{const result=callback(getCombat());if(result?.message)notify(result.message);refreshRadio();});
+  radioOptions.append(b);return b;
+ }
+ const demand=radioButton("⚠️ 降伏を勧告",m=>m?.demandSurrender());
+ const cease=radioButton("🤝 停戦提案",m=>m?.requestCeasefire());
+ const surrender=radioButton("🏳️ 降伏する",m=>m?.offerSurrender());
+ const accept=radioButton("✅ 降伏を受諾",m=>{
+  const target=m?.targets.find(t=>t.offeredSurrender&&!t.surrendered&&t.hp>0);
+  return target?m.respondSurrender(target.id,true):{ok:false,message:"敵からの降伏申請はありません"};
+ });
+ const reject=radioButton("❌ 申請を拒否",m=>{
+  const target=m?.targets.find(t=>t.offeredSurrender&&!t.surrendered&&t.hp>0);
+  return target?m.respondSurrender(target.id,false):{ok:false,message:"敵からの降伏申請はありません"};
+ });
+ radioToggle.addEventListener("click",()=>{radioExpanded=!radioExpanded;radioToggle.setAttribute("aria-expanded",String(radioExpanded));refreshRadio();});
+ function refreshRadio(){
+  const m=getCombat(),v=getVoyage();
+  const show=Boolean(v?.active&&!isVR());
+  radio.hidden=!show||!m?.radioEvents.length&&!radioExpanded;
+  if(!show)return;
+  const last=m?.radioEvents.at(-1);
+  radioLine.textContent=last?.message||"📻 通信チャンネル待機中";
+  radioOptions.hidden=!radioExpanded;
+  surrender.textContent=m?.playerSurrendered?"⚔️ 降伏を撤回":"🏳️ 降伏する";
+  const pending=Boolean(m?.targets.some(t=>t.offeredSurrender&&!t.surrendered&&t.hp>0));
+  accept.hidden=reject.hidden=!pending;
+  demand.disabled=cease.disabled=!combatEligible(v);
+ }
  function active(){return combatEligible(getVoyage());}
  function getCombat(v=getVoyage()){
   if(!v?.active){previousVoyage=null;combat=null;return null;}
-  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();scanUntil=0;scannedIds=new Set();}
+  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();scanUntil=0;scannedIds=new Set();lastRadioId=0;}
   return combat;
  }
  function feedbackWhenUnavailable(){
@@ -104,7 +156,8 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  }
  function scan(){
   const model=getCombat();if(!model||!active()){feedbackWhenUnavailable();return false;}
-  scannedIds=new Set(model.liveTargets.filter(t=>t.distance<=1500).map(t=>t.id));
+  scannedIds=new Set(model.allContacts.filter(t=>t.distance<=1500).map(t=>t.id));
+  const viewer=getRenderer();if(viewer)viewer.shipScannedIds=scannedIds;
   scanUntil=Date.now()+30000;
   const msg="📡 周囲スキャン："+scannedIds.size+"件の船舶を捕捉（30秒間表示）";
   notify(msg+(scannedIds.size===0?"／付近に検出対象はありません":""));
@@ -159,6 +212,12 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    if(d<nearest){chosen=t;nearest=d;}
   }
   if(!chosen||!scannedIds.has(chosen.id)||Date.now()>scanUntil)return;
+  const contact=model.allContacts.find(t=>t.id===chosen.id);
+  if(contact?.faction!=="hostile"){
+   event.preventDefault();event.stopImmediatePropagation();
+   notify("📡 "+(contact?.name||chosen.name)+"：非敵性対象。攻撃ロックは行いません");
+   return;
+  }
   // Re-check projection before acquisition; clicking a marker is not a fire command.
   model.syncVisibility(projected,0,{eligible:true});
   if(model.acquire(chosen.id)){
@@ -188,7 +247,9 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);
   if(Date.now()>scanUntil)scannedIds.clear();
+  if(viewer)viewer.shipScannedIds=scannedIds;
   dashboard.refresh({visible:show,model,v});
+  if(!show){radio.hidden=true;radioExpanded=false;radioToggle.setAttribute("aria-expanded","false");}
   if(viewer)viewer.shipControlLayout=dashboard.layout;
   markers.hidden=!show;
   if(!show){for(const node of targetNodes.values())node.hidden=true;for(const n of shotNodes)n.remove();shotNodes.length=0;return;}
@@ -196,51 +257,18 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(!rect||!rect.width||!rect.height)return;
   gaze.style.left=(rect.left+rect.width*.5)+"px";
   gaze.style.top=(rect.top+rect.height*.5)+"px";
+  // The single transparent ship-sensor overlay draws ALL target names and
+  // range labels. Do not duplicate them as boxed combat target widgets.
   for(const node of targetNodes.values())node.hidden=true;
-  for(const t of projections){
-   if(!t.onScreen||!model.visible.has(t.id)||!scannedIds.has(t.id))continue;
-   let node=targetNodes.get(t.id);
-   if(!node){
-    node=document.createElement("div");node.className="combat-contact";
-    const ring=document.createElement("span");ring.className="combat-ring";
-    const label=document.createElement("span");label.className="combat-label";
-    const bars=document.createElement("span");bars.className="combat-bars";bars.innerHTML="<i></i><b></b>";
-    node.append(ring,label,bars);markers.append(node);
-    targetNodes.set(t.id,node);
-   }
-   const target=model.targets.find(x=>x.id===t.id);
-   node.hidden=false;
-   node.style.left=(rect.left+t.u*rect.width)+"px";
-   node.style.top=(rect.top+t.v*rect.height)+"px";
-   node.classList.toggle("locked",model.locked.includes(t.id));
-   node.classList.toggle("hostile",(target?.faction||"hostile")==="hostile");
-   node.classList.toggle("friendly",target?.faction==="friendly");
-   node.classList.toggle("neutral",target?.faction==="neutral");
-   node.classList.toggle("shield",target?.shieldFlash>0);
-   node.querySelector(".combat-bars i").style.width=(100*(target?.shield||0)/(target?.maxShield||100))+"%";
-   node.querySelector(".combat-bars b").style.width=(100*(target?.hp||0)/(target?.maxHp||100))+"%";
-   node.classList.toggle("hit",model.flashes.some(f=>f.id===t.id));
-   node.querySelector(".combat-label").textContent=(model.locked.includes(t.id)?"🔒 ":"")+t.name+
-    " "+Math.round(target?.distance||0)+"m";
-  }
   playerHud.textContent="🛡️ "+Math.round(model.player.shield)+" / "+model.player.maxShield+"   ❤️ "+Math.round(model.player.hp)+" / "+model.player.maxHp;
   playerHud.classList.toggle("shield",model.player.shieldFlash>0);
+  // Missile trails, impact fire and destruction shards are real WebGL meshes
+  // projected by the renderer in cockpit, chase and stereoscopic Quest views.
   for(const n of shotNodes)n.remove();shotNodes.length=0;
-  for(const shot of model.projectiles){
-   const target=projections.find(t=>t.id===shot.id);if(!target?.onScreen)continue;
-   const progress=1-Math.max(0,shot.seconds)/shot.total;
-   const u=shot.enemy?target.u+(.5-target.u)*progress:.5+(target.u-.5)*progress;
-   const w=shot.enemy?target.v+(.5-target.v)*progress:.5+(target.v-.5)*progress;
-   const dot=document.createElement("span");dot.className="combat-shot "+(shot.enemy?"enemy":shot.weapon);
-   dot.style.left=(rect.left+u*rect.width)+"px";dot.style.top=(rect.top+w*rect.height)+"px";
-   markers.append(dot);shotNodes.push(dot);
-  }
-  for(const flash of model.flashes){
-   if(flash.shield)continue;const target=projections.find(t=>t.id===flash.id);if(!target?.onScreen)continue;
-   const blast=document.createElement("span");blast.className="combat-impact";
-   blast.style.left=(rect.left+target.u*rect.width)+"px";blast.style.top=(rect.top+target.v*rect.height)+"px";
-   markers.append(blast);shotNodes.push(blast);
-  }
+  const recent=model.radioEvents.filter(event=>event.id>lastRadioId);
+  for(const message of recent)notify(message.message);
+  if(recent.length)lastRadioId=recent.at(-1).id;
+  refreshRadio();
  }
  return {getCombat,update,fire,active,switchWeapon:setWeapon,pressVRButton};
 }
