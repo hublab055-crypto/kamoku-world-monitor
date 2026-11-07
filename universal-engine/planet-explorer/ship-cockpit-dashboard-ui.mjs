@@ -1,5 +1,5 @@
 import {DASHBOARD_ACTIONS,DEFAULT_DASHBOARD_SLOTS,normalizeDashboardSlots} from "./ship-dashboard-layout.mjs?v=1";
-import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107";
+import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
 
 /** One editable mapping drives touchscreen buttons and the four physical 3D caps.
  * DOM is built from whitelisted options only; preferences never run arbitrary code.
