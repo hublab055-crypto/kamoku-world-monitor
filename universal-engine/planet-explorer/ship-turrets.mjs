@@ -1,15 +1,15 @@
 /** Editable ship-local hardpoints (metres); -Z is the bow. */
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export const DEFAULT_TURRETS=Object.freeze([
- {id:"port",weapon:"pulse",x:-9,y:3,z:-3,enabled:true},
- {id:"starboard",weapon:"pulse",x:9,y:3,z:-3,enabled:true},
- {id:"launcher",weapon:"missile",x:0,y:4,z:5,enabled:true}
+ {id:"port",weapon:"pulse",x:-2.7,y:5.6,z:-3,enabled:true},
+ {id:"starboard",weapon:"pulse",x:2.7,y:5.6,z:-3,enabled:true},
+ {id:"launcher",weapon:"missile",x:0,y:5.6,z:5,enabled:true}
 ]);
 export function normalizeTurrets(data){
  return DEFAULT_TURRETS.map((base,i)=>{
   const input=Array.isArray(data)?data[i]:null;
   const coord=(key,min,max)=>Number.isFinite(input?.[key])?clamp(input[key],min,max):base[key];
-  return {...base,x:coord("x",-15,15),y:coord("y",2,8),z:coord("z",-12,12),
+  return {...base,x:coord("x",-2.8,2.8),y:5.6,z:coord("z",-8,9),
    enabled:input?.enabled!==false};
  });
 }

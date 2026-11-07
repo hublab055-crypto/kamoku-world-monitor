@@ -1,6 +1,6 @@
 import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261107-panoramic-console";
-import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
+import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-vtol";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261107";
@@ -397,7 +397,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
 
   const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
   $("flight-route").textContent="🚀 "+origin.name+" → "+target.name;
-  const entryView=["entry","touchdown"].includes(v.status);
+  const entryView=["entry","atmosphere","vtol","touchdown"].includes(v.status);
   const height=entryView?Math.round(groundScenePhase(v).lift):null;
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":
@@ -412,11 +412,11 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"逆噴射 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
   $("flight-cancel").hidden=v.kind==="surface-to-surface"||v.status!=="preflight";
   const groundReady=["preflight","docked"].includes(v.status);
-  main.textContent=groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
+  main.textContent=v.status==="atmosphere"?"🛬 VTOL着陸":v.status==="vtol"?"🛬 垂直降下中":groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
    v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":
    v.status==="touchdown"?"🛬 接地確認":v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
   main.disabled=v.kind==="surface-to-surface"?
-   !["docked","orbit"].includes(v.status):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
+   !["docked","orbit","atmosphere"].includes(v.status):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
   if(v.seated===false){
    $("flight-left").disabled=true;$("flight-right").disabled=true;
   }else{
@@ -426,7 +426,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    $("flight-hud").textContent=entryView?
     "🛬 "+target.name+" / "+(v.landingSite?"着陸地点を捕捉":"地表測量中")+
     "\n"+(v.status==="touchdown"?"接地・エンジン停止":("高度 約"+height.toLocaleString("ja-JP")+"m"))+
-    "\n"+(v.status==="touchdown"?"操縦席から外の地表を確認できます":"進入姿勢を維持してください"):
+    "\n"+(v.status==="touchdown"?"操縦席から外の地表を確認できます":v.status==="atmosphere"?"スティック：旋回・上昇下降／レバー：速度／VTOL着陸で降下":"進入姿勢を維持してください"):
     "3D SHARED SCENE · "+v.phase+"\n"+target.name+" "+Math.round(v.progress*100)+
     "% / 航路速度 "+courseSpeed.toFixed(2)+"%/秒"+(v.status==="flyby"?"\n⚠ 高速通過・逆噴射で減速":"");
    return;

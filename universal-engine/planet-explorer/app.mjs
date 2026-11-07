@@ -5,21 +5,21 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipJourney} from "./ship-journey.mjs?v=20261108-dogfight";
+import {ShipJourney} from "./ship-journey.mjs?v=20261108-vtol";
 import {SurfaceStarship} from "./surface-starship.mjs?v=3";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261108-dogfight";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261108-dogfight";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261108-vtol";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261108-vtol";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261107";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261108-dogfight";
+import {ExplorerRenderer} from "./render.mjs?v=20261108-vtol";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -673,7 +673,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
-   if(voyage?.kind==="surface-to-surface"&&["entry","touchdown"].includes(voyage.status)&&
+   if(voyage?.kind==="surface-to-surface"&&["entry","atmosphere","vtol","touchdown"].includes(voyage.status)&&
       (!shipArrivalPreview||shipArrivalPreview.bodyId!==voyage.destinationId)){
     try{prepareShipArrival();}
     catch(error){
@@ -1750,6 +1750,18 @@ function prepareShipArrival(){
 }
 function finishCelestialVoyage(){
  if(voyage?.kind==="surface-to-surface"){
+  if(voyage.status==="atmosphere"){
+   try{
+    const base=voyage.landingSite,r=shipArrivalPreview.terrain.planet.radiusM;
+    const lat=base.lat+voyage.airNorth/r*180/Math.PI;
+    const lon=base.lon+voyage.airEast/(r*Math.max(.05,Math.cos(base.lat*Math.PI/180)))*180/Math.PI;
+    const pad=evaluateStarshipPad(shipArrivalPreview.terrain,lat,lon,voyage.attitudeYawDeg*Math.PI/180);
+    if(!pad.safe)return {ok:false,message:"着陸地点が水面または急斜面です。平坦な陸地へ移動してください"};
+    voyage.setLandingSite({...pad,bodyId:voyage.destinationId});
+    shipArrivalPreview.site=voyage.landingSite;voyage.airEast=0;voyage.airNorth=0;
+    return voyage.beginVTOL();
+   }catch(error){return {ok:false,message:"着陸地点の確認に失敗："+error.message};}
+  }
   if(!voyage.readyToLand)return voyage.enterAtmosphere();
   try{
    const preview=prepareShipArrival();

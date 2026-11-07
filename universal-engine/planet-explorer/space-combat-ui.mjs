@@ -1,6 +1,6 @@
-import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108";
-import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108";
-import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=20261108-dogfight";
+import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
+import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=20261108-vtol";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 

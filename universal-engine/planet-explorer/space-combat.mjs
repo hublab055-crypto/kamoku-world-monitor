@@ -1,4 +1,4 @@
-import {normalizeTurrets,aimTurret} from "./ship-turrets.mjs?v=20261108";
+import {normalizeTurrets,aimTurret} from "./ship-turrets.mjs?v=20261108-vtol";
 /** Shipboard targeting core. No DOM/WebXR dependency; one combat session per voyage.
  * Contacts share the integrated voyage route frame; this is a local encounter
  * simulation rather than a network-authoritative solar-system physics engine.

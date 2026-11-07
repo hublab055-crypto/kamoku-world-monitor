@@ -24,6 +24,9 @@ test("cockpit sees target terrain and touchdown before entering the destination 
   const phase=groundScenePhase(voyage);
   if(phase.showGround&&firstGround===null)firstGround=frames;
  }
+ assert.equal(voyage.status,"atmosphere");
+ assert.equal(voyage.beginVTOL().ok,true);
+ for(let i=0;i<600&&voyage.status!=="touchdown";i++)voyage.tick(.12);
  assert.equal(voyage.status,"touchdown");
  assert.ok(firstGround>0,"actual terrain appears before contact");
  assert.equal(groundScenePhase(voyage).lift,0);
@@ -56,6 +59,6 @@ test("atmospheric ground rises continuously in ship-local camera frame",()=>{
   assert.ok(phase.lift<=previous+1e-8);
   previous=phase.lift;
  }
- assert.equal(previous,0);
+ assert.equal(previous,700);
  assert.equal(groundScenePhase({status:"touchdown"}).sky,1);
 });

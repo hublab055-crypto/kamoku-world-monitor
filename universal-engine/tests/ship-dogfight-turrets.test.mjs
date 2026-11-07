@@ -50,18 +50,20 @@ test('disabled or misaligned mounts do not consume missile ammunition',()=>{
  assert.equal(c.fire().ok,false);assert.equal(c.missiles,12);
 });
 test('hardpoint preferences are bounded and survive journey saves',()=>{
- const v=journey();v.turrets[0].x=-12.5;v.autoFire=true;
+ const v=journey();v.turrets[0].x=-2.5;v.autoFire=true;
  const restored=ShipJourney.fromSnapshot(v.snapshot());
- assert.equal(restored.turrets[0].x,-12.5);assert.equal(restored.autoFire,true);
- assert.equal(normalizeTurrets([{x:Infinity,y:100,z:-100}])[0].y,8);
- assert.equal(normalizeTurrets([{x:Infinity,y:100,z:-100}])[0].z,-12);
+ assert.equal(restored.turrets[0].x,-2.5);assert.equal(restored.autoFire,true);
+ assert.equal(normalizeTurrets([{x:Infinity,y:100,z:-100}])[0].y,5.6);
+ assert.equal(normalizeTurrets([{x:Infinity,y:100,z:-100}])[0].z,-8);
 });
 test('manual approach enters atmosphere and reaches ground with the pilot still aboard',()=>{
  const v=journey({status:'approach',routeAlong:.98,routeVelocity:{along:.01,cross:0}});
  assert.equal(v.canDirectEntry,true);
  assert.equal(v.setLandingSite({bodyId:'cinder',lat:1,lon:2,yaw:0,padElevationM:50}),true);
  assert.equal(v.enterAtmosphere().ok,true);assert.equal(v.status,'entry');
- for(let i=0;i<250&&v.status!=='landed';i++)v.tick(.1);
+ for(let i=0;i<250&&v.status==='entry';i++)v.tick(.1);
+ assert.equal(v.status,'atmosphere');assert.equal(v.beginVTOL().ok,true);
+ for(let i=0;i<500&&v.status!=='landed';i++)v.tick(.1);
  assert.equal(v.status,'landed');assert.equal(v.seated,true);assert.equal(v.hatchOpen,false);
  v.stand();v.interior.x=0;v.interior.z=12;
  assert.equal(v.toggleHatch().ok,true);assert.equal(v.canDisembark(),true);
@@ -84,4 +86,18 @@ test('pulse fire and enemy fire can miss after evasive motion',()=>{
  c.projectiles.push({id:t.id,weapon:'pulse',seconds:.01,damage:25,impact:[5000,5000,5000]});
  c.projectiles.push({id:t.id,weapon:'enemy',enemy:true,seconds:.01,impact:[5000,5000,5000]});
  c.advance(.1,v);assert.equal(t.shield,shield);assert.equal(c.player.shield,100);
+});
+
+test('atmospheric pilot can cruise, turn, climb and save before choosing VTOL',()=>{
+ const v=journey({status:'atmosphere',airAltitude:700,throttle:1,pitchDeg:20,attitudeYawDeg:90});
+ for(let i=0;i<40;i++)v.tick(.1);
+ assert.equal(v.status,'atmosphere');assert.ok(v.airEast>0);assert.ok(v.airAltitude>700);
+ const restored=ShipJourney.fromSnapshot(v.snapshot());assert.equal(restored.airEast,v.airEast);
+ assert.equal(restored.beginVTOL().ok,true);const east=restored.airEast;
+ restored.tick(.1);assert.equal(restored.airEast,east);assert.ok(restored.airAltitude<v.airAltitude);
+});
+test('every configured hardpoint stays on the hull roof',()=>{
+ for(const m of normalizeTurrets([{x:100,y:100,z:100},{x:-100,y:-100,z:-100}])){
+  assert.ok(Math.abs(m.x)<=2.8);assert.equal(m.y,5.6);assert.ok(m.z>=-8&&m.z<=9);
+ }
 });

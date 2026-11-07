@@ -1,4 +1,4 @@
-import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108";
+import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 /** Touch-friendly hardpoint editing; preferences also travel in journey saves. */
 export function installTurretEditor({root,panel,getCombat,getVoyage,notify=()=>{}}){
  const button=document.createElement("button");button.type="button";button.textContent="🔧 砲塔";
@@ -18,13 +18,13 @@ export function installTurretEditor({root,panel,getCombat,getVoyage,notify=()=>{
  const enabledLabel=document.createElement("label"),enabled=document.createElement("input");enabled.type="checkbox";
  enabledLabel.append("兵装を有効にする",enabled);editor.append(enabledLabel);
  const sliders=[];
- for(const [axis,name,min,max] of [["x","左右 X",-15,15],["y","高さ Y",2,8],["z","前後 Z",-12,12]]){
+ for(const [axis,name,min,max] of [["x","左右 X",-2.8,2.8],["z","前後 Z",-8,9]]){
   const row=document.createElement("label"),text=document.createElement("span"),slider=document.createElement("input");
   slider.type="range";slider.min=min;slider.max=max;slider.step=.5;slider.setAttribute("aria-label",name);
   row.append(text,slider);editor.append(row);sliders.push({axis,name,text,slider});
   slider.addEventListener("input",()=>{const m=getCombat();if(!m)return;m.turrets[Number(select.value)][axis]=Number(slider.value);save();refresh();});
  }
- const hint=document.createElement("small");hint.textContent="単位 m。X：右が＋、Y：上が＋、Z：船尾が＋。砲塔は目標へ自動旋回し、照準が合うと発射できます。自動射撃は選択中の兵装を使用します。";editor.append(hint);
+ const hint=document.createElement("small");hint.textContent="船体上面に固定。単位 m。X：右が＋、Z：船尾が＋。砲塔は目標へ自動旋回し、照準が合うと発射できます。自動射撃は選択中の兵装を使用します。";editor.append(hint);
  const state=document.createElement("small");editor.append(state);root.append(editor);
  function save(){
   const m=getCombat(),v=getVoyage();if(!m||!v)return;

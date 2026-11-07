@@ -51,10 +51,10 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
 import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-space-radar";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-vtol";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-dogfight";
-import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-dogfight";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-vtol";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -1738,11 +1738,19 @@ export class ExplorerRenderer{
    const contacts=shipSensorContacts(v,this.shipCombat);
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
-   const arrival=["entry","touchdown"].includes(v.status)&&
+   const arrival=["entry","atmosphere","vtol","touchdown"].includes(v.status)&&
     this.shipArrivalPreview?.bodyId===v.destinationId?this.shipArrivalPreview:null;
    const groundTerrain=arrival?.terrain||this.terrain;
-   const site=arrival?.site||(this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
+   let site=arrival?.site||(this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
     v.launchSite?.bodyId===this.planet.id?v.launchSite:null);
+   let residualEast=v.airEast||0,residualNorth=v.airNorth||0;
+   if(arrival&&["atmosphere","vtol"].includes(v.status)){
+    const east=Math.round(residualEast/500)*500,north=Math.round(residualNorth/500)*500;
+    const r=groundTerrain.planet.radiusM;
+    site={...site,lat:site.lat+north/r*180/Math.PI,
+     lon:site.lon+east/(r*Math.max(.05,Math.cos(site.lat*Math.PI/180)))*180/Math.PI};
+    residualEast-=east;residualNorth-=north;
+   }
    if(phase.showGround&&site&&groundTerrain){
     const radius=phase.lift>1800?18000:phase.lift>350?6200:phase.lift>80?1850:650;
     const key=[groundTerrain.planet.id,site.lat.toFixed(5),site.lon.toFixed(5),
@@ -1755,8 +1763,8 @@ export class ExplorerRenderer{
     }
     const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
      terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
-    const groundMatrix=multiply4(translate(0,-pad-2.0-phase.lift,0),
-     rotateY(-(site.yaw||0)));
+    const groundMatrix=multiply4(rotateY(["atmosphere","vtol"].includes(v.status)?yaw:-(site.yaw||0)),
+     translate(-residualEast,-pad-2.0-phase.lift,residualNorth));
     this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
      [.64,.89,.42],1,.68);
     // Existing nearby settlements belong only to the origin planetary terrain;
@@ -1801,7 +1809,7 @@ export class ExplorerRenderer{
     this.drawMesh(mesh,multiply4(vp,model),[.7,.9,.8],1,.88,color);
    }
    this.shipTargets=[];
-   if(this.shipCombat&&combatEligible(v)){
+   if(this.shipCombat){
     // Independent hardpoint bases and barrels share the same aim as fire control.
     for(const mount of this.shipCombat.turrets.filter(m=>m.enabled)){
      const base=multiply4(translate(mount.x,mount.y,mount.z),scale3(1.1,.5,1.1));
@@ -1810,7 +1818,7 @@ export class ExplorerRenderer{
      const barrel=multiply4(aim,multiply4(translate(0,0,-1.8),scale3(.35,.35,2.2)));
      this.drawMesh(this.shipPlanetSphere,multiply4(vp,barrel),[.8,.9,1],1,.9,mount.aligned?[.3,.9,1]:[.7,.7,.75]);
     }
-    for(const contact of this.shipCombat.allContacts){
+    for(const contact of combatEligible(v)?this.shipCombat.allContacts:[]){
      const pos=shipContactPosition(contact,v);
      const category=contact.faction||"hostile";
      const projected=projectScreen(vp,pos);
@@ -1852,7 +1860,7 @@ export class ExplorerRenderer{
     }
     // Ship destroyed: explosion persists even after hp reaches zero and the
     // destroyed ship has disappeared from the live target list.
-    for(const effect of this.shipCombat.explosions){
+    for(const effect of combatEligible(v)?this.shipCombat.explosions:[]){
      const target=this.shipCombat.targets.find(t=>t.id===effect.id);
      if(!target)continue;
      const pos=shipContactPosition(target,v);
@@ -1875,7 +1883,7 @@ export class ExplorerRenderer{
        k%2?[1,.53,.13]:[1,.91,.50]);
      }
     }
-    for(const shot of this.shipCombat.projectiles){
+    for(const shot of combatEligible(v)?this.shipCombat.projectiles:[]){
      const target=this.shipCombat.targets.find(t=>t.id===shot.id);
      if(!target)continue;
      const destination=shipContactPosition(target,v);
@@ -1911,6 +1919,12 @@ export class ExplorerRenderer{
      const bubble=multiply4(translate(0,0,0),scale3(19,10,25));
      this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.55,.85,1],
       Math.min(.28,this.shipCombat.player.shieldFlash),.97,[.6,.85,1]);
+    }
+   }
+   if(chase&&v.status==="vtol"){
+    for(const x of [-2.7,2.7]){
+     const jet=multiply4(translate(x,1.8,2),multiply4(rotX(Math.PI/2),scale3(.7,.7,5)));
+     this.drawMesh(this.shipExhaustMeshes.cruise,multiply4(vp,jet),[1,1,1],1,.98);
     }
    }
    if(chase){
