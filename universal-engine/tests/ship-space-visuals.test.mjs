@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {inertialToShip,starDirections,starfieldGeometry,exhaustGeometry,
  shipSensorContacts,projectShipHudTarget} from "../planet-explorer/ship-space-visuals.mjs";
 import {shipCameraPose} from "../planet-explorer/ship-view-controls.mjs";
+import {SpaceCombat,shipContactDistance,shipContactPosition} from "../planet-explorer/space-combat.mjs";
 const near=(a,b,t=1e-8)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 test("yaw and pitch move ALL fixed stars opposite manual nose movement",()=>{
  const front=[0,0,-400],r=inertialToShip(front,30,0),
@@ -42,11 +43,21 @@ test("HUD shows direction arrows for offscreen targets and rotates chase camera"
 test("planet flyby places destination behind, with a still valid distance",()=>{
  const data={originId:"terra",destinationId:"cinder",launchDay:0,flightDays:7,
   status:"flyby",progress:1,routeAlong:1.2,crossTrack:0,attitudeYawDeg:0,elapsedSeconds:3};
- const contacts=shipSensorContacts(data);
+ const model=new SpaceCombat();
+ const contacts=shipSensorContacts(data,model);
  const planet=contacts.find(c=>c.id==="planet");
  assert.ok(planet.position[2]>0);
  assert.ok(planet.distanceAU>0);
- assert.ok(contacts.some(c=>c.type==="pirate"));
- assert.ok(contacts.some(c=>c.type==="civilian"));
+ assert.ok(contacts.some(c=>c.faction==="hostile"));
+ assert.ok(contacts.some(c=>c.faction==="friendly"));
+ assert.ok(contacts.some(c=>c.faction==="neutral"));
+ assert.ok(contacts.some(c=>c.faction==="resource"));
+ for(const contact of contacts.filter(c=>c.id!=="planet")){
+  const target=model.allContacts.find(t=>t.id===contact.id);
+  const displayed=Number(contact.distance.replace(" m",""));
+  assert.ok(Math.abs(displayed-shipContactDistance(target,data))<.6);
+  const actual=shipContactPosition(target,data);
+  assert.deepEqual(contact.position,actual);
+ }
  assert.ok(contacts.every(c=>typeof c.distance==="string"&&c.distance.length>0));
 });
