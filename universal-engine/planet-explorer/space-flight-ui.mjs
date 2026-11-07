@@ -138,6 +138,24 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  let chaseDistance=52,orbitYaw=0,orbitPitch=.31,shipPointer=null,shipStick={x:0,y:0};
  const shipSensors=installShipSensorHUD(root);
  const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
+ const lookPad=root.querySelector(".flight-look-pad"),lookNub=root.querySelector(".flight-look-nub");
+ let lookPointer=null,lookStick={x:0,y:0};
+ function resetLookStick(){lookPointer=null;lookStick={x:0,y:0};lookNub.style.transform="translate(0px,0px)";}
+ function updateLookStick(e){
+  const bounds=lookPad.querySelector(".flight-look-ring").getBoundingClientRect();
+  const radius=Math.max(1,Math.min(bounds.width,bounds.height)*.31);
+  const dx=e.clientX-(bounds.left+bounds.width/2),dy=e.clientY-(bounds.top+bounds.height/2);
+  const scale=Math.min(1,radius/Math.max(1,Math.hypot(dx,dy)));
+  lookStick={x:dx*scale/radius,y:dy*scale/radius};
+  lookNub.style.transform="translate("+Math.round(dx*scale)+"px,"+Math.round(dy*scale)+"px)";
+ }
+ lookPad.addEventListener("pointerdown",e=>{
+  if(lookPointer!==null||root.hidden||(e.pointerType==="mouse"&&e.button!==0))return;
+  e.preventDefault();lookPointer=e.pointerId;lookPad.setPointerCapture?.(e.pointerId);updateLookStick(e);
+ });
+ lookPad.addEventListener("pointermove",e=>{if(e.pointerId===lookPointer){e.preventDefault();updateLookStick(e);}});
+ for(const type of ["pointerup","pointercancel","lostpointercapture"])
+  lookPad.addEventListener(type,e=>{if(e.pointerId===lookPointer)resetLookStick();});
  function resetShipStick(){shipPointer=null;shipStick={x:0,y:0};touchNub.style.transform="translate(0px,0px)";}
  function updateShipStick(e){
   const bounds=touchPad.querySelector(".flight-touch-ring").getBoundingClientRect();
@@ -156,7 +174,14 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  });
  for(const type of ["pointerup","pointercancel","lostpointercapture"])
   touchPad.addEventListener(type,e=>{if(e.pointerId===shipPointer)resetShipStick();});
- document.addEventListener("visibilitychange",()=>{if(document.hidden)resetShipStick();});
+ document.addEventListener("visibilitychange",()=>{if(document.hidden){resetShipStick();resetLookStick();}});
+ function setViewSettings(values={}){
+  viewSettings=normalizeShipViewSettings({...viewSettings,...values});
+  wide=viewSettings.wide;
+  try{localStorage.setItem(viewStorageKey,JSON.stringify(viewSettings));}catch(_){}
+  syncShipCamera();return {...viewSettings};
+ }
+ function getViewSettings(){return {...viewSettings};}
  function seatedPilot(v){return Boolean(v&&(v.seated===true||v.kind!=="surface-to-surface"&&v.interior?.mode==="cockpit"));}
  function syncShipCamera(){
   const v=get(),seated=seatedPilot(v);
@@ -165,6 +190,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(viewer){
    viewer.shipCameraMode=chase?"chase":"cockpit";
    viewer.shipWideView=wide;
+    viewer.shipCockpitFov=viewSettings.fov;
    viewer.shipChaseDistance=chaseDistance;
    viewer.shipOrbitYaw=orbitYaw;viewer.shipOrbitPitch=orbitPitch;
   }
@@ -177,12 +203,13 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-wide").textContent=wide?"▣ 詳細UI":"⛶ 広画面";
   $("flight-wide").setAttribute("aria-pressed",String(wide));
   root.querySelector(".flight-view-distance").hidden=!chase;
+   lookPad.hidden=!viewSettings.rightStick;
   touchPad.querySelector(".flight-touch-caption").textContent=seated?"↔ 旋回 / ↑機首上げ ↓機首下げ":"船内歩行";
-  touchPad.style.left=seated?"50%":"";
-  touchPad.style.transform=seated?"translateX(-50%)":"";
+  touchPad.style.left=seated?"calc(76px + env(safe-area-inset-left,0px))":"";
+  touchPad.style.transform="";
  }
  $("flight-camera").addEventListener("click",()=>{if(!seatedPilot(get()))return;chase=!chase;syncShipCamera();});
- $("flight-wide").addEventListener("click",()=>{wide=!wide;syncShipCamera();});
+ $("flight-wide").addEventListener("click",()=>setViewSettings({wide:!wide}));
  $("flight-zoom-near").addEventListener("click",()=>{chaseDistance=Math.max(28,chaseDistance-12);syncShipCamera();});
  $("flight-zoom-far").addEventListener("click",()=>{chaseDistance=Math.min(150,chaseDistance+12);syncShipCamera();});
 
@@ -258,7 +285,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  dragTarget.addEventListener("pointerdown",event=>{
   if(root.hidden)return;
   const roaming=chase&&seatedPilot(get());
-  if(!roaming&&get()?.interior?.mode!=="interior")return;
+  if(!roaming&&!get()?.interior)return;
   if(drag!==null||event.isPrimary===false)return;
   drag={id:event.pointerId,x:event.clientX,y:event.clientY,roaming};
   dragTarget.setPointerCapture?.(event.pointerId);
