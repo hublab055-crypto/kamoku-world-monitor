@@ -50,8 +50,10 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
    node.style.top=Math.round(pos.y)+"px";
    const icon=combat?.locked?.includes(contact.id)?"♦️":
     contact.surrendered?"🏳️":contact.icon;
+   const arrowIndex=(((Math.round(fallback.angleDeg/45)%8)+8)%8);
+   const pointing=["↑","↗","→","↘","↓","↙","←","↖"][arrowIndex];
    node.querySelector(".flight-sensor-arrow").textContent=icon+
-    (pos.visible?"":" ↗");
+    (pos.visible?"":" "+pointing);
    node.querySelector(".flight-sensor-name").textContent=contact.name;
    node.querySelector(".flight-sensor-distance").textContent=
     (contact.estimate?"推定 ":"")+contact.distance;
