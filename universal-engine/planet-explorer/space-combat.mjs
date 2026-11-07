@@ -178,7 +178,7 @@ export class SpaceCombat{
    this.emitRadio("☠️ 海賊船：こちらの航路から退避しろ。停止して貨物を引き渡せ。","pirate-alpha","warning");
   }
   for(const enemy of this.combatTargets){
-   if(enemy.hp<enemy.maxHp*.42&&!enemy.offeredSurrender&&!enemy.surrenderResolved){
+   if(enemy.hp<=enemy.maxHp*.42&&!enemy.offeredSurrender&&!enemy.surrenderResolved){
     enemy.offeredSurrender=true;
     this.emitRadio("☠️ "+enemy.name+"：降伏する。撃たないでくれ。",enemy.id,"offer");
    }
