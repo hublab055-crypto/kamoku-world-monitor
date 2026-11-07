@@ -73,10 +73,10 @@ export function createShipGeometry(open=false){
  box(a,-3.6,1.7,-13.08,.85,3.5,.32,"wall");
  box(a,3.6,1.7,-13.08,.85,3.5,.32,"wall");
  box(a,0,.53,-13.08,6.4,1.1,.32,"wall");
- box(a,0,3.18,-13.08,6.4,.96,.32,"wall");
+ box(a,0,3.30,-13.08,6.4,.70,.32,"wall");
  box(a,0,2.61,-13.1,6.25,.085,.19,"frame");
  box(a,0,1.1,-13.1,6.25,.10,.19,"frame");
- box(a,0,1.9,-13.09,.10,1.72,.12,"frame");
+ box(a,0,1.9,-13.09,.055,1.72,.12,"frame");
  // Cockpit/corridor and cargo partitions have a central 2.6m doorway.
  for(const z of [-4.8,4.5]){
   box(a,-2.7,1.72,z,2.55,3.48,.26,"wall");
@@ -95,8 +95,8 @@ export function createShipGeometry(open=false){
  box(a,0,1.48,-12.1,1.48,.18,.48,"screen");
  // Reachable physical scan / weapon / fire station on the near edge of the helm.
  // The pilot sits at z=-9.8, so this bank must NOT be placed near z=-2.
- box(a,0,1.17,-11.15,2.3,.22,.70,"dark");
- for(const [x,shade] of [[-.75,[.18,.86,1]],[0,[1,.8,.2]],[.75,[1,.22,.15]]]){
+ box(a,.33,1.17,-11.15,3.35,.22,.70,"dark");
+ for(const [x,shade] of [[-.75,[.18,.86,1]],[0,[1,.8,.2]],[.75,[1,.22,.15]],[1.43,[.27,.92,.55]]]){
   box(a,x,1.36,-11.09,.34,.11,.34,shade);
   box(a,x,1.42,-11.09,.19,.045,.19,"light");
  }
