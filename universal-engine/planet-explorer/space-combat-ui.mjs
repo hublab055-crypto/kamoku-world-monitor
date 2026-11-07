@@ -134,7 +134,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  // The main WebGL canvas is the hit region for pointer lock; in VR gaze owns it.
  const canvas=getRenderer()?.canvas;
  canvas?.addEventListener("pointerdown",event=>{
-  if(!active()||isVR()||event.button!==0)return;
+  if(!getVoyage()?.active||isVR()||event.button!==0)return;
   const viewer=getRenderer();
   const controlRect=canvas.getBoundingClientRect();
   const cockpit=viewer?.shipCameraMode!=="chase";
