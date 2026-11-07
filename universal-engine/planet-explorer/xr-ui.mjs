@@ -1,4 +1,4 @@
-import {xrAnchor,xrStage,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
+import {xrAnchor,xrStage,xrMul,xrTranslate,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
 import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=0.9z-quest-strafe-heading-fix";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
@@ -20,6 +20,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
  onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
+ onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),
  onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
@@ -39,7 +40,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
- let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set();
+ let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set(),vrSurfaceHatchConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
  let vrWearables=(()=>{
   try{
@@ -481,9 +482,23 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    let ray=null;
    try{if(raySpace&&event.frame&&space)ray=event.frame.getPose(raySpace,space)?.transform.matrix||null;}
    catch(_){/* Untracked controller: retain legacy firing. */}
-   if(ray&&onVRShipButton({matrix:Array.from(ray),hand:event.inputSource?.handedness}))return;
+   if(ray&&onVRShipButton({matrix:Array.from(ray),stage:vrCurrentStage,hand:event.inputSource?.handedness}))return;
    if(event.inputSource?.handedness==="right")onVRShipTrigger();
    return;
+  }
+  // The exterior airlock switch receives trigger rays before ordinary ground weapons.
+  if(activeMode==="vr"&&!vrRTS&&!vrPlanetOverview&&getController()?.altitudeM<=12.1&&event.frame&&space){
+   const hand=event.inputSource?.handedness;
+   let matrix=null;
+   try{
+    const target=event.inputSource?.targetRaySpace;
+    if(target)matrix=event.frame.getPose(target,space)?.transform.matrix||null;
+   }catch(_){/* Untracked ray: Quest X proximity action remains available. */}
+   if(matrix&&onVRSurfaceHatch({matrix:Array.from(matrix),stage:vrCurrentStage,hand})){
+    vrSurfaceHatchConsumed.add(hand);
+    statusText("🚪 船外ハッチ操作盤を押しました");
+    return;
+   }
   }
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   if(onVRCustody("state")?.handled){
@@ -527,6 +542,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const ray=event.frame.getPose(source.targetRaySpace,space);
   if(!ray)return;
   if(activeMode==="vr"){
+   if(vrSurfaceHatchConsumed.delete(source.handedness))return;
    if(onVRCustody("state")?.handled){
     if(vrCustodyTriggerConsumed.delete(source.handedness))return;
     const result=onVRCustody("talk");
@@ -650,7 +666,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }else if(button==="right:5"){
     if(!vrRTS){vrThird=!vrThird;statusText(vrThird?"🥽 三人称":"🥽 一人称");}
    }else if(button==="left:4"){
-    if(!vrRTS)onVRJump();
+    if(!vrRTS){
+     const hatch=onVRSurfaceShipAction("interact");
+     if(hatch?.handled){
+      if(hatch.message)statusText("🚪 "+hatch.message);
+     }else onVRJump();
+    }
    }else if(button==="left:5")onVRDeck();
    else if(button==="right:3"&&vrRTS)onRTSAll();
    else if(button==="left:3"&&vrRTS)onVRSync();
@@ -883,13 +904,18 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   // VR image facing must track the avatar that the sticks actually move.
   // In the detention facility its yaw is local and the outdoor controller
   // remains stationary while the planet clock is paused.
-  const indoorYaw=mode==="vr"?xrVRActorYaw(renderer,controller):controller.yaw;
-  const stage=xrStage({
+  const shipInterior=mode==="vr"&&!planetMode&&!vrRTS&&renderer.shipVoyage?.active?
+   renderer.shipVoyage.interior:null;
+  const indoorYaw=shipInterior?.yaw??(mode==="vr"?xrVRActorYaw(renderer,controller):controller.yaw);
+  const baseStage=xrStage({
    mode:mrRts?"mr-rts":planetMode?"mr-planet":mode,anchor:stageAnchor,
    actorYaw:indoorYaw,planetRadius:renderer.R,
    rtsScale:Number(scaleInput.value),yawOffset:mrRts&&mode==="vr"?vrTableYaw:planetYaw,
    planetScale:mode==="vr"?1.15:.24
   });
+  // The unified ship meshes use vessel-local coordinates; align the real headset
+  // with the occupied seat / walked-to position, not the ship's coordinate origin.
+  const stage=shipInterior?xrMul(baseStage,xrTranslate(-shipInterior.x,0,-shipInterior.z)):baseStage;
   if(mode==="vr")vrCurrentStage=stage;
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
   if(mode==="vr"&&vrRTS){
