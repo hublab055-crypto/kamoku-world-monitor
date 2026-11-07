@@ -1895,7 +1895,6 @@ export class ExplorerRenderer{
       }
      }
     }
-   }
     if(chase&&this.shipCombat.player.shieldFlash>0){
      const bubble=multiply4(translate(0,0,0),scale3(19,10,25));
      this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.55,.85,1],
