@@ -1,6 +1,6 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior} from "./ship-interior.mjs?v=6";
-import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108";
+import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
@@ -13,7 +13,7 @@ export class ShipJourney{
   this.kind="surface-to-surface";
   this.originId=data.originId;
   this.destinationId=bodyById(data.destinationId)?.landable?data.destinationId:null;
-  this.status=["docked","ascent","origin-orbit","cruise","approach","flyby","orbit","entry","touchdown","landed"].includes(data.status)?data.status:"docked";
+  this.status=["docked","ascent","origin-orbit","cruise","approach","flyby","orbit","entry","atmosphere","vtol","touchdown","landed"].includes(data.status)?data.status:"docked";
   this.flightDays=finite(data.flightDays)&&data.flightDays>0?data.flightDays:1;
   this.launchDay=finite(data.launchDay)?data.launchDay:0;
   this.launchSite=data.launchSite&&finite(data.launchSite.lat)&&finite(data.launchSite.lon)?
@@ -23,6 +23,9 @@ export class ShipJourney{
   this.landingSite=pad&&pad.bodyId===this.destinationId&&
    [pad.lat,pad.lon,pad.yaw,pad.padElevationM].every(finite)?
    {bodyId:pad.bodyId,lat:pad.lat,lon:pad.lon,yaw:pad.yaw,padElevationM:pad.padElevationM}:null;
+  this.airAltitude=finite(data.airAltitude)?clamp(data.airAltitude,0,7000):700;
+  this.airEast=finite(data.airEast)?data.airEast:0;this.airNorth=finite(data.airNorth)?data.airNorth:0;
+  this.airSpeed=finite(data.airSpeed)?data.airSpeed:0;
   this.turrets=normalizeTurrets(data.turrets);
   this.autoFire=Boolean(data.autoFire);
   this.routeVertical=finite(data.routeVertical)?data.routeVertical:0;
@@ -65,7 +68,7 @@ export class ShipJourney{
  get phase(){
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
    cruise:"惑星間巡航",approach:"目的惑星へ接近",flyby:"目標軌道を通過・再接近中",orbit:"目的惑星の周回軌道",
-   entry:"大気圏突入・着陸降下",touchdown:"接地・エンジン停止",landed:"地表・着陸完了"}[this.status]||"航行中";
+   entry:"大気圏突入",atmosphere:"大気圏内航行",vtol:"VTOL垂直着陸",touchdown:"接地・エンジン停止",landed:"地表・着陸完了"}[this.status]||"航行中";
  }
  isNearHatch(){return this.interior.distance({x:0,z:12.0})<=2.9;}
  isNearSeat(){return this.interior.distance({x:0,z:-10})<=2.5;}
@@ -134,8 +137,13 @@ export class ShipJourney{
   this.status="entry";this.stageProgress=0;this.interior.hatchPassable=false;
   return {ok:true,message:"🔥 大気圏突入開始。着陸姿勢を保持してください"};
  }
+ beginVTOL(){
+  if(this.status!=="atmosphere"||!this.seated)return {ok:false,message:"大気圏内で操縦席に着席してください"};
+  this.status="vtol";this.airSpeed=0;
+  return {ok:true,message:"🛬 垂直着陸開始。降下用スラスターで減速します"};
+ }
  setLandingSite(site){
-  if(!this.canDirectEntry&&!["orbit","entry","touchdown","landed"].includes(this.status))return false;
+  if(!this.canDirectEntry&&!["orbit","entry","atmosphere","vtol","touchdown","landed"].includes(this.status))return false;
   if(!site||site.bodyId!==this.destinationId||
      ![site.lat,site.lon,site.yaw,site.padElevationM].every(finite))return false;
   this.landingSite={bodyId:site.bodyId,lat:site.lat,lon:site.lon,
@@ -157,6 +165,23 @@ export class ShipJourney{
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  if(this.status==="atmosphere"){
+   const desired=this.fuel>0?Math.max(0,this.throttle)*180:0;
+   this.airSpeed+=(desired-this.airSpeed)*Math.min(1,step*.6);
+   const yaw=this.attitudeYawDeg*Math.PI/180,pitch=this.pitchDeg*Math.PI/180;
+   this.airEast+=Math.sin(yaw)*Math.cos(pitch)*this.airSpeed*step;
+   this.airNorth+=Math.cos(yaw)*Math.cos(pitch)*this.airSpeed*step;
+   this.airAltitude=clamp(this.airAltitude+Math.sin(pitch)*this.airSpeed*step,20,7000);
+   this.fuel=Math.max(0,this.fuel-step*(.03+Math.abs(this.throttle)*.12));
+   this.elapsedSeconds+=step;
+   return {days:0,advanced:0,status:this.status};
+  }
+  if(this.status==="vtol"){
+   this.airAltitude=Math.max(0,this.airAltitude-step*Math.max(1.5,Math.min(65,this.airAltitude*.3)));
+   this.elapsedSeconds+=step;
+   if(this.airAltitude===0){this.status="touchdown";this.touchdownElapsed=0;}
+   return {days:0,advanced:0,status:this.status};
+  }
   if(this.status==="touchdown"){
    this.touchdownElapsed=clamp(this.touchdownElapsed+step,0,1.7);
    if(this.touchdownElapsed>=1.7)this.status="landed";
@@ -186,7 +211,7 @@ export class ShipJourney{
   }else if(this.status==="entry"){
    this.fuel=Math.max(0,this.fuel-step*Math.abs(thr)*.28);
    this.stageProgress=clamp(this.stageProgress+step*(.055+Math.max(0,thr)*.12),0,1);
-   if(this.stageProgress>=1){this.status="touchdown";this.stageProgress=1;this.touchdownElapsed=0;}
+   if(this.stageProgress>=1){this.status="atmosphere";this.stageProgress=1;this.airAltitude=700;this.airEast=0;this.airNorth=0;this.airSpeed=0;}
   }else{
    const before=this.routeAlong;
    const motion=advanceRouteMotion({
@@ -218,6 +243,7 @@ export class ShipJourney{
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
+   airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,
    turrets:normalizeTurrets(this.turrets),autoFire:this.autoFire,routeVertical:this.routeVertical,verticalVelocity:this.verticalVelocity,
    routeAlong:this.routeAlong,crossTrack:this.crossTrack,routeVelocity:{...this.routeVelocity},
    seated:this.seated,interior:this.interior.snapshot()};
