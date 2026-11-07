@@ -1599,9 +1599,11 @@ function vrExteriorHatchTrigger({matrix,stage}={}){
 }
 function vrSurfaceShipAction(){
  if(voyage?.kind==="surface-to-surface"){
-  if(!voyage.isGrounded()||voyage.seated||!voyage.isNearHatch())return {handled:false};
-  const result=shipToggleHatch();
-  if(result?.message)log(result.message);
+  if(voyage.seated)return {handled:false};
+  const result=voyage.isNearSeat()?shipSit():
+   voyage.isGrounded()&&voyage.isNearHatch()?shipToggleHatch():null;
+  if(!result)return {handled:false};
+  if(result.message)log(result.message);
   return {handled:true,message:result.message};
  }
  if(voyage?.active)return {handled:false};
