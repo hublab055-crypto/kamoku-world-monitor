@@ -35,7 +35,7 @@ export function shipCelestialPosition({yawDeg=0,pitchDeg=0,distance=420,baseY=-5
   -Math.cos(yaw)*Math.cos(pitch)*d];
 }
 export function shipCameraPose({
- mode="cockpit",wide=true,distance=52,interior={},
+ mode="cockpit",wide=true,fovDeg=108,distance=52,interior={},
  orbitYaw=0,orbitPitch=.31,landingAttitude=0
 }={}){
  const chase=mode==="chase";
@@ -59,5 +59,5 @@ export function shipCameraPose({
  const eye=[finite(interior.x)?interior.x:0,eyeY,finite(interior.z)?interior.z:0];
  const sight=[Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)];
  return {eye,target:eye.map((n,i)=>n+sight[i]),
-  fovDeg:wide?94:75,drawExterior:false};
+  fovDeg:wide?clamp(finite(fovDeg)?fovDeg:108,85,116):85,drawExterior:false};
 }
