@@ -1,4 +1,5 @@
 import {AU_M,orbitalPosition,bodyById} from "./solar-system.mjs";
+import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261107-spatial";
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const norm=v=>{const d=Math.hypot(...v)||1;return v.map(x=>x/d);};
@@ -67,7 +68,7 @@ export function exhaustGeometry(tier="cruise"){
 /** Screen targets draw from the exact same ship-relative coordinates as meshes.
  * NPC ships are lightweight encounter proxies (no combat AI yet).
  */
-export function shipSensorContacts(v){
+export function shipSensorContacts(v,combat=null){
  if(!v)return [];
  const status=v.status||"docked",t=finite(v.elapsedSeconds)?v.elapsedSeconds:0;
  const yaw=v.attitudeYawDeg||0,pitch=v.pitchDeg||0,contacts=[];
@@ -87,18 +88,18 @@ export function shipSensorContacts(v){
   contacts.push({id:"planet",name:planet.name,type:"destination",icon:"◈",position:starPos,
    distance,estimate:true,color:"#7bdde8",distanceAU});
  }
- if(flying){
-  const targets=[
-   {id:"trader",name:"商船・オリオン",icon:"◇",type:"civilian",
-    point:[130+Math.sin(t*.017)*20,48+Math.cos(t*.013)*16,-290+t*.10],color:"#8fe5dc"},
-   {id:"pirate",name:"☠️ 海賊船・レイダー",icon:"⚠",type:"pirate",
-    point:[-240+Math.cos(t*.018)*35,75+Math.sin(t*.02)*20,-440+t*.17],color:"#ffc57a"}
-  ];
-  for(const c of targets){
-   const position=inertialToShip(c.point,yaw,pitch);
-   contacts.push({id:c.id,name:c.name,type:c.type,icon:c.icon,color:c.color,
-    position,distance:Math.round(Math.hypot(...c.point)).toLocaleString("ja-JP")+" m",
-    estimate:true,visual:true});
+ if(flying&&combat){
+  // One authoritative encounter list: WebGL, scan, lock-on and HUD all read
+  // the same object positions. No independent "fake pirate/trader" objects.
+  for(const c of combat.allContacts||[]){
+   const d=shipContactDistance(c,v);
+   const category=c.faction==="friendly"?"friendly":
+    c.faction==="neutral"?"neutral":c.faction==="resource"?"resource":"hostile";
+   const icon={friendly:"🔹",neutral:"🟢",resource:"♦",hostile:"🔸"}[category];
+   contacts.push({id:c.id,name:c.name,type:c.type||"ship",faction:category,icon,
+    position:shipContactPosition(c,v),distance:d.toFixed(d<1000?0:1)+" m",
+    rangeM:d,estimate:false,visual:true,
+    surrendered:Boolean(c.surrendered),destroyed:Boolean(c.hp<=0)});
   }
  }
  return contacts;
