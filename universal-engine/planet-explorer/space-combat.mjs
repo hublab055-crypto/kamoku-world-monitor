@@ -1,6 +1,7 @@
+import {normalizeTurrets,aimTurret} from "./ship-turrets.mjs?v=20261108";
 /** Shipboard targeting core. No DOM/WebXR dependency; one combat session per voyage.
- * The existing flight model only simulates visual yaw/pitch, so contacts are
- * local encounter targets rather than actors in an authoritative solar system.
+ * Contacts share the integrated voyage route frame; this is a local encounter
+ * simulation rather than a network-authoritative solar-system physics engine.
  */
 export const SHIP_WEAPONS=Object.freeze({
  pulse:Object.freeze({name:"パルス砲",locks:1,cooldown:.22,damage:25,ammo:Infinity}),
@@ -28,7 +29,9 @@ export function combatEligible(voyage){
  */
 export function shipEncounterPosition(voyage){
  const coords=[voyage?.transferX,voyage?.transferY,voyage?.transferZ];
- return coords.every(Number.isFinite)?coords.map(n=>n*12000):[0,0,0];
+ if(coords.every(Number.isFinite))return coords.map(n=>n*12000);
+ if(Number.isFinite(voyage?.routeAlong))return [(voyage.crossTrack||0)*12000,(voyage.routeVertical||0)*12000,voyage.routeAlong*12000];
+ return [0,0,0];
 }
 export function shipContactRelative(target,voyage){
  if(Array.isArray(target?.position)&&target.position.length===3&&target.position.every(Number.isFinite)){
@@ -44,13 +47,22 @@ export function shipContactDistance(target,voyage){
  return Math.hypot(...shipContactRelative(target,voyage));
 }
 export function shipContactPosition(target,voyage){
- const [x,y,z]=shipContactRelative(target,voyage);
+ return encounterPointToShip(shipContactRelative(target,voyage),voyage);
+}
+export function encounterPointToShip(relative,voyage){
+ const [x,y,z]=relative;
  const yaw=(Number(voyage?.attitudeYawDeg)||0)*Math.PI/180;
  const pitch=(Number(voyage?.pitchDeg)||0)*Math.PI/180;
  const cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);
  // Inertial +Z is the encounter's forward direction; ship-local -Z is forward.
- const up=cp*y-sp*z,front=-sp*y-cp*z;
- return [cy*x+sy*front,2+up,-sy*x+cy*front];
+ const front=-sy*x-cy*z;
+ return [cy*x-sy*z,2+cp*y+sp*front,-sp*y+cp*front];
+}
+export function shipPointToEncounter(point,voyage){
+ const yaw=(voyage?.attitudeYawDeg||0)*Math.PI/180,pitch=(voyage?.pitchDeg||0)*Math.PI/180;
+ const [x,h,z]=point,y=h-2,cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ const origin=shipEncounterPosition(voyage);
+ return [cy*x-sp*sy*y-cp*sy*z,cp*y-sp*z,-sy*x-sp*cy*y-cp*cy*z].map((n,i)=>n+origin[i]);
 }
 /** Curved visual homing arc, arriving at the moving enemy instead of firing
  * a straight static target interpolation. No physics or hit chance implied. */
@@ -79,6 +91,7 @@ export class SpaceCombat{
     position:[Math.sin(yaw)*Math.cos(pitch)*d,Math.sin(pitch)*d,Math.cos(yaw)*Math.cos(pitch)*d],
     velocity:[0,0,0]};
   });
+  this.turrets=normalizeTurrets();this.autoFire=false;this.voyage=null;
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.projectiles=[];this.explosions=[];this.player={hp:100,maxHp:100,shield:100,maxShield:100,shieldFlash:0};this.enemyCooldown=3;this.lastMessage="";this.elapsed=0;
@@ -91,8 +104,15 @@ export class SpaceCombat{
   * This is deliberately not yet a network-authoritative physics simulation. */
  advance(dt,voyage=null){
   const step=clamp(Number.isFinite(dt)?dt:0,0,.12);
-  if(!step)return;
-  this.elapsed+=step;
+  if(!step||voyage&&!combatEligible(voyage))return;
+  this.elapsed+=step;this.voyage=voyage;
+  if(voyage&&!this.lastShipPosition){
+   const origin=shipEncounterPosition(voyage);
+   if(!this.encounterAnchored){
+    for(const c of [...this.targets,...this.nonHostiles])c.position=c.position.map((n,i)=>n+origin[i]);
+    this.encounterOrigin=origin;this.encounterAnchored=true;
+   }
+  }
   this.player.shieldFlash=Math.max(0,this.player.shieldFlash-step);
   for(const effect of this.explosions)effect.seconds-=step;
   this.explosions=this.explosions.filter(effect=>effect.seconds>0);
@@ -101,14 +121,19 @@ export class SpaceCombat{
   if(this.enemyCooldown<=0&&voyage&&combatEligible(voyage)&&!this.playerSurrendered&&
      this.elapsed>=this.ceasefireUntil&&this.combatTargets.length){
    const attacker=this.combatTargets.filter(t=>t.distance<650).sort((a,b)=>a.distance-b.distance)[0];
-   if(attacker){this.enemyCooldown=2.5+Math.random()*1.5;this.projectiles.push({id:attacker.id,weapon:"enemy",seconds:Math.max(.25,attacker.distance/320),total:Math.max(.25,attacker.distance/320),enemy:true});}
+   if(attacker){
+    this.enemyCooldown=2.5+Math.random()*1.5;
+    const seconds=Math.max(.25,attacker.distance/320),ship=shipEncounterPosition(voyage);
+    this.projectiles.push({id:attacker.id,weapon:"enemy",seconds,total:seconds,enemy:true,
+     origin:[...attacker.position],impact:ship.map((n,i)=>n+(this.shipVelocity?.[i]||0)*seconds)});
+   }
   }
   for(const shot of this.projectiles){
    shot.seconds-=step;
    if(shot.seconds>0)continue;
-   if(shot.enemy){this.applyDamage(this.player,12,"player");continue;}
+   if(shot.enemy){if(!shot.impact||Math.hypot(...shot.impact.map((n,i)=>n-shipEncounterPosition(voyage)[i]))<25)this.applyDamage(this.player,12,"player");continue;}
    const target=this.targets.find(t=>t.id===shot.id);
-   if(target?.hp>0)this.applyDamage(target,shot.damage,shot.id);
+   if(target?.hp>0&&(shot.weapon==="missile"||!shot.impact||Math.hypot(...shot.impact.map((n,i)=>n-target.position[i]))<25))this.applyDamage(target,shot.damage,shot.id);
   }
   this.projectiles=this.projectiles.filter(p=>p.seconds>0);
   const heading=Number(voyage?.attitudeYawDeg)||0;
@@ -121,10 +146,10 @@ export class SpaceCombat{
   this.playerRangeTravel+=throttle*step*95*facing;
   // Convert voyage coordinates to a shared encounter frame in metres.
   const coordinates=[voyage?.transferX,voyage?.transferY,voyage?.transferZ];
-  const validCoordinates=coordinates.every(Number.isFinite);
+  const validCoordinates=coordinates.every(Number.isFinite)||Number.isFinite(voyage?.routeAlong);
   const ship=shipEncounterPosition(voyage);
   const previous=this.lastShipPosition||ship;
-  const shipVelocity=ship.map((n,i)=>(n-previous[i])/step);
+  const shipVelocity=ship.map((n,i)=>(n-previous[i])/step);this.shipVelocity=shipVelocity;
   this.lastShipPosition=validCoordinates?ship:null;
   this.shipPosition=ship;
   // Intercept lead responds to observed turning and thrust. These are
@@ -133,21 +158,19 @@ export class SpaceCombat{
    const time=this.elapsed+t.phase;
    const role=t.id==="pirate-alpha"?"interceptor":
     t.id==="pirate-beta"?"flanker":"scout";
-   const lead=clamp(this.headingRate*.35,-24,24);
-   const wave=role==="scout"?1.4:role==="flanker"?.75:1;
-   const desiredYaw=role==="flanker"?
-    22+lead*.5+Math.sin(time*.3)*12:
-    role==="scout"?-22+Math.sin(time*.8)*35:
-    lead+Math.sin(time*.45)*14;
-   const desiredPitch=(role==="scout"?15:role==="flanker"?-10:0)+
-    Math.sin(time*.55+t.phase)*7*wave;
-   const maneuver=role==="scout"?34:role==="interceptor"?25:17;
-   const yawNow=t.evadeYaw||0,pitchNow=t.evadePitch||0;
-   t.evadeYaw=yawNow+clamp(desiredYaw-yawNow,-maneuver*step,maneuver*step);
-   t.evadePitch=pitchNow+clamp(desiredPitch-pitchNow,-maneuver*step,maneuver*step);
    // Role-specific pursuit with lead prediction and acceleration limits.
    const desiredRange=role==="interceptor"?125:role==="flanker"?230:340;
-   const offset=role==="flanker"?[95,0,-40]:role==="scout"?[-110,55,85]:[0,0,-desiredRange];
+   // Attack runs alternate with a committed pass and a wide re-entry turn.
+   const range=shipContactDistance(t,voyage);
+   if(!t.aiState)t.aiState="intercept";
+   if(t.aiState!=="breakaway"&&range<90){t.aiState="breakaway";t.breakUntil=this.elapsed+3;}
+   if(t.aiState==="breakaway"&&this.elapsed>=t.breakUntil)t.aiState="intercept";
+   const relative=t.position.map((n,i)=>n-ship[i]);
+   const radial=Math.hypot(...relative)||1;
+   const side=role==="flanker"?1:-1;
+   const offset=t.aiState==="breakaway"?
+    relative.map((n,i)=>n/radial*360+(i===0?side*120:i===1?65:0)):
+    [Math.sin(time*.6)*desiredRange*.35,Math.sin(time*.45+t.phase)*55,0];
    const predicted=ship.map((n,i)=>n+shipVelocity[i]*.7+offset[i]);
    const displacement=predicted.map((n,i)=>n-t.position[i]);
    const length=Math.hypot(...displacement)||1;
@@ -156,20 +179,18 @@ export class SpaceCombat{
    const wanted=displacement.map(n=>n/length*speed);
    t.velocity=t.velocity.map((n,i)=>n+clamp(wanted[i]-n,-acceleration*step,acceleration*step));
    t.position=t.position.map((n,i)=>n+t.velocity[i]*step);
-   const relative=t.position.map((n,i)=>n-ship[i]);
-   t.distance=Math.hypot(...relative);
-   t.bearing=Math.atan2(relative[0],relative[2])*180/Math.PI;
-   t.pitch=Math.atan2(relative[1],Math.hypot(relative[0],relative[2]))*180/Math.PI;
+   const updated=t.position.map((n,i)=>n-ship[i]);
+   t.distance=Math.hypot(...updated);
+   t.bearing=Math.atan2(updated[0],updated[2])*180/Math.PI;
+   t.pitch=Math.atan2(updated[1],Math.hypot(updated[0],updated[2]))*180/Math.PI;
    t.evadeYaw=0;t.evadePitch=0;
-   t.aiState=t.distance<desiredRange*.7?"breakaway":
-    length>desiredRange?"intercept":"pursuit";
   }
   // Merchant, allied and mineral contacts occupy that SAME encounter frame.
   for(const c of this.nonHostiles){
    const t=this.elapsed*.12+c.phase;
    c.position=[Math.sin(c.bearing*Math.PI/180)*c.baseDistance+Math.sin(t)*9,
     Math.sin(c.pitch*Math.PI/180)*c.baseDistance+Math.cos(t*.8)*4,
-    Math.cos(c.bearing*Math.PI/180)*c.baseDistance+Math.sin(t*.4)*6];
+    Math.cos(c.bearing*Math.PI/180)*c.baseDistance+Math.sin(t*.4)*6].map((n,i)=>n+(this.encounterOrigin?.[i]||0));
    c.distance=shipContactDistance(c,voyage);
   }
   if(!this.warningSent&&voyage&&combatEligible(voyage)&&
@@ -262,7 +283,9 @@ export class SpaceCombat{
    Number.isFinite(p.u)&&Number.isFinite(p.v)&&
    p.u>=0&&p.u<=1&&p.v>=0&&p.v<=1&&
    this.combatTargets.some(t=>t.id===p.id&&t.hp>0)).map(p=>p.id):[]);
-  this.locked=this.locked.filter(id=>this.visible.has(id));
+  this.locked=this.locked.filter(id=>eligible&&this.combatTargets.some(t=>t.id===id&&shipContactDistance(t,voyage)<=1500));
+  this.updateTurrets(dt,voyage);
+  if(this.autoFire&&eligible&&this.cooldown<=0)this.fire(true);
   if(!vr||!eligible){this.dwellId=null;this.dwellSeconds=0;return;}
   const nearest=projected.filter(p=>this.visible.has(p.id)).
    map(p=>({...p,delta:Math.hypot(p.u-.5,p.v-.5)})).
@@ -285,6 +308,17 @@ export class SpaceCombat{
   }
   return true;
  }
+ updateTurrets(dt,voyage=this.voyage){
+  const target=this.combatTargets.find(t=>t.id===this.locked[0]);
+  for(const mount of this.turrets){
+   mount.targetId=target?.id||null;mount.aligned=false;
+   if(target&&mount.enabled){
+    const seconds=mount.weapon==="pulse"?shipContactDistance(target,voyage)/900:0;
+    const predicted={...target,position:target.position.map((n,i)=>n+target.velocity[i]*seconds)};
+    aimTurret(mount,shipContactPosition(predicted,voyage),dt);
+   }
+  }
+ }
  fire(eligible=true){
   if(!eligible)return {ok:false,message:"操縦席に着席し、宇宙航行中に使用してください"};
   if(this.playerSurrendered)return {ok:false,message:"降伏中は発射できません。通信メニューから降伏を撤回してください"};
@@ -296,19 +330,23 @@ export class SpaceCombat{
   const hits=[];
   for(const id of shots){
    const target=this.targets.find(t=>t.id===id);
-   if(!target||target.hp<=0||target.surrendered||!this.visible.has(id))continue;
+   if(!target||target.hp<=0||target.surrendered||shipContactDistance(target,this.voyage)>1500)continue;
+   const mount=this.turrets.find(m=>m.enabled&&m.weapon===this.weapon&&m.aligned&&m.targetId===(this.weapon==="missile"?this.locked[0]:id));
+   if(this.voyage&&!mount)continue;
    const seconds=this.weapon==="missile"?Math.max(.35,target.distance/250):Math.max(.08,target.distance/900);
-   this.projectiles.push({id,weapon:this.weapon,seconds,total:seconds,damage:this.config.damage,enemy:false});
+   this.projectiles.push({id,weapon:this.weapon,seconds,total:seconds,damage:this.config.damage,enemy:false,muzzle:mount?[mount.x,mount.y,mount.z]:[0,2,-7],
+    origin:this.voyage?shipPointToEncounter(mount?[mount.x,mount.y,mount.z]:[0,2,-7],this.voyage):null,
+    impact:this.voyage&&this.weapon==="pulse"?target.position.map((n,i)=>n+target.velocity[i]*seconds):null});
    hits.push({id,name:target.name,pending:true,hp:target.hp});
   }
-  if(!hits.length){this.locked=[];return {ok:false,message:"目標が視界外です"};}
+  if(!hits.length)return {ok:false,message:"砲塔旋回中、または対応する兵装が無効です"};
   if(this.weapon==="missile")this.missiles-=hits.length;
   if(this.elapsed<this.ceasefireUntil){
    this.ceasefireUntil=this.elapsed;
    this.emitRadio("⚠️ こちらの発砲により停戦が破棄された。",null,"ceasefire-broken");
   }
   this.cooldown=this.config.cooldown;
-  this.locked=this.locked.filter(id=>this.combatTargets.some(t=>t.id===id&&t.hp>0)&&this.visible.has(id));
+  this.locked=this.locked.filter(id=>this.combatTargets.some(t=>t.id===id&&t.hp>0)&&shipContactDistance(this.targets.find(t=>t.id===id),this.voyage)<=1500);
   const message="🚀 "+this.config.name+" "+hits.length+"発発射";
   this.lastMessage=message;
   return {ok:true,message,hits};

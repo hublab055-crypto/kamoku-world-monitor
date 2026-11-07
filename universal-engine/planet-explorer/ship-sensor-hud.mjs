@@ -1,5 +1,5 @@
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261107-shared-sensors";
+import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261108-dogfight";
 
 /** Transparent in-scene contact typography, never a boxed viewport/window.
  * Reads exactly the same world positions and ranges as WebGL ship meshes.

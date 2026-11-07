@@ -53,8 +53,8 @@ import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-space-radar";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261107-shared-sensors";
-import {shipContactPosition,combatEligible,missileTrailPoint} from "./space-combat.mjs?v=20261107-spatial";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-dogfight";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-dogfight";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -1802,6 +1802,14 @@ export class ExplorerRenderer{
    }
    this.shipTargets=[];
    if(this.shipCombat&&combatEligible(v)){
+    // Independent hardpoint bases and barrels share the same aim as fire control.
+    for(const mount of this.shipCombat.turrets.filter(m=>m.enabled)){
+     const base=multiply4(translate(mount.x,mount.y,mount.z),scale3(1.1,.5,1.1));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,base),[.8,.9,1],1,.9,[.4,.55,.65]);
+     const aim=multiply4(translate(mount.x,mount.y,mount.z),multiply4(rotateY(mount.yaw||0),rotX(mount.pitch||0)));
+     const barrel=multiply4(aim,multiply4(translate(0,0,-1.8),scale3(.35,.35,2.2)));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,barrel),[.8,.9,1],1,.9,mount.aligned?[.3,.9,1]:[.7,.7,.75]);
+    }
     for(const contact of this.shipCombat.allContacts){
      const pos=shipContactPosition(contact,v);
      const category=contact.faction||"hostile";
@@ -1810,8 +1818,11 @@ export class ExplorerRenderer{
       faction:category,type:contact.type||"ship",distance:Math.hypot(
        pos[0],pos[1]-2,pos[2])});
      if(category==="hostile"){
-      const model=multiply4(translate(...pos),
-       multiply4(rotateY(Math.PI),scale3(.9,.9,.9)));
+      const direction=encounterPointToShip(contact.velocity,v);
+      const yaw=Math.atan2(-direction[0],-direction[2]);
+      const pitch=Math.atan2(direction[1]-2,Math.hypot(direction[0],direction[2]));
+      const model=multiply4(translate(...pos),multiply4(rotateY(yaw),
+       multiply4(rotX(pitch),scale3(.9,.9,.9))));
       const locked=this.shipCombat.locked.includes(contact.id);
       const hit=this.shipCombat.flashes.some(f=>f.id===contact.id);
       const tint=contact.surrendered?[.72,.88,.95]:hit?[1,.95,.56]:
@@ -1869,8 +1880,9 @@ export class ExplorerRenderer{
      if(!target)continue;
      const destination=shipContactPosition(target,v);
      const progress=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
-     const start=shot.enemy?destination:[0,2,-7];
-     const end=shot.enemy?[0,2,-7]:destination;
+     const relativePoint=point=>encounterPointToShip(point.map((n,i)=>n-shipEncounterPosition(v)[i]),v);
+     const start=shot.origin?relativePoint(shot.origin):shot.enemy?destination:(shot.muzzle||[0,2,-7]);
+     const end=shot.impact?relativePoint(shot.impact):shot.enemy?[0,2,-7]:destination;
      const seed=shot.id.length*.7;
      const point=shot.weapon==="missile"?missileTrailPoint(start,end,progress,seed):
       start.map((n,i)=>n+(end[i]-n)*progress);
