@@ -75,7 +75,7 @@ export class SpaceCombat{
   });
   this.nonHostiles=NON_HOSTILES.map(t=>{
    const yaw=t.bearing*Math.PI/180,pitch=t.pitch*Math.PI/180,d=t.distance;
-   return {...t,hp:1,maxHp:1,shield:0,maxShield:0,
+   return {...t,baseDistance:t.distance,hp:1,maxHp:1,shield:0,maxShield:0,
     position:[Math.sin(yaw)*Math.cos(pitch)*d,Math.sin(pitch)*d,Math.cos(yaw)*Math.cos(pitch)*d],
     velocity:[0,0,0]};
   });
@@ -167,9 +167,9 @@ export class SpaceCombat{
   // Merchant, allied and mineral contacts occupy that SAME encounter frame.
   for(const c of this.nonHostiles){
    const t=this.elapsed*.12+c.phase;
-   c.position=[Math.sin(c.bearing*Math.PI/180)*c.distance+Math.sin(t)*9,
-    Math.sin(c.pitch*Math.PI/180)*c.distance+Math.cos(t*.8)*4,
-    Math.cos(c.bearing*Math.PI/180)*c.distance+Math.sin(t*.4)*6];
+   c.position=[Math.sin(c.bearing*Math.PI/180)*c.baseDistance+Math.sin(t)*9,
+    Math.sin(c.pitch*Math.PI/180)*c.baseDistance+Math.cos(t*.8)*4,
+    Math.cos(c.bearing*Math.PI/180)*c.baseDistance+Math.sin(t*.4)*6];
    c.distance=shipContactDistance(c,voyage);
   }
   if(!this.warningSent&&voyage&&combatEligible(voyage)&&
