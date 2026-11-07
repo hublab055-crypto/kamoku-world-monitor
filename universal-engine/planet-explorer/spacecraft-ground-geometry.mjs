@@ -47,6 +47,11 @@ export function spacecraftGroundGeometry(open=false){
  box(g,-1.42,2.05,12.08,.18,2.25,.17,frame);
  box(g,1.42,2.05,12.08,.18,2.25,.17,frame);
  box(g,0,4.11,12.08,1.38,.22,.17,frame);
+ // Illuminated exterior airlock control, just right of the rear hatch.
+ // Remains available whether the hatch is closed or the boarding ramp is open.
+ box(g,1.77,2.89,12.78,.30,.58,.17,frame);
+ box(g,1.77,3.03,12.98,.22,.28,.06,yellow);
+ box(g,1.77,3.18,13.05,.12,.11,.055,light);
  if(!open){
   box(g,0,2.16,12.29,1.24,2.02,.20,dark);
   box(g,0,3.0,12.51,.34,.15,.045,yellow);
