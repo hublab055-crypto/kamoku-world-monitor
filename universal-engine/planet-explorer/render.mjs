@@ -49,10 +49,10 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
-import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107";
+import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-buttons";
-import {shipCameraPose} from "./ship-view-controls.mjs?v=3-chase-orbit";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261107-panorama2";
+import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=1";
 import {shipContactPosition,combatEligible} from "./space-combat.mjs?v=1";
 import {bodyById} from "./solar-system.mjs?v=1";
@@ -776,7 +776,7 @@ export class ExplorerRenderer{
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
    this.shipVoyage=null;this.shipArrivalPreview=null;this.shipCombat=null;this.shipTargets=[];
-   this.shipCameraMode="cockpit";this.shipWideView=true;this.shipChaseDistance=52;
+   this.shipCameraMode="cockpit";this.shipWideView=true;this.shipCockpitFov=108;this.shipChaseDistance=52;
    this.shipOrbitYaw=0;this.shipOrbitPitch=.31;
    this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
@@ -784,7 +784,7 @@ export class ExplorerRenderer{
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
-   this.shipCockpitControls=[];
+   this.shipCockpitControls=[];this.shipControlLayout=["scan","weapon","fire","hatch"];
    this.shipShieldSphere=new Mesh(gl,celestialBallGeometry([.30,.68,1]));
    this.shipStars=new Mesh(gl,starfieldGeometry());
    this.shipExhaustMeshes={
@@ -1715,7 +1715,7 @@ export class ExplorerRenderer{
     -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
     v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
    const camera=shipCameraPose({mode:chase?"chase":"cockpit",
-    wide:this.shipWideView,distance:this.shipChaseDistance,
+    wide:this.shipWideView,fovDeg:this.shipCockpitFov,distance:this.shipChaseDistance,
     orbitYaw:this.shipOrbitYaw,orbitPitch:this.shipOrbitPitch,
     interior:{...person,hatchPassable:v.hatchOpen},landingAttitude});
    const xr=this.xrView;
@@ -1867,7 +1867,11 @@ export class ExplorerRenderer{
     this.shipCockpitControls=[];
     if(v.seated||person.mode==="cockpit"){
      for(const {id,position} of COCKPIT_SWITCHES){
-      const color=id==="scan"?[.18,.86,1]:id==="weapon"?[1,.8,.2]:[1,.22,.15];
+      const mapped=this.shipControlLayout?.[COCKPIT_SWITCHES.findIndex(s=>s.id===id)]||"none";
+      const color=mapped==="scan"?[.18,.86,1]:mapped==="weapon"?[1,.8,.2]:
+       mapped==="fire"?[1,.22,.15]:mapped==="hatch"?[.27,.92,.55]:
+       mapped==="auto"?[.65,.75,1]:mapped==="camera"?[.70,.70,1]:
+       mapped==="wide"?[.85,.95,1]:[.20,.23,.27];
       const transform=multiply4(translate(...position),scale3(.19,.07,.19));
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.9,.9,1],1,.98,color);
       const projected=projectScreen(vp,position);

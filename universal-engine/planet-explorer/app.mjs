@@ -5,21 +5,21 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipJourney} from "./ship-journey.mjs?v=20261107-helm-seat";
+import {ShipJourney} from "./ship-journey.mjs?v=20261107-remote-airlock";
 import {SurfaceStarship} from "./surface-starship.mjs?v=3";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261107-controls";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261107-controls";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261107-right-stick";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261107-dashboard";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261107";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261107-cockpit-hatch";
+import {ExplorerRenderer} from "./render.mjs?v=20261107-panoramic-dash";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -1637,6 +1637,15 @@ function shipToggleHatch(){
  if(result.ok&&surfaceShip?.present(solarSystem.currentId)){
   surfaceShip.hatchOpen=voyage.hatchOpen;renderer.patchKey=null;
  }
+ return result;
+}
+function shipCockpitHatch(){
+ if(voyage?.kind!=="surface-to-surface")return {ok:false,message:"宇宙船の操縦席にいません"};
+ const result=voyage.toggleCockpitHatch();
+ if(result.ok&&surfaceShip?.present(solarSystem.currentId)){
+  surfaceShip.hatchOpen=voyage.hatchOpen;renderer.patchKey=null;
+ }
+ shipInteractionUI?.update(true);
  return result;
 }
 function shipSit(){return voyage?.kind==="surface-to-surface"?voyage.sit():{ok:false,message:"3D船内で操作してください"};}
@@ -4114,7 +4123,10 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
  getWorldCanvas:()=>renderer?.canvas||null,getWorldRenderer:()=>renderer,notify:log});
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
- isVR:()=>xrUI?.mode==="vr",notify:log});
+ isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
+ onCamera:()=>voyageUI?.toggleCamera(),onWide:()=>voyageUI?.toggleWide(),
+ getViewSettings:()=>voyageUI?.getViewSettings?.()||{},
+ setViewSettings:values=>voyageUI?.setViewSettings?.(values)});
 shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});

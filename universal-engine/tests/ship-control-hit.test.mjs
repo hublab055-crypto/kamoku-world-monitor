@@ -8,8 +8,8 @@ import {
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 const ray=(x,y,z)=>[1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1];
 
-test("all three cockpit switches are in reach of the pilot, not 10m aft",()=>{
- assert.deepEqual(COCKPIT_SWITCHES.map(c=>c.id),["scan","weapon","fire"]);
+test("all four cockpit switches including hatch are in reach of the pilot",()=>{
+ assert.deepEqual(COCKPIT_SWITCHES.map(c=>c.id),["scan","weapon","fire","hatch"]);
  for(const switchCap of COCKPIT_SWITCHES)
   assert.ok(switchCap.position[2]<-10.8&&switchCap.position[2]>-11.6);
 });
@@ -19,6 +19,7 @@ test("Quest right controller can target the physical weapon switch",()=>{
 test("Quest can pick distinct scan and fire caps",()=>{
  assert.equal(xrCockpitControlHit(ray(-.75,1.47,-9.8),identity)?.id,"scan");
  assert.equal(xrCockpitControlHit(ray(.75,1.47,-9.8),identity)?.id,"fire");
+ assert.equal(xrCockpitControlHit(ray(1.43,1.47,-9.8),identity)?.id,"hatch");
 });
 test("XR ray picking uses the same stage transform as rendered geometry",()=>{
  const shifted=[...identity];shifted[12]=4;shifted[14]=2;

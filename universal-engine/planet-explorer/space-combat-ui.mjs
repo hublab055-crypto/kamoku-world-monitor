@@ -1,10 +1,14 @@
 import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=1";
-import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107";
+import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107-hatch4";
+import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
  * same projected contacts for gaze dwell, but no DOM markers in the headset.
  */
-export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notify=()=>{}}){
+export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notify=()=>{},
+ onHatch=()=>({ok:false,message:"ハッチ制御は利用できません"}),
+ onCamera=()=>({ok:false,message:"視点切替不可"}),onWide=()=>({ok:false,message:"広画面不可"}),
+ getViewSettings=()=>({}),setViewSettings=()=>{}}){
  const root=document.getElementById("space-flight");
  const actions=root?.querySelector(".flight-actions");
  if(!root||!actions)return {getCombat:()=>null,update:()=>{},fire:()=>false,active:()=>false};
@@ -57,16 +61,9 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  const playerHud=document.createElement("div");playerHud.className="combat-player-hud";markers.append(playerHud);
  const shotNodes=[];
  document.body.append(markers);
- const consolePanel=document.createElement("div");consolePanel.className="ship-combat-console";consolePanel.setAttribute("role","group");consolePanel.setAttribute("aria-label","操縦席の索敵・兵装・発射操作盤");
- const scanButton=document.createElement("button");scanButton.type="button";scanButton.className="ship-scan-trigger";scanButton.textContent="📡 スキャン";
- const weapon=document.createElement("button"),fireButton=document.createElement("button");
- weapon.type="button";fireButton.type="button";
- weapon.className="ship-weapon-switch";fireButton.className="ship-fire-trigger";
- weapon.setAttribute("aria-label","宇宙船の兵装切り替え");
- fireButton.setAttribute("aria-label","宇宙船の選択兵装を発射");
- fireButton.textContent="🔴 発射";
- consolePanel.append(scanButton,weapon,fireButton);
- root.append(consolePanel); // Stay outside the 24px-high clipped integrated flight-display.
+ const dashboard=installCockpitDashboard({root,onAction:handleDashboardAction,
+  getViewSettings,setViewSettings});
+ const consolePanel=dashboard.panel;
  let scanUntil=0,scannedIds=new Set();
  let previousVoyage=null,combat=null;
  const targetNodes=new Map();
@@ -97,10 +94,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(!v?.seated||viewer?.shipCameraMode==="chase")return false;
   const hit=xrCockpitControlHit(matrix,stage);
   if(!hit)return false;
-  if(hit.id==="scan")scan();
-  else if(hit.id==="weapon")setWeapon();
-  else fire();
-  return true;
+  return dashboard.executeHardware(hit.id);
  }
  function setWeapon(){
   const model=getCombat();if(!model||!active()){feedbackWhenUnavailable();return;}
@@ -118,14 +112,29 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   update(0,{vr:isVR()});
   return true;
  }
- scanButton.addEventListener("click",scan);
- weapon.addEventListener("click",setWeapon);
+ function handleDashboardAction(id){
+  if(id==="scan")return scan();
+  if(id==="weapon")return setWeapon();
+  if(id==="fire")return fire();
+  if(id==="hatch"){
+   const result=onHatch();if(result?.message)notify(result.message);return Boolean(result?.ok);
+  }
+  if(id==="auto"){
+   const v=getVoyage();
+   if(!v?.seated||typeof v.setAutopilot!=="function"){
+    notify("🪑 自動航行は操縦席から操作してください");return false;
+   }
+   v.setAutopilot(!v.autopilot);notify("🧭 自動航行："+(v.autopilot?"ON":"OFF"));return true;
+  }
+  const result=id==="camera"?onCamera():id==="wide"?onWide():null;
+  if(result?.message)notify(result.message);
+  return Boolean(result?.ok);
+ }
  let gamepadTriggerHeld=false;
- fireButton.addEventListener("click",fire);
  // The main WebGL canvas is the hit region for pointer lock; in VR gaze owns it.
  const canvas=getRenderer()?.canvas;
  canvas?.addEventListener("pointerdown",event=>{
-  if(!active()||isVR()||event.button!==0)return;
+  if(!getVoyage()?.active||isVR()||event.button!==0)return;
   const viewer=getRenderer();
   const controlRect=canvas.getBoundingClientRect();
   const cockpit=viewer?.shipCameraMode!=="chase";
@@ -135,9 +144,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
      controlRect.top+p.v*controlRect.height-event.clientY)<32);
    if(physical){
     event.preventDefault();event.stopImmediatePropagation();
-    if(physical.id==="scan")scan();
-    else if(physical.id==="weapon")setWeapon();
-    else if(physical.id==="fire")fire();
+    dashboard.executeHardware(physical.id);
     return;
    }
   }
@@ -181,17 +188,10 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);
   if(Date.now()>scanUntil)scannedIds.clear();
-  consolePanel.hidden=!show;scanButton.disabled=false;
-  weapon.hidden=!show;fireButton.hidden=!show;
-  weapon.disabled=false;fireButton.disabled=false;
-  scanButton.title=engage?"1500m以内を30秒間スキャン":"着席し、宇宙航行中にスキャンできます";
-  weapon.title=fireButton.title=engage?"火器管制":"使用できない理由はボタンで確認できます";
+  dashboard.refresh({visible:show,model,v});
+  if(viewer)viewer.shipControlLayout=dashboard.layout;
   markers.hidden=!show;
   if(!show){for(const node of targetNodes.values())node.hidden=true;for(const n of shotNodes)n.remove();shotNodes.length=0;return;}
-  scanButton.textContent=Date.now()<=scanUntil?
-   "📡 検出 "+scannedIds.size+"件":"📡 スキャン";
-  weapon.textContent="🎯 "+model.config.name+" ["+model.config.locks+"ロック]";
-  fireButton.textContent=model.weapon==="missile"?"🚀 発射 ("+model.missiles+")":"🔴 発射";
   const rect=viewer?.canvas?.getBoundingClientRect();
   if(!rect||!rect.width||!rect.height)return;
   gaze.style.left=(rect.left+rect.width*.5)+"px";

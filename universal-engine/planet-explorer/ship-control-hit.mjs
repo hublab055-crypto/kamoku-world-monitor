@@ -4,7 +4,8 @@
 export const COCKPIT_SWITCHES=Object.freeze([
  {id:"scan",position:Object.freeze([-.75,1.47,-11.09])},
  {id:"weapon",position:Object.freeze([0,1.47,-11.09])},
- {id:"fire",position:Object.freeze([.75,1.47,-11.09])}
+ {id:"fire",position:Object.freeze([.75,1.47,-11.09])},
+ {id:"hatch",position:Object.freeze([1.43,1.47,-11.09])}
 ]);
 export const EXTERIOR_HATCH_SWITCH=Object.freeze([1.77,3.18,12.78]);
 

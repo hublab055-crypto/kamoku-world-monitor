@@ -60,15 +60,22 @@ export class ShipJourney{
  isNearHatch(){return this.interior.distance({x:0,z:12.0})<=2.9;}
  isNearSeat(){return this.interior.distance({x:0,z:-10})<=2.5;}
  isGrounded(){return ["docked","landed"].includes(this.status);}
- toggleHatch(){
-  if(!this.isGrounded())return {ok:false,message:"飛行中はハッチを操作できません"};
-  if(this.seated)return {ok:false,message:"立ち上がってハッチに近づいてください"};
-  if(!this.isNearHatch())return {ok:false,message:"船尾のハッチまで歩いてください"};
-  if(this.hatchOpen&&this.interior.z>12.8)return {ok:false,message:"ランプから船内に戻ってからハッチを閉めてください"};
+ toggleHatch({remote=false}={}){
+  // Landing and docking are the ONLY states in which the airlock can move.
+  if(!this.isGrounded())return {ok:false,message:"飛行中は気密ハッチを操作できません。着陸してから操作してください"};
+  if(remote){
+   if(!this.seated)return {ok:false,message:"遠隔ハッチ操作は操縦席への着席が必要です"};
+  }else{
+   if(this.seated)return {ok:false,message:"立ち上がってハッチに近づいてください"};
+   if(!this.isNearHatch())return {ok:false,message:"船尾のハッチまで歩いてください"};
+  }
+  if(this.hatchOpen&&this.interior.z>12.8)return {ok:false,message:"ランプ上にいるためハッチを閉じられません"};
   this.hatchOpen=!this.hatchOpen;
   this.interior.hatchPassable=this.hatchOpen&&this.isGrounded();
-  return {ok:true,message:this.hatchOpen?"🚪 ハッチを開けました。外へ出られます":"🔒 ハッチを閉じました。気密を確認しました"};
+  return {ok:true,message:(remote?"🕹️ 操縦席から遠隔操作：":"")+
+   (this.hatchOpen?"🚪 ハッチを開きランプを展開しました":"🔒 ハッチを閉じ気密を確認しました")};
  }
+ toggleCockpitHatch(){return this.toggleHatch({remote:true});}
  sit(){
   if(this.seated)return {ok:false,message:"すでに着席しています"};
   if(!this.isNearSeat())return {ok:false,message:"操縦席まで歩いてください"};
