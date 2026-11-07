@@ -206,7 +206,7 @@ export class SpaceCombat{
  get allContacts(){return [...this.liveTargets,...this.nonHostiles];}
  demandSurrender(id=null){
   if(this.playerSurrendered)return {ok:false,message:"降伏中は交渉を開始できません"};
-  const target=this.combatTargets.find(t=>t.id===id)||
+  const target=this.combatTargets.find(t=>t.id===(id||this.locked[0]))||
    this.combatTargets.slice().sort((a,b)=>a.distance-b.distance)[0];
   if(!target)return {ok:false,message:"交渉可能な敵船はいません"};
   if(target.hp<=target.maxHp*.65&&target.shield<=25){
@@ -303,6 +303,10 @@ export class SpaceCombat{
   }
   if(!hits.length){this.locked=[];return {ok:false,message:"目標が視界外です"};}
   if(this.weapon==="missile")this.missiles-=hits.length;
+  if(this.elapsed<this.ceasefireUntil){
+   this.ceasefireUntil=this.elapsed;
+   this.emitRadio("⚠️ こちらの発砲により停戦が破棄された。",null,"ceasefire-broken");
+  }
   this.cooldown=this.config.cooldown;
   this.locked=this.locked.filter(id=>this.combatTargets.some(t=>t.id===id&&t.hp>0)&&this.visible.has(id));
   const message="🚀 "+this.config.name+" "+hits.length+"発発射";
