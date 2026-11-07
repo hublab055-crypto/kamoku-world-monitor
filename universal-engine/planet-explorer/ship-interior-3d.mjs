@@ -93,6 +93,13 @@ export function createShipGeometry(open=false){
  // Cockpit consoles, pilot chair, controls and status screens
  box(a,0,.82,-12.08,2,1.05,1.35,"dark");
  box(a,0,1.48,-12.1,1.48,.18,.48,"screen");
+ // Reachable physical scan / weapon / fire station on the near edge of the helm.
+ // The pilot sits at z=-9.8, so this bank must NOT be placed near z=-2.
+ box(a,0,1.17,-11.15,2.3,.22,.70,"dark");
+ for(const [x,shade] of [[-.75,[.18,.86,1]],[0,[1,.8,.2]],[.75,[1,.22,.15]]]){
+  box(a,x,1.36,-11.09,.34,.11,.34,shade);
+  box(a,x,1.42,-11.09,.19,.045,.19,"light");
+ }
  box(a,0,.53,-9.8,.82,.26,.9,"seat");
  box(a,0,1.05,-9.34,.80,1.1,.18,"seat");
  box(a,0,.47,-9.8,.18,.65,.2,"frame");
