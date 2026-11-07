@@ -22,25 +22,27 @@ test("ship yaw moves stationary targets across the nose rather than ship transla
  assert.ok(b[0]<-259&&Math.abs(b[2])<1e-8);
 });
 
-test("single tap lock is immediate, and a target leaving the view is unlocked",()=>{
+test("single tap lock is immediate, and offscreen targets remain locked inside sensor range",()=>{
  const c=new SpaceCombat();
  c.syncVisibility(targets.map((id,i)=>onScreen(id,.3+i*.2)));
  assert.equal(c.acquire("pirate-alpha"),true);
  assert.equal(c.acquire("pirate-beta"),true);
  assert.deepEqual(c.locked,["pirate-beta"],"pulse gun replaces first lock");
  c.syncVisibility([onScreen("pirate-beta",1.2)]);
+ assert.deepEqual(c.locked,["pirate-beta"]);
+ c.syncVisibility([],0,{eligible:false});
  assert.deepEqual(c.locked,[]);
  assert.equal(c.fire().ok,false);
 });
 
-test("VR gaze holds for 0.85 s, switches target, and drops lock beyond screen",()=>{
+test("VR gaze acquires after 0.85 seconds and retains offscreen tracking",()=>{
  const c=new SpaceCombat();
  for(let i=0;i<7;i++)c.syncVisibility([onScreen("pirate-alpha")],.1,{vr:true});
  assert.deepEqual(c.locked,[]);
  for(let i=0;i<2;i++)c.syncVisibility([onScreen("pirate-alpha")],.1,{vr:true});
  assert.deepEqual(c.locked,["pirate-alpha"]);
  c.syncVisibility([onScreen("pirate-alpha",1.01)],.1,{vr:true});
- assert.deepEqual(c.locked,[]);
+ assert.deepEqual(c.locked,["pirate-alpha"]);
 });
 
 test("missiles can lock three visible enemies and fire one salvo",()=>{
@@ -55,16 +57,17 @@ test("missiles can lock three visible enemies and fire one salvo",()=>{
  assert.equal(shot.hits.length,3);
  assert.equal(c.missiles,9);
  assert.equal(c.fire().ok,false,"cooldown prevents rapid fire");
- assert.deepEqual(c.targets.map(t=>t.hp),[35,35,10]);
- for(let i=0;i<11;i++)c.syncVisibility(targets.map(id=>onScreen(id)),.12);
- const next=c.fire();
- assert.equal(next.hits.length,3);
+ assert.deepEqual(c.targets.map(t=>t.hp),[100,100,75],"damage is deferred until impact");
+ for(let i=0;i<20;i++)c.syncVisibility(targets.map(id=>onScreen(id)),.12);
+ assert.deepEqual(c.targets.map(t=>t.shield),[35,35,35]);
+ assert.deepEqual(c.targets.map(t=>t.hp),[100,100,75]);
+ assert.equal(c.fire().hits.length,3);
+ for(let i=0;i<20;i++)c.syncVisibility(targets.map(id=>onScreen(id)),.12);
+ assert.deepEqual(c.targets.map(t=>t.hp),[70,70,45]);
  assert.equal(c.missiles,6);
- assert.ok(c.targets.every(t=>t.hp===0));
- assert.deepEqual(c.locked,[]);
 });
 
-test("ammo bounds salvos and invisible targets cannot receive damage",()=>{
+test("ammo bounds salvos and tracking ends when combat becomes ineligible",()=>{
  const c=new SpaceCombat();c.setWeapon("missile");
  c.missiles=1;c.syncVisibility(targets.map(id=>onScreen(id)));
  for(const id of targets)c.acquire(id);
@@ -74,7 +77,7 @@ test("ammo bounds salvos and invisible targets cannot receive damage",()=>{
  assert.equal(c.targets[1].hp,100);
  for(let i=0;i<12;i++)c.syncVisibility(targets.map(id=>onScreen(id)),.12);
  assert.equal(c.fire().ok,false);
- c.syncVisibility([]);
+ c.syncVisibility([],0,{eligible:false});
  assert.deepEqual(c.locked,[]);
 });
 

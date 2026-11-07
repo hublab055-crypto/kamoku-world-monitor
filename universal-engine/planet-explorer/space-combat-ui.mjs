@@ -1,4 +1,6 @@
-import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=20261107-spatial";
+import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108";
+import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=20261108-dogfight";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107-hatch4";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
@@ -78,6 +80,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  const consolePanel=dashboard.panel;
  let scanUntil=0,scannedIds=new Set();
  let previousVoyage=null,combat=null,lastRadioId=0,radioExpanded=false;
+ const turretEditor=installTurretEditor({root,panel:consolePanel,getCombat,getVoyage,notify});
  const targetNodes=new Map();
  const radio=document.createElement("section");radio.className="ship-radio-overlay";
  radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
@@ -122,7 +125,11 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  function active(){return combatEligible(getVoyage());}
  function getCombat(v=getVoyage()){
   if(!v?.active){previousVoyage=null;combat=null;return null;}
-  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();scanUntil=0;scannedIds=new Set();lastRadioId=0;}
+  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();
+   let saved=null;try{saved=JSON.parse(localStorage.getItem("ue:ship-turrets:v1")||"null");}catch(_){}
+   combat.turrets=normalizeTurrets(v.turrets||saved);combat.autoFire=Boolean(v.autoFire);
+   if(v.turrets)v.turrets=normalizeTurrets(combat.turrets);
+   scanUntil=0;scannedIds=new Set();lastRadioId=0;}
   return combat;
  }
  function feedbackWhenUnavailable(){
@@ -248,7 +255,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const show=Boolean(v?.active&&!vr);
   if(Date.now()>scanUntil)scannedIds.clear();
   if(viewer)viewer.shipScannedIds=scannedIds;
-  dashboard.refresh({visible:show,model,v});
+  dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);
   if(!show){radio.hidden=true;radioExpanded=false;radioToggle.setAttribute("aria-expanded","false");}
   if(viewer)viewer.shipControlLayout=dashboard.layout;
   markers.hidden=!show;

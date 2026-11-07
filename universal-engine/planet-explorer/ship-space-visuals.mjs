@@ -1,5 +1,5 @@
 import {AU_M,orbitalPosition,bodyById} from "./solar-system.mjs";
-import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261107-spatial";
+import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261108-dogfight";
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const norm=v=>{const d=Math.hypot(...v)||1;return v.map(x=>x/d);};
@@ -76,13 +76,13 @@ export function shipSensorContacts(v,combat=null){
  const planet=bodyById(v.destinationId||v.originId);
  if(planet){
   const along=finite(v.routeAlong)?v.routeAlong:v.progress||0,crossTrack=v.crossTrack||0;
-  const offset=[-crossTrack*440,-24,-(1-along)*440];
-  const d=Math.hypot(offset[0],offset[2]);
-  const starPos=inertialToShip(d>1?[offset[0]/d*425,-35,offset[2]/d*425]:[0,-35,-425],yaw,pitch);
+  const offset=[-crossTrack*440,-(v.routeVertical||0)*440,-(1-along)*440];
+  const d=Math.hypot(...offset);
+  const starPos=inertialToShip(d>1?offset.map(n=>n/d*425):[0,-35,-425],yaw,pitch);
   const a=orbitalPosition(v.originId,v.launchDay||0);
   const b=orbitalPosition(planet.id,(v.launchDay||0)+(v.flightDays||0));
   const baseAU=a&&b?Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z):1;
-  const distanceAU=Math.hypot(1-along,crossTrack)*baseAU;
+  const distanceAU=Math.hypot(1-along,crossTrack,v.routeVertical||0)*baseAU;
   const km=distanceAU*AU_M/1000;
   const distance=km<200000?Math.round(km).toLocaleString("ja-JP")+" km":distanceAU.toFixed(3)+" AU";
   contacts.push({id:"planet",name:planet.name,type:"destination",icon:"◈",position:starPos,

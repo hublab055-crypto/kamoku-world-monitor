@@ -45,11 +45,12 @@ test("manual high-speed planet flyby requires deceleration, never forced orbit",
  const saved=ShipJourney.fromSnapshot(ship.snapshot());
  eq(saved.routeAlong,ship.routeAlong);eq(saved.routeVelocity.along,ship.routeVelocity.along);
 });
-test("near target, low speed and aligned course allow deliberate orbit capture",()=>{
+test("manual approach allows direct surface entry without forced orbit",()=>{
  const ship=new ShipJourney({originId:"terra",destinationId:"cinder",status:"approach",
   seated:true,autopilot:false,throttle:0,routeAlong:.995,routeVelocity:{along:.002,cross:0}});
  ship.tick(.08);
- assert.equal(ship.status,"orbit");
+ assert.equal(ship.status,"approach");
+ assert.equal(ship.canDirectEntry,true);
 });
 test("manual sideways acceleration creates real cross-track error",()=>{
  const r=advanceRouteMotion({position:{along:.5,cross:0},

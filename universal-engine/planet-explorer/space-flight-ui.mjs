@@ -4,7 +4,7 @@ import {groundScenePhase} from "./ship-shared-scene.mjs?v=4";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261107";
-import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261107-diamond-hud";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261108-dogfight";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -400,7 +400,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   const entryView=["entry","touchdown"].includes(v.status);
   const height=entryView?Math.round(groundScenePhase(v).lift):null;
   $("flight-phase").textContent="段階："+v.phase+
-   (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":"");
+   (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":
+    v.kind==="surface-to-surface"&&!v.autopilot&&["cruise","approach","flyby"].includes(v.status)?" ／ 惑星へ接近すると着陸降下":"");
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   const courseSpeed=Math.hypot(v.routeVelocity?.along||0,v.routeVelocity?.cross||0)*100;
   $("flight-heading").textContent="進路："+Math.round(v.heading)+"° / 機首："+Math.round(v.pitchDeg||0)+
