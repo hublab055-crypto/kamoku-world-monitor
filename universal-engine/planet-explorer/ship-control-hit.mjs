@@ -14,7 +14,7 @@ export function xrRayPointDistance(matrix,stage,point,{radius=.34,maxDistance=2.
     !Array.isArray(point)||point.length!==3)return null;
  if(![...matrix,...stage,...point,radius,maxDistance].every(Number.isFinite))return null;
  // Stage projects a world-space control point into the real XR tracking space.
- const xyz=[0,1,2].map(row=>stage[row*0]*point[0]+stage[4+row]*point[1]+
+ const xyz=[0,1,2].map(row=>stage[row]*point[0]+stage[4+row]*point[1]+
   stage[8+row]*point[2]+stage[12+row]);
  const origin=[matrix[12],matrix[13],matrix[14]];
  const dir=[-matrix[8],-matrix[9],-matrix[10]];
