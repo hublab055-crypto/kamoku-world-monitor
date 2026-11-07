@@ -322,6 +322,14 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  function applyMove(dt){
   const v=get(),state=v?.interior;
   if(!state||!Number.isFinite(dt)||dt<=0)return;
+  if(lookPointer!==null){
+   const d=shipCameraStickDelta(lookStick,dt);
+   if(chase&&seatedPilot(v)){
+    orbitYaw=(orbitYaw+d.yaw)%(Math.PI*2);
+    orbitPitch=clamp(orbitPitch-d.pitch,-.42,1.37);
+    syncShipCamera();
+   }else state.turn(d.yaw,d.pitch);
+  }
   const n=key=>Number(held.has(key));
   if(state.mode==="interior"&&!state.seated){
    state.turn((n("rightTurn")-n("leftTurn"))*dt*1.7);
@@ -371,7 +379,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
  main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
  function render(dt=0){
-  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();shipSensors.hide();return;}
+  const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   syncShipCamera();
   shipSensors.update(v,{visible:seatedPilot(v),chase,wide,
    distance:chaseDistance,orbitYaw,orbitPitch});
@@ -458,5 +466,9 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    target.name+"  接近"+Math.round(p*100)+"%\n航路速度 "+courseSpeed.toFixed(2)+"%/秒"+
    (v.status==="flyby"?"\n⚠ 目標軌道を高速通過。逆噴射で減速":"");
  }
- return {render,close:()=>{held.clear();resetShipStick();root.hidden=true;},show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
+ return {render,getViewSettings,setViewSettings,
+  toggleCamera:()=>{if(!seatedPilot(get()))return {ok:false,message:"操縦席への着席が必要です"};chase=!chase;syncShipCamera();return {ok:true,message:chase?"🎥 船外追従視点":"👁 操縦席視点"};},
+  toggleWide:()=>{setViewSettings({wide:!wide});return {ok:true,message:wide?"⛶ 広画面ON":"▣ 詳細UI表示"};},
+  close:()=>{held.clear();resetShipStick();resetLookStick();root.hidden=true;},
+  show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
 }
