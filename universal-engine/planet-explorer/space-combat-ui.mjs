@@ -1,6 +1,6 @@
 import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=1";
-import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107";
-import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=1";
+import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107-hatch4";
+import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
  * same projected contacts for gaze dwell, but no DOM markers in the headset.
