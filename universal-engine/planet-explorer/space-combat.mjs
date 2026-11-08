@@ -79,7 +79,7 @@ export function missileTrailPoint(start,end,fraction,seed=0){
   linear[2]+side[2]*wave];
 }
 export class SpaceCombat{
- constructor(){
+ constructor(saved=null){
   this.targets=HOSTILES.map(t=>{
    const yaw=t.bearing*Math.PI/180,pitch=t.pitch*Math.PI/180;
    return {...t,faction:"hostile",shield:100,maxShield:100,maxHp:t.hp,shieldFlash:0,position:[Math.sin(yaw)*t.distance,Math.sin(pitch)*t.distance,
@@ -95,6 +95,9 @@ export class SpaceCombat{
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.projectiles=[];this.explosions=[];this.player={hp:100,maxHp:100,shield:100,maxShield:100,shieldFlash:0};this.enemyCooldown=3;this.lastMessage="";this.elapsed=0;
+  this.parts={engine:100,hull:100,weapons:100,shield:100,...saved?.parts};
+  this.supplies={fuel:3,kits:12,...saved?.supplies};this.lastHit=-(saved?.rechargeWait===undefined?100:8-saved.rechargeWait);this.rescueAfter=saved?.rescueWait||0;
+  if(saved?.player){this.player.hp=clamp(saved.player.hp,0,100);this.player.shield=clamp(saved.player.shield,0,100);}
   this.lastHeading=null;this.headingRate=0;this.playerRangeTravel=0;
   this.lastShipPosition=null;this.shipPosition=[0,0,0];
   this.radioEvents=[];this.radioSequence=0;this.playerSurrendered=false;
@@ -104,8 +107,10 @@ export class SpaceCombat{
   * This is deliberately not yet a network-authoritative physics simulation. */
  advance(dt,voyage=null){
   const step=clamp(Number.isFinite(dt)?dt:0,0,.12);
-  if(!step||voyage&&!combatEligible(voyage))return;
+  if(!step)return;
   this.elapsed+=step;this.voyage=voyage;
+  if(this.elapsed-this.lastHit>8&&this.parts.shield>0)this.player.shield=Math.min(100,this.player.shield+step*4*this.parts.shield/100);
+  if(voyage&&!combatEligible(voyage))return;
   if(voyage&&!this.lastShipPosition){
    const origin=shipEncounterPosition(voyage);
    if(!this.encounterAnchored){
@@ -210,6 +215,11 @@ export class SpaceCombat{
   target.shield=Math.max(0,(target.shield||0)-absorbed);
   if(absorbed)target.shieldFlash=.35;
   target.hp=Math.max(0,target.hp-(damage-absorbed));
+  if(id==="player"){
+   this.lastHit=this.elapsed;
+   const keys=Object.keys(this.parts),key=keys[Math.floor(this.elapsed*10)%keys.length];
+   this.parts[key]=Math.max(0,this.parts[key]-(damage-absorbed)*1.5);
+  }
   const destroyed=target.hp===0;
   this.flashes.push({id,seconds:destroyed?1.6:.5,shield:absorbed>0,destroyed});
   if(destroyed&&id!=="player"&&!this.explosions.some(x=>x.id===id)){
@@ -217,6 +227,25 @@ export class SpaceCombat{
    this.emitRadio("💥 "+target.name+"：船体崩壊・通信途絶",id,"destroyed");
   }
   return {id,hp:target.hp,shield:target.shield,destroyed};
+ }
+ systemSnapshot(){return {rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
+ refuel(voyage,rescue=false){
+  if(!voyage)return {ok:false,message:"宇宙船がありません"};
+  if(voyage.fuel>=100)return {ok:false,message:"燃料は満タンです"};
+  if(rescue){
+   if(voyage.fuel>0||this.elapsed<this.rescueAfter)return {ok:false,message:"救援補給は燃料切れ時に利用できます（再要請は120秒後）"};
+   voyage.fuel=20;this.rescueAfter=this.elapsed+120;
+  }else{
+   if(this.supplies.fuel<=0)return {ok:false,message:"予備燃料がありません。燃料切れ時は救援補給を要請してください"};
+   this.supplies.fuel--;voyage.fuel=Math.min(100,voyage.fuel+35);
+  }
+  voyage.shipSystems=this.systemSnapshot();return {ok:true,message:rescue?"🚚 救援補給で燃料20%を受領":"⛽ 予備燃料を補給しました"};
+ }
+ repairPart(key){
+  if(!Object.hasOwn(this.parts,key)||this.parts[key]>=100&&this.player.hp>=100)return {ok:false,message:"修理の必要はありません"};
+  if(this.supplies.kits<=0)return {ok:false,message:"修理キットがありません"};
+  this.supplies.kits--;this.parts[key]=Math.min(100,this.parts[key]+35);this.player.hp=Math.min(100,this.player.hp+20);
+  return {ok:true,message:"🔧 選択箇所を修理しました"};
  }
  emitRadio(message,targetId=null,kind="message"){
   this.radioEvents.push({id:++this.radioSequence,message,targetId,kind});
@@ -322,6 +351,7 @@ export class SpaceCombat{
  fire(eligible=true){
   if(!eligible)return {ok:false,message:"操縦席に着席し、宇宙航行中に使用してください"};
   if(this.playerSurrendered)return {ok:false,message:"降伏中は発射できません。通信メニューから降伏を撤回してください"};
+  if(this.parts.weapons<=0)return {ok:false,message:"兵装が損傷しています。整備メニューから修理してください"};
   if(this.cooldown>0)return {ok:false,message:"兵装を再装填しています"};
   if(!this.locked.length)return {ok:false,message:"敵機をロックオンしてください"};
   if(this.weapon==="missile"&&this.missiles<=0)return {ok:false,message:"ミサイル残弾がありません"};

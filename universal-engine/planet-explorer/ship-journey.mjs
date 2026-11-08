@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {ShipInterior} from "./ship-interior.mjs?v=6";
+import {ShipInterior} from "./ship-interior.mjs?v=20261108-flight-service";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -28,6 +28,7 @@ export class ShipJourney{
   this.airSpeed=finite(data.airSpeed)?data.airSpeed:0;
   this.turrets=normalizeTurrets(data.turrets);
   this.autoFire=Boolean(data.autoFire);
+  this.shipSystems=data.shipSystems||null;
   this.routeVertical=finite(data.routeVertical)?data.routeVertical:0;
   this.verticalVelocity=finite(data.verticalVelocity)?data.verticalVelocity:0;
   this.progress=clamp(data.progress??0,0,1);
@@ -46,7 +47,7 @@ export class ShipJourney{
   // Missing fields in old saves default to a level ship facing forward.
   this.attitudeYawDeg=Number.isFinite(data.attitudeYawDeg)?
    ((data.attitudeYawDeg+180)%360+360)%360-180:0;
-  this.pitchDeg=Number.isFinite(data.pitchDeg)?clamp(data.pitchDeg,-65,65):0;
+  this.pitchDeg=Number.isFinite(data.pitchDeg)?((data.pitchDeg+180)%360+360)%360-180:0;
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,-1,1);
   this.autopilot=data.autopilot!==false;
@@ -56,6 +57,7 @@ export class ShipJourney{
    schemaVersion:1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
   this.interior.mode=this.seated?"cockpit":"interior";
   this.interior.seated=this.seated;
+  if(this.seated)this.interior.z=-12.1;
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
@@ -95,13 +97,13 @@ export class ShipJourney{
   this.seated=true;this.interior.seated=true;this.interior.mode="cockpit";
   // Snap to the actual chair so both WebGL and Quest physical buttons sit
   // within arm's reach; an arbitrary nearby walking position is not a seat.
-  this.interior.x=0;this.interior.z=-9.8;this.interior.yaw=0;this.interior.pitch=0;
+  this.interior.x=0;this.interior.z=-12.1;this.interior.yaw=0;this.interior.pitch=0;
   return {ok:true,message:"🪑 操縦席に着席しました。航行システムを操作できます"};
  }
  stand(){
   if(!this.seated)return {ok:false,message:"すでに立っています"};
   this.seated=false;this.interior.seated=false;this.interior.mode="interior";
-  this.interior.x=0;this.interior.z=-8.8;
+  this.interior.x=0;this.interior.z=-10.5;
   return {ok:true,message:"🚶 操縦席から立ち上がりました"};
  }
  canDisembark(){return this.isGrounded()&&!this.seated&&this.hatchOpen&&
@@ -159,19 +161,19 @@ export class ShipJourney{
  }
  pitch(n){
   if(!finite(n))throw Error("Invalid pitch");
-  this.pitchDeg=clamp(this.pitchDeg+n,-65,65);
+  this.pitchDeg=((this.pitchDeg+n+180)%360+360)%360-180;
   return this.pitchDeg;
  }
  tick(dt){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
   if(this.status==="atmosphere"){
-   const desired=this.fuel>0?Math.max(0,this.throttle)*180:0;
+   const desired=this.fuel>0?Math.max(0,this.throttle)*180*(this.shipSystems?.parts?.engine??100)/100:0;
    this.airSpeed+=(desired-this.airSpeed)*Math.min(1,step*.6);
    const yaw=this.attitudeYawDeg*Math.PI/180,pitch=this.pitchDeg*Math.PI/180;
    this.airEast+=Math.sin(yaw)*Math.cos(pitch)*this.airSpeed*step;
    this.airNorth+=Math.cos(yaw)*Math.cos(pitch)*this.airSpeed*step;
-   this.airAltitude=clamp(this.airAltitude+Math.sin(pitch)*this.airSpeed*step,20,7000);
+   this.airAltitude=clamp(this.airAltitude+Math.sin(pitch)*this.airSpeed*step,2,7000);
    this.fuel=Math.max(0,this.fuel-step*(.03+Math.abs(this.throttle)*.12));
    this.elapsedSeconds+=step;
    return {days:0,advanced:0,status:this.status};
@@ -243,7 +245,7 @@ export class ShipJourney{
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
-   airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,
+   shipSystems:this.shipSystems,airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,
    turrets:normalizeTurrets(this.turrets),autoFire:this.autoFire,routeVertical:this.routeVertical,verticalVelocity:this.verticalVelocity,
    routeAlong:this.routeAlong,crossTrack:this.crossTrack,routeVelocity:{...this.routeVelocity},
    seated:this.seated,interior:this.interior.snapshot()};

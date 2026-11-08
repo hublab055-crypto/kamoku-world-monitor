@@ -1,7 +1,8 @@
+import {installShipService} from "./ship-service-ui.mjs?v=20261108-service";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {SpaceCombat,SHIP_WEAPONS,combatEligible} from "./space-combat.mjs?v=20261108-vtol";
-import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261107-hatch4";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261108-flight-service";
+import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261108-flight-service";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
@@ -81,6 +82,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  let scanUntil=0,scannedIds=new Set();
  let previousVoyage=null,combat=null,lastRadioId=0,radioExpanded=false;
  const turretEditor=installTurretEditor({root,panel:consolePanel,getCombat,getVoyage,notify});
+ const service=installShipService({root,panel:consolePanel,getCombat,getVoyage,notify});
  const targetNodes=new Map();
  const radio=document.createElement("section");radio.className="ship-radio-overlay";
  radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
@@ -125,7 +127,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  function active(){return combatEligible(getVoyage());}
  function getCombat(v=getVoyage()){
   if(!v?.active){previousVoyage=null;combat=null;return null;}
-  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat();
+  if(v!==previousVoyage){previousVoyage=v;combat=new SpaceCombat(v.shipSystems);
    let saved=null;try{saved=JSON.parse(localStorage.getItem("ue:ship-turrets:v1")||"null");}catch(_){}
    combat.turrets=normalizeTurrets(v.turrets||saved);combat.autoFire=Boolean(v.autoFire);
    if(v.turrets)v.turrets=normalizeTurrets(combat.turrets);
@@ -144,7 +146,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const result=model.fire(true);
   notify(result.ok?result.message:
    result.message==="敵機をロックオンしてください"?
-    "🎯 先にスキャンして、敵機をタップ／VRの視線でロックオンしてください":result.message);
+    "🎯 敵機をタップ／VRの視線でロックオンしてください":result.message);
   update(0,{vr:isVR()});
   return true; // Consume a trigger even when no target is locked.
  }
@@ -163,10 +165,10 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  }
  function scan(){
   const model=getCombat();if(!model||!active()){feedbackWhenUnavailable();return false;}
-  scannedIds=new Set(model.allContacts.filter(t=>t.distance<=1500).map(t=>t.id));
+  scannedIds=new Set(model.allContacts.filter(t=>shipContactDistance(t,getVoyage())<=5000).map(t=>t.id));
   const viewer=getRenderer();if(viewer)viewer.shipScannedIds=scannedIds;
   scanUntil=Date.now()+30000;
-  const msg="📡 周囲スキャン："+scannedIds.size+"件の船舶を捕捉（30秒間表示）";
+  const msg="📡 周囲スキャン："+scannedIds.size+"件の船舶を捕捉（自動スキャン継続中）";
   notify(msg+(scannedIds.size===0?"／付近に検出対象はありません":""));
   consolePanel.dataset.scanStatus=String(scannedIds.size);
   update(0,{vr:isVR()});
@@ -218,7 +220,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
     rect.top+t.v*rect.height-event.clientY);
    if(d<nearest){chosen=t;nearest=d;}
   }
-  if(!chosen||!scannedIds.has(chosen.id)||Date.now()>scanUntil)return;
+  if(!chosen||!scannedIds.has(chosen.id))return;
   const contact=model.allContacts.find(t=>t.id===chosen.id);
   if(contact?.faction!=="hostile"){
    event.preventDefault();event.stopImmediatePropagation();
@@ -253,9 +255,13 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const projections=viewer?.shipTargets||[];
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);
-  if(Date.now()>scanUntil)scannedIds.clear();
+  // Continuous sensors include friendlies/resources after the last hostile is gone.
+  if(model&&v?.active){
+   scannedIds=new Set(model.allContacts.filter(t=>shipContactDistance(t,v)<=5000).map(t=>t.id));
+   scanUntil=Infinity;v.shipSystems=model.systemSnapshot();
+  }
   if(viewer)viewer.shipScannedIds=scannedIds;
-  dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);
+  dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);service.refresh(show);
   if(!show){radio.hidden=true;radioExpanded=false;radioToggle.setAttribute("aria-expanded","false");}
   if(viewer)viewer.shipControlLayout=dashboard.layout;
   markers.hidden=!show;

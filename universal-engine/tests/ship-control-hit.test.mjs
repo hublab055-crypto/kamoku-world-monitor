@@ -11,27 +11,27 @@ const ray=(x,y,z)=>[1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1];
 test("all four cockpit switches including hatch are in reach of the pilot",()=>{
  assert.deepEqual(COCKPIT_SWITCHES.map(c=>c.id),["scan","weapon","fire","hatch"]);
  for(const switchCap of COCKPIT_SWITCHES)
-  assert.ok(switchCap.position[2]<-10.8&&switchCap.position[2]>-11.6);
+  assert.ok(switchCap.position[2]<-12.4&&switchCap.position[2]>-12.9);
 });
 test("Quest right controller can target the physical weapon switch",()=>{
- assert.equal(xrCockpitControlHit(ray(0,1.47,-9.8),identity)?.id,"weapon");
+ assert.equal(xrCockpitControlHit(ray(0,1.47,-12.1),identity)?.id,"weapon");
 });
 test("Quest can pick distinct scan and fire caps",()=>{
- assert.equal(xrCockpitControlHit(ray(-.75,1.47,-9.8),identity)?.id,"scan");
- assert.equal(xrCockpitControlHit(ray(.75,1.47,-9.8),identity)?.id,"fire");
- assert.equal(xrCockpitControlHit(ray(1.43,1.47,-9.8),identity)?.id,"hatch");
+ assert.equal(xrCockpitControlHit(ray(-.75,1.47,-12.1),identity)?.id,"scan");
+ assert.equal(xrCockpitControlHit(ray(.75,1.47,-12.1),identity)?.id,"fire");
+ assert.equal(xrCockpitControlHit(ray(1.43,1.47,-12.1),identity)?.id,"hatch");
 });
 test("XR ray picking uses the same stage transform as rendered geometry",()=>{
  const shifted=[...identity];shifted[12]=4;shifted[14]=2;
- assert.equal(xrCockpitControlHit(ray(4,1.47,-7.8),shifted)?.id,"weapon");
+ assert.equal(xrCockpitControlHit(ray(4,1.47,-10.1),shifted)?.id,"weapon");
 });
 test("out-of-range and backward Quest rays cannot activate switches",()=>{
  assert.equal(xrCockpitControlHit(ray(0,1.47,1),identity),null);
- assert.equal(xrCockpitControlHit(ray(3,1.47,-9.8),identity),null);
+ assert.equal(xrCockpitControlHit(ray(3,1.47,-12.1),identity),null);
 });
 test("invalid tracking matrices are ignored rather than firing",()=>{
  assert.equal(xrCockpitControlHit([],identity),null);
- assert.equal(xrRayPointDistance(ray(0,1.47,-9.8),null,[0,0,0]),null);
+ assert.equal(xrRayPointDistance(ray(0,1.47,-12.1),null,[0,0,0]),null);
 });
 test("ground airlock control rotates with the landed ship",()=>{
  assert.deepEqual(exteriorHatchWorldPoint(10,20,0,2,0,0),

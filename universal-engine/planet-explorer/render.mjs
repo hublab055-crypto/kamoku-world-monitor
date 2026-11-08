@@ -49,12 +49,12 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
-import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261107-hatch4";
+import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261108-flight-service";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-vtol";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-flight-service";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-dogfight";
-import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-vtol";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-flight-service";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -1732,7 +1732,7 @@ export class ExplorerRenderer{
    // yaw/pitch. This same frame is used by the contact-marker overlay.
    const yaw=(Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg:0)*DEG;
    const nose=(Number.isFinite(v.pitchDeg)?v.pitchDeg:0)*DEG;
-   const inertialModel=multiply4(rotateY(yaw),rotX(-nose));
+   const inertialModel=multiply4(rotX(-nose),rotateY(yaw));
    if(sky<.91||!["docked","landed","touchdown"].includes(v.status))
     this.drawMesh(this.shipStars,multiply4(vp,inertialModel),[1,1,1],1,1);
    const contacts=shipSensorContacts(v,this.shipCombat);
@@ -1763,7 +1763,7 @@ export class ExplorerRenderer{
     }
     const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
      terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
-    const groundMatrix=multiply4(rotateY(["atmosphere","vtol"].includes(v.status)?yaw:-(site.yaw||0)),
+    const groundMatrix=multiply4(multiply4(rotX(v.status==="atmosphere"?-nose:0),rotateY(["atmosphere","vtol"].includes(v.status)?yaw:-(site.yaw||0))),
      translate(-residualEast,-pad-2.0-phase.lift,residualNorth));
     this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
      [.64,.89,.42],1,.68);

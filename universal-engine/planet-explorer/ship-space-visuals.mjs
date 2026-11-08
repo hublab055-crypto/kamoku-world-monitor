@@ -1,5 +1,5 @@
 import {AU_M,orbitalPosition,bodyById} from "./solar-system.mjs";
-import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261108-vtol";
+import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261108-flight-service";
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const norm=v=>{const d=Math.hypot(...v)||1;return v.map(x=>x/d);};

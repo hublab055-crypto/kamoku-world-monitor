@@ -64,7 +64,7 @@ export class ShipInterior{
  sit(){
   if(this.seated)return {ok:false,message:"すでに操縦席に着席中です"};
   if(!this.nearHelm)return {ok:false,message:"操縦席の前まで歩いてください"};
-  this.seated=true;this.x=0;this.z=-10.45;this.yaw=0;this.pitch=0;this.mode="interior";
+  this.seated=true;this.x=0;this.z=-12.1;this.yaw=0;this.pitch=0;this.mode="interior";
   return {ok:true,message:"🪑 操縦席に着席しました。航行操作が使用できます"};
  }
  stand(){
@@ -84,7 +84,7 @@ export class ShipInterior{
    navigator:status==="orbit"?"目的天体の周回軌道に入りました。操縦席から着陸できます。":
     status==="preflight"?"航路を確認しました。操縦席から離陸できます。":
     "目的地への航路は順調です。進路がずれたら自動航行を使ってください。",
-   engineer:voyage?.fuel<18?"推進剤が少なくなっています。補給設備は今後の実装予定です。":
+   engineer:voyage?.fuel<18?"推進剤が少なくなっています。操縦盤の「整備・補給」から予備燃料や救援補給を利用できます。":
     "推進系は正常です。燃料は現在"+Math.round(voyage?.fuel??100)+"%。船倉の積荷も確認してください。",
    companion:status==="orbit"?"着陸後は現地を探索しましょう。":
     "船内の移動ができるようになりましたね。窓から見える星が少しずつ動いています。"

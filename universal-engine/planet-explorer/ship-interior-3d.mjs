@@ -1,4 +1,4 @@
-import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=6";
+import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261108-flight-service";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-dogfight";
 import {bodyById} from "./solar-system.mjs";
@@ -94,15 +94,15 @@ export function createShipGeometry(open=false){
  box(a,0,.82,-12.08,2,1.05,1.35,"dark");
  box(a,0,1.48,-12.1,1.48,.18,.48,"screen");
  // Reachable physical scan / weapon / fire station on the near edge of the helm.
- // The pilot sits at z=-9.8, so this bank must NOT be placed near z=-2.
- box(a,.33,1.17,-11.15,3.35,.22,.70,"dark");
+ // The pilot sits at z=-12.1, so this bank must NOT be placed near z=-2.
+ box(a,.33,1.17,-12.65,3.35,.22,.70,"dark");
  for(const [x,shade] of [[-.75,[.18,.86,1]],[0,[1,.8,.2]],[.75,[1,.22,.15]],[1.43,[.27,.92,.55]]]){
-  box(a,x,1.36,-11.09,.34,.11,.34,shade);
-  box(a,x,1.42,-11.09,.19,.045,.19,"light");
+  box(a,x,1.36,-12.59,.34,.11,.34,shade);
+  box(a,x,1.42,-12.59,.19,.045,.19,"light");
  }
- box(a,0,.53,-9.8,.82,.26,.9,"seat");
- box(a,0,1.05,-9.34,.80,1.1,.18,"seat");
- box(a,0,.47,-9.8,.18,.65,.2,"frame");
+ box(a,0,.53,-12.1,.82,.26,.9,"seat");
+ box(a,0,1.05,-11.64,.80,1.1,.18,"seat");
+ box(a,0,.47,-12.1,.18,.65,.2,"frame");
  for(const x of [-3.36,3.36]){
   box(a,x,.75,-10.85,.95,1.48,3.45,"dark");
   box(a,x,1.51,-10.85,.78,.08,2.70,"screen");
