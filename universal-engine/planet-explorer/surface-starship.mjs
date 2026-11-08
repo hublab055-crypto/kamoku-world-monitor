@@ -3,6 +3,7 @@ const finite=n=>Number.isFinite(n);
 const radians=Math.PI/180;
 export class SurfaceStarship{
  constructor(data=null){
+  this.shipSystems=data?.shipSystems||null;this.fuel=finite(data?.fuel)?data.fuel:100;
   this.bodyId=typeof data?.bodyId==="string"?data.bodyId:null;
   this.lat=finite(data?.lat)?Math.max(-89,Math.min(89,data.lat)):null;
   this.lon=finite(data?.lon)?data.lon:null;
@@ -50,6 +51,6 @@ export class SurfaceStarship{
   const hz=northM+Math.cos(this.yaw)*17.2;
   return {x:eastM,z:northM,hatchX:hx,hatchZ:hz,distanceM:Math.hypot(hx-x,hz-z),hullDistanceM:Math.hypot(dx,dz)};
  }
- snapshot(){return {schemaVersion:1,bodyId:this.bodyId,lat:this.lat,lon:this.lon,yaw:this.yaw,hatchOpen:this.hatchOpen,flight:this.flight,landingProgress:this.landingProgress,padElevationM:this.padElevationM};}
+ snapshot(){return {schemaVersion:1,shipSystems:this.shipSystems,fuel:this.fuel,bodyId:this.bodyId,lat:this.lat,lon:this.lon,yaw:this.yaw,hatchOpen:this.hatchOpen,flight:this.flight,landingProgress:this.landingProgress,padElevationM:this.padElevationM};}
  static fromSnapshot(data){return new SurfaceStarship(data?.schemaVersion===1?data:null);}
 }

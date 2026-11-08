@@ -21,7 +21,7 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
   const projections=new Map((renderer?.shipTargets||[]).map(p=>[p.id,p]));
   const scanned=renderer?.shipScannedIds||new Set();
   for(const contact of contacts){
-   if(contact.id!=="planet"&&!scanned.has(contact.id))continue;
+   if(contact.id!=="planet"&&!scanned.has(contact.id)&&!combat?.locked?.includes(contact.id)&&contact.faction==="hostile")continue;
    present.add(contact.id);
    let node=nodes.get(contact.id);
    if(!node){
