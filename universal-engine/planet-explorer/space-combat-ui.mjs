@@ -1,8 +1,8 @@
-import {installShipService} from "./ship-service-ui.mjs?v=20261108-service";
+import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261108-flight-service";
-import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261108-flight-service";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261108-ciws-captain";
+import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261108-ciws-captain";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
@@ -83,6 +83,10 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  let previousVoyage=null,combat=null,lastRadioId=0,radioExpanded=false;
  const turretEditor=installTurretEditor({root,panel:consolePanel,getCombat,getVoyage,notify});
  const service=installShipService({root,panel:consolePanel,getCombat,getVoyage,notify});
+ const flareButton=document.createElement("button");flareButton.type="button";flareButton.textContent="🔥 フレア";
+ flareButton.onclick=()=>{const r=getCombat()?.deployFlares(getVoyage());if(r)notify(r.message);};consolePanel.append(flareButton);
+ const ciwsButton=document.createElement("button");ciwsButton.type="button";
+ ciwsButton.onclick=()=>{const m=getCombat();if(m)m.ciwsEnabled=!m.ciwsEnabled;};consolePanel.append(ciwsButton);
  const targetNodes=new Map();
  const radio=document.createElement("section");radio.className="ship-radio-overlay";
  radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
@@ -155,11 +159,11 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(!v?.seated||viewer?.shipCameraMode==="chase")return false;
   const hit=xrCockpitControlHit(matrix,stage);
   if(!hit)return false;
-  return dashboard.executeHardware(hit.id);
+  return hit.id==="throttle"?cycleLever():dashboard.executeHardware(hit.id);
  }
  function setWeapon(){
   const model=getCombat();if(!model||!active()){feedbackWhenUnavailable();return;}
-  model.setWeapon(model.weapon==="pulse"?"missile":"pulse");
+  model.setWeapon(({pulse:"rapid",rapid:"missile",missile:"pulse"})[model.weapon]);
   notify("🎯 兵装："+model.config.name+"（同時ロック "+model.config.locks+"機）");
   update(0,{vr:isVR()});
  }
@@ -175,6 +179,8 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   return true;
  }
  function handleDashboardAction(id){
+  if(id==="flare"){const r=getCombat()?.deployFlares(getVoyage());if(r)notify(r.message);return Boolean(r?.ok);}
+  if(id==="ciws"){const m=getCombat();if(m)m.ciwsEnabled=!m.ciwsEnabled;return Boolean(m);}
   if(id==="scan")return scan();
   if(id==="weapon")return setWeapon();
   if(id==="fire")return fire();
@@ -192,11 +198,19 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(result?.message)notify(result.message);
   return Boolean(result?.ok);
  }
+ function cycleLever(){
+  const v=getVoyage();if(!v?.seated)return false;
+  const levels=[-1,0,.5,1],next=levels.find(n=>n>v.throttle+.01)??-1;
+  v.setThrottle(next);notify("推力レバー："+Math.round(next*100)+"%");return true;
+ }
  function selectNavigation(id){
   const v=getVoyage(),model=getCombat();if(!v||!model)return;
   const contact=id==="planet"?{id:"planet",name:"目的惑星",position:[0,0,12000]}:model.allContacts.find(c=>c.id===id);
   if(!contact||!v.selectNavigationTarget?.(contact))return;
-  if(contact.faction==="hostile")model.acquire(id);
+  if(contact.faction==="hostile"){
+   const locked=model.lockContact(id,v);
+   notify(locked?"🎯 攻撃ロック："+contact.name:"🎯 航行目標："+contact.name+"／攻撃ロック射程外（1.5km）");return;
+  }
   notify("🎯 航行目標："+contact.name+"／自動操縦ONで追航します");
  }
  let gamepadTriggerHeld=false;
@@ -208,12 +222,12 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const controlRect=canvas.getBoundingClientRect();
   const cockpit=viewer?.shipCameraMode!=="chase";
   if(cockpit&&controlRect.width&&controlRect.height){
-   const physical=(viewer.shipCockpitControls||[]).find(p=>p.onScreen&&
+   const physical=(viewer.shipCockpitControls||[]).filter(p=>p.onScreen).map(p=>({...p,distance:
     Math.hypot(controlRect.left+p.u*controlRect.width-event.clientX,
-     controlRect.top+p.v*controlRect.height-event.clientY)<32);
+     controlRect.top+p.v*controlRect.height-event.clientY)})).filter(p=>p.distance<24).sort((a,b)=>a.distance-b.distance)[0];
    if(physical){
     event.preventDefault();event.stopImmediatePropagation();
-    dashboard.executeHardware(physical.id);
+    if(physical.id==="throttle")cycleLever();else dashboard.executeHardware(physical.id);
     return;
    }
   }
@@ -271,6 +285,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   // The single transparent ship-sensor overlay draws ALL target names and
   // range labels. Do not duplicate them as boxed combat target widgets.
   for(const node of targetNodes.values())node.hidden=true;
+  ciwsButton.textContent="CIWS "+(model.ciwsEnabled?"ON":"OFF")+" "+model.ciwsAmmo;flareButton.textContent="🔥 フレア "+model.flareAmmo;
   playerHud.textContent="🛡️ "+Math.round(model.player.shield)+" / "+model.player.maxShield+"   ❤️ "+Math.round(model.player.hp)+" / "+model.player.maxHp;
   playerHud.classList.toggle("shield",model.player.shieldFlash>0);
   // Missile trails, impact fire and destruction shards are real WebGL meshes

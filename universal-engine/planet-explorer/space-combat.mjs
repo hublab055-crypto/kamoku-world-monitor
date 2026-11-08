@@ -4,6 +4,7 @@ import {normalizeTurrets,aimTurret} from "./ship-turrets.mjs?v=20261108-vtol";
  * simulation rather than a network-authoritative solar-system physics engine.
  */
 export const SHIP_WEAPONS=Object.freeze({
+ rapid:Object.freeze({name:"速射砲",locks:1,cooldown:.07,damage:6,ammo:Infinity}),
  pulse:Object.freeze({name:"パルス砲",locks:1,cooldown:.22,damage:25,ammo:Infinity}),
  missile:Object.freeze({name:"誘導ミサイル",locks:3,cooldown:1.3,damage:65,ammo:12})
 });
@@ -91,6 +92,9 @@ export class SpaceCombat{
     position:[Math.sin(yaw)*Math.cos(pitch)*d,Math.sin(pitch)*d,Math.cos(yaw)*Math.cos(pitch)*d],
     velocity:[0,0,0]};
   });
+  this.ciwsEnabled=saved?.ciwsEnabled!==false;this.ciwsAmmo=saved?.ciwsAmmo??600;
+  this.flareAmmo=saved?.flareAmmo??8;this.flareCooldown=0;this.ciwsCooldown=0;
+  this.defenseBursts=[];this.defenseTraces=[];this.flares=[];this.missileSequence=0;
   this.turrets=normalizeTurrets();this.autoFire=false;this.voyage=null;
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
@@ -127,13 +131,16 @@ export class SpaceCombat{
      this.elapsed>=this.ceasefireUntil&&this.combatTargets.length){
    const attacker=this.combatTargets.filter(t=>t.distance<650).sort((a,b)=>a.distance-b.distance)[0];
    if(attacker){
-    this.enemyCooldown=2.5+Math.random()*1.5;
+    this.enemyCooldown=3.5+Math.random()*1.5;
+    this.launchEnemyMissile(attacker,voyage);
     const seconds=Math.max(.25,attacker.distance/320),ship=shipEncounterPosition(voyage);
     this.projectiles.push({id:attacker.id,weapon:"enemy",seconds,total:seconds,enemy:true,
      origin:[...attacker.position],impact:ship.map((n,i)=>n+(this.shipVelocity?.[i]||0)*seconds)});
    }
   }
+  this.advanceDefense(step,voyage);
   for(const shot of this.projectiles){
+   if(shot.weapon==="enemy-missile")continue;
    shot.seconds-=step;
    if(shot.seconds>0)continue;
    if(shot.enemy){if(!shot.impact||Math.hypot(...shot.impact.map((n,i)=>n-shipEncounterPosition(voyage)[i]))<25)this.applyDamage(this.player,12,"player");continue;}
@@ -228,7 +235,60 @@ export class SpaceCombat{
   }
   return {id,hp:target.hp,shield:target.shield,destroyed};
  }
- systemSnapshot(){return {rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
+ lockContact(id,voyage=this.voyage){
+  if(!combatEligible(voyage))return false;
+  const target=this.combatTargets.find(t=>t.id===id);
+  if(!target||shipContactDistance(target,voyage)>1500)return false;
+  this.visible.add(id);return this.acquire(id);
+ }
+ launchEnemyMissile(attacker,voyage){
+  const ship=shipEncounterPosition(voyage),delta=ship.map((n,i)=>n-attacker.position[i]);
+  const length=Math.hypot(...delta)||1;
+  this.projectiles.push({id:attacker.id,uid:++this.missileSequence,weapon:"enemy-missile",enemy:true,
+   position:[...attacker.position],direction:delta.map(n=>n/length),seconds:12,total:12,hp:12});
+ }
+ deployFlares(voyage=this.voyage){
+  if(!combatEligible(voyage))return {ok:false,message:"フレアは航行中の操縦席から使用してください"};
+  if(this.flareAmmo<=0||this.flareCooldown>0)return {ok:false,message:"フレア残弾なし、または再装填中です"};
+  this.flareAmmo--;this.flareCooldown=3;
+  const origin=shipEncounterPosition(voyage);
+  for(let i=0;i<6;i++)this.flares.push({position:[...origin],velocity:[(i-2.5)*18,-8+Math.sin(i)*12,-30],seconds:4});
+  return {ok:true,message:"🔥 フレアを散布しました"};
+ }
+ advanceDefense(step,voyage){
+  this.flareCooldown=Math.max(0,this.flareCooldown-step);this.ciwsCooldown=Math.max(0,this.ciwsCooldown-step);
+  for(const effect of [...this.defenseBursts,...this.defenseTraces])effect.seconds-=step;
+  this.defenseBursts=this.defenseBursts.filter(e=>e.seconds>0);this.defenseTraces=this.defenseTraces.filter(e=>e.seconds>0);
+  for(const flare of this.flares){flare.seconds-=step;flare.position=flare.position.map((n,i)=>n+flare.velocity[i]*step);}
+  this.flares=this.flares.filter(f=>f.seconds>0);
+  const ship=shipEncounterPosition(voyage);
+  const missiles=this.projectiles.filter(s=>s.weapon==="enemy-missile"&&s.seconds>0);
+  const burst=position=>this.defenseBursts.push({position:[...position],seconds:.55,total:.55});
+  for(const missile of missiles){
+   missile.seconds-=step;
+   const flare=this.flares.find(f=>Math.hypot(...f.position.map((n,i)=>n-missile.position[i]))<450);
+   if(flare)missile.decoy=[...flare.position];
+   const aim=missile.decoy||ship,delta=aim.map((n,i)=>n-missile.position[i]),distance=Math.hypot(...delta);
+   const rate=Math.min(1,step*2.5);
+   const wanted=delta.map(n=>n/(distance||1));
+   missile.direction=missile.direction.map((n,i)=>n+(wanted[i]-n)*rate);
+   const length=Math.hypot(...missile.direction)||1;missile.direction=missile.direction.map(n=>n/length);
+   missile.trail=[...(missile.trail||[]),[...missile.position]].slice(-10);
+   missile.position=missile.position.map((n,i)=>n+missile.direction[i]*180*step);
+   if(distance<12+180*step){
+    missile.seconds=0;burst(missile.position);
+    if(!missile.decoy)this.applyDamage(this.player,30,"player");
+   }
+  }
+  const incoming=missiles.filter(m=>m.seconds>0&&Math.hypot(...m.position.map((n,i)=>n-ship[i]))<300)
+   .sort((a,b)=>Math.hypot(...a.position.map((n,i)=>n-ship[i]))-Math.hypot(...b.position.map((n,i)=>n-ship[i])))[0];
+  if(incoming&&this.ciwsEnabled&&this.ciwsAmmo>=3&&this.parts.weapons>0&&this.ciwsCooldown<=0&&!this.playerSurrendered){
+   this.ciwsAmmo-=3;this.ciwsCooldown=.1;incoming.hp-=6;
+   this.defenseTraces.push({start:shipPointToEncounter([0,5.6,-2],voyage),end:[...incoming.position],seconds:.12});
+   if(incoming.hp<=0){incoming.seconds=0;burst(incoming.position);}
+  }
+ }
+ systemSnapshot(){return {ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
  refuel(voyage,rescue=false){
   if(!voyage)return {ok:false,message:"宇宙船がありません"};
   if(voyage.fuel>=100)return {ok:false,message:"燃料は満タンです"};
@@ -361,12 +421,12 @@ export class SpaceCombat{
   for(const id of shots){
    const target=this.targets.find(t=>t.id===id);
    if(!target||target.hp<=0||target.surrendered||shipContactDistance(target,this.voyage)>1500)continue;
-   const mount=this.turrets.find(m=>m.enabled&&m.weapon===this.weapon&&m.aligned&&m.targetId===(this.weapon==="missile"?this.locked[0]:id));
+   const mount=this.turrets.find(m=>m.enabled&&(m.weapon===this.weapon||this.weapon==="rapid"&&m.weapon==="pulse")&&m.aligned&&m.targetId===(this.weapon==="missile"?this.locked[0]:id));
    if(this.voyage&&!mount)continue;
    const seconds=this.weapon==="missile"?Math.max(.35,target.distance/250):Math.max(.08,target.distance/900);
    this.projectiles.push({id,weapon:this.weapon,seconds,total:seconds,damage:this.config.damage,enemy:false,muzzle:mount?[mount.x,mount.y,mount.z]:[0,2,-7],
     origin:this.voyage?shipPointToEncounter(mount?[mount.x,mount.y,mount.z]:[0,2,-7],this.voyage):null,
-    impact:this.voyage&&this.weapon==="pulse"?target.position.map((n,i)=>n+target.velocity[i]*seconds):null});
+    impact:this.voyage&&this.weapon!=="missile"?target.position.map((n,i)=>n+target.velocity[i]*seconds):null});
    hits.push({id,name:target.name,pending:true,hp:target.hp});
   }
   if(!hits.length)return {ok:false,message:"砲塔旋回中、または対応する兵装が無効です"};

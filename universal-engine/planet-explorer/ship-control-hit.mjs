@@ -2,10 +2,10 @@
  * Does not depend on WebXR globals; safe to test in Node.
  */
 export const COCKPIT_SWITCHES=Object.freeze([
- {id:"scan",position:Object.freeze([-.75,1.47,-12.59])},
- {id:"weapon",position:Object.freeze([0,1.47,-12.59])},
- {id:"fire",position:Object.freeze([.75,1.47,-12.59])},
- {id:"hatch",position:Object.freeze([1.43,1.47,-12.59])}
+ {id:"scan",position:Object.freeze([-.65,1.05,-12.35])},
+ {id:"weapon",position:Object.freeze([-.65,1.05,-11.95])},
+ {id:"fire",position:Object.freeze([.65,1.05,-12.35])},
+ {id:"hatch",position:Object.freeze([.65,1.05,-11.95])}
 ]);
 export const EXTERIOR_HATCH_SWITCH=Object.freeze([1.77,3.18,12.78]);
 
@@ -30,9 +30,9 @@ export function xrRayPointDistance(matrix,stage,point,{radius=.34,maxDistance=2.
 }
 export function xrCockpitControlHit(matrix,stage){
  let best=null;
- for(const button of COCKPIT_SWITCHES){
+ for(const button of [...COCKPIT_SWITCHES,{id:"throttle",position:[.65,1.3,-11.65]}]){
   const hit=xrRayPointDistance(matrix,stage,button.position,{radius:.28,maxDistance:2.8});
-  if(hit&&(!best||hit.miss<best.miss))best={id:button.id,...hit};
+  if(hit&&(!best||hit.distance<best.distance))best={id:button.id,...hit};
  }
  return best;
 }

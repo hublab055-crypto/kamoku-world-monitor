@@ -1,6 +1,6 @@
-import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261108-flight-service";
+import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261108-ciws-captain";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
-import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-target-navigation";
+import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-ciws-captain";
 import {bodyById} from "./solar-system.mjs";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
@@ -90,24 +90,23 @@ export function createShipGeometry(open=false){
   box(a,x,.025,0,.055,.05,25.5,"line");
   box(a,x,3.48,0,.075,.09,25.5,"line");
  }
- // Cockpit consoles, pilot chair, controls and status screens
- box(a,0,.82,-12.08,2,1.05,1.35,"dark");
- box(a,0,1.48,-12.1,1.48,.18,.48,"screen");
- // Reachable physical scan / weapon / fire station on the near edge of the helm.
- // The pilot sits at z=-12.1, so this bank must NOT be placed near z=-2.
- box(a,.33,1.17,-12.65,3.35,.22,.70,"dark");
- for(const [x,shade] of [[-.75,[.18,.86,1]],[0,[1,.8,.2]],[.75,[1,.22,.15]],[1.43,[.27,.92,.55]]]){
-  box(a,x,1.36,-12.59,.34,.11,.34,shade);
-  box(a,x,1.42,-12.59,.19,.045,.19,"light");
+ // Captain chair: unobstructed front glazing and controls on the armrests.
+ box(a,0,.53,-12.1,.95,.26,1.05,"seat");
+ box(a,0,1.12,-11.55,1.0,1.35,.20,"seat");
+ box(a,0,.29,-12.1,.28,.75,.28,"frame");
+ for(const x of [-.65,.65]){
+  box(a,x,.82,-12.0,.24,.18,1.05,"seat");
+  box(a,x,.72,-11.7,.12,.62,.16,"frame");
+  box(a,x,.96,-12.35,.14,.09,.20,"screen");
  }
- box(a,0,.53,-12.1,.82,.26,.9,"seat");
- box(a,0,1.05,-11.64,.80,1.1,.18,"seat");
- box(a,0,.47,-12.1,.18,.65,.2,"frame");
- for(const x of [-3.36,3.36]){
-  box(a,x,.75,-10.85,.95,1.48,3.45,"dark");
-  box(a,x,1.51,-10.85,.78,.08,2.70,"screen");
-  for(let j=0;j<3;j++)box(a,x,2.5,-12+j,.08,1.65,.08,"line");
+ for(const [x,z] of [[-.65,-12.35],[-.65,-11.95],[.65,-12.35],[.65,-11.95]]){
+  box(a,x,.97,z,.13,.08,.13,"light");
  }
+ // Engine lever mounted on the right armrest.
+ box(a,.65,1.12,-11.65,.06,.32,.06,"frame");
+ box(a,.65,1.30,-11.65,.19,.09,.10,"dark");
+ // Thin cyan combiner marks on the front window; target HUD is drawn through it.
+ for(const x of [-1.4,1.4])box(a,x,1.75,-13.05,.035,.30,.025,"line");
  // Crew bunks in the corridor and separate utilities.
  for(const x of [-3.2,3.2]){
   box(a,x,.36,-.5,1.33,.45,2.25,"seat");

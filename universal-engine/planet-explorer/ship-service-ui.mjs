@@ -10,7 +10,7 @@ export function installShipService({root,panel,getCombat,getVoyage,notify}){
  const parts={engine:'推進機',hull:'船体',weapons:'兵装',shield:'バリア発生器'};
  for(const [key,label] of Object.entries(parts))action('🔧 '+label+'を修理',m=>m.repairPart(key));
  action('📦 着陸地で整備物資を補充',(m,v)=>{if(!['landed','docked'].includes(v.status))return {message:'着陸してから物資を補充してください'};
- m.supplies={fuel:3,kits:12};return {message:'予備燃料3本・修理キット12個を補充しました'};});
+ m.supplies={fuel:3,kits:12};m.ciwsAmmo=600;m.flareAmmo=8;return {message:'予備燃料3本・修理キット12個を補充しました'};});
  const hint=document.createElement('p');hint.textContent='被弾後8秒でバリア再充電。損傷した箇所はキットで修理できます。';editor.append(hint);root.append(editor);
  toggle.onclick=()=>{editor.hidden=!editor.hidden;refresh(true);};close.onclick=()=>editor.hidden=true;
  function refresh(visible){toggle.hidden=!visible;if(!visible)editor.hidden=true;if(editor.hidden)return;

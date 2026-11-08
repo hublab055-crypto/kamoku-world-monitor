@@ -49,12 +49,12 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
-import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261108-flight-service";
+import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261108-ciws-captain";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-flight-service";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-ciws-captain";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-target-navigation";
-import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-flight-service";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-ciws-captain";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-ciws-captain";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -1885,7 +1885,32 @@ export class ExplorerRenderer{
        k%2?[1,.53,.13]:[1,.91,.50]);
      }
     }
+    const defensePoint=point=>encounterPointToShip(point.map((n,i)=>n-shipEncounterPosition(v)[i]),v);
+    const defenseDot=(point,size,color,alpha=1)=>{
+     const model=multiply4(translate(...point),scale3(size,size,size));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),[1,1,1],alpha,1,color);
+    };
+    // Roof-mounted close-in defense gun tracks its latest incoming threat.
+    const trace=this.shipCombat.defenseTraces.at(-1);
+    const end=trace?defensePoint(trace.end):[0,5.6,-20];
+    const dx=end[0],dy=end[1]-5.6,dz=end[2]+2;
+    const gun=multiply4(translate(0,5.6,-2),multiply4(rotateY(Math.atan2(-dx,-dz)),rotX(Math.atan2(dy,Math.hypot(dx,dz)))));
+    this.drawMesh(this.shipPlanetSphere,multiply4(vp,multiply4(gun,multiply4(translate(0,0,-1.2),scale3(.3,.3,1.8)))),[1,1,1],1,.9,[.55,.65,.7]);
+    for(const burst of this.shipCombat.defenseBursts){
+     const age=1-burst.seconds/burst.total;
+     defenseDot(defensePoint(burst.position),1+age*6,[1,.55,.15],1-age);
+    }
+    for(const tracer of this.shipCombat.defenseTraces){
+     const a=defensePoint(tracer.start),b=defensePoint(tracer.end);
+     for(let k=0;k<12;k++)defenseDot(a.map((n,i)=>n+(b[i]-n)*k/12),.16,[1,.95,.55]);
+    }
+    for(const flare of this.shipCombat.flares)defenseDot(defensePoint(flare.position),.6,[1,.62,.16],Math.min(1,flare.seconds));
     for(const shot of combatEligible(v)?this.shipCombat.projectiles:[]){
+     if(shot.weapon==="enemy-missile"){
+      defenseDot(defensePoint(shot.position),.8,[1,.2,.12]);
+      for(const point of shot.trail||[])defenseDot(defensePoint(point),.4,[1,.65,.2],.6);
+      continue;
+     }
      const target=this.shipCombat.targets.find(t=>t.id===shot.id);
      if(!target)continue;
      const destination=shipContactPosition(target,v);
@@ -1954,13 +1979,20 @@ export class ExplorerRenderer{
     // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
     if(v.seated||person.mode==="cockpit"){
+     const leverProjection=projectScreen(vp,[.65,1.3,-11.65]);
+     if(leverProjection)this.shipCockpitControls.push({...leverProjection,id:"throttle"});
+     // Windshield combiner bars replace the large central instrument panel.
+     for(const [y,amount,color] of [[1.8,this.shipCombat?.player.shield??100,[.2,.8,1]],[1.65,this.shipCombat?.player.hp??100,[.3,1,.4]]]){
+      const bar=multiply4(translate(-.9+amount*.009,y,-13.04),scale3(Math.max(.001,amount*.009),.025,.006));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,bar),[1,1,1],.8,1,color);
+     }
      for(const {id,position} of COCKPIT_SWITCHES){
       const mapped=this.shipControlLayout?.[COCKPIT_SWITCHES.findIndex(s=>s.id===id)]||"none";
       const color=mapped==="scan"?[.18,.86,1]:mapped==="weapon"?[1,.8,.2]:
        mapped==="fire"?[1,.22,.15]:mapped==="hatch"?[.27,.92,.55]:
        mapped==="auto"?[.65,.75,1]:mapped==="camera"?[.70,.70,1]:
        mapped==="wide"?[.85,.95,1]:[.20,.23,.27];
-      const transform=multiply4(translate(...position),scale3(.19,.07,.19));
+      const transform=multiply4(translate(...position),scale3(.085,.04,.085));
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.9,.9,1],1,.98,color);
       const projected=projectScreen(vp,position);
       if(projected)this.shipCockpitControls.push({...projected,id});
