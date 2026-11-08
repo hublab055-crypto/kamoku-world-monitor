@@ -11,19 +11,22 @@ const ray=(x,y,z)=>[1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1];
 test("all four cockpit switches including hatch are in reach of the pilot",()=>{
  assert.deepEqual(COCKPIT_SWITCHES.map(c=>c.id),["scan","weapon","fire","hatch"]);
  for(const switchCap of COCKPIT_SWITCHES)
-  assert.ok(switchCap.position[2]<-12.4&&switchCap.position[2]>-12.9);
+  assert.ok(Math.hypot(switchCap.position[0],switchCap.position[1]-1.25,switchCap.position[2]+12.1)<1);
 });
-test("Quest right controller can target the physical weapon switch",()=>{
- assert.equal(xrCockpitControlHit(ray(0,1.47,-12.1),identity)?.id,"weapon");
+const controlRay=(id,dx=0,dz=0)=>{
+ const p=COCKPIT_SWITCHES.find(c=>c.id===id).position;
+ return ray(p[0]+dx,p[1],p[2]+.15+dz);
+};
+test("Quest controller targets the armrest weapon switch",()=>{
+ assert.equal(xrCockpitControlHit(controlRay("weapon"),identity)?.id,"weapon");
 });
-test("Quest can pick distinct scan and fire caps",()=>{
- assert.equal(xrCockpitControlHit(ray(-.75,1.47,-12.1),identity)?.id,"scan");
- assert.equal(xrCockpitControlHit(ray(.75,1.47,-12.1),identity)?.id,"fire");
- assert.equal(xrCockpitControlHit(ray(1.43,1.47,-12.1),identity)?.id,"hatch");
+test("Quest can pick each of the four armrest caps distinctly",()=>{
+ for(const id of ["scan","weapon","fire","hatch"])assert.equal(xrCockpitControlHit(controlRay(id),identity)?.id,id);
+ assert.equal(xrCockpitControlHit(ray(.65,1.3,-11.5),identity)?.id,"throttle");
 });
 test("XR ray picking uses the same stage transform as rendered geometry",()=>{
  const shifted=[...identity];shifted[12]=4;shifted[14]=2;
- assert.equal(xrCockpitControlHit(ray(4,1.47,-10.1),shifted)?.id,"weapon");
+ assert.equal(xrCockpitControlHit(controlRay("weapon",4,2),shifted)?.id,"weapon");
 });
 test("out-of-range and backward Quest rays cannot activate switches",()=>{
  assert.equal(xrCockpitControlHit(ray(0,1.47,1),identity),null);

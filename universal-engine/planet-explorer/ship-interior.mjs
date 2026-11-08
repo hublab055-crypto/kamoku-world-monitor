@@ -14,11 +14,9 @@ export const SHIP_STATIONS=Object.freeze([
  {id:"hatch",name:"船尾ハッチ",x:0,z:12.0,radius:3.0}
 ]);
 const blockers=[
- {x1:-3.95,x2:-2.95,z1:-12.6,z2:-9.1}, // pilot navigation consoles
- {x1:2.95,x2:3.95,z1:-12.6,z2:-9.1},
  {x1:-3.95,x2:-2.35,z1:5,z2:11.0}, // cargo storage banks
  {x1:2.35,x2:3.95,z1:5,z2:11.0},
- {x1:-1.0,x2:1.0,z1:-12.9,z2:-11.1}, // helm console
+ {x1:-1.0,x2:1.0,z1:-12.9,z2:-11.1}, // captain chair
  {x1:1.18,x2:2.08,z1:10.9,z2:12.2}
 ];
 export class ShipInterior{

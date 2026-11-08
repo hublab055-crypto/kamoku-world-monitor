@@ -6,6 +6,8 @@ export const DASHBOARD_ACTIONS=Object.freeze([
  Object.freeze({id:"weapon",label:"🎯 兵装切替"}),
  Object.freeze({id:"fire",label:"🔴 発射"}),
  Object.freeze({id:"hatch",label:"🚪 ハッチ"}),
+ Object.freeze({id:"flare",label:"🔥 フレア"}),
+ Object.freeze({id:"ciws",label:"🛡️ CIWS切替"}),
  Object.freeze({id:"auto",label:"🧭 自動航行"}),
  Object.freeze({id:"camera",label:"🎥 視点切替"}),
  Object.freeze({id:"wide",label:"⛶ 広画面"}),
