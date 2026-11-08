@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installShipViewGestures,pickShipContact} from '../planet-explorer/ship-view-gestures.mjs';
 import {SpaceCombat} from '../planet-explorer/space-combat.mjs';
-function harness(){
+function harness(roaming=true){
  const target=new EventTarget(),combat=new SpaceCombat(),orbit=[],taps=[],legacy=[];
  const voyage={active:true,seated:true,status:'cruise',routeAlong:0,crossTrack:0};
  const rect={left:35,top:60,width:844,height:390},projected=[{id:'pirate-alpha',u:.5,v:.5,onScreen:true}];
- installShipViewGestures(target,{isActive:()=>true,isRoaming:()=>true,getInterior:()=>null,ownerWindow:null,
+ installShipViewGestures(target,{isActive:()=>true,isRoaming:()=>roaming,getInterior:()=>({turn:(...args)=>orbit.push(args)}),ownerWindow:null,
   onOrbit:(...args)=>orbit.push(args),onZoom:()=>{},onTap:(x,y)=>{const hit=pickShipContact(projected,rect,x,y);if(hit){taps.push(hit.id);combat.lockContact(hit.id,voyage);}}});
  // Production registration order: orbit capture was installed before combat.
  target.addEventListener('pointerdown',()=>legacy.push('down'),true);
@@ -31,4 +31,13 @@ test('cancelled and lost-capture gestures never lock',()=>{
 });
 test('picking uses canvas offset and ignores invisible targets',()=>{
  assert.equal(pickShipContact([{id:'a',u:.5,v:.5,onScreen:false}],{left:35,top:60,width:844,height:390},457,255),null);
+});
+
+test('cabin tap reaches enemy lock after pointer capture, without looking away',()=>{
+ const h=harness(false);h.send('pointerdown');h.send('pointermove',460,256);h.send('pointerup',460,256);
+ assert.deepEqual(h.combat.locked,['pirate-alpha']);assert.equal(h.orbit.length,0);assert.equal(h.legacy.length,0);
+});
+test('cabin drag changes view without selecting the enemy underneath',()=>{
+ const h=harness(false);h.send('pointerdown');h.send('pointermove',480,255);h.send('pointerup',480,255);
+ assert.ok(h.orbit.length>0);assert.equal(h.combat.locked.length,0);
 });
