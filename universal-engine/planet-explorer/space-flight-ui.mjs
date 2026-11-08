@@ -1,3 +1,4 @@
+import {installShipViewGestures,pickShipContact} from "./ship-view-gestures.mjs?v=20261108-tap-gesture";
 import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261108-ciws-captain";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-ciws-captain";
@@ -281,47 +282,17 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  });
  document.addEventListener("keyup",event=>{const key=keys.get(event.key.toLowerCase());if(key)held.delete(key);});
  window.addEventListener("blur",()=>{held.clear();resetShipStick();});
- let drag=null;
  const dragTarget=unified?worldCanvas:shipCanvas;
- // Capture before world picking/planet gestures, but ONLY while the ship
- // overlay is active. Outside chase mode normal game gestures are unchanged.
- dragTarget.addEventListener("pointerdown",event=>{
-  if(root.hidden)return;
-  const roaming=chase&&seatedPilot(get());
-  if(!roaming&&!get()?.interior)return;
-  if(drag!==null||event.isPrimary===false)return;
-  drag={id:event.pointerId,x:event.clientX,y:event.clientY,roaming};
-  dragTarget.setPointerCapture?.(event.pointerId);
-  if(roaming){event.preventDefault();event.stopImmediatePropagation();}
- },true);
- dragTarget.addEventListener("pointermove",event=>{
-  if(!drag||event.pointerId!==drag.id)return;
-  const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
-  if(drag.roaming){
-   orbitYaw=(orbitYaw+dx*.008)%(2*Math.PI);
-   orbitPitch=clamp(orbitPitch+dy*.005,-.42,1.37);
-   syncShipCamera();
-   event.preventDefault();event.stopImmediatePropagation();
-  }else{
-   const state=get()?.interior;
-   if(state)state.turn(dx*.006,-dy*.004);
+ installShipViewGestures(dragTarget,{
+  isActive:()=>!root.hidden,isRoaming:()=>chase&&seatedPilot(get()),getInterior:()=>get()?.interior,
+  onOrbit:(dx,dy)=>{orbitYaw=(orbitYaw+dx*.008)%(2*Math.PI);orbitPitch=clamp(orbitPitch+dy*.005,-.42,1.37);syncShipCamera();},
+  onZoom:delta=>{chaseDistance=clamp(chaseDistance+Math.sign(delta)*6,28,150);syncShipCamera();},
+  onTap:(x,y)=>{
+   const viewer=getWorldRenderer?.();
+   const contact=pickShipContact(viewer?.shipTargets,dragTarget.getBoundingClientRect(),x,y);
+   if(contact)viewer?.selectShipNavigation?.(contact.id);
   }
-  drag.x=event.clientX;drag.y=event.clientY;
- },true);
- for(const type of ["pointerup","pointercancel","lostpointercapture"])
-  dragTarget.addEventListener(type,event=>{
-   if(drag?.id===event.pointerId){
-    if(drag.roaming){event.preventDefault();event.stopImmediatePropagation();}
-    drag=null;
-   }
-  },true);
- dragTarget.addEventListener("wheel",event=>{
-  if(root.hidden||!chase||!seatedPilot(get()))return;
-  event.preventDefault();event.stopImmediatePropagation();
-  chaseDistance=clamp(chaseDistance+Math.sign(event.deltaY)*6,28,150);
-  syncShipCamera();
- },{passive:false,capture:true});
- window.addEventListener("blur",()=>{drag=null;});
+ });
  function applyMove(dt){
   const v=get(),state=v?.interior;
   if(!state||!Number.isFinite(dt)||dt<=0)return;

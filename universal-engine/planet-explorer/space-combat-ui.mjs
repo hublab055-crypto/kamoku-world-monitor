@@ -1,3 +1,4 @@
+import {pickShipContact} from "./ship-view-gestures.mjs?v=20261108-tap-gesture";
 import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
@@ -234,13 +235,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const model=getCombat(),rect=canvas.getBoundingClientRect();
   if(!model||!rect.width||!rect.height)return;
   const projected=getRenderer()?.shipTargets||[];
-  let chosen=null,nearest=52;
-  for(const t of projected){
-   if(!t.onScreen)continue;
-   const d=Math.hypot(rect.left+t.u*rect.width-event.clientX,
-    rect.top+t.v*rect.height-event.clientY);
-   if(d<nearest){chosen=t;nearest=d;}
-  }
+  const chosen=pickShipContact(projected,rect,event.clientX,event.clientY);
   if(!chosen||chosen.id!=="planet"&&!scannedIds.has(chosen.id))return;
   event.preventDefault();event.stopImmediatePropagation();
   selectNavigation(chosen.id);
