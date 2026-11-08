@@ -53,7 +53,7 @@ import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261108-flight-service
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-flight-service";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-edge-destination";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-target-navigation";
 import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-flight-service";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
@@ -1780,6 +1780,7 @@ export class ExplorerRenderer{
      for(const mesh of this.trees.slice(0,20))this.drawInstancedMesh(mesh,groundVP,[.65,.88,.46],1,.63);
     }
    }
+   this.shipTargets=[];
    if(phase.showGlobe){
     const progress=v.progress||0;
     const target=v.destinationId&&bodyById(v.destinationId);
@@ -1795,6 +1796,8 @@ export class ExplorerRenderer{
      ["cruise","approach","flyby","orbit"].includes(v.status)?
       10+Math.pow(proximity,2.5)*210:120;
     const celestial=contacts.find(c=>c.id==="planet")?.position||[0,-50,-420];
+    const planetProjection=projectScreen(vp,celestial);
+    if(planetProjection)this.shipTargets.push({...planetProjection,id:"planet",name:"目的惑星"});
     const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
@@ -1808,7 +1811,6 @@ export class ExplorerRenderer{
      c.faction==="neutral"?[.45,.93,.65]:[.88,.75,.42];
     this.drawMesh(mesh,multiply4(vp,model),[.7,.9,.8],1,.88,color);
    }
-   this.shipTargets=[];
    if(this.shipCombat){
     // Independent hardpoint bases and barrels share the same aim as fire control.
     for(const mount of this.shipCombat.turrets.filter(m=>m.enabled)){

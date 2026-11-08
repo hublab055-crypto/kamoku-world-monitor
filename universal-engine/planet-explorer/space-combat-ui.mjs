@@ -192,6 +192,13 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(result?.message)notify(result.message);
   return Boolean(result?.ok);
  }
+ function selectNavigation(id){
+  const v=getVoyage(),model=getCombat();if(!v||!model)return;
+  const contact=id==="planet"?{id:"planet",name:"目的惑星",position:[0,0,12000]}:model.allContacts.find(c=>c.id===id);
+  if(!contact||!v.selectNavigationTarget?.(contact))return;
+  if(contact.faction==="hostile")model.acquire(id);
+  notify("🎯 航行目標："+contact.name+"／自動操縦ONで追航します");
+ }
  let gamepadTriggerHeld=false;
  // The main WebGL canvas is the hit region for pointer lock; in VR gaze owns it.
  const canvas=getRenderer()?.canvas;
@@ -220,19 +227,10 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
     rect.top+t.v*rect.height-event.clientY);
    if(d<nearest){chosen=t;nearest=d;}
   }
-  if(!chosen||!scannedIds.has(chosen.id))return;
-  const contact=model.allContacts.find(t=>t.id===chosen.id);
-  if(contact?.faction!=="hostile"){
-   event.preventDefault();event.stopImmediatePropagation();
-   notify("📡 "+(contact?.name||chosen.name)+"：非敵性対象。攻撃ロックは行いません");
-   return;
-  }
-  // Re-check projection before acquisition; clicking a marker is not a fire command.
-  model.syncVisibility(projected,0,{eligible:true});
-  if(model.acquire(chosen.id)){
-   event.preventDefault();event.stopImmediatePropagation();
-   notify("🎯 ロック："+chosen.name);
-  }
+  if(!chosen||chosen.id!=="planet"&&!scannedIds.has(chosen.id))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  selectNavigation(chosen.id);
+
  },true);
  document.addEventListener("keydown",event=>{
   if(event.code!=="Space"||event.repeat||event.altKey||event.ctrlKey||event.metaKey||
@@ -251,7 +249,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(fireEdge)fire();
 
   const viewer=getRenderer();
-  if(viewer)viewer.shipCombat=model;
+  if(viewer){viewer.shipCombat=model;viewer.selectShipNavigation=selectNavigation;}
   const projections=viewer?.shipTargets||[];
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);
