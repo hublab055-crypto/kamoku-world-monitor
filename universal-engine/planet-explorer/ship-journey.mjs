@@ -29,6 +29,7 @@ export class ShipJourney{
   this.turrets=normalizeTurrets(data.turrets);
   this.autoFire=Boolean(data.autoFire);
   this.shipSystems=data.shipSystems||null;
+  this.navigationTarget=data.navigationTarget?.position?.length===3?data.navigationTarget:null;
   this.routeVertical=finite(data.routeVertical)?data.routeVertical:0;
   this.verticalVelocity=finite(data.verticalVelocity)?data.verticalVelocity:0;
   this.progress=clamp(data.progress??0,0,1);
@@ -62,7 +63,7 @@ export class ShipJourney{
  }
  get active(){return true;}
  get canDirectEntry(){
-  return !this.autopilot&&this.seated&&!this.hatchOpen&&this.destinationId&&
+  return this.seated&&!this.hatchOpen&&this.destinationId&&(!this.navigationTarget||this.navigationTarget.id==="planet")&&
    ["approach","flyby","origin-orbit","orbit"].includes(this.status)&&
    Math.hypot(1-this.routeAlong,this.crossTrack,this.routeVertical)<=.03;
  }
@@ -152,6 +153,36 @@ export class ShipJourney{
    yaw:site.yaw,padElevationM:site.padElevationM};
   return true;
  }
+ selectNavigationTarget(target){
+  if(!target||!Array.isArray(target.position)||target.position.length!==3||!target.position.every(finite))return false;
+  this.navigationTarget={id:target.id,name:target.name,position:[...target.position],kind:target.kind||"contact"};
+  return true;
+ }
+ guideToTarget(step){
+  const target=this.navigationTarget||{id:"planet",position:[0,0,12000]};
+  const delta=[target.position[0]/12000-this.crossTrack,target.position[1]/12000-this.routeVertical,target.position[2]/12000-this.routeAlong];
+  const distance=Math.hypot(...delta),stop=target.id==="planet"?0:80/12000;
+  const speed=Math.min(.035,Math.max(0,distance-stop)*.35);
+  const desired=delta.map(n=>n/(distance||1)*speed);
+  const velocity=[this.routeVelocity.cross,this.verticalVelocity,this.routeVelocity.along];
+  const change=desired.map((n,i)=>n-velocity[i]),magnitude=Math.hypot(...change);
+  if(this.fuel>0){
+   const factor=Math.min(1,.006*step/(magnitude||1));
+   velocity.forEach((n,i)=>velocity[i]=n+change[i]*factor);
+   const yaw=Math.atan2(delta[0],delta[2])*180/Math.PI;
+   const pitch=Math.atan2(delta[1],Math.hypot(delta[0],delta[2]))*180/Math.PI;
+   const turn=((yaw-this.attitudeYawDeg+540)%360)-180;
+   this.attitudeYawDeg+=clamp(turn,-60*step,60*step);
+   this.pitchDeg+=clamp(pitch-this.pitchDeg,-60*step,60*step);
+   this.fuel=Math.max(0,this.fuel-step*.2);
+  }
+  const before=this.routeAlong;
+  this.crossTrack+=velocity[0]*step;this.routeVertical+=velocity[1]*step;this.routeAlong+=velocity[2]*step;
+  this.routeVelocity={cross:velocity[0],along:velocity[2]};this.verticalVelocity=velocity[1];
+  this.progress=clamp(this.routeAlong,0,1);this.elapsedSeconds+=step;
+  this.status=target.id==="planet"&&this.routeAlong>.82?"approach":"cruise";
+  return {days:Math.abs(this.routeAlong-before)*this.flightDays,advanced:this.routeAlong-before,status:this.status};
+ }
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,-1,1);}
  steer(n){
@@ -189,6 +220,8 @@ export class ShipJourney{
    if(this.touchdownElapsed>=1.7)this.status="landed";
    return {days:0,advanced:0,status:this.status};
   }
+  if(this.autopilot&&(["cruise","approach","flyby"].includes(this.status)&&this.destinationId||
+     ["origin-orbit","orbit"].includes(this.status)&&this.navigationTarget))return this.guideToTarget(step);
   // Manual flight remains available for a dogfight while holding an orbit.
   if(!this.autopilot&&["origin-orbit","orbit"].includes(this.status)){
    const motion=advanceRouteMotion({position:{along:this.routeAlong,cross:this.crossTrack},
@@ -245,7 +278,7 @@ export class ShipJourney{
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
-   shipSystems:this.shipSystems,airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,
+   navigationTarget:this.navigationTarget,shipSystems:this.shipSystems,airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,
    turrets:normalizeTurrets(this.turrets),autoFire:this.autoFire,routeVertical:this.routeVertical,verticalVelocity:this.verticalVelocity,
    routeAlong:this.routeAlong,crossTrack:this.crossTrack,routeVelocity:{...this.routeVelocity},
    seated:this.seated,interior:this.interior.snapshot()};

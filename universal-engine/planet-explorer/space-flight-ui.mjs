@@ -4,7 +4,7 @@ import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-flight-servic
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261108-flight-service";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261107";
-import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261108-edge-destination";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261108-target-navigation";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -396,7 +396,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(lastView!==v.interior.mode){lastView=v.interior.mode;nearKey="";$("flight-dialogue").textContent="";}
 
   const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
-  $("flight-route").textContent="🚀 "+origin.name+" → "+target.name;
+  $("flight-route").textContent="🚀 "+origin.name+" → "+target.name+(v.navigationTarget?" ／ 🎯 "+v.navigationTarget.name:"");
   const entryView=["entry","atmosphere","vtol","touchdown"].includes(v.status);
   const height=entryView?Math.round(groundScenePhase(v).lift):null;
   $("flight-phase").textContent="段階："+v.phase+

@@ -1,5 +1,5 @@
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261108-edge-destination";
+import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261108-target-navigation";
 
 /** Transparent in-scene contact typography, never a boxed viewport/window.
  * Reads exactly the same world positions and ranges as WebGL ship meshes.
@@ -26,7 +26,10 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
    let node=nodes.get(contact.id);
    if(!node){
     node=document.createElement("div");node.className="flight-sensor";
-    node.setAttribute("role","img");
+    node.setAttribute("role","button");node.tabIndex=0;node.style.pointerEvents="auto";
+    const choose=event=>{event.preventDefault();event.stopPropagation();getRenderer()?.selectShipNavigation?.(contact.id);};
+    node.addEventListener("pointerdown",choose);
+    node.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" ")choose(event);});
     const symbol=document.createElement("span");symbol.className="flight-sensor-arrow";
     const detail=document.createElement("span");detail.className="flight-sensor-details";
     const name=document.createElement("span");name.className="flight-sensor-name";
@@ -43,7 +46,7 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
    const inside=Boolean(accurate&&renderPoint.u>centerMargin&&renderPoint.u<1-centerMargin&&
     renderPoint.v>centerMargin&&renderPoint.v<1-centerMargin);
    const pos=inside?{x:renderPoint.u*box.width,y:renderPoint.v*box.height,visible:true}:fallback;
-   node.hidden=false;node.dataset.category=contact.faction||contact.type;
+   node.hidden=false;node.style.outline=v.navigationTarget?.id===contact.id?"1px solid #fff":"";node.dataset.category=contact.faction||contact.type;
    node.dataset.offscreen=String(!pos.visible);
    node.dataset.locked=String(Boolean(combat?.locked?.includes(contact.id)));
    node.style.left=Math.round(pos.x)+"px";
