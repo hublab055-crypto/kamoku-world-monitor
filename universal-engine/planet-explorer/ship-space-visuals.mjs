@@ -12,9 +12,9 @@ export function inertialToShip(point,yawDeg=0,pitchDeg=0){
  const yaw=(finite(yawDeg)?yawDeg:0)*Math.PI/180;
  const pitch=(finite(pitchDeg)?pitchDeg:0)*Math.PI/180;
  const [x,y,z]=point,cp=Math.cos(pitch),sp=Math.sin(pitch);
- const yy=cp*y+sp*z,zz=-sp*y+cp*z;
- return [Math.cos(yaw)*x+Math.sin(yaw)*zz,yy,
-  -Math.sin(yaw)*x+Math.cos(yaw)*zz];
+ const xx=Math.cos(yaw)*x+Math.sin(yaw)*z;
+ const zz=-Math.sin(yaw)*x+Math.cos(yaw)*z;
+ return [xx,cp*y+sp*zz,-sp*y+cp*zz];
 }
 /** Deterministic all-sky star directions; no DOM or seeded random state. */
 export function starDirections(count=230){
@@ -78,7 +78,11 @@ export function shipSensorContacts(v,combat=null){
   const along=finite(v.routeAlong)?v.routeAlong:v.progress||0,crossTrack=v.crossTrack||0;
   const offset=[-crossTrack*440,-(v.routeVertical||0)*440,-(1-along)*440];
   const d=Math.hypot(...offset);
-  const starPos=inertialToShip(d>1?offset.map(n=>n/d*425):[0,-35,-425],yaw,pitch);
+  const routeView=v.destinationId&&["origin-orbit","parking-orbit","launch","cruise","approach","flyby","orbit"].includes(status);
+  // The destination occupies the SAME fixed route endpoint as entry detection.
+  // Never normalize its position onto a camera-centred sphere.
+  const starPos=routeView?shipContactPosition({position:[0,0,12000]},v):
+   inertialToShip(d>1?offset.map(n=>n/d*425):[0,-35,-425],yaw,pitch);
   const a=orbitalPosition(v.originId,v.launchDay||0);
   const b=orbitalPosition(planet.id,(v.launchDay||0)+(v.flightDays||0));
   const baseAU=a&&b?Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z):1;
@@ -86,7 +90,7 @@ export function shipSensorContacts(v,combat=null){
   const km=distanceAU*AU_M/1000;
   const distance=km<200000?Math.round(km).toLocaleString("ja-JP")+" km":distanceAU.toFixed(3)+" AU";
   contacts.push({id:"planet",name:planet.name,type:"destination",icon:"◈",position:starPos,
-   distance,estimate:true,color:"#7bdde8",distanceAU});
+   distance,routeView,estimate:true,color:"#7bdde8",distanceAU});
  }
  if(flying&&combat){
   // One authoritative encounter list: WebGL, scan, lock-on and HUD all read
@@ -118,9 +122,9 @@ export function projectShipHudTarget(position,camera,width,height,{margin=.12}={
  let nx=ax,ny=ay;
  if(!visible){
   // Targets behind the observer are still shown with an edge arrow.
-  if(depth<0){nx=-nx;ny=-ny;}
-  if(Math.abs(nx)+Math.abs(ny)<.02){nx=0;ny=-1;}
-  const factor=Math.max(Math.abs(nx)/(1-margin),Math.abs(ny)/(1-margin),1);
+  // Behind-right means turn right; perspective sign reversal would point left.
+  if(Math.abs(nx)+Math.abs(ny)<.00001){nx=1;ny=0;}
+  const factor=Math.max(Math.abs(nx)/(1-margin),Math.abs(ny)/(1-margin),.000001);
   nx/=factor;ny/=factor;
  }
  return {x:clamp((nx+1)*width/2,margin*width/2,width*(1-margin/2)),

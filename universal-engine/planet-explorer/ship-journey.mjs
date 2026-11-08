@@ -63,7 +63,7 @@ export class ShipJourney{
  get active(){return true;}
  get canDirectEntry(){
   return !this.autopilot&&this.seated&&!this.hatchOpen&&this.destinationId&&
-   ["approach","flyby"].includes(this.status)&&
+   ["approach","flyby","origin-orbit","orbit"].includes(this.status)&&
    Math.hypot(1-this.routeAlong,this.crossTrack,this.routeVertical)<=.03;
  }
  get readyToLand(){return this.seated&&((this.status==="orbit"&&Math.abs(this.heading)<=12)||this.canDirectEntry);}
