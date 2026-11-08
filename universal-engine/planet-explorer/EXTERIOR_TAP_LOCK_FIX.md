@@ -1,0 +1,9 @@
+# 船外タップのロック入力修正（2026-11-08）
+
+船外カメラのpointerdown captureリスナーが先に登録され、stopImmediatePropagationで後続の戦闘タップリスナーを止めていた。前回のlockContact修正はこの入力競合を扱っていなかった。
+
+ship-view-gestures.mjsにカメラジェスチャーの所有を集約。船外視点の短いタップ（650ms未満、最大移動8px以内）はpointerup時に航行／攻撃選択へ渡す。8px超のドラッグはカメラ回転のみ。キャンセル・capture喪失では選択しない。敵の画面内位置のピクセル判定は両視点で共通化する。
+
+Node EventTargetに製品と同じ順序でcaptureリスナーを登録し、カメラがpointerdownを止めてもpointerupから実際のSpaceCombat攻撃ロックまで届くことを再現テスト。指の小さな揺れ、ドラッグして元へ戻る操作、キャンセル、canvasの画面オフセットも検証。
+
+新規の入力結合テスト5件成功。全体777件中729成功・既存48失敗、新規失敗名なし。iPhone・Quest実機ブラウザーでの確認は未実施。

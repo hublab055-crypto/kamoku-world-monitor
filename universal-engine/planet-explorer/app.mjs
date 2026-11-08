@@ -11,8 +11,8 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=2";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261108-ciws-captain";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261108-ciws-captain";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261108-tap-gesture";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261108-tap-gesture";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261108-ciws-captain";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
