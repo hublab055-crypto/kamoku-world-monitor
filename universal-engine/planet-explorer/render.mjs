@@ -53,7 +53,7 @@ import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261108-flight-service
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-flight-service";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-dogfight";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-edge-destination";
 import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-flight-service";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
@@ -1790,7 +1790,7 @@ export class ExplorerRenderer{
     const rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255);
     const remaining=Math.hypot(1-(v.routeAlong??progress),v.crossTrack||0);
     const proximity=Math.max(0,1-Math.min(1,remaining));
-    const radius=v.status==="ascent"?100+phase.lift*.020:
+    const radius=contacts.find(c=>c.id==="planet")?.routeView?(v.status==="orbit"&&v.autopilot?80:300):v.status==="ascent"?100+phase.lift*.020:
      v.status==="entry"?120+Math.max(0,v.stageProgress||0)*300:
      ["cruise","approach","flyby","orbit"].includes(v.status)?
       10+Math.pow(proximity,2.5)*210:120;

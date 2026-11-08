@@ -1,5 +1,5 @@
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261108-dogfight";
+import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261108-edge-destination";
 
 /** Transparent in-scene contact typography, never a boxed viewport/window.
  * Reads exactly the same world positions and ranges as WebGL ship meshes.
@@ -35,7 +35,7 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
     nodes.set(contact.id,node);layer.append(node);
    }
    const fallback=projectShipHudTarget(contact.position,camera,box.width,box.height,
-    {margin:box.width<500?.23:.15});
+    {margin:box.width<500?.08:.05});
    if(!fallback){node.hidden=true;continue;}
    const renderPoint=projections.get(contact.id);
    const accurate=renderPoint?.onScreen&&Number.isFinite(renderPoint.u)&&Number.isFinite(renderPoint.v);
@@ -53,7 +53,7 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
    const arrowIndex=(((Math.round(fallback.angleDeg/45)%8)+8)%8);
    const pointing=["↑","↗","→","↘","↓","↙","←","↖"][arrowIndex];
    node.querySelector(".flight-sensor-arrow").textContent=icon+
-    (pos.visible?"":" "+pointing);
+    (pos.visible?"":" "+pointing+(fallback.behind?" 後方":""));
    node.querySelector(".flight-sensor-name").textContent=contact.name;
    node.querySelector(".flight-sensor-distance").textContent=
     (contact.estimate?"推定 ":"")+contact.distance;
