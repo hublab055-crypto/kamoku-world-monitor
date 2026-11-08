@@ -1,4 +1,4 @@
-import {pickShipContact} from "./ship-view-gestures.mjs?v=20261108-tap-gesture";
+import {pickShipContact} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
@@ -209,6 +209,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const contact=id==="planet"?{id:"planet",name:"目的惑星",position:[0,0,12000]}:model.allContacts.find(c=>c.id===id);
   if(!contact||!v.selectNavigationTarget?.(contact))return;
   if(contact.faction==="hostile"){
+   if(!combatEligible(v)){notify("🪑 攻撃ロックは操縦席に着席して宇宙航行中に使用してください");return;}
    const locked=model.lockContact(id,v);
    notify(locked?"🎯 攻撃ロック："+contact.name:"🎯 航行目標："+contact.name+"／攻撃ロック射程外（1.5km）");return;
   }
@@ -217,30 +218,19 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  let gamepadTriggerHeld=false;
  // The main WebGL canvas is the hit region for pointer lock; in VR gaze owns it.
  const canvas=getRenderer()?.canvas;
- canvas?.addEventListener("pointerdown",event=>{
-  if(!getVoyage()?.active||isVR()||event.button!==0)return;
-  const viewer=getRenderer();
-  const controlRect=canvas.getBoundingClientRect();
-  const cockpit=viewer?.shipCameraMode!=="chase";
-  if(cockpit&&controlRect.width&&controlRect.height){
+ function handleShipTap(clientX,clientY){
+  if(!getVoyage()?.active||isVR()||!canvas)return;
+  const viewer=getRenderer(),controlRect=canvas.getBoundingClientRect();
+  if(viewer?.shipCameraMode!=="chase"&&controlRect.width&&controlRect.height){
    const physical=(viewer.shipCockpitControls||[]).filter(p=>p.onScreen).map(p=>({...p,distance:
-    Math.hypot(controlRect.left+p.u*controlRect.width-event.clientX,
-     controlRect.top+p.v*controlRect.height-event.clientY)})).filter(p=>p.distance<24).sort((a,b)=>a.distance-b.distance)[0];
-   if(physical){
-    event.preventDefault();event.stopImmediatePropagation();
-    if(physical.id==="throttle")cycleLever();else dashboard.executeHardware(physical.id);
-    return;
-   }
+    Math.hypot(controlRect.left+p.u*controlRect.width-clientX,controlRect.top+p.v*controlRect.height-clientY)}))
+    .filter(p=>p.distance<24).sort((a,b)=>a.distance-b.distance)[0];
+   if(physical){if(physical.id==="throttle")cycleLever();else dashboard.executeHardware(physical.id);return;}
   }
-  const model=getCombat(),rect=canvas.getBoundingClientRect();
-  if(!model||!rect.width||!rect.height)return;
-  const projected=getRenderer()?.shipTargets||[];
-  const chosen=pickShipContact(projected,rect,event.clientX,event.clientY);
-  if(!chosen||chosen.id!=="planet"&&!scannedIds.has(chosen.id))return;
-  event.preventDefault();event.stopImmediatePropagation();
-  selectNavigation(chosen.id);
+  const chosen=pickShipContact(viewer?.shipTargets,controlRect,clientX,clientY);
+  if(chosen&&(chosen.id==="planet"||scannedIds.has(chosen.id)))selectNavigation(chosen.id);
+ }
 
- },true);
  document.addEventListener("keydown",event=>{
   if(event.code!=="Space"||event.repeat||event.altKey||event.ctrlKey||event.metaKey||
    !active()||isVR()||["INPUT","TEXTAREA","SELECT","BUTTON"].includes(document.activeElement?.tagName))
@@ -258,7 +248,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(fireEdge)fire();
 
   const viewer=getRenderer();
-  if(viewer){viewer.shipCombat=model;viewer.selectShipNavigation=selectNavigation;}
+  if(viewer){viewer.shipCombat=model;viewer.selectShipNavigation=selectNavigation;viewer.handleShipTap=handleShipTap;}
   const projections=viewer?.shipTargets||[];
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
   const show=Boolean(v?.active&&!vr);

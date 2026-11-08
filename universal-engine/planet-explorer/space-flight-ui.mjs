@@ -1,4 +1,4 @@
-import {installShipViewGestures,pickShipContact} from "./ship-view-gestures.mjs?v=20261108-tap-gesture";
+import {installShipViewGestures} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {bodyById} from "./solar-system.mjs";
 import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261108-ciws-captain";
 import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-ciws-captain";
@@ -287,10 +287,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   isActive:()=>!root.hidden,isRoaming:()=>chase&&seatedPilot(get()),getInterior:()=>get()?.interior,
   onOrbit:(dx,dy)=>{orbitYaw=(orbitYaw+dx*.008)%(2*Math.PI);orbitPitch=clamp(orbitPitch+dy*.005,-.42,1.37);syncShipCamera();},
   onZoom:delta=>{chaseDistance=clamp(chaseDistance+Math.sign(delta)*6,28,150);syncShipCamera();},
-  onTap:(x,y)=>{
-   const viewer=getWorldRenderer?.();
-   const contact=pickShipContact(viewer?.shipTargets,dragTarget.getBoundingClientRect(),x,y);
-   if(contact)viewer?.selectShipNavigation?.(contact.id);
+  onTap:(x,y)=>{getWorldRenderer?.()?.handleShipTap?.(x,y);
   }
  });
  function applyMove(dt){
