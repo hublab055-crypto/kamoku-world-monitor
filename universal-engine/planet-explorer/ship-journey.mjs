@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {ShipInterior} from "./ship-interior.mjs?v=20261108-ciws-captain";
+import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -58,7 +58,7 @@ export class ShipJourney{
    schemaVersion:1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
   this.interior.mode=this.seated?"cockpit":"interior";
   this.interior.seated=this.seated;
-  if(this.seated)this.interior.z=-12.1;
+  if(this.seated)this.interior.z=PILOT_SEAT_Z;
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
@@ -74,7 +74,7 @@ export class ShipJourney{
    entry:"大気圏突入",atmosphere:"大気圏内航行",vtol:"VTOL垂直着陸",touchdown:"接地・エンジン停止",landed:"地表・着陸完了"}[this.status]||"航行中";
  }
  isNearHatch(){return this.interior.distance({x:0,z:12.0})<=2.9;}
- isNearSeat(){return this.interior.distance({x:0,z:-10})<=2.5;}
+ isNearSeat(){return this.interior.nearHelm;}
  isGrounded(){return ["docked","landed"].includes(this.status);}
  toggleHatch({remote=false}={}){
   // Landing and docking are the ONLY states in which the airlock can move.
@@ -98,13 +98,13 @@ export class ShipJourney{
   this.seated=true;this.interior.seated=true;this.interior.mode="cockpit";
   // Snap to the actual chair so both WebGL and Quest physical buttons sit
   // within arm's reach; an arbitrary nearby walking position is not a seat.
-  this.interior.x=0;this.interior.z=-12.1;this.interior.yaw=0;this.interior.pitch=0;
+  this.interior.x=0;this.interior.z=PILOT_SEAT_Z;this.interior.yaw=0;this.interior.pitch=0;
   return {ok:true,message:"🪑 操縦席に着席しました。航行システムを操作できます"};
  }
  stand(){
   if(!this.seated)return {ok:false,message:"すでに立っています"};
   this.seated=false;this.interior.seated=false;this.interior.mode="interior";
-  this.interior.x=0;this.interior.z=-10.5;
+  this.interior.x=0;this.interior.z=PILOT_ACCESS_Z;
   return {ok:true,message:"🚶 操縦席から立ち上がりました"};
  }
  canDisembark(){return this.isGrounded()&&!this.seated&&this.hatchOpen&&

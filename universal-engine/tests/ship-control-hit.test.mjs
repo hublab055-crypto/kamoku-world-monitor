@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
- COCKPIT_SWITCHES,EXTERIOR_HATCH_SWITCH,
+ COCKPIT_SWITCHES,COCKPIT_LEVER,EXTERIOR_HATCH_SWITCH,
  xrRayPointDistance,xrCockpitControlHit,exteriorHatchWorldPoint
 } from "../planet-explorer/ship-control-hit.mjs";
 
@@ -11,7 +11,7 @@ const ray=(x,y,z)=>[1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1];
 test("all four cockpit switches including hatch are in reach of the pilot",()=>{
  assert.deepEqual(COCKPIT_SWITCHES.map(c=>c.id),["scan","weapon","fire","hatch"]);
  for(const switchCap of COCKPIT_SWITCHES)
-  assert.ok(Math.hypot(switchCap.position[0],switchCap.position[1]-1.25,switchCap.position[2]+12.1)<1);
+  assert.ok(Math.hypot(switchCap.position[0],switchCap.position[1]-1.25,switchCap.position[2]+11.25)<1);
 });
 const controlRay=(id,dx=0,dz=0)=>{
  const p=COCKPIT_SWITCHES.find(c=>c.id===id).position;
@@ -22,7 +22,7 @@ test("Quest controller targets the armrest weapon switch",()=>{
 });
 test("Quest can pick each of the four armrest caps distinctly",()=>{
  for(const id of ["scan","weapon","fire","hatch"])assert.equal(xrCockpitControlHit(controlRay(id),identity)?.id,id);
- assert.equal(xrCockpitControlHit(ray(.65,1.3,-11.5),identity)?.id,"throttle");
+ assert.equal(xrCockpitControlHit(ray(COCKPIT_LEVER[0],COCKPIT_LEVER[1],COCKPIT_LEVER[2]+.15),identity)?.id,"throttle");
 });
 test("XR ray picking uses the same stage transform as rendered geometry",()=>{
  const shifted=[...identity];shifted[12]=4;shifted[14]=2;

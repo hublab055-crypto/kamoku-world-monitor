@@ -1,3 +1,4 @@
+import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
 import {regionalLakeMesh} from "./regional-landforms.mjs";
@@ -49,9 +50,9 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
-import {COCKPIT_SWITCHES} from "./ship-control-hit.mjs?v=20261108-ciws-captain";
+import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261108-ciws-captain";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261109-pilot-access";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-ciws-captain";
 import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-ciws-captain";
@@ -1978,8 +1979,12 @@ export class ExplorerRenderer{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
     // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
+    if(!v.seated&&v.isNearSeat?.()){
+     const seat=projectScreen(vp,[0,1.1,PILOT_SEAT_Z+.55]);
+     if(seat)this.shipCockpitControls.push({...seat,id:"seat"});
+    }
     if(v.seated||person.mode==="cockpit"){
-     const leverProjection=projectScreen(vp,[.65,1.3,-11.65]);
+     const leverProjection=projectScreen(vp,COCKPIT_LEVER);
      if(leverProjection)this.shipCockpitControls.push({...leverProjection,id:"throttle"});
      // Windshield combiner bars replace the large central instrument panel.
      for(const [y,amount,color] of [[1.8,this.shipCombat?.player.shield??100,[.2,.8,1]],[1.65,this.shipCombat?.player.hp??100,[.3,1,.4]]]){
