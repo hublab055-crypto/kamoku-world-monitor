@@ -22,7 +22,7 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
   const v=get(),show=v?.kind==="surface-to-surface";
   root.hidden=!show;if(!show){key="";return;}
   const nearbyHatch=v.isNearHatch(),nearSeat=v.isNearSeat();
-  const currentKey=[v.status,v.hatchOpen,v.seated,Math.floor(v.interior.z*2),Math.floor(v.interior.x*2),v.destinationId].join("|");
+  const currentKey=[v.status,v.hatchOpen,v.seated,nearSeat,nearbyHatch,Math.floor(v.interior.z*2),Math.floor(v.interior.x*2),v.destinationId].join("|");
   if(force||key!==currentKey){
    key=currentKey;actions.replaceChildren();
    $("ship-prompt").textContent="🚀 "+v.phase+" ／ "+(v.seated?"着席中":"船内歩行中")+" ／ ハッチ："+(v.hatchOpen?"開":"閉");
@@ -33,7 +33,7 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
     if(v.canDisembark())action("🚶 地表へ歩いて降りる",onExit);
    }
    const instructions={
-    docked:"船内を歩き、船尾のハッチを閉じ、操縦席に座って離陸してください。",
+    docked:"船内を歩き、船尾のハッチを閉じ、操縦席の後ろか横で「操縦席に座る」を押して離陸してください。",
     ascent:"ハッチを閉じたまま大気圏を上昇します。操作中も船内を歩けます。",
     "origin-orbit":"周回軌道へ到達。操縦席から次の惑星を選んでください。",
     cruise:"巡航中。スロットル・旋回・自動航行で進行方向を調整できます。",

@@ -1,12 +1,14 @@
+import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
 /** Shared physical ship controls and XR ray picking (column-major metres).
  * Does not depend on WebXR globals; safe to test in Node.
  */
 export const COCKPIT_SWITCHES=Object.freeze([
- {id:"scan",position:Object.freeze([-.65,1.05,-12.35])},
- {id:"weapon",position:Object.freeze([-.65,1.05,-11.95])},
- {id:"fire",position:Object.freeze([.65,1.05,-12.35])},
- {id:"hatch",position:Object.freeze([.65,1.05,-11.95])}
+ {id:"scan",position:Object.freeze([-.65,1.05,PILOT_SEAT_Z-.25])},
+ {id:"weapon",position:Object.freeze([-.65,1.05,PILOT_SEAT_Z+.15])},
+ {id:"fire",position:Object.freeze([.65,1.05,PILOT_SEAT_Z-.25])},
+ {id:"hatch",position:Object.freeze([.65,1.05,PILOT_SEAT_Z+.15])}
 ]);
+export const COCKPIT_LEVER=Object.freeze([.65,1.3,PILOT_SEAT_Z+.45]);
 export const EXTERIOR_HATCH_SWITCH=Object.freeze([1.77,3.18,12.78]);
 
 export function xrRayPointDistance(matrix,stage,point,{radius=.34,maxDistance=2.5}={}){
@@ -30,7 +32,7 @@ export function xrRayPointDistance(matrix,stage,point,{radius=.34,maxDistance=2.
 }
 export function xrCockpitControlHit(matrix,stage){
  let best=null;
- for(const button of [...COCKPIT_SWITCHES,{id:"throttle",position:[.65,1.3,-11.65]}]){
+ for(const button of [...COCKPIT_SWITCHES,{id:"throttle",position:COCKPIT_LEVER}]){
   const hit=xrRayPointDistance(matrix,stage,button.position,{radius:.28,maxDistance:2.8});
   if(hit&&(!best||hit.distance<best.distance))best={id:button.id,...hit};
  }

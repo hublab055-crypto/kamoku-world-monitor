@@ -41,3 +41,22 @@ test('cabin drag changes view without selecting the enemy underneath',()=>{
  const h=harness(false);h.send('pointerdown');h.send('pointermove',480,255);h.send('pointerup',480,255);
  assert.ok(h.orbit.length>0);assert.equal(h.combat.locked.length,0);
 });
+
+test('walking up the cabin aisle reaches a seat, and a cabin tap then locks an enemy',async()=>{
+ const {ShipJourney}=await import('../planet-explorer/ship-journey.mjs');
+ const voyage=new ShipJourney({originId:'terra',status:'origin-orbit',interior:{schemaVersion:1,x:0,z:10,yaw:0}});
+ for(let i=0;i<100&&!voyage.isNearSeat();i++)voyage.interior.walk(1,0,.12);
+ assert.ok(voyage.interior.canOccupy(voyage.interior.x,voyage.interior.z));
+ assert.equal(voyage.sit().ok,true);
+ const target=new EventTarget(),combat=new SpaceCombat();
+ installShipViewGestures(target,{isActive:()=>true,isRoaming:()=>false,getInterior:()=>voyage.interior,ownerWindow:null,
+  onOrbit:()=>{},onZoom:()=>{},onTap:()=>combat.lockContact('pirate-alpha',voyage)});
+ for(const type of ['pointerdown','pointerup']){
+  const event=new Event(type,{cancelable:true});
+  Object.assign(event,{pointerId:1,isPrimary:true,button:0,clientX:400,clientY:200});
+  target.dispatchEvent(event);
+ }
+ assert.deepEqual(combat.locked,['pirate-alpha']);
+ assert.equal(voyage.stand().ok,true);
+ assert.ok(voyage.interior.canOccupy(voyage.interior.x,voyage.interior.z));
+});

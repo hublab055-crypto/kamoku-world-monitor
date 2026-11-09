@@ -1,4 +1,4 @@
-import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261108-ciws-captain";
+import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-ciws-captain";
 import {bodyById} from "./solar-system.mjs";
@@ -91,20 +91,20 @@ export function createShipGeometry(open=false){
   box(a,x,3.48,0,.075,.09,25.5,"line");
  }
  // Captain chair: unobstructed front glazing and controls on the armrests.
- box(a,0,.53,-12.1,.95,.26,1.05,"seat");
- box(a,0,1.12,-11.55,1.0,1.35,.20,"seat");
- box(a,0,.29,-12.1,.28,.75,.28,"frame");
+ box(a,0,.53,PILOT_SEAT_Z,.95,.26,1.05,"seat");
+ box(a,0,1.12,PILOT_SEAT_Z+.55,1.0,1.35,.20,"seat");
+ box(a,0,.29,PILOT_SEAT_Z,.28,.75,.28,"frame");
  for(const x of [-.65,.65]){
-  box(a,x,.82,-12.0,.24,.18,1.05,"seat");
-  box(a,x,.72,-11.7,.12,.62,.16,"frame");
-  box(a,x,.96,-12.35,.14,.09,.20,"screen");
+  box(a,x,.82,PILOT_SEAT_Z+.10,.24,.18,1.05,"seat");
+  box(a,x,.72,PILOT_SEAT_Z+.40,.12,.62,.16,"frame");
+  box(a,x,.96,PILOT_SEAT_Z-.25,.14,.09,.20,"screen");
  }
- for(const [x,z] of [[-.65,-12.35],[-.65,-11.95],[.65,-12.35],[.65,-11.95]]){
+ for(const [x,z] of [[-.65,PILOT_SEAT_Z-.25],[-.65,PILOT_SEAT_Z+.15],[.65,PILOT_SEAT_Z-.25],[.65,PILOT_SEAT_Z+.15]]){
   box(a,x,.97,z,.13,.08,.13,"light");
  }
  // Engine lever mounted on the right armrest.
- box(a,.65,1.12,-11.65,.06,.32,.06,"frame");
- box(a,.65,1.30,-11.65,.19,.09,.10,"dark");
+ box(a,.65,1.12,PILOT_SEAT_Z+.45,.06,.32,.06,"frame");
+ box(a,.65,1.30,PILOT_SEAT_Z+.45,.19,.09,.10,"dark");
  // Thin cyan combiner marks on the front window; target HUD is drawn through it.
  for(const x of [-1.4,1.4])box(a,x,1.75,-13.05,.035,.30,.025,"line");
  // Crew bunks in the corridor and separate utilities.

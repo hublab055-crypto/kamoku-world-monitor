@@ -3,7 +3,7 @@ import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain"
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261108-ciws-captain";
-import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261108-ciws-captain";
+import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
@@ -88,6 +88,19 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  flareButton.onclick=()=>{const r=getCombat()?.deployFlares(getVoyage());if(r)notify(r.message);};consolePanel.append(flareButton);
  const ciwsButton=document.createElement("button");ciwsButton.type="button";
  ciwsButton.onclick=()=>{const m=getCombat();if(m)m.ciwsEnabled=!m.ciwsEnabled;};consolePanel.append(ciwsButton);
+ const lockButton=document.createElement("button");
+ lockButton.type="button";
+ lockButton.textContent="🎯 敵をロック";
+ lockButton.onclick=()=>{
+  const v=getVoyage(),model=getCombat();
+  if(!model||!combatEligible(v)){feedbackWhenUnavailable();return;}
+  const contacts=model.combatTargets.map(target=>({target,range:shipContactDistance(target,v)}))
+   .filter(({range})=>range<=1500).sort((a,b)=>a.range-b.range);
+  const nearest=contacts[0]?.target;
+  if(nearest)selectNavigation(nearest.id);
+  else notify("1.5km以内に攻撃ロックできる敵はいません");
+ };
+ consolePanel.append(lockButton);
  const targetNodes=new Map();
  const radio=document.createElement("section");radio.className="ship-radio-overlay";
  radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
@@ -207,25 +220,31 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  function selectNavigation(id){
   const v=getVoyage(),model=getCombat();if(!v||!model)return;
   const contact=id==="planet"?{id:"planet",name:"目的惑星",position:[0,0,12000]}:model.allContacts.find(c=>c.id===id);
-  if(!contact||!v.selectNavigationTarget?.(contact))return;
+  if(!contact)return;
+  const navigationSelected=v.selectNavigationTarget?.(contact);
   if(contact.faction==="hostile"){
    if(!combatEligible(v)){notify("🪑 攻撃ロックは操縦席に着席して宇宙航行中に使用してください");return;}
    const locked=model.lockContact(id,v);
    notify(locked?"🎯 攻撃ロック："+contact.name:"🎯 航行目標："+contact.name+"／攻撃ロック射程外（1.5km）");return;
   }
-  notify("🎯 航行目標："+contact.name+"／自動操縦ONで追航します");
+  if(navigationSelected)notify("🎯 航行目標："+contact.name+"／自動操縦ONで追航します");
  }
  let gamepadTriggerHeld=false;
  // The main WebGL canvas is the hit region for pointer lock; in VR gaze owns it.
- const canvas=getRenderer()?.canvas;
  function handleShipTap(clientX,clientY){
-  if(!getVoyage()?.active||isVR()||!canvas)return;
-  const viewer=getRenderer(),controlRect=canvas.getBoundingClientRect();
+  const viewer=getRenderer();
+  if(!getVoyage()?.active||isVR()||!viewer?.canvas)return;
+  const controlRect=viewer.canvas.getBoundingClientRect();
   if(viewer?.shipCameraMode!=="chase"&&controlRect.width&&controlRect.height){
    const physical=(viewer.shipCockpitControls||[]).filter(p=>p.onScreen).map(p=>({...p,distance:
     Math.hypot(controlRect.left+p.u*controlRect.width-clientX,controlRect.top+p.v*controlRect.height-clientY)}))
     .filter(p=>p.distance<24).sort((a,b)=>a.distance-b.distance)[0];
-   if(physical){if(physical.id==="throttle")cycleLever();else dashboard.executeHardware(physical.id);return;}
+   if(physical){
+    if(physical.id==="seat"){const result=getVoyage().sit();notify(result.message);}
+    else if(physical.id==="throttle")cycleLever();
+    else dashboard.executeHardware(physical.id);
+    return;
+   }
   }
   const chosen=pickShipContact(viewer?.shipTargets,controlRect,clientX,clientY);
   if(chosen&&(chosen.id==="planet"||scannedIds.has(chosen.id)))selectNavigation(chosen.id);
@@ -258,6 +277,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    scanUntil=Infinity;v.shipSystems=model.systemSnapshot();
   }
   if(viewer)viewer.shipScannedIds=scannedIds;
+  lockButton.hidden=!engage;
   dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);service.refresh(show);
   if(!show){radio.hidden=true;radioExpanded=false;radioToggle.setAttribute("aria-expanded","false");}
   if(viewer)viewer.shipControlLayout=dashboard.layout;

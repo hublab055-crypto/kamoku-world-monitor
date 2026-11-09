@@ -44,5 +44,5 @@ test('friendly and mineral contacts survive the final hostile, with offscreen di
  assert.equal(point.visible,false);assert.equal(point.behind,true);assert.ok(Number.isFinite(point.angleDeg));
 });
 test('saved seated pilot is placed next to front window',()=>{
- const v=ship();assert.equal(v.interior.z,-12.1);assert.equal(ShipJourney.fromSnapshot(v.snapshot()).interior.z,-12.1);
+ const v=ship();assert.equal(v.interior.z,-11.25);assert.equal(ShipJourney.fromSnapshot(v.snapshot()).interior.z,-11.25);
 });
