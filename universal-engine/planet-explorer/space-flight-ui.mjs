@@ -120,7 +120,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  document.head.append(style);
  const root=document.createElement("section");root.id="space-flight";root.hidden=true;root.setAttribute("role","region");root.setAttribute("aria-label","惑星間宇宙船の操縦席");
  root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-camera" type="button" aria-pressed="false">🚀 船外追従</button> <button id="flight-wide" type="button" aria-pressed="false">⛶ 広画面</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
-  '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><label class="flight-engine-lever" hidden>推力<input id="flight-throttle" type="range" min="-100" max="100" step="1" value="72" aria-label="宇宙船推力レバー、マイナスは逆噴射、0は慣性航行、プラスは加速"><output for="flight-throttle">72%</output><small>0 慣性</small></label><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
+  '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><label class="flight-engine-lever" hidden>推力<input id="flight-throttle" type="range" min="-100" max="100" step="1" value="72" aria-label="宇宙船推力レバー、下は逆噴射で減速、中央は慣性航行、上は加速"><output for="flight-throttle">72%</output><small>↓ 逆噴射</small></label><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-translate" aria-pressed="false" hidden>平行移動</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
   '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。操縦盤の青=スキャン、黄=兵装、赤=発射。船外ハッチ右側の点灯スイッチはVRトリガーで開閉。Quest Xは近接乗船・着席に対応。宇宙戦：📡スキャンで🔹味方・♦資源・🔸敵性・🟢中立を可視化。敵をタップ／VRで視線保持してロックオン♦️、トリガー・Space・発射ボタンで攻撃。📻通信で停戦・降伏の交渉ができます。</div>';
@@ -349,7 +349,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   if(!seatedPilot(v)||typeof v.setThrottle!=="function")return;
   v.setThrottle(Number(throttle.value)/100);
   v.setAutopilot?.(false);
-  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"逆噴射 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
+  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"減速 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
  });
  $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
  $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
@@ -393,12 +393,12 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   const courseSpeed=Math.hypot(v.routeVelocity?.along||0,v.routeVelocity?.cross||0,v.verticalVelocity||0)*100;
   $("flight-heading").textContent="進路："+Math.round(v.heading)+"° / 機首："+Math.round(v.pitchDeg||0)+
-   "° / 航路速度 "+courseSpeed.toFixed(2)+"%/秒"+
+   "° / "+(v.status==="atmosphere"?"速度 "+Math.round(v.airSpeed)+" m/s":"航路速度 "+courseSpeed.toFixed(2)+"%/秒")+
    (v.canTranslate?" / XYZ "+shipEncounterPosition(v).map(n=>Math.round(n)).join(", ")+" m":"");
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
-  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"逆噴射 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
+  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"減速 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
   $("flight-cancel").hidden=v.kind==="surface-to-surface"||v.status!=="preflight";
   const groundReady=["preflight","docked"].includes(v.status);
   main.textContent=v.status==="atmosphere"?"🛬 VTOL着陸":v.status==="vtol"?"🛬 垂直降下中":groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":

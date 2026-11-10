@@ -66,14 +66,17 @@ export function advanceManualRoute({position,velocity,yawDeg,pitchDeg,throttle,s
  const right=[cy,0,-sy],up=[-sy*sp,cp,-cy*sp],forward=[sy*cp,sp,cy*cp];
  const input=value=>finite(value)?clamp(value,-1,1):0;
  const x=input(strafe),y=input(lift),z=input(throttle);
- const strength=Math.hypot(x,y,z);
- const thrust=fuelAvailable?Math.min(strength,1):0;
- let nextVelocity=velocity;
- if(thrust>0&&step>0){
+ const speed=Math.hypot(...velocity);
+ const strength=Math.hypot(x,y,z<0&&speed===0?0:z);
+ let thrust=0,nextVelocity=velocity;
+ if(fuelAvailable&&strength>0&&step>0){
   const impulse=ROUTE_ACCEL*step/Math.max(1,strength);
-  nextVelocity=velocity.map((v,i)=>v+(x*right[i]+y*up[i]+z*forward[i])*impulse);
-  const speed=Math.hypot(...nextVelocity);
-  if(speed>ROUTE_MAX_SPEED)nextVelocity=nextVelocity.map(v=>v*ROUTE_MAX_SPEED/speed);
+  const braking=Math.min(speed,Math.max(0,-z)*impulse);
+  const remaining=speed>0?1-braking/speed:1;
+  nextVelocity=velocity.map((v,i)=>v*remaining+(x*right[i]+y*up[i]+Math.max(0,z)*forward[i])*impulse);
+  const nextSpeed=Math.hypot(...nextVelocity);
+  if(nextSpeed>ROUTE_MAX_SPEED)nextVelocity=nextVelocity.map(v=>v*ROUTE_MAX_SPEED/nextSpeed);
+  thrust=Math.hypot(x*impulse,y*impulse,Math.max(0,z)*impulse+braking)/(ROUTE_ACCEL*step);
  }
  return {position:position.map((v,i)=>v+nextVelocity[i]*step),velocity:nextVelocity,thrust};
 }

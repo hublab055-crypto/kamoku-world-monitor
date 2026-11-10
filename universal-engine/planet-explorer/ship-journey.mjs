@@ -1,7 +1,7 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-xyz";
+import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-brake";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -206,7 +206,11 @@ export class ShipJourney{
   return {days:Math.abs(this.routeAlong-before)*this.flightDays,advanced:this.routeAlong-before,status:this.status};
  }
  setAutopilot(on){this.autopilot=Boolean(on);}
- setThrottle(n){if(!finite(n))throw Error("Invalid throttle");this.throttle=clamp(n,-1,1);}
+ setThrottle(n){
+  if(!finite(n))throw Error("Invalid throttle");
+  this.throttle=clamp(n,-1,1);
+  if(this.throttle<0)this.setAutopilot(false);
+ }
  steer(n){
   if(!finite(n))throw Error("Invalid heading");
   this.heading=clamp(this.heading+n,-60,60);
@@ -221,13 +225,16 @@ export class ShipJourney{
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
   if(this.status==="atmosphere"){
-   const desired=this.fuel>0?Math.max(0,this.throttle)*180*(this.shipSystems?.parts?.engine??100)/100:0;
+   const engine=this.fuel>0?(this.shipSystems?.parts?.engine??100)/100:0;
+   const desired=Math.max(0,this.throttle)*180*engine;
    this.airSpeed+=(desired-this.airSpeed)*Math.min(1,step*.6);
+   const braking=Math.min(this.airSpeed,Math.max(0,-this.throttle)*60*engine*step);
+   this.airSpeed-=braking;
    const yaw=this.attitudeYawDeg*Math.PI/180,pitch=this.pitchDeg*Math.PI/180;
    this.airEast+=Math.sin(yaw)*Math.cos(pitch)*this.airSpeed*step;
    this.airNorth+=Math.cos(yaw)*Math.cos(pitch)*this.airSpeed*step;
    this.airAltitude=clamp(this.airAltitude+Math.sin(pitch)*this.airSpeed*step,2,7000);
-   this.fuel=Math.max(0,this.fuel-step*(.03+Math.abs(this.throttle)*.12));
+   this.fuel=Math.max(0,this.fuel-(step*(.03+Math.max(0,this.throttle)*.12)+braking/500));
    this.elapsedSeconds+=step;
    return {days:0,advanced:0,status:this.status};
   }

@@ -97,7 +97,8 @@ test("manual translation moves on X and Y while the lever independently moves on
  assert.ok(restored.crossTrack>ship.crossTrack&&restored.routeVertical>ship.routeVertical);
  restored.setThrottle(-1);
  restored.tick(.1);
- assert.ok(restored.routeAlong<ship.routeAlong);
+ eq(restored.routeAlong,ship.routeAlong);
+ assert.ok(Math.hypot(restored.routeVelocity.cross,restored.verticalVelocity)<Math.hypot(ship.routeVelocity.cross,ship.verticalVelocity));
 });
 
 test("sideways thrust uses ship heading and the speed cap includes all axes",()=>{
@@ -110,4 +111,34 @@ test("sideways thrust uses ship heading and the speed cap includes all axes",()=
  ship.setThrottle(1);
  for(let i=0;i<200;i++)ship.tick(.1,{strafe:1,lift:1});
  assert.ok(Math.hypot(ship.routeVelocity.along,ship.routeVelocity.cross,ship.verticalVelocity)<=.080000001);
+});
+
+test("reverse thrust cancels three-axis drift even when the nose faces backwards",()=>{
+ const ship=new ShipJourney({originId:"terra",destinationId:"cinder",status:"cruise",
+  seated:true,autopilot:true,attitudeYawDeg:180,routeAlong:.2,
+  routeVelocity:{along:.002,cross:.003},verticalVelocity:-.004});
+ ship.setThrottle(-.5);
+ assert.equal(ship.autopilot,false);
+ ship.tick(.1);
+ assert.ok(ship.routeVelocity.along>0&&ship.routeVelocity.along<.002);
+ eq(ship.routeVelocity.cross/ship.routeVelocity.along,1.5);
+ eq(ship.verticalVelocity/ship.routeVelocity.along,-2);
+ for(let i=0;i<20;i++)ship.tick(.1);
+ eq(Math.hypot(ship.routeVelocity.along,ship.routeVelocity.cross,ship.verticalVelocity),0);
+ const stopped=ship.snapshot();
+ ship.tick(.1);
+ eq(ship.routeAlong,stopped.routeAlong);
+ eq(ship.fuel,stopped.fuel);
+});
+
+test("reverse thrust adds atmospheric braking beyond coasting",()=>{
+ const ship=new ShipJourney({originId:"terra",destinationId:"cinder",status:"atmosphere",
+  seated:true,airSpeed:60,airAltitude:700,throttle:0});
+ const coasting=ShipJourney.fromSnapshot(ship.snapshot());
+ ship.setThrottle(-1);
+ ship.tick(.1);
+ coasting.tick(.1);
+ assert.ok(ship.airSpeed<coasting.airSpeed);
+ for(let i=0;i<20;i++)ship.tick(.1);
+ eq(ship.airSpeed,0);
 });
