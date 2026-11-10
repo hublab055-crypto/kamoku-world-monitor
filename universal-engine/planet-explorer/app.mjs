@@ -4,14 +4,13 @@ import {SolarSystem,BODIES,bodyById,createCelestialPlanet,applyCelestialClimate}
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
-import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipJourney} from "./ship-journey.mjs?v=20261110-brake";
+import {ShipJourney} from "./ship-journey.mjs?v=20261110-entry-lever";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261110-flight-control";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261110-brake";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261110-entry-lever";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261110-flight-control";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
@@ -308,8 +307,7 @@ function init(saved=null){
   shipArrivalPreview=null;
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
-  voyage=ShipJourney.fromSnapshot(saved?.v0_aa?.voyage)||
-   SpaceVoyage.fromSnapshot(saved?.v0_aa?.voyage);
+  voyage=ShipJourney.fromSnapshot(saved?.v0_aa?.voyage);
   if(saved?.planet&&!saved?.v0_aa)solarSystem.sync(saved.planet.timeDays);
   planet=saved?Planet.fromSnapshot(saved.planet):createCelestialPlanet("terra",.24);
   if(saved?.v0_aa)planet.timeDays=solarSystem.days;
@@ -1722,11 +1720,11 @@ function startCelestialVoyage(id){
  try{
   const origin=captureGame();
   solarSystem.store(solarSystem.currentId,origin);
-  voyage=new SpaceVoyage({originId:solarSystem.currentId,destinationId:id,
-   flightDays:plan.flightDays,launchDay:planet.timeDays});
+  voyage=new ShipJourney({originId:solarSystem.currentId,destinationId:id,
+   status:"origin-orbit",seated:true,flightDays:plan.flightDays,launchDay:planet.timeDays});
   running=false;simWorld.clock.paused=true;
   solarUI?.close();voyageUI?.show();
-  return {ok:true,message:"🛰️ "+bodyById(id).name+"へ出発準備。操縦席の「離陸」を押してください"};
+  return {ok:true,message:"🛰️ "+bodyById(id).name+"へ出発準備。操縦席の「惑星間航行開始」を押してください"};
  }catch(error){voyage=null;return {ok:false,message:"航行準備エラー："+error.message};}
 }
 function launchCelestialVoyage(){
@@ -1738,9 +1736,10 @@ function launchCelestialVoyage(){
  return result;
 }
 function cancelCelestialVoyage(){
- const result=voyage?.cancel()||{ok:false,message:"宇宙船がありません"};
- if(result.ok){voyage=null;running=true;simWorld.clock.paused=false;voyageUI?.close();updateHUD();}
- return result;
+ if(!voyage?.canCancelDeparture)return {ok:false,message:"航行開始後は出発を取り消せません"};
+ voyage=null;renderer.shipVoyage=null;running=true;simWorld.clock.paused=false;
+ voyageUI?.close();updateHUD();
+ return {ok:true,message:"発進を取り消しました"};
 }
 function saveCelestialVoyage(){
  try{const data=captureGame();localStorage.setItem(SAVE_KEY,JSON.stringify(data));
@@ -4144,7 +4143,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
- onLaunch:launchCelestialVoyage,onLand:finishCelestialVoyage,
+ onLaunch:launchCelestialVoyage,onTransfer:startShipTransfer,onLand:finishCelestialVoyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],

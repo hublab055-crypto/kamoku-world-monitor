@@ -1,4 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
+import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
 import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-brake";
@@ -62,6 +63,7 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
+ get canCancelDeparture(){return this.status==="origin-orbit"&&!this.launchSite;}
  get canTranslate(){return ["origin-orbit","cruise","approach","flyby","orbit"].includes(this.status);}
  get planetOffset(){return [this.crossTrack,this.routeVertical,this.routeAlong-1];}
  get approachingPlanet(){
@@ -323,7 +325,20 @@ export class ShipJourney{
    seated:this.seated,interior:this.interior.snapshot()};
  }
  static fromSnapshot(data){
-  if(data?.kind!=="surface-to-surface"||data.schemaVersion!==2)return null;
-  try{return new ShipJourney(data);}catch{return null;}
+  if(data?.kind==="surface-to-surface"&&data.schemaVersion===2){
+   try{return new ShipJourney(data);}catch{return null;}
+  }
+  const legacy=SpaceVoyage.fromSnapshot(data);
+  if(!legacy)return null;
+  const status={preflight:"origin-orbit","parking-orbit":"origin-orbit",launch:"cruise",
+   descent:"entry",landed:"entry"}[legacy.status]||legacy.status;
+  const transferring=["cruise","approach","flyby"].includes(status);
+  return new ShipJourney({...legacy,status,interior:legacy.interior.snapshot(),
+   seated:legacy.interior.seated||legacy.interior.mode==="cockpit",
+   routeAlong:legacy.transferZ,crossTrack:legacy.transferX,routeVertical:legacy.transferY,
+   routeVelocity:transferring?{along:legacy.transferVZ,cross:legacy.transferVX}:{along:0,cross:0},
+   verticalVelocity:transferring?legacy.transferVY:0,
+   stageProgress:status==="ascent"?legacy.ascentSeconds/8:status==="entry"?legacy.descentSeconds/9:0
+  });
  }
 }
