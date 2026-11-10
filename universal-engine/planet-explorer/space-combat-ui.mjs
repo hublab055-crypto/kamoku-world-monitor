@@ -2,7 +2,7 @@ import {pickShipContact} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261108-ciws-captain";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261110-flight-control";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
@@ -101,6 +101,10 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   else notify("1.5km以内に攻撃ロックできる敵はいません");
  };
  consolePanel.append(lockButton);
+ const fireControl=document.createElement("button");
+ fireControl.type="button";
+ fireControl.onclick=()=>{const m=getCombat();if(m)m.fireControl=!m.fireControl;};
+ consolePanel.append(fireControl);
  const targetNodes=new Map();
  const radio=document.createElement("section");radio.className="ship-radio-overlay";
  radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
@@ -277,6 +281,9 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    scanUntil=Infinity;v.shipSystems=model.systemSnapshot();
   }
   if(viewer)viewer.shipScannedIds=scannedIds;
+  fireControl.hidden=!engage;
+  fireControl.textContent="火器管制 "+(model?.fireControl?"ON":"OFF");
+  fireControl.setAttribute("aria-pressed",String(Boolean(model?.fireControl)));
   lockButton.hidden=!engage;
   dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);service.refresh(show);
   if(!show){radio.hidden=true;radioExpanded=false;radioToggle.setAttribute("aria-expanded","false");}

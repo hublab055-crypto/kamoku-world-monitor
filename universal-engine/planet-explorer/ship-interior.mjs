@@ -60,10 +60,10 @@ export class ShipInterior{
  }
  distance(point){return Math.hypot(this.x-point.x,this.z-point.z);}
  get nearHatch(){return Math.hypot(this.x,this.z-11.55)<2.0;}
- get nearHelm(){return Math.hypot(this.x,this.z-PILOT_ACCESS_Z)<=2.3;}
+ get nearHelm(){return Math.min(Math.hypot(this.x,this.z-PILOT_ACCESS_Z),Math.hypot(this.x,this.z-PILOT_SEAT_Z))<=2.3;}
  sit(){
   if(this.seated)return {ok:false,message:"すでに操縦席に着席中です"};
-  if(!this.nearHelm)return {ok:false,message:"操縦席の横か通路側まで近づいてください"};
+  if(!this.nearHelm)return {ok:false,message:"操縦席の前後か横まで近づいてください"};
   this.seated=true;this.x=0;this.z=PILOT_SEAT_Z;this.yaw=0;this.pitch=0;this.mode="interior";
   return {ok:true,message:"🪑 操縦席に着席しました。航行操作が使用できます"};
  }
@@ -73,7 +73,7 @@ export class ShipInterior{
   return {ok:true,message:"🚶 操縦席から立ち上がりました"};
  }
  nearCrew(radius=2.6){return SHIP_CREW.filter(c=>this.distance(c)<=radius).sort((a,b)=>this.distance(a)-this.distance(b));}
- nearStations(radius=2.8){return SHIP_STATIONS.filter(c=>this.distance(c)<=Math.min(radius,c.radius)).sort((a,b)=>this.distance(a)-this.distance(b));}
+ nearStations(radius=2.8){return SHIP_STATIONS.filter(c=>c.id==="helm"?this.nearHelm:this.distance(c)<=Math.min(radius,c.radius)).sort((a,b)=>this.distance(a)-this.distance(b));}
  talk(id,voyage){
   const crew=SHIP_CREW.find(c=>c.id===id);
   if(!crew)return {ok:false,message:"乗員が見つかりません"};

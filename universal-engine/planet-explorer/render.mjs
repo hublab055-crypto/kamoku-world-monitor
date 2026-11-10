@@ -1,4 +1,4 @@
-import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
+import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
 import {regionalLakeMesh} from "./regional-landforms.mjs";
@@ -52,10 +52,10 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261109-pilot-access";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261110-flight-control";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-ciws-captain";
-import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261108-ciws-captain";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261110-flight-control";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261110-flight-control";
 import {bodyById} from "./solar-system.mjs?v=1";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -63,6 +63,7 @@ const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l)};
+const CONTACT_HULL_SCALE={fighter:[.55,.6,.6],carrier:[3.4,1.5,3.6],battleship:[2.0,1.5,2.8],cargo:[1.65,1.7,2.5]};
 export function projectScreen(vp,p){
  const x=vp[0]*p[0]+vp[4]*p[1]+vp[8]*p[2]+vp[12];
  const y=vp[1]*p[0]+vp[5]*p[1]+vp[9]*p[2]+vp[13];
@@ -1806,7 +1807,7 @@ export class ExplorerRenderer{
    // Non-hostiles have no weapon locks and are drawn once, never as duplicate ships.
    for(const c of contacts.filter(c=>c.visual&&c.faction!=="hostile")){
     const model=multiply4(translate(...c.position),
-     scale3(c.type==="resource"?2.5:.80,c.type==="resource"?2.1:.80,c.type==="resource"?2.4:.80));
+     scale3(...(c.type==="resource"?[2.5,2.1,2.4]:CONTACT_HULL_SCALE[c.hull]||[.8,.8,.8])));
     const mesh=c.type==="resource"?this.shipPlanetSphere:this.surfaceShipMeshes[0];
     const color=c.faction==="friendly"?[.45,.77,1]:
      c.faction==="neutral"?[.45,.93,.65]:[.88,.75,.42];
@@ -1833,7 +1834,7 @@ export class ExplorerRenderer{
       const yaw=Math.atan2(-direction[0],-direction[2]);
       const pitch=Math.atan2(direction[1]-2,Math.hypot(direction[0],direction[2]));
       const model=multiply4(translate(...pos),multiply4(rotateY(yaw),
-       multiply4(rotX(pitch),scale3(.9,.9,.9))));
+       multiply4(rotX(pitch),scale3(...(CONTACT_HULL_SCALE[contact.hull]||[.9,.9,.9])))));
       const locked=this.shipCombat.locked.includes(contact.id);
       const hit=this.shipCombat.flashes.some(f=>f.id===contact.id);
       const tint=contact.surrendered?[.72,.88,.95]:hit?[1,.95,.56]:
@@ -1918,7 +1919,7 @@ export class ExplorerRenderer{
      const progress=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
      const relativePoint=point=>encounterPointToShip(point.map((n,i)=>n-shipEncounterPosition(v)[i]),v);
      const start=shot.origin?relativePoint(shot.origin):shot.enemy?destination:(shot.muzzle||[0,2,-7]);
-     const end=shot.impact?relativePoint(shot.impact):shot.enemy?[0,2,-7]:destination;
+     const end=shot.decoy?relativePoint(shot.decoy):shot.impact?relativePoint(shot.impact):shot.enemy?[0,2,-7]:destination;
      const seed=shot.id.length*.7;
      const point=shot.weapon==="missile"?missileTrailPoint(start,end,progress,seed):
       start.map((n,i)=>n+(end[i]-n)*progress);

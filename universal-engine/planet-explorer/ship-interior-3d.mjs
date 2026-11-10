@@ -1,6 +1,6 @@
-import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
+import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
-import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261108-ciws-captain";
+import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261110-flight-control";
 import {bodyById} from "./solar-system.mjs";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));

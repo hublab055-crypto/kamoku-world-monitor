@@ -1,11 +1,11 @@
 import {installShipViewGestures} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {bodyById} from "./solar-system.mjs";
-import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261109-pilot-access";
-import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261109-pilot-access";
-import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261109-pilot-access";
+import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261110-flight-control";
+import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261110-flight-control";
+import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261110-flight-control";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261108-ciws-captain";
-import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261108-ciws-captain";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261110-flight-control";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -311,7 +311,8 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    // Physical climb/descent awaits the continuous-world dynamics implementation.
    const joystick=shipPointer===null?{x:0,y:0}:shipStick;
    const pilot=shipTouchPilot({x:joystick.x+n("right")-n("left"),
-    y:joystick.y+n("back")-n("forward")},dt);
+    y:joystick.y+n("back")-n("forward")},dt,
+    v.kind==="surface-to-surface"?{yawDegPerSecond:26,pitchDegPerSecond:21}:undefined);
    if((pilot.yawDelta||pilot.pitchDelta)&&
       !["docked","preflight","landed","touchdown"].includes(v.status))
     v.setAutopilot?.(false);
