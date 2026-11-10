@@ -58,3 +58,22 @@ export function routeIntercept(position,velocity,{distance=.012,maxSpeed=.007}={
 export function remainingRouteFraction(position){
  return Math.hypot(1-(position?.along??0),position?.cross??0);
 }
+
+/** Integrate ship-local thrusters into the shared route frame (X cross, Y up, Z along). */
+export function advanceManualRoute({position,velocity,yawDeg,pitchDeg,throttle,strafe=0,lift=0,fuelAvailable},step){
+ const yaw=yawDeg*Math.PI/180,pitch=pitchDeg*Math.PI/180;
+ const sy=Math.sin(yaw),cy=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch);
+ const right=[cy,0,-sy],up=[-sy*sp,cp,-cy*sp],forward=[sy*cp,sp,cy*cp];
+ const input=value=>finite(value)?clamp(value,-1,1):0;
+ const x=input(strafe),y=input(lift),z=input(throttle);
+ const strength=Math.hypot(x,y,z);
+ const thrust=fuelAvailable?Math.min(strength,1):0;
+ let nextVelocity=velocity;
+ if(thrust>0&&step>0){
+  const impulse=ROUTE_ACCEL*step/Math.max(1,strength);
+  nextVelocity=velocity.map((v,i)=>v+(x*right[i]+y*up[i]+z*forward[i])*impulse);
+  const speed=Math.hypot(...nextVelocity);
+  if(speed>ROUTE_MAX_SPEED)nextVelocity=nextVelocity.map(v=>v*ROUTE_MAX_SPEED/speed);
+ }
+ return {position:position.map((v,i)=>v+nextVelocity[i]*step),velocity:nextVelocity,thrust};
+}

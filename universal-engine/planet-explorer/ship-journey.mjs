@@ -1,7 +1,7 @@
 import {bodyById} from "./solar-system.mjs";
 import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=1";
+import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-xyz";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
 
@@ -62,6 +62,7 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
+ get canTranslate(){return ["origin-orbit","cruise","approach","flyby","orbit"].includes(this.status);}
  get planetOffset(){return [this.crossTrack,this.routeVertical,this.routeAlong-1];}
  get approachingPlanet(){
   return this.destinationId&&["cruise","approach","flyby","origin-orbit","orbit"].includes(this.status);
@@ -143,7 +144,8 @@ export class ShipJourney{
   if(!bodyById(id)?.landable||id===this.originId||!finite(flightDays)||flightDays<=0)
    return {ok:false,message:"航行先を指定できません"};
   this.destinationId=id;this.flightDays=flightDays;this.progress=0;
-  this.routeAlong=0;this.crossTrack=0;this.routeVelocity={along:0,cross:0};
+  this.routeAlong=0;this.crossTrack=0;this.routeVertical=0;
+  this.routeVelocity={along:0,cross:0};this.verticalVelocity=0;
   return {ok:true,message:"🧭 航路設定完了："+bodyById(id).name+"／推定"+flightDays.toFixed(1)+"ゲーム日"};
  }
  startTransfer(){
@@ -215,7 +217,7 @@ export class ShipJourney{
   this.pitchDeg=((this.pitchDeg+n+180)%360+360)%360-180;
   return this.pitchDeg;
  }
- tick(dt){
+ tick(dt,{strafe=0,lift=0}={}){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
   if(this.status==="atmosphere"){
@@ -242,16 +244,26 @@ export class ShipJourney{
   }
   if(this.autopilot&&(["cruise","approach","flyby"].includes(this.status)&&this.destinationId||
      ["origin-orbit","orbit"].includes(this.status)&&this.navigationTarget))return this.guideToTarget(step);
-  // Manual flight remains available for a dogfight while holding an orbit.
-  if(!this.autopilot&&["origin-orbit","orbit"].includes(this.status)){
-   const motion=advanceRouteMotion({position:{along:this.routeAlong,cross:this.crossTrack},
-    velocity:this.routeVelocity,throttle:this.fuel>0?this.throttle*Math.cos(this.pitchDeg*Math.PI/180):0,
-    yawDeg:this.attitudeYawDeg,autopilot:false,fuelAvailable:this.fuel>0},step);
-   this.routeAlong=motion.position.along;this.crossTrack=motion.position.cross;this.routeVelocity=motion.velocity;
-   this.verticalVelocity+=this.fuel>0?Math.sin(this.pitchDeg*Math.PI/180)*this.throttle*.006*step:0;
-   this.routeVertical+=this.verticalVelocity*step;
-   this.fuel=Math.max(0,this.fuel-Math.abs(this.throttle)*.28*step);
+  if(!this.autopilot&&this.canTranslate){
+   const before=this.routeAlong;
+   const holdingOrbit=this.status==="origin-orbit"||this.status==="orbit";
+   const motion=advanceManualRoute({
+    position:[this.crossTrack,this.routeVertical,this.routeAlong],
+    velocity:[this.routeVelocity.cross,this.verticalVelocity,this.routeVelocity.along],
+    yawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,throttle:this.throttle,
+    strafe:this.seated?strafe:0,lift:this.seated?lift:0,fuelAvailable:this.fuel>0
+   },step);
+   [this.crossTrack,this.routeVertical,this.routeAlong]=motion.position;
+   const [cross,vertical,along]=motion.velocity;
+   this.routeVelocity={cross,along};this.verticalVelocity=vertical;
+   this.fuel=Math.max(0,this.fuel-step*motion.thrust*.28);
    this.elapsedSeconds+=step;
+   if(holdingOrbit)return {days:0,advanced:0,status:this.status};
+   this.progress=clamp(this.routeAlong,0,1);
+   const flyby=this.routeAlong>1.03||Math.hypot(this.crossTrack,this.routeVertical)>.22&&this.progress>.70;
+   this.status=flyby?"flyby":this.routeAlong<.82?"cruise":"approach";
+   const advanced=this.routeAlong-before;
+   return {days:Math.abs(advanced)*this.flightDays,advanced,status:this.status};
   }
   if(!["ascent","cruise","approach","flyby","entry"].includes(this.status))return {days:0,advanced:0,status:this.status};
   this.elapsedSeconds+=step;

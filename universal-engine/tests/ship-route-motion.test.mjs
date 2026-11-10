@@ -81,3 +81,33 @@ test("autopilot uses finite thrust and closes the intercept over time",()=>{
  assert.equal(routeIntercept({along:1,cross:0},{along:.003,cross:0}),true);
  assert.equal(routeIntercept({along:1.1,cross:0},{along:.003,cross:0}),false);
 });
+
+test("manual translation moves on X and Y while the lever independently moves on Z",()=>{
+ const ship=new ShipJourney({originId:"terra",destinationId:"cinder",status:"cruise",
+  seated:true,autopilot:false,throttle:0,routeAlong:.2,routeVelocity:{along:0,cross:0}});
+ ship.tick(.1,{strafe:1,lift:1});
+ assert.ok(ship.crossTrack>0&&ship.routeVertical>0);
+ eq(ship.routeAlong,.2);
+ eq(ship.attitudeYawDeg,0);
+ eq(ship.pitchDeg,0);
+ const position=ship.planetOffset;
+ const restored=ShipJourney.fromSnapshot(ship.snapshot());
+ assert.deepEqual(restored.planetOffset,position);
+ restored.tick(.1);
+ assert.ok(restored.crossTrack>ship.crossTrack&&restored.routeVertical>ship.routeVertical);
+ restored.setThrottle(-1);
+ restored.tick(.1);
+ assert.ok(restored.routeAlong<ship.routeAlong);
+});
+
+test("sideways thrust uses ship heading and the speed cap includes all axes",()=>{
+ const ship=new ShipJourney({originId:"terra",destinationId:"cinder",status:"cruise",
+  seated:true,autopilot:false,attitudeYawDeg:90,throttle:0,routeAlong:.2,
+  routeVelocity:{along:0,cross:0}});
+ ship.tick(.1,{strafe:1});
+ eq(ship.crossTrack,0);
+ assert.ok(ship.routeAlong<.2);
+ ship.setThrottle(1);
+ for(let i=0;i<200;i++)ship.tick(.1,{strafe:1,lift:1});
+ assert.ok(Math.hypot(ship.routeVelocity.along,ship.routeVelocity.cross,ship.verticalVelocity)<=.080000001);
+});
