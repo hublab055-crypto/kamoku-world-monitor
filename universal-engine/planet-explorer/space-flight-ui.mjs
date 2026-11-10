@@ -15,7 +15,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getWorldRenderer,notify}){
+export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getWorldRenderer,notify}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -85,11 +85,13 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  /* Dedicated lever for engine output, independent of pitch/yaw stick. */
  #space-flight .flight-engine-lever{position:absolute;z-index:42;bottom:calc(79px + env(safe-area-inset-bottom,0px));left:calc(9px + env(safe-area-inset-left,0px));display:flex;flex-direction:column;align-items:center;gap:3px;min-width:65px;padding:7px 4px;border:1px solid #80bbca;border-radius:10px;background:#103246dd;pointer-events:auto;touch-action:none;user-select:none;color:#e0fbff;font-size:10px}
  #space-flight .flight-engine-lever[hidden]{display:none!important}
- #space-flight .flight-engine-lever input{height:112px;width:30px;min-height:65px;writing-mode:vertical-lr;direction:rtl;accent-color:#78dcc8;touch-action:none;cursor:pointer}
+ #space-flight .flight-throttle-track{position:relative;height:112px;width:44px;touch-action:none;cursor:ns-resize}
+ #space-flight .flight-throttle-track::before{content:"";position:absolute;inset:8px 19px;border-radius:6px;background:linear-gradient(#78dcc8,#83a8b1 50%,#e99966)}
+ #space-flight .flight-throttle-track::after{content:"";position:absolute;top:calc(var(--lever-position,14%) + var(--lever-inset,5.76px));left:50%;width:26px;height:14px;transform:translate(-50%,-50%);border-radius:4px;border:1px solid #e0fbff;background:#305d75;pointer-events:none}
  #space-flight .flight-engine-lever output{font:700 11px ui-monospace,monospace}
  #space-flight .flight-engine-lever small{font-size:9px;color:#afd7e0}
  #space-flight.ship-piloting .flight-touch-caption{white-space:nowrap}
- @media(max-height:430px){#space-flight .flight-engine-lever input{height:72px}#space-flight .flight-engine-lever{padding:3px}}
+ @media(max-height:430px){#space-flight .flight-throttle-track{height:76px}#space-flight .flight-engine-lever{padding:3px}}
  #space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:270;pointer-events:none;overflow:hidden}
  #space-flight .flight-sensor-layer[hidden]{display:none!important}
  #space-flight .flight-sensor{position:absolute;display:flex;align-items:center;gap:4px;
@@ -120,7 +122,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  document.head.append(style);
  const root=document.createElement("section");root.id="space-flight";root.hidden=true;root.setAttribute("role","region");root.setAttribute("aria-label","惑星間宇宙船の操縦席");
  root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-camera" type="button" aria-pressed="false">🚀 船外追従</button> <button id="flight-wide" type="button" aria-pressed="false">⛶ 広画面</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
-  '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><label class="flight-engine-lever" hidden>推力<input id="flight-throttle" type="range" min="-100" max="100" step="1" value="72" aria-label="宇宙船推力レバー、下は逆噴射で減速、中央は慣性航行、上は加速"><output for="flight-throttle">72%</output><small>↓ 逆噴射</small></label><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
+  '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><div class="flight-engine-lever" hidden><small>↑ 加速</small><div id="flight-throttle" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="72" aria-label="宇宙船推力レバー"></div><small>↓ 逆噴射</small><output>72%</output></div><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-translate" aria-pressed="false" hidden>平行移動</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
   '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。操縦盤の青=スキャン、黄=兵装、赤=発射。船外ハッチ右側の点灯スイッチはVRトリガーで開閉。Quest Xは近接乗船・着席に対応。宇宙戦：📡スキャンで🔹味方・♦資源・🔸敵性・🟢中立を可視化。敵をタップ／VRで視線保持してロックオン♦️、トリガー・Space・発射ボタンで攻撃。📻通信で停戦・降伏の交渉ができます。</div>';
@@ -285,7 +287,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
   ["q","leftTurn"],["e","rightTurn"]]);
  document.addEventListener("keydown",event=>{
   if(root.hidden||!get()?.interior||!keys.has(event.key.toLowerCase())||
-     ["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName))return;
+     (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)||event.target===throttle))return;
   event.preventDefault();held.add(keys.get(event.key.toLowerCase()));
  });
  document.addEventListener("keyup",event=>{const key=keys.get(event.key.toLowerCase());if(key)held.delete(key);});
@@ -344,12 +346,44 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
 
  const throttle=$("flight-throttle"),main=$("flight-main");
  const run=(fn)=>{const result=fn();if(result?.message)notify?.(result.message);return result;};
- throttle.addEventListener("input",()=>{
+ const throttleReadout=root.querySelector(".flight-engine-lever output");
+ let throttlePointer=null;
+ function showThrottle(value){
+  const percent=Math.round(value*100);
+  const label=percent<0?"減速 "+(-percent)+"%":percent===0?"慣性 0%":"推力 "+percent+"%";
+  throttle.style.setProperty("--lever-position",(100-percent)/2+"%");
+  throttle.style.setProperty("--lever-inset",(.08*percent)+"px");
+  throttle.setAttribute("aria-valuenow",String(percent));
+  throttle.setAttribute("aria-valuetext",label);
+  throttleReadout.textContent=label;
+ }
+ function commandThrottle(percent){
   const v=get();
-  if(!seatedPilot(v)||typeof v.setThrottle!=="function")return;
-  v.setThrottle(Number(throttle.value)/100);
-  v.setAutopilot?.(false);
-  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"減速 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
+  if(root.hidden||!seatedPilot(v))return;
+  v.setThrottle(clamp(percent,-100,100)/100);
+  v.setAutopilot(false);
+  showThrottle(v.throttle);
+ }
+ function dragThrottle(e){
+  const track=throttle.getBoundingClientRect();
+  if(track.height>0)commandThrottle(Math.round(100-200*(e.clientY-track.top-8)/Math.max(1,track.height-16)));
+ }
+ throttle.addEventListener("pointerdown",e=>{
+  if(throttlePointer!==null||e.button!==0||!seatedPilot(get()))return;
+  e.preventDefault();
+  throttlePointer=e.pointerId;
+  throttle.setPointerCapture(e.pointerId);
+  dragThrottle(e);
+ });
+ throttle.addEventListener("pointermove",e=>{if(e.pointerId===throttlePointer)dragThrottle(e);});
+ for(const type of ["pointerup","pointercancel","lostpointercapture"])
+  throttle.addEventListener(type,e=>{if(e.pointerId===throttlePointer)throttlePointer=null;});
+ throttle.addEventListener("keydown",e=>{
+  const percent=Math.round((get()?.throttle??0)*100);
+  const next={ArrowUp:percent+5,ArrowRight:percent+5,ArrowDown:percent-5,ArrowLeft:percent-5,Home:-100,End:100,Escape:0}[e.key];
+  if(next===undefined)return;
+  e.preventDefault();e.stopPropagation();
+  commandThrottle(next);
  });
  $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
  $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
@@ -368,7 +402,7 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
  }
  $("flight-save").addEventListener("click",()=>run(onSave));
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
- main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:onLand);});
+ main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:v.status==="origin-orbit"?onTransfer:onLand);});
  function render(dt=0){
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   syncShipCamera();
@@ -397,15 +431,15 @@ export function installSpaceFlightUI({get,onLaunch,onLand,onCancel,onSave,getCar
    (v.canTranslate?" / XYZ "+shipEncounterPosition(v).map(n=>Math.round(n)).join(", ")+" m":"");
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
-  if(document.activeElement!==throttle)throttle.value=String(Math.round(v.throttle*100));
-  root.querySelector(".flight-engine-lever output").textContent=(v.throttle<0?"減速 ":"推力 ")+Math.round(Math.abs(v.throttle)*100)+"%";
-  $("flight-cancel").hidden=v.kind==="surface-to-surface"||v.status!=="preflight";
+  showThrottle(v.throttle);
+  $("flight-cancel").hidden=!v.canCancelDeparture;
   const groundReady=["preflight","docked"].includes(v.status);
-  main.textContent=v.status==="atmosphere"?"🛬 VTOL着陸":v.status==="vtol"?"🛬 垂直降下中":groundReady?"🚀 離陸":v.status==="orbit"?"🔥 大気圏突入":
+  main.textContent=v.status==="atmosphere"?"🛬 VTOL着陸":v.status==="vtol"?"🛬 垂直降下中":groundReady?"🚀 離陸":v.readyToLand?"🔥 大気圏突入":
+   v.status==="origin-orbit"&&v.destinationId?"🛰️ 惑星間航行開始":
    v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":
    v.status==="touchdown"?"🛬 接地確認":v.status==="landed"?"✅ 着陸完了":"🛰️ 航行中";
   main.disabled=v.kind==="surface-to-surface"?
-   !["docked","orbit","atmosphere"].includes(v.status):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
+   !(v.seated&&(groundReady||v.status==="atmosphere"||v.readyToLand||v.status==="origin-orbit"&&v.destinationId)):!(groundReady?(v.seated!==false&&v.hatchOpen!==true):v.readyToLand);
   if(v.seated===false){
    $("flight-left").disabled=true;$("flight-right").disabled=true;
   }else{

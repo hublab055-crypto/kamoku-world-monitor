@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ShipJourney} from '../planet-explorer/ship-journey.mjs';
+import {SpaceVoyage} from '../planet-explorer/space-voyage.mjs';
+import {prepareShipArrivalTerrain} from '../planet-explorer/ship-arrival-terrain.mjs';
 const ship=()=>new ShipJourney({originId:'terra',destinationId:'cinder',status:'cruise',seated:true,autopilot:true});
 test('autopilot reaches the atmospheric entry boundary and can begin entry without manual toggle',()=>{
  const v=ship();let frames=0;
@@ -44,4 +46,35 @@ test('a grazing pass through the approach sphere is captured even with an enemy 
  assert.equal(v.navigationTarget,null);
  assert.equal(v.canDirectEntry,true);
  assert.equal(v.enterAtmosphere().ok,true);
+});
+
+test('legacy orbital departure and cruise saves resume with working brakes and atmospheric entry',()=>{
+ for(const status of ['preflight','cruise','orbit']){
+  const old=new SpaceVoyage({originId:'terra',destinationId:'cinder',status,
+   transferZ:status==='preflight'?0:.97,transferVZ:.01,interior:{schemaVersion:1,mode:'cockpit'}});
+  const v=ShipJourney.fromSnapshot(old.snapshot());
+  assert.equal(v.seated,true);
+  assert.equal(v.routeAlong,old.transferZ);
+  if(status==='preflight')assert.equal(v.startTransfer().ok,true);
+  if(status==='cruise'){
+   v.setThrottle(-1);
+   v.tick(.08);
+   assert.equal(v.throttle,-1);
+   assert.ok(v.routeVelocity.along<old.transferVZ);
+  }
+  v.setThrottle(.72);
+  v.setAutopilot(true);
+  for(let i=0;i<2500&&!v.canDirectEntry;i++){
+   const previous=v.planetOffset;
+   v.tick(.08);
+   v.capturePlanetApproach(previous);
+  }
+  assert.equal(v.canDirectEntry,true);
+  const arrival=prepareShipArrivalTerrain({destinationId:v.destinationId});
+  assert.equal(v.setLandingSite(arrival.site),true);
+  assert.equal(v.enterAtmosphere().ok,true);
+  for(let i=0;i<300&&v.status==='entry';i++)v.tick(.08);
+  assert.equal(v.status,'atmosphere');
+  assert.ok(v.airAltitude>0);
+ }
 });
