@@ -5,21 +5,21 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipJourney} from "./ship-journey.mjs?v=20261109-pilot-access";
+import {ShipJourney} from "./ship-journey.mjs?v=20261110-flight-control";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
-import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261109-pilot-access";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261109-pilot-access";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261109-pilot-access";
+import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261110-flight-control";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261110-flight-control";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261110-flight-control";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261109-pilot-access";
+import {ExplorerRenderer} from "./render.mjs?v=20261110-flight-control";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -687,7 +687,9 @@ function doFrame(t,source="window",xrFrameInput=null){
     if(contact)voyage.navigationTarget.position=[...contact.position];
     else{voyage.navigationTarget=null;voyage.setAutopilot(false);log("航行目標を喪失したため自動操縦を停止しました");}
    }
+   const previousOffset=voyage.planetOffset;
    const before=voyage.status,advanced=voyage.tick(dt);
+   if(previousOffset)voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
    }

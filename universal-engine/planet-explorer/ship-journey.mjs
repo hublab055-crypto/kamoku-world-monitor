@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
+import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=1";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -62,10 +62,30 @@ export class ShipJourney{
   if(!["docked","landed"].includes(this.status))this.hatchOpen=false;
  }
  get active(){return true;}
+ get planetOffset(){return [this.crossTrack,this.routeVertical,this.routeAlong-1];}
+ get approachingPlanet(){
+  return this.destinationId&&["cruise","approach","flyby","origin-orbit","orbit"].includes(this.status);
+ }
  get canDirectEntry(){
-  return this.seated&&!this.hatchOpen&&this.destinationId&&(!this.navigationTarget||this.navigationTarget.id==="planet")&&
-   ["approach","flyby","origin-orbit","orbit"].includes(this.status)&&
-   Math.hypot(1-this.routeAlong,this.crossTrack,this.routeVertical)<=.03;
+  return this.approachingPlanet&&this.seated&&!this.hatchOpen&&Math.hypot(...this.planetOffset)<=.030001;
+ }
+ capturePlanetApproach(previous){
+  if(!this.approachingPlanet)return false;
+  const offset=this.planetOffset;
+  const radius=.03;
+  const movement=offset.map((n,i)=>n-previous[i]);
+  const a=movement.reduce((sum,n)=>sum+n*n,0);
+  const b=previous.reduce((sum,n,i)=>sum+n*movement[i],0);
+  const c=previous.reduce((sum,n)=>sum+n*n,0)-radius*radius;
+  const discriminant=b*b-a*c;
+  const hit=c<=0?0:a>0&&discriminant>=0?(-b-Math.sqrt(discriminant))/a:Infinity;
+  if(hit<0||hit>1)return false;
+  const [x,y,z]=previous.map((n,i)=>n+hit*movement[i]);
+  this.crossTrack=x;this.routeVertical=y;this.routeAlong=1+z;
+  this.progress=clamp(this.routeAlong,0,1);
+  this.routeVelocity={along:0,cross:0};this.verticalVelocity=0;
+  this.navigationTarget=null;this.status="approach";
+  return true;
  }
  get readyToLand(){return this.seated&&((this.status==="orbit"&&Math.abs(this.heading)<=12)||this.canDirectEntry);}
  get phase(){

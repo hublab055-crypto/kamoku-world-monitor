@@ -10,14 +10,15 @@ export const SHIP_WEAPONS=Object.freeze({
 });
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const NON_HOSTILES=Object.freeze([
- {id:"ally-surveyor",name:"連邦測量艇",type:"ship",faction:"friendly",bearing:-28,pitch:7,distance:510,phase:1.0},
- {id:"trade-caravan",name:"交易船オリオン",type:"ship",faction:"neutral",bearing:32,pitch:-4,distance:650,phase:2.1},
+ {id:"fleet-carrier",name:"連邦空母",type:"ship",faction:"friendly",bearing:-48,pitch:12,distance:1150,phase:1.5,hull:"carrier"},
+ {id:"ally-surveyor",hull:"fighter",name:"連邦測量艇",type:"ship",faction:"friendly",bearing:-28,pitch:7,distance:510,phase:1.0},
+ {id:"trade-caravan",hull:"cargo",name:"貨物船オリオン",type:"ship",faction:"neutral",bearing:32,pitch:-4,distance:650,phase:2.1},
  {id:"asteroid-ore",name:"鉄・ニッケル鉱石群",type:"resource",faction:"resource",bearing:-41,pitch:-12,distance:880,phase:3.7}
 ]);
 const HOSTILES=Object.freeze([
- {id:"pirate-alpha",name:"☠️ 海賊迎撃機",bearing:0,pitch:0,distance:260,hp:100,phase:0},
- {id:"pirate-beta",name:"☠️ 海賊護衛機",bearing:-13,pitch:4,distance:340,hp:100,phase:1.8},
- {id:"pirate-gamma",name:"☠️ 海賊偵察機",bearing:17,pitch:-5,distance:400,hp:75,phase:3.6}
+ {id:"pirate-alpha",hull:"fighter",name:"☠️ 海賊迎撃機",bearing:0,pitch:0,distance:260,hp:100,phase:0},
+ {id:"pirate-beta",hull:"battleship",name:"☠️ 海賊戦艦",bearing:-13,pitch:4,distance:340,hp:100,phase:1.8},
+ {id:"pirate-gamma",hull:"fighter",name:"☠️ 海賊偵察機",bearing:17,pitch:-5,distance:400,hp:75,phase:3.6}
 ]);
 export function combatEligible(voyage){
  return Boolean(voyage?.active&&(voyage.seated===true||
@@ -83,7 +84,7 @@ export class SpaceCombat{
  constructor(saved=null){
   this.targets=HOSTILES.map(t=>{
    const yaw=t.bearing*Math.PI/180,pitch=t.pitch*Math.PI/180;
-   return {...t,faction:"hostile",shield:100,maxShield:100,maxHp:t.hp,shieldFlash:0,position:[Math.sin(yaw)*t.distance,Math.sin(pitch)*t.distance,
+   return {...t,flareAmmo:2,ciwsAmmo:t.hull==="battleship"?24:0,defenseReady:0,faction:"hostile",shield:100,maxShield:100,maxHp:t.hp,shieldFlash:0,position:[Math.sin(yaw)*t.distance,Math.sin(pitch)*t.distance,
     Math.cos(yaw)*Math.cos(pitch)*t.distance],velocity:[0,0,0]};
   });
   this.nonHostiles=NON_HOSTILES.map(t=>{
@@ -95,7 +96,7 @@ export class SpaceCombat{
   this.ciwsEnabled=saved?.ciwsEnabled!==false;this.ciwsAmmo=saved?.ciwsAmmo??600;
   this.flareAmmo=saved?.flareAmmo??8;this.flareCooldown=0;this.ciwsCooldown=0;
   this.defenseBursts=[];this.defenseTraces=[];this.flares=[];this.missileSequence=0;
-  this.turrets=normalizeTurrets();this.autoFire=false;this.voyage=null;
+  this.turrets=normalizeTurrets();this.autoFire=false;this.fireControl=saved?.fireControl===true;this.voyage=null;
   this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.projectiles=[];this.explosions=[];this.player={hp:100,maxHp:100,shield:100,maxShield:100,shieldFlash:0};this.enemyCooldown=3;this.lastMessage="";this.elapsed=0;
@@ -141,10 +142,12 @@ export class SpaceCombat{
   this.advanceDefense(step,voyage);
   for(const shot of this.projectiles){
    if(shot.weapon==="enemy-missile")continue;
+   if(voyage&&shot.weapon==="missile"&&!shot.enemy&&this.interceptPlayerMissile(shot))continue;
    shot.seconds-=step;
    if(shot.seconds>0)continue;
    if(shot.enemy){if(!shot.impact||Math.hypot(...shot.impact.map((n,i)=>n-shipEncounterPosition(voyage)[i]))<25)this.applyDamage(this.player,12,"player");continue;}
    const target=this.targets.find(t=>t.id===shot.id);
+   if(shot.decoy){this.defenseBursts.push({position:[...shot.decoy],seconds:.55,total:.55});continue;}
    if(target?.hp>0&&(shot.weapon==="missile"||!shot.impact||Math.hypot(...shot.impact.map((n,i)=>n-target.position[i]))<25))this.applyDamage(target,shot.damage,shot.id);
   }
   this.projectiles=this.projectiles.filter(p=>p.seconds>0);
@@ -186,8 +189,8 @@ export class SpaceCombat{
    const predicted=ship.map((n,i)=>n+shipVelocity[i]*.7+offset[i]);
    const displacement=predicted.map((n,i)=>n-t.position[i]);
    const length=Math.hypot(...displacement)||1;
-   const speed=role==="interceptor"?125:role==="flanker"?95:115;
-   const acceleration=role==="scout"?85:role==="interceptor"?65:50;
+   const speed=t.hull==="battleship"?65:role==="interceptor"?125:115;
+   const acceleration=t.hull==="battleship"?24:role==="scout"?85:65;
    const wanted=displacement.map(n=>n/length*speed);
    t.velocity=t.velocity.map((n,i)=>n+clamp(wanted[i]-n,-acceleration*step,acceleration*step));
    t.position=t.position.map((n,i)=>n+t.velocity[i]*step);
@@ -288,7 +291,30 @@ export class SpaceCombat{
    if(incoming.hp<=0){incoming.seconds=0;burst(incoming.position);}
   }
  }
- systemSnapshot(){return {ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
+ interceptPlayerMissile(shot){
+  const target=this.combatTargets.find(t=>t.id===shot.id);
+  if(shot.decoy||!target||!shot.origin||this.elapsed<target.defenseReady)return false;
+  const progress=1-shot.seconds/shot.total;
+  const position=missileTrailPoint(shot.origin,target.position,progress,shot.id.length*.7);
+  const distance=Math.hypot(...target.position.map((n,i)=>n-position[i]));
+  if(distance>120)return false;
+  if(target.ciwsAmmo>=3&&distance<=90){
+   target.ciwsAmmo-=3;
+   this.defenseTraces.push({start:[...target.position],end:position,seconds:.12});
+  }else if(target.flareAmmo>0){
+   target.flareAmmo--;
+   const decoy=target.position.map((n,i)=>n+[16,10,-22][i]);
+   this.flares.push({position:decoy,velocity:[20,8,-15],seconds:2});
+   shot.decoy=decoy;
+   target.defenseReady=this.elapsed+4;
+   return false;
+  }else return false;
+  target.defenseReady=this.elapsed+2;
+  shot.seconds=0;
+  this.defenseBursts.push({position,seconds:.55,total:.55});
+  return true;
+ }
+ systemSnapshot(){return {fireControl:this.fireControl,ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
  refuel(voyage,rescue=false){
   if(!voyage)return {ok:false,message:"宇宙船がありません"};
   if(voyage.fuel>=100)return {ok:false,message:"燃料は満タンです"};
@@ -373,6 +399,15 @@ export class SpaceCombat{
    p.u>=0&&p.u<=1&&p.v>=0&&p.v<=1&&
    this.combatTargets.some(t=>t.id===p.id&&t.hp>0)).map(p=>p.id):[]);
   this.locked=this.locked.filter(id=>eligible&&this.combatTargets.some(t=>t.id===id&&shipContactDistance(t,voyage)<=1500));
+  if(this.fireControl&&eligible&&!this.playerSurrendered){
+   const candidates=this.combatTargets.filter(t=>this.visible.has(t.id)&&!this.locked.includes(t.id))
+    .map(t=>({id:t.id,range:shipContactDistance(t,voyage)})).filter(t=>t.range<=1500)
+    .sort((a,b)=>a.range-b.range);
+   for(const target of candidates){
+    if(this.locked.length>=this.config.locks)break;
+    this.acquire(target.id);
+   }
+  }
   this.updateTurrets(dt,voyage);
   if(this.autoFire&&eligible&&this.cooldown<=0)this.fire(true);
   if(!vr||!eligible){this.dwellId=null;this.dwellSeconds=0;return;}

@@ -1,4 +1,4 @@
-import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261109-pilot-access";
+import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 /** Shared physical ship controls and XR ray picking (column-major metres).
  * Does not depend on WebXR globals; safe to test in Node.
  */

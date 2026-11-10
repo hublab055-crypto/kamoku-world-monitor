@@ -60,3 +60,10 @@ test('walking up the cabin aisle reaches a seat, and a cabin tap then locks an e
  assert.equal(voyage.stand().ok,true);
  assert.ok(voyage.interior.canOccupy(voyage.interior.x,voyage.interior.z));
 });
+
+test('the front of the chair exposes the helm action and permits sitting',async()=>{
+ const {ShipJourney}=await import('../planet-explorer/ship-journey.mjs');
+ const voyage=new ShipJourney({originId:'terra',status:'origin-orbit',interior:{schemaVersion:1,x:0,z:-12.4,yaw:0}});
+ assert.ok(voyage.interior.nearStations().some(station=>station.id==='helm'));
+ assert.equal(voyage.sit().ok,true);
+});

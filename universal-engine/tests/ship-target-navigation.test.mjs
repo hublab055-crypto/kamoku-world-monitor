@@ -34,3 +34,14 @@ test('manual autopilot OFF does not run the selected-target guidance',()=>{
  const v=ship();v.selectNavigationTarget({id:'ore',name:'ore',position:[1200,0,0]});v.setAutopilot(false);v.setThrottle(0);
  v.tick(.1);assert.equal(v.crossTrack,0);assert.equal(v.attitudeYawDeg,0);
 });
+
+test('a grazing pass through the approach sphere is captured even with an enemy selected',()=>{
+ const v=ship();
+ v.selectNavigationTarget({id:'pirate-alpha',position:[300,0,12000]});
+ v.routeAlong=1.01;v.crossTrack=.029;
+ assert.equal(v.canDirectEntry,false);
+ assert.equal(v.capturePlanetApproach([.029,0,-.01]),true);
+ assert.equal(v.navigationTarget,null);
+ assert.equal(v.canDirectEntry,true);
+ assert.equal(v.enterAtmosphere().ok,true);
+});

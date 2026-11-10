@@ -37,3 +37,25 @@ test('defense stores and settings persist and rapid gun is a selectable fast wea
  const restored=new SpaceCombat(c.systemSnapshot());assert.equal(restored.ciwsAmmo,12);assert.equal(restored.flareAmmo,2);assert.equal(restored.ciwsEnabled,false);
  assert.equal(c.setWeapon('rapid'),true);assert.ok(SHIP_WEAPONS.rapid.cooldown<SHIP_WEAPONS.pulse.cooldown);
 });
+
+test('fire control locks a visible hostile without firing by itself',()=>{
+ const c=new SpaceCombat();
+ c.fireControl=true;
+ c.syncVisibility([{id:'pirate-alpha',onScreen:true,u:.5,v:.5}],0,{voyage:v});
+ assert.deepEqual(c.locked,['pirate-alpha']);
+ assert.equal(c.projectiles.length,0);
+});
+test('enemy fighter diverts player missiles and battleship CIWS destroys them',()=>{
+ const c=new SpaceCombat();
+ const shotFor=id=>{
+  const t=c.targets.find(target=>target.id===id);
+  return {id,origin:t.position.map((n,i)=>n+(i===2?-100:0)),seconds:.25,total:1};
+ };
+ const fighter=shotFor('pirate-alpha');
+ assert.equal(c.interceptPlayerMissile(fighter),false);
+ assert.ok(fighter.decoy);
+ const battleship=shotFor('pirate-beta');
+ assert.equal(c.interceptPlayerMissile(battleship),true);
+ assert.equal(battleship.seconds,0);
+ assert.equal(c.defenseBursts.length,1);
+});
