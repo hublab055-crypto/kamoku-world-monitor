@@ -5,13 +5,13 @@ import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipJourney} from "./ship-journey.mjs?v=20261110-flight-control";
+import {ShipJourney} from "./ship-journey.mjs?v=20261110-xyz";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261110-flight-control";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261110-flight-control";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261110-xyz";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261110-flight-control";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
@@ -688,7 +688,7 @@ function doFrame(t,source="window",xrFrameInput=null){
     else{voyage.navigationTarget=null;voyage.setAutopilot(false);log("航行目標を喪失したため自動操縦を停止しました");}
    }
    const previousOffset=voyage.planetOffset;
-   const before=voyage.status,advanced=voyage.tick(dt);
+   const before=voyage.status,advanced=voyage.tick(dt,voyageUI?.translationInput());
    if(previousOffset)voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
