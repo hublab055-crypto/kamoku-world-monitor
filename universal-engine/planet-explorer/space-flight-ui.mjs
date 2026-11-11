@@ -402,7 +402,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  }
  $("flight-save").addEventListener("click",()=>run(onSave));
  $("flight-cancel").addEventListener("click",()=>run(onCancel));
- main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked"].includes(v.status)?onLaunch:v.status==="origin-orbit"?onTransfer:onLand);});
+ main.addEventListener("click",()=>{const v=get();if(!v)return;run(["preflight","docked","landed"].includes(v.status)?onLaunch:v.status==="origin-orbit"?onTransfer:onLand);});
  function render(dt=0){
   const v=get();root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   syncShipCamera();
@@ -417,7 +417,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   if(interiorView){updateNearby();if(!unified)ship3D.render();}
   if(lastView!==v.interior.mode){lastView=v.interior.mode;nearKey="";$("flight-dialogue").textContent="";}
 
-  const target=bodyById(v.destinationId)||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
+  const target=bodyById(v.destinationId||(v.status==="atmosphere"?v.originId:null))||{name:"目的地未設定",color:"#a8e2e6"},origin=bodyById(v.originId);
   $("flight-route").textContent="🚀 "+origin.name+" → "+target.name+(v.navigationTarget?" ／ 🎯 "+v.navigationTarget.name:"");
   const entryView=["entry","atmosphere","vtol","touchdown"].includes(v.status);
   const height=entryView?Math.round(groundScenePhase(v).lift):null;
@@ -427,13 +427,13 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   $("flight-fuel").textContent="燃料："+Math.round(v.fuel)+"%";
   const courseSpeed=Math.hypot(v.routeVelocity?.along||0,v.routeVelocity?.cross||0,v.verticalVelocity||0)*100;
   $("flight-heading").textContent="進路："+Math.round(v.heading)+"° / 機首："+Math.round(v.pitchDeg||0)+
-   "° / "+(v.status==="atmosphere"?"速度 "+Math.round(v.airSpeed)+" m/s":"航路速度 "+courseSpeed.toFixed(2)+"%/秒")+
+   "° / "+(v.status==="atmosphere"?"速度 "+Math.round(v.airSpeed)+ " m/s ／ 重力 "+v.gravityMps2.toFixed(2)+" m/s²":"航路速度 "+courseSpeed.toFixed(2)+"%/秒")+
    (v.canTranslate?" / XYZ "+shipEncounterPosition(v).map(n=>Math.round(n)).join(", ")+" m":"");
   $("flight-auto").textContent=v.autopilot?"🧭 自動ON":"🧭 自動OFF";
   $("flight-auto").setAttribute("aria-pressed",String(v.autopilot));
   showThrottle(v.throttle);
   $("flight-cancel").hidden=!v.canCancelDeparture;
-  const groundReady=["preflight","docked"].includes(v.status);
+  const groundReady=["preflight","docked","landed"].includes(v.status);
   main.textContent=v.status==="atmosphere"?"🛬 VTOL着陸":v.status==="vtol"?"🛬 垂直降下中":groundReady?"🚀 離陸":v.readyToLand?"🔥 大気圏突入":
    v.status==="origin-orbit"&&v.destinationId?"🛰️ 惑星間航行開始":
    v.status==="origin-orbit"||v.status==="parking-orbit"?"🧭 航路を設定":

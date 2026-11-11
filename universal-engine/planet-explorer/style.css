@@ -1341,3 +1341,54 @@ body.immersive{overflow:hidden}
  .viewport-compact-bar #viewport-console-toggle{min-width:40px}
  .viewport-compact-bar #viewport-share{width:33px;min-width:33px}
 }
+
+/* Touch input stays with the game controls, including long presses. */
+.canvas-wrap,.canvas-wrap *{
+ -webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;
+}
+.canvas-wrap button,.canvas-wrap [role="button"]{touch-action:manipulation}
+.canvas-wrap input,.canvas-wrap textarea,.canvas-wrap [contenteditable="true"]{
+ -webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important;
+}
+@media(pointer:coarse){
+ input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),select,textarea{
+  font-size:16px!important;
+ }
+}
+[data-ui-open="true"][data-ui-user-hidden="true"]:not([hidden]){display:revert!important}
+.ui-display-panel{z-index:3900}
+#viewport-settings-toggle,#viewport-vr-toggle{min-width:40px;padding:5px;font-size:18px}
+.mobile-action-buttons,.camera-stick{display:none}
+@media(pointer:coarse){
+ .canvas-wrap .mobile-action-buttons{
+  position:absolute;z-index:3600;bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  right:calc(10px + env(safe-area-inset-right,0px));display:grid;grid-template-columns:repeat(3,52px);gap:6px;
+ }
+ .mobile-action-buttons[hidden],.mobile-action-buttons button[hidden],.camera-stick[hidden]{display:none!important}
+ .mobile-action-buttons button{
+  width:52px;height:48px;min-height:44px;padding:3px;font:11px/1.2 system-ui;
+  border:1px solid #94c4ce;border-radius:12px;color:#f1fbff;background:#143c51d9;
+  touch-action:manipulation;
+ }
+ .camera-stick{
+  position:absolute;z-index:3550;right:calc(32px + env(safe-area-inset-right,0px));
+  bottom:calc(125px + env(safe-area-inset-bottom,0px));width:106px;height:106px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#caeef7;font:9px system-ui;touch-action:none;
+ }
+ .camera-stick .stick-base{width:86px;height:86px}
+ .camera-stick .stick-nub{width:36px;height:36px}
+ #stick-area{bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:3550}
+ [data-mobile-context="ship"] #stick-area{display:none!important}
+ .avatar-vitals{z-index:3550;max-width:145px;background:#111b2777;pointer-events:none}
+ .avatar-vitals details{pointer-events:auto}
+ #space-flight.integrated{overflow:hidden}
+ #space-flight .flight-look-pad{
+  bottom:calc(125px + env(safe-area-inset-bottom,0px))!important;
+ }
+ #space-flight #seamless-ship[data-ui-open="true"]{
+  position:absolute;top:60px;right:8px;max-width:min(350px,calc(100% - 16px));max-height:55%;overflow:auto;
+ }
+ .ship-combat-console[data-ui-open="true"]{max-height:55%;overflow:auto}
+ .view-panel.hud-tools-open #viewport-toolbar[data-ui-open="true"]{display:flex!important}
+}

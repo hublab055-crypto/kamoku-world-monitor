@@ -1735,13 +1735,13 @@ export class ExplorerRenderer{
    const yaw=(Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg:0)*DEG;
    const nose=(Number.isFinite(v.pitchDeg)?v.pitchDeg:0)*DEG;
    const inertialModel=multiply4(rotX(-nose),rotateY(yaw));
-   if(sky<.91||!["docked","landed","touchdown"].includes(v.status))
+   if(sky<.91)
     this.drawMesh(this.shipStars,multiply4(vp,inertialModel),[1,1,1],1,1);
    const contacts=shipSensorContacts(v,this.shipCombat);
    // Entry needs the *destination's* terrain before the player reaches it.
    // Exactly the same geodetic pad is later used to place the visible hull.
    const arrival=["entry","atmosphere","vtol","touchdown"].includes(v.status)&&
-    this.shipArrivalPreview?.bodyId===v.destinationId?this.shipArrivalPreview:null;
+    this.shipArrivalPreview?.bodyId===v.flightBodyId?this.shipArrivalPreview:null;
    const groundTerrain=arrival?.terrain||this.terrain;
    let site=arrival?.site||(this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
     v.launchSite?.bodyId===this.planet.id?v.launchSite:null);
