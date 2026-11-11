@@ -97,7 +97,7 @@ export class SpaceCombat{
   this.flareAmmo=saved?.flareAmmo??8;this.flareCooldown=0;this.ciwsCooldown=0;
   this.defenseBursts=[];this.defenseTraces=[];this.flares=[];this.missileSequence=0;
   this.turrets=normalizeTurrets();this.autoFire=false;this.fireControl=saved?.fireControl===true;this.voyage=null;
-  this.weapon="pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
+  this.weapon=Object.hasOwn(SHIP_WEAPONS,saved?.weapon)?saved.weapon:"pulse";this.missiles=SHIP_WEAPONS.missile.ammo;
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.projectiles=[];this.explosions=[];this.player={hp:100,maxHp:100,shield:100,maxShield:100,shieldFlash:0};this.enemyCooldown=3;this.lastMessage="";this.elapsed=0;
   this.parts={engine:100,hull:100,weapons:100,shield:100,...saved?.parts};
@@ -242,7 +242,9 @@ export class SpaceCombat{
   if(!combatEligible(voyage))return false;
   const target=this.combatTargets.find(t=>t.id===id);
   if(!target||shipContactDistance(target,voyage)>1500)return false;
-  this.visible.add(id);return this.acquire(id);
+  this.visible.add(id);
+  if(!this.locked.includes(id)&&this.locked.length>=this.config.locks)this.locked.shift();
+  return this.acquire(id);
  }
  launchEnemyMissile(attacker,voyage){
   const ship=shipEncounterPosition(voyage),delta=ship.map((n,i)=>n-attacker.position[i]);
@@ -314,7 +316,7 @@ export class SpaceCombat{
   this.defenseBursts.push({position,seconds:.55,total:.55});
   return true;
  }
- systemSnapshot(){return {fireControl:this.fireControl,ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
+ systemSnapshot(){return {weapon:this.weapon,fireControl:this.fireControl,ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
  refuel(voyage,rescue=false){
   if(!voyage)return {ok:false,message:"宇宙船がありません"};
   if(voyage.fuel>=100)return {ok:false,message:"燃料は満タンです"};

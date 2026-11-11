@@ -70,7 +70,7 @@ const MOBILE_HIDDEN=new Set([
  "fishing-reel-hud","railway-onboard-hud","railway-security-hud","viewport-expand","viewport-console-toggle",
  "viewport-share","viewport-toolbar","view-header","xr-controls","avatar-settings","frontier-glb-settings",
  "camera-settings","info-grid","bottom-info","ship-head","ship-readout","ship-actions","ship-guide",
- "ship-hud","ship-throttle","ship-zoom","ship-sensors","seamless-ship","ship-combat-console","surface-starship"
+ "ship-hud","ship-zoom","seamless-ship","ship-combat-console","surface-starship"
 ]);
 function labelFor(element){
  const title=element.getAttribute("aria-label")||

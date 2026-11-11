@@ -2,7 +2,7 @@ import {pickShipContact} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261110-flight-control";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261112-pilot";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
@@ -179,9 +179,11 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(!hit)return false;
   return hit.id==="throttle"?cycleLever():dashboard.executeHardware(hit.id);
  }
- function setWeapon(){
-  const model=getCombat();if(!model||!active()){feedbackWhenUnavailable();return;}
-  model.setWeapon(({pulse:"rapid",rapid:"missile",missile:"pulse"})[model.weapon]);
+ function setWeapon(type){
+  const voyage=getVoyage(),model=getCombat();
+  if(!model||!voyage?.seated){feedbackWhenUnavailable();return;}
+  if(!model.setWeapon(type??({pulse:"rapid",rapid:"missile",missile:"pulse"})[model.weapon]))return;
+  voyage.shipSystems=model.systemSnapshot();
   notify("🎯 兵装："+model.config.name+"（同時ロック "+model.config.locks+"機）");
   update(0,{vr:isVR()});
  }
@@ -256,7 +258,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
 
  document.addEventListener("keydown",event=>{
   if(event.code!=="Space"||event.repeat||event.altKey||event.ctrlKey||event.metaKey||
-   !active()||isVR()||["INPUT","TEXTAREA","SELECT","BUTTON"].includes(document.activeElement?.tagName))
+   !active()||isVR()||event.target.closest?.("dialog[open]")||["INPUT","TEXTAREA","SELECT","BUTTON"].includes(document.activeElement?.tagName))
    return;
   event.preventDefault();fire();
  },true);
