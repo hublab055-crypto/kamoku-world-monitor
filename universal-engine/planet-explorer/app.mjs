@@ -1,3 +1,4 @@
+import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-pilot";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
@@ -11,15 +12,15 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261111-atmosphere-mobile";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261111-atmosphere-mobile";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261110-flight-control";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261112-pilot";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-pilot";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261111-atmosphere-mobile";
+import {ExplorerRenderer} from "./render.mjs?v=20261112-pilot";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -116,7 +117,7 @@ const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
-let mobileUI=null;
+let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
@@ -659,6 +660,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  mobileUI?.update(dt);
+ pilotPanel?.update(Boolean(voyage?.seated&&!xrUI?.active));
  if(voyage?.active){
   renderer.shipVoyage=voyage;
   renderer.shipCombat=shipCombatUI?.getCombat(voyage)||null;
@@ -4505,19 +4507,35 @@ function mobileAction(run){
  if(result?.message)log(result.message);
  shipInteractionUI?.update(true);
 }
-function mobileThrust(){
- if(!voyage.seated)return shipToggleHatch();
- voyage.setThrottle(voyage.throttle>=1?0:Math.min(1,Math.max(0,voyage.throttle)+.25));
- voyage.setAutopilot(false);
-}
-function mobileBrake(){
- if(!voyage.seated)return shipSit();
- voyage.setThrottle(voyage.throttle<0?0:-1);
-}
-function mobileShipView(){
- if(!voyage.seated)return shipEgress();
- if(voyage.status==="atmosphere")return voyageUI.toggleCamera();
- voyage.setAutopilot(!voyage.autopilot);
+const pilotActionOptions=[
+ {id:"primary",label:"航行・着陸など現在の操作"},
+ {id:"auto",label:"自動航行"}, {id:"camera",label:"船内・船外視点"},
+ {id:"fire",label:"発射"}, {id:"flare",label:"フレア"},
+ {id:"stand",label:"操縦席から立つ"}, {id:"weapon",label:"兵装切替"},
+ {id:"hatch",label:"ハッチ"}, {id:"translate",label:"操舵・平行移動"},
+ {id:"none",label:"非表示"}
+];
+pilotPanel=installShipPilotPanel({
+ getVoyage:()=>voyage,getCombat:()=>shipCombatUI?.getCombat(),
+ switchWeapon:type=>shipCombatUI?.switchWeapon(type),
+ getCargo:()=>Object.entries(actions?.resources||{}).filter(([,count])=>count>0)
+  .map(([id,count])=>[resourceNames[id]||id,count]),
+ actionOptions:pilotActionOptions,defaults:["primary","auto","camera","fire","flare","stand"]
+});
+function pilotActionCatalog(){
+ return {
+  primary:{label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)},
+  auto:{label:"🧭 自動 "+(voyage.autopilot?"ON":"OFF"),disabled:!voyage.canTranslate,
+   run:()=>voyage.setAutopilot(!voyage.autopilot)},
+  camera:{label:"👁 視点",run:()=>mobileAction(()=>voyageUI.toggleCamera())},
+  fire:{label:"🔴 発射",disabled:!shipCombatUI?.active(),run:()=>shipCombatUI?.fire()},
+  flare:{label:"✨ フレア",disabled:!shipCombatUI?.active(),
+   run:()=>mobileAction(()=>shipCombatUI?.getCombat()?.deployFlares(voyage))},
+  stand:{label:"🚶 立つ",run:()=>mobileAction(shipStand)},
+  weapon:{label:"兵装切替",run:()=>shipCombatUI?.switchWeapon()},
+  hatch:{label:"🚪 ハッチ",disabled:!voyage.isGrounded(),run:()=>mobileAction(shipCockpitHatch)},
+  translate:{label:"平行移動切替",disabled:!voyage.canTranslate,run:()=>$("flight-translate").click()}
+ };
 }
 mobileUI=installMobilePlayUI({
  onLook:(x,y)=>{
@@ -4533,18 +4551,13 @@ mobileUI=installMobilePlayUI({
    {label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)}
   ];
   if(!voyage?.active)return {ship:false,vr:Boolean(xrUI?.active),actions:groundActions};
-  const grounded=voyage.isGrounded();
-  const viewLabel=voyage.status==="atmosphere"?"👁 船外 / 船内":"🧭 自動 "+(voyage.autopilot?"ON":"OFF");
-  return {ship:true,vr:Boolean(xrUI?.active),actions:[
+  const shipActions=voyage.seated?pilotPanel.actions(pilotActionCatalog()):[
    {label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)},
-   {label:voyage.seated?"🔥 推力＋":"🚪 ハッチ",run:()=>mobileAction(mobileThrust)},
-   {label:voyage.seated?(voyage.throttle<0?"◎ 慣性へ":"🛑 逆噴射"):"🪑 着席",run:()=>mobileAction(mobileBrake)},
-   {label:voyage.seated?viewLabel:"🚶 下船",run:()=>mobileAction(mobileShipView)},
-   {label:grounded?"🚶 立つ":"🔴 発射",disabled:!voyage.seated,
-    run:()=>grounded?mobileAction(shipStand):shipCombatUI?.fire()},
-   {label:grounded?"🚪 ハッチ":"✨ フレア",disabled:!voyage.seated,
-    run:()=>mobileAction(()=>grounded?shipCockpitHatch():shipCombatUI?.getCombat()?.deployFlares(voyage))}
-  ]};
+   {label:"🚪 ハッチ",run:()=>mobileAction(shipToggleHatch)},
+   {label:"🪑 着席",run:()=>mobileAction(shipSit)},
+   {label:"🚶 下船",run:()=>mobileAction(shipEgress)}
+  ];
+  return {ship:true,vr:Boolean(xrUI?.active),actions:shipActions};
  }
 });
 $("viewport-settings-toggle").addEventListener("click",()=>{

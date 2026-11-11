@@ -1,12 +1,12 @@
 import {shipEncounterPosition} from "./space-combat.mjs?v=20261110-flight-control";
 import {installShipViewGestures} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {bodyById} from "./solar-system.mjs";
-import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261110-flight-control";
-import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261110-flight-control";
+import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261112-pilot";
+import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261112-pilot";
 import {SHIP_CREW,SHIP_STATIONS} from "./ship-interior.mjs?v=20261110-flight-control";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261108-ciws-captain";
-import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261110-flight-control";
+import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261112-pilot";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -67,7 +67,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  @media(max-width:560px){#space-flight .flight-readout{font-size:11px}#space-flight .flight-head strong{font-size:13px}#space-flight .flight-actions button{min-width:55px}}
 
  /* In-viewport touch controls with explicit pointer ownership. */
- #space-flight .flight-touch-pad{position:absolute;z-index:40;bottom:calc(79px + env(safe-area-inset-bottom,0px));left:calc(12px + env(safe-area-inset-left,0px));width:106px;height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none;pointer-events:auto;color:#e6f9ff}
+ #space-flight .flight-touch-pad{position:absolute;z-index:280;bottom:calc(79px + env(safe-area-inset-bottom,0px));left:calc(12px + env(safe-area-inset-left,0px));width:106px;height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;touch-action:none;user-select:none;-webkit-user-select:none;pointer-events:auto;color:#e6f9ff}
  #space-flight .flight-touch-ring{width:88px;height:88px;border-radius:50%;border:2px solid #94cadb;display:grid;place-items:center;background:#0b3348ba;box-shadow:0 0 0 4px #04182273}
  #space-flight .flight-touch-nub{width:39px;height:39px;border-radius:50%;background:#8dbdc9;border:2px solid #f1ffff;pointer-events:none}
  #space-flight .flight-touch-caption{font-size:10px;font-weight:600;text-shadow:0 1px 3px #001}
@@ -83,7 +83,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  #space-flight.integrated.flight-wide #flight-canvas:not([hidden]){display:none!important}
  #space-flight.integrated .flight-touch-pad,#space-flight.integrated .flight-view-distance,#space-flight.integrated .flight-engine-lever{pointer-events:auto}
  /* Dedicated lever for engine output, independent of pitch/yaw stick. */
- #space-flight .flight-engine-lever{position:absolute;z-index:42;bottom:calc(79px + env(safe-area-inset-bottom,0px));left:calc(9px + env(safe-area-inset-left,0px));display:flex;flex-direction:column;align-items:center;gap:3px;min-width:65px;padding:7px 4px;border:1px solid #80bbca;border-radius:10px;background:#103246dd;pointer-events:auto;touch-action:none;user-select:none;color:#e0fbff;font-size:10px}
+ #space-flight .flight-engine-lever{position:absolute;z-index:280;bottom:calc(79px + env(safe-area-inset-bottom,0px));left:calc(9px + env(safe-area-inset-left,0px));display:flex;flex-direction:column;align-items:center;gap:3px;min-width:65px;padding:7px 4px;border:1px solid #80bbca;border-radius:10px;background:#103246dd;pointer-events:auto;touch-action:none;user-select:none;color:#e0fbff;font-size:10px}
  #space-flight .flight-engine-lever[hidden]{display:none!important}
  #space-flight .flight-throttle-track{position:relative;height:112px;width:44px;touch-action:none;cursor:ns-resize}
  #space-flight .flight-throttle-track::before{content:"";position:absolute;inset:8px 19px;border-radius:6px;background:linear-gradient(#78dcc8,#83a8b1 50%,#e99966)}
@@ -98,18 +98,19 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   transform:translate(-50%,-50%);border:0!important;border-radius:0!important;
   padding:0;background:transparent!important;box-shadow:none!important;color:#a8dfea;
   font:600 11px/1.3 system-ui,sans-serif;text-shadow:0 1px 3px #000,0 0 5px #000,0 0 7px #000;
-  white-space:nowrap;max-width:min(44vw,245px)}
+  white-space:nowrap;width:124px;min-height:32px;cursor:pointer}
  #space-flight .flight-sensor[data-category="hostile"]{color:#ff9a41}
  #space-flight .flight-sensor[data-category="friendly"]{color:#62baff}
  #space-flight .flight-sensor[data-category="neutral"]{color:#71eea2}
  #space-flight .flight-sensor[data-category="resource"]{color:#e6c985}
  #space-flight .flight-sensor[data-locked="true"]{color:#ff4747}
  #space-flight .flight-sensor-arrow{display:inline-block;min-width:17px;color:inherit;text-align:center;font-size:15px}
- #space-flight .flight-sensor-details{display:flex;flex-direction:column;gap:1px;background:transparent!important}
+ #space-flight .flight-sensor-name{overflow:hidden;text-overflow:ellipsis}
+ #space-flight .flight-sensor-details{min-width:0;display:flex;flex-direction:column;gap:1px;background:transparent!important}
  #space-flight .flight-sensor-distance{font:400 10px/1.2 ui-monospace,monospace;color:inherit}
  @media(max-width:590px){#space-flight .flight-sensor{font-size:10px;padding:2px 4px}
  #space-flight .flight-sensor-distance{font-size:9px}}
- #space-flight .flight-look-pad{position:absolute;z-index:44;bottom:calc(79px + env(safe-area-inset-bottom,0px));right:calc(10px + env(safe-area-inset-right,0px));width:106px;height:112px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;color:#e6f9ff;pointer-events:auto;touch-action:none;user-select:none}
+ #space-flight .flight-look-pad{position:absolute;z-index:280;bottom:calc(79px + env(safe-area-inset-bottom,0px));right:calc(10px + env(safe-area-inset-right,0px));width:106px;height:112px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;color:#e6f9ff;pointer-events:auto;touch-action:none;user-select:none}
  #space-flight .flight-look-pad[hidden]{display:none!important}
  #space-flight .flight-look-ring{width:88px;height:88px;border:2px solid #b5d3ff;border-radius:50%;display:grid;place-items:center;background:#182d52c9;box-shadow:0 0 0 4px #04182273}
  #space-flight .flight-look-nub{width:39px;height:39px;border-radius:50%;border:2px solid #e0ecff;background:#6c9ce1;pointer-events:none}
@@ -286,7 +287,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   ["a","left"],["arrowleft","left"],["d","right"],["arrowright","right"],
   ["q","leftTurn"],["e","rightTurn"]]);
  document.addEventListener("keydown",event=>{
-  if(root.hidden||!get()?.interior||!keys.has(event.key.toLowerCase())||
+  if(root.hidden||!get()?.interior||!keys.has(event.key.toLowerCase())||event.target.closest?.("dialog[open]")||
      (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)||event.target===throttle))return;
   event.preventDefault();held.add(keys.get(event.key.toLowerCase()));
  });

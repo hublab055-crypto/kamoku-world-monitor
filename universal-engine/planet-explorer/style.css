@@ -1392,3 +1392,22 @@ body.immersive{overflow:hidden}
  .ship-combat-console[data-ui-open="true"]{max-height:55%;overflow:auto}
  .view-panel.hud-tools-open #viewport-toolbar[data-ui-open="true"]{display:flex!important}
 }
+
+.ship-pilot-shortcuts{
+ position:absolute;z-index:3650;top:56px;right:8px;display:flex;gap:5px;
+}
+.ship-pilot-shortcuts[hidden]{display:none}
+.ship-pilot-shortcuts button{
+ min-height:42px;padding:4px 8px;background:#143c51eb;color:#f1fbff;border-color:#94c4ce;
+}
+.ship-pilot-panel{
+ width:min(420px,calc(100% - 24px));max-height:min(82dvh,650px);overflow:auto;
+ padding:14px;color:#edf8ff;background:#0d2738;border:1px solid #7db8ca;border-radius:12px;
+}
+.ship-pilot-panel::backdrop{background:#020b1466}
+.ship-pilot-panel header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ship-pilot-panel label{display:flex;align-items:center;gap:8px;min-height:38px}
+.ship-pilot-panel [data-slots] label,.ship-pilot-panel label:has(select){justify-content:space-between}
+.ship-pilot-panel select{min-width:0;max-width:65%;background:#143c51;color:#f1fbff}
+.ship-pilot-panel details{margin:8px 0;padding-top:8px;border-top:1px solid #537c90}
+.ship-pilot-panel summary{cursor:pointer;min-height:30px}

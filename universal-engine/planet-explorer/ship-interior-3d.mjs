@@ -52,10 +52,10 @@ export function createShipGeometry(open=false){
  for(const side of [-1,1]){
   box(a,side*3.18,3.67,-10,1.7,.26,6.15,"roof");
   box(a,side*4.08,1.71,3.15,.23,3.5,19.9,"wall");
-  box(a,side*4.08,.56,-10,.23,1.28,6.15,"wall");
+  box(a,side*4.08,.045,-10,.23,.09,6.15,"frame");
   box(a,side*4.08,3.24,-10,.23,.91,6.15,"wall");
   for(const z of [-12.90,-10.15,-7.18])
-   box(a,side*4.08,2.03,z,.27,2.05,.20,"frame");
+   box(a,side*4.08,1.49,z,.27,2.98,.20,"frame");
   for(const z of [-12.8,-10,-7.2])box(a,side*2.35,3.58,z,1.8,.12,.12,"frame");
  }
  box(a,0,3.66,-12.95,8,.27,.38,"roof");
@@ -72,11 +72,8 @@ export function createShipGeometry(open=false){
  // Front observation glazing is open to the view of the approaching world.
  box(a,-3.6,1.7,-13.08,.85,3.5,.32,"wall");
  box(a,3.6,1.7,-13.08,.85,3.5,.32,"wall");
- box(a,0,.53,-13.08,6.4,1.1,.32,"wall");
+ box(a,0,.045,-13.08,6.4,.09,.32,"frame");
  box(a,0,3.30,-13.08,6.4,.70,.32,"wall");
- box(a,0,2.61,-13.1,6.25,.085,.19,"frame");
- box(a,0,1.1,-13.1,6.25,.10,.19,"frame");
- box(a,0,1.9,-13.09,.055,1.72,.12,"frame");
  // Cockpit/corridor and cargo partitions have a central 2.6m doorway.
  for(const z of [-4.8,4.5]){
   box(a,-2.7,1.72,z,2.55,3.48,.26,"wall");
