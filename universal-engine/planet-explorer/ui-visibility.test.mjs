@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {UI_VISIBILITY_STORAGE_KEY,parseUiVisibility,installUiVisibility} from "./ui-visibility.mjs";
 
-test("invalid stored preferences fail safely and only false flags survive",()=>{
+test("invalid stored preferences fail safely and only boolean flags survive",()=>{
  assert.deepEqual(parseUiVisibility("not JSON"),{});
  assert.deepEqual(parseUiVisibility("[]"),{});
- assert.deepEqual(parseUiVisibility('{"stick-area":false,"abc":true,"other":"false","bad key":false}'),{"stick-area":false});
+ assert.deepEqual(parseUiVisibility('{"stick-area":false,"abc":true,"other":"false","bad key":false}'),{"stick-area":false,"abc":true});
 });
 
 class Element{
@@ -25,11 +25,11 @@ class Element{
  append(...items){this.children.push(...items);}
  replaceChildren(...items){this.children=[...items];}
 }
-function fixture(initial=null){
+function fixture(initial=null,mobile=false){
  const ids=new Map();
  for(const name of ["ui-display-panel","ui-display-list","ui-display-access","ui-display-close",
   "ui-display-all-show","ui-display-all-hide","ui-display-reset","stick-area",
-  "mobile-action-buttons","viewport-quick-toggle","viewport-quick-panel"]){
+  "mobile-action-buttons","camera-stick","action-pad","quick-items","viewport-settings-toggle","viewport-vr-toggle","viewport-quick-toggle","viewport-quick-panel"]){
   ids.set(name,new Element(name));
  }
  ids.get("ui-display-panel").hidden=true;
@@ -44,7 +44,7 @@ function fixture(initial=null){
   removeItem:key=>saved.delete(key)
  };
  const doc={
-  defaultView:{addEventListener(){},removeEventListener(){},
+  defaultView:{matchMedia:()=>({matches:mobile}),addEventListener(){},removeEventListener(){},
    MutationObserver:class{observe(){} disconnect(){}}},
   getElementById:key=>ids.get(key)??null,
   querySelector:sel=>sel===".canvas-wrap"?canvas:null,
@@ -102,4 +102,20 @@ test("newly added viewport panels can be discovered and controlled",()=>{
  controls.setVisible("future-ui-panel",false);
  assert.equal(futurePanel.getAttribute("data-ui-user-hidden"),"true");
  controls.destroy();
+});
+
+test("mobile defaults show the sticks and actions while extras can be restored and saved",()=>{
+ const f=fixture(null,true);
+ const controls=installUiVisibility({doc:f.doc,store:f.store});
+ assert.equal(controls.getVisible("stick-area"),true);
+ assert.equal(controls.getVisible("camera-stick"),true);
+ assert.equal(controls.getVisible("mobile-action-buttons"),true);
+ assert.equal(controls.getVisible("action-pad"),false);
+ assert.equal(f.ids.get("action-pad").getAttribute("data-ui-user-hidden"),"true");
+ controls.setVisible("action-pad",true);
+ const restored=installUiVisibility({doc:f.doc,store:f.store});
+ assert.equal(restored.getVisible("action-pad"),true);
+ f.ids.get("ui-display-reset").click();
+ assert.equal(restored.getVisible("action-pad"),false);
+ controls.destroy();restored.destroy();
 });

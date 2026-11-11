@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=20261107-overlay-fix">
+<link rel="stylesheet" href="./style.css?v=20261111-atmosphere-mobile">
 <link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
@@ -282,6 +282,8 @@
   <div class="viewport-compact-bar">
     <button type="button" id="viewport-expand" aria-pressed="false" aria-label="画面を最大化">⛶ 全画面</button>
     <button type="button" id="viewport-quick-toggle" aria-expanded="false" aria-controls="viewport-quick-panel" aria-label="操作メニューを開く">☰ 操作</button>
+    <button type="button" id="viewport-settings-toggle" aria-controls="viewport-toolbar" aria-expanded="false" aria-label="設定を開く">⚙️</button>
+    <button type="button" id="viewport-vr-toggle" aria-label="VRに切り替える">🥽</button>
     <button type="button" id="viewport-console-toggle" aria-expanded="false" aria-controls="game-console">▤ ログ</button>
     <button type="button" id="viewport-share" aria-haspopup="dialog" aria-controls="page-share-overlay" title="現在のページURLをQRコードで共有">▦ QR</button>
      <button type="button" id="ui-display-access" aria-label="表示設定を開く" aria-controls="ui-display-panel" aria-expanded="false" title="表示設定">👁</button>
@@ -1365,8 +1367,8 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9cj-20261110-entry-lever"></script>
-<script type="module" src="./ui-visibility.mjs?v=0.9az-ui-display-settings"></script>
+<script type="module" src="./app.mjs?v=0.9ck-20261111-atmosphere-mobile"></script>
+<script type="module" src="./ui-visibility.mjs?v=20261111-atmosphere-mobile"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */
 (() => {

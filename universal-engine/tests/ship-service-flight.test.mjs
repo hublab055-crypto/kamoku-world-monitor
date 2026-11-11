@@ -46,3 +46,38 @@ test('friendly and mineral contacts survive the final hostile, with offscreen di
 test('saved seated pilot is placed next to front window',()=>{
  const v=ship();assert.equal(v.interior.z,-11.25);assert.equal(ShipJourney.fromSnapshot(v.snapshot()).interior.z,-11.25);
 });
+
+test('a surface departure stays in controllable atmospheric flight until the pilot climbs to space',()=>{
+ const v=ship({destinationId:null,status:'docked',hatchOpen:false,airAltitude:0,airSpeed:0});
+ assert.equal(v.launch().ok,true);
+ assert.equal(v.status,'atmosphere');
+ v.tick(.1);
+ assert.ok(v.airNorth>0);
+ assert.equal(v.airAltitude,5);
+ v.pitch(90);
+ for(let i=0;i<800&&v.status==='atmosphere';i++)v.tick(.1);
+ assert.equal(v.status,'origin-orbit');
+ assert.equal(v.chooseDestination('cinder',18).ok,true);
+ assert.equal(v.startTransfer().ok,true);
+});
+test('planet gravity pulls an unpowered ship down, while powered stabilization holds it level',()=>{
+ const terra=ship({destinationId:null,originId:'terra',airAltitude:500,fuel:0,airSpeed:0});
+ const selene=ship({originId:'terra',destinationId:'selene',airAltitude:500,fuel:0,airSpeed:0});
+ const hovering=ship({destinationId:null,airAltitude:500,airSpeed:0,throttle:0});
+ for(let i=0;i<10;i++){terra.tick(.1);selene.tick(.1);hovering.tick(.1);}
+ assert.ok(terra.airAltitude<selene.airAltitude);
+ assert.ok(selene.airAltitude<500);
+ assert.equal(hovering.airAltitude,500);
+ const restored=ShipJourney.fromSnapshot(terra.snapshot());
+ assert.equal(restored.airVerticalVelocity,terra.airVerticalVelocity);
+});
+test('a landed ship can take off again from its destination planet',()=>{
+ const v=ship({status:'landed',hatchOpen:false});
+ v.landingSite={bodyId:'cinder',lat:28,lon:42,yaw:0,padElevationM:600};
+ assert.equal(v.launch().ok,true);
+ assert.equal(v.flightBodyId,'cinder');
+ assert.equal(v.originId,'cinder');
+ assert.equal(v.destinationId,null);
+ assert.equal(v.status,'atmosphere');
+ assert.equal(v.launchSite.padElevationM,600);
+});

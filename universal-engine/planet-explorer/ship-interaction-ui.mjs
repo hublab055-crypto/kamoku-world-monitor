@@ -6,13 +6,14 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
  style.textContent=`#seamless-ship[hidden]{display:none!important}#seamless-ship{border:1px solid #416a79;border-radius:9px;padding:8px;margin:6px 0;background:#0e283b;color:#e6f6ff;font:12px/1.4 system-ui}#seamless-ship .ship-section{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0}#seamless-ship button,#seamless-ship select{background:#17566c;color:#efffff;border:1px solid #5d94a4;border-radius:6px;min-height:38px;padding:6px}#seamless-ship button:disabled{opacity:.5}#seamless-ship .small{color:#aecbd8;font-size:11px}`;
  document.head.append(style);
  const root=document.createElement("section");root.id="seamless-ship";root.hidden=true;
- root.innerHTML='<div id="ship-prompt"></div><div class="ship-section" id="ship-actions"></div><div class="ship-section" id="ship-navigation" hidden><label>🪐 目的地 <select id="ship-route"></select></label><button type="button" id="ship-chart">航路設定</button><button type="button" id="ship-depart">🛰️ 惑星間航行開始</button></div><div class="small" id="ship-instructions"></div>';
+ root.innerHTML='<button type="button" id="ship-panel-close">× 閉じる</button><div id="ship-prompt"></div><div class="ship-section" id="ship-actions"></div><div class="ship-section" id="ship-navigation" hidden><label>🪐 目的地 <select id="ship-route"></select></label><button type="button" id="ship-chart">航路設定</button><button type="button" id="ship-depart">🛰️ 惑星間航行開始</button></div><div class="small" id="ship-instructions"></div>';
  const guide=parent.querySelector(".flight-guide");
  if(guide)guide.before(root);else parent.append(root);
  const $=id=>root.querySelector("#"+id),route=$("ship-route"),actions=$("ship-actions");
  const run=fn=>{const r=fn?.();if(r?.message)notify?.(r.message);update(true);return r;};
  $("ship-chart").addEventListener("click",()=>run(()=>onChooseRoute(route.value)));
  $("ship-depart").addEventListener("click",()=>run(onTransfer));
+ $("ship-panel-close").addEventListener("click",()=>{root.removeAttribute("data-ui-open");});
  let key="",optionKey="";
  function action(name,fn){
   const button=document.createElement("button");button.type="button";button.textContent=name;
@@ -58,5 +59,5 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
    if(v.destinationId&&routes.some(r=>r.id===v.destinationId))route.value=v.destinationId;
   }
  }
- return {update};
+ return {update,open(){root.setAttribute("data-ui-open","true");update(true);}};
 }
