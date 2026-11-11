@@ -4480,12 +4480,14 @@ function mobileInteract(){
   if(voyage.canDisembark())return shipEgress();
   return shipToggleHatch();
  }
+ if(controller.altitudeM>12.1){$("ground-button").click();return;}
  const hatch=currentShipHatch();
  if(hatch?.distanceM<=4.5)return surfaceShip.hatchOpen?boardSurfaceStarship():toggleSurfaceShipHatch();
  if(access.inside||access.nearby(controller)){interactDoor();return;}
  return landStarshipNearPlayer();
 }
 function mobileInteractLabel(){
+ if(!voyage&&controller.altitudeM>12.1)return "↓ 地表へ降下";
  if(!voyage)return currentShipHatch()?.distanceM<=4.5?"🚀 乗船 / ハッチ":access.inside||access.nearby(controller)?"🚪 扉":"🚀 船を呼ぶ";
  if(!voyage.seated)return voyage.isNearSeat()?"🪑 着席":voyage.canDisembark()?"🚶 下船":"🚪 ハッチ";
  if(["docked","landed"].includes(voyage.status))return voyage.hatchOpen?"🚪 ハッチを閉める":"🚀 離陸";
@@ -4519,6 +4521,7 @@ function mobileShipView(){
 }
 mobileUI=installMobilePlayUI({
  onLook:(x,y)=>{
+  if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M){renderer.panOrbit(x,y);return;}
   if(renderer.cameraController.mode==="legacy")setCameraMode("follow");
   renderer.cameraController.rotate(x,y);
  },
