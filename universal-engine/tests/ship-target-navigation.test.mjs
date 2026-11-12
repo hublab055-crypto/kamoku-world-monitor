@@ -78,3 +78,36 @@ test('legacy orbital departure and cruise saves resume with working brakes and a
   assert.ok(v.airAltitude>0);
  }
 });
+
+test('a selected star requires warp, can pause and resume, and arrives outside atmospheric entry',()=>{
+ const v=ship();
+ assert.equal(v.chooseDestination('aster-vale',30,{fromStar:true}).ok,true);
+ assert.equal(v.startTransfer().ok,false);
+ assert.equal(v.setWarp(true).ok,true);
+ for(let i=0;i<20;i++)v.tick(.1);
+ assert.ok(v.warpSpeed>0);
+ v.setThrottle(0);
+ for(let i=0;i<10;i++)v.tick(.1);
+ const progress=v.warpProgress;
+ assert.equal(v.inWarp,false);
+ assert.equal(v.canDirectEntry,false);
+ v.tick(.1);assert.equal(v.warpProgress,progress);
+ const resumed=ShipJourney.fromSnapshot(v.snapshot());
+ assert.equal(resumed.setWarp(true).ok,true);
+ for(let i=0;i<100&&resumed.inWarp;i++)resumed.tick(.1);
+ assert.equal(resumed.warpArrived,true);
+ assert.equal(resumed.status,'orbit');
+ assert.equal(resumed.inWarp,false);
+ assert.equal(resumed.canDirectEntry,false);
+ assert.equal(resumed.enterAtmosphere().ok,true);
+ const preview=prepareShipArrivalTerrain({destinationId:resumed.destinationId});
+ assert.equal(resumed.setLandingSite(preview.site),true);
+});
+
+test('an arrived pilot can pick another system without landing first',()=>{
+ const v=new ShipJourney({originId:'terra',destinationId:'lyra-haven',status:'orbit',warpArrived:true,seated:true});
+ assert.equal(v.chooseDestination('terra',30,{fromStar:true}).ok,true);
+ assert.equal(v.originId,'lyra-haven');
+ assert.equal(v.warpProgress,0);
+ assert.equal(v.warpArrived,false);
+});

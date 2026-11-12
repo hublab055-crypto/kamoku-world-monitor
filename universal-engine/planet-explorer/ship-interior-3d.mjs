@@ -1,7 +1,7 @@
 import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
-import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261110-flight-control";
-import {bodyById} from "./solar-system.mjs";
+import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
+import {bodyById} from "./solar-system.mjs?v=20261112-warp";
 const rad=Math.PI/180;
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 function color(hex){const h=hex.replace("#","");return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255];}

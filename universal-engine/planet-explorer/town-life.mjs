@@ -126,7 +126,9 @@ export class TownLife{
   if(!shop)return result(false,"お店が見つかりません");
   const near=this.canInteract(townId,actor,shop,{radius:9});
   if(!near.ok)return near;
-  const wares=TOWN_WARES[shop.type]||[];
+  return this.exchange(TOWN_WARES[shop.type]||[],item,direction,actions,life);
+ }
+ exchange(wares,item,direction,actions,life){
   const ware=wares.find(w=>w.item===item);
   if(!ware||!["buy","sell"].includes(direction))
    return result(false,"この店では扱っていない品物です");

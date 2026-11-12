@@ -1,5 +1,6 @@
 /** Shared WebGL2 geometry: the cabin is drawn on the same framebuffer and view matrix as the world. */
-import {createShipGeometry} from "./ship-interior-3d.mjs?v=20261112-pilot";
+import {ESCAPE_ALTITUDE_M} from "./ship-journey.mjs?v=20261112-warp";
+import {createShipGeometry} from "./ship-interior-3d.mjs?v=20261112-warp";
 export function triangleSoupToIndexed(soup){
  if(!soup||soup.length%9!==0)throw Error("Ship mesh data must have position/normal/color stride 9");
  const vertices=soup.length/9;
@@ -37,7 +38,7 @@ export function groundScenePhase(voyage){
  const near=status==="docked"||status==="landed"||status==="touchdown"||status==="ascent"||status==="entry"||status==="atmosphere"||status==="vtol";
  const lift=status==="ascent"?Math.pow(p,2)*7000:status==="entry"?700+Math.pow(1-p,2)*6300:["atmosphere","vtol"].includes(status)?voyage.airAltitude:0;
  const sky=status==="docked"||status==="landed"||status==="touchdown"?1:
-   status==="ascent"?1-p:status==="entry"?p:["atmosphere","vtol"].includes(status)?1:0;
+   status==="ascent"?1-p:status==="entry"?p:status==="atmosphere"?Math.max(0,Math.min(1,(ESCAPE_ALTITUDE_M-lift)/5000)):status==="vtol"?1:0;
  // While entering, a wide destination terrain patch replaces the orbit planet
  // before the spacecraft drops into the low-altitude landing corridor.
  const terrainDistance=status==="entry"?5000:1100;

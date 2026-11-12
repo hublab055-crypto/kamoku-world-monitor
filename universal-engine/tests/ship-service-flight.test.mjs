@@ -81,3 +81,26 @@ test('a landed ship can take off again from its destination planet',()=>{
  assert.equal(v.status,'atmosphere');
  assert.equal(v.launchSite.padElevationM,600);
 });
+
+test('independent VOL thrust levels the ship during flight and moves vertically in space',()=>{
+ const v=ship({destinationId:null,pitchDeg:45,throttle:0,airAltitude:500});
+ v.horizon=true;v.volThrottle=1;
+ for(let i=0;i<10;i++)v.tick(.1);
+ assert.ok(Math.abs(v.pitchDeg)<1);
+ assert.ok(v.airAltitude>505);
+ v.status='origin-orbit';v.autopilot=false;v.pitchDeg=0;
+ v.tick(.1);
+ assert.ok(v.routeVertical>0);
+ assert.equal(v.routeAlong,0);
+ assert.equal(ShipJourney.fromSnapshot(v.snapshot()).volThrottle,1);
+});
+
+test('landing gear defaults to automatic and manual retraction blocks VTOL landing',()=>{
+ const v=ship();
+ assert.equal(v.gearMode,'auto');
+ assert.equal(v.gearDown,false);
+ v.cycleGear();assert.equal(v.gearDown,true);
+ v.cycleGear();assert.equal(v.beginVTOL().ok,false);
+ v.cycleGear();assert.equal(v.beginVTOL().ok,true);
+ assert.equal(v.gearDown,true);
+});

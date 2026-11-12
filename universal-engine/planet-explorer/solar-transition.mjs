@@ -1,4 +1,4 @@
-import {createCelestialPlanet} from "./solar-system.mjs";
+import {createCelestialPlanet} from "./solar-system.mjs?v=20261112-warp";
 export function freshCelestialSave(source,id,days){
  const next=JSON.parse(JSON.stringify(source));
  next.planet=createCelestialPlanet(id,days).snapshot();

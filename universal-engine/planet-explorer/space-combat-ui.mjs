@@ -2,7 +2,7 @@ import {pickShipContact} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain";
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
-import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261112-pilot";
+import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
@@ -12,7 +12,7 @@ import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=2026110
 export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notify=()=>{},
  onHatch=()=>({ok:false,message:"ハッチ制御は利用できません"}),
  onCamera=()=>({ok:false,message:"視点切替不可"}),onWide=()=>({ok:false,message:"広画面不可"}),
- getViewSettings=()=>({}),setViewSettings=()=>{}}){
+ getViewSettings=()=>({}),setViewSettings=()=>{},onStar=()=>{},tradeWares=[],onTrade=()=>{}}){
  const root=document.getElementById("space-flight");
  const actions=root?.querySelector(".flight-actions");
  if(!root||!actions)return {getCombat:()=>null,update:()=>{},fire:()=>false,active:()=>false};
@@ -118,9 +118,35 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  radioToggle.setAttribute("aria-expanded","false");consolePanel.append(radioToggle);
  function radioButton(label,callback){
   const b=document.createElement("button");b.type="button";b.textContent=label;
-  b.addEventListener("click",()=>{const result=callback(getCombat());if(result?.message)notify(result.message);refreshRadio();});
+  b.addEventListener("click",()=>{const result=callback(getCombat());if(result?.message){radioFeedback=result.message;notify(result.message);}refreshRadio();});
   radioOptions.append(b);return b;
  }
+ const channel=radioButton("交信する",m=>{
+  const id=getVoyage()?.navigationTarget?.id;
+  const target=m?.allContacts.find(contact=>contact.id===id);
+  return target?{ok:true,message:target.name+"との通信チャンネルを開きました"}:
+   {ok:false,message:"HUDで通信相手を選んでください"};
+ });
+ const trade=document.createElement("div");
+ const goods=document.createElement("select");
+ goods.setAttribute("aria-label","交易品");
+ for(const ware of tradeWares)goods.add(new Option(ware.name+" 購入 "+ware.price+" / 売却 "+Math.max(1,Math.floor(ware.price*.6)),ware.item));
+ trade.append(goods);
+ for(const [label,direction] of [["購入","buy"],["売却","sell"]]){
+  const button=document.createElement("button");
+  button.type="button";button.textContent=label;
+  button.addEventListener("click",()=>{
+   const result=onTrade(goods.value,direction);
+   if(result?.message){radioFeedback=result.message;notify(result.message);refreshRadio();}
+  });
+  trade.append(button);
+ }
+ radioOptions.append(trade);
+ const closeRadio=document.createElement("button");
+ closeRadio.type="button";closeRadio.textContent="閉じる";
+ radioOptions.append(closeRadio);
+ let radioFeedback="";
+ closeRadio.addEventListener("click",()=>toggleRadio());
  const demand=radioButton("⚠️ 降伏を勧告",m=>m?.demandSurrender());
  const cease=radioButton("🤝 停戦提案",m=>m?.requestCeasefire());
  const surrender=radioButton("🏳️ 降伏する",m=>m?.offerSurrender());
@@ -132,14 +158,24 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const target=m?.targets.find(t=>t.offeredSurrender&&!t.surrendered&&t.hp>0);
   return target?m.respondSurrender(target.id,false):{ok:false,message:"敵からの降伏申請はありません"};
  });
- radioToggle.addEventListener("click",()=>{radioExpanded=!radioExpanded;radioToggle.setAttribute("aria-expanded",String(radioExpanded));refreshRadio();});
+ function toggleRadio(){
+  radioExpanded=!radioExpanded;radioFeedback="";
+  radioToggle.setAttribute("aria-expanded",String(radioExpanded));refreshRadio();
+ }
+ radioToggle.addEventListener("click",toggleRadio);
  function refreshRadio(){
   const m=getCombat(),v=getVoyage();
   const show=Boolean(v?.active&&!isVR());
   radio.hidden=!show||!m?.radioEvents.length&&!radioExpanded;
   if(!show)return;
   const last=m?.radioEvents.at(-1);
-  radioLine.textContent=last?.message||"📻 通信チャンネル待機中";
+  const target=m?.allContacts.find(contact=>contact.id===v.navigationTarget?.id);
+  const trading=target&&["friendly","neutral"].includes(target.faction)&&combatEligible(v)&&shipContactDistance(target,v)<=500;
+  trade.hidden=!trading;
+  channel.disabled=!target;
+  radioLine.textContent=radioFeedback||(radioExpanded&&target?
+   target.name+" ／ "+Math.round(shipContactDistance(target,v))+" m"+(["friendly","neutral"].includes(target.faction)?" ／ 交易圏500m":""):
+   last?.message||"📻 HUDから通信相手を選択");
   radioOptions.hidden=!radioExpanded;
   surrender.textContent=m?.playerSurrendered?"⚔️ 降伏を撤回":"🏳️ 降伏する";
   const pending=Boolean(m?.targets.some(t=>t.offeredSurrender&&!t.surrendered&&t.hp>0));
@@ -199,6 +235,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   return true;
  }
  function handleDashboardAction(id){
+  if(id==="radio"){toggleRadio();return true;}
   if(id==="flare"){const r=getCombat()?.deployFlares(getVoyage());if(r)notify(r.message);return Boolean(r?.ok);}
   if(id==="ciws"){const m=getCombat();if(m)m.ciwsEnabled=!m.ciwsEnabled;return Boolean(m);}
   if(id==="scan")return scan();
@@ -220,11 +257,22 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  }
  function cycleLever(){
   const v=getVoyage();if(!v?.seated)return false;
-  const levels=[-1,0,.5,1],next=levels.find(n=>n>v.throttle+.01)??-1;
-  v.setThrottle(next);notify("推力レバー："+Math.round(next*100)+"%");return true;
+  const levels=[-1,0,.5,1];
+  let next=v.warpEngaged?0:levels.find(n=>n>v.throttle+.01);
+  if(next===undefined){
+   if(v.canTranslate&&v.destinationId&&!v.warpArrived){
+    const result=v.setWarp(true);notify(result.message);
+    if(result.ok)return true;
+   }
+   next=-1;
+  }
+  v.setThrottle(next);v.setAutopilot(false);
+  notify("推力レバー："+Math.round(next*100)+"%");return true;
  }
  function selectNavigation(id){
   const v=getVoyage(),model=getCombat();if(!v||!model)return;
+  if(id.startsWith("star:")){onStar(id.slice(5));return;}
+  radioFeedback="";
   const contact=id==="planet"?{id:"planet",name:"目的惑星",position:[0,0,12000]}:model.allContacts.find(c=>c.id===id);
   if(!contact)return;
   const navigationSelected=v.selectNavigationTarget?.(contact);
@@ -253,7 +301,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    }
   }
   const chosen=pickShipContact(viewer?.shipTargets,controlRect,clientX,clientY);
-  if(chosen&&(chosen.id==="planet"||scannedIds.has(chosen.id)))selectNavigation(chosen.id);
+  if(chosen&&(chosen.id==="planet"||chosen.id.startsWith("star:")||scannedIds.has(chosen.id)))selectNavigation(chosen.id);
  }
 
  document.addEventListener("keydown",event=>{
@@ -310,5 +358,5 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(recent.length)lastRadioId=recent.at(-1).id;
   refreshRadio();
  }
- return {getCombat,update,fire,active,switchWeapon:setWeapon,pressVRButton};
+ return {getCombat,update,fire,active,scan,toggleRadio,switchWeapon:setWeapon,pressVRButton};
 }

@@ -21,7 +21,7 @@ const HOSTILES=Object.freeze([
  {id:"pirate-gamma",hull:"fighter",name:"☠️ 海賊偵察機",bearing:17,pitch:-5,distance:400,hp:75,phase:3.6}
 ]);
 export function combatEligible(voyage){
- return Boolean(voyage?.active&&(voyage.seated===true||
+ return Boolean(voyage?.active&&!voyage.inWarp&&(voyage.seated===true||
   voyage.seated!==false&&voyage.interior?.mode==="cockpit")&&
   ["origin-orbit","parking-orbit","launch","cruise","approach","flyby","orbit"].includes(voyage.status));
 }

@@ -1,5 +1,5 @@
-import {AU_M,orbitalPosition,bodyById} from "./solar-system.mjs";
-import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261110-flight-control";
+import {AU_M,orbitalPosition,bodyById,STAR_SYSTEMS,systemIdFor} from "./solar-system.mjs?v=20261112-warp";
+import {shipContactPosition,shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const norm=v=>{const d=Math.hypot(...v)||1;return v.map(x=>x/d);};
@@ -73,12 +73,23 @@ export function shipSensorContacts(v,combat=null){
  const status=v.status||"docked",t=finite(v.elapsedSeconds)?v.elapsedSeconds:0;
  const yaw=v.attitudeYawDeg||0,pitch=v.pitchDeg||0,contacts=[];
  const flying=!["docked","landed","preflight","touchdown"].includes(status);
- const planet=bodyById(v.destinationId||v.originId);
+ const activeSystem=systemIdFor(v.warpArrived?v.destinationId:v.originId);
+ if(v.canTranslate&&!v.inWarp){
+  const current=STAR_SYSTEMS.find(system=>system.id===activeSystem);
+  for(const star of STAR_SYSTEMS){
+   if(star===current)continue;
+   const delta=sub(star.offset,current.offset),length=Math.hypot(...delta);
+   const position=inertialToShip(norm([delta[0],delta[1],-delta[2]]).map(n=>n*1600),yaw,pitch);
+   contacts.push({id:"star:"+star.id,name:star.name+"恒星系",type:"star",icon:"✦",position,
+    distance:(length/63241).toFixed(1)+" 光年",color:star.color});
+  }
+ }
+ const planet=bodyById(v.interstellar&&!v.warpArrived?v.originId:v.destinationId||v.originId);
  if(planet){
   const along=finite(v.routeAlong)?v.routeAlong:v.progress||0,crossTrack=v.crossTrack||0;
   const offset=[-crossTrack*440,-(v.routeVertical||0)*440,-(1-along)*440];
   const d=Math.hypot(...offset);
-  const routeView=v.destinationId&&["origin-orbit","parking-orbit","launch","cruise","approach","flyby","orbit"].includes(status);
+  const routeView=(!v.interstellar||v.warpArrived)&&v.destinationId&&["origin-orbit","parking-orbit","launch","cruise","approach","flyby","orbit"].includes(status);
   // The destination occupies the SAME fixed route endpoint as entry detection.
   // Never normalize its position onto a camera-centred sphere.
   const starPos=routeView?shipContactPosition({position:[0,0,12000]},v):
@@ -92,7 +103,7 @@ export function shipSensorContacts(v,combat=null){
   contacts.push({id:"planet",name:planet.name,type:"destination",icon:"◈",position:starPos,
    distance,routeView,estimate:true,color:"#7bdde8",distanceAU});
  }
- if(flying&&combat){
+ if(flying&&combat&&!v.inWarp){
   // One authoritative encounter list: WebGL, scan, lock-on and HUD all read
   // the same object positions. No independent "fake pirate/trader" objects.
   for(const c of combat.allContacts||[]){

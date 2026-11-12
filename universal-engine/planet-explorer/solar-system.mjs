@@ -2,12 +2,19 @@ import {Planet} from "../planet/planet-core.mjs";
 
 export const AU_M=149597870700;
 export const STAR=Object.freeze({id:"helios",name:"ヘリオス",kind:"star",radiusM:696340000,color:"#ffd888",temperatureC:5500});
+export const STAR_SYSTEMS=Object.freeze([
+ {...STAR,bodyId:"terra",offset:[0,0,0]},
+ {id:"aster",name:"アスター",kind:"star",bodyId:"aster-vale",color:"#b6caff",radiusM:790000000,offset:[110000,28000,225000]},
+ {id:"lyra",name:"リラ",kind:"star",bodyId:"lyra-haven",color:"#ffd1a0",radiusM:610000000,offset:[-245000,-34000,140000]}
+]);
 export const BODIES=Object.freeze([
  {id:"terra",name:"Terra Nova",kind:"planet",seed:77,radiusM:6371000,gravity:9.81,rotationHours:24,orbitDays:365.25,au:1,phase:0,axialTiltDeg:23.4,oceanLevel:0,temperatureC:16,atmosphere:"窒素・酸素",pressure:1,materials:["木材","石","鉄","水"],color:"#59bddd",landable:true},
  {id:"cinder",name:"シンダー",kind:"planet",seed:408,radiusM:3389000,gravity:3.71,rotationHours:24.6,orbitDays:687,au:1.52,phase:1.2,axialTiltDeg:25,oceanLevel:1.15,temperatureC:-32,atmosphere:"薄い二酸化炭素",pressure:.008,materials:["鉄鉱石","シリカ","硫黄"],color:"#d28b63",landable:true},
  {id:"nix",name:"ニクス",kind:"planet",seed:954,radiusM:2600000,gravity:2.4,rotationHours:41,orbitDays:1440,au:2.5,phase:2.1,axialTiltDeg:12,oceanLevel:1.1,temperatureC:-112,atmosphere:"希薄な窒素",pressure:.02,materials:["氷","ニッケル","希土類"],color:"#b3dcf5",landable:true},
  {id:"selene",name:"セレーネ",kind:"moon",parent:"terra",seed:331,radiusM:1737000,gravity:1.62,rotationHours:655.7,orbitDays:365.25,moonOrbitDays:27.32,moonAU:.00257,au:1,phase:.7,axialTiltDeg:1.5,oceanLevel:1.3,temperatureC:-23,atmosphere:"ほぼ真空",pressure:0,materials:["レゴリス","チタン","氷"],color:"#dfdcce",landable:true},
  {id:"zephyr",name:"ゼファー",kind:"gas-giant",seed:881,radiusM:51000000,gravity:18.2,rotationHours:10.5,orbitDays:4100,au:5.1,phase:2.7,axialTiltDeg:3,oceanLevel:0,temperatureC:-145,atmosphere:"水素・ヘリウム",pressure:null,materials:["水素","ヘリウム"],color:"#d5b18c",landable:false},
+ {id:"aster-vale",name:"アスター・ヴェイル",systemId:"aster",kind:"planet",seed:1977,radiusM:6100000,gravity:8.6,rotationHours:29,orbitDays:440,au:1.3,phase:1.1,axialTiltDeg:20,oceanLevel:0,temperatureC:12,atmosphere:"窒素・酸素",pressure:.9,materials:["木材","石","水"],color:"#87b6ff",landable:true},
+ {id:"lyra-haven",name:"リラ・ヘイヴン",systemId:"lyra",kind:"planet",seed:2187,radiusM:5700000,gravity:7.8,rotationHours:21,orbitDays:305,au:.92,phase:1.7,axialTiltDeg:17,oceanLevel:0,temperatureC:20,atmosphere:"窒素・酸素",pressure:1.1,materials:["木材","鉄","水"],color:"#83c998",landable:true},
  {id:"belt",name:"アステリア小惑星帯",kind:"asteroid-belt",au:3.1,phase:0,radiusM:0,color:"#a4a7ab",landable:false,materials:["鉄","ニッケル","白金","氷"]}
 ]);
 const finite=n=>Number.isFinite(n);
@@ -20,9 +27,12 @@ const rad=Math.PI/180;
 const deg=180/Math.PI;
 export const bodyById=id=>BODIES.find(b=>b.id===id)||null;
 
+export const systemIdFor=id=>bodyById(id)?.systemId||STAR.id;
+
 export function orbitalPosition(id,days){
  if(!finite(days))throw new RangeError("Invalid stellar clock");
- if(id===STAR.id)return vec(0,0,0);
+ const star=STAR_SYSTEMS.find(system=>system.id===id);
+ if(star)return vec(...star.offset);
  const b=bodyById(id);
  if(!b)return null;
  if(b.kind==="asteroid-belt")return vec(b.au,0,0);
@@ -32,7 +42,8 @@ export function orbitalPosition(id,days){
   return vec(parent.x+b.moonAU*Math.cos(phase),b.moonAU*.04*Math.sin(phase*.41),parent.z+b.moonAU*Math.sin(phase));
  }
  const angle=2*Math.PI*days/b.orbitDays+b.phase;
- return vec(b.au*Math.cos(angle),0,b.au*Math.sin(angle));
+ const offset=STAR_SYSTEMS.find(system=>system.id===systemIdFor(id)).offset;
+ return vec(offset[0]+b.au*Math.cos(angle),offset[1],offset[2]+b.au*Math.sin(angle));
 }
 export function skyFromSurface(bodyId,planet,latitude,longitude,days){
  const center=orbitalPosition(bodyId,days);
@@ -41,7 +52,7 @@ export function skyFromSurface(bodyId,planet,latitude,longitude,days){
  const east=norm(diff(planet.surfaceNormal(latitude,longitude+.02),planet.surfaceNormal(latitude,longitude-.02)));
  const north=norm(diff(planet.surfaceNormal(Math.min(89.99,latitude+.02),longitude),
    planet.surfaceNormal(Math.max(-89.99,latitude-.02),longitude)));
- return [STAR,...BODIES.filter(b=>b.id!==bodyId&&b.kind!=="asteroid-belt")].map(b=>{
+ return [...STAR_SYSTEMS,...BODIES.filter(b=>b.id!==bodyId&&b.kind!=="asteroid-belt"&&systemIdFor(b.id)===systemIdFor(bodyId))].map(b=>{
   const p=orbitalPosition(b.id,days),v=diff(p,center),d=length(v);
   if(d<=1e-10)return null;
   const direction=norm(v);
@@ -91,17 +102,18 @@ export class SolarSystem{
   this.surfaces[id]=copy;
  }
  load(id){return this.surfaces[id]?JSON.parse(JSON.stringify(this.surfaces[id])):null;}
- travelPlan(targetId){
+ travelPlan(targetId,originId=this.currentId){
   const target=bodyById(targetId);
   if(!target||(!target.landable&&target.kind!=="asteroid-belt"))
    return {ok:false,message:"指定した天体へは航行できません"};
-  if(targetId===this.currentId)return {ok:false,message:"現在滞在中の天体です"};
-  const start=orbitalPosition(this.currentId,this.days);
+  if(targetId===originId)return {ok:false,message:"現在滞在中の天体です"};
+  const start=orbitalPosition(originId,this.days);
+  if(!start)return {ok:false,message:"出発天体を確認できません"};
   let flightDays=1;
   for(let i=0;i<4;i++){
    const end=target.kind==="asteroid-belt"?vec(target.au*Math.cos(this.days*.01),0,target.au*Math.sin(this.days*.01)):orbitalPosition(targetId,this.days+flightDays);
    const delta=length(diff(end,start));
-   flightDays=Math.max(.3,delta*12);
+   flightDays=Math.max(.3,delta*(systemIdFor(targetId)===systemIdFor(originId)?12:.00012));
   }
   return {ok:true,target,flightDays:Math.round(flightDays*10)/10,
    distanceAU:Math.round(length(diff(orbitalPosition(targetId,this.days+flightDays),start))*1000)/1000};
