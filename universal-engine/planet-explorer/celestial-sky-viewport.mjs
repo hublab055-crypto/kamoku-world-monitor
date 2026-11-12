@@ -1,4 +1,4 @@
-import {skyFromSurface} from "./solar-system.mjs";
+import {skyFromSurface} from "./solar-system.mjs?v=20261112-warp";
 const angle=x=>((x+540)%360)-180;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 export function installCelestialSkyViewport({get}){

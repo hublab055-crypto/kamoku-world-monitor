@@ -1,5 +1,5 @@
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261110-flight-control";
+import {shipSensorContacts,projectShipHudTarget} from "./ship-space-visuals.mjs?v=20261112-warp";
 
 /** Transparent in-scene contact typography, never a boxed viewport/window.
  * Reads exactly the same world positions and ranges as WebGL ship meshes.
@@ -26,7 +26,7 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
    .map(rect=>({x:rect.left-box.left,y:rect.top-box.top,width:rect.width,height:rect.height}));
   for(const contact of contacts){
    const locked=Boolean(combat?.locked?.includes(contact.id));
-   if(contact.id!=="planet"&&!scanned.has(contact.id)&&!locked)continue;
+   if(contact.id!=="planet"&&contact.type!=="star"&&!scanned.has(contact.id)&&!locked)continue;
    present.add(contact.id);
    let node=nodes.get(contact.id);
    if(!node){
@@ -50,7 +50,7 @@ export function installShipSensorHUD(root,{getRenderer=()=>null}={}){
    const inside=Boolean(accurate&&renderPoint.u>centerMargin&&renderPoint.u<1-centerMargin&&
     renderPoint.v>centerMargin&&renderPoint.v<1-centerMargin);
    const pos=inside?{x:renderPoint.u*box.width,y:renderPoint.v*box.height,visible:true}:fallback;
-   const selected=v.navigationTarget?.id===contact.id;
+   const selected=v.navigationTarget?.id===contact.id||contact.type==="star"&&v.destinationId&&contact.id==="star:"+v.destinationSystemId;
    node.hidden=false;node.style.outline=selected?"1px solid #fff":"";node.dataset.category=contact.faction||contact.type;
    node.dataset.offscreen=String(!pos.visible);
    node.dataset.locked=String(locked);

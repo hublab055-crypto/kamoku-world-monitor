@@ -1411,3 +1411,16 @@ body.immersive{overflow:hidden}
 .ship-pilot-panel select{min-width:0;max-width:65%;background:#143c51;color:#f1fbff}
 .ship-pilot-panel details{margin:8px 0;padding-top:8px;border-top:1px solid #537c90}
 .ship-pilot-panel summary{cursor:pointer;min-height:30px}
+
+.ship-pilot-shortcuts{flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 16px)}
+.ship-pilot-shortcuts button{min-height:38px}
+#space-flight .ship-radio-overlay{top:146px;max-height:calc(100% - 154px);overflow:auto}
+#space-flight #flight-warp-target{max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media (pointer:coarse) and (max-width:430px){
+ #space-flight.ship-piloting .flight-touch-pad{width:85px}
+ #space-flight.ship-piloting .flight-touch-ring{width:70px;height:70px}
+}
+
+#space-flight .flight-engine-lever{width:54px;box-sizing:border-box}
+#space-flight .flight-engine-lever output{font-size:9px}

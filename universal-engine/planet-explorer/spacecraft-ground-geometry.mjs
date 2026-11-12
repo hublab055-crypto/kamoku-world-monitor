@@ -15,7 +15,7 @@ function box(g,x,y,z,rx,h,rz,col){
  for(const [a,b,c,d] of [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[1,5,6,2],[4,0,3,7]])
   quad(g,p[a],p[b],p[c],p[d],col);
 }
-export function spacecraftGroundGeometry(open=false){
+export function spacecraftGroundGeometry(open=false,gearDown=true){
  const g=builder(),hull=[.44,.56,.63],dark=[.075,.12,.17],frame=[.20,.32,.42],
   light=[.21,.86,.90],yellow=[.98,.72,.23],glass=[.07,.29,.46],ramp=[.27,.35,.42];
  // Flight deck, tapered nose and broad engine block
@@ -29,7 +29,7 @@ export function spacecraftGroundGeometry(open=false){
   const s=side;
   tri(g,[s*3.2,3.2,-4],[s*8.0,3.0,4],[s*3.1,3.0,9],hull);
   tri(g,[s*3.1,3.0,9],[s*8.0,3.0,4],[s*3.2,3.2,-4],hull);
-  for(const z of [-9.0,8.0]){
+  if(gearDown)for(const z of [-9.0,8.0]){
    box(g,side*2.65,0,z,.45,2.3,.43,frame);
    box(g,side*3.3,.12,z,1.15,.22,1.0,dark);
   }

@@ -49,14 +49,14 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
-import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261107-hatch";
+import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261112-pilot";
+import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261112-warp";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
-import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261110-flight-control";
-import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261110-flight-control";
-import {bodyById} from "./solar-system.mjs?v=1";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
+import {bodyById} from "./solar-system.mjs?v=20261112-warp";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
@@ -800,6 +800,7 @@ export class ExplorerRenderer{
     reverse:new Mesh(gl,exhaustGeometry("reverse"))
    };
    this.shipTerrainPatch=null;this.shipTerrainKey="";
+   this.shipGearUpMesh=new Mesh(gl,spacecraftGroundGeometry(false,false));
    this.surfaceShipMeshes=[new Mesh(gl,spacecraftGroundGeometry(false)),new Mesh(gl,spacecraftGroundGeometry(true))];
    this.screenMarineFurniture=[];
    const rod=builder();
@@ -1803,6 +1804,12 @@ export class ExplorerRenderer{
     const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
     this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
    }
+   for(const star of contacts.filter(contact=>contact.type==="star")){
+    const projection=projectScreen(vp,star.position);
+    if(projection)this.shipTargets.push({...projection,id:star.id,name:star.name});
+    const point=multiply4(translate(...star.position),scale3(5,5,5));
+    this.drawMesh(this.shipPlanetSphere,multiply4(vp,point),[.8,.9,1],1,1);
+   }
    // Every hologram/sensor glyph shares the corresponding 3D target position.
    // Non-hostiles have no weapon locks and are drawn once, never as duplicate ships.
    for(const c of contacts.filter(c=>c.visual&&c.faction!=="hostile")){
@@ -1959,15 +1966,22 @@ export class ExplorerRenderer{
    if(chase){
     // Chase camera is ship-local: swiping orbits the camera; ship heading
     // rotates the inertial sky, not the camera's stored orbit offset.
-    this.drawMesh(this.surfaceShipMeshes[v.hatchOpen?1:0],
+    this.drawMesh(v.gearDown===false?this.shipGearUpMesh:this.surfaceShipMeshes[v.hatchOpen?1:0],
      vp,[.57,.89,.49],1,.83);
-    const amount=Math.abs(Number.isFinite(v.throttle)?v.throttle:0);
+    if(Math.abs(v.volThrottle)>.01&&v.fuel>0&&!v.isGrounded?.()){
+     for(const x of [-2.7,2.7]){
+      const plume=multiply4(translate(x,1.8,2),multiply4(rotX(Math.sign(v.volThrottle)*Math.PI/2),
+       scale3(.55,.55,2+Math.abs(v.volThrottle)*7)));
+      this.drawMesh(this.shipExhaustMeshes.cruise,multiply4(vp,plume),[1,1,1],1,.98);
+     }
+    }
+    const amount=v.inWarp?1:Math.abs(Number.isFinite(v.throttle)?v.throttle:0);
     if(amount>.01&&!["docked","landed","touchdown","preflight"].includes(v.status)&&v.fuel>0){
-     const backwards=v.throttle<0;
+     const backwards=!v.inWarp&&v.throttle<0;
      const color=backwards?"reverse":amount>.65?"boost":"cruise";
      const mesh=this.shipExhaustMeshes[color];
      const pulse=.92+.08*Math.sin((v.elapsedSeconds||0)*28);
-     const length=(2+amount*14)*pulse;
+     const length=(2+amount*14+120*(v.warpSpeed||0))*pulse;
      const radius=.48+amount*.38;
      for(const x of [-2.15,0,2.15]){
       const local=backwards?multiply4(translate(x,3.2,-14),
@@ -3153,7 +3167,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);

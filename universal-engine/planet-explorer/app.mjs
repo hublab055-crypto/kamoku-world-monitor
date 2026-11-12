@@ -1,26 +1,27 @@
-import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-pilot";
+import {shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
+import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
 import {Multiverse} from "../core.mjs";
 import {Planet} from "../planet/planet-core.mjs";
-import {SolarSystem,BODIES,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=1";
+import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCelestialClimate} from "./solar-system.mjs?v=20261112-warp";
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
-import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=1";
-import {installSolarSystemUI} from "./solar-system-ui.mjs?v=1";
-import {ShipJourney} from "./ship-journey.mjs?v=20261111-atmosphere-mobile";
+import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
+import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
+import {ShipJourney} from "./ship-journey.mjs?v=20261112-warp";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
-import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=1";
+import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261111-atmosphere-mobile";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261112-pilot";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-pilot";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261112-warp";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-warp";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
-import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=1";
+import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261112-pilot";
+import {ExplorerRenderer} from "./render.mjs?v=20261112-warp";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -56,7 +57,7 @@ import {installMapDirectoryUI} from "./map-directory-ui.mjs?v=0.8j-map-ui";
 import {settlementDestinations,destinationById} from "./settlements.mjs?v=0.8y-harbor";
 import {installSettlementTravelUI} from "./settlement-travel-ui.mjs?v=0.8r-towns";
 import {installOrbitalCitiesUI} from "./orbital-cities-ui.mjs?v=0.8u-city-globe";
-import {TownLife} from "./town-life.mjs?v=0.8s-towns";
+import {TOWN_WARES,TownLife} from "./town-life.mjs?v=20261112-warp";
 import {installTownInteractionUI} from "./town-interaction-ui.mjs?v=0.8s-towns";
 import {absoluteMinutes,RailwaySystem,stationById,nextDepartures,formatClock} from "./railway.mjs?v=0.8z-crossing";
 import {railwayJourneyPose,railwayNetworkDistanceKm} from "./railway-world.mjs?v=0.8x-rail-safety";
@@ -691,8 +692,9 @@ function doFrame(t,source="window",xrFrameInput=null){
     else{voyage.navigationTarget=null;voyage.setAutopilot(false);log("航行目標を喪失したため自動操縦を停止しました");}
    }
    const previousOffset=voyage.planetOffset;
+   const wasWarping=voyage.inWarp;
    const before=voyage.status,advanced=voyage.tick(dt,voyageUI?.translationInput());
-   if(previousOffset&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
+   if(previousOffset&&!wasWarping&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
    }
@@ -1686,10 +1688,11 @@ function shipRoutes(){
    return plan.ok?{id:body.id,name:body.name,flightDays:plan.flightDays}:null;
   }).filter(Boolean);
 }
-function setShipDestination(id){
+function setShipDestination(id,options){
  if(voyage?.kind!=="surface-to-surface")return {ok:false,message:"宇宙船に乗ってください"};
- const plan=solarSystem.travelPlan(id);if(!plan.ok)return plan;
- return voyage.chooseDestination(id,plan.flightDays);
+ const origin=options?.fromStar&&voyage.warpArrived?voyage.destinationId:voyage.originId;
+ const plan=solarSystem.travelPlan(id,origin);if(!plan.ok)return plan;
+ return voyage.chooseDestination(id,plan.flightDays,options);
 }
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
  voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
@@ -1785,6 +1788,7 @@ function prepareShipArrival(){
 function finishCelestialVoyage(){
  if(voyage?.kind==="surface-to-surface"){
   if(voyage.status==="atmosphere"){
+   if(voyage.gearMode==="up")return voyage.beginVTOL();
    try{
     const base=voyage.landingSite,r=shipArrivalPreview.terrain.planet.radiusM;
     const lat=base.lat+voyage.airNorth/r*180/Math.PI;
@@ -4175,6 +4179,13 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
  isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
  onCamera:()=>voyageUI?.toggleCamera(),onWide:()=>voyageUI?.toggleWide(),
+ onStar:id=>{
+  const star=STAR_SYSTEMS.find(system=>system.id===id);
+  if(!star)return;
+  const result=setShipDestination(star.bodyId,{fromStar:true});
+  log(result.ok?star.name+"恒星系を設定しました。レバーをワープへ入れてください":result.message);
+ },
+ tradeWares:TOWN_WARES.workshop,onTrade:shipRadioTrade,
  getViewSettings:()=>voyageUI?.getViewSettings?.()||{},
  setViewSettings:values=>voyageUI?.setViewSettings?.(values)});
 shipInteractionUI=installShipInteractionUI({get:()=>voyage,
@@ -4507,12 +4518,28 @@ function mobileAction(run){
  if(result?.message)log(result.message);
  shipInteractionUI?.update(true);
 }
+function shipRadioTrade(item,direction){
+ const target=shipCombatUI?.getCombat()?.allContacts.find(contact=>contact.id===voyage?.navigationTarget?.id);
+ if(!shipCombatUI?.active()||!target||!["friendly","neutral"].includes(target.faction)||shipContactDistance(target,voyage)>500)
+  return {ok:false,message:"味方艦か中立艦を選び、500m以内で交信してください"};
+ const result=townLife.exchange(TOWN_WARES.workshop,item,direction,actions,life);
+ if(result.ok){saveTownJournal();saveLifeJournal();}
+ return result;
+}
+const pilotCommands={
+ radio:()=>shipCombatUI?.toggleRadio(),
+ scan:()=>shipCombatUI?.scan(),
+ horizon:()=>{if(voyage?.seated&&voyage.status==="atmosphere")voyage.horizon=!voyage.horizon;},
+ gear:()=>voyage?.cycleGear()
+};
 const pilotActionOptions=[
  {id:"primary",label:"航行・着陸など現在の操作"},
  {id:"auto",label:"自動航行"}, {id:"camera",label:"船内・船外視点"},
  {id:"fire",label:"発射"}, {id:"flare",label:"フレア"},
  {id:"stand",label:"操縦席から立つ"}, {id:"weapon",label:"兵装切替"},
  {id:"hatch",label:"ハッチ"}, {id:"translate",label:"操舵・平行移動"},
+ {id:"radio",label:"通信"}, {id:"scan",label:"スキャン"},
+ {id:"horizon",label:"ホライゾン"}, {id:"gear",label:"着陸脚"},
  {id:"none",label:"非表示"}
 ];
 pilotPanel=installShipPilotPanel({
@@ -4520,11 +4547,15 @@ pilotPanel=installShipPilotPanel({
  switchWeapon:type=>shipCombatUI?.switchWeapon(type),
  getCargo:()=>Object.entries(actions?.resources||{}).filter(([,count])=>count>0)
   .map(([id,count])=>[resourceNames[id]||id,count]),
- actionOptions:pilotActionOptions,defaults:["primary","auto","camera","fire","flare","stand"]
+ commands:pilotCommands,actionOptions:pilotActionOptions,defaults:["primary","auto","camera","fire","flare","stand"]
 });
 function pilotActionCatalog(){
  return {
   primary:{label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)},
+  radio:{label:"📻 通信",run:pilotCommands.radio},
+  scan:{label:"📡 スキャン",disabled:!shipCombatUI?.active(),run:pilotCommands.scan},
+  horizon:{label:voyage.horizon?"水平 ON":"水平 OFF",disabled:voyage.status!=="atmosphere",run:pilotCommands.horizon},
+  gear:{label:"着陸脚",run:pilotCommands.gear},
   auto:{label:"🧭 自動 "+(voyage.autopilot?"ON":"OFF"),disabled:!voyage.canTranslate,
    run:()=>voyage.setAutopilot(!voyage.autopilot)},
   camera:{label:"👁 視点",run:()=>mobileAction(()=>voyageUI.toggleCamera())},

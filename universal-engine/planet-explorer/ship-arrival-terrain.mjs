@@ -2,7 +2,7 @@
  * The actual planet save and the cockpit preview use the same terrain sampler. */
 import {Planet} from "../planet/planet-core.mjs";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
-import {createCelestialPlanet,bodyById} from "./solar-system.mjs?v=1";
+import {createCelestialPlanet,bodyById} from "./solar-system.mjs?v=20261112-warp";
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {findLand} from "./geo.mjs?v=0.8y-harbor";
 import {Earthworks} from "./earthworks.mjs";

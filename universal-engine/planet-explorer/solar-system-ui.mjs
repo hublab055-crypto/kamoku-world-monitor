@@ -1,4 +1,4 @@
-import {BODIES,STAR,bodyById,orbitalPosition,skyFromSurface} from "./solar-system.mjs";
+import {BODIES,STAR_SYSTEMS,systemIdFor,bodyById,orbitalPosition,skyFromSurface} from "./solar-system.mjs?v=20261112-warp";
 export function installSolarSystemUI({get,onTravel,onMine,notify}){
  const style=document.createElement("style");
  style.textContent="#solar-panel[hidden]{display:none!important}#solar-panel{position:absolute;z-index:31;top:7px;right:7px;width:min(370px,calc(100% - 14px));max-height:75vh;overflow:auto;padding:12px;border:1px solid #628da6;border-radius:12px;background:#0c2433f2;color:#e4f4ff;font:12px/1.5 system-ui}#solar-panel canvas{display:block;max-width:100%;background:#071929;border:1px solid #3f5f72;border-radius:8px}#solar-panel .body{border-top:1px solid #456070;padding:7px 0}#solar-panel .line{display:flex;align-items:center;justify-content:space-between;gap:8px}#solar-panel small{color:#bcd1de}#solar-panel button{min-height:28px}#solar-sky-hint{position:absolute;top:7px;right:7px;z-index:8;background:#102b3baa;color:#e6f4ff;font:10px system-ui;pointer-events:none;border-radius:5px;padding:3px 6px}";
@@ -28,17 +28,20 @@ export function installSolarSystemUI({get,onTravel,onMine,notify}){
   hint.hidden=!hint.textContent;
   if(panel.hidden)return;
   const body=bodyById(system.currentId);
+  const star=STAR_SYSTEMS.find(item=>item.id===systemIdFor(body.id));
+  const localBodies=BODIES.filter(item=>systemIdFor(item.id)===star.id&&item.kind!=="asteroid-belt");
   status.textContent="現在地 "+body.name+" ／ 恒星時 "+system.days.toFixed(2)+"日 ／ 重力 "+body.gravity+"m/s² ／ 気温目安 "+body.temperatureC+"℃";
   const ctx=orbit.getContext("2d");ctx.clearRect(0,0,350,180);
-  ctx.fillStyle="#d5e6f2";ctx.font="11px system-ui";ctx.fillText("恒星と惑星の軌道（表示縮尺は圧縮）",8,16);
+  ctx.fillStyle="#d5e6f2";ctx.font="11px system-ui";ctx.fillText(star.name+"恒星系の軌道（縮尺圧縮）",8,16);
   const cx=167,cy=98;
   ctx.strokeStyle="#466078";
-  for(const b of BODIES.filter(b=>!b.parent&&b.kind!=="asteroid-belt")){
+  for(const b of localBodies.filter(b=>!b.parent)){
    const r=54*Math.sqrt(b.au);ctx.beginPath();ctx.ellipse(cx,cy,r,r*.48,0,0,Math.PI*2);ctx.stroke();
   }
-  ctx.fillStyle=STAR.color;ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();
-  for(const b of BODIES.filter(b=>b.kind!=="asteroid-belt")){
-   const p=orbitalPosition(b.id,planet.timeDays),r=54*Math.sqrt(Math.hypot(p.x,p.z)),angle=Math.atan2(p.z,p.x);
+  ctx.fillStyle=star.color;ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fill();
+  for(const b of localBodies){
+   const p=orbitalPosition(b.id,planet.timeDays),dx=p.x-star.offset[0],dz=p.z-star.offset[2];
+   const r=54*Math.sqrt(Math.hypot(dx,dz)),angle=Math.atan2(dz,dx);
    const x=cx+r*Math.cos(angle),y=cy+r*.48*Math.sin(angle);
    ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(x,y,b.kind==="moon"?2:4,0,Math.PI*2);ctx.fill();
    if(b.id===system.currentId){ctx.strokeStyle="#fff";ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);ctx.stroke();}

@@ -1,12 +1,20 @@
-import {SHIP_WEAPONS} from "./space-combat.mjs?v=20261112-pilot";
+import {SHIP_WEAPONS} from "./space-combat.mjs?v=20261112-warp";
 const STORAGE_KEY="ue:pilot-action-slots:v1";
 
-export function installShipPilotPanel({getVoyage,getCombat,switchWeapon,getCargo,actionOptions,defaults}){
+export function installShipPilotPanel({getVoyage,getCombat,switchWeapon,getCargo,actionOptions,defaults,commands}){
  const host=document.querySelector(".canvas-wrap");
  const shortcuts=document.createElement("div");
  shortcuts.className="ship-pilot-shortcuts";
  shortcuts.hidden=true;
  shortcuts.innerHTML='<button type="button" data-weapon></button><button type="button" data-settings aria-haspopup="dialog">⚙️ 機体設定</button>';
+ for(const [id,label] of [["radio","📻 通信"],["scan","📡 スキャン"],["horizon","水平"],["gear","着陸脚"]]){
+  const button=document.createElement("button");
+  button.type="button";button.dataset.command=id;button.textContent=label;
+  button.addEventListener("click",commands[id]);
+  shortcuts.append(button);
+ }
+ const horizonButton=shortcuts.querySelector('[data-command="horizon"]');
+ const gearButton=shortcuts.querySelector('[data-command="gear"]');
  const weaponShortcut=shortcuts.querySelector("[data-weapon]");
  const settings=shortcuts.querySelector("[data-settings]");
  const dialog=document.createElement("dialog");
@@ -82,6 +90,13 @@ export function installShipPilotPanel({getVoyage,getCombat,switchWeapon,getCargo
   if(!visible){if(dialog.open)dialog.close();return;}
   const combat=getCombat();
   if(!combat)return;
+  const voyage=getVoyage();
+  horizonButton.disabled=voyage.status!=="atmosphere";
+  const horizonLabel=voyage.horizon?"ホライゾン ON":"ホライゾン OFF";
+  if(horizonButton.textContent!==horizonLabel)horizonButton.textContent=horizonLabel;
+  const gearLabel="着陸脚 "+({auto:"AUTO",down:"展開",up:"格納"})[voyage.gearMode];
+  if(gearButton.textContent!==gearLabel)gearButton.textContent=gearLabel;
+  gearButton.title=voyage.gearDown?"着陸脚は展開中":"着陸脚は格納中";
   const label="兵装 "+combat.config.name;
   if(weaponShortcut.textContent!==label)weaponShortcut.textContent=label;
  }

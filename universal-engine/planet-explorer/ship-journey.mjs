@@ -1,10 +1,11 @@
-import {bodyById} from "./solar-system.mjs";
+import {bodyById,systemIdFor} from "./solar-system.mjs?v=20261112-warp";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
 import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261110-flight-control";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-brake";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=n=>Number.isFinite(n);
+export const ESCAPE_ALTITUDE_M=12000;
 
 /** Shared 3D cabin and flight state. Landed => player stays inside until hatch egress. */
 export class ShipJourney{
@@ -24,7 +25,7 @@ export class ShipJourney{
   this.landingSite=pad&&pad.bodyId===(this.destinationId||this.originId)&&
    [pad.lat,pad.lon,pad.yaw,pad.padElevationM].every(finite)?
    {bodyId:pad.bodyId,lat:pad.lat,lon:pad.lon,yaw:pad.yaw,padElevationM:pad.padElevationM}:null;
-  this.airAltitude=finite(data.airAltitude)?clamp(data.airAltitude,0,7000):700;
+  this.airAltitude=finite(data.airAltitude)?clamp(data.airAltitude,0,ESCAPE_ALTITUDE_M):700;
   this.airEast=finite(data.airEast)?data.airEast:0;this.airNorth=finite(data.airNorth)?data.airNorth:0;
   this.airSpeed=finite(data.airSpeed)?Math.max(0,data.airSpeed):0;
   this.airVerticalVelocity=finite(data.airVerticalVelocity)?data.airVerticalVelocity:0;
@@ -54,6 +55,13 @@ export class ShipJourney{
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,-1,1);
   this.autopilot=data.autopilot!==false;
+  this.volThrottle=finite(data.volThrottle)?clamp(data.volThrottle,-1,1):0;
+  this.horizon=Boolean(data.horizon);
+  this.gearMode=["auto","down","up"].includes(data.gearMode)?data.gearMode:"auto";
+  this.warpProgress=finite(data.warpProgress)?clamp(data.warpProgress,0,1):0;
+  this.warpSpeed=finite(data.warpSpeed)?clamp(data.warpSpeed,0,.24):0;
+  this.warpEngaged=data.warpEngaged===true;
+  this.warpArrived=data.warpArrived===true;
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
   this.interior=ShipInterior.fromSnapshot({...data.interior,
@@ -69,11 +77,47 @@ export class ShipJourney{
   const body=bodyById(this.flightBodyId);
   return body.gravity*Math.pow(body.radiusM/(body.radiusM+this.airAltitude),2);
  }
- get canCancelDeparture(){return this.status==="origin-orbit"&&!this.launchSite;}
+ get canCancelDeparture(){return !this.inWarp&&this.status==="origin-orbit"&&!this.launchSite;}
+ get gearDown(){
+  if(this.isGrounded()||["vtol","touchdown"].includes(this.status))return true;
+  return this.gearMode==="down"||this.gearMode==="auto"&&this.status==="atmosphere"&&this.airAltitude<=25;
+ }
+ cycleGear(){
+  if(!this.seated)return;
+  this.gearMode={auto:"down",down:"up",up:"auto"}[this.gearMode];
+ }
+ get destinationSystemId(){return this.destinationId?systemIdFor(this.destinationId):null;}
+ get interstellar(){return Boolean(this.destinationId&&systemIdFor(this.originId)!==systemIdFor(this.destinationId));}
+ get inWarp(){return this.warpEngaged||this.warpSpeed>0;}
+ setWarp(on){
+  if(!on){this.warpEngaged=false;return {ok:true};}
+  if(!this.seated||!this.canTranslate||!this.destinationId||this.warpArrived||this.fuel<2)
+   return {ok:false,message:"ワープには宇宙空間・着席・未到達の目的地・燃料2%以上が必要です"};
+  if(!this.interstellar)this.warpProgress=Math.max(this.warpProgress,this.progress);
+  this.warpEngaged=true;this.autopilot=false;this.navigationTarget=null;this.volThrottle=0;
+  this.attitudeYawDeg=0;this.pitchDeg=0;
+  return {ok:true,message:"ワープ開始"};
+ }
+ tickWarp(step){
+  if(!this.seated||this.fuel<=0)this.warpEngaged=false;
+  this.warpSpeed=clamp(this.warpSpeed+(this.warpEngaged?.18:-.48)*step,0,.24);
+  const distance=Math.min(1-this.warpProgress,this.warpSpeed*step);
+  this.warpProgress=Math.min(1,this.warpProgress+distance);
+  this.fuel=Math.max(0,this.fuel-distance*8);
+  if(!this.interstellar){this.routeAlong=Math.min(.96,this.warpProgress);this.progress=this.routeAlong;}
+  if(this.warpProgress>=1){
+   this.warpArrived=true;this.warpEngaged=false;this.warpSpeed=0;
+   this.status="orbit";this.heading=0;this.routeAlong=.96;this.progress=.96;
+   this.crossTrack=0;this.routeVertical=0;
+   this.routeVelocity={along:0,cross:0};this.verticalVelocity=0;this.throttle=0;
+  }
+  this.elapsedSeconds+=step;
+  return {days:distance*this.flightDays,advanced:0,status:this.status};
+ }
  get canTranslate(){return ["origin-orbit","cruise","approach","flyby","orbit"].includes(this.status);}
  get planetOffset(){return [this.crossTrack,this.routeVertical,this.routeAlong-1];}
  get approachingPlanet(){
-  return this.destinationId&&["cruise","approach","flyby","origin-orbit","orbit"].includes(this.status);
+  return !this.inWarp&&(!this.interstellar||this.warpArrived)&&this.destinationId&&["cruise","approach","flyby","origin-orbit","orbit"].includes(this.status);
  }
  get canDirectEntry(){
   return this.approachingPlanet&&this.seated&&!this.hatchOpen&&Math.hypot(...this.planetOffset)<=.030001;
@@ -96,8 +140,9 @@ export class ShipJourney{
   this.navigationTarget=null;this.status="approach";
   return true;
  }
- get readyToLand(){return this.seated&&((this.status==="orbit"&&Math.abs(this.heading)<=12)||this.canDirectEntry);}
+ get readyToLand(){return !this.inWarp&&this.seated&&((this.status==="orbit"&&Math.abs(this.heading)<=12)||this.canDirectEntry);}
  get phase(){
+  if(this.inWarp)return this.warpEngaged?"ワープ航行":"ワープ減速";
   return {docked:"地表・停泊中",ascent:"離陸・大気圏上昇","origin-orbit":"出発惑星の周回軌道",
    cruise:"惑星間巡航",approach:"目的惑星へ接近",flyby:"目標軌道を通過・再接近中",orbit:"目的惑星の周回軌道",
    entry:"大気圏突入",atmosphere:"大気圏内航行",vtol:"VTOL垂直着陸",touchdown:"接地・エンジン停止",landed:"地表・着陸完了"}[this.status]||"航行中";
@@ -145,28 +190,34 @@ export class ShipJourney{
   if(this.fuel<3)return {ok:false,message:"燃料が不足しています"};
   if(this.status==="landed"){
    this.originId=this.flightBodyId;this.destinationId=null;
+   this.warpArrived=false;this.warpProgress=0;
+   this.warpSpeed=0;this.warpEngaged=false;
    this.launchSite=this.landingSite;this.landingSite=null;
    this.routeAlong=0;this.crossTrack=0;this.routeVertical=0;this.progress=0;
   }
   this.stageProgress=0;this.status="atmosphere";this.interior.hatchPassable=false;
-  this.airAltitude=5;this.airSpeed=0;this.airVerticalVelocity=0;this.airEast=0;this.airNorth=0;
-  return {ok:true,message:"🚀 離陸しました。機首を向けて大気圏内を飛行できます。高度7,000mで宇宙航行へ移ります"};
+  this.volThrottle=0;this.airAltitude=5;this.airSpeed=0;this.airVerticalVelocity=0;this.airEast=0;this.airNorth=0;
+  return {ok:true,message:"🚀 離陸しました。機首を向けて大気圏内を飛行できます。高度12,000mまで上昇すると重力圏を離脱できます"};
  }
- chooseDestination(id,flightDays){
-  if(this.status!=="origin-orbit")return {ok:false,message:"目的地は出発惑星の軌道上で設定してください"};
+ chooseDestination(id,flightDays,{fromStar=false}={}){
+  if(this.inWarp||this.status!=="origin-orbit"&&!(fromStar&&this.canTranslate))return {ok:false,message:"目的地は出発惑星の軌道上で設定してください"};
   if(!this.seated)return {ok:false,message:"航法設定には操縦席に着席してください"};
-  if(!bodyById(id)?.landable||id===this.originId||!finite(flightDays)||flightDays<=0)
+  const originId=fromStar&&this.warpArrived?this.destinationId:this.originId;
+  if(!bodyById(id)?.landable||id===originId||!finite(flightDays)||flightDays<=0)
    return {ok:false,message:"航行先を指定できません"};
-  this.destinationId=id;this.flightDays=flightDays;this.progress=0;
+  if(this.destinationId!==id){this.warpArrived=false;this.warpProgress=0;}
+  this.originId=originId;this.destinationId=id;this.flightDays=flightDays;this.progress=0;
+  this.status="origin-orbit";this.navigationTarget=null;
   this.routeAlong=0;this.crossTrack=0;this.routeVertical=0;
   this.routeVelocity={along:0,cross:0};this.verticalVelocity=0;
   return {ok:true,message:"🧭 航路設定完了："+bodyById(id).name+"／推定"+flightDays.toFixed(1)+"ゲーム日"};
  }
  startTransfer(){
-  if(this.status!=="origin-orbit")return {ok:false,message:"出発惑星の軌道から開始してください"};
+  if(this.inWarp||this.status!=="origin-orbit")return {ok:false,message:"出発惑星の軌道から開始してください"};
   if(!this.destinationId)return {ok:false,message:"先に目的惑星を選択してください"};
   if(!this.seated)return {ok:false,message:"操縦席に着席してください"};
   if(this.fuel<2)return {ok:false,message:"燃料が不足しています"};
+  if(this.interstellar)return {ok:false,message:"恒星間の移動にはワープギアを使用してください"};
   this.status="cruise";
   return {ok:true,message:"🛰️ "+bodyById(this.destinationId).name+"への惑星間巡航を開始"};
  }
@@ -178,6 +229,7 @@ export class ShipJourney{
  }
  beginVTOL(){
   if(this.status!=="atmosphere"||!this.seated)return {ok:false,message:"大気圏内で操縦席に着席してください"};
+  if(this.gearMode==="up")return {ok:false,message:"着陸脚を展開するかAUTOにしてください"};
   this.status="vtol";this.airSpeed=0;
   return {ok:true,message:"🛬 垂直着陸開始。降下用スラスターで減速します"};
  }
@@ -222,6 +274,7 @@ export class ShipJourney{
  setAutopilot(on){this.autopilot=Boolean(on);}
  setThrottle(n){
   if(!finite(n))throw Error("Invalid throttle");
+  this.setWarp(false);
   this.throttle=clamp(n,-1,1);
   if(this.throttle<0)this.setAutopilot(false);
  }
@@ -238,7 +291,10 @@ export class ShipJourney{
  tick(dt,{strafe=0,lift=0}={}){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  if(this.inWarp&&this.canTranslate)return this.tickWarp(step);
   if(this.status==="atmosphere"){
+   const volPower=Math.abs(this.volThrottle);
+   if(this.horizon)this.pitchDeg*=Math.exp(-step*4);
    const engine=this.fuel>0?(this.shipSystems?.parts?.engine??100)/100:0;
    const desired=Math.max(0,this.throttle)*180*engine;
    this.airSpeed+=(desired-this.airSpeed)*Math.min(1,step*.6);
@@ -249,18 +305,18 @@ export class ShipJourney{
    this.airNorth+=Math.cos(yaw)*Math.cos(pitch)*this.airSpeed*step;
    // Lift/hover thrusters counter local gravity while the powered engine is healthy.
    // Damage or fuel loss leaves residual gravity acting on the ship.
-   this.airVerticalVelocity-=this.gravityMps2*(1-clamp(engine,0,1))*step;
+   this.airVerticalVelocity+=(this.volThrottle*48*engine-this.gravityMps2*(1-clamp(engine,0,1)))*step;
    if(engine>0)this.airVerticalVelocity*=Math.exp(-engine*step*2);
    this.airAltitude=Math.max(2,this.airAltitude+(Math.sin(pitch)*this.airSpeed+this.airVerticalVelocity)*step);
    if(this.airAltitude<=2&&this.airVerticalVelocity<0)this.airVerticalVelocity=0;
-   if(this.airAltitude>=7000){
-    this.airAltitude=7000;this.airVerticalVelocity=0;
+   if(this.airAltitude>=ESCAPE_ALTITUDE_M){
+    this.airAltitude=ESCAPE_ALTITUDE_M;this.airVerticalVelocity=0;this.volThrottle=0;
     this.status=this.destinationId?"orbit":"origin-orbit";
     if(this.destinationId){this.routeAlong=.96;this.crossTrack=0;this.routeVertical=0;this.progress=.96;}
     this.autopilot=false;this.navigationTarget=null;
     this.routeVelocity={along:0,cross:0};this.verticalVelocity=0;
    }
-   this.fuel=Math.max(0,this.fuel-(step*(.03+Math.max(0,this.throttle)*.12)+braking/500));
+   this.fuel=Math.max(0,this.fuel-(step*(.03+Math.max(0,this.throttle)*.12+volPower*.08)+braking/500));
    this.elapsedSeconds+=step;
    return {days:0,advanced:0,status:this.status};
   }
@@ -284,7 +340,7 @@ export class ShipJourney{
     position:[this.crossTrack,this.routeVertical,this.routeAlong],
     velocity:[this.routeVelocity.cross,this.verticalVelocity,this.routeVelocity.along],
     yawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,throttle:this.throttle,
-    strafe:this.seated?strafe:0,lift:this.seated?lift:0,fuelAvailable:this.fuel>0
+    strafe:this.seated?strafe:0,lift:this.seated?clamp(lift+this.volThrottle,-1,1):0,fuelAvailable:this.fuel>0
    },step);
    [this.crossTrack,this.routeVertical,this.routeAlong]=motion.position;
    const [cross,vertical,along]=motion.velocity;
@@ -342,6 +398,8 @@ export class ShipJourney{
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
    attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
+   volThrottle:this.volThrottle,horizon:this.horizon,gearMode:this.gearMode,
+   warpProgress:this.warpProgress,warpSpeed:this.warpSpeed,warpEngaged:this.warpEngaged,warpArrived:this.warpArrived,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
    navigationTarget:this.navigationTarget,shipSystems:this.shipSystems,airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,airVerticalVelocity:this.airVerticalVelocity,
    turrets:normalizeTurrets(this.turrets),autoFire:this.autoFire,routeVertical:this.routeVertical,verticalVelocity:this.verticalVelocity,
