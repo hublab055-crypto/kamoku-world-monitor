@@ -72,7 +72,7 @@ export function installCockpitHologramUI({host,getVoyage,getCombat,switchWeapon,
   buttons.get("horizon").setAttribute("aria-pressed",String(Boolean(v.horizon)));
   buttons.get("horizon").disabled=v.status!=="atmosphere";
   buttons.get("gear").textContent="脚 "+({auto:"AUTO",up:"格納",down:"展開"}[v.gearMode]||"AUTO");
-  buttons.get("repair").disabled=!m||m.supplies.kits<=0||!Object.values(m.parts).some(value=>value<100);
+  buttons.get("repair").disabled=!m||m.supplies.kits<=0||(!Object.values(m.parts).some(value=>value<100)&&m.player.hp>=m.player.maxHp);
   buttons.get("fuel").disabled=!m||m.supplies.fuel<=0;
   buttons.get("shield").disabled=!m||(m.player.shield>=m.player.maxShield&&m.parts.shield>=100);
  }
