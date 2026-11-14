@@ -23,6 +23,7 @@ test("atmosphere gauges show speed, altitude, gravity and fuel",()=>{
  assert.equal(t.speed,"123.5 m/s");
  assert.equal(t.altitude,"1,234 m");
  assert.equal(t.gravity,"9.81 m/s²");
+ assert.equal(hologramTelemetry({status:"entry",airAltitude:700,gravityMps2:9.80},{altitude:7000,gravity:9.78}).gravity,"9.78 m/s²");
  assert.equal(t.fuel,"75%");
  assert.equal(t.gear,"AUTO / UP");
 });
