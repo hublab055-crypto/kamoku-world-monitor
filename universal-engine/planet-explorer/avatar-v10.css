@@ -1,0 +1,37 @@
+#avatar-v10-dialog {
+ color:#e7f3fa;
+ background:#112637;
+ border:1px solid #6c95aa;
+ border-radius:13px;
+ width:min(700px,calc(100% - 1rem));
+ max-height:calc(100dvh - 1rem);
+ padding:0;
+ box-shadow:0 16px 60px #0009;
+ font:14px/1.4 system-ui,sans-serif;
+}
+#avatar-v10-dialog::backdrop {background:#04101bcc}
+#avatar-v10-dialog form {display:grid;gap:12px;padding:15px}
+.avatar-v10-heading,.avatar-v10-footer,.avatar-v10-view {display:flex;align-items:center;gap:8px}
+.avatar-v10-heading,.avatar-v10-footer {justify-content:space-between}
+.avatar-v10-heading h2 {margin:0;font-size:18px}
+.avatar-v10-grid {display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.avatar-v10-preview {display:grid;gap:6px}
+.avatar-v10-preview canvas {display:block;width:100%;height:254px;background:#111f2d;border-radius:9px;touch-action:none;cursor:grab}
+.avatar-v10-preview output {display:block;font-size:12px;color:#c5e1ec}
+.avatar-v10-fields {display:grid;gap:8px}
+.avatar-v10-fields > label,.avatar-v10-fields details label {display:flex;align-items:center;gap:6px;justify-content:space-between}
+.avatar-v10-fields select {min-width:54%;max-width:65%}
+.avatar-v10-fields details {padding:5px 7px;background:#1a3447;border-radius:6px}
+.avatar-v10-fields details + details {margin-top:4px}
+.avatar-v10-fields summary {cursor:pointer;padding:3px}
+.avatar-v10-fields details label {margin:6px 0;font-size:12px}
+.avatar-v10-fields input {width:45%;min-width:70px;accent-color:#78dcd1}
+.avatar-v10-fields label span {min-width:3ch;text-align:right;font-variant-numeric:tabular-nums}
+#avatar-v10-dialog button,#avatar-v10-dialog select {min-height:38px;color:#edf8ff;background:#1d4258;border:1px solid #7fa6ba;border-radius:6px;padding:4px 9px}
+#avatar-v10-dialog button[aria-pressed="true"],#avatar-v10-dialog button[value="apply"] {background:#246e72}
+@media(max-width:540px){
+ .avatar-v10-grid {grid-template-columns:1fr}
+ .avatar-v10-preview canvas {height:168px}
+ .avatar-v10-fields select {font-size:16px}
+ #avatar-v10-dialog form {padding:10px;gap:8px}
+}

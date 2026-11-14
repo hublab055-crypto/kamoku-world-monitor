@@ -1,3 +1,5 @@
+import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=1";
+import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=1";
 import {shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
@@ -7,13 +9,13 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261112-warp";
+import {ShipJourney} from "./ship-journey.mjs?v=20261114-v10-crew";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261111-atmosphere-mobile";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261112-warp";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261114-v10-crew";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-warp";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
@@ -21,7 +23,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261114-mr-social";
+import {ExplorerRenderer} from "./render.mjs?v=20261114-v10-crew";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -121,6 +123,25 @@ let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,a
 let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
+let avatarV10=normalizeAvatarRoster(),avatarEditor=null,crewTestState=null;
+function loadAvatarV10(){
+ try{return JSON.parse(localStorage.getItem(AVATAR_V10_STORAGE)||"null");}
+ catch(_){return null;}
+}
+function applyAvatarV10(next){
+ avatarV10=normalizeAvatarRoster(next);
+ if(renderer){
+  renderer.avatarV10=avatarV10;
+  renderer.avatarV10Assets.prefetch(avatarV10.player.model);
+ }
+}
+function crewAvatarReady({id}){
+ return Boolean(renderer?.avatarV10Assets.get(avatarV10[id].model));
+}
+function saveAvatarV10(next){
+ try{localStorage.setItem(AVATAR_V10_STORAGE,JSON.stringify(next));return true;}
+ catch(_){return false;}
+}
 let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
@@ -299,6 +320,7 @@ function guardGroundPassable(fx,fz,tx,tz){
 let scenario=null;
 function init(saved=null){
  try{
+  avatarV10=normalizeAvatarRoster(saved?.avatarV10?.roster??loadAvatarV10());
   // A freshly loaded game must not inherit the previous session's paused state.
   running=true;
   custodyConversation=false;custodyFacility=null;
@@ -307,8 +329,8 @@ function init(saved=null){
   orbitalCitiesUI?.reset();
   $("orbit-landing-preview").hidden=true;
   $("orbit-pick-marker").hidden=true;
-  if(renderer)renderer.destroy();
-  shipArrivalPreview=null;
+  if(renderer){renderer.destroy();renderer=null;}
+  shipArrivalPreview=null;crewTestState=null;
   worldUI?.clear();lastNpcStatus.clear();$("world-hit-flash").style.opacity="0";
   solarSystem=SolarSystem.fromSnapshot(saved?.v0_aa?.solarSystem);
   voyage=ShipJourney.fromSnapshot(saved?.v0_aa?.voyage);
@@ -412,6 +434,8 @@ function init(saved=null){
   renderer=new ExplorerRenderer($("world"),planet,terrain);
   renderer.surfaceStarship=surfaceShip;
   renderer.shipVoyage=voyage;
+  renderer.avatarV10=avatarV10;
+  renderer.avatarV10Assets.prefetch(avatarV10.player.model);
   custodyClimb=newCustodyBarClimb();
   // Resume inside a locked cell if an older save was made during detention.
   if(law?.custody||railwaySecurity?.jailed){
@@ -668,6 +692,13 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(surfaceShip){surfaceShip.shipSystems=renderer.shipCombat?.systemSnapshot()||voyage.shipSystems;surfaceShip.fuel=voyage.fuel;}
   renderer.surfaceStarship=surfaceShip;
   renderer.shipGroundState=controller;
+  if(crewTestState){
+   voyageUI?.render(dt);
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady);
+   renderer.frame(controller,dt);
+   requestAnimationFrame(doFrame);
+   return;
+  }
   // Quest's immersive RAF drives the same ship-local walk as touch controls.
   // Never move the cabin actor while seated; the pilot stick is flight input.
   if(source==="xr"&&voyage.interior&&!voyage.seated){
@@ -675,6 +706,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    voyage.interior.turn((Number(axes.turn)||0)*dt*1.65);
    voyage.interior.walk(Number(axes.forward)||0,Number(axes.strafe)||0,dt);
   }
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady);
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -1554,6 +1586,7 @@ function completeSuccession(id){
 }
 function captureGame(){
   const state={format:"ue/explorer-demo",version:1,
+   avatarV10:{schemaVersion:1,roster:avatarV10},
    planet:planet.snapshot(),explorer:controller.snapshot(),universe:universe.snapshot(),actions:actions.snapshot(),avatarStyle,
    v0_7b:{schemaVersion:1,appearance:{...appearance},expression:renderer.expression.snapshot()},
    v0_7c:{schemaVersion:1,camera:renderer.cameraController.snapshot()},
@@ -1578,7 +1611,8 @@ function captureGame(){
   if(solarSystem){
    solarSystem.sync(planet.timeDays);
    solarSystem.store(solarSystem.currentId,state);
-   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:voyage?.active?voyage.snapshot():null,ship:surfaceShip?.snapshot()||null};
+   const savedVoyage=crewTestState?crewTestState.voyage:voyage;
+   state.v0_aa={schemaVersion:1,solarSystem:solarSystem.snapshot(),voyage:savedVoyage?.active?savedVoyage.snapshot():null,ship:surfaceShip?.snapshot()||null};
   }
   return state;
 }
@@ -1658,6 +1692,7 @@ function boardSurfaceStarship(){
    interior:{schemaVersion:1,x:Math.max(-.85,Math.min(.85,local.x)),
     z:Math.max(16.0,Math.min(18.1,local.z)),yaw:controller.yaw-(surfaceShip.yaw||0),mode:"interior"}});
   running=false;simWorld.clock.paused=true;lastTime=0;
+  for(const fit of Object.values(avatarV10))renderer.avatarV10Assets.prefetch(fit.model);
   solarUI?.close();surfaceShipUI?.hide();voyageUI?.show();shipInteractionUI?.update(true);
   return {ok:true,message:"🚶 ランプを渡って宇宙船へ入りました。船尾のハッチを閉め、前方の操縦席へ向かってください"};
  }catch(error){voyage=null;return {ok:false,message:"乗船に失敗："+error.message};}
@@ -1697,7 +1732,7 @@ function setShipDestination(id,options){
 function startShipTransfer(){return voyage?.kind==="surface-to-surface"?
  voyage.startTransfer():{ok:false,message:"軌道上で航路を設定してください"};}
 function shipEgress(){
- if(voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
+ if(crewTestState||voyage?.kind!=="surface-to-surface"||!voyage.canDisembark())
   return {ok:false,message:"地表に着陸し、立ち上がってハッチを開け、船尾へ近づいてください"};
  if(!surfaceShip?.present(solarSystem.currentId))return {ok:false,message:"地表の着陸地点が未確定です"};
  try{
@@ -1827,6 +1862,7 @@ function travelToCelestial(id,flightDays,stayAboard=false){
   const previouslyVisited=solarSystem.load(id);
   const next=previouslyVisited||freshCelestialSave(current,id,solarSystem.days);
   carryCelestialInventory(next,current);
+  next.avatarV10=current.avatarV10;
   if(!next.v0_8s&&current.v0_8s)
    next.v0_8s={...new TownLife().snapshot(),coins:current.v0_8s.coins};
   solarSystem.arrive(id,flightDays);
@@ -3087,15 +3123,16 @@ $("warehouse-deposit").addEventListener("click",()=>{
 viewportGestures=bindViewportGestures($("world"),{
  deferTap:true,onTap:handleSceneTap,onDoubleTap:handleSceneDoubleTap,
  onDrag:(dx,dy)=>{
-  if(!renderer||!controller)return;
+  if(!renderer||!controller||voyage?.active)return;
   if(constructionUI?.dragging())return;
   if(controller.altitudeM>ORBIT_GROUND_CUTOFF_M)renderer.panOrbit(dx,dy);
   else if(renderer.cameraController.mode==="legacy")controller.turn(dx*.006);
   else renderer.cameraController.rotate(dx,dy);
  },
- onPinch:factor=>{if(renderer&&controller){zoomScene(factor);syncCameraControls();}}
+ onPinch:factor=>{if(renderer&&controller&&!voyage?.active){zoomScene(factor);syncCameraControls();}}
 });
 $("world").addEventListener("wheel",e=>{
+ if(voyage?.active)return;
  e.preventDefault();zoomScene(e.deltaY>0?1.3:.77);syncCameraControls();
 },{passive:false});
 $("landing-select").addEventListener("change",()=>{
@@ -4175,7 +4212,8 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onCancel:cancelCelestialVoyage,onSave:saveCelestialVoyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
- getWorldCanvas:()=>renderer?.canvas||null,getWorldRenderer:()=>renderer,notify:log});
+ getWorldCanvas:()=>$("world"),getWorldRenderer:()=>renderer,notify:log,
+ onEditAvatar:id=>avatarEditor?.open(id),onExitCrewTest:exitCrewTest,crewAvatarReady});
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
  isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
  onCamera:()=>voyageUI?.toggleCamera(),onWide:()=>voyageUI?.toggleWide(),
@@ -4188,7 +4226,7 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  tradeWares:TOWN_WARES.workshop,onTrade:shipRadioTrade,
  getViewSettings:()=>voyageUI?.getViewSettings?.()||{},
  setViewSettings:values=>voyageUI?.setViewSettings?.(values)});
-shipInteractionUI=installShipInteractionUI({get:()=>voyage,
+shipInteractionUI=installShipInteractionUI({get:()=>crewTestState?null:voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
 surfaceShipUI=installSurfaceStarshipUI({get:()=>({
@@ -4502,12 +4540,18 @@ function mobileInteract(){
 function mobileInteractLabel(){
  if(!voyage&&controller.altitudeM>12.1)return "↓ 地表へ降下";
  if(!voyage)return currentShipHatch()?.distanceM<=4.5?"🚀 乗船 / ハッチ":access.inside||access.nearby(controller)?"🚪 扉":"🚀 船を呼ぶ";
+ if(!voyage.seated&&voyage.interior.nearCrew().length)return "💬 乗員";
  if(!voyage.seated)return voyage.isNearSeat()?"🪑 着席":voyage.canDisembark()?"🚶 下船":"🚪 ハッチ";
  if(["docked","landed"].includes(voyage.status))return voyage.hatchOpen?"🚪 ハッチを閉める":"🚀 離陸";
  if(voyage.status==="origin-orbit")return voyage.destinationId?"🛰️ 航行開始":"🧭 航路";
  return voyage.status==="atmosphere"?"🛬 着陸":voyage.readyToLand?"🔥 大気圏突入":"🚶 立つ";
 }
 function mobilePrimary(){
+ if(voyage?.active&&!voyage.seated){
+  const near=voyage.interior.nearCrew()[0];
+  if(near){voyageUI?.showCrew(near.id);return;}
+  if(crewTestState)return {ok:false,message:"船内を歩いて乗員に近づいてください"};
+ }
  if(voyage?.seated&&["docked","landed"].includes(voyage.status)&&voyage.hatchOpen)return shipCockpitHatch();
  if(voyage?.status==="origin-orbit"&&!voyage.destinationId){shipInteractionUI?.open?.();return;}
  if(voyage?.seated&&!["docked","landed","origin-orbit","atmosphere"].includes(voyage.status)&&!voyage.readyToLand)return voyage.stand();
@@ -4582,6 +4626,7 @@ mobileUI=installMobilePlayUI({
    {label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)}
   ];
   if(!voyage?.active)return {ship:false,vr:Boolean(xrUI?.active),actions:groundActions};
+  if(crewTestState)return {ship:true,vr:false,actions:[{label:"💬 乗員",run:()=>mobileAction(mobilePrimary)}]};
   const shipActions=voyage.seated?pilotPanel.actions(pilotActionCatalog()):[
    {label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)},
    {label:"🚪 ハッチ",run:()=>mobileAction(shipToggleHatch)},
@@ -4622,3 +4667,46 @@ async function openMREncounter(){
 for(const id of ["viewport-mr-social","toolbar-mr-social"]){
  $(id).addEventListener("click",openMREncounter);
 }
+
+avatarEditor=installAvatarV10Editor({getRoster:()=>avatarV10,apply:applyAvatarV10,save:saveAvatarV10});
+
+function startCrewTest(){
+ if(crewTestState)return;
+ if(!renderer){
+  const reason=$("fatal").textContent;
+  if(reason)log(reason);
+  return;
+ }
+ if(xrUI?.active){log("VR/MRを終了してから船内クルーテストを始めてください");return;}
+ closeCompactMenus();
+ crewTestState={voyage,running,paused:simWorld.clock.paused};
+ voyage=new ShipJourney({originId:solarSystem.currentId,status:"docked",hatchOpen:false,
+  interior:{x:-1.32,z:-9.85,yaw:-Math.PI/4}});
+ voyage.isCrewTest=true;
+ running=false;simWorld.clock.paused=true;lastTime=0;
+ renderer.shipVoyage=voyage;renderer.shipCombat=null;
+ renderer.shipGroundState=controller;
+ keys.clear();touches.clear();
+ for(const fit of Object.values(avatarV10))renderer.avatarV10Assets.prefetch(fit.model);
+ document.querySelector(".view-panel").scrollIntoView({block:"start"});
+ surfaceShipUI?.hide();solarUI?.close();shipInteractionUI?.update(true);
+ voyageUI?.show();
+}
+function exitCrewTest(){
+ if(!crewTestState)return;
+ const previous=crewTestState;crewTestState=null;
+ voyage=previous.voyage;running=previous.running;simWorld.clock.paused=previous.paused;
+ renderer.shipVoyage=voyage;renderer.shipCrewView=false;renderer.shipCrewHitPoints=[];renderer.shipCrewCamera=null;
+ lastTime=0;
+ if(voyage?.active)voyageUI?.show();
+ else voyageUI?.close();
+ shipInteractionUI?.update(true);surfaceShipUI?.update(true);updateHUD();
+}
+
+for(const id of ["viewport-avatar-v10","toolbar-avatar-v10"]){
+ $(id).addEventListener("click",()=>{closeCompactMenus();avatarEditor.open();});
+}
+for(const id of ["viewport-crew-test","toolbar-crew-test"]){
+ $(id).addEventListener("click",startCrewTest);
+}
+if(new URLSearchParams(location.search).get("crew-test")==="1")startCrewTest();

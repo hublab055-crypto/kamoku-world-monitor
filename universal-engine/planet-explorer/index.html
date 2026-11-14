@@ -7,6 +7,7 @@
 <title>Planet Explorer | Universal Engine</title>
 <link rel="stylesheet" href="./style.css?v=20261114-mr-social">
 <link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
+<link rel="stylesheet" href="./avatar-v10.css?v=1">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
 .harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
@@ -314,6 +315,8 @@
   <div id="viewport-quick-panel" class="viewport-quick-panel" hidden role="group" aria-label="カメラ・モード・メニュー">
     <button type="button" id="viewport-camera" aria-label="カメラモードを切り替える">◉ 追従</button>
     <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
+    <button type="button" id="viewport-avatar-v10" aria-haspopup="dialog">アバター編集</button>
+    <button type="button" id="viewport-crew-test">船内クルーテスト</button>
     <button type="button" id="viewport-mr-social" aria-controls="xr-controls">🥽 MR・対面（試験）</button>
     <button type="button" id="viewport-rts" aria-pressed="false" title="人物・敵・資源をタップして選択、地面をダブルタップして移動">⚓ RTS視点</button>
     <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
@@ -1181,6 +1184,8 @@
       <div class="mode-hint" id="walk-note">画面をドラッグして向きを調節できます。</div>
     </div>
     <div class="toolbar" id="viewport-toolbar">
+      <button id="toolbar-avatar-v10" type="button" aria-haspopup="dialog">アバター編集</button>
+      <button id="toolbar-crew-test" type="button">船内クルーテスト</button>
       <button id="toolbar-mr-social" type="button" aria-controls="xr-controls">🥽 MR・対面（試験）</button>
       <button id="ui-display-from-toolbar" type="button" aria-controls="ui-display-panel">👁 表示設定</button>
        <button id="zoom-in" type="button">＋ 拡大</button>
@@ -1392,7 +1397,32 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9cp-20261114-mr-menu"></script>
+<dialog id="avatar-v10-dialog" aria-labelledby="avatar-v10-title">
+ <form>
+  <div class="avatar-v10-heading"><h2 id="avatar-v10-title">アバター編集</h2><button type="submit" value="cancel">閉じる</button></div>
+  <div class="avatar-v10-grid">
+   <section class="avatar-v10-preview" aria-label="3Dプレビュー">
+    <canvas tabindex="0" aria-label="3Dプレビュー。ドラッグか左右の矢印で回転"></canvas>
+    <div class="avatar-v10-view">
+     <button type="button" data-avatar-view="face" aria-pressed="true">顔</button>
+     <button type="button" data-avatar-view="body" aria-pressed="false">全身</button>
+    </div>
+    <output role="status"></output>
+   </section>
+   <div class="avatar-v10-fields">
+    <label>編集する人物 <select name="person"></select></label>
+    <label>モデル <select name="model"></select></label>
+    <label>衣装 <select name="outfit"></select></label>
+    <div id="avatar-v10-features"></div>
+   </div>
+  </div>
+  <div class="avatar-v10-footer">
+   <button type="button" id="avatar-v10-reset">この人物を初期設定に戻す</button>
+   <button type="submit" value="apply">保存して反映</button>
+  </div>
+ </form>
+</dialog>
+<script type="module" src="./app.mjs?v=0.9cq-20261114-v10-crew"></script>
 <script type="module" src="./ui-visibility.mjs?v=20261112-pilot"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */
