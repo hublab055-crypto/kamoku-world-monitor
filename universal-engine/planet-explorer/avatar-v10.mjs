@@ -1,4 +1,5 @@
 import {normalizeAvatarV10Body,normalizeAvatarV10Swim} from "./avatar-v10-body.mjs?v=20261114-body";
+import {migrateLegacyFit} from "./avatar-review-adapter.mjs?v=20261114-original";
 export const AVATAR_V10_MODELS = Object.freeze({
  lyra:"ライラ", mina:"ミナ", sera:"セラ", ren:"レン", noah:"ノア", elio:"エリオ"
 });
@@ -27,7 +28,11 @@ export function normalizeAvatarV10(id, saved) {
  }));
  const body=normalizeAvatarV10Body(saved?.body);
  const swim=normalizeAvatarV10Swim(saved?.swim);
- return {model,outfit,face,body,swim};
+ const appearance=migrateLegacyFit(saved);
+ // Original review schema (flat percentage keys) remains canonical for the
+ // in-game editor, while old face/body fields remain loadable.
+ appearance.outfit=outfit;
+ return {model,outfit,face,body,swim,appearance};
 }
 
 export function normalizeAvatarRoster(saved) {
