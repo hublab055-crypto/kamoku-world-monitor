@@ -21,7 +21,8 @@ const cache = new Map();
 export function normalizeAvatarV10(id, saved) {
  const model = Object.hasOwn(AVATAR_V10_MODELS,saved?.model) || (id==="player" && saved?.model==="classic")
   ? saved.model : AVATAR_V10_DEFAULTS[id];
- const outfit = Object.hasOwn(AVATAR_V10_OUTFITS,saved?.outfit) ? saved.outfit : "work";
+ const outfit = Object.hasOwn(AVATAR_V10_OUTFITS,saved?.outfit)?saved.outfit:
+  Object.hasOwn(AVATAR_V10_OUTFITS,saved?.appearance?.outfit)?saved.appearance.outfit:"work";
  const face = Object.fromEntries(FACE_KEYS.map(key=>{
   const value = saved?.face?.[key];
   return [key,Number.isFinite(value)?Math.round(Math.min(100,Math.max(-100,value))):0];
