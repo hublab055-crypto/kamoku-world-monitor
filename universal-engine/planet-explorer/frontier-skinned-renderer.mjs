@@ -51,18 +51,18 @@ out vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;\nmat4 bone(int j){
  float front=smoothstep(.018,.089,vBodyCoord.z);
  float back=smoothstep(.021,.084,-vBodyCoord.z);
  float lateral=1.0-smoothstep(.181,.247,ax);
- float chest=exp(-pow((ax-.085)/.092,2.)-pow((h-.326)/.078,2.));
+ float reviewChest=exp(-pow((ax-.085)/.092,2.)-pow((h-.326)/.078,2.));
  float abdomen=exp(-pow(ax/.116,2.)-pow((h-.141)/.106,2.));
  float glutes=exp(-pow((ax-.076)/.093,2.)-pow((h+.035)/.108,2.));
  float breastBias=clamp((.326-h)/.083,-1.,1.);
  float bellyBias=clamp((.170-h)/.11,-1.,1.);
  float seatBias=clamp((h+.051)/.102,-1.,1.);
- float bumpX=v.x*lateral*(.14*uReviewVol.x*chest*front+
+ float bumpX=v.x*lateral*(.14*uReviewVol.x*reviewChest*front+
   .19*uReviewVol.y*abdomen*front+
   glutes*back*(.22*uReviewVol.z+.073*uReviewShape.z));
- float bumpY=lateral*(-.018*chest*front*uReviewShape.x-
+ float bumpY=lateral*(-.018*reviewChest*front*uReviewShape.x-
   .014*abdomen*front*uReviewShape.y+.017*glutes*back*uReviewShape.z);
- float bumpZ=lateral*(front*(chest*(.057*uReviewVol.x+
+ float bumpZ=lateral*(front*(reviewChest*(.057*uReviewVol.x+
   .029*uReviewShape.x*(.40+.77*breastBias))+
   abdomen*(.073*uReviewVol.y+.032*uReviewShape.y*(.50+.64*bellyBias)))-
   back*glutes*(.068*uReviewVol.z+.038*uReviewShape.z*(.48+.62*seatBias)));
@@ -70,7 +70,7 @@ out vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;\nmat4 bone(int j){
  // Three.js editor uses additional skinned soft-bones. The WebGL renderer
  // approximates their motion without changing the shared rig topology.
  float motion=sin(uReviewMotion*13.0)*smoothstep(.01,.16,uReviewMotion);
- float softness=dot(vec3(chest*front,abdomen*front,glutes*back),
+ float softness=dot(vec3(reviewChest*front,abdomen*front,glutes*back),
   (1.0-uReviewFirm)*.0035)*lateral*motion;
  v.z+=softness*sign(v.z);
  if(uReviewHairMesh>.5){
