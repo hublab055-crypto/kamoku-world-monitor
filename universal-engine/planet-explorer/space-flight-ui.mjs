@@ -1,4 +1,4 @@
-import {CREW_GESTURES} from "./ship-crew-greetings.mjs?v=1";
+import {CREW_GESTURES} from "./ship-crew-greetings.mjs?v=20261114-crew-social-2";
 import {shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
 import {pickShipContact,installShipViewGestures} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";
