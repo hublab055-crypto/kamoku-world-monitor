@@ -1,6 +1,6 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261114-crew-social-2";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-review-43";
-import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-review-43";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-officer-restore";
+import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-officer-restore";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261114-v10-crew";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
@@ -1419,6 +1419,14 @@ export class ExplorerRenderer{
   try{
    asset.draw(vp,transform,light,id,dt,{...options,fit});
    return asset;
+  }catch(error){
+   // A model/shader failure must not make the navigator or other crew vanish.
+   this.avatarDrawWarnings??=new Set();
+   if(!this.avatarDrawWarnings.has(fit.model)){
+    this.avatarDrawWarnings.add(fit.model);
+    console.warn("Ship avatar draw failed, using crew stand-in:",fit.model,error);
+   }
+   return null;
   }finally{this.gl.useProgram(this.program);}
  }
  drawShipAvatars(vp,person,dt,showPlayer){
