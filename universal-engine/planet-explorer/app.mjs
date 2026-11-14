@@ -4602,8 +4602,23 @@ $("viewport-settings-toggle").addEventListener("click",()=>{
 $("viewport-vr-toggle").addEventListener("click",()=>{
  if(xrUI?.active){$("xr-exit").click();return;}
  if(!$("xr-vr").disabled){$("xr-vr").click();return;}
- $("xr-controls").setAttribute("data-ui-open","true");
- $("xr-settings-body").hidden=false;
- $("xr-settings-toggle").setAttribute("aria-expanded","true");
- $("xr-controls").scrollIntoView({block:"nearest"});
+ showXRSettings();
 });
+function showXRSettings(){
+ const panel=$("xr-controls");
+ panel.setAttribute("data-ui-open","true");
+ if($("xr-settings-body").hidden)$("xr-settings-toggle").click();
+ panel.scrollIntoView({block:"nearest"});
+}
+async function openMREncounter(){
+ closeCompactMenus();
+ if(enlarged())await switchFullscreen();
+ showXRSettings();
+ const encounter=$("xr-social");
+ encounter.open=true;
+ encounter.querySelector("summary").focus();
+ encounter.scrollIntoView({block:"nearest"});
+}
+for(const id of ["viewport-mr-social","toolbar-mr-social"]){
+ $(id).addEventListener("click",openMREncounter);
+}
