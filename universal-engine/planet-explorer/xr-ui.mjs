@@ -1,7 +1,8 @@
 import {installSocialUI} from "./xr-social-ui.mjs";
 import {sampleSocialPose} from "./xr-social.mjs";
 import {xrAnchor,xrStage,xrMul,xrTranslate,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
-import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=0.9z-quest-strafe-heading-fix";
+import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=20261114-remap";
+import {XR_CONTROL_SOURCES,XR_CONTROL_ACTIONS,loadXRBindings,saveXRBindings,defaultXRBindings,xrBoundAction} from "./xr-control-bindings.mjs?v=1";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
 import {canUseXRProjection,createXRProjection,projectionReady,bindXRProjectionView,destroyXRProjection} from "./xr-projection.mjs?v=0.9p-quest-projection";
@@ -43,6 +44,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrRTS=false,vrThird=false,vrPlanetOverview=false,vrPlanetAnchor=null,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
+ let vrBindings=loadXRBindings(localStorage);
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set(),vrSurfaceHatchConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
@@ -102,6 +104,103 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const present=()=>Boolean(session);
  const supported=()=>Boolean(navigator.xr&&globalThis.XRWebGLLayer&&globalThis.isSecureContext);
  const statusText=(message)=>{status.textContent=message;};
+ // Edit the same active profile used by WebXR frame sampling and input events.
+ const bindingList=$("xr-binding-list"),bindingLayout=$("xr-stick-layout");
+ const bindingStatus=$("xr-binding-status");
+ const bindingSelects=new Map();
+ function persistVRBindings(){
+  if(bindingStatus)bindingStatus.textContent=saveXRBindings(localStorage,vrBindings)?
+   "✓ この端末の操作設定に保存しました":"⚠ 保存できませんでした（このタブ内では適用中）";
+  vrButtons.clear();
+ }
+ function renderVRBindings(){
+  if(bindingLayout)bindingLayout.value=vrBindings.stickLayout;
+  for(const [key,select] of bindingSelects)select.value=xrBoundAction(vrBindings,key);
+ }
+ if(bindingList){
+  for(const source of XR_CONTROL_SOURCES){
+   const label=document.createElement("label");
+   label.textContent=source.label;
+   const select=document.createElement("select");
+   select.setAttribute("aria-label",source.label+" の操作");
+   for(const [action,description] of Object.entries(XR_CONTROL_ACTIONS)){
+    const option=document.createElement("option");
+    option.value=action;option.textContent=description;select.append(option);
+   }
+   select.addEventListener("change",()=>{
+    vrBindings.buttonActions[source.key]=select.value;
+    persistVRBindings();
+   });
+   label.append(select);bindingList.append(label);
+   bindingSelects.set(source.key,select);
+  }
+  bindingLayout?.addEventListener("change",()=>{
+   vrBindings.stickLayout=bindingLayout.value;
+   persistVRBindings();
+  });
+  $("xr-binding-reset")?.addEventListener("click",()=>{
+   vrBindings=defaultXRBindings();renderVRBindings();persistVRBindings();
+  });
+  renderVRBindings();
+ }
+ function nativeTrigger(hand){
+  return xrBoundAction(vrBindings,hand+":trigger")===(hand==="left"?"useLeft":"useRight");
+ }
+ function nativeGrip(hand){
+  return ["gripLeft","gripRight"].includes(xrBoundAction(vrBindings,hand+":grip"));
+ }
+ function runVRBinding(action){
+  if(activeMode!=="vr"||action==="none")return;
+  const ship=Boolean(getRenderer()?.shipVoyage?.active);
+  if(onVRCustody("state")?.handled){
+   const custodyAction=action==="interact"?"talk":action==="rts"?"bail":action==="camera"?"serve":null;
+   if(custodyAction){
+    const result=onVRCustody(custodyAction);
+    if(result?.message)statusText("🛡️ "+result.message);
+   }
+   return;
+  }
+  if(ship){
+   if(action==="interact"){
+    if(onVRShipCombatActive()){onVRShipWeapon();return;}
+    const result=onVRSurfaceShipAction("interact");
+    if(result?.handled&&result.message)statusText("🚀 "+result.message);
+    return;
+   }
+   if(action==="shipWeapon"){onVRShipWeapon();return;}
+   if(action==="useRight"||action==="useLeft"){
+    if(onVRShipCombatActive())onVRShipTrigger();
+    return;
+   }
+   // VR viewpoints and action slots can still be switched inside the cabin.
+   if(!["camera","deck","guard","shoot"].includes(action))return;
+  }
+  if(action==="camera"){
+   if(!vrRTS){vrThird=!vrThird;statusText(vrThird?"🥽 三人称":"🥽 一人称");}
+  }else if(action==="rts"&&!ship){
+   const nextMode=!vrRTS;
+   if(onVRToggleRTS(nextMode)!==false){
+    vrRTS=nextMode;vrPlanetOverview=false;vrPlanetAnchor=null;planetSelected=false;vrTableYaw=0;
+    statusText(vrRTS?"🥽 VR卓上RTS：右トリガーで味方選択・移動":"🥽 VR歩行へ戻りました");
+   }
+  }else if(action==="interact"&&!vrRTS){
+   const result=onVRSurfaceShipAction("interact");
+   if(result?.handled){if(result.message)statusText("🚪 "+result.message);}
+   else onVRJump();
+  }else if(action==="jump"&&!vrRTS)onVRJump();
+  else if(action==="deck")onVRDeck();
+  else if(action==="selectAll"&&vrRTS)onRTSAll();
+  else if(action==="sync"&&vrRTS)onVRSync();
+  else if(action==="planet"){
+   if(vrRTS){onVRSync();return;}
+   vrPlanetOverview=!vrPlanetOverview;vrPlanetAnchor=null;planetSelected=false;previousPlanetHit=null;
+   statusText(vrPlanetOverview?"🌐 VR惑星ビュー：右トリガーで地点選択、もう一度押すと降下":"🥽 VR一人称の冒険へ戻りました");
+  }else if(action==="useLeft")onVRHand("left");
+  else if(action==="useRight")onVRHand("right");
+  else if(action==="shoot"||action==="gripLeft")onVRCommand("shoot");
+  else if(action==="guard"||action==="gripRight")onVRCommand("guard");
+  else if(action==="shipWeapon")onVRShipWeapon();
+ }
  function update(){
   for(const [name,button] of Object.entries(buttons)){
    if(!button)continue;
@@ -402,9 +501,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function onVRSqueezeStart(event){
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
-  sampleVRRig(event.frame);
   const hand=event.inputSource?.handedness;
-  if(!["left","right"].includes(hand))return;
+  if(!["left","right"].includes(hand)||!nativeGrip(hand))return;
+  sampleVRRig(event.frame);
   if(onVRCustody("state")?.handled){
    let liveGrip=null;
    try{const source=event.inputSource;
@@ -499,6 +598,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
  function onVRSelectStart(event){
+  if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
    // The switch bank always responds, even docked (with a clear flight interlock message).
    const raySpace=event.inputSource?.targetRaySpace;
@@ -545,6 +645,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
  function onVRSelectEnd(event){
+  if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&onVRShipCombatActive())return;
   if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
@@ -563,6 +664,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="mr-social"){
    social.select(event.inputSource?.handedness);
    return;
+  }
+  if(activeMode==="vr"){
+   const hand=event.inputSource?.handedness;
+   if(["left","right"].includes(hand)&&!nativeTrigger(hand)){
+    runVRBinding(xrBoundAction(vrBindings,hand+":trigger"));
+    return;
+   }
   }
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active)return;
   if(!session||!anchor||!space||!event.frame)return;
@@ -642,6 +750,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function onSqueeze(event){
+  if(activeMode==="vr"){
+   const hand=event.inputSource?.handedness;
+   if(["left","right"].includes(hand)&&!nativeGrip(hand)){
+    runVRBinding(xrBoundAction(vrBindings,hand+":grip"));
+    return;
+   }
+  }
   if(activeMode==="vr"&&onVRShipCombatActive())return;
   if(!session||!anchor||!space||!event.frame)return;
   const raySpace=event.inputSource?.targetRaySpace;
@@ -673,47 +788,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="vr")return;
   const {next,pressed}=xrButtonEdges(sources,vrButtons);
   vrButtons=next;
-  for(const button of pressed){
-   if(getRenderer()?.shipVoyage?.active){
-    if(onVRShipCombatActive()){
-     if(button==="left:4")onVRShipWeapon(); // In flight, Quest X cycles guns.
-    }else if(button==="left:4"){
-     const action=onVRSurfaceShipAction("interact");
-     if(action?.handled&&action.message)statusText("🚀 "+action.message);
-    }
-    continue; // Ship controls never toggle the unrelated ground RTS mode.
-   }
-   if(onVRCustody("state")?.handled){
-    const action=button==="left:4"?"talk":button==="right:4"?"bail":button==="right:5"?"serve":null;
-    if(action){
-     const result=onVRCustody(action);
-     if(result?.message)statusText("🛡️ "+result.message);
-    }
-    continue; // Detention overrides normal RTS/camera/jump bindings.
-   }
-   if(button==="right:4"){
-    const nextMode=!vrRTS;
-    if(onVRToggleRTS(nextMode)!==false){
-     vrRTS=nextMode;vrPlanetOverview=false;vrPlanetAnchor=null;planetSelected=false;vrTableYaw=0;
-     statusText(vrRTS?"🥽 VR卓上RTS：右トリガーで味方選択・移動、左グリップで射撃":"🥽 VR歩行へ戻りました");
-    }
-   }else if(button==="right:5"){
-    if(!vrRTS){vrThird=!vrThird;statusText(vrThird?"🥽 三人称":"🥽 一人称");}
-   }else if(button==="left:4"){
-    if(!vrRTS){
-     const hatch=onVRSurfaceShipAction("interact");
-     if(hatch?.handled){
-      if(hatch.message)statusText("🚪 "+hatch.message);
-     }else onVRJump();
-    }
-   }else if(button==="left:5")onVRDeck();
-   else if(button==="right:3"&&vrRTS)onRTSAll();
-   else if(button==="left:3"&&vrRTS)onVRSync();
-   else if(button==="left:3"){
-    vrPlanetOverview=!vrPlanetOverview;vrPlanetAnchor=null;planetSelected=false;previousPlanetHit=null;
-    statusText(vrPlanetOverview?"🌐 VR惑星ビュー：右トリガーで地点選択、もう一度押すと降下。左スティック押込で地表へ戻る":"🥽 VR一人称の冒険へ戻りました");
-   }
-  }
+  for(const button of pressed)runVRBinding(xrBoundAction(vrBindings,button));
  }
  /**
   * Called only during a live immersive XR animation frame. Do not inspect
@@ -802,7 +877,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // Quest controllers normally live in inputSources. Newer runtimes may
    // temporarily migrate them to trackedSources: retain one per hand.
    const sources=controllerSources;
-   vrMovement=xrVRMovement(sources,{rts:vrRTS});
+   vrMovement=xrVRMovement(sources,{rts:vrRTS,stickLayout:vrBindings.stickLayout});
    if(vrPlanetOverview||getController()?.altitudeM>50000)vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
@@ -954,7 +1029,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(mode==="vr")vrCurrentStage=stage;
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
   if(mode==="vr"&&vrRTS){
-   vrTableYaw+=xrVRMovement(session.inputSources,{rts:true}).tableTurn*dt*1.4;
+   vrTableYaw+=xrVRMovement(xrControllerSources(session),{rts:true,stickLayout:vrBindings.stickLayout}).tableTurn*dt*1.4;
   }
   if(mode==="mr-planet"){
    for(const input of session.inputSources||[]){
