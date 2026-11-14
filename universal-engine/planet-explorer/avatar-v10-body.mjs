@@ -5,7 +5,7 @@ export const AVATAR_V10_BODY=Object.freeze([
 ]);
 export const BODY_KEYS=Object.freeze(AVATAR_V10_BODY.flatMap(([,fields])=>fields.map(([key])=>key)));
 export const AVATAR_V10_SWIM_STYLES=Object.freeze({
- onepiece:"ワンピース",twopiece:"セパレート",trunks:"スイムパンツ"
+ original:"モデル専用の水着",onepiece:"ワンピース",twopiece:"セパレート",trunks:"スイムパンツ"
 });
 export const AVATAR_V10_SWIM_COLORS=Object.freeze({
  navy:{label:"ネイビー",rgb:[.075,.19,.42]},
@@ -23,7 +23,7 @@ export function normalizeAvatarV10Body(saved){
 }
 export function normalizeAvatarV10Swim(saved){
  return {
-  style:Object.hasOwn(AVATAR_V10_SWIM_STYLES,saved?.style)?saved.style:"onepiece",
+  style:Object.hasOwn(AVATAR_V10_SWIM_STYLES,saved?.style)?saved.style:"original",
   color:Object.hasOwn(AVATAR_V10_SWIM_COLORS,saved?.color)?saved.color:"navy"
  };
 }
@@ -43,5 +43,5 @@ export function shaderSwimParams(fit){
  * Garments are not silently replaced with casual clothing.
  */
 export function isBodySurface(name,wardrobe){
- return !wardrobe&&!/(?:face|skull|hair|eyes|brow|lip|mouth|ear|teeth|lash|accessory|weapon|bag|helmet|shoe|boot)/i.test(String(name||""));
+ return (!wardrobe||wardrobe.includes("base"))&&!/(?:face|skull|hair|eyes|brow|lip|mouth|ear|teeth|lash|accessory|weapon|bag|helmet|shoe|boot)/i.test(String(name||""));
 }
