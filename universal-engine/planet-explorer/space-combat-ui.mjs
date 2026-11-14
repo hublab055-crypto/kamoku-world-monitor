@@ -4,6 +4,7 @@ import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
+import {xrHologramControlHit} from "./ship-hologram-vr.mjs?v=20261115-quest-holo";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
@@ -11,6 +12,7 @@ import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=2026110
  */
 export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notify=()=>{},
  onHatch=()=>({ok:false,message:"ハッチ制御は利用できません"}),
+ onLaunch=()=>({ok:false,message:"離陸できません"}),onTransfer=()=>({ok:false,message:"航路が未設定です"}),onLand=()=>({ok:false,message:"着陸できません"}),
  onCamera=()=>({ok:false,message:"視点切替不可"}),onWide=()=>({ok:false,message:"広画面不可"}),
  getViewSettings=()=>({}),setViewSettings=()=>{},onStar=()=>{},tradeWares=[],onTrade=()=>{}}){
  const root=document.getElementById("space-flight");
@@ -208,12 +210,61 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   update(0,{vr:isVR()});
   return true; // Consume a trigger even when no target is locked.
  }
+ /** Quest trigger targets both the physical switch bank and the floating
+  * hologram panels, but only when the player is actually seated.
+  */
  function pressVRButton({matrix,stage}={}){
   const v=getVoyage(),viewer=getRenderer();
-  if(!v?.seated||viewer?.shipCameraMode==="chase")return false;
+  if(!v?.seated||v.isCrewTest||viewer?.shipCameraMode==="chase"&&!isVR())return false;
+  const holo=xrHologramControlHit(matrix,stage);
+  if(holo)return pressVRHologram(holo,v);
   const hit=xrCockpitControlHit(matrix,stage);
   if(!hit)return false;
   return hit.id==="throttle"?cycleLever():dashboard.executeHardware(hit.id);
+ }
+ function pressVRHologram(hit,v){
+  const model=getCombat(v),id=hit.id;
+  let result=null;
+  if(id==="main"){
+   if(hit.value>=115)result=v.setWarp(true);
+   else{
+    v.setThrottle(Math.min(100,hit.value)/100);v.setAutopilot(false);
+    result={ok:true,message:"主推進："+Math.round(v.throttle*100)+"%"};
+   }
+  }else if(id==="vol"){
+   if(v.inWarp)result={ok:false,message:"ワープ中はVOL推進を変更できません"};
+   else{
+    v.volThrottle=hit.value/100;
+    if(hit.value)v.setAutopilot(false);
+    result={ok:true,message:"VOL："+hit.value+"%"};
+   }
+  }else if(id==="primary"){
+   if(["docked","landed","preflight"].includes(v.status))result=onLaunch();
+   else if(v.status==="origin-orbit")result=v.destinationId?onTransfer():
+    {ok:false,message:"目的地を選択してから航行を開始してください"};
+   else if(v.status==="atmosphere"||v.readyToLand)result=onLand();
+   else result={ok:false,message:"この飛行段階では離着陸を開始できません"};
+  }else if(id==="hatch")result=onHatch();
+  else if(id==="gear"){
+   v.cycleGear();result={ok:true,message:"ランディングギア："+v.gearMode.toUpperCase()};
+  }else if(id==="autopilot"){
+   v.setAutopilot(!v.autopilot);result={ok:true,message:"自動操縦 "+(v.autopilot?"ON":"OFF")};
+  }else if(id==="weapon"){
+   setWeapon();return true;
+  }else if(model){
+   if(id==="lock"){model.fireControl=!model.fireControl;result={ok:true,message:"自動ロック "+(model.fireControl?"ON":"OFF")};}
+   else if(id==="autoFire"){
+    model.autoFire=!model.autoFire;v.autoFire=model.autoFire;
+    result={ok:true,message:"自動火器管制 "+(model.autoFire?"ON":"OFF")};
+   }else if(id==="ciws"){
+    model.ciwsEnabled=!model.ciwsEnabled;
+    result={ok:true,message:"CIWS "+(model.ciwsEnabled?"ON":"OFF")};
+   }else if(id==="refuel")result=model.refuel(v,v.fuel===0&&model.supplies.fuel===0);
+   else if(id.startsWith("repair-"))result=model.repairPart(id.slice(7));
+   v.shipSystems=model.systemSnapshot();
+  }else result={ok:false,message:"機体システムに接続できません"};
+  if(result?.message)notify(result.message);
+  return true; // A selected hologram never fires a weapon through the panel.
  }
  function setWeapon(type){
   const voyage=getVoyage(),model=getCombat();
