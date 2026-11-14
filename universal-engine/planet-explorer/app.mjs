@@ -16,7 +16,7 @@ import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-w
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261114-seat";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261115-hologram";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-warp";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261115-quest-holo";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
@@ -4228,6 +4228,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onEditAvatar:id=>avatarEditor?.open(id),onExitCrewTest:exitCrewTest,crewAvatarReady});
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
  isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
+ onLaunch:launchCelestialVoyage,onTransfer:startShipTransfer,onLand:finishCelestialVoyage,
  onCamera:()=>voyageUI?.toggleCamera(),onWide:()=>voyageUI?.toggleWide(),
  onStar:id=>{
   const star=STAR_SYSTEMS.find(system=>system.id===id);
