@@ -1437,8 +1437,13 @@ export class ExplorerRenderer{
    const y=player&&person.z>13&&person.hatchPassable?-.25*(person.z-13):0;
    const transform=multiply4(translate(actor.x,y,actor.z),rotateY(actor.yaw));
    const gesture=actor.time===null?null:actor;
+   const gaze=!player&&distance<3.4?{
+    yaw:Math.max(-.45,Math.min(.45,Math.atan2(person.x-actor.x,person.z-actor.z)-actor.yaw)),
+    pitch:Math.max(-.30,Math.min(.22,Math.atan2((person.seated?1.19:1.59)-1.59,Math.max(.35,distance))))
+   }:null;
    const asset=this.drawAvatarV10(actor.id,vp,transform,light,dt,{motion:actor.motion,
-    time:actor.time,gesture});
+    time:actor.time,gesture,lookAt:gaze,
+    firstPerson:player&&this.xrView?.mode==="vr"&&!this.xrView.showAvatar});
    if(asset)continue;
    if(player){
     this.drawArticulated(vp,translate(actor.x,y,actor.z),{yaw:actor.yaw,moving:person.greetings.playerMoving,totalDistanceM:0,walkSpeed:2.6},
@@ -1782,7 +1787,7 @@ export class ExplorerRenderer{
    gl.uniform1f(this.uXROcclusionEnabled,0);
    // Exterior follow camera is allowed only from the pilot seat. Neither
    // the camera nor the exterior hull is a second spacecraft simulation.
-   const chase=this.shipCameraMode==="chase"&&Boolean(v.seated||person.mode==="cockpit");
+   const chase=this.xrView?.mode!=="vr"&&this.shipCameraMode==="chase"&&Boolean(v.seated||person.mode==="cockpit");
    const landingAttitude=v.status==="entry"&&v.seated?
     -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
     v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
@@ -2085,7 +2090,7 @@ export class ExplorerRenderer{
     }
    }else{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
-    this.drawShipAvatars(vp,person,dt,Boolean(crewCamera));
+    this.drawShipAvatars(vp,person,dt,Boolean(crewCamera||xr?.mode==="vr"));
     // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
     if(!v.seated&&v.isNearSeat?.()){
