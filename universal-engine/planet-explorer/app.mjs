@@ -88,7 +88,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261114-quest-bindings";
+import {installXRUI} from "./xr-ui.mjs?v=0.9p-vr-live-diagnostics-quest-resume-v09x-controls-v09r-20261114-quest-bindings";
 import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=1";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
