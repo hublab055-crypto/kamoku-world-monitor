@@ -115,13 +115,15 @@ export function installShipCockpitHologram({
  function changeLever(which,n){
   const v=seated();if(!v)return;
   const val=snapHologramLever(n,{vol:which==="vol"});
+  const lever=levers[which==="vol"?1:0];
+  if(lever.value!==String(val))lever.value=String(val);
   if(which==="vol"){
    if(v.inWarp)return;
    v.volThrottle=val/100;
    if(val)v.setAutopilot(false);
   }else{
-   if(val>=120){
-    if(!v.warpEngaged)notice(v.setWarp(true));
+   if(val>=115){
+    if(!v.warpEngaged){const result=notice(v.setWarp(true));if(!result?.ok)lever.value=String(Math.round(v.throttle*100));}
     return;
    }
    v.setThrottle(Math.min(100,val)/100);
