@@ -15,7 +15,7 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261114-seat";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261114-crew-social-2";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261115-hologram";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-warp";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
@@ -4224,6 +4224,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  getCargo:()=>actions?.resources||{},
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
  getWorldCanvas:()=>$("world"),getWorldRenderer:()=>renderer,notify:log,
+ getCombat:()=>shipCombatUI?.getCombat(),switchWeapon:id=>shipCombatUI?.switchWeapon(id),onHatch:shipCockpitHatch,
  onEditAvatar:id=>avatarEditor?.open(id),onExitCrewTest:exitCrewTest,crewAvatarReady});
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
  isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
