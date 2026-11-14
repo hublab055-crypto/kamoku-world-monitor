@@ -74,3 +74,20 @@ export function xrHologramControlHit(ray,stage){
  }
  return null;
 }
+
+/** Quantized, cockpit-labelled VR readouts. Altitude/velocity are never
+ * presented as real-world m/s in the normalized interplanetary route frame.
+ */
+export function xrHologramReadouts(v,{height=null,gravity=null}={}){
+ const atmosphere=["docked","landed","atmosphere","ascent","entry","vtol","touchdown"].includes(v?.status);
+ const landed=["docked","landed","touchdown"].includes(v?.status);
+ const speed=atmosphere?Math.max(0,v?.airSpeed||0):
+  Math.hypot(v?.routeVelocity?.along||0,v?.routeVelocity?.cross||0,v?.verticalVelocity||0)*100;
+ const alt=landed?0:Number.isFinite(height)?height:Number.isFinite(v?.airAltitude)?v.airAltitude:0;
+ return [
+  {label:atmosphere?"SPD":"RT%",text:atmosphere?String(Math.round(speed)):speed.toFixed(1)},
+  {label:"ALT",text:atmosphere?String(Math.round(Math.max(0,alt)/10)*10):"----"},
+  {label:"GRV",text:atmosphere&&Number.isFinite(gravity)?gravity.toFixed(1):"----"},
+  {label:"FUEL",text:String(Math.round(Math.max(0,Math.min(100,v?.fuel??0))))}
+ ];
+}
