@@ -21,6 +21,9 @@ const cache = new Map();
 export function normalizeAvatarV10(id, saved) {
  const model = Object.hasOwn(AVATAR_V10_MODELS,saved?.model) || (id==="player" && saved?.model==="classic")
   ? saved.model : AVATAR_V10_DEFAULTS[id];
+ // Retain the untouched, previously shipped Lyra GLB as the first officer's default.
+ // Existing edited values stay in the save and can be re-enabled in the editor.
+ const preserveOriginal=id==="navigator"&&model==="lyra"&&(saved?.preserveOriginal??true)===true;
  const outfit = Object.hasOwn(AVATAR_V10_OUTFITS,saved?.outfit)?saved.outfit:
   Object.hasOwn(AVATAR_V10_OUTFITS,saved?.appearance?.outfit)?saved.appearance.outfit:"work";
  const face = Object.fromEntries(FACE_KEYS.map(key=>{
@@ -33,7 +36,7 @@ export function normalizeAvatarV10(id, saved) {
  // Original review schema (flat percentage keys) remains canonical for the
  // in-game editor, while old face/body fields remain loadable.
  appearance.outfit=outfit;
- return {model,outfit,face,body,swim,appearance};
+ return {model,outfit,face,body,swim,appearance,preserveOriginal};
 }
 
 export function normalizeAvatarRoster(saved) {
