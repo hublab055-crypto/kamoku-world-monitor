@@ -21,7 +21,7 @@ test("V10 full-body fields normalize to saved canonical ranges",()=>{
  assert.equal(fit.body.waist,24);
  assert.equal(fit.swim.style,"twopiece");
  assert.equal(fit.swim.color,"coral");
- assert.equal(shaderSwimParams(fit).style,1);
+ assert.equal(shaderSwimParams(fit).style,2);
  assert.equal(shaderBodyParams(fit.body)[0],1);
 });
 test("All six adult V10 models support base and swim wardrobe without casual substitution",()=>{
@@ -35,6 +35,7 @@ test("All six adult V10 models support base and swim wardrobe without casual sub
  assert.equal(isBodySurface("Torso and skin",null),true);
  assert.equal(isBodySurface("Face and skull",null),false);
  assert.equal(isBodySurface("Fabric uniform",["work"]),false);
+ assert.equal(isBodySurface("Upper torso",["base"]),true);
 });
 test("Swim settings are sanitized and persist through roster normalization",()=>{
  const roster=normalizeAvatarRoster({player:{model:"lyra",outfit:"swim",body:{hips:-50},
@@ -42,7 +43,7 @@ test("Swim settings are sanitized and persist through roster normalization",()=>
  assert.equal(roster.player.body.hips,-50);
  assert.equal(roster.player.swim.style,"trunks");
  assert.equal(roster.player.swim.color,"teal");
- assert.equal(normalizeAvatarV10("player",{swim:{style:"javascript:invalid",color:"bad"}}).swim.style,"onepiece");
+ assert.equal(normalizeAvatarV10("player",{swim:{style:"javascript:invalid",color:"bad"}}).swim.style,"original");
 });
 test("VR right-hand yoke grip activates only inside seated cockpit reach",()=>{
  const v=vessel(),near=pose(...COCKPIT_STICK),far=pose(4,1.1,-12);
