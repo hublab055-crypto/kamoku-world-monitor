@@ -80,14 +80,14 @@ export class SkinnedFrontierAsset{
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
- pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null}={}){
+ pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
   let state=this.instances.get(id);
   if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
   const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
   if(kind!==state.kind){state.kind=kind;state.elapsed=0;state.fade=.12;}
   const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
   const body=gesture?"idle":kind;
-  const options={motionProgress,variant,hand,moving};
+  const options={motionProgress,variant,hand,moving,lookAt};
   if(gesture)options.gesture=gesture;
   const pose=poseFrontierRig(this.rig,body,time??state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,options);
   if(time!==null)state.fade=0;
@@ -128,9 +128,16 @@ export class SkinnedFrontierAsset{
   });
   let boundSkin=null;
   const outfit=opts.fit?.outfit||"work";
+  const swimsuitAvailable=outfit==="swim"&&this.meshes.some(m=>m.source.wardrobe?.includes("swim"));
+  const renderedOutfit=outfit==="swim"&&!swimsuitAvailable?"casual":outfit;
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
-    if(source.wardrobe&&!source.wardrobe.includes(outfit))continue;
+   // First-person cabin view keeps the fitted body/arms/legs, not the
+   // wearer’s face and hair in front of the headset cameras.
+   if(opts.firstPerson&&/(?:head|face|hair|eyebrow|eyelash|eye|nose|mouth|ear|neck)/i.test(source.name||""))continue;
+   // Neutral base-body mannequin excludes removable wardrobe geometry.
+   if(outfit==="base"&&source.wardrobe)continue;
+   if(outfit!=="base"&&source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
    this.applyFace(m,opts.fit);
    const glove=outfit==="space"&&source.gloveColor;
    gl.uniform1i(this.u.uGloves,glove?1:0);
