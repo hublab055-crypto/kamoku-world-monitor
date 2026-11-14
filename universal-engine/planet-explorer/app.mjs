@@ -4266,6 +4266,11 @@ xrUI=installXRUI({
   onVRShipFrame:dt=>shipCombatUI?.update(dt,{vr:true}),
   onVRSurfaceHatch:vrExteriorHatchTrigger,
   onVRSurfaceShipAction:vrSurfaceShipAction,
+  onVRShipStand:()=>{
+   const result=shipStand();
+   if(result.message)log(result.message);
+   return result;
+  },
   onVRShipCrewGesture:(id,gesture)=>{
    if(!voyage?.active||voyage.seated)return {ok:false};
    const result=voyage.interior.greetings.start(voyage.interior,id,gesture);
