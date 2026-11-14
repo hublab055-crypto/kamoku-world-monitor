@@ -11,7 +11,7 @@ test("Quest 3S left thumbstick walks and right thumbstick turns with drift deadz
  const left=sourceFor("left",[0,0,0.7,-0.8]);
  const right=sourceFor("right",[0,0,-0.6,0]);
  const a=xrVRMovement([left,right]);
- assert.ok(a.forward>.5);assert.ok(a.strafe>.5);assert.ok(a.turn<-.4);
+ assert.ok(a.forward>.5);assert.ok(a.strafe<-.5);assert.ok(a.turn<-.4);
  assert.equal(xrStick(gamepad([0,0,.05,-.06])).x,0);
  assert.equal(xrStick(gamepad([0,0,.05,-.06])).y,0);
 });
@@ -19,8 +19,8 @@ test("Quest left stick moves avatar in each of four cardinal directions",()=>{
  const movement=(x,y)=>xrVRMovement([sourceFor("left",[0,0,x,y])]);
  assert.ok(movement(0,-1).forward>.9,"stick up walks forward");
  assert.ok(movement(0,1).forward<-.9,"stick down walks backward");
- assert.ok(movement(-1,0).strafe<-.9,"stick left strafes left");
- assert.ok(movement(1,0).strafe>.9,"stick right strafes right");
+ assert.ok(movement(-1,0).strafe>.9,"left stick maps to headset left after stage rotation");
+ assert.ok(movement(1,0).strafe<-.9,"right stick maps to headset right after stage rotation");
  assert.ok(Math.abs(movement(0,0).forward)<1e-9);
  assert.ok(Math.abs(movement(0,0).strafe)<1e-9);
 });
@@ -37,12 +37,12 @@ test("Immersive VR samples Touch movement in the XR frame and runs simulation th
 test("Quest Browser supports both xr-standard axes and legacy thumbstick axes",()=>{
  const canonical=sourceFor("left",[.6,.7,.9,-.7]);
  assert.ok(xrVRMovement([canonical]).forward>.5);
- assert.ok(xrVRMovement([canonical]).strafe>.8);
+ assert.ok(xrVRMovement([canonical]).strafe<-.8);
  const fallback=sourceFor("left",[.8,-1,0,0]);
  assert.ok(xrVRMovement([fallback]).forward>.9);
- assert.ok(xrVRMovement([fallback]).strafe>.7);
+ assert.ok(xrVRMovement([fallback]).strafe<-.7);
  const shortPair=sourceFor("left",[-.8,.7]);
- assert.ok(xrVRMovement([shortPair]).strafe<-.7);
+ assert.ok(xrVRMovement([shortPair]).strafe>.7);
  const generic=sourceFor("left",[0,0,-.9,-1]);
  generic.gamepad.mapping="standard";
  assert.ok(xrVRMovement([generic]).forward>.9);
