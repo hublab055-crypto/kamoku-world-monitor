@@ -164,7 +164,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   if(ship){
    if(action==="interact"){
-    if(onVRShipCombatActive()){onVRShipWeapon();return;}
+    // Proximity X always stands/sits/opens the hatch, even during combat.
+    // Weapon switching uses the separately mappable shipWeapon action.
     const result=onVRSurfaceShipAction("interact");
     if(result?.handled&&result.message)statusText("🚀 "+result.message);
     return;
