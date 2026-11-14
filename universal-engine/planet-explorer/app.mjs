@@ -4607,7 +4607,7 @@ pilotPanel=installShipPilotPanel({
  switchWeapon:type=>shipCombatUI?.switchWeapon(type),
  getCargo:()=>Object.entries(actions?.resources||{}).filter(([,count])=>count>0)
   .map(([id,count])=>[resourceNames[id]||id,count]),
- commands:pilotCommands,actionOptions:pilotActionOptions,defaults:["primary","auto","camera","fire","flare","stand"]
+ commands:pilotCommands,notify:log,actionOptions:pilotActionOptions,defaults:["primary","auto","camera","fire","flare","stand"]
 });
 function pilotActionCatalog(){
  return {
