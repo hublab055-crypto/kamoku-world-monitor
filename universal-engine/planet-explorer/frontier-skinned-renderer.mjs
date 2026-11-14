@@ -195,6 +195,19 @@ export class SkinnedFrontierAsset{
  }
  applyFace(mesh,fit){
   const rig=this.rig,shape=fit?.appearance||fit?.face;
+  if(fit?.preserveOriginal){
+   // Face morphs update GPU buffers in place. Switching back to the original
+   // must also restore those buffers, not merely disable new deformation.
+   if(mesh.appliedFace){
+    const attrs=["positions","normals","colors","uv","joints","weights","morph0","morph1"];
+    for(let i=0;i<attrs.length;i++){
+     this.gl.bindBuffer(this.gl.ARRAY_BUFFER,mesh.buffers[i]);
+     this.gl.bufferSubData(this.gl.ARRAY_BUFFER,0,mesh.source.arrays[attrs[i]]);
+    }
+    mesh.appliedFace=null;
+   }
+   return;
+  }
   if(!rig.isV10||!shape||!rig.faceLandmarks||mesh.appliedFace===shape)return;
   const female=["lyra","mina","sera"].includes(fit?.model);
   const data=fit?.appearance?deformAvatarReviewFace(mesh.source,shape,rig.faceLandmarks,female):
@@ -221,7 +234,7 @@ export class SkinnedFrontierAsset{
   gl.uniform3fv(this.u.uBodyTop,asFloat(body.slice(0,3)));
   gl.uniform3fv(this.u.uBodyMid,asFloat(body.slice(3,6)));
   gl.uniform3fv(this.u.uBodyLow,asFloat(body.slice(6,9)));
-  const review=reviewShaderParams(rig.isV10?opts.fit?.appearance:null);
+  const review=reviewShaderParams(rig.isV10&&!opts.fit?.preserveOriginal?opts.fit?.appearance:null);
   const a=review.ratios;
   gl.uniform3fv(this.u.uReviewA,asFloat(a.slice(0,3)));
   gl.uniform3fv(this.u.uReviewB,asFloat(a.slice(3,6)));
@@ -230,12 +243,12 @@ export class SkinnedFrontierAsset{
   gl.uniform3fv(this.u.uReviewVol,asFloat(review.volume));
   gl.uniform3fv(this.u.uReviewShape,asFloat(review.shape));
   gl.uniform3fv(this.u.uReviewFirm,asFloat(review.firmness));
-  const preset=reviewHairPreset(review.appearance.hairStyle);
+  const preset=opts.fit?.preserveOriginal?[1,1]:reviewHairPreset(review.appearance.hairStyle);
   gl.uniform2fv(this.u.uReviewHair,asFloat([
    (preset[0]-1)+review.hair[0],(preset[1]-1)+review.hair[1]
   ]));
   const motion=opts.moving||["walk","run","crouch","sit"].includes(opts.motion);
-  gl.uniform1f(this.u.uReviewMotion,motion?(this.instances.get(id)?.elapsed||0):0);
+  gl.uniform1f(this.u.uReviewMotion,!opts.fit?.preserveOriginal&&motion?(this.instances.get(id)?.elapsed||0):0);
   const swim=shaderSwimParams(opts.fit);
   gl.uniform1i(this.u.uSwimStyle,swim.style);
   gl.uniform3fv(this.u.uSwimColor,asFloat(swim.color));
