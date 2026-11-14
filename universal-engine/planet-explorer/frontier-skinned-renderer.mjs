@@ -1,5 +1,6 @@
 import {deformAvatarV10Face} from "./avatar-v10-face.mjs?v=1";
 import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
+import {createAvatarV10BodyMesh} from "./avatar-v10-body-mesh.mjs?v=20261114";
 import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;\nout vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;
  float y=v.y;
@@ -95,6 +96,8 @@ const asFloat=m=>new Float32Array(m);
 export class SkinnedFrontierAsset{
  constructor(gl,raw){
   this.gl=gl;this.rig=parseFrontierRig(raw);this.disposed=false;this.instances=new Map();
+  const body=createAvatarV10BodyMesh(this.rig);
+  if(body)this.rig.primitives.push(body);
   this.meshes=[];this.textures=new Map();this.boneTexture=null;this.program=null;
   try{
    this.program=createProgram(gl);
@@ -166,7 +169,9 @@ export class SkinnedFrontierAsset{
   });
   let boundSkin=null;
   const outfit=opts.fit?.outfit||"work";
-  const useOriginalSwim=outfit==="swim"&&swim.style===0;
+  const hasDedicatedSwim=this.meshes.some(m=>m.source.wardrobe?.includes("swim")&&
+   !m.source.wardrobe?.includes("base")&&/(?:swim|suit|trunk)/i.test(m.source.name||""));
+  const useOriginalSwim=outfit==="swim"&&swim.style===0&&hasDedicatedSwim;
   const renderedOutfit=outfit==="swim"&&!useOriginalSwim?"base":outfit;
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
@@ -176,8 +181,8 @@ export class SkinnedFrontierAsset{
    // Neutral base-body mannequin excludes removable wardrobe geometry.
    if(source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
    const surface=rig.isV10&&isBodySurface(source.name,source.wardrobe);
-   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface)?1:0);
-   gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim"))?1:0);
+   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&source.name==="V10 generated full body skin")?1:0);
+   gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim")&&/(?:suit|swim|trunk)/i.test(source.name||""))?1:0);
    this.applyFace(m,opts.fit);
    const glove=outfit==="space"&&source.gloveColor;
    gl.uniform1i(this.u.uGloves,glove?1:0);
