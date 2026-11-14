@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {xrStick,xrVRMovement,xrVRActorYaw} from "./xr-quest-controls.mjs";
+import {defaultXRBindings,normalizeXRBindings,xrBoundAction,
+ loadXRBindings,saveXRBindings,XR_BINDINGS_STORAGE_KEY} from "./xr-control-bindings.mjs";
 import {xrStage} from "./xr-spatial.mjs";
 
 const source=(handedness,x=0,y=0,mapping="xr-standard")=>({
@@ -69,4 +71,40 @@ test("non-custody interiors retain previous heading priority",()=>{
  assert.equal(xrVRActorYaw({townInterior:{pose:{yaw:3}}},{yaw:4}),3);
  assert.equal(xrVRActorYaw({ferry:{boarded:true,pose:{yaw:5}}},{yaw:4}),5);
  assert.equal(xrVRActorYaw({}, {yaw:4}),4);
+});
+
+test("Quest stick layout can be swapped without changing VR world-right direction",()=>{
+ const sources=[source("left",0.9,-0.6),source("right",1,-1)];
+ const vr=xrVRMovement(sources,{stickLayout:"rightMove"});
+ assert.equal(vr.forward,1);
+ assert.equal(vr.strafe,-1);
+ assert.equal(vr.turn,Math.max(-1,Math.min(1,(.9-.19)/.81)));
+ const rts=xrVRMovement(sources,{rts:true,stickLayout:"rightMove"});
+ assert.equal(rts.forward,0);
+ assert.equal(rts.strafe,0);
+ assert.equal(rts.tableTurn,vr.turn);
+});
+test("Quest mappings restore default and reject unsupported actions",()=>{
+ const current=defaultXRBindings();
+ assert.equal(current.buttonActions["left:4"],"interact");
+ assert.equal(current.buttonActions["right:trigger"],"useRight");
+ const loaded=normalizeXRBindings({stickLayout:"rightMove",
+  buttonActions:{"right:4":"interact","left:5":"hacked","unknown:button":"camera"}});
+ assert.equal(loaded.stickLayout,"rightMove");
+ assert.equal(xrBoundAction(loaded,"right:4"),"interact");
+ assert.equal(xrBoundAction(loaded,"left:5"),"deck");
+ assert.equal(Object.hasOwn(loaded.buttonActions,"unknown:button"),false);
+});
+test("Quest mapping persists with independent storage and handles invalid data",()=>{
+ const saved=new Map();
+ const storage={getItem:k=>saved.get(k),setItem:(k,v)=>saved.set(k,v)};
+ const settings=defaultXRBindings();
+ settings.buttonActions["left:4"]="camera";
+ settings.stickLayout="rightMove";
+ assert.equal(saveXRBindings(storage,settings),true);
+ assert.equal(saved.has(XR_BINDINGS_STORAGE_KEY),true);
+ assert.deepEqual(loadXRBindings(storage),settings);
+ storage.setItem(XR_BINDINGS_STORAGE_KEY,"{malformed");
+ assert.deepEqual(loadXRBindings(storage),defaultXRBindings());
+ assert.equal(saveXRBindings({setItem(){throw Error("quota exceeded");}},settings),false);
 });

@@ -1429,3 +1429,9 @@ body.immersive{overflow:hidden}
 #xr-social summary{cursor:pointer}
 #xr-social textarea{display:block;box-sizing:border-box;width:100%;margin:4px 0 8px;font-size:16px}
 #xr-social-status{display:block;margin-top:6px}
+
+/* Quest 3S configurable control bindings live inside collapsible XR settings. */
+.xr-binding-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:6px;margin:8px 0}
+.xr-binding-grid label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:inherit}
+.xr-binding-grid select{width:100%;min-width:0;padding:5px;font-size:12px}
+#xr-binding-status{display:block;margin:5px 0}

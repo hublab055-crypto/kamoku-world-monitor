@@ -45,7 +45,7 @@ test("XR in-session globe and portable handoff are wired to the real runtime",()
  assert.match(xr,/vrPlanetOverview=!vrPlanetOverview/);
  assert.match(xr,/onPlanetPick\(hit\.lat,hit\.lon\)/);
  assert.match(xr,/if\(onPlanetLand\(\)\)/);
- assert.match(xr,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS\}\)/);
+ assert.match(xr,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS,stickLayout:vrBindings\.stickLayout\}\)/);
  assert.match(xr,/onVRGroundStart\(\)/);
  assert.match(app,/createPortableSave\(captureGame\(\),\{wearables\}\)/);
  assert.match(app,/footVoyage\?\.advance\(controller\.lat,controller\.lon/);

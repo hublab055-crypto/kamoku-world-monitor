@@ -26,7 +26,7 @@ test("Quest left stick moves avatar in each of four cardinal directions",()=>{
 });
 test("Immersive VR samples Touch movement in the XR frame and runs simulation there",()=>{
  const ui=source("xr-ui.mjs"),app=source("app.mjs");
- assert.match(ui,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS\}\)/);
+ assert.match(ui,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS,stickLayout:vrBindings\.stickLayout\}\)/);
  assert.match(ui,/onVRFrame\(time,\{\.\.\.vrMovement\}\)/);
  assert.match(ui,/performance\.now\(\)-vrInputSampleAt>250/);
  assert.match(app,/onVRFrame:\(t,input\)=>doFrame\(t,"xr",input\)/);
@@ -98,8 +98,8 @@ test("XR controller triggers call existing right/left equipped hand and guard/bo
 });
 test("VR controller can switch head-tracked third-person / VR tactical and issue selection and movement",()=>{
  const u=source("xr-ui.mjs"),app=source("app.mjs"),render=source("render.mjs");
- assert.match(u,/button==="right:4"/);
- assert.match(u,/button==="right:5"/);
+ assert.match(u,/runVRBinding\(xrBoundAction\(vrBindings,button\)\)/);
+ assert.match(source("xr-control-bindings.mjs"),/"right:4":"rts","right:5":"camera"/);
  assert.match(u,/onVRToggleRTS\(nextMode\)/);
  assert.match(u,/onRTSSelect\(point\.x,point\.z/);
  assert.match(u,/onRTSMove\(point\.x,point\.z\)/);

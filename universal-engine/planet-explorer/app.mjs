@@ -88,7 +88,8 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261114-mr-social";
+import {installXRUI} from "./xr-ui.mjs?v=20261114-quest-bindings";
+import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=1";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
@@ -692,19 +693,15 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(surfaceShip){surfaceShip.shipSystems=renderer.shipCombat?.systemSnapshot()||voyage.shipSystems;surfaceShip.fuel=voyage.fuel;}
   renderer.surfaceStarship=surfaceShip;
   renderer.shipGroundState=controller;
+  // Apply ship-local Quest walking in the ordinary voyage AND crew-test scene.
+  // The caller also receives the actual displacement for XR diagnostics.
+  const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
    if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady);
-   renderer.frame(controller,dt);
-   requestAnimationFrame(doFrame);
-   return;
-  }
-  // Quest's immersive RAF drives the same ship-local walk as touch controls.
-  // Never move the cabin actor while seated; the pilot stick is flight input.
-  if(source==="xr"&&voyage.interior&&!voyage.seated){
-   const axes=xrFrameInput||{};
-   voyage.interior.turn((Number(axes.turn)||0)*dt*1.65);
-   voyage.interior.walk(Number(axes.forward)||0,Number(axes.strafe)||0,dt);
+   // XR owns its own stereo draw frame. Never start extra window RAF loops.
+   if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
+   return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
   if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady);
   // Only the ship clock runs during transit. Ground AI, law, tides and
@@ -763,7 +760,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    $("mode").textContent="🚀 惑星間航行・"+voyage.phase;
    if(source==="window")requestAnimationFrame(doFrame);
   }
-  return {forward:0,strafe:0,turn:0,traveledM:0,altitudeM:controller?.altitudeM||0,
+  return shipMove||{forward:0,strafe:0,turn:0,traveledM:0,altitudeM:1.62,
    blocked:false,indoor:true,onShip:true};
  }
  if(controller&&renderer){

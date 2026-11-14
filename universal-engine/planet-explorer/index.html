@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=20261114-mr-social">
+<link rel="stylesheet" href="./style.css?v=20261114-quest-bindings">
 <link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
 <link rel="stylesheet" href="./avatar-v10.css?v=1">
 <style>
@@ -164,6 +164,20 @@
   <button id="xr-planet-land" type="button" hidden disabled>↓ 選択地点へ降下</button>
   <button id="xr-rts-all" type="button" hidden>👥 味方全員を選択</button>
  </div>
+ <details id="xr-binding-settings" class="xr-help-panel">
+  <summary>🎮 Quest 3S 操作割り当て</summary>
+  <p>歩行・旋回スティックと、X/Y/A/B・押込・トリガー・グリップの機能を変更できます。変更内容はこの端末に自動保存されます。</p>
+  <label class="xr-size-label" for="xr-stick-layout">スティック配置
+   <select id="xr-stick-layout">
+    <option value="leftMove">左＝歩行 ／ 右＝旋回（標準）</option>
+    <option value="rightMove">右＝歩行 ／ 左＝旋回</option>
+   </select>
+  </label>
+  <div id="xr-binding-list" class="xr-binding-grid" role="group" aria-label="VRのボタン割り当て"></div>
+  <div class="xr-buttons"><button type="button" id="xr-binding-reset">↺ 標準の割り当てに戻す</button></div>
+  <small id="xr-binding-status" role="status" aria-live="polite"></small>
+  <p><small>※ グリップで物を掴む、弓を引くなどの手の位置を使う操作は、対応する物理入力が選ばれている場合のみ有効です。Questのシステムメニューボタンは変更できません。</small></p>
+ </details>
  <label class="xr-size-label">RTS模型の縮尺
   <select id="xr-scale" aria-label="MR卓上RTSの表示縮尺">
    <option value="0.0007">1:1429・小さく</option>
@@ -199,7 +213,7 @@
  <div id="xr-help-panel" class="xr-help-panel" hidden>
   <strong>VR / MR の仕様と操作説明</strong>
   <p>WebXR対応ブラウザと対応ヘッドセットが必要です。iPhone SafariではXRを利用できませんが、通常の3D・RTS表示は使用できます。</p>
-  <small class="xr-quest-controller-guide">🥽 Quest 3S操作：左スティック＝歩行／右スティック＝旋回。右・左トリガー＝それぞれの手の装備使用（剣・弓など）、右グリップ＝防御、左グリップ＝弓射撃。A＝VR卓上RTS、B＝一人称・三人称、左スティック押込＝VR惑星模型⇄地表、X＝通常はジャンプ／宇宙船後部では開閉・乗船／船内操縦席付近では着席／宇宙戦中は兵装切替、Y＝行動スロット切替。VR惑星模型では右トリガーを同じ地点に2回押すと降下します。RTSでは右トリガー＝人物選択・地面への移動指示、右スティック＝卓上模型の回転、左右スティック押込＝全員選択・シンクロ切替。</small>
+  <small class="xr-quest-controller-guide">🥽 Quest 3S標準操作（XR設定の「🎮 Quest 3S 操作割り当て」で変更可能）：左スティック＝歩行／右スティック＝旋回。右・左トリガー＝それぞれの手の装備使用（剣・弓など）、右グリップ＝防御、左グリップ＝弓射撃。A＝VR卓上RTS、B＝一人称・三人称、左スティック押込＝VR惑星模型⇄地表、X＝通常はジャンプ／宇宙船後部では開閉・乗船／船内操縦席付近では着席／宇宙戦中は兵装切替、Y＝行動スロット切替。VR惑星模型では右トリガーを同じ地点に2回押すと降下します。RTSでは右トリガー＝人物選択・地面への移動指示、右スティック＝卓上模型の回転、左右スティック押込＝全員選択・シンクロ切替。</small>
   <small id="xr-vr-diagnostics" aria-live="off">VR診断：未開始</small>
  </div>
 </section>
@@ -1422,7 +1436,7 @@
   </div>
  </form>
 </dialog>
-<script type="module" src="./app.mjs?v=0.9cq-20261114-v10-crew"></script>
+<script type="module" src="./app.mjs?v=0.9cq-20261114-quest-ship-walk"></script>
 <script type="module" src="./ui-visibility.mjs?v=20261112-pilot"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */
