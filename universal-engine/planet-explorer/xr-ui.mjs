@@ -12,6 +12,7 @@ import {vrNearestPickup,vrHandAtBag} from "./xr-backpack.mjs?v=0.9t-bag";
 import {WearableInventory,starterWearables,pocketSocketForOutfit} from "./wearable-inventory.mjs?v=3";
 import {detectShipCrewTouch} from "./ship-crew-vr-contact.mjs?v=1";
 import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
+import {beginCockpitGrip,endCockpitGrip,updateCockpitGrip} from "./ship-cockpit-grip.mjs?v=20261114-grip";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -50,6 +51,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set(),vrSurfaceHatchConsumed=new Set();
  let vrShipHeldGrips=new Set(),vrShipContactLatched=false;
+ let vrCockpitGrip={};
  let vrShipPosture=null,vrShipPostureAt=0;
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
  let vrWearables=(()=>{
@@ -266,7 +268,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrRTS=false;vrThird=false;vrTableYaw=0;
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrCockpitGrip={};vrShipPosture=null;vrShipPostureAt=0;
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
   if(activeMode==="vr"){
@@ -334,7 +336,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrCockpitGrip={};vrShipPosture=null;vrShipPostureAt=0;
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
     projectionAttempted=true;
@@ -472,6 +474,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
   const prevRigTime=vrPhysical.lastTime;
   const events=vrPhysical.setPose(gear,time,{floorY:usingFloor?0:null});
+  // Grip steering only uses fresh tracked matrices. Lost tracking releases it.
+  const shipRenderer=getRenderer(),ship=shipRenderer?.shipVoyage;
+  const gripUpdate=updateCockpitGrip(vrCockpitGrip,{
+   voyage:ship,poses:{left:trackedLeft,right:trackedRight},
+   dt:Number.isFinite(prevRigTime)?Math.max(0,(time-prevRigTime)/1000):0
+  });
+  vrCockpitGrip=gripUpdate.held;
+  if(shipRenderer)shipRenderer.shipControlDeflection=gripUpdate.deflection;
   syncVRClothing();
   if(activeMode==="vr"&&onVRCustody("state")?.handled){
    // Only fresh grip poses count. Last-known body poses are NOT climbing input.
@@ -522,8 +532,23 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand)||!nativeGrip(hand))return;
-  vrShipHeldGrips.add(hand);
   sampleVRRig(event.frame);
+  // A seated pilot may grip the physical throttle or flight stick, without
+  // accidentally greeting nearby crew or drawing a holstered weapon.
+  const vessel=getRenderer()?.shipVoyage;
+  if(vessel?.seated){
+   const before=vrCockpitGrip;
+   vrCockpitGrip=beginCockpitGrip(before,{
+    voyage:vessel,hand,grip:vrPhysical.pose?.[hand],stage:vrCurrentStage
+   });
+   if(vrCockpitGrip[hand]&&!before[hand]){
+    vrGripConsumed.add(hand);
+    statusText(hand==="right"?"🕹️ 操縦桿を保持：右手を左右・前後に動かして操舵":
+     "🚀 スロットルを保持：左手を前後に動かして加減速");
+    return;
+   }
+  }
+  vrShipHeldGrips.add(hand);
   if(getRenderer()?.shipVoyage?.active){
    if(tryVRShipContact())return;
    // Greeting hands take precedence over weapon/gear grabs in proximity.
@@ -619,6 +644,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
   vrShipHeldGrips.delete(hand);
+  if(vrCockpitGrip[hand]){
+   vrCockpitGrip=endCockpitGrip(vrCockpitGrip,hand);
+   if(getRenderer())getRenderer().shipControlDeflection={yaw:0,pitch:0,throttle:0};
+   vrGripConsumed.delete(hand);
+   statusText("✋ 操縦レバー／操縦桿から手を離しました");
+   return;
+  }
   if(!vrShipHeldGrips.size)vrShipContactLatched=false;
   const result=onVRCustody("climb-release",{hand});
   vrGripConsumed.delete(hand);
