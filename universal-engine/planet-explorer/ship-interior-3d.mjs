@@ -1,4 +1,5 @@
 import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261114-v10-crew";
+import {COCKPIT_LEVER,COCKPIT_STICK,COCKPIT_HOLOGRAM_CONTROLS} from "./ship-control-hit.mjs?v=20261114-armrest-holograms";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";
@@ -110,9 +111,22 @@ export function createShipGeometry(open=false,standIns=true){
  for(const [x,z] of [[-.65,PILOT_SEAT_Z-.25],[-.65,PILOT_SEAT_Z+.15],[.65,PILOT_SEAT_Z-.25],[.65,PILOT_SEAT_Z+.15]]){
   box(a,x,.97,z,.13,.08,.13,"light");
  }
- // Engine lever mounted on the right armrest.
- box(a,.65,1.12,PILOT_SEAT_Z+.45,.06,.32,.06,"frame");
- box(a,.65,1.30,PILOT_SEAT_Z+.45,.19,.09,.10,"dark");
+ // Left hand: longitudinal throttle. Right hand: upright flight stick.
+ box(a,COCKPIT_LEVER[0],1.12,COCKPIT_LEVER[2],.07,.34,.07,"frame");
+ box(a,...COCKPIT_LEVER,.20,.11,.16,"dark");
+ box(a,COCKPIT_STICK[0],1.10,COCKPIT_STICK[2],.13,.09,.16,"frame");
+ box(a,COCKPIT_STICK[0],1.22,COCKPIT_STICK[2],.075,.29,.075,"dark");
+ sphere(a,COCKPIT_STICK[0],COCKPIT_STICK[1]+.08,COCKPIT_STICK[2],.105,"seat");
+ // Semi-transparent styling is handled by the 3D HUD layer; the geometry
+ // retains glowing borders and the individual ray-hittable touch locations.
+ box(a,-1.385,1.39,PILOT_SEAT_Z-.52,.83,1.02,.045,"line");
+ box(a,-1.385,1.39,PILOT_SEAT_Z-.49,.78,.97,.035,"dark");
+ box(a,1.385,1.39,PILOT_SEAT_Z-.52,.83,.60,.045,"line");
+ box(a,1.385,1.39,PILOT_SEAT_Z-.49,.78,.55,.035,"dark");
+ for(const touch of COCKPIT_HOLOGRAM_CONTROLS){
+  const accent=touch.id==="shield"?"screen":touch.id==="auto-fire"||touch.id==="auto-lock"?"light":"line";
+  box(a,...touch.position,.29,.15,.055,accent);
+ }
  // Thin cyan combiner marks on the front window; target HUD is drawn through it.
  for(const x of [-1.4,1.4])box(a,x,1.75,-13.05,.035,.30,.025,"line");
  // Crew bunks in the corridor and separate utilities.

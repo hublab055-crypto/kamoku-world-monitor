@@ -3,7 +3,8 @@ import {installShipService} from "./ship-service-ui.mjs?v=20261108-ciws-captain"
 import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
-import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
+import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261114-armrest-holograms";
+import {COCKPIT_HOLOGRAM_ACTIONS,applyCockpitHologramAction} from "./ship-cockpit-hologram.mjs?v=20261114-armrest";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
@@ -208,12 +209,22 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   update(0,{vr:isVR()});
   return true; // Consume a trigger even when no target is locked.
  }
+ const holoIds=new Set(COCKPIT_HOLOGRAM_ACTIONS.map(action=>action.id));
+ function pressHologram(id){
+  const result=applyCockpitHologramAction(id,{
+   voyage:getVoyage(),combat:getCombat(),switchWeapon:()=>setWeapon(),
+   scan,radio:toggleRadio
+  });
+  if(result?.message)notify(result.message);
+  return Boolean(result?.ok);
+ }
  function pressVRButton({matrix,stage}={}){
   const v=getVoyage(),viewer=getRenderer();
   if(!v?.seated||viewer?.shipCameraMode==="chase")return false;
   const hit=xrCockpitControlHit(matrix,stage);
   if(!hit)return false;
-  return hit.id==="throttle"?cycleLever():dashboard.executeHardware(hit.id);
+  if(hit.id==="throttle")return cycleLever();
+  return holoIds.has(hit.id)?pressHologram(hit.id):dashboard.executeHardware(hit.id);
  }
  function setWeapon(type){
   const voyage=getVoyage(),model=getCombat();
@@ -296,6 +307,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    if(physical){
     if(physical.id==="seat"){const result=getVoyage().sit();notify(result.message);}
     else if(physical.id==="throttle")cycleLever();
+    else if(holoIds.has(physical.id))pressHologram(physical.id);
     else dashboard.executeHardware(physical.id);
     return;
    }

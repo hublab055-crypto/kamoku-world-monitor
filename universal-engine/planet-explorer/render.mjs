@@ -1,6 +1,6 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261114-crew-social-2";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-base-swim";
-import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=1";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-full-body";
+import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-full-body";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261114-v10-crew";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
@@ -53,9 +53,9 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
-import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
+import {COCKPIT_SWITCHES,COCKPIT_LEVER,COCKPIT_STICK,COCKPIT_HOLOGRAM_CONTROLS} from "./ship-control-hit.mjs?v=20261114-armrest-holograms";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
+import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-armrest-holograms";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
@@ -2104,6 +2104,30 @@ export class ExplorerRenderer{
      for(const [y,amount,color] of [[1.8,this.shipCombat?.player.shield??100,[.2,.8,1]],[1.65,this.shipCombat?.player.hp??100,[.3,1,.4]]]){
       const bar=multiply4(translate(-.9+amount*.009,y,-13.04),scale3(Math.max(.001,amount*.009),.025,.006));
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,bar),[1,1,1],.8,1,color);
+     }
+     // The visible handles respond to Quest tracked grips; no static UI window.
+     const ctl=this.shipControlDeflection||{yaw:0,pitch:0,throttle:0};
+     const stickPos=[COCKPIT_STICK[0]+(ctl.yaw||0)*.15,
+      COCKPIT_STICK[1]+.09,COCKPIT_STICK[2]+(ctl.pitch||0)*.15];
+     const leverPos=[COCKPIT_LEVER[0],COCKPIT_LEVER[1]+.04,
+      COCKPIT_LEVER[2]-(ctl.throttle||0)*.12];
+     for(const [point,size,tint] of [
+      [stickPos,[.13,.15,.13],[.62,.92,1]],
+      [leverPos,[.20,.11,.15],[.65,1,.75]]
+     ]){
+      const transform=multiply4(translate(...point),scale3(...size));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[1,1,1],1,.93,tint);
+     }
+     // Ray-accessible side holograms remain beside the seat, not over the windscreen.
+     for(const control of COCKPIT_HOLOGRAM_CONTROLS){
+      const [x,y,z]=control.position;
+      const active=control.id==="auto-fire"?this.shipCombat?.autoFire:
+       control.id==="auto-lock"?this.shipCombat?.fireControl:false;
+      const color=active?[.35,1,.65]:[.10,.78,.94];
+      const shape=multiply4(translate(x,y,z+.045),scale3(.28,.14,.02));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,shape),[1,1,1],.7,.86,color);
+      const projected=projectScreen(vp,control.position);
+      if(projected)this.shipCockpitControls.push({...projected,id:control.id});
      }
      for(const {id,position} of COCKPIT_SWITCHES){
       const mapped=this.shipControlLayout?.[COCKPIT_SWITCHES.findIndex(s=>s.id===id)]||"none";

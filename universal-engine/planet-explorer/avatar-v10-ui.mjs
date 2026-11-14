@@ -1,7 +1,8 @@
-import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-base-swim";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-base-swim";
+import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-full-body";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-full-body";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-v10-crew";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
+import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -14,6 +15,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const status=form.querySelector("output");
  let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true;
  const drafts=new Map();
+ const bodyInputs=new Map();
  function option(value,label){return new Option(label,value);}
  for(const [id,name] of Object.entries(names))select.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_MODELS))model.add(option(id,name));
@@ -34,8 +36,23 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const note=document.createElement("small");
  note.textContent="水着・素体は初回のみ確認します。ブラウザ内の簡易制限で、保護者認証や暗号化ではありません。";
  gate.append(gateLabel,confirm,cancel,note);outfit.closest("label").after(gate);
+ const swimFields=document.createElement("section");swimFields.className="avatar-v10-swim";
+ const swimStyleLabel=document.createElement("label");swimStyleLabel.textContent="水着の形 ";
+ const swimStyle=document.createElement("select");swimStyle.setAttribute("aria-label","水着の形");
+ for(const [id,name] of Object.entries(AVATAR_V10_SWIM_STYLES))swimStyle.add(option(id,name));
+ swimStyleLabel.append(swimStyle);
+ const swimColorLabel=document.createElement("label");swimColorLabel.textContent="水着の色 ";
+ const swimColor=document.createElement("select");swimColor.setAttribute("aria-label","水着の色");
+ for(const [id,entry] of Object.entries(AVATAR_V10_SWIM_COLORS))swimColor.add(option(id,entry.label));
+ swimColorLabel.append(swimColor);swimFields.append(swimStyleLabel,swimColorLabel);gate.after(swimFields);
+ const updateSwim=()=>{
+  fit={...fit,swim:{style:swimStyle.value,color:swimColor.value}};
+  drafts.set(select.value,fit);invalidate();
+ };
+ swimStyle.addEventListener("change",updateSwim);
+ swimColor.addEventListener("change",updateSwim);
  function setOutfit(value){
-  fit={...fit,outfit:value};outfit.value=value;
+  fit={...fit,outfit:value};outfit.value=value;swimFields.hidden=value!=="swim";
   drafts.set(select.value,fit);invalidate();
  }
  confirm.addEventListener("click",()=>{
@@ -47,8 +64,17 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    sessionUnlocked=true;
   }
   const selected=pendingOutfit;pendingOutfit=null;gate.hidden=true;gateCode.value="";
-  status.value=selected==="swim"?"水着専用メッシュがないモデルでは普段着の代替表示です。":"素体：着脱衣装を除いたデッサン用表示です。";
+  status.value=selected==="swim"?"全身の水着モードに切り替えました。形と色を変更できます。":"素体：全身のベースメッシュを表示します。";
+  faceView=false;
+  for(const button of form.querySelectorAll("[data-avatar-view]"))
+   button.setAttribute("aria-pressed",String(button.dataset.avatarView==="body"));
   setOutfit(selected);
+  if(["swim","base"].includes(selected)){
+   faceView=false;
+   for(const button of form.querySelectorAll("[data-avatar-view]"))
+    button.setAttribute("aria-pressed",String(button.dataset.avatarView==="body"));
+   invalidate();
+  }
  });
  cancel.addEventListener("click",()=>{pendingOutfit=null;gate.hidden=true;gateCode.value="";outfit.value=fit.outfit;});
  gateCode.addEventListener("keydown",event=>{
@@ -74,6 +100,24 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
     invalidate();
    });
    label.append(title,input,value);section.append(label);
+  }
+  fields.append(section);
+ }
+ for(const [group,parts] of AVATAR_V10_BODY){
+  const section=document.createElement("details");section.open=group==="全体";
+  const summary=document.createElement("summary");summary.textContent="体型｜"+group;
+  section.append(summary);
+  for(const [key,title] of parts){
+   const label=document.createElement("label");
+   const input=document.createElement("input");input.type="range";input.min=-100;input.max=100;
+   input.setAttribute("aria-label",group+"の"+title);
+   const value=document.createElement("span");
+   input.addEventListener("input",()=>{
+    value.textContent=input.value;
+    fit={...fit,body:{...fit.body,[key]:Number(input.value)}};
+    drafts.set(select.value,fit);invalidate();
+   });
+   label.append(title,input,value);section.append(label);bodyInputs.set(key,{input,value});
   }
   fields.append(section);
  }
@@ -119,8 +163,13 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   fit=requiresAvatarWardrobeUnlock(next.outfit)&&!unlocked()?{...next,outfit:"work"}:next;
   pendingOutfit=null;gate.hidden=true;gateCode.value="";
   model.value=fit.model;outfit.value=fit.outfit;
+  swimFields.hidden=fit.outfit!=="swim";
+  swimStyle.value=fit.swim.style;swimColor.value=fit.swim.color;
   const disabled=fit.model==="classic";
-  outfit.disabled=disabled;
+  outfit.disabled=disabled;swimStyle.disabled=disabled;swimColor.disabled=disabled;
+  for(const [key,{input,value}] of bodyInputs){
+   input.value=fit.body[key];input.disabled=disabled;value.textContent=String(fit.body[key]);
+  }
   for(const [key,value] of Object.entries(fit.face)){
    const input=form.elements[key];
    input.value=value;input.disabled=disabled;input.nextElementSibling.textContent=String(value);
@@ -147,6 +196,12 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    return;
   }
   setOutfit(selected);
+  if(["base","swim"].includes(selected)){
+   faceView=false;
+   for(const button of form.querySelectorAll("[data-avatar-view]"))
+    button.setAttribute("aria-pressed",String(button.dataset.avatarView==="body"));
+   invalidate();
+  }
  });
  form.querySelector("#avatar-v10-reset").addEventListener("click",()=>{
   controls(normalizeAvatarV10(select.value));

@@ -8,7 +8,20 @@ export const COCKPIT_SWITCHES=Object.freeze([
  {id:"fire",position:Object.freeze([.65,1.05,PILOT_SEAT_Z-.25])},
  {id:"hatch",position:Object.freeze([.65,1.05,PILOT_SEAT_Z+.15])}
 ]);
-export const COCKPIT_LEVER=Object.freeze([.65,1.3,PILOT_SEAT_Z+.45]);
+// Captain: throttle on the LEFT armrest, control stick on the RIGHT.
+export const COCKPIT_LEVER=Object.freeze([-.65,1.3,PILOT_SEAT_Z+.45]);
+export const COCKPIT_STICK=Object.freeze([.65,1.30,PILOT_SEAT_Z+.45]);
+const leftActions=["speed-down","speed-up","weapon","auto-fire","auto-lock","repair","fuel","shield"];
+const rightActions=["scan","radio","gear","horizon"];
+// Both cockpit ray picking and the visible 3D hologram use this one geometry map.
+export const COCKPIT_HOLOGRAM_CONTROLS=Object.freeze([
+ ...leftActions.map((id,i)=>Object.freeze({
+  id,side:"left",position:Object.freeze([-1.55+(i%2)*.33,1.73-Math.floor(i/2)*.23,PILOT_SEAT_Z-.5])
+ })),
+ ...rightActions.map((id,i)=>Object.freeze({
+  id,side:"right",position:Object.freeze([1.22+(i%2)*.33,1.50-Math.floor(i/2)*.23,PILOT_SEAT_Z-.5])
+ }))
+]);
 export const EXTERIOR_HATCH_SWITCH=Object.freeze([1.77,3.18,12.78]);
 
 export function xrRayPointDistance(matrix,stage,point,{radius=.34,maxDistance=2.5}={}){
@@ -32,8 +45,8 @@ export function xrRayPointDistance(matrix,stage,point,{radius=.34,maxDistance=2.
 }
 export function xrCockpitControlHit(matrix,stage){
  let best=null;
- for(const button of [...COCKPIT_SWITCHES,{id:"throttle",position:COCKPIT_LEVER}]){
-  const hit=xrRayPointDistance(matrix,stage,button.position,{radius:.28,maxDistance:2.8});
+ for(const button of [...COCKPIT_SWITCHES,{id:"throttle",position:COCKPIT_LEVER},...COCKPIT_HOLOGRAM_CONTROLS]){
+  const hit=xrRayPointDistance(matrix,stage,button.position,{radius:button.side?.115:.28,maxDistance:2.8});
   if(hit&&(!best||hit.distance<best.distance))best={id:button.id,...hit};
  }
  return best;
