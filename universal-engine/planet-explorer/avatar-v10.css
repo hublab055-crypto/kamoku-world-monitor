@@ -35,3 +35,19 @@
  .avatar-v10-fields select {font-size:16px}
  #avatar-v10-dialog form {padding:10px;gap:8px}
 }
+
+/* Original Avatar Review grouped parameter editor (43 source controls). */
+#avatar-v10-dialog {width:min(900px,calc(100% - 1rem))}
+.avatar-v10-fields {max-height:min(72dvh,740px);overflow:auto;align-content:start;scrollbar-gutter:stable}
+.avatar-review-header {font-weight:700;color:#a4f0e8;border-bottom:1px solid #547d82;padding:7px 0}
+.avatar-v10-fields .avatar-review-group {border:1px solid #43667b}
+.avatar-v10-fields .avatar-review-group > summary {font-weight:600;color:#d4f4fb}
+.avatar-v10-fields .avatar-review-control {display:grid;grid-template-columns: minmax(50px,1fr) minmax(100px,1.3fr) minmax(60px,.85fr);gap:9px;align-items:center;margin:9px 0}
+.avatar-v10-fields .avatar-review-control input[type=range] {width:100%;min-width:0}
+.avatar-v10-fields .avatar-review-control output {font-size:11px;color:#aee5d9;text-align:right;white-space:nowrap}
+.avatar-review-transfer {display:grid;gap:6px;padding:8px 0}
+.avatar-review-transfer button {width:100%}
+@media(max-width:540px){
+ .avatar-v10-fields {max-height:none;overflow:visible}
+ .avatar-v10-fields .avatar-review-control {grid-template-columns: minmax(65px,1fr) minmax(100px,1.3fr) minmax(55px,.8fr)}
+}
