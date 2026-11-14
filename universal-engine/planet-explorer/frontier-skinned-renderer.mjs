@@ -87,7 +87,8 @@ export class SkinnedFrontierAsset{
   if(kind!==state.kind){state.kind=kind;state.elapsed=0;state.fade=.12;}
   const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
   const body=gesture?"idle":kind;
-  const options={motionProgress,variant,hand,moving,lookAt};
+  const options={motionProgress,variant,hand,moving};
+  if(lookAt)options.lookAt=lookAt;
   if(gesture)options.gesture=gesture;
   const pose=poseFrontierRig(this.rig,body,time??state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,options);
   if(time!==null)state.fade=0;
