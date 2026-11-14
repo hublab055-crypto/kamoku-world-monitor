@@ -5,7 +5,7 @@ export const AVATAR_V10_BODY=Object.freeze([
 ]);
 export const BODY_KEYS=Object.freeze(AVATAR_V10_BODY.flatMap(([,fields])=>fields.map(([key])=>key)));
 export const AVATAR_V10_SWIM_STYLES=Object.freeze({
- original:"モデル専用の水着",onepiece:"ワンピース",twopiece:"セパレート",trunks:"スイムパンツ"
+ original:"モデル標準の水着",onepiece:"ワンピース",twopiece:"セパレート",trunks:"スイムパンツ"
 });
 export const AVATAR_V10_SWIM_COLORS=Object.freeze({
  navy:{label:"ネイビー",rgb:[.075,.19,.42]},
