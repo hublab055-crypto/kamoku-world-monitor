@@ -52,7 +52,10 @@ export class ShipCrewGreetings {
    if(this.pair.time>=CREW_GESTURES[this.pair.action].seconds)this.pair=null;
   }
   if(this.formal){
-   this.formal.time+=dt;
+   // Arm the greeting on proximity, but begin its visible animation only
+   // when the V10 asset has arrived. Avoid spending the 2.2 s salute
+   // while the GLB is still downloading on Quest Browser.
+   if(isReady(this.formal.member))this.formal.time+=dt;
    if(this.formal.time>=CREW_GESTURES.salute.seconds||interior.distance(this.formal.member)>REARM_RADIUS)
     this.formal=null;
   }
