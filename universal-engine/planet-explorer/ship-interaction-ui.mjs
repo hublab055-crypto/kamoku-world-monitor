@@ -4,13 +4,27 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
  if(!parent)return {update:()=>{}};
  const style=document.createElement("style");
  style.textContent=`#seamless-ship[hidden]{display:none!important}#seamless-ship{border:1px solid #416a79;border-radius:9px;padding:8px;margin:6px 0;background:#0e283b;color:#e6f6ff;font:12px/1.4 system-ui}#seamless-ship .ship-section{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0}#seamless-ship button,#seamless-ship select{background:#17566c;color:#efffff;border:1px solid #5d94a4;border-radius:6px;min-height:38px;padding:6px}#seamless-ship button:disabled{opacity:.5}#seamless-ship .small{color:#aecbd8;font-size:11px}`;
+ style.textContent += `
+#ship-seat-quick[hidden]{display:none!important}
+#ship-seat-quick{position:absolute;left:12px;top:76px;z-index:3600;max-width:min(45vw,235px);
+ background:#123448ed;color:#eafaff;border:1px solid #71cde0;border-radius:10px;
+ padding:9px 13px;font:600 13px/1.3 system-ui;min-height:44px;
+ box-shadow:0 4px 16px #0007;touch-action:manipulation;cursor:pointer}
+#ship-seat-quick:focus-visible{outline:3px solid #fff;outline-offset:2px}
+`;
  document.head.append(style);
  const root=document.createElement("section");root.id="seamless-ship";root.hidden=true;
+ const seatQuick=document.createElement("button");
+ seatQuick.id="ship-seat-quick";seatQuick.type="button";seatQuick.hidden=true;
+ seatQuick.setAttribute("aria-label","操縦席に座る／操縦席から立つ");
+ const canvasHost=document.querySelector(".canvas-wrap");
+ if(canvasHost)canvasHost.append(seatQuick);
  root.innerHTML='<button type="button" id="ship-panel-close">× 閉じる</button><div id="ship-prompt"></div><div class="ship-section" id="ship-actions"></div><div class="ship-section" id="ship-navigation" hidden><label>🪐 目的地 <select id="ship-route"></select></label><button type="button" id="ship-chart">航路設定</button><button type="button" id="ship-depart">🛰️ 惑星間航行開始</button></div><div class="small" id="ship-instructions"></div>';
  const guide=parent.querySelector(".flight-guide");
  if(guide)guide.before(root);else parent.append(root);
  const $=id=>root.querySelector("#"+id),route=$("ship-route"),actions=$("ship-actions");
  const run=fn=>{const r=fn?.();if(r?.message)notify?.(r.message);update(true);return r;};
+ seatQuick.addEventListener("click",()=>{const v=get();run(v?.seated?onStand:onSit);});
  $("ship-chart").addEventListener("click",()=>run(()=>onChooseRoute(route.value)));
  $("ship-depart").addEventListener("click",()=>run(onTransfer));
  $("ship-panel-close").addEventListener("click",()=>{root.removeAttribute("data-ui-open");});
@@ -21,7 +35,11 @@ export function installShipInteractionUI({get,getRoutes,onSit,onStand,onHatch,on
  }
  function update(force=false){
   const v=get(),show=v?.kind==="surface-to-surface";
-  root.hidden=!show;if(!show){key="";return;}
+  root.hidden=!show;
+  seatQuick.hidden=!show||(!v.seated&&!v.isNearSeat());
+  if(!show){key="";return;}
+  const label=v.seated?"🚶 操縦席から立つ":"🪑 操縦席に座る";
+  if(!seatQuick.hidden&&seatQuick.textContent!==label)seatQuick.textContent=label;
   const nearbyHatch=v.isNearHatch(),nearSeat=v.isNearSeat();
   const currentKey=[v.status,v.hatchOpen,v.seated,nearSeat,nearbyHatch,Math.floor(v.interior.z*2),Math.floor(v.interior.x*2),v.destinationId].join("|");
   if(force||key!==currentKey){

@@ -34,6 +34,17 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const note=document.createElement("small");
  note.textContent="水着・素体は初回のみ確認します。ブラウザ内の簡易制限で、保護者認証や暗号化ではありません。";
  gate.append(gateLabel,confirm,cancel,note);outfit.closest("label").after(gate);
+ // The user's existing Avatar Review app is the reference source for the
+ // complete anatomical and swimwear modifier; do not present our prototype
+ // as the same editor or silently overwrite its saved character settings.
+ const reviewLink=document.createElement("a");
+ reviewLink.href="https://universal-engine-avatar-review.papatomfoundation.chatgpt.site";
+ reviewLink.target="_blank";reviewLink.rel="noopener noreferrer";
+ reviewLink.textContent="🔗 元のアバターレビューで素体・水着を編集（別タブ）";
+ reviewLink.style.cssText="display:block;margin:9px 0;color:#8de9f1;text-decoration:underline;font-size:13px;";
+ const reviewNote=document.createElement("small");
+ reviewNote.textContent="レビュー版の体型パラメータとこの試験用モデルの設定は、現在まだ自動同期されません。";
+ gate.after(reviewLink,reviewNote);
  function setOutfit(value){
   fit={...fit,outfit:value};outfit.value=value;
   drafts.set(select.value,fit);invalidate();
