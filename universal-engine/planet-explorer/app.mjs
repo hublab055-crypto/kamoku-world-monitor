@@ -15,7 +15,7 @@ import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mj
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261111-atmosphere-mobile";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261114-crew-social-2";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261114-armrest-holograms";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261114-armrest-holograms";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
