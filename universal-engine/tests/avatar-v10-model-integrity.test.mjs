@@ -4,6 +4,7 @@ import {readFileSync} from "node:fs";
 import {gunzipSync} from "node:zlib";
 import {parseFrontierRig} from "../planet-explorer/frontier-animated.mjs";
 import {isBodySurface} from "../planet-explorer/avatar-v10-body.mjs";
+import {createAvatarV10BodyMesh} from "../planet-explorer/avatar-v10-body-mesh.mjs";
 
 const ROOT=new URL("../original-assets/avatar-v10/",import.meta.url);
 for(const model of ["lyra","mina","sera","ren","noah","elio"]){
@@ -22,5 +23,10 @@ for(const model of ["lyra","mina","sera","ren","noah","elio"]){
   assert.ok(body.some(p=>p.arrays.positions.length>300),"base skin surface must exist");
   assert.ok(named.base.length>0,"a base-labeled mesh must exist");
   assert.ok(named.swim.length>0,"a swim-labeled mesh must exist");
+  const generated=createAvatarV10BodyMesh(rig);
+  assert.ok(generated,"full-body generated surface is required when authored body is missing");
+  assert.ok(generated.arrays.positions.length>3000,"full torso and limb proxy required");
+  assert.ok(generated.skin!=null,"body must share the existing animated skin");
+  assert.ok(generated.wardrobe.includes("base")&&generated.wardrobe.includes("swim"));
  });
 }
