@@ -1,4 +1,5 @@
 import {SHIP_WEAPONS} from "./space-combat.mjs?v=20261112-warp";
+import {installCockpitHologramUI} from "./ship-cockpit-hologram-ui.mjs?v=20261114-armrest";
 const STORAGE_KEY="ue:pilot-action-slots:v1";
 
 export function installShipPilotPanel({getVoyage,getCombat,switchWeapon,getCargo,actionOptions,defaults,commands}){
@@ -17,6 +18,8 @@ export function installShipPilotPanel({getVoyage,getCombat,switchWeapon,getCargo
  const gearButton=shortcuts.querySelector('[data-command="gear"]');
  const weaponShortcut=shortcuts.querySelector("[data-weapon]");
  const settings=shortcuts.querySelector("[data-settings]");
+ const holograms=installCockpitHologramUI({host,getVoyage,getCombat,switchWeapon,commands,
+  isCockpit:()=>document.getElementById("flight-camera")?.getAttribute("aria-pressed")!=="true"});
  const dialog=document.createElement("dialog");
  dialog.className="ship-pilot-panel";
  dialog.setAttribute("aria-label","機体設定");
@@ -86,6 +89,7 @@ export function installShipPilotPanel({getVoyage,getCombat,switchWeapon,getCargo
   dialog.showModal();
  }
  function update(visible){
+  holograms.update(visible);
   shortcuts.hidden=!visible;
   if(!visible){if(dialog.open)dialog.close();return;}
   const combat=getCombat();
