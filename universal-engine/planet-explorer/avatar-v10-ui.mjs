@@ -21,6 +21,23 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  for(const [id,name] of Object.entries(names))select.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_MODELS))model.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_OUTFITS))outfit.add(option(id,name));
+ // The shipped Lyra GLB is available unchanged, alongside editable Review mode.
+ const officerModeLabel=document.createElement("label");
+ officerModeLabel.textContent="副官の外観 ";
+ const officerMode=document.createElement("select");
+ officerMode.setAttribute("aria-label","副官の外観");
+ officerMode.add(option("original","元の副官モデル（V10ライラ）"));
+ officerMode.add(option("modified","モディファイ版"));
+ officerModeLabel.append(officerMode);
+ const officerModeHint=document.createElement("small");
+ officerModeHint.textContent="元モデルは変更前のGLB形状を保持します。モディファイ版では顔・体型・衣装を編集できます。";
+ model.closest("label").after(officerModeLabel,officerModeHint);
+ officerMode.addEventListener("change",()=>{
+  const original=officerMode.value==="original";
+  controls(original?{...fit,model:"lyra",outfit:"work",preserveOriginal:true}:
+   {...fit,preserveOriginal:false});
+  drafts.set(select.value,fit);loadPreview();
+ });
  // Restricted study outfits require a one-time per-device confirmation.
  let sessionUnlocked=false,pendingOutfit=null;
  const store=()=>typeof localStorage==="undefined"?null:localStorage;
@@ -146,7 +163,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    const parsed=fromReviewStorage(data,fit.model);
    if(!parsed)throw Error("選択中モデルのキー "+reviewModelKey(fit.model)+" が見つかりません");
    const selected=requiresAvatarWardrobeUnlock(parsed.outfit)&&!unlocked()?"work":parsed.outfit;
-   const next={...fit,appearance:{...parsed,outfit:selected},outfit:selected};
+   const next={...fit,appearance:{...parsed,outfit:selected},outfit:selected,preserveOriginal:false};
    controls(next);drafts.set(select.value,fit);invalidate();
    status.value=selected!==parsed.outfit?
     "設定を読み込みました。素体・水着の表示には初回コード9876が必要です。":
@@ -199,7 +216,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   try{
    renderer().assets.load(fit.model).then(result=>{
     if(!dialog.open||request!==token)return;
-    asset=result;status.value="";invalidate();
+    asset=result;status.value=fit.preserveOriginal?"元の副官モデルをそのまま表示しています。":"";invalidate();
    }).catch(error=>{if(request===token)status.value="プレビューを表示できませんでした。 "+error.message;});
   }catch(error){status.value=error.message;}
  }
@@ -208,10 +225,13 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    {...next,outfit:"work",appearance:{...normalizeAppearance(next.appearance),outfit:"work"}}:
    {...next,appearance:normalizeAppearance(next.appearance)};
   pendingOutfit=null;gate.hidden=true;gateCode.value="";
-  model.value=fit.model;outfit.value=fit.outfit;
+  const original=select.value==="navigator"&&fit.preserveOriginal;
+  officerModeLabel.hidden=select.value!=="navigator";officerModeHint.hidden=select.value!=="navigator";
+  officerMode.value=original?"original":"modified";
+  model.value=fit.model;model.disabled=original;outfit.value=fit.outfit;
   swimFields.hidden=fit.outfit!=="swim";
   swimStyle.value=fit.swim.style;swimColor.value=fit.swim.color;
-  const disabled=fit.model==="classic";
+  const disabled=fit.model==="classic"||original;
   outfit.disabled=disabled;swimStyle.disabled=disabled;swimColor.disabled=disabled;
   hairSelect.value=fit.appearance.hairStyle;hairSelect.disabled=disabled;
   for(const [key,{input,value}] of reviewInputs){
@@ -231,7 +251,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  }
  select.addEventListener("change",()=>choosePerson(select.value));
  model.addEventListener("change",()=>{
-  controls({...fit,model:model.value});
+  controls({...fit,model:model.value,preserveOriginal:false});
   drafts.set(select.value,fit);loadPreview();
  });
  outfit.addEventListener("change",()=>{
