@@ -7,6 +7,7 @@ import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261108-ciws-captain";
 import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261112-warp";
+import {installShipCockpitHologram} from "./ship-cockpit-hologram.mjs?v=20261115-hologram";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -15,7 +16,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getWorldRenderer,notify,onEditAvatar,onExitCrewTest,crewAvatarReady=()=>true}){
+export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getWorldRenderer,notify,onEditAvatar,onExitCrewTest,crewAvatarReady=()=>true,getCombat=()=>null,switchWeapon=()=>{},onHatch=()=>{}}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -143,6 +144,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-translate" aria-pressed="false" hidden>平行移動</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
   '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。操縦盤の青=スキャン、黄=兵装、赤=発射。船外ハッチ右側の点灯スイッチはVRトリガーで開閉。Quest Xは近接乗船・着席に対応。宇宙戦：📡スキャンで🔹味方・♦資源・🔸敵性・🟢中立を可視化。敵をタップ／VRで視線保持してロックオン♦️、トリガー・Space・発射ボタンで攻撃。📻通信で停戦・降伏の交渉ができます。</div>';
  (document.querySelector(".canvas-wrap")||document.body).append(root);
+ const holograms=installShipCockpitHologram({root,getVoyage:get,getCombat,onLaunch,onTransfer,onLand,onHatch,switchWeapon,notify});
  const $=id=>root.querySelector("#"+id);
  const screen=$("flight-canvas"),ctx=screen.getContext("2d"),shipCanvas=$("ship-3d-canvas");
  const worldCanvas=getWorldCanvas?.();
@@ -507,7 +509,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    activeVoyage=v;crewTarget=null;crewView=false;nearKey="";lastView="";
    root.classList.toggle("is-crew-test",Boolean(v?.isCrewTest));
   }
-  root.hidden=!v?.active;if(root.hidden){held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
+  root.hidden=!v?.active;if(root.hidden){holograms.update({visible:false});held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   $("flight-crew-exit").hidden=!v.isCrewTest;
   $("flight-cancel").hidden=v.isCrewTest||!v.canCancelDeparture;
   $("flight-view").hidden=Boolean(v.isCrewTest);
@@ -528,6 +530,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   $("flight-route").textContent=v.isCrewTest?"船内クルーテスト":"🚀 "+origin.name+" → "+target.name+(v.navigationTarget?" ／ 🎯 "+v.navigationTarget.name:"");
   const entryView=["entry","atmosphere","vtol","touchdown"].includes(v.status);
   const height=entryView?Math.round(groundScenePhase(v).lift):null;
+  holograms.update({visible:seatedPilot(v)&&!chase&&!interiorView,altitude:height});
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":
     v.kind==="surface-to-surface"&&!v.autopilot&&["cruise","approach","flyby"].includes(v.status)?" ／ 惑星へ接近すると着陸降下":"");
