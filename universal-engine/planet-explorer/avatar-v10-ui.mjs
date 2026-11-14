@@ -43,7 +43,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  reviewLink.textContent="🔗 元のAvatar Reviewサイトを開く（別タブ）";
  reviewLink.style.cssText="display:block;margin:9px 0;color:#8de9f1;text-decoration:underline;font-size:13px;";
  const reviewNote=document.createElement("small");
- reviewNote.textContent="レビューサイトとは保存領域が異なるため、設定の移行には下のJSON読み込み・書き出しを使用してください。";
+ reviewNote.textContent="レビューサイトとは保存領域が異なるため、設定はまだ自動同期されません。移行には下のJSON読み込み・書き出しを使用してください。";
  gate.after(reviewLink,reviewNote);
  const swimFields=document.createElement("section");swimFields.className="avatar-v10-swim";
  const swimStyleLabel=document.createElement("label");swimStyleLabel.textContent="水着の形 ";
