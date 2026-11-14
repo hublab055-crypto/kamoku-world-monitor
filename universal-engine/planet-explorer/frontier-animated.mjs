@@ -1,3 +1,4 @@
+import {poseAvatarV10Gesture} from "./avatar-v10-motion.mjs?v=1";
 import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8q-splash";
 /** GLB2 skeletal/morph animation data. Pure module; no DOM/WebGL dependency.
@@ -87,6 +88,8 @@ function targetNames(mesh,primitive){
 export function parseFrontierRig(buffer){
  const {json,binary}=readFrontierGLB(buffer);
  const acc=id=>valueAccessor(json,binary,id);
+ const extras=json.asset.extras;
+ const isV10=extras?.avatarPack==="v10";
  const nodes=(json.nodes||[]).map(n=>({
   name:n.name||"",matrix:Array.isArray(n.matrix)?n.matrix:null,
   translation:n.translation||[0,0,0],rotation:n.rotation||[0,0,0,1],scale:n.scale||[1,1,1],
@@ -117,6 +120,7 @@ export function parseFrontierRig(buffer){
    const mat=json.materials?.[primitive.material]||{};
    const pbr=mat.pbrMetallicRoughness||{},textureIndex=pbr.baseColorTexture?.index;
    const textureImage=Number.isInteger(textureIndex)?textureMap[textureIndex]:null;
+   const detail=json.nodes[nodeId].extras;
    if(indices.some(i=>!Number.isInteger(i)||i<0||i>=positions.length))throw Error("GLB triangle indices out of range");
    const count=positions.length;
    if(count>175000||indices.length>450000)throw Error("GLB geometry too large");
@@ -139,7 +143,8 @@ export function parseFrontierRig(buffer){
    const names=targetNames(mesh,primitive);
    totalTris+=Math.floor(indices.length/3);
    primitives.push({node:nodeId,skin:node.skin??null,arrays,indices:new Uint32Array(indices),
-    textureImage,names,material:mat.name||"",doubleSided:!!mat.doubleSided});
+    textureImage,names,material:mat.name||"",doubleSided:!!mat.doubleSided,
+    name:node.name,wardrobe:isV10?detail?.wardrobe:null,gloveColor:isV10?detail?.gloveColor:null});
   }
  }
  if(!primitives.length)throw Error("GLB contains no drawable mesh");
@@ -166,7 +171,11 @@ export function parseFrontierRig(buffer){
   if(Number.isFinite(posed.min[0])){bounds.min=posed.min;bounds.max=posed.max;}
  }
  const h=Math.max(.001,bounds.max[1]-bounds.min[1]);
- return {primitives,skins,nodes,clips,images,bounds,
+ const parents=Array(nodes.length).fill(-1);
+ nodes.forEach((node,i)=>node.children.forEach(child=>{if(parents[child]<0)parents[child]=i;}));
+ const jointsByName=new Map();
+ nodes.forEach((node,i)=>{if(!Number.isInteger(node.mesh))jointsByName.set(node.name,i);});
+ return {primitives,skins,nodes,clips,images,bounds,parents,jointsByName,isV10,faceLandmarks:isV10?extras.faceLandmarks:null,
   scale:1.8/h,center:[(bounds.min[0]+bounds.max[0])/2,bounds.min[1],(bounds.min[2]+bounds.max[2])/2],
   triangles:totalTris,morphNames:[...new Set(primitives.flatMap(p=>p.names))]};
 }
@@ -296,8 +305,9 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
   applyAquaticRigPose(rig,pose,bodyKind,time,opts.moving!==false);
  if(Number.isFinite(opts.motionProgress))
   applyWeaponRigPose(rig,pose,bodyKind,opts.motionProgress,opts.variant||"overhead",opts.hand||"right");
- const world=Array(rig.nodes.length),inProgress=new Set(),parents=Array(rig.nodes.length).fill(-1);
- rig.nodes.forEach((node,i)=>node.children.forEach(child=>{if(parents[child]<0)parents[child]=i;}));
+ if(rig.isV10&&opts.gesture)poseAvatarV10Gesture(rig,pose,opts.gesture);
+ const world=Array(rig.nodes.length),inProgress=new Set(),parents=rig.parents||Array(rig.nodes.length).fill(-1);
+ if(!rig.parents)rig.nodes.forEach((node,i)=>node.children.forEach(child=>{if(parents[child]<0)parents[child]=i;}));
  const calculate=i=>{
   if(world[i])return world[i];
   if(inProgress.has(i))throw Error("GLB joint cycle");
@@ -312,8 +322,9 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
   const weights=pose[pr.node]?.weights||[0,0];
   let blink=weights[0]||0,mouth=weights[1]||0;
   const names=pr.names.map(n=>n.toLowerCase());
-  if(names.some(n=>n.includes("eye")))blink=weights[names.findIndex(n=>n.includes("eye"))]||0;
-  if(names.some(n=>n.includes("mouth")))mouth=weights[names.findIndex(n=>n.includes("mouth"))]||0;
+  if(names.some(n=>n.includes("eye")||n==="blink"))blink=weights[names.findIndex(n=>n.includes("eye")||n==="blink")]||0;
+  if(names.some(n=>n.includes("mouth")||n==="smile"))mouth=weights[names.findIndex(n=>n.includes("mouth")||n==="smile")]||0;
+  if(rig.isV10&&["handshake","hug","thumbsUp","doubleThumbs"].includes(opts.gesture?.motion))mouth=.52;
   // Facial procedural fallback for GLBs containing targets but no named clips.
   if(!face||!face.tracks.some(t=>t.path==="weights")){
    blink=Math.max(blink,Math.max(0,1-Math.abs((faceTime%3.6)-.17)/.14));

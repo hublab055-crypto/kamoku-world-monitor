@@ -1,6 +1,9 @@
-import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=0.8q-splash";
+import {deformAvatarV10Face} from "./avatar-v10-face.mjs?v=1";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-v10-crew";
 const VS="#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nout vec3 vColor,vNormal;\nout vec2 vUv;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;\n gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}";
-const FS="#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n fragColor=vec4(vColor*texel.rgb*(.6+.4*sun),1.0);\n}";
+const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
+ if(uLinearColor)color=mix(color*12.92,1.055*pow(color,vec3(1.0/2.4))-.055,step(vec3(.0031308),color));
+ fragColor=vec4(color,1.0);\n}`;
 function compile(gl,type,src){
  const shader=gl.createShader(type);gl.shaderSource(shader,src);gl.compileShader(shader);
  if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){
@@ -73,24 +76,40 @@ export class SkinnedFrontierAsset{
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
+   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
- pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right"}={}){
+ pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null}={}){
   let state=this.instances.get(id);
   if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
   const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
   if(kind!==state.kind){state.kind=kind;state.elapsed=0;state.fade=.12;}
   const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
-  const pose=poseFrontierRig(this.rig,kind,state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,{motionProgress,variant,hand,moving});
-  if(state.fade>0&&state.previous){
+  const body=gesture?"idle":kind;
+  const options={motionProgress,variant,hand,moving};
+  if(gesture)options.gesture=gesture;
+  const pose=poseFrontierRig(this.rig,body,time??state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,options);
+  if(time!==null)state.fade=0;
+  if(time===null&&state.fade>0&&state.previous){
    const blend=Math.max(0,Math.min(1,1-state.fade/.12));
    pose.world=pose.world.map((matrix,i)=>matrix.map((value,j)=>(state.previous.world?.[i]?.[j]??value)*(1-blend)+value*blend));
    state.fade=Math.max(0,state.fade-step);
   }
   state.previous=pose;
   return pose;
+ }
+ applyFace(mesh,fit){
+  const rig=this.rig,shape=fit?.face;
+  if(!rig.isV10||!shape||!rig.faceLandmarks||mesh.appliedFace===shape)return;
+  const data=deformAvatarV10Face(mesh.source,shape,rig.faceLandmarks);
+  if(!data)return;
+  const attributes=["positions","normals","colors","uv","joints","weights","morph0","morph1"];
+  for(const [attribute,values] of Object.entries(data)){
+   this.gl.bindBuffer(this.gl.ARRAY_BUFFER,mesh.buffers[attributes.indexOf(attribute)]);
+   this.gl.bufferSubData(this.gl.ARRAY_BUFFER,0,values);
+  }
+  mesh.appliedFace=shape;
  }
  draw(vp,avatar,light,id,dt,opts={}){
   const gl=this.gl,rig=this.rig,pose=this.pose(id,dt,opts);
@@ -101,19 +120,33 @@ export class SkinnedFrontierAsset{
   gl.uniform3fv(this.u.uCenter,asFloat(rig.center));
   gl.uniform3fv(this.u.uLight,asFloat(light));
   gl.uniform1i(this.u.uBones,0);gl.uniform1i(this.u.uColorTexture,1);
+  gl.uniform1i(this.u.uLinearColor,rig.isV10?1:0);
+  const palettes=rig.skins.map(skin=>{
+   const palette=new Float32Array(skin.joints.length*16);
+   skin.joints.forEach((joint,j)=>palette.set(matMultiply(pose.world[joint]||matIdentity(),skin.inverseBind?.[j]||matIdentity()),j*16));
+   return palette;
+  });
+  let boundSkin=null;
+  const outfit=opts.fit?.outfit||"work";
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
+    if(source.wardrobe&&!source.wardrobe.includes(outfit))continue;
+   this.applyFace(m,opts.fit);
+   const glove=outfit==="space"&&source.gloveColor;
+   gl.uniform1i(this.u.uGloves,glove?1:0);
+   if(glove)gl.uniform3fv(this.u.uGloveColor,asFloat(glove));
    gl.uniformMatrix4fv(this.u.uNode,false,asFloat(pose.world[source.node]||matIdentity()));
    const face=pose.morphs[i]||[0,0];
    const indexes=source.names.map(n=>n.toLowerCase());
-   const ey=indexes.findIndex(n=>n.includes("eye")),mouth=indexes.findIndex(n=>n.includes("mouth"));
+   const ey=indexes.findIndex(n=>n.includes("eye")||n==="blink"),mouth=indexes.findIndex(n=>n.includes("mouth")||n==="smile");
    gl.uniform2fv(this.u.uMorph,asFloat(indexes.map((_,j)=>j===ey?face[0]:j===mouth?face[1]:0).concat([0,0]).slice(0,2)));
    const skin=Number.isInteger(source.skin)?rig.skins[source.skin]:null;
    if(skin?.joints?.length){
-    const palette=new Float32Array(skin.joints.length*16);
-    skin.joints.forEach((joint,j)=>palette.set(matMultiply(pose.world[joint]||matIdentity(),skin.inverseBind?.[j]||matIdentity()),j*16));
-    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.boneTexture);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,4,skin.joints.length,0,gl.RGBA,gl.FLOAT,palette);
+    if(boundSkin!==source.skin){
+     boundSkin=source.skin;
+     gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.boneTexture);
+     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,4,skin.joints.length,0,gl.RGBA,gl.FLOAT,palettes[source.skin]);
+    }
     gl.uniform1i(this.u.uSkin,1);
    }else gl.uniform1i(this.u.uSkin,0);
    gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,m.texture?.tex||null);

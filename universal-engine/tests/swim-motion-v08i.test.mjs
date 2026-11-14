@@ -66,7 +66,7 @@ test("shared GLB pose method forwards movement flags and has an aquatic clip pip
  const src=readFileSync(new URL("../planet-explorer/frontier-skinned-renderer.mjs",import.meta.url),"utf8");
  const render=readFileSync(new URL("../planet-explorer/render.mjs",import.meta.url),"utf8");
  const app=readFileSync(new URL("../planet-explorer/app.mjs",import.meta.url),"utf8");
- assert.match(src,/state\.face,\{motionProgress,variant,hand,moving\}/);
+ assert.match(src,/const options=\{motionProgress,variant,hand,moving\}/);
  assert.match(render,/const baseMotion=marinePose\?/);
  assert.match(render,/swimmingPresentation\(s\.travelMode,s\.moving/);
  assert.match(render,/if\(aquatic&&\(!rig/);

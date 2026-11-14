@@ -1,6 +1,6 @@
 import {bodyById,systemIdFor} from "./solar-system.mjs?v=20261112-warp";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261110-flight-control";
+import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261114-v10-crew";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-brake";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -169,6 +169,7 @@ export class ShipJourney{
  sit(){
   if(this.seated)return {ok:false,message:"すでに着席しています"};
   if(!this.isNearSeat())return {ok:false,message:"操縦席まで歩いてください"};
+  if(this.interior.greetings.pair)return {ok:false,message:"乗員とのモーションが終わってから着席してください"};
   this.seated=true;this.interior.seated=true;this.interior.mode="cockpit";
   // Snap to the actual chair so both WebGL and Quest physical buttons sit
   // within arm's reach; an arbitrary nearby walking position is not a seat.

@@ -1,4 +1,4 @@
-import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261110-flight-control";
+import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261114-v10-crew";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";
@@ -42,7 +42,18 @@ function sphere(data,x,y,z,r,c){
   for(const vtx of [v(a,b),v(a+1,b+1),v(a+1,b),v(a,b),v(a,b+1),v(a+1,b+1)])data.push(...vtx);
  }
 }
-export function createShipGeometry(open=false){
+export function createShipCrewStandIn(crew){
+ const a=[];
+ const c=crew.id==="engineer"?"uniform2":"uniform";
+ box(a,0,.93,0,.49,.98,.32,c);
+ sphere(a,0,1.65,0,.21,"skin");
+ for(const side of [-1,1]){
+  box(a,side*.14,.29,0,.18,.56,.19,"dark");
+  box(a,side*.32,1.08,0,.15,.68,.17,c);
+ }
+ return new Float32Array(a);
+}
+export function createShipGeometry(open=false,standIns=true){
  const a=[];
  // Main pressure hull: 26m long, 8m wide, 3.5m ceiling
  box(a,0,-.17,0,8,.36,26.2,"floor");
@@ -129,15 +140,12 @@ export function createShipGeometry(open=false){
  }
  // Starfield is rendered in the external inertial layer, never welded to
  // the cabin mesh: changing the ship's yaw/pitch rotates the visible stars.
- // Crew are simplified stand-in models, each at a fixed station.
- for(const crew of SHIP_CREW){
-  const c=crew.id==="engineer"?"uniform2":"uniform";
-  box(a,crew.x,.93,crew.z,.58,1.10,.35,c);
-  sphere(a,crew.x,1.74,crew.z,.31,"skin");
-  box(a,crew.x-.18,.29,crew.z,.18,.56,.19,"dark");
-  box(a,crew.x+.18,.29,crew.z,.18,.56,.19,"dark");
-  box(a,crew.x-.39,1.10,crew.z,.18,.83,.19,c);
-  box(a,crew.x+.39,1.10,crew.z,.18,.83,.19,c);
+ if(standIns)for(const crew of SHIP_CREW){
+  const geometry=createShipCrewStandIn(crew);
+  for(let i=0;i<geometry.length;i+=9){
+   geometry[i]+=crew.x;geometry[i+2]+=crew.z;
+   for(let j=0;j<9;j++)a.push(geometry[i+j]);
+  }
  }
  return new Float32Array(a);
 }

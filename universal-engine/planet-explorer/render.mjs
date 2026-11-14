@@ -1,4 +1,7 @@
-import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261110-flight-control";
+import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261114-v10-crew";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=1";
+import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=1";
+import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261114-v10-crew";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
 import {regionalLakeMesh} from "./regional-landforms.mjs";
@@ -35,7 +38,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=0.8q-splash";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-v10-crew";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
@@ -52,7 +55,7 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261112-warp";
+import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
@@ -780,6 +783,12 @@ export class ExplorerRenderer{
    this.shipVoyage=null;this.shipArrivalPreview=null;this.shipCombat=null;this.shipTargets=[];
    this.shipCameraMode="cockpit";this.shipWideView=true;this.shipCockpitFov=108;this.shipChaseDistance=52;
    this.shipOrbitYaw=0;this.shipOrbitPitch=.31;
+   this.avatarV10=normalizeAvatarRoster();
+   this.avatarV10Assets=new AvatarV10Assets(gl);
+   this.shipCrewFallbacks=new Map();
+   this.shipCrewView=false;
+   this.shipCrewHitPoints=[];
+   this.shipCrewCamera=null;
    this.shipUnifiedMeshes=[
     new Mesh(gl,sharedShipInteriorGeometry(false)),
     new Mesh(gl,sharedShipInteriorGeometry(true))
@@ -1402,6 +1411,60 @@ export class ExplorerRenderer{
       this.drawFlyingArrow(vp,characterTransform,light,motion.progress,[1,1,1],hand);
    }
  }
+ drawAvatarV10(id,vp,transform,light,dt,options={}) {
+  const fit=this.avatarV10[id];
+  if(!fit||fit.model==="classic")return null;
+  const asset=this.avatarV10Assets.get(fit.model);
+  if(!asset){this.avatarV10Assets.prefetch(fit.model);return null;}
+  try{
+   asset.draw(vp,transform,light,id,dt,{...options,fit});
+   return asset;
+  }finally{this.gl.useProgram(this.program);}
+ }
+ drawShipAvatars(vp,person,dt,showPlayer){
+  const light=[-.30,.9,.52];
+  const actors=person.greetings.actors(person);
+  for(const actor of actors){
+   const player=actor.id==="player";
+   if(player&&!showPlayer)continue;
+   const distance=Math.hypot(actor.x-person.x,actor.z-person.z);
+   const sameRoom=person.canReachCrew(actor);
+   if(!player&&!sameRoom&&distance>6)continue;
+   if(!player){
+    const screen=projectScreen(vp,[actor.x,1.33,actor.z]);
+    if(screen?.onScreen&&sameRoom)this.shipCrewHitPoints.push({...screen,id:actor.id});
+   }
+   const y=player&&person.z>13&&person.hatchPassable?-.25*(person.z-13):0;
+   const transform=multiply4(translate(actor.x,y,actor.z),rotateY(actor.yaw));
+   const gesture=actor.time===null?null:actor;
+   const asset=this.drawAvatarV10(actor.id,vp,transform,light,dt,{motion:actor.motion,
+    time:actor.time,gesture});
+   if(asset)continue;
+   if(player){
+    this.drawArticulated(vp,translate(actor.x,y,actor.z),{yaw:actor.yaw,moving:person.greetings.playerMoving,totalDistanceM:0,walkSpeed:2.6},
+     light,dt,this.animator,this.expression,{action:person.seated?"sit":"idle",progress:0});
+    continue;
+   }
+   if(!this.shipCrewFallbacks.has(actor.id)){
+    const member=SHIP_CREW.find(item=>item.id===actor.id);
+    this.shipCrewFallbacks.set(actor.id,new Mesh(this.gl,triangleSoupToIndexed(createShipCrewStandIn(member))));
+   }
+   this.drawMesh(this.shipCrewFallbacks.get(actor.id),multiply4(vp,transform),light,1,.83);
+  }
+ }
+ drawGroundAvatarV10(vp,transform,unit,light,dt,motion){
+  // On the ground the original combat, swimming, capture and mounted rigs still
+  // own their specialized poses and equipment; V10 uses its authored daily clips.
+  if(this.xrView||this.captureFX||this.fauna?.mount||this.marine?.boardedId||(unit.moving&&motion.action!=="idle")||
+   !["idle","sit","eat","sleep"].includes(motion.action))return false;
+  const animation=this.socialAnimations.get("player");
+  if(animation)return false;
+  const action={sit:"Seated",sleep:"Sleeping"}[motion.action]||motion.action;
+  const character=multiply4(transform,rotateY(unit.yaw||0));
+  const asset=this.drawAvatarV10("player",vp,character,light,dt,{motion:action,moving:Boolean(unit.moving)});
+  if(asset)this.drawSkinnedHandEquipment(asset,"player",vp,character,light,motion);
+  return Boolean(asset);
+ }
  drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
   const animation=this.socialAnimations.get(id);
   if(animation){
@@ -1709,6 +1772,7 @@ export class ExplorerRenderer{
   /** Cabin, exterior ground and celestial sphere share the WORLD WebGL2 framebuffer. */
   renderUnifiedShip(asp,dt=1/60){
    const gl=this.gl,v=this.shipVoyage;
+   this.shipCrewHitPoints=[];
    if(!v?.interior)return "ground";
    const phase=groundScenePhase(v),person=v.interior,sky=phase.sky;
    gl.clearColor(.012+sky*.39,.023+sky*.58,.051+sky*.71,1);
@@ -1727,6 +1791,35 @@ export class ExplorerRenderer{
     orbitYaw:this.shipOrbitYaw,orbitPitch:this.shipOrbitPitch,
     interior:{...person,hatchPassable:v.hatchOpen},landingAttitude});
    const xr=this.xrView;
+   const interaction=person.greetings.pair;
+   const crewCamera=!xr&&!chase&&!person.seated&&Boolean(this.shipCrewView||interaction);
+   if(!crewCamera)this.shipCrewCamera=null;
+   if(crewCamera){
+    const yaw=person.greetings.playerYaw??(Math.PI-person.yaw);
+    const focus=interaction?{
+     x:(person.x+interaction.member.x)*.5,z:(person.z+interaction.member.z)*.5
+    }:person;
+    const pairGap=interaction?person.distance(interaction.member):0;
+    const cameraDistance=pairGap>1.55?2.65:2.30;
+    const offsets=interaction?[[cameraDistance,0],[-cameraDistance,0],[0,-2.8]]:[[1.15,-2.1],[-1.15,-2.1],[0,2.3]];
+    const candidates=offsets.map(([side,behind])=>[
+     focus.x+Math.cos(yaw)*side+Math.sin(yaw)*behind,1.55,
+     focus.z-Math.sin(yaw)*side+Math.cos(yaw)*behind
+    ]);
+    camera.eye=candidates.find(([x,,z])=>person.canOccupy(x,z,{ignoreCrew:true})&&
+     [-4.8,4.5].every(wall=>(focus.z-wall)*(z-wall)>=0||Math.abs(x)<1.1))||
+     [Math.max(-3.4,Math.min(3.4,focus.x+1.95)),2.05,Math.max(-12.6,Math.min(12.5,focus.z+.65))];
+    camera.target=[focus.x,.97,focus.z];
+    camera.fovDeg=76;
+    const previous=this.shipCrewCamera;
+    if(previous&&previous.interaction===interaction&&
+       Math.hypot(previous.eye[0]-camera.eye[0],previous.eye[2]-camera.eye[2])<1.6){
+     const blend=Math.min(1,Math.max(0,dt)*12);
+     camera.eye=previous.eye.map((value,index)=>value+(camera.eye[index]-value)*blend);
+     camera.target=previous.target.map((value,index)=>value+(camera.target[index]-value)*blend);
+    }
+    this.shipCrewCamera={eye:camera.eye,target:camera.target,interaction};
+   }
    const vp=xr?.mode==="vr"?multiply4(xr.projection,multiply4(xr.view,xr.stage)):
     multiply4(perspective(camera.fovDeg*DEG,asp,.12,42000),
      lookAt(camera.eye,camera.target));
@@ -1992,6 +2085,7 @@ export class ExplorerRenderer{
     }
    }else{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+    this.drawShipAvatars(vp,person,dt,Boolean(crewCamera));
     // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
     if(!v.seated&&v.isNearSeat?.()){
@@ -3121,6 +3215,7 @@ export class ExplorerRenderer{
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   // In standing VR, the avatar's head would overlap the real user's eyes.
   if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
+    !this.drawGroundAvatarV10(vp,transform,viewS,light,dt,playerMotion)&&
     !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
   if(capture?.stars){
@@ -3203,6 +3298,8 @@ export class ExplorerRenderer{
  destroy(){
    for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
+   this.avatarV10Assets.destroy();
+   for(const mesh of this.shipCrewFallbacks.values())mesh.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
  }
