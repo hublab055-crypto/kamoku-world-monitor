@@ -68,7 +68,7 @@ export class ShipCrewGreetings {
   }
    if(this.pair||this.formal)return;
   const member=interior.nearCrew(CREW_GREET_RADIUS).find(actor=>
-   isReady(actor)&&!this.nearby.has(actor.id));
+   !this.nearby.has(actor.id));
   if(!member)return;
   this.nearby.set(member.id,{cooldown:REARM_SECONDS,left:false});
   this.formal={member,time:0};
