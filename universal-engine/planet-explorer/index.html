@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081b2b">
 <title>Planet Explorer | Universal Engine</title>
-<link rel="stylesheet" href="./style.css?v=20261112-warp">
+<link rel="stylesheet" href="./style.css?v=20261114-mr-social">
 <link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
 <style>
 .harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
@@ -153,6 +153,7 @@
   <button id="xr-adventure" type="button" disabled aria-pressed="false">🥽 VRで地表を冒険</button>
   <button id="xr-mr-rts" type="button" disabled aria-pressed="false">MR・卓上RTS</button>
   <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
+  <button id="xr-mr-social" type="button" disabled>MR・対面（試験）</button>
   <button id="xr-exit" type="button" hidden>✕ XR終了</button>
  </div>
  <div class="xr-action-buttons" aria-label="XR専用操作">
@@ -170,6 +171,28 @@
   </select>
  </label>
  <label class="xr-depth-label"><input id="xr-occlusion" type="checkbox" checked> MR実物の奥行き遮蔽（対応機器のみ）</label>
+ <details id="xr-social" class="xr-help-panel">
+  <summary>MR対面の接続と操作</summary>
+  <div id="xr-social-signal">
+   <p>2台を同じWi-Fiに接続します。片方が招待を作成し、もう片方が貼り付けて応答を作成。招待した側が応答を貼り付けて接続します。</p>
+   <label for="xr-social-code">招待・応答</label>
+   <textarea id="xr-social-code" rows="2" maxlength="24000" spellcheck="false" autocomplete="off"></textarea>
+   <div class="xr-buttons">
+    <button id="xr-social-offer" type="button">招待を作成</button>
+    <button id="xr-social-answer" type="button">応答を作成</button>
+    <button id="xr-social-accept" type="button">応答で接続</button>
+    <button id="xr-social-copy" type="button">コピー</button>
+    <button id="xr-social-disconnect" type="button">切断</button>
+   </div>
+   <p>接続後に「MR・対面（試験）」を開始すると、頭と手の姿勢を相手に送信します。</p>
+  </div>
+  <p>2人とも順番に、床の同じ目印に立って同じ方向を向き、右トリガーで登録します。左トリガーで実寸と第三者視点を切り替えられます。</p>
+  <div class="xr-buttons">
+   <button id="xr-social-calibrate" type="button" hidden>この位置と向きを登録</button>
+   <button id="xr-social-view" type="button" hidden aria-pressed="false">第三者視点</button>
+  </div>
+  <small id="xr-social-status" role="status">未接続</small>
+ </details>
  <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
  </div>
  <div id="xr-help-panel" class="xr-help-panel" hidden>
@@ -1367,7 +1390,7 @@
 <footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
 <script src="./vendor/qrcode.min.js?v=1.0.0"></script>
 <script type="module" src="./share-link.mjs?v=1"></script>
-<script type="module" src="./app.mjs?v=0.9cn-20261112-warp"></script>
+<script type="module" src="./app.mjs?v=0.9co-20261114-mr-social"></script>
 <script type="module" src="./ui-visibility.mjs?v=20261112-pilot"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */

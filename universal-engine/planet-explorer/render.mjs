@@ -2372,13 +2372,33 @@ export class ExplorerRenderer{
   * cannot cover the viewer's eyes. Every stereo eye uses its XR projection.
   * The procedural meshes are created once and reused without GPU allocations.
   */
+ drawSocialAvatars(xr,scene){
+  const gl=this.gl,{x,y,width,height}=xr.viewport;
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.colorMask(true,true,true,true);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);gl.disable(gl.BLEND);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  if(!scene)return;
+  gl.useProgram(this.program);
+  const mask=Boolean(xr.depth?.available&&xr.depthTexture);
+  if(mask){
+   gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,xr.depthTexture);
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,xr.depth.width,xr.depth.height,0,gl.RED,gl.FLOAT,xr.depth.pixels);
+   gl.uniform1i(this.uXROcclusionDepth,7);gl.uniform4f(this.uXROcclusionViewport,x,y,width,height);
+   gl.activeTexture(gl.TEXTURE0);
+  }
+  gl.uniform1f(this.uXROcclusionEnabled,mask?1:0);
+  for(const actor of scene.actors)this.drawVRBody({...xr,stage:scene.stage},actor);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+ }
  drawVRBody(xr,rig){
   if(!xr||!rig?.anchors||!this.vrBodySegment)return;
   const a=rig.anchors,gl=this.gl;
   gl.useProgram(this.program);
-  gl.uniform1f(this.uXROcclusionEnabled,0);
+  if(!rig.social)gl.uniform1f(this.uXROcclusionEnabled,0);
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
-  const vp=multiply4(xr.projection,xr.view),light=[.55,.9,.45];
+  const view=rig.social?multiply4(xr.view,xr.stage):xr.view;
+  const vp=multiply4(xr.projection,view),light=[.55,.9,.45];
   const add=(a,b)=>a.map((x,i)=>x+b[i]),sub=(a,b)=>a.map((x,i)=>x-b[i]);
   const scale=(a,n)=>a.map(x=>x*n),length=a=>Math.hypot(...a);
   const unit=a=>scale(a,1/(length(a)||1));
@@ -2420,7 +2440,7 @@ export class ExplorerRenderer{
   }
   // Pocket flap and visible field note only when the object is stored.
   const pocket=rig.pocketSocket==="rightCoat"?a.rightCoat:a.rightPocket;
-  if(pocket){
+  if(!rig.social&&pocket){
    segment(add(pocket,[0,.035,0]),add(pocket,[0,-.075,0]),
     .135,.045,clothing);
    if(rig.pocketContainsNote)
@@ -2441,11 +2461,25 @@ export class ExplorerRenderer{
    segment(knee,foot,.16,.18,pants);
    segment(foot,add(foot,scale(a.forward,.22)),.18,.19,boot);
    const mid=add(scale(add(shoulder,wrist),.5),add(scale(a.right,sign*.09),[0,-.08,0]));
+   if(rig.social&&!rig[side]){
+    segment(shoulder,a[side+"Elbow"],.17,.18,sleeve);
+    continue;
+   }
    segment(shoulder,mid,.17,.18,sleeve);
    segment(mid,wrist,.125,.14,skin);
    const aim=rig[side+"Ray"]?
     [-rig[side+"Ray"][8],-rig[side+"Ray"][9],-rig[side+"Ray"][10]]:a.forward;
    segment(wrist,add(wrist,scale(unit(aim),.105)),.11,.12,skin);
+  }
+  if(rig.social){
+   segment(a.chest,a.head,.115,.12,skin);
+   const headModel=multiply4(rig.head,[.24,0,0,0, 0,.27,0,0, 0,0,.22,0, 0,-.13,0,1]);
+   this.drawMesh(this.vrBodySegment,multiply4(vp,headModel),light,1,.89,skin);
+   for(const x of [-.046,.046]){
+    const eye=multiply4(headModel,[.10,0,0,0, 0,.08,0,0, 0,0,.04,0, x/.24,.54,-.51,1]);
+    this.drawMesh(this.vrBodySegment,multiply4(vp,eye),light,1,.89,[.15,.18,.22]);
+   }
+   return;
   }
   // Belt attachments and shoulder gear stay visible.
   const axePeg=a.toolBeltRight||a.rightHip;

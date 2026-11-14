@@ -1424,3 +1424,8 @@ body.immersive{overflow:hidden}
 
 #space-flight .flight-engine-lever{width:54px;box-sizing:border-box}
 #space-flight .flight-engine-lever output{font-size:9px}
+
+#xr-social{flex:1 1 100%;min-width:0}
+#xr-social summary{cursor:pointer}
+#xr-social textarea{display:block;box-sizing:border-box;width:100%;margin:4px 0 8px;font-size:16px}
+#xr-social-status{display:block;margin-top:6px}
