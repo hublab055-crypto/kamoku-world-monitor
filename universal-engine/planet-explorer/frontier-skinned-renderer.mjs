@@ -19,17 +19,17 @@ const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(
  vBodyCoord=v;
  v.x*=xWidth;v.z*=zWidth;v.y*=1.0+uBodyTop.x*.16;
  gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}`;
-const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nin vec3 vBodyCoord;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nuniform bool uSwimBody;\nuniform int uSwimStyle;\nuniform vec3 uSwimColor;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
+const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nin vec3 vBodyCoord;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nuniform bool uSwimBody,uSwimFabric;\nuniform int uSwimStyle;\nuniform vec3 uSwimColor;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
  // Procedural skin-fitting swimwear: works for every V10 body without
  // hiding the body mesh or showing the unrelated casual outfit.
- if(uSwimBody){
+ if(uSwimFabric)color=mix(color,uSwimColor*(.7+.3*sun),.92);\n if(uSwimBody){
   float y=vBodyCoord.y,x=abs(vBodyCoord.x);
   float torso=1.0-smoothstep(.30,.45,x);
   float hip=1.0-smoothstep(.30,.49,x);
   float upper=smoothstep(1.07,1.15,y)*(1.0-smoothstep(1.34,1.43,y))*torso;
   float lower=smoothstep(.68,.74,y)*(1.0-smoothstep(.90,.97,y))*hip;
   float onepiece=smoothstep(.72,.82,y)*(1.0-smoothstep(1.35,1.44,y))*torso;
-  float coverage=uSwimStyle==0?max(onepiece,lower):(uSwimStyle==1?max(upper,lower):lower);
+  float coverage=uSwimStyle==1?max(onepiece,lower):(uSwimStyle==2?max(upper,lower):lower);
   color=mix(color,uSwimColor*(.7+.3*sun),clamp(coverage,0.0,1.0));
  }
  if(uLinearColor)color=mix(color*12.92,1.055*pow(color,vec3(1.0/2.4))-.055,step(vec3(.0031308),color));
@@ -106,7 +106,7 @@ export class SkinnedFrontierAsset{
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uSwimBody","uSwimStyle","uSwimColor"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
+   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uSwimBody","uSwimFabric","uSwimStyle","uSwimColor"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
@@ -166,18 +166,18 @@ export class SkinnedFrontierAsset{
   });
   let boundSkin=null;
   const outfit=opts.fit?.outfit||"work";
-  const swimsuitAvailable=outfit==="swim"&&this.meshes.some(m=>m.source.wardrobe?.includes("swim"));
-  const renderedOutfit=outfit;
+  const useOriginalSwim=outfit==="swim"&&swim.style===0;
+  const renderedOutfit=outfit==="swim"&&!useOriginalSwim?"base":outfit;
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
    // First-person cabin view keeps the fitted body/arms/legs, not the
    // wearer’s face and hair in front of the headset cameras.
    if(opts.firstPerson&&/(?:head|face|hair|eyebrow|eyelash|eye|nose|mouth|ear|neck)/i.test(source.name||""))continue;
    // Neutral base-body mannequin excludes removable wardrobe geometry.
-   if(outfit==="base"&&source.wardrobe)continue;
-   if(outfit!=="base"&&source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
-   gl.uniform1i(this.u.uSwimBody,rig.isV10&&outfit==="swim"&&!swimsuitAvailable&&
-    isBodySurface(source.name,source.wardrobe)?1:0);
+   if(source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
+   const surface=rig.isV10&&isBodySurface(source.name,source.wardrobe);
+   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface)?1:0);
+   gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim"))?1:0);
    this.applyFace(m,opts.fit);
    const glove=outfit==="space"&&source.gloveColor;
    gl.uniform1i(this.u.uGloves,glove?1:0);
