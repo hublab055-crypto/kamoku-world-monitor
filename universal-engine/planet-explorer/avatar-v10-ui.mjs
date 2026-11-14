@@ -2,6 +2,7 @@ import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-full-body";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-v10-crew";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
+import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
@@ -15,7 +16,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const status=form.querySelector("output");
  let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true;
  const drafts=new Map();
- const bodyInputs=new Map();
+ const reviewInputs=new Map();
  function option(value,label){return new Option(label,value);}
  for(const [id,name] of Object.entries(names))select.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_MODELS))model.add(option(id,name));
@@ -52,7 +53,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  swimStyle.addEventListener("change",updateSwim);
  swimColor.addEventListener("change",updateSwim);
  function setOutfit(value){
-  fit={...fit,outfit:value};outfit.value=value;swimFields.hidden=value!=="swim";
+  fit={...fit,outfit:value,appearance:{...fit.appearance,outfit:value}};outfit.value=value;swimFields.hidden=value!=="swim";
   drafts.set(select.value,fit);invalidate();
  }
  confirm.addEventListener("click",()=>{
@@ -82,45 +83,80 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  });
 
 
- for(const [group,parts] of AVATAR_V10_FACE){
+ // The ZIP editor is authoritative: preserve every original control,
+ // its percentage range, neutral value and Japanese label.
+ const reviewHeader=document.createElement("div");
+ reviewHeader.className="avatar-review-header";
+ reviewHeader.textContent="アバターレビュー版｜部位別モディファイ";
+ fields.append(reviewHeader);
+ const reviewHint=document.createElement("small");
+ reviewHint.textContent="元のAvatar Reviewと同じ数値・保存形式です。骨格・顔・衣装の描画はUniversal EngineのGLBに合わせて変換されます。";
+ fields.append(reviewHint);
+ const hairLabel=document.createElement("label");hairLabel.textContent="髪型 ";
+ const hairSelect=document.createElement("select");hairSelect.setAttribute("aria-label","髪型");
+ for(const [id,name] of Object.entries(hairStyles))hairSelect.add(option(id,name));
+ hairLabel.append(hairSelect);fields.append(hairLabel);
+ hairSelect.addEventListener("change",()=>{
+  fit={...fit,appearance:{...fit.appearance,hairStyle:hairSelect.value}};
+  drafts.set(select.value,fit);invalidate();
+ });
+ for(const [part,{label:group,controls}] of Object.entries(partControls)){
   const section=document.createElement("details");
-  const summary=document.createElement("summary");
-  summary.textContent=group;
+  section.className="avatar-review-group";section.open=["face","chest","torso"].includes(part);
+  const summary=document.createElement("summary");summary.textContent=group;
   section.append(summary);
-  for(const [key,title] of parts){
-   const label=document.createElement("label");
+  for(const {key,label,min,max} of controls){
+   const row=document.createElement("label");row.className="avatar-review-control";
+   const name=document.createElement("span");name.textContent=label;
    const input=document.createElement("input");
-   const value=document.createElement("span");
-   input.type="range";input.name=key;input.min=-100;input.max=100;
-   input.setAttribute("aria-label",group+"の"+title);
+   input.type="range";input.min=min;input.max=max;input.step=1;
+   input.setAttribute("aria-label",group+"｜"+label);
+   const value=document.createElement("output");
    input.addEventListener("input",()=>{
-    value.textContent=input.value;
-    fit={...fit,face:{...fit.face,[key]:Number(input.value)}};
-    drafts.set(select.value,fit);
-    invalidate();
-   });
-   label.append(title,input,value);section.append(label);
-  }
-  fields.append(section);
- }
- for(const [group,parts] of AVATAR_V10_BODY){
-  const section=document.createElement("details");section.open=group==="全体";
-  const summary=document.createElement("summary");summary.textContent="体型｜"+group;
-  section.append(summary);
-  for(const [key,title] of parts){
-   const label=document.createElement("label");
-   const input=document.createElement("input");input.type="range";input.min=-100;input.max=100;
-   input.setAttribute("aria-label",group+"の"+title);
-   const value=document.createElement("span");
-   input.addEventListener("input",()=>{
-    value.textContent=input.value;
-    fit={...fit,body:{...fit.body,[key]:Number(input.value)}};
+    const n=input.valueAsNumber;
+    fit={...fit,appearance:{...fit.appearance,[key]:n}};
+    value.value=rangeText(key,n);
+    input.setAttribute("aria-valuetext",value.value);
     drafts.set(select.value,fit);invalidate();
    });
-   label.append(title,input,value);section.append(label);bodyInputs.set(key,{input,value});
+   row.append(name,input,value);section.append(row);
+   reviewInputs.set(key,{input,value});
   }
   fields.append(section);
  }
+ const transfer=document.createElement("div");transfer.className="avatar-review-transfer";
+ const importFile=document.createElement("input");
+ importFile.type="file";importFile.accept=".json,application/json";importFile.hidden=true;
+ const load=document.createElement("button");load.type="button";
+ load.textContent="📂 レビュー設定JSONを読み込む";
+ load.addEventListener("click",()=>importFile.click());
+ importFile.addEventListener("change",async()=>{
+  const file=importFile.files?.[0];if(!file)return;
+  try{
+   if(file.size>250000)throw Error("設定ファイルは250KB以内にしてください");
+   const raw=await file.text(),data=JSON.parse(raw);
+   const parsed=fromReviewStorage(data,fit.model);
+   if(!parsed)throw Error("選択中モデルのキー "+reviewModelKey(fit.model)+" が見つかりません");
+   const selected=requiresAvatarWardrobeUnlock(parsed.outfit)&&!unlocked()?"work":parsed.outfit;
+   const next={...fit,appearance:{...parsed,outfit:selected},outfit:selected};
+   controls(next);drafts.set(select.value,fit);invalidate();
+   status.value=selected!==parsed.outfit?
+    "設定を読み込みました。素体・水着の表示には初回コード9876が必要です。":
+    "レビュー設定を読み込みました。保存して反映してください。";
+  }catch(error){status.value="レビュー設定を読み込めません: "+error.message;}
+  finally{importFile.value="";}
+ });
+ const saveJson=document.createElement("button");saveJson.type="button";
+ saveJson.textContent="💾 レビュー設定JSONを書き出す";
+ saveJson.addEventListener("click",()=>{
+  if(fit.model==="classic"){status.value="V10モデルを選んでください";return;}
+  const data=JSON.stringify({[reviewModelKey(fit.model)]:normalizeAppearance(fit.appearance)},null,2);
+  const url=URL.createObjectURL(new Blob([data],{type:"application/json"}));
+  const link=document.createElement("a");link.href=url;
+  link.download="avatar-review-"+fit.model+".json";
+  link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ });
+ transfer.append(load,saveJson,importFile);fields.append(transfer);
  function renderer(){
   if(preview)return preview;
   const gl=canvas.getContext("webgl2",{antialias:true,alpha:false});
@@ -160,19 +196,21 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   }catch(error){status.value=error.message;}
  }
  function controls(next){
-  fit=requiresAvatarWardrobeUnlock(next.outfit)&&!unlocked()?{...next,outfit:"work"}:next;
+  fit=requiresAvatarWardrobeUnlock(next.outfit)&&!unlocked()?
+   {...next,outfit:"work",appearance:{...normalizeAppearance(next.appearance),outfit:"work"}}:
+   {...next,appearance:normalizeAppearance(next.appearance)};
   pendingOutfit=null;gate.hidden=true;gateCode.value="";
   model.value=fit.model;outfit.value=fit.outfit;
   swimFields.hidden=fit.outfit!=="swim";
   swimStyle.value=fit.swim.style;swimColor.value=fit.swim.color;
   const disabled=fit.model==="classic";
   outfit.disabled=disabled;swimStyle.disabled=disabled;swimColor.disabled=disabled;
-  for(const [key,{input,value}] of bodyInputs){
-   input.value=fit.body[key];input.disabled=disabled;value.textContent=String(fit.body[key]);
-  }
-  for(const [key,value] of Object.entries(fit.face)){
-   const input=form.elements[key];
-   input.value=value;input.disabled=disabled;input.nextElementSibling.textContent=String(value);
+  hairSelect.value=fit.appearance.hairStyle;hairSelect.disabled=disabled;
+  for(const [key,{input,value}] of reviewInputs){
+   input.value=fit.appearance[key];
+   input.disabled=disabled||(key.startsWith("hair")&&fit.appearance.hairStyle==="bald");
+   value.value=rangeText(key,fit.appearance[key]);
+   input.setAttribute("aria-valuetext",value.value);
   }
  }
  function choosePerson(id){
