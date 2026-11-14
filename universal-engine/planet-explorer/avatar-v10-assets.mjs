@@ -1,5 +1,5 @@
 import {fetchAvatarV10} from "./avatar-v10.mjs?v=20261114-officer-restore";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-officer-restore";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-glsl-chest-fix";
 
 export class AvatarV10Assets {
  constructor(gl) {
