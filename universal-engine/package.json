@@ -8,6 +8,6 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/*.test.mjs planet-explorer/ui-visibility.test.mjs planet-explorer/xr-quest-controls.test.mjs planet-explorer/ship-vr-walk.test.mjs planet-explorer/ship-crew-vr-contact.test.mjs planet-explorer/avatar-v10-wardrobe.test.mjs"
+    "test": "node --test tests/*.test.mjs planet-explorer/ui-visibility.test.mjs planet-explorer/xr-quest-controls.test.mjs planet-explorer/ship-vr-walk.test.mjs planet-explorer/ship-crew-vr-contact.test.mjs planet-explorer/avatar-v10-wardrobe.test.mjs planet-explorer/ship-vr-standing.test.mjs"
   }
 }
