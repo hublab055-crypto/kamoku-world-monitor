@@ -1,5 +1,5 @@
-import {fetchAvatarV10} from "./avatar-v10.mjs?v=20261114-full-body";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-full-body";
+import {fetchAvatarV10} from "./avatar-v10.mjs?v=20261114-review-43";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-review-43";
 
 export class AvatarV10Assets {
  constructor(gl) {
