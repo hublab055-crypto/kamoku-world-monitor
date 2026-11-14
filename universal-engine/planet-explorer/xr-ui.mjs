@@ -10,6 +10,8 @@ import {xrLayersEnabled,installLegacyXRLayer,activeLegacyXRLayer} from "./xr-lay
 import {VRPhysicalControls} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {vrNearestPickup,vrHandAtBag} from "./xr-backpack.mjs?v=0.9t-bag";
 import {WearableInventory,starterWearables,pocketSocketForOutfit} from "./wearable-inventory.mjs?v=3";
+import {detectShipCrewTouch} from "./ship-crew-vr-contact.mjs?v=1";
+import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -23,7 +25,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
  onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
- onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),
+ onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),onVRShipCrewGesture=()=>({ok:false}),onVRShipStand=()=>({ok:false}),
  onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const social=$("xr-social")?installSocialUI($):null;
@@ -47,6 +49,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrBindings=loadXRBindings(typeof localStorage==="undefined"?null:localStorage);
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set(),vrSurfaceHatchConsumed=new Set();
+ let vrShipHeldGrips=new Set(),vrShipContactLatched=false;
+ let vrShipPosture=null,vrShipPostureAt=0;
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
  let vrWearables=(()=>{
   try{
@@ -162,7 +166,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   if(ship){
    if(action==="interact"){
-    if(onVRShipCombatActive()){onVRShipWeapon();return;}
+    // Proximity X always stands/sits/opens the hatch, even during combat.
+    // Weapon switching uses the separately mappable shipWeapon action.
     const result=onVRSurfaceShipAction("interact");
     if(result?.handled&&result.message)statusText("🚀 "+result.message);
     return;
@@ -261,7 +266,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrRTS=false;vrThird=false;vrTableYaw=0;
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
   if(activeMode==="vr"){
@@ -329,7 +334,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
     projectionAttempted=true;
@@ -383,7 +388,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(mode==="vr"){
     vrMark("セッション開始／XRコールバック待機",{force:true,log:true});
     notify("🥽 Quest VR身体操作：左肩で左グリップ→弓、右肩で右グリップ→矢、弦につがえて右トリガーを押し引き絞り→離して発射。左腰で右グリップ→抜刀、腕を振って攻撃。A=RTS、B=視点、スティック=歩行・旋回");
-    if(getController()?.altitudeM>12.01)notify("🥽 VR歩行には地表への降下が必要です。惑星モードから地表に降下してください。");
+    if(!getRenderer()?.shipVoyage?.active&&getController()?.altitudeM>12.01)notify("🥽 VR歩行には地表への降下が必要です。惑星モードから地表に降下してください。");
    }
    session.addEventListener("end",endCleanup,{once:true});
    session.addEventListener("select",onSelect);
@@ -490,6 +495,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }
    if(!atBag)carried.stowAttempted=false;
   }
+  if(vrShipHeldGrips.size)tryVRShipContact();
   for(const action of events){
    if(action==="swordSwing"){
     const yaw=gear.rightRay&&vrCurrentStage?xrPointerYaw(gear.rightRay,vrCurrentStage):null;
@@ -499,11 +505,30 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     statusText("🏹 矢をつがえました。右トリガーで引いて、離すと射撃");
   }
  }
+ function tryVRShipContact(){
+  const voyage=getRenderer()?.shipVoyage;
+  if(!voyage?.active||voyage.seated||vrShipContactLatched||!vrCurrentStage)return false;
+  const hit=detectShipCrewTouch({interior:voyage.interior,stage:vrCurrentStage,
+   handPoses:vrPhysical.pose,gripsHeld:vrShipHeldGrips});
+  if(!hit)return false;
+  const result=onVRShipCrewGesture(hit.id,hit.action);
+  if(!result?.ok)return false;
+  vrShipContactLatched=true;
+  for(const hand of vrShipHeldGrips)vrGripConsumed.add(hand);
+  statusText("🥽 "+(hit.action==="hug"?"🫂 肩に両手を添えてハグ":"🤝 同じ手で握手")+"："+(result.message||hit.id));
+  return true;
+ }
  function onVRSqueezeStart(event){
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand)||!nativeGrip(hand))return;
+  vrShipHeldGrips.add(hand);
   sampleVRRig(event.frame);
+  if(getRenderer()?.shipVoyage?.active){
+   if(tryVRShipContact())return;
+   // Greeting hands take precedence over weapon/gear grabs in proximity.
+   if(getRenderer().shipVoyage.interior?.nearCrew(1.95).length){vrGripConsumed.add(hand);return;}
+  }
   if(onVRCustody("state")?.handled){
    let liveGrip=null;
    try{const source=event.inputSource;
@@ -593,6 +618,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="vr")return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
+  vrShipHeldGrips.delete(hand);
+  if(!vrShipHeldGrips.size)vrShipContactLatched=false;
   const result=onVRCustody("climb-release",{hand});
   vrGripConsumed.delete(hand);
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
@@ -757,6 +784,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     return;
    }
   }
+  if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active&&!onVRShipCombatActive())return;
   if(activeMode==="vr"&&onVRShipCombatActive())return;
   if(!session||!anchor||!space||!event.frame)return;
   const raySpace=event.inputSource?.targetRaySpace;
@@ -878,7 +906,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // temporarily migrate them to trackedSources: retain one per hand.
    const sources=controllerSources;
    vrMovement=xrVRMovement(sources,{rts:vrRTS,stickLayout:vrBindings.stickLayout});
-   if(vrPlanetOverview||(!getRenderer()?.shipVoyage?.active&&getController()?.altitudeM>50000))vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
+   if(!getRenderer()?.shipVoyage?.active&&(vrPlanetOverview||getController()?.altitudeM>50000))vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
    const axes=left?.gamepad?.axes;
@@ -900,7 +928,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     const movement=onVRFrame(time,{...vrMovement});
     if(movement){
      vrMoveInfo="移動 "+movement.traveledM.toFixed(3)+"m／高度 "+movement.altitudeM.toFixed(1)+
-      "m"+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"")+
+      "m"+(movement.seated?"／着席中：Xで立つ":"")+(movement.blocked?"／衝突":"")+(movement.rts?"／RTS":"")+
       (movement.jailWalkable?"／牢内歩行":"")+
       (movement.barClimbing?"／鉄格子登攀 "+movement.barHeightM.toFixed(2)+"m":"")+
       (movement.barFootBraced?"／足掛け":"")+(movement.barOnLedge?"／内側足場":"")+
@@ -924,6 +952,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
         movement.jailWalkable&&movement.blocked?"牢の壁・鉄格子・家具に阻まれています":
         movement.altitudeM>12.01?"地表への降下が未完了":
         movement.detained&&!movement.jailWalkable?movement.restraintReason||"行動制限中":
+        movement.onShip&&movement.seated?"着席中です。Xを押して立ってください":
         movement.indoor?"施設や乗り物の専用移動中":
         movement.blocked?"地形・壁との衝突":"移動が反映されていません";
        notify("🥽 左スティック入力は検出しましたが、アバターが進めません："+reason+
@@ -973,7 +1002,24 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   if(activeMode==="mr-social"){drawSocialFrame(renderer,pose,frame,time);return;}
   if(!anchor)anchor=xrAnchor(pose.transform.matrix,{floor:usingFloor});
-  if(activeMode==="vr")sampleVRRig(frame,pose.transform.matrix,time);
+  if(activeMode==="vr"){
+   const ship=getRenderer()?.shipVoyage;
+   const now=Number.isFinite(time)?time:0;
+   const dt=vrShipPostureAt?Math.max(0,Math.min(.12,(now-vrShipPostureAt)/1000)):0;
+   vrShipPostureAt=now;
+   const headY=pose.transform?.matrix?.[13];
+   const posture=sampleShipVRStanding(vrShipPosture,{
+    seated:Boolean(ship?.active&&ship.seated),headY,dt});
+   vrShipPosture=posture.state;
+   if(posture.stand){
+    const result=onVRShipStand();
+    if(result?.ok){
+     vrShipPosture=null;
+     statusText("🚶 実際の起立を検出：船内歩行モードになりました。スティックで移動できます");
+    }
+   }
+   sampleVRRig(frame,pose.transform.matrix,time);
+  }
   if(hitSource&&frame.getHitTestResults){
    const hits=frame.getHitTestResults(hitSource);
    const hit=hits?.[0]?.getPose(space);hitPose=hit?.transform.matrix||null;
@@ -988,7 +1034,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   const mode=activeMode;
-  const planetMode=mode==="mr-planet"||(mode==="vr"&&!vrRTS&&(vrPlanetOverview||controller.altitudeM>50000));
+  const aboard=mode==="vr"&&Boolean(renderer.shipVoyage?.active);
+  const planetMode=mode==="mr-planet"||(mode==="vr"&&!aboard&&!vrRTS&&(vrPlanetOverview||controller.altitudeM>50000));
   const mrRts=mode==="mr-rts"||(mode==="vr"&&vrRTS);
   const frameState=mrRts?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:2.5}):
    planetMode?Object.assign(Object.create(Object.getPrototypeOf(controller)),controller,{altitudeM:15000000}):controller;

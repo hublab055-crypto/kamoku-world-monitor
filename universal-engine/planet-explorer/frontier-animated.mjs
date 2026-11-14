@@ -306,6 +306,16 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
  if(Number.isFinite(opts.motionProgress))
   applyWeaponRigPose(rig,pose,bodyKind,opts.motionProgress,opts.variant||"overhead",opts.hand||"right");
  if(rig.isV10&&opts.gesture)poseAvatarV10Gesture(rig,pose,opts.gesture);
+ // Live neck/head tracking: the officer lowers her gaze when the player
+ // is seated, and turns her eyes/head toward the nearby player while standing.
+ if(rig.isV10&&opts.lookAt){
+  const head=rig.jointsByName?.get("Head");
+  if(head!==undefined&&pose[head]){
+   const yaw=Math.max(-.48,Math.min(.48,opts.lookAt.yaw||0));
+   const pitch=Math.max(-.33,Math.min(.27,opts.lookAt.pitch||0));
+   pose[head].rotation=qmul(pose[head].rotation,qmul(qy(yaw),qx(pitch)));
+  }
+ }
  const world=Array(rig.nodes.length),inProgress=new Set(),parents=rig.parents||Array(rig.nodes.length).fill(-1);
  if(!rig.parents)rig.nodes.forEach((node,i)=>node.children.forEach(child=>{if(parents[child]<0)parents[child]=i;}));
  const calculate=i=>{

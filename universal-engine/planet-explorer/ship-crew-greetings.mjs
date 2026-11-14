@@ -64,10 +64,10 @@ export class ShipCrewGreetings {
    if(state.left&&state.cooldown===0)this.nearby.delete(member.id);
   }
    if(this.pair||this.formal)return;
-  const member=interior.nearCrew(CREW_GREET_RADIUS).find(actor=>{
-   const facing=(actor.x-interior.x)*Math.sin(interior.yaw)-(actor.z-interior.z)*Math.cos(interior.yaw);
-   return isReady(actor)&&!this.nearby.has(actor.id)&&(facing>0||interior.distance(actor)<1.25);
-  });
+  // Queue a visible salute as soon as the crew asset is ready. Facing
+  // alignment is not required: officers turn toward approaching captains.
+  const member=interior.nearCrew(CREW_GREET_RADIUS).find(actor=>
+   isReady(actor)&&!this.nearby.has(actor.id));
   if(!member)return;
   this.nearby.set(member.id,{cooldown:REARM_SECONDS,left:false});
   this.formal={member,time:0};
@@ -103,11 +103,11 @@ export class ShipCrewGreetings {
 
  actors(interior) {
   const pair=this.pair;
-  const player={id:"player",x:interior.x,z:interior.z,yaw:this.playerYaw??(Math.PI-interior.yaw),
+  const player={id:"player",x:interior.x,z:interior.z,yaw:this.pair?this.playerYaw:(Math.PI-interior.yaw),
    motion:interior.seated?"Seated":this.playerMoving?"walk":"idle",time:null};
   const crew=this.crew.map(member=>({
    id:member.id,x:member.x,z:member.z,
-   yaw:interior.distance(member)<CREW_REACH?face(member,interior):member.yaw,
+   yaw:interior.distance(member)<3.4?face(member,interior):member.yaw,
    motion:this.formal?.member===member?"salute":"idle",time:this.formal?.member===member?this.formal.time:null
   }));
   if(!pair)return [player,...crew];

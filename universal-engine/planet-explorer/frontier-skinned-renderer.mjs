@@ -1,5 +1,5 @@
 import {deformAvatarV10Face} from "./avatar-v10-face.mjs?v=1";
-import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-v10-crew";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
 const VS="#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nout vec3 vColor,vNormal;\nout vec2 vUv;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;\n gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}";
 const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
  if(uLinearColor)color=mix(color*12.92,1.055*pow(color,vec3(1.0/2.4))-.055,step(vec3(.0031308),color));
@@ -80,7 +80,7 @@ export class SkinnedFrontierAsset{
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
- pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null}={}){
+ pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
   let state=this.instances.get(id);
   if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
   const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
@@ -88,6 +88,7 @@ export class SkinnedFrontierAsset{
   const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
   const body=gesture?"idle":kind;
   const options={motionProgress,variant,hand,moving};
+  if(lookAt)options.lookAt=lookAt;
   if(gesture)options.gesture=gesture;
   const pose=poseFrontierRig(this.rig,body,time??state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,options);
   if(time!==null)state.fade=0;
@@ -128,9 +129,16 @@ export class SkinnedFrontierAsset{
   });
   let boundSkin=null;
   const outfit=opts.fit?.outfit||"work";
+  const swimsuitAvailable=outfit==="swim"&&this.meshes.some(m=>m.source.wardrobe?.includes("swim"));
+  const renderedOutfit=outfit==="swim"&&!swimsuitAvailable?"casual":outfit;
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
-    if(source.wardrobe&&!source.wardrobe.includes(outfit))continue;
+   // First-person cabin view keeps the fitted body/arms/legs, not the
+   // wearer’s face and hair in front of the headset cameras.
+   if(opts.firstPerson&&/(?:head|face|hair|eyebrow|eyelash|eye|nose|mouth|ear|neck)/i.test(source.name||""))continue;
+   // Neutral base-body mannequin excludes removable wardrobe geometry.
+   if(outfit==="base"&&source.wardrobe)continue;
+   if(outfit!=="base"&&source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
    this.applyFace(m,opts.fit);
    const glove=outfit==="space"&&source.gloveColor;
    gl.uniform1i(this.u.uGloves,glove?1:0);
