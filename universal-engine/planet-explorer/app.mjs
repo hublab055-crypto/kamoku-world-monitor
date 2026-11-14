@@ -14,7 +14,7 @@ import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service"
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
-import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261111-atmosphere-mobile";
+import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261114-seat";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261114-crew-social-2";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-warp";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
@@ -2070,7 +2070,16 @@ window.addEventListener("keydown",e=>{
   else if(k==="arrowright")keys.add("e");
   else keys.add(k);
  }
- if(k==="f"){e.preventDefault();interactDoor();return;}
+ if(k==="f"){
+  e.preventDefault();
+  if(voyage?.active){
+   const result=voyage.seated?shipStand():voyage.isNearSeat()?shipSit():null;
+   if(result?.message)log(result.message);
+   else log("操縦席の近くでFキーを押すと着席できます");
+   shipInteractionUI?.update(true);
+  }else interactDoor();
+  return;
+ }
   if(k==="+"||k==="=")zoomScene(.65);
  if(k==="-")zoomScene(1.55);
 });
@@ -4228,7 +4237,7 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  tradeWares:TOWN_WARES.workshop,onTrade:shipRadioTrade,
  getViewSettings:()=>voyageUI?.getViewSettings?.()||{},
  setViewSettings:values=>voyageUI?.setViewSettings?.(values)});
-shipInteractionUI=installShipInteractionUI({get:()=>crewTestState?null:voyage,
+shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
 surfaceShipUI=installSurfaceStarshipUI({get:()=>({
@@ -4564,6 +4573,7 @@ function mobileInteractLabel(){
 }
 function mobilePrimary(){
  if(voyage?.active&&!voyage.seated){
+  if(voyage.isNearSeat())return shipSit();
   const near=voyage.interior.nearCrew()[0];
   if(near){voyageUI?.showCrew(near.id);return;}
   if(crewTestState)return {ok:false,message:"船内を歩いて乗員に近づいてください"};
@@ -4642,7 +4652,14 @@ mobileUI=installMobilePlayUI({
    {label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)}
   ];
   if(!voyage?.active)return {ship:false,vr:Boolean(xrUI?.active),actions:groundActions};
-  if(crewTestState)return {ship:true,vr:false,actions:[{label:"💬 乗員",run:()=>mobileAction(mobilePrimary)}]};
+  if(crewTestState)return {ship:true,vr:Boolean(xrUI?.active),actions:[
+   {label:voyage.seated?"🚶 起立":"🪑 着席",run:()=>mobileAction(voyage.seated?shipStand:shipSit)},
+   {label:"💬 乗員",run:()=>mobileAction(()=>{
+    const near=voyage.interior.nearCrew()[0];
+    if(near){voyageUI?.showCrew(near.id);return {ok:true};}
+    return {ok:false,message:"船内を歩いて乗員に近づいてください"};
+   })}
+  ]};
   const shipActions=voyage.seated?pilotPanel.actions(pilotActionCatalog()):[
    {label:mobileInteractLabel(),run:()=>mobileAction(mobilePrimary)},
    {label:"🚪 ハッチ",run:()=>mobileAction(shipToggleHatch)},
