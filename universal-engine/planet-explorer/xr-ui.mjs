@@ -1,3 +1,5 @@
+import {installSocialUI} from "./xr-social-ui.mjs";
+import {sampleSocialPose} from "./xr-social.mjs";
 import {xrAnchor,xrStage,xrMul,xrTranslate,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw} from "./xr-spatial.mjs?v=0.9r-vr-controls";
 import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=0.9z-quest-strafe-heading-fix";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
@@ -23,13 +25,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),
  onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
  const $=id=>document.getElementById(id);
+ const social=$("xr-social")?installSocialUI($):null;
+ let supportsAR=false;
  const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
  const placeButton=$("xr-place"),landButton=$("xr-planet-land");
  const allButton=$("xr-rts-all"),rotateLeft=$("xr-rotate-left"),rotateRight=$("xr-rotate-right");
  const vrDiag=$("xr-vr-diagnostics");
  let session=null,activeMode=null,space=null,anchor=null,lastTime=0,viewerSpace=null,hitSource=null,hitPose=null;
- let usingFloor=false,disposed=false,readyPromise=Promise.resolve();
+ let usingFloor=false,disposed=false,starting=false,readyPromise=Promise.resolve();
  let compatibilityRenderer=null,depthTexture=null;
  let placementArmed=false,planetSelected=false,planetYaw=0,vrFrames=0,vrHasPose=false,vrDrawError="";
  let previousPlanetHit=null,previousPlanetHitTime=0;
@@ -106,7 +110,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    button.setAttribute("aria-pressed",String(selected));
   }
   document.documentElement.classList.toggle("ue-xr-active",Boolean(session));
-  if(placeButton)placeButton.hidden=!activeMode?.startsWith("mr-");
+  if(social)social.button.disabled=!supportsAR||Boolean(session);
+  if(placeButton)placeButton.hidden=activeMode!=="mr-rts"&&activeMode!=="mr-planet";
   if(landButton)landButton.hidden=activeMode!=="mr-planet";
   if(allButton)allButton.hidden=activeMode!=="mr-rts";
   if(rotateLeft)rotateLeft.hidden=activeMode!=="mr-planet";
@@ -133,6 +138,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     navigator.xr.isSessionSupported("immersive-vr"),
     navigator.xr.isSessionSupported("immersive-ar")
    ]);
+   supportsAR=ar;update();
    buttons.vr.disabled=!vr;buttons.adventure.disabled=!vr;buttons.rts.disabled=!ar;buttons.planet.disabled=!ar;
    statusText(vr||ar?
     "対応機器を検出。VRまたはMRを選択してください。MRではヘッドセットのトリガーで配置・RTS選択できます。":
@@ -143,6 +149,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function endCleanup(){
+  if(activeMode==="mr-social")social.activate(false);
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   const renderer=getRenderer();
@@ -176,10 +183,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  async function start(mode){return startWithOptions(mode,{ground:false});}
  async function startWithOptions(mode,{ground=false}={}){
-  if(disposed)return;
+  if(disposed||starting)return;
   if(session){
    if(activeMode===mode)return;
-   if(activeMode.startsWith("mr-")&&mode.startsWith("mr-")){
+   if(activeMode!=="mr-social"&&mode!=="mr-social"&&activeMode.startsWith("mr-")&&mode.startsWith("mr-")){
     activeMode=mode;anchor=null;hitPose=null;placementArmed=false;planetSelected=false;planetYaw=0;
     previousPlanetHit=null;previousPlanetHitTime=0;update();
     statusText(mode==="mr-rts"?"MR卓上RTSに切り替えました":"MR惑星モデルに切り替えました");
@@ -194,6 +201,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   const requestedType=mode==="vr"?"immersive-vr":"immersive-ar";
   let newSession=null;
+  starting=true;
   try{
    // requestSession must be invoked in the click gesture, before awaiting
    // permissions, feature checks, or any asynchronous GL setup.
@@ -201,6 +209,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const wantsLayers=requestedType==="immersive-vr"&&canUseXRProjection();
    const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
    if(root)init.domOverlay={root};
+   if(mode==="mr-social"){
+    init.requiredFeatures=["local-floor"];
+    init.optionalFeatures=init.optionalFeatures.filter(feature=>feature!=="local-floor"&&feature!=="hit-test");
+    init.optionalFeatures.push("hand-tracking");
+   }
    const depthOptions=depthFeatureOptions(requestedType);
    if(depthOptions.optionalFeature){
     init.optionalFeatures.push(depthOptions.optionalFeature);
@@ -243,13 +256,22 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     gl.activeTexture(gl.TEXTURE0);
    }
    try{space=await newSession.requestReferenceSpace("local-floor");usingFloor=true;}
-   catch(_){space=await newSession.requestReferenceSpace("local");usingFloor=false;}
-   try{
+   catch(error){
+    if(mode==="mr-social")throw Error("この試験モードには床面追跡が必要です",{cause:error});
+    space=await newSession.requestReferenceSpace("local");usingFloor=false;
+   }
+   if(mode!=="mr-social")try{
     viewerSpace=await newSession.requestReferenceSpace("viewer");
     if(requestedType==="immersive-ar"&&newSession.requestHitTestSource)
      hitSource=await newSession.requestHitTestSource({space:viewerSpace});
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
+   if(mode==="mr-social"){
+    social.activate(true);
+    space.addEventListener("reset",()=>{
+     if(session===newSession)social.activate(true);
+    });
+   }
    placementArmed=false;planetSelected=false;planetYaw=0;vrFrames=0;vrHasPose=false;vrDrawError="";
    previousPlanetHit=null;previousPlanetHitTime=0;
    vrLayerIndex=0;vrPendingLayer=null;vrPendingFrames=0;
@@ -277,7 +299,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     vrMark("可視状態変更",{force:true,log:true});
    });
    update();
-   statusText(mode==="vr"?"VR表示中。ヘッドセットの終了操作で元に戻れます。":
+   statusText(mode==="mr-social"?"MR対面試験中。右トリガーで基準を登録、左で視点を切替。":
+    mode==="vr"?"VR表示中。ヘッドセットの終了操作で元に戻れます。":
     "MR表示中。"+(depthTexture?"実物の深度遮蔽に対応。":"深度遮蔽はこの端末では利用できません。")+
     " 惑星ではトリガーで地点選択・再押下で降下、RTSではトリガーで選択と移動。模型再配置は専用ボタン。");
    newSession.requestAnimationFrame(drawXR);
@@ -299,7 +322,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     (error?.message||String(error));
    statusText("XR開始に失敗しました: "+reason);
    notify("🥽 "+reason);
-  }
+  }finally{starting=false;}
  }
  function placeModel(rayMatrix){
   if(hitPose&&rayMatrix)anchor=xrPlacementFromHit(hitPose,rayMatrix,usingFloor);
@@ -537,6 +560,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
  }
  function onSelect(event){
+  if(activeMode==="mr-social"){
+   social.select(event.inputSource?.handedness);
+   return;
+  }
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active)return;
   if(!session||!anchor||!space||!event.frame)return;
   const source=event.inputSource;
@@ -869,6 +896,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(vrDrawError==="追跡姿勢が取得できません")vrDrawError="";
    if(vrFrames===1)vrMark("追跡姿勢取得／"+pose.views.length+"眼",{force:true});
   }
+  if(activeMode==="mr-social"){drawSocialFrame(renderer,pose,frame,time);return;}
   if(!anchor)anchor=xrAnchor(pose.transform.matrix,{floor:usingFloor});
   if(activeMode==="vr")sampleVRRig(frame,pose.transform.matrix,time);
   if(hitSource&&frame.getHitTestResults){
@@ -1068,6 +1096,35 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
  }
+ function drawSocialFrame(renderer,viewer,frame,time){
+  const gl=renderer.gl,layer=activeLegacyXRLayer(session);
+  if(!layer)return;
+  const head=viewer.transform.matrix;
+  social.track(viewer.emulatedPosition?null:head);
+  const tracked=viewer.emulatedPosition?null:
+   sampleSocialPose(frame,space,head,session.inputSources,getVRAppearance());
+  const scene=social.stage.update(tracked,time);
+  try{
+   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+   gl.enable(gl.SCISSOR_TEST);
+   for(const view of viewer.views){
+    const viewport=layer.getViewport(view);
+    if(!viewport)continue;
+    let depth=null;
+    if(!social.stage.miniature&&depthToggle?.checked&&depthTexture){
+     try{depth=sampleXRDepth(frame.getDepthInformation?.(view));}catch{/* Optional device feature. */}
+    }
+    renderer.drawSocialAvatars({viewport,projection:view.projectionMatrix,
+     view:view.transform.inverse.matrix,depth,depthTexture},scene);
+   }
+  }catch(error){
+   notify("MR対面の描画エラー: "+error.message);
+   session.end().catch(()=>{});
+  }finally{
+   gl.disable(gl.SCISSOR_TEST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  }
+ }
+ social?.button.addEventListener("click",()=>start("mr-social"));
  for(const [id,button] of [["vr",buttons.vr],["rts",buttons.rts],["planet",buttons.planet]]){
   button.addEventListener("click",()=>start(id==="vr"?"vr":id==="rts"?"mr-rts":"mr-planet"));
  }
@@ -1090,6 +1147,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   },
   close:()=>session?.end(),dispose:()=>{
    disposed=true;
+   social?.link.disconnect();
    if(session)session.end().catch(()=>{});
    else endCleanup();
   }};
