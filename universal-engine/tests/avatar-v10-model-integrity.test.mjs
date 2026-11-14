@@ -14,12 +14,13 @@ for(const model of ["lyra","mina","sera","ren","noah","elio"]){
   const rig=parseFrontierRig(buffer);
   const base=rig.primitives.filter(part=>!part.wardrobe);
   const body=base.filter(part=>isBodySurface(part.name,part.wardrobe));
-  console.log(model+" V10 mesh metadata "+JSON.stringify({
-   base:base.map(p=>p.name),wardrobe:[...new Set(rig.primitives.flatMap(p=>p.wardrobe||[]))],
-   body:body.map(p=>({name:p.name,vertices:p.arrays.positions.length/3})),triangles:rig.triangles
-  }));
+  const named=Object.fromEntries(["base","swim"].map(mode=>[mode,
+   rig.primitives.filter(p=>p.wardrobe?.includes(mode)).map(p=>({name:p.name,verts:p.arrays.positions.length/3}))]));
+  console.log(model+" wardrobe mesh inventory "+JSON.stringify(named));
   assert.equal(rig.isV10,true);
   assert.ok(base.length>=3,"base needs face, trunk, limbs and more");
   assert.ok(body.some(p=>p.arrays.positions.length>300),"base skin surface must exist");
+  assert.ok(named.base.length>0,"full base body mesh must exist");
+  assert.ok(named.swim.length>0,"full dedicated swimsuit mesh must exist");
  });
 }
