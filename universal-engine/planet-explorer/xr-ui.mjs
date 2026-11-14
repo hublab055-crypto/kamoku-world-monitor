@@ -44,7 +44,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrRTS=false,vrThird=false,vrPlanetOverview=false,vrPlanetAnchor=null,vrTableYaw=0,vrButtons=new Set(),vrCurrentStage=null;
  let vrMovement={forward:0,strafe:0,turn:0,tableTurn:0},vrInputSampleAt=0;
  let vrInputInfo="未取得",vrLastConnectedLeft="未取得";
- let vrBindings=loadXRBindings(localStorage);
+ let vrBindings=loadXRBindings(typeof localStorage==="undefined"?null:localStorage);
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set(),vrSurfaceHatchConsumed=new Set();
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
@@ -109,7 +109,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const bindingStatus=$("xr-binding-status");
  const bindingSelects=new Map();
  function persistVRBindings(){
-  if(bindingStatus)bindingStatus.textContent=saveXRBindings(localStorage,vrBindings)?
+  if(bindingStatus)bindingStatus.textContent=saveXRBindings(typeof localStorage==="undefined"?null:localStorage,vrBindings)?
    "✓ この端末の操作設定に保存しました":"⚠ 保存できませんでした（このタブ内では適用中）";
   vrButtons.clear();
  }
