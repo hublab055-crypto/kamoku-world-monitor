@@ -16,14 +16,14 @@ import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-w
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261107-hatch";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261114-seat";
 import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261115-hologram";
-import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261112-warp";
+import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261115-quest-holo";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
 import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261114-glsl-chest-fix";
+import {ExplorerRenderer} from "./render.mjs?v=20261115-quest-holo";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -4228,6 +4228,7 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  onEditAvatar:id=>avatarEditor?.open(id),onExitCrewTest:exitCrewTest,crewAvatarReady});
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
  isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
+ onLaunch:launchCelestialVoyage,onTransfer:startShipTransfer,onLand:finishCelestialVoyage,
  onCamera:()=>voyageUI?.toggleCamera(),onWide:()=>voyageUI?.toggleWide(),
  onStar:id=>{
   const star=STAR_SYSTEMS.find(system=>system.id===id);

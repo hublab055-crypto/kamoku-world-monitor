@@ -54,6 +54,7 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
+import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-quest-holo";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
@@ -178,6 +179,55 @@ function box(b,x,y,z,rx,hh,rz,col){
  const a=[[x-rx,y,z-rz],[x+rx,y,z-rz],[x+rx,y+hh,z-rz],[x-rx,y+hh,z-rz],
  [x-rx,y,z+rz],[x+rx,y,z+rz],[x+rx,y+hh,z+rz],[x-rx,y+hh,z+rz]];
  for(const [i,j,k,l]of [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[1,5,6,2],[4,0,3,7]])quad(b,a[i],a[j],a[k],a[l],col);
+}
+
+/** Mesh-native 3×5 monospaced glyphs appear in WebXR without relying on DOM overlays. */
+const HOLO_FONT=Object.freeze({
+ A:["010","101","111","101","101"],B:["110","101","110","101","110"],C:["011","100","100","100","011"],
+ D:["110","101","101","101","110"],E:["111","100","110","100","111"],F:["111","100","110","100","100"],
+ G:["011","100","101","101","011"],H:["101","101","111","101","101"],I:["111","010","010","010","111"],
+ K:["101","101","110","101","101"],L:["100","100","100","100","111"],M:["101","111","111","101","101"],
+ N:["101","111","111","111","101"],O:["111","101","101","101","111"],P:["110","101","110","100","100"],
+ R:["110","101","110","101","101"],S:["011","100","010","001","110"],T:["111","010","010","010","010"],
+ U:["101","101","101","101","111"],V:["101","101","101","101","010"],W:["101","101","111","111","101"],
+ Y:["101","101","010","010","010"],"0":["111","101","101","101","111"],"1":["010","110","010","010","111"],
+ "2":["110","001","111","100","111"],"3":["110","001","110","001","110"],"4":["101","101","111","001","001"],
+ "5":["111","100","110","001","110"],"6":["011","100","111","101","111"],"7":["111","001","010","010","010"],
+ "8":["111","101","111","101","111"],"9":["111","101","111","001","110"],
+ ".":["000","000","000","000","010"],"-":["000","000","111","000","000"],"%":["101","001","010","100","101"]
+});
+function holoLetters(mesh,text,x,y,z,{size=.009,color=[.68,.95,1]}={}){
+ const word=String(text).toUpperCase().slice(0,10),cell=4*size;
+ const start=x-(word.length*cell-size)*.5;
+ for(let i=0;i<word.length;i++){
+  const glyph=HOLO_FONT[word[i]];
+  if(!glyph)continue;
+  for(let r=0;r<5;r++)for(let col=0;col<3;col++)if(glyph[r][col]==="1")
+   box(mesh,start+i*cell+col*size+size*.5,y-r*size,z,size*.44,size*.9,size*.1,color);
+ }
+}
+function shipHoloPlateGeometry(){
+ const mesh=builder();
+ for(const p of XR_HOLO_PANELS){
+  const y=p.y-p.height*.5,left=p.x-p.width*.5,right=p.x+p.width*.5;
+  box(mesh,p.x,y,p.z,p.width*.5,p.height,.008,[.025,.31,.42]);
+  for(const x of [left,right])box(mesh,x,y,p.z+.014,.008,p.height,.015,[.18,.85,.95]);
+  for(const yy of [y,y+p.height])box(mesh,p.x,yy,p.z+.014,p.width*.5,.013,.015,[.18,.85,.95]);
+ }
+ for(const s of XR_HOLO_SLIDERS){
+  box(mesh,s.x,s.minY,s.z+.028,.026,s.maxY-s.minY,.012,[.15,.65,.80]);
+  holoLetters(mesh,s.id==="main"?"MAIN":"VOL",s.x,1.82,s.z+.04,{size:.010});
+ }
+ for(const b of XR_HOLO_BUTTONS){
+  box(mesh,b.x,b.y-.065,b.z+.023,.135,.13,.015,[.09,.49,.58]);
+  holoLetters(mesh,b.label,b.x,b.y-.13,b.z+.045,{size:.010});
+ }
+ const xs=[-1.96,-1.68,-1.40,-1.12];
+ for(let i=0;i<xs.length;i++){
+  holoLetters(mesh,["SPD","ALT","GRV","FUEL"][i],xs[i],2.28,XR_HOLO_Z+.04,{size:.009});
+  box(mesh,xs[i],2.11,XR_HOLO_Z+.024,.112,.015,.008,[.24,.74,.84]);
+ }
+ return mesh;
 }
 function cone(b,x,y,z,h,r,col,sides=7){
  for(let i=0;i<sides;i++){
@@ -795,6 +845,8 @@ export class ExplorerRenderer{
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
+   this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
+   this.shipHoloReadout=null;this.shipHoloReadoutKey="";
    const contactGem=builder();
    cone(contactGem,0,0,0,.78,.41,[1,1,1],4);
    cone(contactGem,0,0,0,-.78,.41,[1,1,1],4);
@@ -2099,6 +2151,45 @@ export class ExplorerRenderer{
    }else{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
     this.drawShipAvatars(vp,person,dt,Boolean(crewCamera||xr?.mode==="vr"));
+    // Quest stereoscopic holograms share the same ship-local space and cockpit
+    // state as physical controls. The 2D overlays remain desktop-only.
+    if(xr?.mode==="vr"&&v.seated){
+     this.drawMesh(this.shipHoloPlate,vp,[.72,.92,1],.75,1);
+     const gravBody=bodyById(v.flightBodyId||v.originId);
+     const height=phase.lift;
+     const gravity=gravBody?gravBody.gravity*Math.pow(gravBody.radiusM/(gravBody.radiusM+height),2):null;
+     const readouts=xrHologramReadouts(v,{height,gravity});
+     const key=readouts.map(r=>r.text).join("/");
+     if(this.shipHoloReadoutKey!==key){
+      this.shipHoloReadout?.destroy();
+      const digits=builder(),centers=[-1.96,-1.68,-1.40,-1.12];
+      readouts.forEach((r,i)=>holoLetters(digits,r.text,centers[i],2.22,XR_HOLO_Z+.05,
+       {size:.008,color:[.91,1,.94]}));
+      this.shipHoloReadout=new Mesh(gl,digits);this.shipHoloReadoutKey=key;
+     }
+     if(this.shipHoloReadout)this.drawMesh(this.shipHoloReadout,vp,[1,1,1],1,1);
+     for(const lever of XR_HOLO_SLIDERS){
+      const raw=lever.vol?(v.volThrottle||0)*100:v.warpEngaged?125:(v.throttle||0)*100;
+      const frac=Math.max(0,Math.min(1,(raw+100)/(lever.vol?200:225)));
+      const transform=multiply4(translate(lever.x,lever.minY+frac*(lever.maxY-lever.minY),lever.z+.057),
+       scale3(.086,.055,.04));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.95,.95,1],.96,1,
+       lever.vol?[.52,.66,1]:[.43,1,.81]);
+     }
+     for(const button of XR_HOLO_BUTTONS){
+      const model=this.shipCombat;
+      const active=button.id==="autopilot"?v.autopilot:
+       button.id==="lock"?model?.fireControl:button.id==="autoFire"?model?.autoFire:
+       button.id==="ciws"?model?.ciwsEnabled:button.id==="gear"?v.gearDown:
+       button.id==="hatch"?v.hatchOpen:false;
+      const color=active?[.19,1,.54]:
+       button.id==="primary"?[1,.83,.29]:
+       button.id.startsWith("repair")?[.31,.77,1]:
+       button.id==="autoFire"?[1,.30,.31]:[.27,.80,.98];
+      const tr=multiply4(translate(button.x,button.y,button.z+.08),scale3(.085,.047,.04));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,tr),[1,1,1],.95,1,color);
+     }
+    }
     // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
     if(!v.seated&&v.isNearSeat?.()){
