@@ -530,7 +530,10 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   $("flight-route").textContent=v.isCrewTest?"船内クルーテスト":"🚀 "+origin.name+" → "+target.name+(v.navigationTarget?" ／ 🎯 "+v.navigationTarget.name:"");
   const entryView=["entry","atmosphere","vtol","touchdown"].includes(v.status);
   const height=entryView?Math.round(groundScenePhase(v).lift):null;
-  holograms.update({visible:seatedPilot(v)&&!chase&&!interiorView,altitude:height});
+  const gravityBody=entryView||["docked","landed"].includes(v.status)?bodyById(v.flightBodyId||v.originId):null;
+  const gAlt=height??0;
+  const gravity=gravityBody?gravityBody.gravity*Math.pow(gravityBody.radiusM/(gravityBody.radiusM+gAlt),2):null;
+  holograms.update({visible:seatedPilot(v)&&!chase&&!interiorView,altitude:height,gravity});
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":
     v.kind==="surface-to-surface"&&!v.autopilot&&["cruise","approach","flyby"].includes(v.status)?" ／ 惑星へ接近すると着陸降下":"");
