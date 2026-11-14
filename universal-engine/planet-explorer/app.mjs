@@ -698,12 +698,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt);
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady);
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt);
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady);
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
