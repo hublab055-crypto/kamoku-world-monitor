@@ -283,7 +283,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   const distance=target?interior.distance(target):Infinity;
   const loaded=Boolean(target&&crewAvatarReady(target));
   const motionKey=target?Object.values(CREW_GESTURES).map(move=>
-   Number(loaded&&!busy&&(!move.distance||distance<=move.distance))).join(""):"";
+   Number(!busy&&(!move.distance||distance<=move.distance))).join(""):"";
   const key=[crewTarget,motionKey,...people.map(p=>p.id+(p.id==="companion"?companionName||"":"")),
    ...stations.map(s=>s.id)].join(":");
   if(key===nearKey)return;nearKey=key;
@@ -311,8 +311,8 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    for(const [id,move] of Object.entries(CREW_GESTURES)){
     const button=document.createElement("button");button.type="button";button.dataset.crewGesture=id;
     button.textContent=gestureIcons[id]+" "+move.label;
-    button.disabled=Boolean(!loaded||busy||move.distance&&distance>move.distance);
-    if(!loaded)button.title="3Dモデルの準備中";
+    button.disabled=Boolean(busy||move.distance&&distance>move.distance);
+    if(!loaded)button.title="アニメーションモデル読み込み中。動作は実行できます";
     else if(!busy&&button.disabled)button.title=move.distance+"m以内まで近づいてください";
     button.addEventListener("click",()=>{
      const living=get()?.interior;
