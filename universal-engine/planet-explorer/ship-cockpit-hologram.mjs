@@ -15,7 +15,7 @@ export function snapHologramLever(value,{vol=false}={}){
  return n;
 }
 /** Route speed is a normalized flight-corridor value, not a real solar-system m/s. */
-export function hologramTelemetry(v,{altitude=null}={}){
+export function hologramTelemetry(v,{altitude=null,gravity=null}={}){
  const gravitating=Boolean(v&&["docked","landed","ascent","entry","atmosphere","vtol","touchdown"].includes(v.status));
  const onGround=v?.status==="docked"||v?.status==="landed"||v?.status==="touchdown";
  const route= Math.hypot(v?.routeVelocity?.along||0,v?.routeVelocity?.cross||0,v?.verticalVelocity||0)*100;
@@ -25,7 +25,7 @@ export function hologramTelemetry(v,{altitude=null}={}){
    route.toFixed(2)+" %/s",
   speedLabel:gravitating?"対地速度":"航路速度",
   altitude:gravitating?Math.max(0,Math.round(alt)).toLocaleString("ja-JP")+" m":"—",
-  gravity:gravitating&&Number.isFinite(v?.gravityMps2)?v.gravityMps2.toFixed(2)+" m/s²":"—",
+  gravity:gravitating?(Number.isFinite(gravity)?gravity:Number.isFinite(v?.gravityMps2)?v.gravityMps2:null)?.toFixed(2)?.concat(" m/s²")||"—":"—",
   fuel:Math.round(clamp(v?.fuel||0,0,100))+"%",
   gear:(v?.gearMode||"auto").toUpperCase()+(v?.gearDown?" / DOWN":" / UP")
  };
@@ -162,12 +162,12 @@ export function installShipCockpitHologram({
  const txt=(selector,value)=>{const el=pick(selector);if(el&&el.textContent!==value)el.textContent=value;};
  function press(id,enabled){const button=pick('[data-action="'+id+'"]');if(button)button.setAttribute("aria-pressed",String(Boolean(enabled)));}
  let lastView={};
- function update({visible=false,altitude=null}={}){
-  lastView={visible,altitude};
+ function update({visible=false,altitude=null,gravity=null}={}){
+  lastView={visible,altitude,gravity};
   const v=getVoyage(),canUse=Boolean(visible&&v?.seated&&!v.isCrewTest);
   wrap.hidden=!canUse;
   if(!canUse)return;
-  const t=hologramTelemetry(v,{altitude}),m=combat();
+  const t=hologramTelemetry(v,{altitude,gravity}),m=combat();
   txt("[data-speed-label]",t.speedLabel);txt("[data-speed]",t.speed);
   txt("[data-altitude]",t.altitude);txt("[data-gravity]",t.gravity);txt("[data-fuel]",t.fuel);
   txt("[data-action=gear]","🛬 脚 "+t.gear);
