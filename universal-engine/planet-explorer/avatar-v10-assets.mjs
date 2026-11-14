@@ -1,10 +1,11 @@
-import {fetchAvatarV10} from "./avatar-v10.mjs?v=20261114-review-43";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-review-43";
+import {fetchAvatarV10} from "./avatar-v10.mjs?v=20261114-officer-restore";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-officer-restore";
 
 export class AvatarV10Assets {
  constructor(gl) {
   this.gl=gl;
   this.models=new Map();
+  this.retryAfter=new Map();
   this.disposed=false;
  }
 
@@ -17,6 +18,11 @@ export class AvatarV10Assets {
    if(this.disposed)return null;
    record.asset=new SkinnedFrontierAsset(this.gl,buffer);
    return record.asset;
+  }).catch(error=>{
+   // Avoid permanent disappearance after a failed/partial download.
+   if(this.models.get(model)===record)this.models.delete(model);
+   this.retryAfter.set(model,Date.now()+10000);
+   throw error;
   });
   return record.pending;
  }
@@ -26,12 +32,13 @@ export class AvatarV10Assets {
  }
 
  prefetch(model) {
-  if(!this.models.has(model))this.load(model).catch(error=>console.warn("Avatar V10:",error));
+  if(!this.models.has(model)&&Date.now()>=(this.retryAfter.get(model)||0))
+   this.load(model).catch(error=>console.warn("Avatar V10:",error));
  }
 
  destroy() {
   this.disposed=true;
   for(const {asset} of this.models.values())asset?.destroy();
-  this.models.clear();
+  this.models.clear();this.retryAfter.clear();
  }
 }
