@@ -19,7 +19,7 @@ export function hologramTelemetry(v,{altitude=null,gravity=null}={}){
  const gravitating=Boolean(v&&["docked","landed","ascent","entry","atmosphere","vtol","touchdown"].includes(v.status));
  const onGround=v?.status==="docked"||v?.status==="landed"||v?.status==="touchdown";
  const route= Math.hypot(v?.routeVelocity?.along||0,v?.routeVelocity?.cross||0,v?.verticalVelocity||0)*100;
- const alt=onGround?0:Number.isFinite(altitude)?alt:Number.isFinite(v?.airAltitude)?v.airAltitude:0;
+ const alt=onGround?0:Number.isFinite(altitude)?altitude:Number.isFinite(v?.airAltitude)?v.airAltitude:0;
  return {
   speed:gravitating?(Number.isFinite(v?.airSpeed)?Math.max(0,v.airSpeed).toFixed(1)+" m/s":"—"):
    route.toFixed(2)+" %/s",
