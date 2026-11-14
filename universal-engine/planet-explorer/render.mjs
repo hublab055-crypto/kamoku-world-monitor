@@ -53,7 +53,7 @@ import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
-import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
+import {COCKPIT_SWITCHES,COCKPIT_LEVER,COCKPIT_HOLOGRAM_CONTROLS} from "./ship-control-hit.mjs?v=20261114-armrest-holograms";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
@@ -2104,6 +2104,17 @@ export class ExplorerRenderer{
      for(const [y,amount,color] of [[1.8,this.shipCombat?.player.shield??100,[.2,.8,1]],[1.65,this.shipCombat?.player.hp??100,[.3,1,.4]]]){
       const bar=multiply4(translate(-.9+amount*.009,y,-13.04),scale3(Math.max(.001,amount*.009),.025,.006));
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,bar),[1,1,1],.8,1,color);
+     }
+     // Ray-accessible side holograms remain beside the seat, not over the windscreen.
+     for(const control of COCKPIT_HOLOGRAM_CONTROLS){
+      const [x,y,z]=control.position;
+      const active=control.id==="auto-fire"?this.shipCombat?.autoFire:
+       control.id==="auto-lock"?this.shipCombat?.fireControl:false;
+      const color=active?[.35,1,.65]:[.10,.78,.94];
+      const shape=multiply4(translate(x,y,z+.045),scale3(.28,.14,.02));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,shape),[1,1,1],.7,.86,color);
+      const projected=projectScreen(vp,control.position);
+      if(projected)this.shipCockpitControls.push({...projected,id:control.id});
      }
      for(const {id,position} of COCKPIT_SWITCHES){
       const mapped=this.shipControlLayout?.[COCKPIT_SWITCHES.findIndex(s=>s.id===id)]||"none";
