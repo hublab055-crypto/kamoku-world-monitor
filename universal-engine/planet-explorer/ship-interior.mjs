@@ -1,4 +1,4 @@
-import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=1";
+import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261114-crew-social-2";
 
 /** Local ship coordinates: forward -Z; floor Y=0; dimensions 8m x 26m. */
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
