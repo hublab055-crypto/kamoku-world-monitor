@@ -37,6 +37,14 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const note=document.createElement("small");
  note.textContent="水着・素体は初回のみ確認します。ブラウザ内の簡易制限で、保護者認証や暗号化ではありません。";
  gate.append(gateLabel,confirm,cancel,note);outfit.closest("label").after(gate);
+ const reviewLink=document.createElement("a");
+ reviewLink.href="https://universal-engine-avatar-review.papatomfoundation.chatgpt.site";
+ reviewLink.target="_blank";reviewLink.rel="noopener noreferrer";
+ reviewLink.textContent="🔗 元のAvatar Reviewサイトを開く（別タブ）";
+ reviewLink.style.cssText="display:block;margin:9px 0;color:#8de9f1;text-decoration:underline;font-size:13px;";
+ const reviewNote=document.createElement("small");
+ reviewNote.textContent="レビューサイトとは保存領域が異なるため、設定の移行には下のJSON読み込み・書き出しを使用してください。";
+ gate.after(reviewLink,reviewNote);
  const swimFields=document.createElement("section");swimFields.className="avatar-v10-swim";
  const swimStyleLabel=document.createElement("label");swimStyleLabel.textContent="水着の形 ";
  const swimStyle=document.createElement("select");swimStyle.setAttribute("aria-label","水着の形");
