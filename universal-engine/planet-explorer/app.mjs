@@ -1,5 +1,5 @@
 import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-base-swim";
-import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261114-base-swim";
+import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261114-review-link";
 import {shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
