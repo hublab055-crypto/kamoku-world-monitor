@@ -45,22 +45,22 @@ export function xrButtonEdges(sources,previous=new Set()){
  }
  return {next,pressed};
 }
-export function xrVRMovement(sources,{rts=false}={}){
+export function xrVRMovement(sources,{rts=false,stickLayout="leftMove"}={}){
  const result={forward:0,strafe:0,turn:0,tableTurn:0};
+ const moveHand=stickLayout==="rightMove"?"right":"left";
+ const turnHand=moveHand==="left"?"right":"left";
  for(const source of sources||[]){
   // An XRInputSource is already scoped to the active immersive session.
   // Some Quest Browser versions expose a generic "standard" mapping here.
   if(source.gamepad?.mapping&&!["xr-standard","standard"].includes(source.gamepad.mapping))continue;
   const {x,y}=xrStick(source.gamepad);
-  if(source.handedness==="left"&&!rts){
-      result.forward=-y;
-      // xrStage faces the actor along world +Z. Its yaw includes a 180deg
-      // turn for headset -Z, so world +X appears to the viewer's LEFT.
-      // Invert strafe here (not in world/indoor physics): Touch right must
-      // move toward the viewer's right in both custody and open-world VR.
-      result.strafe=-x;
-    }
-  if(source.handedness==="right"){
+  if(source.handedness===moveHand&&!rts){
+   result.forward=-y;
+   // xrStage rotates the VR cabin/world to face the headset. Both outdoor
+   // and ship-local +X appear on the viewer's left: invert stick strafe.
+   result.strafe=-x;
+  }
+  if(source.handedness===turnHand){
    if(rts)result.tableTurn=x;
    else result.turn=x;
   }
