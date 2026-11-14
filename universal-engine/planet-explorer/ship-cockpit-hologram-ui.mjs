@@ -59,8 +59,10 @@ export function installCockpitHologramUI({host,getVoyage,getCombat,switchWeapon,
   const show=Boolean(visible&&v?.seated&&isCockpit());
   root.hidden=!show;if(!show)return;
   const throttle=Math.round((v.throttle||0)*100),fuel=Math.round(v.fuel||0);
-  const speed=Number.isFinite(v.airSpeed)&&v.status==="atmosphere"
-   ?"／対気 "+Math.round(v.airSpeed)+"m/s":"";
+  const routeSpeed=Math.hypot(v.routeVelocity?.along||0,v.routeVelocity?.cross||0,v.verticalVelocity||0);
+  const speed=v.inWarp?"／ワープ航路 "+((v.warpSpeed||0)*100).toFixed(2)+"%/s":
+   v.status==="atmosphere"?"／対気 "+Math.round(v.airSpeed||0)+"m/s":
+   "／航路速度 "+(routeSpeed*100).toFixed(2)+"%/s";
   outputs.get("left").textContent="推力 "+throttle+"%"+speed+"／燃料 "+fuel+"%\n"+
    "ロック "+(m?.fireControl?"AUTO":"手動")+"／射撃 "+(m?.autoFire?"AUTO":"手動");
   outputs.get("right").textContent="バリア "+Math.round(m?.player.shield??100)+"%"+
