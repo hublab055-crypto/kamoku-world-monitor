@@ -23,7 +23,8 @@ export function applyCockpitHologramAction(id,{voyage,combat,switchWeapon,scan,r
  }
  case "weapon":
   if(!combat)return {ok:false,message:"兵装システムが利用できません"};
-  switchWeapon?.();result={ok:true,message:"兵装："+combat.config.name};break;
+  if(typeof switchWeapon!=="function")return result;
+  switchWeapon();result={ok:true,message:"兵装："+combat.config.name};break;
  case "auto-lock":
   if(!combat)return result;
   combat.fireControl=!combat.fireControl;
@@ -36,7 +37,8 @@ export function applyCockpitHologramAction(id,{voyage,combat,switchWeapon,scan,r
   if(!combat)return result;
   const part=Object.entries(combat.parts).filter(([,health])=>health<100)
    .sort((a,b)=>a[1]-b[1])[0]?.[0];
-  result=part?combat.repairPart(part):{ok:false,message:"修理が必要な機関・船体・兵装・バリア発生器はありません"};break;
+  result=part||combat.player.hp<combat.player.maxHp?combat.repairPart(part||"hull"):
+   {ok:false,message:"修理が必要な機関・船体・兵装・バリア発生器はありません"};break;
  }
  case "fuel":
   result=combat?.refuel(voyage)??result;break;
@@ -50,10 +52,13 @@ export function applyCockpitHologramAction(id,{voyage,combat,switchWeapon,scan,r
   combat.player.shield=clamp(combat.player.shield+35,0,combat.player.maxShield);
   result={ok:true,message:"バリアを緊急復旧："+Math.round(combat.player.shield)+"%（キット2個消費）"};break;
  }
- case "scan":return scan?.()===false?{ok:false,message:"周辺スキャンが使用できません"}:{ok:true,message:"周辺スキャン実行"};
- case "radio":radio?.();return {ok:true,message:"通信を開きました"};
+ case "scan":return typeof scan==="function"&&scan()===true?
+  {ok:true,message:"周辺スキャン実行"}:{ok:false,message:"周辺スキャンが使用できません"};
+ case "radio":if(typeof radio!=="function")return result;
+  radio();return {ok:true,message:"通信画面を切り替えました"};
  case "gear":
-  result=voyage.cycleGear?.()??result;break;
+  if(typeof voyage.cycleGear!=="function")return result;
+  voyage.cycleGear();result={ok:true,message:"着陸脚："+voyage.gearMode};break;
  case "horizon":
   if(voyage.status!=="atmosphere")return {ok:false,message:"ホライゾンは大気中で使用できます"};
   voyage.horizon=!voyage.horizon;result={ok:true,message:"ホライゾン "+(voyage.horizon?"ON":"OFF")};break;
