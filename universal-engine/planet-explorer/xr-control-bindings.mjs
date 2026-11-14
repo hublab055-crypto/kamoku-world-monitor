@@ -9,7 +9,7 @@ export const XR_STICK_LAYOUTS=Object.freeze({
 });
 export const XR_CONTROL_ACTIONS=Object.freeze({
  none:"割り当てなし",
- interact:"決定・近くの物を操作（船内では着席／ハッチ、戦闘中は兵装切替）",
+ interact:"決定・近くの物を操作（船内では起立／着席／ハッチ）",
  jump:"ジャンプ（地表）",
  deck:"行動スロット切替",
  rts:"VR卓上RTS切替",
