@@ -1,5 +1,5 @@
-import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-base-swim";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-base-swim";
+import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-full-body";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-full-body";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-v10-crew";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
