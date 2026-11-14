@@ -1,7 +1,7 @@
 export const AVATAR_V10_MODELS = Object.freeze({
  lyra:"ライラ", mina:"ミナ", sera:"セラ", ren:"レン", noah:"ノア", elio:"エリオ"
 });
-export const AVATAR_V10_OUTFITS = Object.freeze({work:"作業服",casual:"普段着",space:"宇宙服"});
+export const AVATAR_V10_OUTFITS = Object.freeze({work:"作業服",casual:"普段着",space:"宇宙服",swim:"水着（試験・未収録モデルは普段着で代替）",base:"素体（衣装非表示・中性デッサン用）"});
 export const AVATAR_V10_DEFAULTS = Object.freeze({player:"ren",navigator:"lyra",engineer:"elio",companion:"mina"});
 export const AVATAR_V10_FACE = [
  ["眉", [["browSize","大きさ"],["browShape","アーチ"],["browHeight","位置"]]],
