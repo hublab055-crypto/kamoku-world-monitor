@@ -58,7 +58,7 @@ export function xrVRMovement(sources,{rts=false,stickLayout="leftMove"}={}){
    result.forward=-y;
    // xrStage rotates the VR cabin/world to face the headset. Both outdoor
    // and ship-local +X appear on the viewer's left: invert stick strafe.
-   result.strafe=-x;
+   result.strafe=x===0?0:-x;
   }
   if(source.handedness===turnHand){
    if(rts)result.tableTurn=x;
