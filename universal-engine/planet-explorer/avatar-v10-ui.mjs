@@ -1,6 +1,7 @@
 import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=1";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=1";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-v10-crew";
+import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -17,6 +18,43 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  for(const [id,name] of Object.entries(names))select.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_MODELS))model.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_OUTFITS))outfit.add(option(id,name));
+ // Restricted study outfits require a one-time per-device confirmation.
+ let sessionUnlocked=false,pendingOutfit=null;
+ const store=()=>typeof localStorage==="undefined"?null:localStorage;
+ const unlocked=()=>sessionUnlocked||avatarWardrobeUnlocked(store());
+ const gate=document.createElement("div");gate.hidden=true;
+ gate.style.cssText="padding:8px;margin:6px 0;border:1px solid #7aa;border-radius:8px;";
+ const gateLabel=document.createElement("label");gateLabel.textContent="初回確認コード（4桁） ";
+ const gateCode=document.createElement("input");
+ gateCode.type="password";gateCode.inputMode="numeric";gateCode.autocomplete="off";
+ gateCode.maxLength=4;gateCode.pattern="[0-9]{4}";gateCode.placeholder="4桁";gateCode.style.width="6em";
+ gateLabel.append(gateCode);
+ const confirm=document.createElement("button");confirm.type="button";confirm.textContent="確認";
+ const cancel=document.createElement("button");cancel.type="button";cancel.textContent="取り消す";
+ const note=document.createElement("small");
+ note.textContent="水着・素体は初回のみ確認します。ブラウザ内の簡易制限で、保護者認証や暗号化ではありません。";
+ gate.append(gateLabel,confirm,cancel,note);outfit.closest("label").after(gate);
+ function setOutfit(value){
+  fit={...fit,outfit:value};outfit.value=value;
+  drafts.set(select.value,fit);invalidate();
+ }
+ confirm.addEventListener("click",()=>{
+  if(pendingOutfit===null)return;
+  if(!unlockAvatarWardrobe(store(),gateCode.value)){
+   if(gateCode.value.trim()!=="9876"){
+    status.value="確認コードが違います。";gateCode.select();return;
+   }
+   sessionUnlocked=true;
+  }
+  const selected=pendingOutfit;pendingOutfit=null;gate.hidden=true;gateCode.value="";
+  status.value=selected==="swim"?"水着専用メッシュがないモデルでは普段着の代替表示です。":"素体：着脱衣装を除いたデッサン用表示です。";
+  setOutfit(selected);
+ });
+ cancel.addEventListener("click",()=>{pendingOutfit=null;gate.hidden=true;gateCode.value="";outfit.value=fit.outfit;});
+ gateCode.addEventListener("keydown",event=>{
+  if(event.key==="Enter"){event.preventDefault();confirm.click();}
+ });
+
 
  for(const [group,parts] of AVATAR_V10_FACE){
   const section=document.createElement("details");
@@ -78,7 +116,8 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   }catch(error){status.value=error.message;}
  }
  function controls(next){
-  fit=next;
+  fit=requiresAvatarWardrobeUnlock(next.outfit)&&!unlocked()?{...next,outfit:"work"}:next;
+  pendingOutfit=null;gate.hidden=true;gateCode.value="";
   model.value=fit.model;outfit.value=fit.outfit;
   const disabled=fit.model==="classic";
   outfit.disabled=disabled;
@@ -101,8 +140,13 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   drafts.set(select.value,fit);loadPreview();
  });
  outfit.addEventListener("change",()=>{
-  fit={...fit,outfit:outfit.value};
-  drafts.set(select.value,fit);invalidate();
+  const selected=outfit.value;
+  if(requiresAvatarWardrobeUnlock(selected)&&!unlocked()){
+   pendingOutfit=selected;outfit.value=fit.outfit;gate.hidden=false;
+   status.value="水着・素体の初回表示には確認コードが必要です。";gateCode.focus();
+   return;
+  }
+  setOutfit(selected);
  });
  form.querySelector("#avatar-v10-reset").addEventListener("click",()=>{
   controls(normalizeAvatarV10(select.value));
@@ -134,6 +178,10 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  form.addEventListener("submit",event=>{
   event.preventDefault();
   if(event.submitter?.value==="cancel"){dialog.close();return;}
+  if(pendingOutfit!==null){status.value="確認コードを入力するか取り消してください。";return;}
+  if(requiresAvatarWardrobeUnlock(fit.outfit)&&!unlocked()){
+   status.value="この衣装には確認コードが必要です。";return;
+  }
   const roster={...getRoster(),...Object.fromEntries(drafts)};
   if(!save(roster)){
    status.value="このブラウザに保存できませんでした。ゲーム内には反映しました。";
@@ -143,6 +191,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  });
  dialog.addEventListener("close",()=>{
   drafts.clear();token++;asset=null;
+  pendingOutfit=null;gate.hidden=true;gateCode.value="";
   preview?.assets.destroy();preview=null;
   if(raf)cancelAnimationFrame(raf);
   raf=0;
