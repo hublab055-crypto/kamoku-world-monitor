@@ -1,7 +1,8 @@
+import {normalizeAvatarV10Body,normalizeAvatarV10Swim} from "./avatar-v10-body.mjs?v=20261114-body";
 export const AVATAR_V10_MODELS = Object.freeze({
  lyra:"ライラ", mina:"ミナ", sera:"セラ", ren:"レン", noah:"ノア", elio:"エリオ"
 });
-export const AVATAR_V10_OUTFITS = Object.freeze({work:"作業服",casual:"普段着",space:"宇宙服",swim:"水着（試験・未収録モデルは普段着で代替）",base:"素体（衣装非表示・中性デッサン用）"});
+export const AVATAR_V10_OUTFITS = Object.freeze({work:"作業服",casual:"普段着",space:"宇宙服",swim:"水着（全身・専用マテリアル）",base:"素体（全身ベースメッシュ）"});
 export const AVATAR_V10_DEFAULTS = Object.freeze({player:"ren",navigator:"lyra",engineer:"elio",companion:"mina"});
 export const AVATAR_V10_FACE = [
  ["眉", [["browSize","大きさ"],["browShape","アーチ"],["browHeight","位置"]]],
@@ -24,7 +25,9 @@ export function normalizeAvatarV10(id, saved) {
   const value = saved?.face?.[key];
   return [key,Number.isFinite(value)?Math.round(Math.min(100,Math.max(-100,value))):0];
  }));
- return {model,outfit,face};
+ const body=normalizeAvatarV10Body(saved?.body);
+ const swim=normalizeAvatarV10Swim(saved?.swim);
+ return {model,outfit,face,body,swim};
 }
 
 export function normalizeAvatarRoster(saved) {
