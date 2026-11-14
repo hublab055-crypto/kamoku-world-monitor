@@ -1,6 +1,6 @@
-import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-review-43";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-review-43";
-import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-v10-crew";
+import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-officer-restore";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-officer-restore";
+import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-officer-restore";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
@@ -232,6 +232,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   swimFields.hidden=fit.outfit!=="swim";
   swimStyle.value=fit.swim.style;swimColor.value=fit.swim.color;
   const disabled=fit.model==="classic"||original;
+  load.disabled=original;saveJson.disabled=original;
   outfit.disabled=disabled;swimStyle.disabled=disabled;swimColor.disabled=disabled;
   hairSelect.value=fit.appearance.hairStyle;hairSelect.disabled=disabled;
   for(const [key,{input,value}] of reviewInputs){
