@@ -878,7 +878,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // temporarily migrate them to trackedSources: retain one per hand.
    const sources=controllerSources;
    vrMovement=xrVRMovement(sources,{rts:vrRTS,stickLayout:vrBindings.stickLayout});
-   if(vrPlanetOverview||getController()?.altitudeM>50000)vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
+   if(vrPlanetOverview||(!getRenderer()?.shipVoyage?.active&&getController()?.altitudeM>50000))vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
    const axes=left?.gamepad?.axes;
