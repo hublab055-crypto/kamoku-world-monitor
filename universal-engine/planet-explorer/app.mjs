@@ -698,12 +698,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady);
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt);
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady);
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt);
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -1661,7 +1661,12 @@ function vrExteriorHatchTrigger({matrix,stage}={}){
 }
 function vrSurfaceShipAction(){
  if(voyage?.kind==="surface-to-surface"){
-  if(voyage.seated)return {handled:false};
+  if(voyage.seated){
+   const result=shipStand();
+   if(result.message)log(result.message);
+   shipInteractionUI?.update(true);
+   return {handled:result.ok,message:result.message};
+  }
   const result=voyage.isNearSeat()?shipSit():
    voyage.isGrounded()&&voyage.isNearHatch()?shipToggleHatch():null;
   if(!result)return {handled:false};
@@ -4239,6 +4244,9 @@ solarUI.refresh();voyageUI.render();shipInteractionUI.update(true);surfaceShipUI
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
  onVRGroundStart:()=>{
+  // VR cabin starts at the current crew-test or starship position. Never
+  // teleport the ground controller to a settlement while a ship is active.
+  if(voyage?.active)return {ok:true,message:voyage.seated?"🥽 船内VR：Xで操縦席から立ち上がれます":"🥽 船内VR：スティックで歩行、Xで着席できます"};
   if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
    return {ok:false,message:"現在は勾留・継承中です。釈放や継承を完了してから屋外へ出てください"};
   if(controller.altitudeM>12){
@@ -4258,6 +4266,12 @@ xrUI=installXRUI({
   onVRShipFrame:dt=>shipCombatUI?.update(dt,{vr:true}),
   onVRSurfaceHatch:vrExteriorHatchTrigger,
   onVRSurfaceShipAction:vrSurfaceShipAction,
+  onVRShipCrewGesture:(id,gesture)=>{
+   if(!voyage?.active||voyage.seated)return {ok:false};
+   const result=voyage.interior.greetings.start(voyage.interior,id,gesture);
+   if(result.message)log("🥽 "+result.message);
+   return result;
+  },
   onVRCustody:vrCustodyInteraction,
  getVRCustodyPose:()=>custodyFacility?{
   footBraced:custodyClimb.footBraced,onLedge:custodyClimb.onLedge,
