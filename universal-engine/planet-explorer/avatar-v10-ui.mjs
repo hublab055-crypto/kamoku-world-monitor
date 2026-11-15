@@ -257,7 +257,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    gl.clearColor(.065,.119,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    if(!asset)return;
    const near=faceView&&fit.outfit!=="space",distance=(near?.92:3.85)/previewZoom;
-   const y=near?1.57:.91;
+   const y=near?1.57:.98;
    const eye=[distance*Math.sin(rotation),y+.03,distance*Math.cos(rotation)];
    const vp=multiply4(perspective(.66,w/h,.035,20),lookAt(eye,[0,y,0]));
    asset.draw(vp,identity,[-.38,.9,.72],"editor",step,{time:previewTime,fit,motion:previewAction,
