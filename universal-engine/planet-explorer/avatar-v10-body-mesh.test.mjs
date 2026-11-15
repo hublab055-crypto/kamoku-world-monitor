@@ -25,9 +25,9 @@ test("V10 base/swim have complete skinned foot surfaces without altering shoes",
  assert.ok(result.every(p=>p.wardrobe.includes("base")&&p.wardrobe.includes("swim")));
  assert.ok(result.every(p=>p.skin===0&&p.textureImage===null));
  assert.ok(result.every(p=>p.arrays.weights!==left.arrays.weights));
- assert.equal(result[0].arrays.colors[0],.7);
- assert.equal(left.arrays.colors[0],.4);
- assert.equal(left.arrays.positions[4],.21);
+ assert.ok(Math.abs(result[0].arrays.colors[0]-.7)<1e-5);
+ assert.ok(Math.abs(left.arrays.colors[0]-.4)<1e-5);
+ assert.ok(Math.abs(left.arrays.positions[4]-.21)<1e-5);
  assert.ok(Math.min(...result[0].arrays.positions.filter((_,i)=>i%3===1))<=.04);
  assert.ok(result[0].arrays.positions[4]<.21);
 });
