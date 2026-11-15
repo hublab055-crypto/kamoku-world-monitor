@@ -4,6 +4,7 @@ import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-glsl-chest-f
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
+import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -15,7 +16,32 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const fields=form.querySelector("#avatar-v10-features");
  const status=form.querySelector("output");
  let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true;
+ let previewAction="idle",previewTime=0,previewLast=0,previewHand="right";
  const drafts=new Map();
+ const motionRow=document.createElement("div");
+ motionRow.className="avatar-v10-motion";
+ motionRow.style.cssText="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px";
+ const motionLabel=document.createElement("label");
+ motionLabel.textContent="モーション試験 ";
+ const motionChoice=document.createElement("select");motionChoice.setAttribute("aria-label","アバターのモーション");
+ motionChoice.add(new Option("直立・待機","idle"));
+ for(const [id,spec] of Object.entries(AVATAR_DAILY_ACTIONS))
+  motionChoice.add(new Option(spec.label,id));
+ motionLabel.append(motionChoice);
+ const handLabel=document.createElement("label");handLabel.textContent="手 ";
+ const handChoice=document.createElement("select");handChoice.setAttribute("aria-label","拾い上げる手");
+ handChoice.add(new Option("右手","right"));handChoice.add(new Option("左手","left"));
+ handLabel.append(handChoice);
+ const restart=document.createElement("button");restart.type="button";restart.textContent="▶ 再生";
+ motionRow.append(motionLabel,handLabel,restart);
+ canvas.parentElement?.append(motionRow);
+ const anatomyNote=document.createElement("small");
+ anatomyNote.textContent="素体には成人の授乳用の乳頭・乳輪の位置目印があります。衣服・水着には表示しません。乳児・授乳機能の実装は別段階です。";
+ anatomyNote.style.cssText="display:block;font-size:11px;color:#9ab6c4";
+ motionRow.after(anatomyNote);
+ motionChoice.addEventListener("change",()=>{previewAction=motionChoice.value;previewTime=0;previewLast=0;invalidate();});
+ handChoice.addEventListener("change",()=>{previewHand=handChoice.value;previewTime=0;invalidate();});
+ restart.addEventListener("click",()=>{previewTime=0;previewLast=0;invalidate();});
  const reviewInputs=new Map();
  function option(value,label){return new Option(label,value);}
  for(const [id,name] of Object.entries(names))select.add(option(id,name));
@@ -191,8 +217,12 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  }
  function invalidate(){
   if(raf)return;
-  raf=requestAnimationFrame(()=>{
+  raf=requestAnimationFrame(now=>{
    raf=0;
+   const duration=AVATAR_DAILY_ACTIONS[previewAction]?.seconds||0;
+   const step=previewLast?Math.min(.05,Math.max(0,(now-previewLast)/1000)):0;
+   previewLast=now;
+   if(previewAction!=="idle")previewTime+=step;
    if(!dialog.open||!preview)return;
    const {gl}=preview;
    const dpr=Math.min(1.5,window.devicePixelRatio||1);
@@ -205,7 +235,9 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    const y=near?1.57:.91;
    const eye=[distance*Math.sin(rotation),y+.03,distance*Math.cos(rotation)];
    const vp=multiply4(perspective(.66,w/h,.035,20),lookAt(eye,[0,y,0]));
-   asset.draw(vp,identity,[-.38,.9,.72],"editor",0,{time:0,fit});
+   asset.draw(vp,identity,[-.38,.9,.72],"editor",step,{time:previewTime,fit,motion:previewAction,
+    motionProgress:duration?Math.min(1,previewTime/duration):0,hand:previewHand});
+   if(previewAction!=="idle"&&(!duration||AVATAR_DAILY_ACTIONS[previewAction]?.loop||previewTime<duration))invalidate();
   });
  }
  function loadPreview(){
@@ -314,7 +346,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  dialog.addEventListener("close",()=>{
   drafts.clear();token++;asset=null;
   pendingOutfit=null;gate.hidden=true;gateCode.value="";
-  preview?.assets.destroy();preview=null;
+  preview?.assets.destroy();preview=null;previewAction="idle";previewTime=0;previewLast=0;motionChoice.value="idle";
   if(raf)cancelAnimationFrame(raf);
   raf=0;
  });
