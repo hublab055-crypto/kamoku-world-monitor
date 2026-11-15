@@ -1528,7 +1528,7 @@ export class ExplorerRenderer{
    !["idle","sit","eat","sleep","run","crouch","pickup","lift","holdBaby"].includes(motion.action))return false;
   const animation=this.socialAnimations.get("player");
   if(animation)return false;
-  const action={sit:"Seated",sleep:"Sleeping"}[motion.action]||motion.action;
+  const action={sit:"Seated"}[motion.action]||motion.action;
   const character=multiply4(transform,rotateY(unit.yaw||0));
   const asset=this.drawAvatarV10("player",vp,character,light,dt,{motion:action,moving:Boolean(unit.moving),
    motionProgress:Number.isFinite(motion.progress)?motion.progress:null,hand:motion.hand||"right"});
