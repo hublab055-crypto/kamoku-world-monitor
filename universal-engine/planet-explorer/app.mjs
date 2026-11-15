@@ -712,7 +712,10 @@ function updateAvatarDaily(dt){
  if(action){
   avatarDailyState.elapsed+=running?dt:0;
   const seconds=AVATAR_DAILY_ACTIONS[action]?.seconds||0;
-  if(seconds>0&&avatarDailyState.elapsed>=seconds)avatarDailyState.action=null;
+  if(seconds>0&&avatarDailyState.elapsed>=seconds){
+   avatarDailyState.action=null;
+   document.querySelectorAll("[data-avatar-daily]").forEach(btn=>btn.setAttribute("aria-pressed","false"));
+  }
  }
  const active=avatarDailyState.action;
  const shiftRun=keys.has("shift")&&active!=="crouch";
