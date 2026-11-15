@@ -1,4 +1,5 @@
-import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261114-crew-social-2";
+import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261115-follow";
+import {ShipCrewSocial} from "./ship-crew-social.mjs?v=20261115";
 
 /** Local ship coordinates: forward -Z; floor Y=0; dimensions 8m x 26m. */
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -34,13 +35,20 @@ export class ShipInterior{
   this.seated=Boolean(data.seated);
   this.hatchPassable=Boolean(data.hatchPassable);
   this.suitOn=Boolean(data.suitOn);
-  this.greetings=new ShipCrewGreetings(SHIP_CREW);
+  this.crew=SHIP_CREW.map(c=>{
+    const prior=Array.isArray(data.crew)?data.crew.find(v=>v?.id===c.id):null;
+    const x=valid(prior?.x)?clamp(prior.x,-3.45,3.45):c.x;
+    const z=valid(prior?.z)?clamp(prior.z,-12.4,12.7):c.z;
+    return {...c,x,z,yaw:valid(prior?.yaw)?prior.yaw:c.yaw,following:Boolean(prior?.following),moving:false};
+   });
+   this.social=new ShipCrewSocial(data.social);
+   this.greetings=new ShipCrewGreetings(this.crew);
   if(!this.canOccupy(this.x,this.z,{ignoreCrew:true})){this.x=0;this.z=-8.2;}
  }
  canOccupy(x,z,{ignoreCrew=false}={}){
   if(!valid(x)||!valid(z)||Math.abs(x)>3.48||z< -12.75||z>18.7)return false;
   if(z>12.7&&(!this.hatchPassable||Math.abs(x)>1.05))return false;
-  if(!ignoreCrew&&SHIP_CREW.some(c=>Math.hypot(x-c.x,z-c.z)<.48))return false;
+  if(!ignoreCrew&&this.crew.some(c=>Math.hypot(x-c.x,z-c.z)<.48))return false;
   const r=.27;
   return !blockers.some(b=>x+r>b.x1&&x-r<b.x2&&z+r>b.z1&&z-r<b.z2);
  }
@@ -85,12 +93,12 @@ export class ShipInterior{
   });
  }
  nearCrew(radius=CREW_REACH){
-  return SHIP_CREW.filter(c=>this.distance(c)<=radius&&this.canReachCrew(c))
+  return this.crew.filter(c=>this.distance(c)<=radius&&this.canReachCrew(c))
    .sort((a,b)=>this.distance(a)-this.distance(b));
  }
  nearStations(radius=2.8){return SHIP_STATIONS.filter(c=>c.id==="helm"?this.nearHelm:this.distance(c)<=Math.min(radius,c.radius)).sort((a,b)=>this.distance(a)-this.distance(b));}
  talk(id,voyage){
-  const crew=SHIP_CREW.find(c=>c.id===id);
+  const crew=this.crew.find(c=>c.id===id);
   if(!crew)return {ok:false,message:"乗員が見つかりません"};
   if(this.distance(crew)>CREW_REACH||!this.canReachCrew(crew))return {ok:false,message:crew.name+"には近づいてから話しかけてください"};
   this.lastCrewId=crew.id;
@@ -106,6 +114,54 @@ export class ShipInterior{
   };
   return {ok:true,name:crew.name,message:responses[crew.id]};
  }
- snapshot(){return {schemaVersion:1,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,lastCrewId:this.lastCrewId,seated:this.seated,suitOn:this.suitOn,hatchPassable:this.hatchPassable};}
- static fromSnapshot(data){return new ShipInterior(data?.schemaVersion===1?data:{});}
+
+ /** Move followers on the real walkable deck, with a central passage at each bulkhead. */
+ advanceCrew(dt){
+  this.social.advance(dt);
+  if(!valid(dt)||dt<=0)return;
+  for(const [i,member] of this.crew.entries()){
+   member.moving=false;
+   if(!member.following)continue;
+   let target={x:this.x+(i-1)*.65,z:this.z+1.25};
+   const crossing=[-4.8,4.5].find(w=>(member.z-w)*(target.z-w)<0);
+   if(crossing!==undefined)target={x:0,z:crossing+(member.z<crossing?1:-1)};
+   const distance=Math.hypot(target.x-member.x,target.z-member.z);
+   if(distance<.35)continue;
+   const step=Math.min(distance,Math.min(.16,dt)*1.9);
+   const dx=(target.x-member.x)/distance*step,dz=(target.z-member.z)/distance*step;
+   const nextX=member.x+dx,nextZ=member.z+dz;
+   if(this.canOccupy(nextX,nextZ,{ignoreCrew:true})&&Math.hypot(nextX-this.x,nextZ-this.z)>.65){
+    member.x=nextX;member.z=nextZ;member.moving=true;member.yaw=Math.atan2(dx,dz);
+   }else{
+    if(this.canOccupy(nextX,member.z,{ignoreCrew:true})&&Math.hypot(nextX-this.x,member.z-this.z)>.65){member.x=nextX;member.moving=true;}
+    if(this.canOccupy(member.x,nextZ,{ignoreCrew:true})&&Math.hypot(member.x-this.x,nextZ-this.z)>.65){member.z=nextZ;member.moving=true;}
+   }
+  }
+ }
+ setFollowing(id){
+  const member=this.crew.find(m=>m.id===id);
+  if(!member)return {ok:false,message:"乗員が見つかりません"};
+  if(!member.following&&(this.seated||this.distance(member)>CREW_REACH||!this.canReachCrew(member)))
+   return {ok:false,message:member.name+"の近くで追従を頼んでください"};
+  member.following=!member.following;
+  return {ok:true,message:member.name+(member.following?"がついてきます":"はここで待機します"),following:member.following};
+ }
+ socialAction(id,action,options={}){
+  const member=this.crew.find(m=>m.id===id);
+  if(!member)return {ok:false,message:"乗員が見つかりません"};
+  if(this.seated||this.distance(member)>CREW_REACH||!this.canReachCrew(member))
+   return {ok:false,message:member.name+"に近づいてください"};
+  this.lastCrewId=id;
+  return this.social.interact(id,action,options);
+ }
+ deepenRelationship(id,kind){
+  const member=this.crew.find(m=>m.id===id);
+  if(!member||this.seated||this.distance(member)>CREW_REACH||!this.canReachCrew(member))
+   return {ok:false,message:"乗員に近づいてください"};
+  return this.social.deepen(id,kind);
+ }
+ snapshot(){return {schemaVersion:2,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,
+   lastCrewId:this.lastCrewId,seated:this.seated,suitOn:this.suitOn,hatchPassable:this.hatchPassable,
+   crew:this.crew.map(c=>({id:c.id,x:c.x,z:c.z,yaw:c.yaw,following:c.following})),social:this.social.snapshot()};}
+ static fromSnapshot(data){return new ShipInterior([1,2].includes(data?.schemaVersion)?data:{});}
 }
