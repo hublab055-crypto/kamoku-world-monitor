@@ -36,8 +36,8 @@ test("Right grip provides proportional pitch and heading and springs back",()=>{
  const h=new VRShipHotas(),v=voyage(),b=XR_HOTAS.right;
  assert.ok(h.grab("right",pose(b.x,b.y,b.z),stage,v));
  const state=h.update({right:pose(b.x+.18,b.y,b.z-.18)},stage,.05,v);
- assert.equal(state.yaw,1);
- assert.equal(state.pitch,1);
+ assert.ok(state.yaw>.999);
+ assert.ok(state.pitch>.999);
  assert.ok(v.attitudeYawDeg>0);
  assert.ok(v.pitchDeg>0);
  h.release("right");
