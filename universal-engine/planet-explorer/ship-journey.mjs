@@ -65,7 +65,7 @@ export class ShipJourney{
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
   this.interior=ShipInterior.fromSnapshot({...data.interior,
-   schemaVersion:1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
+   schemaVersion:data.interior?.schemaVersion||1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
   this.interior.mode=this.seated?"cockpit":"interior";
   this.interior.seated=this.seated;
   if(this.seated)this.interior.z=PILOT_SEAT_Z;
