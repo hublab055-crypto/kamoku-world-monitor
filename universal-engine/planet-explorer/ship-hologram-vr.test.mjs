@@ -12,20 +12,20 @@ function pointTo(x,y,z=XR_HOLO_Z+.67,stage=identityAt()){
  return xrHologramControlHit(identityAt(x,y,z),stage);
 }
 test("Quest ray selects starship hologram buttons but not empty space",()=>{
- assert.equal(pointTo(-1.84,1.93)?.id,"gear");
- assert.equal(pointTo(-1.27,1.93)?.id,"hatch");
- assert.equal(pointTo(-1.84,.88)?.id,"primary");
- assert.equal(pointTo(-1.27,.88)?.id,"autopilot");
- assert.equal(pointTo(1.18,1.88)?.id,"weapon");
- assert.equal(pointTo(1.55,1.88)?.id,"lock");
- assert.equal(pointTo(1.91,1.88)?.id,"autoFire");
- assert.equal(pointTo(1.55,1.47)?.id,"refuel");
- assert.equal(pointTo(1.91,1.47)?.id,"repair-shield");
- assert.equal(pointTo(1.18,1.06)?.id,"repair-engine");
- assert.equal(pointTo(1.55,1.06)?.id,"repair-hull");
- assert.equal(pointTo(1.91,1.06)?.id,"repair-weapons");
+ assert.equal(pointTo(-.96,1.64)?.id,"gear");
+ assert.equal(pointTo(-.57,1.64)?.id,"hatch");
+ assert.equal(pointTo(-.96,.87)?.id,"primary");
+ assert.equal(pointTo(-.57,.87)?.id,"autopilot");
+ assert.equal(pointTo(.49,1.67)?.id,"weapon");
+ assert.equal(pointTo(.77,1.67)?.id,"lock");
+ assert.equal(pointTo(1.05,1.67)?.id,"autoFire");
+ assert.equal(pointTo(.77,1.32)?.id,"refuel");
+ assert.equal(pointTo(1.05,1.32)?.id,"repair-shield");
+ assert.equal(pointTo(.49,.99)?.id,"repair-engine");
+ assert.equal(pointTo(.77,.99)?.id,"repair-hull");
+ assert.equal(pointTo(1.05,.99)?.id,"repair-weapons");
  assert.equal(pointTo(0,1.4),null);
- assert.equal(pointTo(5,1.88),null);
+ assert.equal(pointTo(5,1.67),null);
 });
 test("Quest main and VOL levers use hit height, clamping and detents",()=>{
  const main=XR_HOLO_SLIDERS[0],vol=XR_HOLO_SLIDERS[1];
@@ -38,10 +38,10 @@ test("Quest main and VOL levers use hit height, clamping and detents",()=>{
 });
 test("Quest intersection respects tracking-space translation and ray direction",()=>{
  const stage=identityAt(3,0,5);
- const hit=pointTo(1.55+3,1.88,XR_HOLO_Z+5+.55,stage);
+ const hit=pointTo(.77+3,1.67,XR_HOLO_Z+5+.55,stage);
  assert.equal(hit?.id,"lock");
- assert.equal(xrHologramControlHit(identityAt(1.55,1.88,XR_HOLO_Z-.3),identityAt()),null);
- assert.equal(xrHologramPlaneHit(identityAt(1.55,1.88,XR_HOLO_Z+10),identityAt()),null);
+ assert.equal(xrHologramControlHit(identityAt(.77,1.67,XR_HOLO_Z-.3),identityAt()),null);
+ assert.equal(xrHologramPlaneHit(identityAt(.77,1.67,XR_HOLO_Z+10),identityAt()),null);
  assert.equal(xrHologramPlaneHit([],identityAt()),null);
  assert.equal(xrHologramPlaneHit(identityAt(),[NaN,...identityAt().slice(1)]),null);
 });

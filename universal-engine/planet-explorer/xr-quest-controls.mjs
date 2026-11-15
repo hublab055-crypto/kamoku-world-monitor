@@ -45,7 +45,7 @@ export function xrButtonEdges(sources,previous=new Set()){
  }
  return {next,pressed};
 }
-export function xrVRMovement(sources,{rts=false,stickLayout="leftMove"}={}){
+export function xrVRMovement(sources,{rts=false,stickLayout="leftMove",ship=false,headDelta=0}={}){
  const result={forward:0,strafe:0,turn:0,tableTurn:0};
  const moveHand=stickLayout==="rightMove"?"right":"left";
  const turnHand=moveHand==="left"?"right":"left";
@@ -55,10 +55,13 @@ export function xrVRMovement(sources,{rts=false,stickLayout="leftMove"}={}){
   if(source.gamepad?.mapping&&!["xr-standard","standard"].includes(source.gamepad.mapping))continue;
   const {x,y}=xrStick(source.gamepad);
   if(source.handedness===moveHand&&!rts){
-   result.forward=-y;
-   // xrStage rotates the VR cabin/world to face the headset. Both outdoor
-   // and ship-local +X appear on the viewer's left: invert stick strafe.
-   result.strafe=x===0?0:-x;
+   // Ship VR has a distinct forward -Z coordinate convention. Map thumbstick
+   // motion into the HMD's horizontal heading, then let the ship collider move it.
+   // Outdoor/custody stages retain their existing handedness convention.
+   const f=-y,s=ship?x:(x===0?0:-x);
+   const heading=ship&&Number.isFinite(headDelta)?headDelta:0;
+   result.forward=ship?Math.max(-1,Math.min(1,f*Math.cos(heading)-s*Math.sin(heading))):f;
+   result.strafe=ship?Math.max(-1,Math.min(1,s*Math.cos(heading)+f*Math.sin(heading))):s;
   }
   if(source.handedness===turnHand){
    if(rts)result.tableTurn=x;

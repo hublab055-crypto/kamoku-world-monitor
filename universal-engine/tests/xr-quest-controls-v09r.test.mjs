@@ -26,7 +26,7 @@ test("Quest left stick moves avatar in each of four cardinal directions",()=>{
 });
 test("Immersive VR samples Touch movement in the XR frame and runs simulation there",()=>{
  const ui=source("xr-ui.mjs"),app=source("app.mjs");
- assert.match(ui,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS,stickLayout:vrBindings\.stickLayout\}\)/);
+ assert.match(ui,/vrMovement=xrVRMovement\(sources,\{rts:vrRTS,stickLayout:vrBindings\.stickLayout,ship:shipWalking,headDelta\}\)/);
  assert.match(ui,/onVRFrame\(time,\{\.\.\.vrMovement\}\)/);
  assert.match(ui,/performance\.now\(\)-vrInputSampleAt>250/);
  assert.match(app,/onVRFrame:\(t,input\)=>doFrame\(t,"xr",input\)/);

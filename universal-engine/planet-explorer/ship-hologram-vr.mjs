@@ -2,29 +2,31 @@ import {PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261114-crew-social-2";
 import {snapHologramLever} from "./ship-cockpit-hologram.mjs?v=20261115-hologram";
 
 /** Pilot-relative metres. Both panels stay out of the central windscreen. */
-export const XR_HOLO_Z=PILOT_SEAT_Z-1.12;
+export const XR_HOLO_Z=PILOT_SEAT_Z-.44;
+export const XR_HOLO_READOUT_X=Object.freeze([-1.04,-.88,-.72,-.56]);
+export const XR_HOLO_READOUT_Y=1.85;
 export const XR_HOLO_PANELS=Object.freeze([
- Object.freeze({side:"left",x:-1.55,y:1.54,z:XR_HOLO_Z,width:1.19,height:1.78}),
- Object.freeze({side:"right",x:1.55,y:1.54,z:XR_HOLO_Z,width:1.19,height:1.78})
+ Object.freeze({side:"left",x:-.76,y:1.32,z:XR_HOLO_Z,width:.78,height:1.17}),
+ Object.freeze({side:"right",x:.76,y:1.32,z:XR_HOLO_Z,width:.78,height:1.17})
 ]);
 export const XR_HOLO_SLIDERS=Object.freeze([
- Object.freeze({id:"main",x:-1.82,minY:1.04,maxY:1.70,z:XR_HOLO_Z,vol:false}),
- Object.freeze({id:"vol",x:-1.27,minY:1.04,maxY:1.70,z:XR_HOLO_Z,vol:true})
+ Object.freeze({id:"main",x:-.96,minY:1.04,maxY:1.45,z:XR_HOLO_Z,vol:false}),
+ Object.freeze({id:"vol",x:-.57,minY:1.04,maxY:1.45,z:XR_HOLO_Z,vol:true})
 ]);
 export const XR_HOLO_BUTTONS=Object.freeze([
- Object.freeze({id:"gear",x:-1.84,y:1.93,z:XR_HOLO_Z,label:"GEAR"}),
- Object.freeze({id:"hatch",x:-1.27,y:1.93,z:XR_HOLO_Z,label:"HATCH"}),
- Object.freeze({id:"primary",x:-1.84,y:.88,z:XR_HOLO_Z,label:"GO"}),
- Object.freeze({id:"autopilot",x:-1.27,y:.88,z:XR_HOLO_Z,label:"AUTO"}),
- Object.freeze({id:"weapon",x:1.18,y:1.88,z:XR_HOLO_Z,label:"WPN"}),
- Object.freeze({id:"lock",x:1.55,y:1.88,z:XR_HOLO_Z,label:"LOCK"}),
- Object.freeze({id:"autoFire",x:1.91,y:1.88,z:XR_HOLO_Z,label:"FIRE"}),
- Object.freeze({id:"ciws",x:1.18,y:1.47,z:XR_HOLO_Z,label:"CIWS"}),
- Object.freeze({id:"refuel",x:1.55,y:1.47,z:XR_HOLO_Z,label:"FUEL"}),
- Object.freeze({id:"repair-shield",x:1.91,y:1.47,z:XR_HOLO_Z,label:"SHLD"}),
- Object.freeze({id:"repair-engine",x:1.18,y:1.06,z:XR_HOLO_Z,label:"ENG"}),
- Object.freeze({id:"repair-hull",x:1.55,y:1.06,z:XR_HOLO_Z,label:"HULL"}),
- Object.freeze({id:"repair-weapons",x:1.91,y:1.06,z:XR_HOLO_Z,label:"RPR"})
+ Object.freeze({id:"gear",x:-.96,y:1.64,z:XR_HOLO_Z,label:"GEAR"}),
+ Object.freeze({id:"hatch",x:-.57,y:1.64,z:XR_HOLO_Z,label:"HATCH"}),
+ Object.freeze({id:"primary",x:-.96,y:.87,z:XR_HOLO_Z,label:"GO"}),
+ Object.freeze({id:"autopilot",x:-.57,y:.87,z:XR_HOLO_Z,label:"AUTO"}),
+ Object.freeze({id:"weapon",x:.49,y:1.67,z:XR_HOLO_Z,label:"WPN"}),
+ Object.freeze({id:"lock",x:.77,y:1.67,z:XR_HOLO_Z,label:"LOCK"}),
+ Object.freeze({id:"autoFire",x:1.05,y:1.67,z:XR_HOLO_Z,label:"FIRE"}),
+ Object.freeze({id:"ciws",x:.49,y:1.32,z:XR_HOLO_Z,label:"CIWS"}),
+ Object.freeze({id:"refuel",x:.77,y:1.32,z:XR_HOLO_Z,label:"FUEL"}),
+ Object.freeze({id:"repair-shield",x:1.05,y:1.32,z:XR_HOLO_Z,label:"SHLD"}),
+ Object.freeze({id:"repair-engine",x:.49,y:.99,z:XR_HOLO_Z,label:"ENG"}),
+ Object.freeze({id:"repair-hull",x:.77,y:.99,z:XR_HOLO_Z,label:"HULL"}),
+ Object.freeze({id:"repair-weapons",x:1.05,y:.99,z:XR_HOLO_Z,label:"RPR"})
 ]);
 
 function xyz(matrix,point){
@@ -37,7 +39,7 @@ const sub=(a,b)=>a.map((x,i)=>x-b[i]);
  * Works for translated or yaw-rotated WebXR tracking origins.
  * Rejects untracked poses, rear-side rays and excessively distant pointers.
  */
-export function xrHologramPlaneHit(ray,stage,{maxDistance=2.8}={}){
+export function xrHologramPlaneHit(ray,stage,{maxDistance=1.8}={}){
  if(!Array.isArray(ray)||!Array.isArray(stage)||ray.length!==16||stage.length!==16||
   ![...ray,...stage,maxDistance].every(Number.isFinite)||maxDistance<=0)return null;
  const origin=[ray[12],ray[13],ray[14]],d=[-ray[8],-ray[9],-ray[10]];
@@ -69,7 +71,7 @@ export function xrHologramControlHit(ray,stage){
   return {id:slider.id,value,distance:hit.distance};
  }
  for(const button of XR_HOLO_BUTTONS){
-  if(Math.abs(hit.x-button.x)<=.165&&Math.abs(hit.y-button.y)<=.125)
+  if(Math.abs(hit.x-button.x)<=.12&&Math.abs(hit.y-button.y)<=.125)
    return {id:button.id,distance:hit.distance};
  }
  return null;
