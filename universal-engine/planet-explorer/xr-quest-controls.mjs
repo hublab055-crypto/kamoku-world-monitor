@@ -60,8 +60,8 @@ export function xrVRMovement(sources,{rts=false,stickLayout="leftMove",ship=fals
    // Outdoor/custody stages retain their existing handedness convention.
    const f=-y,s=ship?x:(x===0?0:-x);
    const heading=ship&&Number.isFinite(headDelta)?headDelta:0;
-   result.forward=ship?Math.max(-1,Math.min(1,f*Math.cos(heading)+s*Math.sin(heading))):f;
-   result.strafe=ship?Math.max(-1,Math.min(1,s*Math.cos(heading)-f*Math.sin(heading))):s;
+   result.forward=ship?Math.max(-1,Math.min(1,f*Math.cos(heading)-s*Math.sin(heading))):f;
+   result.strafe=ship?Math.max(-1,Math.min(1,s*Math.cos(heading)+f*Math.sin(heading))):s;
   }
   if(source.handedness===turnHand){
    if(rts)result.tableTurn=x;
