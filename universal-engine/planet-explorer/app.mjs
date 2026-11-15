@@ -135,7 +135,7 @@ function applyAvatarV10(next){
  avatarV10=normalizeAvatarRoster(next);
  if(renderer){
   renderer.avatarV10=avatarV10;
-  renderer.avatarV10Assets.prefetch(avatarV10.player.model);
+  for(const fit of Object.values(avatarV10))renderer.avatarV10Assets.prefetch(fit.model);
  }
 }
 function crewAvatarReady({id}){
@@ -736,6 +736,8 @@ function doFrame(t,source="window",xrFrameInput=null){
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  mobileUI?.update(dt);
+  const socialButton=document.getElementById("ship-crew-social-open");
+  if(socialButton){socialButton.style.display=voyage?.active&&!voyage.seated?"block":"none";if(!voyage?.active)document.getElementById("ship-crew-social").style.display="none";}
  pilotPanel?.update(Boolean(voyage?.seated&&!xrUI?.active));
  updateAvatarDaily(dt);
  if(voyage?.active){
@@ -4299,7 +4301,48 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  tradeWares:TOWN_WARES.workshop,onTrade:shipRadioTrade,
  getViewSettings:()=>voyageUI?.getViewSettings?.()||{},
  setViewSettings:values=>voyageUI?.setViewSettings?.(values)});
-shipInteractionUI=installShipInteractionUI({get:()=>voyage,
+// Captain's crew interaction panel; shares the live ship roster and persisted affinity.
+ const crewSocialPanel=document.createElement("section");
+ crewSocialPanel.id="ship-crew-social";crewSocialPanel.style.cssText="position:fixed;right:12px;bottom:85px;z-index:120;background:#102b3aee;color:#effaff;border:1px solid #79b2bf;border-radius:10px;padding:10px;max-width:min(360px,94vw);font:13px system-ui;display:none";
+ crewSocialPanel.innerHTML='<div style="display:flex;justify-content:space-between;gap:12px"><strong>💬 クルー交流</strong><button type="button" data-crew-close>×</button></div><label>乗員 <select data-crew-person></select></label><p data-crew-status></p><div data-crew-actions style="display:flex;flex-wrap:wrap;gap:5px"></div>';
+ document.body.append(crewSocialPanel);
+ const crewPerson=crewSocialPanel.querySelector("[data-crew-person]");
+ for(const member of SHIP_CREW)crewPerson.add(new Option(member.name,member.id));
+ const crewActions=crewSocialPanel.querySelector("[data-crew-actions]");
+ function refreshCrewSocial(){
+  const interior=voyage?.interior,member=interior?.crew?.find(c=>c.id===crewPerson.value);
+  const relation=interior?.social?.status(crewPerson.value);
+  crewSocialPanel.querySelector("[data-crew-status]").textContent=relation?
+   relation.label+" / 親密度 "+relation.points+" / "+(member?.following?"追従中":"待機中"):"乗船中に利用できます";
+ }
+ crewPerson.addEventListener("change",refreshCrewSocial);
+ crewSocialPanel.querySelector("[data-crew-close]").addEventListener("click",()=>{crewSocialPanel.style.display="none";});
+ const crewAction=(label,run)=>{
+  const button=document.createElement("button");button.type="button";button.textContent=label;
+  button.style.cssText="padding:6px;border-radius:5px;background:#27546b;color:white;border:1px solid #81b5c2";
+  button.addEventListener("click",()=>{const result=run(crewPerson.value);if(result?.message)log(result.message);refreshCrewSocial();});
+  crewActions.append(button);
+ };
+ crewAction("会話",id=>voyage?.interior?.socialAction(id,"talk"));
+ crewAction("雑談",id=>voyage?.interior?.socialAction(id,"chat"));
+ crewAction("プレゼント",id=>{
+  const goods=actions?.resources||{};
+  const kind=Object.keys(goods).find(k=>Number.isFinite(goods[k])&&goods[k]>0&&!["ancientCoins","dragonRelic"].includes(k));
+  if(!kind)return {ok:false,message:"贈れる資材がありません"};
+  const result=voyage?.interior?.socialAction(id,"gift",{hasGift:true});
+  if(result?.spentGift)goods[kind]--;
+  return result;
+ });
+ crewAction("ついてきて / 待機",id=>voyage?.interior?.setFollowing(id));
+ crewAction("恋人になる",id=>voyage?.interior?.deepenRelationship(id,"romance"));
+ crewAction("家族になる",id=>voyage?.interior?.deepenRelationship(id,"family"));
+ const crewSocialOpen=document.createElement("button");crewSocialOpen.type="button";
+ crewSocialOpen.id="ship-crew-social-open";crewSocialOpen.textContent="💬 乗員交流";
+ crewSocialOpen.style.cssText="position:fixed;right:12px;bottom:42px;z-index:119;padding:8px;background:#205069;color:#fff;border:1px solid #81b5c2;border-radius:7px;display:none";
+ document.body.append(crewSocialOpen);
+ crewSocialOpen.addEventListener("click",()=>{crewSocialPanel.style.display=crewSocialPanel.style.display==="none"?"block":"none";refreshCrewSocial();});
+
+ shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
 surfaceShipUI=installSurfaceStarshipUI({get:()=>({
