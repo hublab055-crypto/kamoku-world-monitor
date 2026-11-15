@@ -1,5 +1,6 @@
 import {poseAvatarV10Gesture} from "./avatar-v10-motion.mjs?v=1";
 import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
+import {sampleAvatarDailyPose} from "./avatar-daily-actions.mjs?v=20261115";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8q-splash";
 /** GLB2 skeletal/morph animation data. Pure module; no DOM/WebGL dependency.
  * Supports glTF node hierarchy, inverse bind matrices, skin weights, two morph targets,
@@ -287,6 +288,37 @@ export function applyWeaponRigPose(rig,poses,action,progress,variant="overhead",
  }
  return true;
 }
+/** Joint-name retargeting for daily actions on V10 and generic humanoid GLBs.
+ * Local pelvis height is expressed in model units; the renderer restores metres
+ * with rig.scale. Never replace original model skinning, bind pose or face clips.
+ */
+export function applyAvatarDailyRigPose(rig,poses,kind,time,{progress=0,hand="right"}={}){
+ const data=sampleAvatarDailyPose(kind,{time,progress,hand});
+ if(!data)return false;
+ const index=new Map(rig.nodes.map((n,i)=>[(n.name||"").toLowerCase().replace(/[^a-z0-9]/g,""),i]));
+ if(!["pelvis","waist","leftshoulder","rightshoulder","leftelbow","rightelbow","lefthip","righthip","leftknee","rightknee"]
+  .every(n=>index.has(n)))return false;
+ for(const [name,id] of index){
+  const node=poses[id];if(!node)continue;
+  if(name==="pelvis"){
+   node.translation[1]+=(data.rootY||0)/(rig.scale||1);
+  }else if(name==="waist")node.rotation=qmul(qx(data.torsoX||0),qy(data.torsoY||0));
+  else if(name==="neck"||name==="head"){
+   if(name==="head")node.rotation=qmul(node.rotation,qy(data.headY||0));
+  }else{
+   for(const side of ["left","right"]){
+    if(name===side+"shoulder")
+     node.rotation=qmul(qz(data[side+"ShoulderZ"]||0),qx(data[side+"ShoulderX"]||0));
+    else if(name===side+"elbow")node.rotation=qx(data[side+"ElbowX"]||0);
+    else if(name===side+"wrist")node.rotation=qx(data[side+"WristX"]||0);
+    else if(name===side+"hip")node.rotation=qx(data[side+"HipX"]||0);
+    else if(name===side+"knee")node.rotation=qx(data[side+"KneeX"]||0);
+    else if(name===side+"ankle")node.rotation=qx(data[side+"AnkleX"]||0);
+   }
+  }
+ }
+ return true;
+}
 export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=time,opts={}){
  const pose=rig.nodes.map(n=>({translation:[...n.translation],rotation:[...n.rotation],scale:[...n.scale],
   weights:[...(n.weights||[0,0])]}));
@@ -305,6 +337,7 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
   applyAquaticRigPose(rig,pose,bodyKind,time,opts.moving!==false);
  if(Number.isFinite(opts.motionProgress))
   applyWeaponRigPose(rig,pose,bodyKind,opts.motionProgress,opts.variant||"overhead",opts.hand||"right");
+ applyAvatarDailyRigPose(rig,pose,bodyKind,time,{progress:opts.motionProgress??0,hand:opts.hand||"right"});
  if(rig.isV10&&opts.gesture)poseAvatarV10Gesture(rig,pose,opts.gesture);
  // Live neck/head tracking: the officer lowers her gaze when the player
  // is seated, and turns her eyes/head toward the nearby player while standing.

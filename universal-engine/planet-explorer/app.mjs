@@ -1,5 +1,6 @@
 import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-officer-restore";
-import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261114-glsl-chest-fix";
+import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
+import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261115-daily-poses";
 import {shipContactDistance} from "./space-combat.mjs?v=20261112-warp";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
@@ -23,7 +24,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261115-quest-holo";
+import {ExplorerRenderer} from "./render.mjs?v=20261115-daily-poses";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -125,6 +126,7 @@ let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
 let avatarV10=normalizeAvatarRoster(),avatarEditor=null,crewTestState=null;
+const avatarDailyState={action:null,elapsed:0,hand:"right"};
 function loadAvatarV10(){
  try{return JSON.parse(localStorage.getItem(AVATAR_V10_STORAGE)||"null");}
  catch(_){return null;}
@@ -676,6 +678,54 @@ function inputVector(){
   strafe:(on("d")?1:0)-(on("a")?1:0)+axes.strafe,
   turn:(on("e")||on("right")?1:0)-(on("q")||on("left")?1:0)};
 }
+function avatarDailyAvailable(){
+ return Boolean(renderer&&controller?.nearGround&&!voyage?.active&&!xrUI?.active&&
+  !law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver);
+}
+/** The menu previews a pose. Real harvesting, inventory and nursing remain
+ * authority of the existing interaction/life systems, never of animation.
+ */
+function activateAvatarDaily(raw){
+ if(!avatarDailyAvailable()){log("地上で、VR・宇宙船・勾留モードを終了してから動作を選んでください");return false;}
+ const action=raw==="pickupLeft"?"pickup":raw;
+ if(action!=="idle"&&!Object.hasOwn(AVATAR_DAILY_ACTIONS,action))return false;
+ const loops=["run","crouch","sleep","holdBaby"];
+ avatarDailyState.action=action==="idle"||loops.includes(action)&&avatarDailyState.action===action?
+  null:action;
+ avatarDailyState.hand=raw==="pickupLeft"?"left":"right";
+ avatarDailyState.elapsed=0;
+ const desc=avatarDailyState.action?AVATAR_DAILY_ACTIONS[avatarDailyState.action].label:"通常姿勢";
+ const status=document.getElementById("avatar-daily-status");
+ if(status)status.textContent=desc+"：モーション試験（採集・食事の資源処理、乳児の育成処理は従来のゲームシステムで管理）";
+ document.querySelectorAll("[data-avatar-daily]").forEach(btn=>
+  btn.setAttribute("aria-pressed",String(btn.dataset.avatarDaily===raw&&avatarDailyState.action!==null)));
+ log("🧍 "+desc);
+ return true;
+}
+function updateAvatarDaily(dt){
+ if(!renderer)return;
+ if(!avatarDailyAvailable()){
+  renderer.avatarDailyMotion=null;
+  return;
+ }
+ const action=avatarDailyState.action;
+ if(action){
+  avatarDailyState.elapsed+=running?dt:0;
+  const seconds=AVATAR_DAILY_ACTIONS[action]?.seconds||0;
+  if(seconds>0&&avatarDailyState.elapsed>=seconds){
+   avatarDailyState.action=null;
+   document.querySelectorAll("[data-avatar-daily]").forEach(btn=>btn.setAttribute("aria-pressed","false"));
+  }
+ }
+ const active=avatarDailyState.action;
+ const shiftRun=keys.has("shift")&&active!=="crouch";
+ const animation=active==="run"||shiftRun?"run":active;
+ renderer.avatarDailyMotion=animation?{
+  action:animation,
+  progress:Math.min(1,avatarDailyState.elapsed/(AVATAR_DAILY_ACTIONS[animation]?.seconds||1)),
+  hand:avatarDailyState.hand
+ }:null;
+}
 function doFrame(t,source="window",xrFrameInput=null){
  let xrMoveResult=null;
  // XR frames are the simulation clock while immersive VR is active.
@@ -687,6 +737,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
  mobileUI?.update(dt);
  pilotPanel?.update(Boolean(voyage?.seated&&!xrUI?.active));
+ updateAvatarDaily(dt);
  if(voyage?.active){
   renderer.shipVoyage=voyage;
   renderer.shipCombat=shipCombatUI?.getCombat(voyage)||null;
@@ -778,7 +829,11 @@ function doFrame(t,source="window",xrFrameInput=null){
   const acceptsWorldInput=(!detained||jailCellActive)&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden;
   const input=acceptsWorldInput?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
-  if(squad?.frontier)controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"));
+  if(squad?.frontier){
+   const stance=avatarDailyAvailable()?avatarDailyState.action:null;
+   const speedFactor=stance==="crouch"?.45:stance==="run"||keys.has("shift")?1.65:1;
+   controller.walkSpeed=5*vrLoadSpeedFactor(squad.frontier.loadKg("player"))*speedFactor;
+  }
   // Never request Quest input from window RAF: deliver it directly with the
   // immersive XR animation frame, so there is no stale-polling race.
   const xrAxes=source==="xr"?xrFrameInput:xrUI?.inputVector?.();
@@ -2064,6 +2119,11 @@ $("reset").addEventListener("click",()=>{
 window.addEventListener("keydown",e=>{
  if(e.target?.closest?.("input,select,textarea,[contenteditable=true]"))return;
  const k=e.key.toLowerCase();
+ if(k==="shift"){keys.add("shift");return;}
+ if(k==="c"&&!e.repeat&&!e.ctrlKey&&!e.metaKey){
+  if(avatarDailyAvailable()){e.preventDefault();activateAvatarDaily("crouch");}
+  return;
+ }
  if(["w","a","s","d","q","e","arrowup","arrowdown","arrowleft","arrowright","+","-"].includes(k)){
   if(e.target===document.body)e.preventDefault();
   if(k==="arrowleft")keys.add("q");
@@ -4704,6 +4764,12 @@ for(const id of ["viewport-mr-social","toolbar-mr-social"]){
 }
 
 avatarEditor=installAvatarV10Editor({getRoster:()=>avatarV10,apply:applyAvatarV10,save:saveAvatarV10});
+document.getElementById("viewport-avatar-actions")?.addEventListener("click",event=>{
+ const button=event.target.closest?.("[data-avatar-daily]");
+ if(!button)return;
+ event.preventDefault();event.stopPropagation();
+ if(activateAvatarDaily(button.dataset.avatarDaily))closeCompactMenus();
+});
 
 function startCrewTest(){
  if(crewTestState)return;
