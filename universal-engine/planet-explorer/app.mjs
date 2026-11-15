@@ -10,7 +10,7 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261114-crew-social-2";
+import {ShipJourney} from "./ship-journey.mjs?v=20261115-social";
 import {SHIP_CREW} from "./ship-interior.mjs?v=20261115-social";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261108-flight-service";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
