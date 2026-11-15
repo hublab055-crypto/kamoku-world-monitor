@@ -210,10 +210,11 @@ function holoLetters(mesh,text,x,y,z,{size=.009,color=[.68,.95,1]}={}){
 function shipHoloPlateGeometry(){
  const mesh=builder();
  for(const p of XR_HOLO_PANELS){
-  const y=p.y-p.height*.5,left=p.x-p.width*.5,right=p.x+p.width*.5;
-  box(mesh,p.x,y,p.z,p.width*.5,p.height,.008,[.025,.31,.42]);
-  for(const x of [left,right])box(mesh,x,y,p.z+.014,.008,p.height,.015,[.18,.85,.95]);
-  for(const yy of [y,y+p.height])box(mesh,p.x,yy,p.z+.014,p.width*.5,.013,.015,[.18,.85,.95]);
+  const left=p.x-p.width*.5,right=p.x+p.width*.5;
+  box(mesh,p.x,p.y,p.z,p.width,p.height,.008,[.025,.31,.42]);
+  for(const x of [left,right])box(mesh,x,p.y,p.z+.014,.008,p.height,.015,[.18,.85,.95]);
+  for(const yy of [p.y-p.height*.5,p.y+p.height*.5])
+   box(mesh,p.x,yy,p.z+.014,p.width,.013,.015,[.18,.85,.95]);
  }
  for(const s of XR_HOLO_SLIDERS){
   box(mesh,s.x,s.minY,s.z+.028,.026,s.maxY-s.minY,.012,[.15,.65,.80]);
