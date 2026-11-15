@@ -23,7 +23,12 @@ test("GLSL vertex shader declares each float local only once per main scope",()=
 });
 
 test("preview and ship renderer import the same fixed skinned shader",()=>{
- assert.match(assets,/frontier-skinned-renderer\.mjs\?v=20261114-glsl-chest-fix/);
- assert.match(ui,/avatar-v10-assets\.mjs\?v=20261114-glsl-chest-fix/);
- assert.match(render,/avatar-v10-assets\.mjs\?v=20261114-glsl-chest-fix/);
+ const previewShader=assets.match(/frontier-skinned-renderer\.mjs\?v=([\w-]+)/)?.[1];
+ const shipShader=render.match(/frontier-skinned-renderer\.mjs\?v=([\w-]+)/)?.[1];
+ const previewAssets=ui.match(/avatar-v10-assets\.mjs\?v=([\w-]+)/)?.[1];
+ const shipAssets=render.match(/avatar-v10-assets\.mjs\?v=([\w-]+)/)?.[1];
+ assert.ok(previewShader,"preview imports the skinned shader with a version");
+ assert.equal(previewShader,shipShader,"both paths must use the same shader URL");
+ assert.ok(previewAssets,"editor imports the avatar assets with a version");
+ assert.equal(previewAssets,shipAssets,"both paths must use the same assets URL");
 });
