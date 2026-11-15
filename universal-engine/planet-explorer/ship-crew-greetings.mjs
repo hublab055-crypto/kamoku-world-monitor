@@ -36,6 +36,7 @@ export class ShipCrewGreetings {
  }
 
  advance(interior, dt, isReady=()=>true) {
+  interior.advanceCrew?.(dt);
   if(this.lastPosition){
    const {x,z}=this.lastPosition;
    this.playerMoving=Math.hypot(interior.x-x,interior.z-z)>.001;
@@ -108,7 +109,7 @@ export class ShipCrewGreetings {
   const crew=this.crew.map(member=>({
    id:member.id,x:member.x,z:member.z,
    yaw:interior.distance(member)<3.4?face(member,interior):member.yaw,
-   motion:this.formal?.member===member?"salute":"idle",time:this.formal?.member===member?this.formal.time:null
+   motion:this.formal?.member===member?"salute":member.moving?"walk":"idle",time:this.formal?.member===member?this.formal.time:null
   }));
   if(!pair)return [player,...crew];
   const mate=crew.find(actor=>actor.id===pair.member.id);

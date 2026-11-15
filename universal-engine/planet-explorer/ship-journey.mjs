@@ -1,6 +1,6 @@
 import {bodyById,systemIdFor} from "./solar-system.mjs?v=20261112-warp";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261114-crew-social-2";
+import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261115-social";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-brake";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -65,7 +65,7 @@ export class ShipJourney{
   this.hatchOpen=data.hatchOpen??(this.status==="docked"||this.status==="landed");
   this.seated=Boolean(data.seated);
   this.interior=ShipInterior.fromSnapshot({...data.interior,
-   schemaVersion:1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
+   schemaVersion:data.interior?.schemaVersion||1,hatchPassable:this.hatchOpen&&["docked","landed"].includes(this.status)});
   this.interior.mode=this.seated?"cockpit":"interior";
   this.interior.seated=this.seated;
   if(this.seated)this.interior.z=PILOT_SEAT_Z;

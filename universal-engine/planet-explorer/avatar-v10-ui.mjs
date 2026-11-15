@@ -15,7 +15,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const select=form.elements.person,model=form.elements.model,outfit=form.elements.outfit;
  const fields=form.querySelector("#avatar-v10-features");
  const status=form.querySelector("output");
- let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true;
+ let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true,previewZoom=1,expanded=false;
  let previewAction="idle",previewTime=0,previewLast=0,previewHand="right";
  const drafts=new Map();
  const motionRow=document.createElement("div");
@@ -35,6 +35,23 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const restart=document.createElement("button");restart.type="button";restart.textContent="▶ 再生";
  motionRow.append(motionLabel,handLabel,restart);
  canvas.parentElement?.append(motionRow);
+ const zoomRow=document.createElement("div");zoomRow.className="avatar-v10-zoom";
+ const zoomLabel=document.createElement("label");zoomLabel.textContent="🔍 拡大率 ";
+ const zoomInput=document.createElement("input");zoomInput.type="range";zoomInput.min="0.7";zoomInput.max="2.6";zoomInput.step="0.05";zoomInput.value="1";zoomInput.setAttribute("aria-label","アバター拡大率");
+ const zoomValue=document.createElement("output");zoomValue.textContent="100%";
+ const magnify=document.createElement("button");magnify.type="button";magnify.textContent="⛶ 大きく表示";magnify.setAttribute("aria-pressed","false");
+ zoomLabel.append(zoomInput,zoomValue);zoomRow.append(zoomLabel,magnify);motionRow.before(zoomRow);
+ function setZoom(value){
+  previewZoom=Math.max(.7,Math.min(2.6,Number(value)||1));
+  zoomInput.value=String(previewZoom);zoomValue.textContent=Math.round(previewZoom*100)+"%";invalidate();
+ }
+ zoomInput.addEventListener("input",()=>setZoom(zoomInput.value));
+ magnify.addEventListener("click",()=>{
+  expanded=!expanded;dialog.classList.toggle("avatar-v10-large",expanded);
+  magnify.textContent=expanded?"⛶ 通常表示":"⛶ 大きく表示";
+  magnify.setAttribute("aria-pressed",String(expanded));invalidate();
+ });
+ canvas.addEventListener("wheel",event=>{event.preventDefault();setZoom(previewZoom*(event.deltaY<0?1.08:.92));},{passive:false});
  const anatomyNote=document.createElement("small");
  anatomyNote.textContent="素体には成人の授乳用の乳頭・乳輪の位置目印があります。衣服・水着には表示しません。乳児・授乳機能の実装は別段階です。";
  anatomyNote.style.cssText="display:block;font-size:11px;color:#9ab6c4";
@@ -239,8 +256,8 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    gl.viewport(0,0,w,h);gl.enable(gl.DEPTH_TEST);
    gl.clearColor(.065,.119,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    if(!asset)return;
-   const near=faceView&&fit.outfit!=="space",distance=near?.82:3.25;
-   const y=near?1.57:.91;
+   const near=faceView&&fit.outfit!=="space",distance=(near?.92:3.85)/previewZoom;
+   const y=near?1.57:.98;
    const eye=[distance*Math.sin(rotation),y+.03,distance*Math.cos(rotation)];
    const vp=multiply4(perspective(.66,w/h,.035,20),lookAt(eye,[0,y,0]));
    asset.draw(vp,identity,[-.38,.9,.72],"editor",step,{time:previewTime,fit,motion:previewAction,
@@ -322,34 +339,49 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    invalidate();
   });
  }
- let pointer=null,startX=0;
+ const pointers=new Map();let pinchDistance=null;
  canvas.addEventListener("pointerdown",event=>{
-  pointer=event.pointerId;startX=event.clientX;
-  canvas.setPointerCapture(pointer);
+  pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+  canvas.setPointerCapture(event.pointerId);
+  if(pointers.size!==2)pinchDistance=null;
  });
  canvas.addEventListener("pointermove",event=>{
-  if(pointer!==event.pointerId)return;
-  rotation+=(event.clientX-startX)*.015;startX=event.clientX;invalidate();
+  const previous=pointers.get(event.pointerId);if(!previous)return;
+  pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+  if(pointers.size===2){
+   const [a,b]=[...pointers.values()],distance=Math.hypot(a.x-b.x,a.y-b.y);
+   if(pinchDistance)setZoom(previewZoom*distance/pinchDistance);
+   pinchDistance=distance;
+  }else{rotation+=(event.clientX-previous.x)*.015;invalidate();}
  });
- for(const event of ["pointerup","pointercancel","lostpointercapture"])
-  canvas.addEventListener(event,()=>{pointer=null;});
+ for(const type of ["pointerup","pointercancel","lostpointercapture"])
+  canvas.addEventListener(type,event=>{pointers.delete(event.pointerId);pinchDistance=null;});
  canvas.addEventListener("keydown",event=>{
   if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
   event.preventDefault();rotation+=(event.key==="ArrowLeft"?-.24:.24);invalidate();
  });
- form.addEventListener("submit",event=>{
-  event.preventDefault();
-  if(event.submitter?.value==="cancel"){dialog.close();return;}
+ const applyCurrent=document.createElement("button");applyCurrent.type="button";
+ applyCurrent.id="avatar-v10-apply-current";applyCurrent.textContent="現在の設定をクルーに反映";
+ const footer=form.querySelector(".avatar-v10-footer");
+ if(footer)footer.prepend(applyCurrent);
+ else (form.querySelector('button[type="submit"]')?.parentElement||form).append(applyCurrent);
+ function commit(closeOnSuccess){
   if(pendingOutfit!==null){status.value="確認コードを入力するか取り消してください。";return;}
   if(requiresAvatarWardrobeUnlock(fit.outfit)&&!unlocked()){
    status.value="この衣装には確認コードが必要です。";return;
   }
-  const roster={...getRoster(),...Object.fromEntries(drafts)};
-  if(!save(roster)){
-   status.value="このブラウザに保存できませんでした。ゲーム内には反映しました。";
-   apply(roster);return;
-  }
-  apply(roster);dialog.close();
+  const roster={...getRoster(),...Object.fromEntries(drafts),[select.value]:fit};
+  const stored=save(roster);
+  apply(roster);
+  if(!stored){status.value="ゲーム内には反映しましたが、この端末への保存に失敗しました。";return;}
+  status.value="現在の設定を保存し、船内の乗員アバターに反映しました。";
+  if(closeOnSuccess)dialog.close();
+ }
+ applyCurrent.addEventListener("click",()=>commit(false));
+ form.addEventListener("submit",event=>{
+  event.preventDefault();
+  if(event.submitter?.value==="cancel"){dialog.close();return;}
+  commit(true);
  });
  dialog.addEventListener("close",()=>{
   drafts.clear();token++;asset=null;
@@ -361,7 +393,8 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  window.addEventListener("resize",()=>{if(dialog.open)invalidate();});
  return {open(id="player"){
   if(dialog.open)return;
-  rotation=0;
+  rotation=0;setZoom(1);expanded=false;dialog.classList.remove("avatar-v10-large");
+  magnify.textContent="⛶ 大きく表示";magnify.setAttribute("aria-pressed","false");
   dialog.showModal();
   choosePerson(Object.hasOwn(AVATAR_V10_DEFAULTS,id)?id:"player");
  }};
