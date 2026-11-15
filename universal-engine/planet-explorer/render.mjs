@@ -54,7 +54,8 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
-import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-quest-holo";
+import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-reach-hotas";
+import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261115-reach-hotas";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
@@ -216,16 +217,16 @@ function shipHoloPlateGeometry(){
  }
  for(const s of XR_HOLO_SLIDERS){
   box(mesh,s.x,s.minY,s.z+.028,.026,s.maxY-s.minY,.012,[.15,.65,.80]);
-  holoLetters(mesh,s.id==="main"?"MAIN":"VOL",s.x,1.82,s.z+.04,{size:.010});
+  holoLetters(mesh,s.id==="main"?"MAIN":"VOL",s.x,1.54,s.z+.04,{size:.009});
  }
  for(const b of XR_HOLO_BUTTONS){
   box(mesh,b.x,b.y-.065,b.z+.023,.135,.13,.015,[.09,.49,.58]);
   holoLetters(mesh,b.label,b.x,b.y-.13,b.z+.045,{size:.010});
  }
- const xs=[-1.96,-1.68,-1.40,-1.12];
+ const xs=XR_HOLO_READOUT_X;
  for(let i=0;i<xs.length;i++){
-  holoLetters(mesh,["SPD","ALT","GRV","FUEL"][i],xs[i],2.28,XR_HOLO_Z+.04,{size:.009});
-  box(mesh,xs[i],2.11,XR_HOLO_Z+.024,.112,.015,.008,[.24,.74,.84]);
+  holoLetters(mesh,["SPD","ALT","GRV","FUEL"][i],xs[i],XR_HOLO_READOUT_Y,XR_HOLO_Z+.04,{size:.006});
+  box(mesh,xs[i],XR_HOLO_READOUT_Y-.07,XR_HOLO_Z+.024,.067,.012,.008,[.24,.74,.84]);
  }
  return mesh;
 }
@@ -849,7 +850,15 @@ export class ExplorerRenderer{
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
    this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
-   this.shipHoloReadout=null;this.shipHoloReadoutKey="";
+    this.shipHoloReadout=null;this.shipHoloReadoutKey="";
+    const hotasPedestal=builder(),hotasLever=builder();
+    box(hotasPedestal,0,0,0,.23,.12,.26,[.14,.23,.28]);
+    box(hotasPedestal,0,.07,0,.17,.035,.16,[.35,.44,.51]);
+    box(hotasLever,0,.09,0,.052,.23,.052,[.53,.64,.70]);
+    box(hotasLever,0,.215,0,.13,.11,.09,[.16,.31,.38]);
+    this.shipHotasBase=new Mesh(gl,hotasPedestal);
+    this.shipHotasLever=new Mesh(gl,hotasLever);
+    this.shipVRHotas=null;
    const contactGem=builder();
    cone(contactGem,0,0,0,.78,.41,[1,1,1],4);
    cone(contactGem,0,0,0,-.78,.41,[1,1,1],4);
@@ -1509,7 +1518,9 @@ export class ExplorerRenderer{
     firstPerson:player&&this.xrView?.mode==="vr"&&!this.xrView.showAvatar});
    if(asset)continue;
    if(player){
-    this.drawArticulated(vp,translate(actor.x,y,actor.z),{yaw:actor.yaw,moving:person.greetings.playerMoving,totalDistanceM:0,walkSpeed:2.6},
+     // XR renders one authored player plus tracked hands, never the old rig.
+     if(this.xrView?.mode==="vr")continue;
+     this.drawArticulated(vp,translate(actor.x,y,actor.z),{yaw:actor.yaw,moving:person.greetings.playerMoving,totalDistanceM:0,walkSpeed:2.6},
      light,dt,this.animator,this.expression,{action:person.seated?"sit":"idle",progress:0});
     continue;
    }
@@ -2155,7 +2166,8 @@ export class ExplorerRenderer{
     }
    }else{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
-    this.drawShipAvatars(vp,person,dt,Boolean(crewCamera||xr?.mode==="vr"));
+    const xrBody=xr?.mode==="vr",playerV10Ready=this.avatarV10Assets.get(this.avatarV10.player.model);
+   this.drawShipAvatars(vp,person,dt,xrBody?Boolean(xr.showAvatar||playerV10Ready):Boolean(crewCamera));
     // Quest stereoscopic holograms share the same ship-local space and cockpit
     // state as physical controls. The 2D overlays remain desktop-only.
     if(xr?.mode==="vr"&&v.seated){
@@ -2167,9 +2179,9 @@ export class ExplorerRenderer{
      const key=readouts.map(r=>r.text).join("/");
      if(this.shipHoloReadoutKey!==key){
       this.shipHoloReadout?.destroy();
-      const digits=builder(),centers=[-1.96,-1.68,-1.40,-1.12];
-      readouts.forEach((r,i)=>holoLetters(digits,r.text,centers[i],2.22,XR_HOLO_Z+.05,
-       {size:.008,color:[.91,1,.94]}));
+      const digits=builder(),centers=XR_HOLO_READOUT_X;
+       readouts.forEach((r,i)=>holoLetters(digits,r.text,centers[i],XR_HOLO_READOUT_Y-.042,XR_HOLO_Z+.05,
+        {size:.0055,color:[.91,1,.94]}));
       this.shipHoloReadout=new Mesh(gl,digits);this.shipHoloReadoutKey=key;
      }
      if(this.shipHoloReadout)this.drawMesh(this.shipHoloReadout,vp,[1,1,1],1,1);
@@ -2195,7 +2207,19 @@ export class ExplorerRenderer{
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,tr),[1,1,1],.95,1,color);
      }
     }
-    // Physical switch caps share one set of positions with Quest ray picking.
+    // Reachable physical HOTAS in the existing ship-local coordinate system.
+     if(v.seated){
+      const commands=this.shipVRHotas||{};
+      for(const side of ["left","right"]){
+       const base=XR_HOTAS[side];
+       const value=side==="left"?(v.throttle||0):(commands.pitch||0);
+       const yaw=side==="right"?(commands.yaw||0):0;
+       this.drawMesh(this.shipHotasBase,multiply4(vp,translate(base.x,.81,base.z)),[.8,.89,1],1,.93);
+       const lever=multiply4(translate(base.x,.89,base.z),multiply4(rotZ(-yaw*.29),rotX(value*.35)));
+       this.drawMesh(this.shipHotasLever,multiply4(vp,lever),[.9,.92,1],1,.96);
+      }
+     }
+     // Physical switch caps share one set of positions with Quest ray picking.
     this.shipCockpitControls=[];
     if(!v.seated&&v.isNearSeat?.()){
      const seat=projectScreen(vp,[0,1.1,PILOT_SEAT_Z+.55]);
@@ -2627,7 +2651,16 @@ export class ExplorerRenderer{
    return p?[p[12],p[13],p[14]]:add(a[side+"Elbow"],[0,-.2,-.15]);
   };
   const left=hand("left"),right=hand("right");
-  segment(a.pelvis,a.chest,.43,.26,clothing);
+   // Draw tracked hands only when V10 already supplies the body mesh.
+   if(rig.handsOnly){
+    for(const side of ["left","right"]){
+     const wrist=side==="left"?left:right;
+     const aim=rig[side+"Ray"]?[-rig[side+"Ray"][8],-rig[side+"Ray"][9],-rig[side+"Ray"][10]]:a.forward;
+     segment(wrist,add(wrist,scale(unit(aim),.10)),.11,.115,skin);
+    }
+    return;
+   }
+   segment(a.pelvis,a.chest,.43,.26,clothing);
   if(rig.backpack){
    const toolBag=rig.appearance?.bag==="toolbag";
    const carry=add(add(a.chest,scale(a.right,toolBag ? .28 : -.26)),[0,-.28,0]);
