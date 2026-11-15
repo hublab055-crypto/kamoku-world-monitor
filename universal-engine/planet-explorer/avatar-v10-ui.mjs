@@ -362,7 +362,9 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  });
  const applyCurrent=document.createElement("button");applyCurrent.type="button";
  applyCurrent.id="avatar-v10-apply-current";applyCurrent.textContent="現在の設定をクルーに反映";
- form.querySelector(".avatar-v10-footer").prepend(applyCurrent);
+ const footer=form.querySelector(".avatar-v10-footer");
+ if(footer)footer.prepend(applyCurrent);
+ else (form.querySelector('button[type="submit"]')?.parentElement||form).append(applyCurrent);
  function commit(closeOnSuccess){
   if(pendingOutfit!==null){status.value="確認コードを入力するか取り消してください。";return;}
   if(requiresAvatarWardrobeUnlock(fit.outfit)&&!unlocked()){
