@@ -47,10 +47,10 @@ test("Ship left stick uses ship-local right and headset forward without the old 
  assert.equal(neutral.strafe,1);
  assert.equal(xrVRMovement([source("left",0,-1)],{ship:true}).forward,1);
  // A 90-degree physical turn right maps forward to ship-local right.
- const lookingRight=xrVRMovement([source("left",0,-1)],{ship:true,headDelta:-Math.PI/2});
+ const lookingRight=xrVRMovement([source("left",0,-1)],{ship:true,headDelta:Math.PI/2});
  assert.ok(Math.abs(lookingRight.forward)<1e-8);
  assert.ok(lookingRight.strafe>.99);
- assert.ok(xrVRMovement([source("left",0,-1)],{ship:true,headDelta:Math.PI/2}).strafe<-.99);
+ assert.ok(xrVRMovement([source("left",0,-1)],{ship:true,headDelta:-Math.PI/2}).strafe<-.99);
 });
 test("Quest right stick still turns and rotates RTS table normally",()=>{
  const sources=[source("left",1,-1),source("right",1,0)];
