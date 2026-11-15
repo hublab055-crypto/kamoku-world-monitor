@@ -51,3 +51,12 @@
  .avatar-v10-fields {max-height:none;overflow:visible}
  .avatar-v10-fields .avatar-review-control {grid-template-columns: minmax(65px,1fr) minmax(100px,1.3fr) minmax(55px,.8fr)}
 }
+
+/* Full-height inspection mode keeps the entire rig, including the feet, visible. */
+#avatar-v10-dialog.avatar-v10-large{width:min(1240px,calc(100% - 12px));max-height:calc(100dvh - 12px)}
+#avatar-v10-dialog.avatar-v10-large .avatar-v10-preview canvas{height:min(70dvh,740px)}
+#avatar-v10-dialog .avatar-v10-zoom{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#avatar-v10-dialog .avatar-v10-zoom label{display:flex;gap:8px;align-items:center;flex:1}
+#avatar-v10-dialog .avatar-v10-zoom input{min-width:70px;flex:1}
+#avatar-v10-dialog .avatar-v10-zoom output{min-width:42px;font-variant-numeric:tabular-nums}
+@media(max-width:540px){#avatar-v10-dialog.avatar-v10-large .avatar-v10-preview canvas{height:min(55dvh,460px)}}
