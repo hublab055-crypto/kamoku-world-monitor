@@ -781,6 +781,9 @@ export class ExplorerRenderer{
   this.avatarStyle="pioneer";
   this.rigParts=[];
   this.animator=new SmoothAnimator();
+   this.avatarDailyMotion=null;
+   const avatarProp=builder();box(avatarProp,0,-.11,0,.19,.22,.17,[.68,.47,.26]);
+   this.avatarActionProp=new Mesh(gl,avatarProp);
   this.expression=new ExpressionController();
   this.appearance=createAppearance("pioneer","pioneer");
   this.setAppearance(this.appearance);
@@ -1520,13 +1523,15 @@ export class ExplorerRenderer{
  drawGroundAvatarV10(vp,transform,unit,light,dt,motion){
   // On the ground the original combat, swimming, capture and mounted rigs still
   // own their specialized poses and equipment; V10 uses its authored daily clips.
-  if(this.xrView||this.captureFX||this.fauna?.mount||this.marine?.boardedId||(unit.moving&&motion.action!=="idle")||
-   !["idle","sit","eat","sleep"].includes(motion.action))return false;
+  if(this.xrView||this.captureFX||this.fauna?.mount||this.marine?.boardedId||
+   (unit.moving&&!["idle","run","crouch"].includes(motion.action))||
+   !["idle","sit","eat","sleep","run","crouch","pickup","lift","holdBaby"].includes(motion.action))return false;
   const animation=this.socialAnimations.get("player");
   if(animation)return false;
   const action={sit:"Seated",sleep:"Sleeping"}[motion.action]||motion.action;
   const character=multiply4(transform,rotateY(unit.yaw||0));
-  const asset=this.drawAvatarV10("player",vp,character,light,dt,{motion:action,moving:Boolean(unit.moving)});
+  const asset=this.drawAvatarV10("player",vp,character,light,dt,{motion:action,moving:Boolean(unit.moving),
+   motionProgress:Number.isFinite(motion.progress)?motion.progress:null,hand:motion.hand||"right"});
   if(asset)this.drawSkinnedHandEquipment(asset,"player",vp,character,light,motion);
   return Boolean(asset);
  }
@@ -3313,15 +3318,28 @@ export class ExplorerRenderer{
    {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
   const hitActive=(this.playerHitSeconds||0)>0;
   const hitMotion=!marinePose&&hitActive&&!["sword","spear","greatsword","axe","bow","guard"].includes(baseMotion.action);
+  const activeDaily=this.avatarDailyMotion;
   const playerMotion=capture?{action:"idle",progress:0}:hitMotion?
    {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
-   baseMotion;
+   activeDaily?.action&&!marinePose&&!this.marine?.fishing?.casting&&!this.sceneActions?.active?
+   activeDaily:baseMotion;
   const playerTint=hitActive?[1,.56,.56]:[1,1,1];
   // In standing VR, the avatar's head would overlap the real user's eyes.
   if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
     !this.drawGroundAvatarV10(vp,transform,viewS,light,dt,playerMotion)&&
     !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
    this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
+  // A temporary visual pickup prop follows the demonstrated hand/lifting pose.
+  // It is never added to inventory until a real resource interaction succeeds.
+  if(["pickup","lift"].includes(playerMotion.action)&&!capture&&this.avatarActionProp){
+   const t=Math.max(0,Math.min(1,playerMotion.progress||0));
+   const two=playerMotion.action==="lift",left=playerMotion.hand==="left";
+   const x=two?0:left?-.48:.48;
+   const y=two?(t<.48?.17:.17+Math.min(1,(t-.48)/.43)*.86):
+    t<.50?.16:.16+Math.min(1,(t-.50)/.47)*.78;
+   const local=multiply4(rotateY(viewS.yaw||0),translate(x,y,two?.52:.40));
+   this.drawMesh(this.avatarActionProp,multiply4(vp,multiply4(transform,local)),light,.97,.86);
+  }
   if(capture?.stars){
    for(const star of captureStars(this.captureFX.elapsed,{yaw:face})){
     const model=multiply4(translate(px+star.x,feet+star.y,pz+star.z),
