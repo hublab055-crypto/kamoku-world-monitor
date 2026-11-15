@@ -39,7 +39,15 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  anatomyNote.textContent="素体には成人の授乳用の乳頭・乳輪の位置目印があります。衣服・水着には表示しません。乳児・授乳機能の実装は別段階です。";
  anatomyNote.style.cssText="display:block;font-size:11px;color:#9ab6c4";
  motionRow.after(anatomyNote);
- motionChoice.addEventListener("change",()=>{previewAction=motionChoice.value;previewTime=0;previewLast=0;invalidate();});
+ motionChoice.addEventListener("change",()=>{
+  previewAction=motionChoice.value;previewTime=0;previewLast=0;
+  if(previewAction!=="idle"){
+   faceView=false;
+   for(const button of form.querySelectorAll("[data-avatar-view]"))
+    button.setAttribute("aria-pressed",String(button.dataset.avatarView==="body"));
+  }
+  invalidate();
+ });
  handChoice.addEventListener("change",()=>{previewHand=handChoice.value;previewTime=0;invalidate();});
  restart.addEventListener("click",()=>{previewTime=0;previewLast=0;invalidate();});
  const reviewInputs=new Map();
