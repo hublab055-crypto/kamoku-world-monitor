@@ -1,5 +1,5 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261114-crew-social-2";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-glsl-chest-fix";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261115-anatomy-foot";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-officer-restore";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261114-v10-crew";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
@@ -38,7 +38,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261114-review-43";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261115-anatomy-foot";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";

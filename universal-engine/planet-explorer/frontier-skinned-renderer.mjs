@@ -2,13 +2,14 @@ import {deformAvatarV10Face} from "./avatar-v10-face.mjs?v=1";
 import {deformAvatarReviewFace} from "./avatar-review-face.mjs?v=20261114-original";
 import {reviewShaderParams,reviewHairPreset} from "./avatar-review-adapter.mjs?v=20261114-original";
 import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
-import {createAvatarV10BodyMesh} from "./avatar-v10-body-mesh.mjs?v=20261114";
+import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
 import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
 uniform vec3 uReviewA,uReviewB,uReviewC,uReviewD;
 uniform vec3 uReviewVol,uReviewShape,uReviewFirm;
 uniform vec2 uReviewHair;
 uniform float uReviewMotion,uReviewHairMesh;
+uniform bool uAnatomy;
 out vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;
 out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;
  float y=v.y;
@@ -69,6 +70,19 @@ out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec
   abdomen*(.073*uReviewVol.y+.032*uReviewShape.y*(.50+.64*bellyBias)))-
   back*glutes*(.068*uReviewVol.z+.038*uReviewShape.z*(.48+.62*seatBias)));
  v+=vec3(bumpX,bumpY,bumpZ);
+ // Subtle adult torso surface relief follows the same normalized rest coordinates
+ // as the color detail, and only affects the unlocked base study surface.
+ if(uAnatomy){
+  float axSkin=abs(vBodyCoord.x);
+  float frontSkin=smoothstep(.055,.14,vBodyCoord.z);
+  float pecRelief=exp(-pow((axSkin-.105)/.095,2.)-pow((y-1.225)/.076,2.));
+  float rectusRelief=exp(-pow((axSkin-.064)/.055,2.))*
+   (exp(-pow((y-1.055)/.036,2.))+
+    exp(-pow((y-.987)/.036,2.))+
+    exp(-pow((y-.919)/.038,2.)));
+  float navelDimple=exp(-pow(axSkin/.018,2.)-pow((y-.893)/.024,2.));
+  v.z+=frontSkin*(.012*pecRelief+.0055*rectusRelief-.006*navelDimple);
+ }
  // Three.js editor uses additional skinned soft-bones. The WebGL renderer
  // approximates their motion without changing the shared rig topology.
  float motion=sin(uReviewMotion*13.0)*smoothstep(.01,.16,uReviewMotion);
@@ -96,6 +110,33 @@ uniform bool uAnatomy;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured
   float onepiece=smoothstep(.72,.82,y)*(1.0-smoothstep(1.35,1.44,y))*torso;
   float coverage=uSwimStyle==1?max(onepiece,lower):(uSwimStyle==2?max(upper,lower):lower);
   color=mix(color,uSwimColor*(.7+.3*sun),clamp(coverage,0.0,1.0));
+ }
+ // Soft anatomical landmarks in rest-pose coordinates: pectorals, linea alba,
+ // three paired rectus abdominis segments and a recessed umbilicus.
+ // They respond to the body's pose, remain subtle and never appear on clothing.
+ if(uAnatomy){
+  float anatomyY=vRestBodyCoord.y,anatomyX=abs(vRestBodyCoord.x);
+  float anatomyFront=smoothstep(.065,.17,vRestBodyCoord.z)*
+   smoothstep(.02,.60,normalize(vNormal).z);
+  float pec=exp(-pow((anatomyX-.102)/.108,2.)-pow((anatomyY-1.235)/.086,2.));
+  float pecUnderline=exp(-pow((anatomyY-1.156)/.018,2.))*
+   (1.0-smoothstep(.145,.22,anatomyX));
+  float sternum=exp(-pow(anatomyX/.022,2.))*
+   smoothstep(1.17,1.22,anatomyY)*(1.0-smoothstep(1.36,1.42,anatomyY));
+  float absColumn=exp(-pow((anatomyX-.066)/.057,2.));
+  float absTop=exp(-pow((anatomyY-1.054)/.043,2.));
+  float absMid=exp(-pow((anatomyY-.985)/.041,2.));
+  float absLow=exp(-pow((anatomyY-.921)/.042,2.));
+  float abLines=exp(-pow((anatomyY-1.022)/.012,2.))+
+   exp(-pow((anatomyY-.955)/.012,2.));
+  float alba=exp(-pow(anatomyX/.013,2.))*
+   smoothstep(.86,.94,anatomyY)*(1.0-smoothstep(1.12,1.17,anatomyY));
+  float navel=exp(-pow(anatomyX/.015,2.)-pow((anatomyY-.891)/.020,2.));
+  float navelRim=exp(-pow(anatomyX/.029,2.)-pow((anatomyY-.898)/.030,2.));
+  float sculpt=.036*pec-.055*pecUnderline-.028*sternum+
+   .029*absColumn*(absTop+absMid+absLow)-.038*absColumn*abLines-
+   .045*alba+.023*navelRim-.11*navel;
+  color*=1.0+anatomyFront*sculpt;
  }
  // Nonsexual adult body landmarks for future infant-feeding positioning.
  // Rest-pose coordinates keep the areola fixed to the chest during movement.
@@ -175,6 +216,7 @@ export class SkinnedFrontierAsset{
   this.gl=gl;this.rig=parseFrontierRig(raw);this.disposed=false;this.instances=new Map();
   const body=createAvatarV10BodyMesh(this.rig);
   if(body)this.rig.primitives.push(body);
+  this.rig.primitives.push(...createAvatarV10FootMeshes(this.rig));
   this.meshes=[];this.textures=new Map();this.boneTexture=null;this.program=null;
   try{
    this.program=createProgram(gl);

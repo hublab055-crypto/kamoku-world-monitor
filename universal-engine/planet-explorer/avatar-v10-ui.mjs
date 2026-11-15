@@ -1,5 +1,5 @@
 import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-officer-restore";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261114-glsl-chest-fix";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261115-anatomy-foot";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-glsl-chest-fix";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
@@ -15,7 +15,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const select=form.elements.person,model=form.elements.model,outfit=form.elements.outfit;
  const fields=form.querySelector("#avatar-v10-features");
  const status=form.querySelector("output");
- let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true,previewZoom=1,expanded=false;
+ let asset=null,fit=null,token=0,raf=0,preview=null,rotation=0,faceView=true,previewZoom=1,expanded=false,focusPart="body";
  let previewAction="idle",previewTime=0,previewLast=0,previewHand="right";
  const drafts=new Map();
  const motionRow=document.createElement("div");
@@ -45,6 +45,25 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   previewZoom=Math.max(.7,Math.min(2.6,Number(value)||1));
   zoomInput.value=String(previewZoom);zoomValue.textContent=Math.round(previewZoom*100)+"%";invalidate();
  }
+ const focusRow=document.createElement("div");
+ focusRow.className="avatar-v10-focus";
+ focusRow.style.cssText="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:4px 0 8px";
+ const focusButtons=new Map();
+ for(const [id,label] of [["body","全身を表示"],["torso","胸・腹を確認"],["feet","足首・かかと・つま先"]]){
+  const button=document.createElement("button");button.type="button";
+  button.textContent=label;button.dataset.avatarFocus=id;
+  button.addEventListener("click",()=>{
+   focusPart=id;faceView=false;
+   for(const b of form.querySelectorAll("[data-avatar-view]"))
+    b.setAttribute("aria-pressed",String(b.dataset.avatarView==="body"));
+   for(const [part,option] of focusButtons)
+    option.setAttribute("aria-pressed",String(part===id));
+   setZoom(1);
+  });
+  focusButtons.set(id,button);focusRow.append(button);
+ }
+ focusButtons.get("body").setAttribute("aria-pressed","true");
+ zoomRow.after(focusRow);
  zoomInput.addEventListener("input",()=>setZoom(zoomInput.value));
  magnify.addEventListener("click",()=>{
   expanded=!expanded;dialog.classList.toggle("avatar-v10-large",expanded);
@@ -256,8 +275,11 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    gl.viewport(0,0,w,h);gl.enable(gl.DEPTH_TEST);
    gl.clearColor(.065,.119,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    if(!asset)return;
-   const near=faceView&&fit.outfit!=="space",distance=(near?.92:3.85)/previewZoom;
-   const y=near?1.57:.98;
+   const near=faceView&&fit.outfit!=="space";
+   // Explicit foot and torso cameras keep the heel / toe and navel inspectable.
+   const baseDistance=near?.92:focusPart==="feet"?1.13:focusPart==="torso"?1.60:3.85;
+   const distance=baseDistance/previewZoom;
+   const y=near?1.57:focusPart==="feet"?.20:focusPart==="torso"?1.10:.98;
    const eye=[distance*Math.sin(rotation),y+.03,distance*Math.cos(rotation)];
    const vp=multiply4(perspective(.66,w/h,.035,20),lookAt(eye,[0,y,0]));
    asset.draw(vp,identity,[-.38,.9,.72],"editor",step,{time:previewTime,fit,motion:previewAction,
@@ -334,6 +356,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  for(const button of form.querySelectorAll("[data-avatar-view]")){
   button.addEventListener("click",()=>{
    faceView=button.dataset.avatarView==="face";
+   if(!faceView)focusPart="body";
    for(const item of form.querySelectorAll("[data-avatar-view]"))
     item.setAttribute("aria-pressed",String(item===button));
    invalidate();
@@ -393,7 +416,9 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  window.addEventListener("resize",()=>{if(dialog.open)invalidate();});
  return {open(id="player"){
   if(dialog.open)return;
-  rotation=0;setZoom(1);expanded=false;dialog.classList.remove("avatar-v10-large");
+  rotation=0;focusPart="body";setZoom(1);expanded=false;dialog.classList.remove("avatar-v10-large");
+  for(const [part,option] of focusButtons)
+   option.setAttribute("aria-pressed",String(part==="body"));
   magnify.textContent="⛶ 大きく表示";magnify.setAttribute("aria-pressed","false");
   dialog.showModal();
   choosePerson(Object.hasOwn(AVATAR_V10_DEFAULTS,id)?id:"player");
