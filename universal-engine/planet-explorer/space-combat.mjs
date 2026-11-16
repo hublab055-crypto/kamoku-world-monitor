@@ -335,6 +335,7 @@ export class SpaceCombat{
   if(!result.ok)return result;
   if(this.weapon==="missile")this.missiles--;
   this.cooldown=this.config.cooldown;
+  this.flashes.push({id,seconds:.5,shield:false});
   this.projectiles.push({id,weapon:this.weapon,seconds:Math.max(.15,range/900),total:Math.max(.15,range/900),
    damage:0,enemy:false,muzzle:[0,2,-7],
    origin:shipPointToEncounter([0,2,-7],voyage),impact:target.position.slice()});
