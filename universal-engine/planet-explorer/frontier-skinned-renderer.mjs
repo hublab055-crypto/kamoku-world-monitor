@@ -388,7 +388,7 @@ export class SkinnedFrontierAsset{
    if(source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
    if(source.proceduralAnatomy&&!useProcedural)continue;
    if(useProcedural&&source.wardrobe?.includes("base")&&!source.proceduralAnatomy&&
-     !/(?:face|skull|head|hair|eyes|brow|lip|mouth|ear|teeth|lash)/i.test(source.name||""))continue;
+     !/(?:face|skull|head|hair|eyes|brow|lip|mouth|ear|teeth|lash|^Bare_foot_[LR]$)/i.test(source.name||""))continue;
    const surface=rig.isV10&&isBodySurface(source.name,source.wardrobe);
    gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&(source.proceduralAnatomy||source.name==="V10 generated full body skin"))?1:0);
    gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim")&&/(?:suit|swim|trunk)/i.test(source.name||""))?1:0);
