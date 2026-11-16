@@ -1,5 +1,5 @@
 import {fetchAvatarV10} from "./avatar-v10.mjs?v=20261114-officer-restore";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261115-anatomy-foot";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261117-procedural-body";
 
 export class AvatarV10Assets {
  constructor(gl) {
@@ -16,7 +16,7 @@ export class AvatarV10Assets {
   this.models.set(model,record);
   record.pending=fetchAvatarV10(model).then(buffer=>{
    if(this.disposed)return null;
-   record.asset=new SkinnedFrontierAsset(this.gl,buffer);
+   record.asset=new SkinnedFrontierAsset(this.gl,buffer,{model});
    return record.asset;
   }).catch(error=>{
    // Avoid permanent disappearance after a failed/partial download.
