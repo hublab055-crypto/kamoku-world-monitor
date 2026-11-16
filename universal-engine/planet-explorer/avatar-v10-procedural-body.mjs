@@ -77,7 +77,7 @@ function skeleton(rig){
       p.pelvis[1]>p.rightAnkle[1]))return null;
  return {skinIndex,ids,points};
 }
-function bodyField(parts,isBust){
+function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=false}={}){
  const p=parts.points,mid=(a,b)=>mix(a,b,.5);
  const midTorso=mid(p.pelvis,p.chest),rib=mid(p.waist,p.chest);
  const pelvis=p.pelvis,hipY=(p.leftHip[1]+p.rightHip[1])*.5;
@@ -105,12 +105,16 @@ function bodyField(parts,isBust){
   ["pelvis","leftHip",.126],["pelvis","rightHip",.126]
  ];
  for(const side of ["left","right"]){
-  const wrist=p[side+"Wrist"],elbow=p[side+"Elbow"];
-  const wristAxis=sub(wrist,elbow),L=norm(wristAxis)||1;
-  shapes.push([add(wrist,mul(wristAxis,.054/L)),[.063,.098,.055]]);
-  const ankle=p[side+"Ankle"];
-  const foot=add(ankle,[0,.011,.067]);
-  shapes.push([foot,[.078,.055,.155]]);
+  if(!includeAuthoredHands){
+   const wrist=p[side+"Wrist"],elbow=p[side+"Elbow"];
+   const wristAxis=sub(wrist,elbow),L=norm(wristAxis)||1;
+   shapes.push([add(wrist,mul(wristAxis,.054/L)),[.063,.098,.055]]);
+  }
+  if(!includeAuthoredFeet){
+   const ankle=p[side+"Ankle"];
+   const foot=add(ankle,[0,.011,.067]);
+   shapes.push([foot,[.078,.055,.155]]);
+  }
  }
  return point=>{
   let d=Infinity;
@@ -153,7 +157,12 @@ export function createAvatarV10ProceduralBody(rig,{resolution=.041}={}){
  const {points:p,skinIndex}=parts;
  // Model ID comes from the authored V10 roster, not a bone or player name.
  const isBust=rig.studyModelBust===true;
- const field=bodyField(parts,isBust);
+ // Reuse the authored articulated palms, fingers and genuine bare feet when
+ // present. They are skin geometry, unlike the deleted Fitting body clothes
+ // surrogate. This prevents an SDF "mitten" from hiding detailed fingers.
+ const hasHands=["L","R"].every(side=>rig.primitives.some(x=>new RegExp("^Palm_"+side+"$","i").test(x.name||"")));
+ const hasFeet=["L","R"].every(side=>rig.primitives.some(x=>new RegExp("^Bare_foot_"+side+"$","i").test(x.name||"")));
+ const field=bodyField(parts,isBust,{includeAuthoredHands:hasHands,includeAuthoredFeet:hasFeet});
  const boundsX=Object.values(p).map(v=>v[0]);
  const boundsY=Object.values(p).map(v=>v[1]);
  const span=clamp(resolution,.031,.070),xmin=Math.min(-.55,...boundsX)-.17,xmax=Math.max(.55,...boundsX)+.17;
