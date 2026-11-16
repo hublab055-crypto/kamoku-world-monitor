@@ -1,4 +1,4 @@
-import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261115-follow";
+import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261116-crew-recall-v1";
 import {ShipCrewSocial} from "./ship-crew-social.mjs?v=20261115";
 
 /** Local ship coordinates: forward -Z; floor Y=0; dimensions 8m x 26m. */
