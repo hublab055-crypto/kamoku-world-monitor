@@ -343,7 +343,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   }
   if(navigationSelected)notify("🎯 航行目標："+contact.name+"／自動操縦ONで追航します");
  }
- let gamepadTriggerHeld=false;
+ let gamepadTriggerHeld=false,resourceGazeId=null,resourceGazeSeconds=0;
  // The main WebGL canvas is the hit region for pointer lock; in VR gaze owns it.
  function handleShipTap(clientX,clientY){
   const viewer=getRenderer();
@@ -384,6 +384,19 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   if(viewer){viewer.shipCombat=model;viewer.selectShipNavigation=selectNavigation;viewer.handleShipTap=handleShipTap;}
   const projections=viewer?.shipTargets||[];
   model?.syncVisibility(projections,dt,{vr,eligible:engage,voyage:v});
+  // Quest centre-gaze can acquire an ore target without a flat DOM panel.
+  // Hostile dwell locking remains owned by SpaceCombat.syncVisibility.
+  if(vr&&engage&&model){
+   const candidate=projections.filter(p=>p.onScreen&&
+    model.nonHostiles.some(c=>c.id===p.id&&c.faction==="resource")).map(p=>({
+      ...p,delta:Math.hypot(p.u-.5,p.v-.5)
+    })).filter(p=>p.delta<.065).sort((a,b)=>a.delta-b.delta)[0];
+   if(candidate?.id!==resourceGazeId){resourceGazeId=candidate?.id||null;resourceGazeSeconds=0;}
+   if(resourceGazeId&&v.navigationTarget?.id!==resourceGazeId){
+    resourceGazeSeconds+=Math.max(0,Math.min(.12,Number.isFinite(dt)?dt:0));
+    if(resourceGazeSeconds>=.85){selectNavigation(resourceGazeId);resourceGazeSeconds=0;}
+   }
+  }else{resourceGazeId=null;resourceGazeSeconds=0;}
   const show=Boolean(v?.active&&!vr);
   // Continuous sensors include friendlies/resources after the last hostile is gone.
   if(model&&v?.active){
