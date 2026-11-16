@@ -44,7 +44,7 @@ function skeleton(rig){
  const skinIndex=rig.skins.reduce((best,s,i)=>
   s.joints.length>(rig.skins[best]?.joints.length||0)?i:best,0);
  const skin=rig.skins[skinIndex];
- if(!skin?.joints?.length||!Array.isArray(skin.inverseBind)||skin.inverseBind.length<skin.joints.length)return null;
+ if(!skin?.joints?.length)return null;
  const names=new Map(skin.joints.map((nodeId,i)=>[normalized(rig.nodes[nodeId]?.name),i]));
  const pick=(...aliases)=>{
   for(const alias of aliases){
@@ -54,15 +54,15 @@ function skeleton(rig){
   return null;
  };
  const ids={
-  pelvis:pick("Pelvis","Hips"),waist:pick("Waist","Spine","Spine1"),
-  chest:pick("Chest","Spine2","UpperChest"),neck:pick("Neck"),
-  leftShoulder:pick("LeftShoulder","LShoulder"),leftElbow:pick("LeftElbow","LElbow"),
-  leftWrist:pick("LeftWrist","LHand","LeftHand"),
-  rightShoulder:pick("RightShoulder","RShoulder"),rightElbow:pick("RightElbow","RElbow"),
-  rightWrist:pick("RightWrist","RHand","RightHand"),
-  leftHip:pick("LeftHip","LeftUpperLeg"),leftKnee:pick("LeftKnee","LeftLowerLeg"),
-  leftAnkle:pick("LeftAnkle","LeftFoot"),rightHip:pick("RightHip","RightUpperLeg"),
-  rightKnee:pick("RightKnee","RightLowerLeg"),rightAnkle:pick("RightAnkle","RightFoot")
+  pelvis:pick("Pelvis","Hips"),waist:pick("Waist","SpineMid","SpineLower","Spine","Spine1"),
+  chest:pick("Chest","SpineUpper","Spine2","UpperChest"),neck:pick("Neck"),
+  leftShoulder:pick("UpperArm_L","LeftShoulder","LShoulder"),leftElbow:pick("LowerArm_L","LeftElbow","LElbow"),
+  leftWrist:pick("Hand_L","LeftWrist","LHand","LeftHand"),
+  rightShoulder:pick("UpperArm_R","RightShoulder","RShoulder"),rightElbow:pick("LowerArm_R","RightElbow","RElbow"),
+  rightWrist:pick("Hand_R","RightWrist","RHand","RightHand"),
+  leftHip:pick("UpperLeg_L","LeftHip","LeftUpperLeg"),leftKnee:pick("LowerLeg_L","LeftKnee","LeftLowerLeg"),
+  leftAnkle:pick("Foot_L","LeftAnkle","LeftFoot"),rightHip:pick("UpperLeg_R","RightHip","RightUpperLeg"),
+  rightKnee:pick("LowerLeg_R","RightKnee","RightLowerLeg"),rightAnkle:pick("Foot_R","RightAnkle","RightFoot")
  };
  if(Object.values(ids).some(id=>id===null))return null;
  const worlds=bindWorld(rig);
