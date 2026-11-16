@@ -896,6 +896,7 @@ export class ExplorerRenderer{
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCrewWindow=new Mesh(gl,spacecraftCockpitCrewWindowGeometry());
+   this.shipCrewWindowFrame=new Mesh(gl,spacecraftCockpitCrewWindowGeometry({standIns:false}));
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
    this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
    this.shipWindshieldHUD=null;this.shipWindshieldHUDKey="";
@@ -1553,6 +1554,32 @@ export class ExplorerRenderer{
    return null;
   }finally{this.gl.useProgram(this.program);}
  }
+ /** Render the same edited V10 crew models in the exterior cockpit panes.
+  * When models cannot load, the external window retains its seated stand-ins.
+  */
+ drawShipWindowCrew(vp,hull,light,dt){
+  const occupants=[["navigator",-1],["companion",1]];
+  const ready=occupants.every(([id])=>{
+   const fit=this.avatarV10[id];
+   return fit?.model&&this.avatarV10Assets.get(fit.model);
+  });
+  this.drawMesh(ready?this.shipCrewWindowFrame:this.shipCrewWindow,
+   multiply4(vp,hull),light,1,.96);
+  if(!ready){
+   for(const [id]of occupants){
+    const fit=this.avatarV10[id];
+    if(fit?.model)this.avatarV10Assets.prefetch(fit.model);
+   }
+   return;
+  }
+  for(const [id,x]of occupants){
+   // Upper-body seated portrait is aligned with the physical forward glass,
+   // using the persistent crew's selected character/model and uniform.
+   const pose=multiply4(hull,multiply4(translate(x,4.28,-14.35),
+    multiply4(rotateY(Math.PI),scale3(.53,.47,.13))));
+   this.drawAvatarV10(id,vp,pose,light,dt,{motion:"Seated"});
+  }
+ }
  drawShipAvatars(vp,person,dt,showPlayer){
   const light=[-.30,.9,.52];
   const actors=person.greetings.actors(person);
@@ -2207,7 +2234,7 @@ export class ExplorerRenderer{
     const bankedVP=multiply4(vp,rotZ(bank));
     this.drawMesh(v.gearDown===false?this.shipGearUpMesh:this.surfaceShipMeshes[v.hatchOpen?1:0],
      bankedVP,[.57,.89,.49],1,.83);
-    this.drawMesh(this.shipCrewWindow,bankedVP,[1,1,1],1,.96);
+    this.drawShipWindowCrew(vp,rotZ(bank),[1,1,1],dt);
     if(Math.abs(v.volThrottle)>.01&&v.fuel>0&&!v.isGrounded?.()){
      for(const x of [-2.7,2.7]){
       const plume=multiply4(translate(x,1.8,2),multiply4(rotX(Math.sign(v.volThrottle)*Math.PI/2),
@@ -3291,7 +3318,7 @@ export class ExplorerRenderer{
       }
      }
      this.drawMesh(this.surfaceShipMeshes[starship.hatchOpen?1:0],multiply4(vp,matrix),light,1,.88);
-     this.drawMesh(this.shipCrewWindow,multiply4(vp,matrix),light,1,.96);
+     this.drawShipWindowCrew(vp,matrix,light,dt);
     }
    }
    const railStation=this.railway?.station(this.settlementId);
