@@ -34,20 +34,20 @@ export function installSurfaceStarshipUI({get,onHatch,onBoard,onLand,notify}){
   const pos=own&&ship.visible(planet.id)?
    ship.offsetFromCoords(controller.origin,controller.x,controller.z,planet.radiusM):null;
   const nearby=Boolean(pos&&pos.distanceM<=25);
-  const landing=own&&ship.flight==="landing";
+  const landing=own&&["landing","recall"].includes(ship.flight);
   const mode=landing?"landing":nearby?"near":"call";
   const key=[mode,Math.round((pos?.distanceM??0)*2),ship.hatchOpen,
-   Math.floor((ship.landingProgress||0)*20)].join(":");
+   Math.floor((ship.recallProgress??ship.landingProgress??0)*20)].join(":");
   if(!force&&key===prev)return;prev=key;
   root.hidden=false;root.classList.toggle("compact",mode==="call");
   if(mode==="call"){
    head.textContent="🚀 宇宙船";
-   note.textContent="近くの開けた土地へ船を着陸させます。";
+   note.textContent="副官に指示して、離陸・飛行・着陸を行います。";
    hatch.hidden=true;board.hidden=true;land.hidden=false;land.disabled=false;
-   land.textContent="🛬 近くに宇宙船を着陸";
+   land.textContent="📡 副官に宇宙船を呼ぶ";
   }else if(mode==="landing"){
-   head.textContent="🛬 着陸中 "+Math.round(ship.landingProgress*100)+"%";
-   note.textContent="船体が地表へ降下中です。着地が完了するまでハッチはロックされます。";
+   head.textContent=ship.flight==="recall"?"📡 副官が操縦中・"+ship.recallPhase+" "+Math.round(ship.recallProgress*100)+"%":"🛬 着陸中 "+Math.round(ship.landingProgress*100)+"%";
+   note.textContent=ship.flight==="recall"?"機体は実際に離陸・接近飛行してから着陸します。着陸完了までハッチはロックされます。":"船体が地表へ降下中です。着地が完了するまでハッチはロックされます。";
    hatch.hidden=true;board.hidden=true;land.hidden=true;
   }else{
    head.textContent="🚀 地表の宇宙船 ／ ハッチまで "+pos.distanceM.toFixed(1)+"m";
