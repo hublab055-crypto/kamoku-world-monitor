@@ -348,6 +348,8 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    const vp=multiply4(perspective(.66,w/h,.035,20),lookAt(eye,[0,y,0]));
    asset.draw(vp,identity,[-.38,.9,.72],"editor",step,{time:previewTime,fit,motion:previewAction,
     motionProgress:duration?Math.min(1,previewTime/duration):0,hand:previewHand});
+   if(fit.outfit==="base"&&fit.anatomy?.source!=="legacy"&&asset.proceduralAttempted&&!asset.proceduralBody)
+    status.value="このモデルの骨格が不足し、人体専用の素体を生成できません。旧方式で表示しています。";
    if(previewAction!=="idle"&&(!duration||AVATAR_DAILY_ACTIONS[previewAction]?.loop||previewTime<duration))invalidate();
   });
  }
@@ -359,11 +361,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   try{
    renderer().assets.load(fit.model).then(result=>{
     if(!dialog.open||request!==token)return;
-    asset=result;
-    status.value=fit.preserveOriginal?"元の副官モデルをそのまま表示しています。":
-     fit.outfit==="base"&&fit.anatomy?.source!=="legacy"&&!result?.proceduralBody?
-      "このGLBの骨格が不足しているため、新しい素体を生成できません。旧方式に切り替わります。":"";
-    invalidate();
+    asset=result;status.value=fit.preserveOriginal?"元の副官モデルをそのまま表示しています。":"";invalidate();
    }).catch(error=>{if(request===token)status.value="プレビューを表示できませんでした。 "+error.message;});
   }catch(error){status.value=error.message;}
  }
