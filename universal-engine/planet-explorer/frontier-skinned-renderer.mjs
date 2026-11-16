@@ -3,7 +3,8 @@ import {deformAvatarReviewFace} from "./avatar-review-face.mjs?v=20261114-origin
 import {reviewShaderParams,reviewHairPreset} from "./avatar-review-adapter.mjs?v=20261114-original";
 import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
 import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
-import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117";
+import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117-proportions";
+import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261117-xray";
 import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
 import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-body-source";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
@@ -11,7 +12,7 @@ uniform vec3 uReviewA,uReviewB,uReviewC,uReviewD;
 uniform vec3 uReviewVol,uReviewShape,uReviewFirm;
 uniform vec2 uReviewHair;
 uniform float uReviewMotion,uReviewHairMesh;
-uniform vec4 uStudySculpt;
+uniform vec4 uStudySculpt,uStudyLandmarks;
 uniform vec3 uStudyLimbs,uStudyMotion;
 uniform bool uAnatomy;
 out vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;
@@ -79,12 +80,12 @@ out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec
  if(uAnatomy){
   float axSkin=abs(vBodyCoord.x);
   float frontSkin=smoothstep(.055,.14,vBodyCoord.z);
-  float pecRelief=exp(-pow((axSkin-.105)/.095,2.)-pow((y-1.225)/.076,2.));
+  float pecRelief=exp(-pow((axSkin-uStudyLandmarks.z)/.081,2.)-pow((y-uStudyLandmarks.x)/.069,2.));
   float rectusRelief=exp(-pow((axSkin-.064)/.055,2.))*
-   (exp(-pow((y-1.055)/.036,2.))+
-    exp(-pow((y-.987)/.036,2.))+
-    exp(-pow((y-.919)/.038,2.)));
-  float navelDimple=exp(-pow(axSkin/.018,2.)-pow((y-.893)/.024,2.));
+   (exp(-pow((y-uStudyLandmarks.y-.075)/.028,2.))+
+    exp(-pow((y-uStudyLandmarks.y-.016)/.028,2.))+
+    exp(-pow((y-uStudyLandmarks.y+.047)/.028,2.)));
+  float navelDimple=exp(-pow(axSkin/.016,2.)-pow((y-uStudyLandmarks.y)/.019,2.));
   v.z+=frontSkin*(.012*pecRelief+.0055*rectusRelief-.006*navelDimple+
    .009*uStudySculpt.x*pecRelief+.007*uStudySculpt.y*rectusRelief-
    .008*uStudySculpt.z*navelDimple);
@@ -115,7 +116,7 @@ out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec
  gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}`;
 const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nin vec3 vBodyCoord;
 in vec3 vRestBodyCoord;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nuniform bool uSwimBody,uSwimFabric;\nuniform int uSwimStyle;\nuniform vec3 uSwimColor;
-uniform bool uAnatomy;\nuniform vec3 uStudyLimbs;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
+uniform bool uAnatomy;\nuniform vec3 uStudyLimbs;\nuniform vec4 uStudyLandmarks;\nuniform float uOpacity;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
  // Procedural skin-fitting swimwear: works for every V10 body without
  // hiding the body mesh or showing the unrelated casual outfit.
  if(uSwimFabric)color=mix(color,uSwimColor*(.7+.3*sun),.92);\n if(uSwimBody){
@@ -133,23 +134,24 @@ uniform bool uAnatomy;\nuniform vec3 uStudyLimbs;\nout vec4 fragColor;\nvoid mai
  // They respond to the body's pose, remain subtle and never appear on clothing.
  if(uAnatomy){
   float anatomyY=vRestBodyCoord.y,anatomyX=abs(vRestBodyCoord.x);
+  float chestY=uStudyLandmarks.x,navelY=uStudyLandmarks.y;
   float anatomyFront=smoothstep(.065,.17,vRestBodyCoord.z)*
    smoothstep(.02,.60,normalize(vNormal).z);
-  float pec=exp(-pow((anatomyX-.102)/.108,2.)-pow((anatomyY-1.235)/.086,2.));
-  float pecUnderline=exp(-pow((anatomyY-1.156)/.018,2.))*
-   (1.0-smoothstep(.145,.22,anatomyX));
+  float pec=exp(-pow((anatomyX-uStudyLandmarks.z)/.082,2.)-pow((anatomyY-chestY)/.070,2.));
+  float pecUnderline=exp(-pow((anatomyY-chestY+.070)/.016,2.))*
+   (1.0-smoothstep(.125,.20,anatomyX));
   float sternum=exp(-pow(anatomyX/.022,2.))*
-   smoothstep(1.17,1.22,anatomyY)*(1.0-smoothstep(1.36,1.42,anatomyY));
+   smoothstep(chestY-.12,chestY-.06,anatomyY)*(1.0-smoothstep(chestY+.07,chestY+.11,anatomyY));
   float absColumn=exp(-pow((anatomyX-.066)/.057,2.));
-  float absTop=exp(-pow((anatomyY-1.054)/.043,2.));
-  float absMid=exp(-pow((anatomyY-.985)/.041,2.));
-  float absLow=exp(-pow((anatomyY-.921)/.042,2.));
-  float abLines=exp(-pow((anatomyY-1.022)/.012,2.))+
-   exp(-pow((anatomyY-.955)/.012,2.));
+  float absTop=exp(-pow((anatomyY-navelY-.081)/.031,2.));
+  float absMid=exp(-pow((anatomyY-navelY-.021)/.030,2.));
+  float absLow=exp(-pow((anatomyY-navelY+.046)/.032,2.));
+  float abLines=exp(-pow((anatomyY-navelY-.055)/.011,2.))+
+   exp(-pow((anatomyY-navelY+.012)/.011,2.));
   float alba=exp(-pow(anatomyX/.013,2.))*
-   smoothstep(.86,.94,anatomyY)*(1.0-smoothstep(1.12,1.17,anatomyY));
-  float navel=exp(-pow(anatomyX/.015,2.)-pow((anatomyY-.891)/.020,2.));
-  float navelRim=exp(-pow(anatomyX/.029,2.)-pow((anatomyY-.898)/.030,2.));
+   smoothstep(navelY-.055,navelY-.012,anatomyY)*(1.0-smoothstep(chestY-.105,chestY-.075,anatomyY));
+  float navel=exp(-pow(anatomyX/.012,2.)-pow((anatomyY-navelY)/.015,2.));
+  float navelRim=exp(-pow(anatomyX/.024,2.)-pow((anatomyY-navelY-.003)/.023,2.));
   float sculpt=.036*pec-.055*pecUnderline-.028*sternum+
    .029*absColumn*(absTop+absMid+absLow)-.038*absColumn*abLines-
    .045*alba+.023*navelRim-.11*navel;
@@ -166,16 +168,18 @@ uniform bool uAnatomy;\nuniform vec3 uStudyLimbs;\nout vec4 fragColor;\nvoid mai
  // Only the unlocked base study body enables this, never clothing or swimwear.
  if(uAnatomy){
   float ax=abs(vRestBodyCoord.x);
-  float d=length(vec2((ax-.105)/.041,(vRestBodyCoord.y-1.20)/.044));
+  float d=length(vec2((ax-uStudyLandmarks.z)/.031,(vRestBodyCoord.y-uStudyLandmarks.x)/.032));
   float front=smoothstep(.08,.15,vRestBodyCoord.z)*
    smoothstep(.06,.42,normalize(vNormal).z);
-  float areola=1.0-smoothstep(.68,1.09,d);
-  float tip=1.0-smoothstep(.08,.23,d);
+  float areola=1.0-smoothstep(.75,.94,d);
+  float tip=1.0-smoothstep(.12,.26,d);
   color=mix(color,color*vec3(.81,.63,.62),.56*front*areola);
   color=mix(color,color*vec3(.78,.59,.60),.37*front*tip);
+  float navelMark=length(vec2(vRestBodyCoord.x/.014,(vRestBodyCoord.y-uStudyLandmarks.y)/.016));
+  color=mix(color,color*vec3(.61,.52,.49),.63*front*(1.0-smoothstep(.65,.84,navelMark)));
  }
  if(uLinearColor)color=mix(color*12.92,1.055*pow(color,vec3(1.0/2.4))-.055,step(vec3(.0031308),color));
- fragColor=vec4(color,1.0);\n}`;
+ fragColor=vec4(color,clamp(uOpacity,0.0,1.0));\n}`;
 function compile(gl,type,src){
  const shader=gl.createShader(type);gl.shaderSource(shader,src);gl.compileShader(shader);
  if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){
