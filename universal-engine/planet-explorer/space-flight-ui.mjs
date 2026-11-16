@@ -229,7 +229,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    viewer.shipOrbitYaw=orbitYaw;viewer.shipOrbitPitch=orbitPitch;
   }
   const crewViewButton=$("flight-crew-view");
-  crewViewButton.hidden=seated||!unified;
+  crewViewButton.hidden=piloting||!unified;
   crewViewButton.setAttribute("aria-pressed",String(crewView));
   crewViewButton.textContent=crewView?"一人称":"三人称";
   root.classList.toggle("flight-wide",wide);
@@ -461,7 +461,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    command(Math.round(clamp(max-(max+100)*position,-100,max)));
   }
   track.addEventListener("pointerdown",event=>{
-   if(pointer!==null||event.button!==0||!seatedPilot(get()))return;
+   if(pointer!==null||event.button!==0||!canPilot(get()))return;
    if(id==="flight-throttle")warpFeedback="";
    event.preventDefault();pointer=event.pointerId;
    track.setPointerCapture(pointer);drag(event);
@@ -471,7 +471,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    track.addEventListener(type,event=>{if(event.pointerId===pointer)pointer=null;});
   track.addEventListener("keydown",event=>{
    const voyage=get();
-   if(!seatedPilot(voyage))return;
+   if(!canPilot(voyage))return;
    const value=read(voyage);
    const up=max>100&&value===100?max:value+5;
    const down=value>100?100:value-5;
@@ -510,15 +510,15 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   v.volThrottle=percent/100;
   if(percent)v.setAutopilot(false);
  });
- $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
- $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
- $("flight-auto").addEventListener("click",()=>{const v=get();if(v)v.setAutopilot(!v.autopilot);});
+ $("flight-left").addEventListener("click",()=>{const v=get();if(canPilot(v))v.steer(-8);});
+ $("flight-right").addEventListener("click",()=>{const v=get();if(canPilot(v))v.steer(8);});
+ $("flight-auto").addEventListener("click",()=>{const v=get();if(canPilot(v))v.setAutopilot(!v.autopilot);});
  $("flight-translate").addEventListener("click",()=>{
   translating=!translating;resetShipStick();syncShipCamera();
  });
  function translationInput(){
   const v=get();
-  if(root.hidden||!translating||!v?.canTranslate||!seatedPilot(v))return;
+  if(root.hidden||!translating||!v?.canTranslate||!canPilot(v))return;
   const key=name=>Number(held.has(name));
   const stick=shipPointer===null?{x:0,y:0}:shipStick;
   const axes=shipTouchAxes({x:stick.x+key("right")-key("left"),y:stick.y+key("back")-key("forward")});
@@ -531,7 +531,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  function render(dt=0){
   const v=get();
   if(activeVoyage!==v){
-   activeVoyage=v;crewTarget=null;crewView=false;nearKey="";lastView="";
+   activeVoyage=v;remotePilot=false;crewTarget=null;crewView=false;nearKey="";lastView="";
    root.classList.toggle("is-crew-test",Boolean(v?.isCrewTest));
   }
   root.hidden=!v?.active;if(root.hidden){remotePilot=false;holograms.update({visible:false});held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
@@ -652,7 +652,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    (v.status==="flyby"?"\n⚠ 目標軌道を高速通過。逆噴射で減速":"");
  }
  return {render,translationInput,getViewSettings,setViewSettings,showCrew,
-  toggleCamera:()=>{if(!seatedPilot(get()))return {ok:false,message:"操縦席への着席が必要です"};chase=!chase;syncShipCamera();return {ok:true,message:chase?"🎥 船外追従視点":"👁 操縦席視点"};},
+  toggleCamera:()=>{if(!canPilot(get()))return {ok:false,message:"操縦席かリモコン操縦を有効にしてください"};chase=!chase;syncShipCamera();return {ok:true,message:chase?"🎥 船外追従視点":"👁 操縦席視点"};},
   toggleWide:()=>{setViewSettings({wide:!wide});return {ok:true,message:wide?"⛶ 広画面ON":"▣ 詳細UI表示"};},
   close:()=>{held.clear();resetShipStick();resetLookStick();root.hidden=true;},
   show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};
