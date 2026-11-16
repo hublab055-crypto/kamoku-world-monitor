@@ -3,6 +3,7 @@ import {deformAvatarReviewFace} from "./avatar-review-face.mjs?v=20261114-origin
 import {reviewShaderParams,reviewHairPreset} from "./avatar-review-adapter.mjs?v=20261114-original";
 import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
 import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
+import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117";
 import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
 import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261116";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
@@ -234,11 +235,17 @@ function loadTexture(gl,image,owner){
 }
 const asFloat=m=>new Float32Array(m);
 export class SkinnedFrontierAsset{
- constructor(gl,raw){
+ constructor(gl,raw,{model=null}={}){
   this.gl=gl;this.rig=parseFrontierRig(raw);this.disposed=false;this.instances=new Map();
+  // The legacy clothed-silhouette fallback stays selectable, but is no
+  // longer the default body in the study/swim base-body modes.
+  this.rig.studyModelBust=["lyra","mina","sera"].includes(model);
+  this.proceduralBody=createAvatarV10ProceduralBody(this.rig);
   const body=createAvatarV10BodyMesh(this.rig);
   if(body)this.rig.primitives.push(body);
   this.rig.primitives.push(...createAvatarV10FootMeshes(this.rig));
+  if(this.proceduralBody)this.rig.primitives.push(this.proceduralBody);
+  else if(this.rig.isV10)console.warn("V10 anatomical body: required skin joints unavailable; legacy fallback only");
   this.meshes=[];this.textures=new Map();this.boneTexture=null;this.program=null;
   try{
    this.program=createProgram(gl);
@@ -352,6 +359,9 @@ export class SkinnedFrontierAsset{
    !m.source.wardrobe?.includes("base")&&/(?:swim|suit|trunk)/i.test(m.source.name||""));
   const useOriginalSwim=outfit==="swim"&&swim.style===0&&hasDedicatedSwim;
   const renderedOutfit=outfit==="swim"&&!useOriginalSwim?"base":outfit;
+  const anatomy=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  const anatomicalBase=outfit==="base"||outfit==="swim"&&!useOriginalSwim;
+  const useProcedural=anatomicalBase&&anatomy.source!=="legacy"&&Boolean(this.proceduralBody);
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
    // First-person cabin view keeps the fitted body/arms/legs, not the
@@ -360,8 +370,11 @@ export class SkinnedFrontierAsset{
    if(review.hideHair&&/(?:layered hair|hair)/i.test(source.name||""))continue;
    // Neutral base-body mannequin excludes removable wardrobe geometry.
    if(source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
+   if(source.proceduralAnatomy&&!useProcedural)continue;
+   if(useProcedural&&source.wardrobe?.includes("base")&&!source.proceduralAnatomy&&
+     !/(?:face|skull|head|hair|eyes|brow|lip|mouth|ear|teeth|lash)/i.test(source.name||""))continue;
    const surface=rig.isV10&&isBodySurface(source.name,source.wardrobe);
-   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&source.name==="V10 generated full body skin")?1:0);
+   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&(source.proceduralAnatomy||source.name==="V10 generated full body skin"))?1:0);
    gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim")&&/(?:suit|swim|trunk)/i.test(source.name||""))?1:0);
    gl.uniform1i(this.u.uAnatomy,Boolean(outfit==="base"&&source.wardrobe?.includes("base")&&surface&&/(?:body|torso|trunk|chest)/i.test(source.name||""))?1:0);
    gl.uniform1f(this.u.uReviewHairMesh,source.name==="Layered hair"?1:0);
