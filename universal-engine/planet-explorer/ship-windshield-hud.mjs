@@ -10,6 +10,10 @@ const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const finite=n=>Number.isFinite(n);
 export const compassNames=Object.freeze(["N","NE","E","SE","S","SW","W","NW"]);
 export const normalizeHeading=n=>((n%360)+360)%360;
+/** Departure attitude uses the launch body, arrival the destination body. */
+export function windshieldBodyId(v){
+ return ["docked","ascent"].includes(v?.status)?v?.originId:(v?.destinationId||v?.originId);
+}
 export function compassLabel(heading){
  if(!finite(heading))return "—";
  return compassNames[Math.round(normalizeHeading(heading)/45)%8];
