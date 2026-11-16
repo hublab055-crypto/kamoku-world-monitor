@@ -14,9 +14,9 @@ test("cockpit dashboard accepts only known actions in four physical slots",()=>{
  assert.ok(DASHBOARD_ACTIONS.some(x=>x.id==="hatch"));
 });
 test("camera settings default to panoramic 108 degrees and clamp malformed preferences",()=>{
- assert.deepEqual(normalizeShipViewSettings(null),{wide:true,fov:108,rightStick:true});
- assert.deepEqual(normalizeShipViewSettings({wide:false,fov:1000,rightStick:false}),{wide:false,fov:116,rightStick:false});
- assert.deepEqual(normalizeShipViewSettings({fov:NaN}),{wide:true,fov:108,rightStick:true});
+ assert.deepEqual(normalizeShipViewSettings(null),{wide:true,fov:108,rightStick:true,hudMode:"glass"});
+ assert.deepEqual(normalizeShipViewSettings({wide:false,fov:1000,rightStick:false}),{wide:false,fov:116,rightStick:false,hudMode:"glass"});
+ assert.deepEqual(normalizeShipViewSettings({fov:NaN}),{wide:true,fov:108,rightStick:true,hudMode:"glass"});
 });
 test("right stick look moves view but returns to rest on neutral input",()=>{
  const right=shipCameraStickDelta({x:.8,y:0},.08);

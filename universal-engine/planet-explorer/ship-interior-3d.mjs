@@ -1,4 +1,4 @@
-import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261114-v10-crew";
+import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261116-crew-recall-v1";
 import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-compact-hotas";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
@@ -134,6 +134,15 @@ export function createShipGeometry(open=false,standIns=true){
  }
  box(a,1.62,.62,11.55,1.5,1.2,.75,"dark");
  box(a,1.62,1.4,11.48,1.3,.13,.54,"screen");
+ // Crew duty seats: navigator on the bridge, engineer at engines,
+ // companion in the common area. The captain's helm stays independent.
+ for(const crew of SHIP_CREW){
+  const cx=crew.x,cz=crew.z;
+  box(a,cx,.51,cz,.72,.22,.70,"seat");
+  box(a,cx,1.04,cz+.31,.75,.98,.15,"seat");
+  box(a,cx,.27,cz,.17,.48,.17,"frame");
+  for(const side of [-1,1])box(a,cx+side*.42,.76,cz,.105,.13,.62,"frame");
+ }
  // Engine room panels and reactor housing at aft wall.
  box(a,2.9,1.26,12.2,1.45,2.5,.65,"dark");
  for(let j=0;j<4;j++)box(a,2.75,1.0+j*.35,11.83,.65,.09,.08,j%2?"line":"light");

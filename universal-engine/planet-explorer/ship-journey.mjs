@@ -1,6 +1,6 @@
 import {bodyById,systemIdFor} from "./solar-system.mjs?v=20261112-warp";
 import {SpaceVoyage} from "./space-voyage.mjs?v=8-manual-attitude";
-import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261115-social";
+import {ShipInterior,PILOT_SEAT_Z,PILOT_ACCESS_Z} from "./ship-interior.mjs?v=20261116-crew-recall-v1";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {advanceManualRoute,advanceRouteMotion,routeIntercept,remainingRouteFraction} from "./ship-route-motion.mjs?v=20261110-brake";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -52,6 +52,8 @@ export class ShipJourney{
   this.attitudeYawDeg=Number.isFinite(data.attitudeYawDeg)?
    ((data.attitudeYawDeg+180)%360+360)%360-180:0;
   this.pitchDeg=Number.isFinite(data.pitchDeg)?((data.pitchDeg+180)%360+360)%360-180:0;
+  // Bank is part of the ship attitude, separate from yaw and camera look.
+  this.rollDeg=finite(data.rollDeg)?clamp(data.rollDeg,-30,30):0;
   this.fuel=clamp(data.fuel??100,0,100);
   this.throttle=clamp(data.throttle??.72,-1,1);
   this.autopilot=data.autopilot!==false;
@@ -283,6 +285,7 @@ export class ShipJourney{
   if(!finite(n))throw Error("Invalid heading");
   this.heading=clamp(this.heading+n,-60,60);
   this.attitudeYawDeg=((this.attitudeYawDeg+n+180)%360+360)%360-180;
+  if(this.status==="atmosphere")this.rollDeg=clamp(this.rollDeg-n*2.2,-25,25);
  }
  pitch(n){
   if(!finite(n))throw Error("Invalid pitch");
@@ -292,6 +295,10 @@ export class ShipJourney{
  tick(dt,{strafe=0,lift=0}={}){
   if(!finite(dt)||dt<0)throw Error("Invalid clock");
   const step=clamp(dt,0,.12);
+  // Return to wings-level when the pilot releases the stick. Autolevel
+  // is stronger when horizon hold or autopilot is selected.
+  this.rollDeg*=Math.exp(-step*(this.horizon||this.autopilot?4.2:1.55));
+  if(Math.abs(this.rollDeg)<.025)this.rollDeg=0;
   if(this.inWarp&&this.canTranslate)return this.tickWarp(step);
   if(this.status==="atmosphere"){
    const volPower=Math.abs(this.volThrottle);
@@ -398,7 +405,7 @@ export class ShipJourney{
   return {schemaVersion:2,kind:this.kind,originId:this.originId,destinationId:this.destinationId,
    status:this.status,flightDays:this.flightDays,launchDay:this.launchDay,launchSite:this.launchSite,landingSite:this.landingSite,progress:this.progress,
    stageProgress:this.stageProgress,touchdownElapsed:this.touchdownElapsed,elapsedSeconds:this.elapsedSeconds,heading:this.heading,
-   attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,
+   attitudeYawDeg:this.attitudeYawDeg,pitchDeg:this.pitchDeg,rollDeg:this.rollDeg,
    volThrottle:this.volThrottle,horizon:this.horizon,gearMode:this.gearMode,
    warpProgress:this.warpProgress,warpSpeed:this.warpSpeed,warpEngaged:this.warpEngaged,warpArrived:this.warpArrived,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,

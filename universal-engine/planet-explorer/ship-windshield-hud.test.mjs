@@ -45,6 +45,9 @@ test("atmospheric telemetry shows physically named speed, altitude and known coo
  assert.equal(t.headingDeg,315);
  assert.equal(t.direction,"NW");
  assert.equal(t.pitchDeg,12);
+ assert.equal(t.rollDeg,0);
+ v.rollDeg=-14;
+ assert.equal(windshieldTelemetry(v,{body}).rollDeg,-14);
  assert.equal(t.speedMps,93);
  assert.equal(t.altitudeM,450);
  assert.equal(t.lat,35.5);

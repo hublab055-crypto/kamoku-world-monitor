@@ -109,7 +109,7 @@ export class ShipCrewGreetings {
   const crew=this.crew.map(member=>({
    id:member.id,x:member.x,z:member.z,
    yaw:interior.distance(member)<3.4?face(member,interior):member.yaw,
-   motion:this.formal?.member===member?"salute":member.moving?"walk":"idle",time:this.formal?.member===member?this.formal.time:null
+   motion:this.formal?.member===member?"salute":member.moving?"walk":member.seated?"Seated":"idle",time:this.formal?.member===member?this.formal.time:null
   }));
   if(!pair)return [player,...crew];
   const mate=crew.find(actor=>actor.id===pair.member.id);
