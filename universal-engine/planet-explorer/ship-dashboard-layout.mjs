@@ -14,7 +14,7 @@ export const DASHBOARD_ACTIONS=Object.freeze([
  Object.freeze({id:"none",label:"— 非表示"})
 ]);
 export const DEFAULT_DASHBOARD_SLOTS=Object.freeze(["scan","weapon","fire","hatch"]);
-export const DEFAULT_SHIP_VIEW=Object.freeze({wide:true,fov:108,rightStick:true});
+export const DEFAULT_SHIP_VIEW=Object.freeze({wide:true,fov:108,rightStick:true,hudMode:"glass"});
 const ids=new Set(DASHBOARD_ACTIONS.map(action=>action.id));
 const clamp=(n,minimum,maximum)=>Math.max(minimum,Math.min(maximum,n));
 export function normalizeDashboardSlots(candidate){
@@ -26,7 +26,8 @@ export function normalizeShipViewSettings(candidate){
  return {
   wide:typeof value.wide==="boolean"?value.wide:DEFAULT_SHIP_VIEW.wide,
   fov:Number.isFinite(value.fov)?clamp(Math.round(value.fov),85,116):DEFAULT_SHIP_VIEW.fov,
-  rightStick:typeof value.rightStick==="boolean"?value.rightStick:DEFAULT_SHIP_VIEW.rightStick
+  rightStick:typeof value.rightStick==="boolean"?value.rightStick:DEFAULT_SHIP_VIEW.rightStick,
+  hudMode:value.hudMode==="overlay"?"overlay":"glass"
  };
 }
 /** Right-stick look is separate from ship yaw/pitch and thrust.

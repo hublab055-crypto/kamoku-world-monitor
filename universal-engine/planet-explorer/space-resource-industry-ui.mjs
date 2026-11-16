@@ -1,5 +1,5 @@
 import {ASTEROID_CONTACTS,RESOURCE_LABELS,SPACE_RECIPES} from "./space-resource-industry.mjs?v=20261116";
-import {shipContactDistance,combatEligible} from "./space-combat.mjs?v=20261116-mining";
+import {shipContactDistance,combatEligible} from "./space-combat.mjs?v=20261117-mining";
 
 /** Compact optional screen; never removes or replaces the normal flight HUD. */
 export function installSpaceIndustryUI({root,consolePanel,getCombat,getVoyage,notify,selectResource,fireMine}){

@@ -1,11 +1,11 @@
-import {CREW_GESTURES} from "./ship-crew-greetings.mjs?v=20261114-crew-social-2";
+import {CREW_GESTURES} from "./ship-crew-greetings.mjs?v=20261116-crew-recall-v1";
 import {shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
 import {pickShipContact,installShipViewGestures} from "./ship-view-gestures.mjs?v=20261109-cabin-tap";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";
-import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261116-windshield-hotas";
-import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261116-windshield-hotas";
+import {installShipInterior3D} from "./ship-interior-3d.mjs?v=20261116-crew-recall-v1";
+import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261116-crew-recall-v1";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
-import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261108-ciws-captain";
+import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261116-crew-recall-v1";
 import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261112-warp";
 import {installShipCockpitHologram} from "./ship-cockpit-hologram.mjs?v=20261115-hologram";
 import {windshieldTelemetry,windshieldBodyId,paintWindshieldHUD} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
@@ -141,7 +141,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  `;
  document.head.append(style);
  const root=document.createElement("section");root.id="space-flight";root.hidden=true;root.setAttribute("role","region");root.setAttribute("aria-label","惑星間宇宙船の操縦席");
- root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-crew-exit" type="button" hidden>テストを終了</button> <button id="flight-avatar-v10" type="button" aria-haspopup="dialog">アバター編集</button> <button id="flight-crew-view" type="button" aria-pressed="false">三人称</button> <button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-camera" type="button" aria-pressed="false">🚀 船外追従</button> <button id="flight-wide" type="button" aria-pressed="false">⛶ 広画面</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
+ root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-crew-exit" type="button" hidden>テストを終了</button> <button id="flight-avatar-v10" type="button" aria-haspopup="dialog">アバター編集</button> <button id="flight-crew-view" type="button" aria-pressed="false">三人称</button> <button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-camera" type="button" aria-pressed="false">🚀 船外追従</button> <button id="flight-hud-mode" type="button" aria-pressed="true">🪟 窓HUD</button> <button id="flight-remote" type="button" aria-pressed="false">📡 リモコン</button> <button id="flight-wide" type="button" aria-pressed="false">⛶ 広画面</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
   '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><canvas class="ship-windshield-hud" id="ship-windshield-hud" aria-label="重力圏フロントガラスHUD：水平線、ピッチ、方位、速度、高度、経緯度" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><div class="flight-engine-lever" hidden><small>↑ ワープ</small><small id="flight-warp-target" hidden></small><div id="flight-throttle" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="125" aria-valuenow="72" aria-label="アフターバーナーとワープギア"></div><small>↓ 逆噴射</small><output>72%</output></div><div class="flight-engine-lever flight-vol-lever" hidden><small>VOL ↑</small><div id="flight-vol" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-label="VOL上下スラスター"></div><small>↓</small><output>0%</output></div><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-translate" aria-pressed="false" hidden>平行移動</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
@@ -164,7 +164,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  let savedView={};try{savedView=JSON.parse(localStorage.getItem(viewStorageKey)||"{}");}catch(_){}
  let viewSettings=normalizeShipViewSettings(savedView);
  let translating=false;
- let chase=false,wide=viewSettings.wide;
+ let chase=false,wide=viewSettings.wide,remotePilot=false;
  let chaseDistance=52,orbitYaw=0,orbitPitch=.31,shipPointer=null,shipStick={x:0,y:0};
  const shipSensors=installShipSensorHUD(root,{getRenderer:getWorldRenderer});
  const touchPad=root.querySelector(".flight-touch-pad"),touchNub=root.querySelector(".flight-touch-nub");
@@ -213,12 +213,15 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  }
  function getViewSettings(){return {...viewSettings};}
  function seatedPilot(v){return Boolean(v&&(v.seated===true||v.kind!=="surface-to-surface"&&v.interior?.mode==="cockpit"));}
+ function canPilot(v){return Boolean(v?.active&&(seatedPilot(v)||remotePilot)&&!v?.isCrewTest);}
  function syncShipCamera(){
-  const v=get(),seated=seatedPilot(v);
-  if(!seated)chase=false;
+  const v=get(),seated=seatedPilot(v),piloting=canPilot(v);
+  if(!piloting)chase=false;
   const viewer=getWorldRenderer?.();
   if(viewer){
-   viewer.shipCameraMode=chase?"chase":"cockpit";
+   viewer.shipCameraMode=chase?"chase":remotePilot&&!seated?"remote":"cockpit";
+   viewer.shipHUDMode=viewSettings.hudMode;
+   viewer.shipRemotePilot=remotePilot&&!seated;
    viewer.shipWideView=wide;
    viewer.shipCrewView=crewView;
     viewer.shipCockpitFov=viewSettings.fov;
@@ -226,31 +229,49 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    viewer.shipOrbitYaw=orbitYaw;viewer.shipOrbitPitch=orbitPitch;
   }
   const crewViewButton=$("flight-crew-view");
-  crewViewButton.hidden=seated||!unified;
+  crewViewButton.hidden=piloting||!unified;
   crewViewButton.setAttribute("aria-pressed",String(crewView));
   crewViewButton.textContent=crewView?"一人称":"三人称";
   root.classList.toggle("flight-wide",wide);
-  root.classList.toggle("ship-piloting",seated);
-  for(const lever of root.querySelectorAll(".flight-engine-lever"))lever.hidden=!seated;
-  $("flight-camera").hidden=!seated;
+  root.classList.toggle("ship-piloting",piloting);
+  for(const lever of root.querySelectorAll(".flight-engine-lever"))lever.hidden=!piloting;
+  $("flight-camera").hidden=!piloting;
   $("flight-camera").textContent=chase?"🪑 操縦席視点":"🚀 船外追従";
   $("flight-camera").setAttribute("aria-pressed",String(chase));
   $("flight-wide").textContent=wide?"▣ 詳細UI":"⛶ 広画面";
   $("flight-wide").setAttribute("aria-pressed",String(wide));
   root.querySelector(".flight-view-distance").hidden=!chase;
+  const modeButton=$("flight-hud-mode");
+  modeButton.textContent=viewSettings.hudMode==="glass"?"🪟 窓HUD":"◉ 画面HUD";
+  modeButton.setAttribute("aria-pressed",String(viewSettings.hudMode==="glass"));
+  modeButton.title="窓固定HUDと従来の画面固定HUDを切り替えます。VRでは窓固定を優先します。";
+  const remoteButton=$("flight-remote");
+  remoteButton.hidden=Boolean(v?.isCrewTest);
+  remoteButton.textContent=remotePilot?"📡 リモコン ON":"📡 リモコン";
+  remoteButton.setAttribute("aria-pressed",String(remotePilot));
    lookPad.hidden=!viewSettings.rightStick;
   const translationMode=translating&&v?.canTranslate;
   const translationButton=$("flight-translate");
-  translationButton.hidden=!seated||!v?.canTranslate;
+  translationButton.hidden=!piloting||!v?.canTranslate;
   translationButton.textContent=translationMode?"操舵に戻す":"平行移動";
   translationButton.setAttribute("aria-pressed",String(Boolean(translationMode)));
-  touchPad.querySelector(".flight-touch-caption").textContent=seated?
+  touchPad.querySelector(".flight-touch-caption").textContent=piloting?
    (translationMode?"↔ 横移動 / ↑上昇 ↓下降":"↔ 旋回 / ↑機首上げ ↓機首下げ"):"船内歩行";
-  touchPad.style.left=seated?"calc(125px + env(safe-area-inset-left,0px))":"";
+  touchPad.style.left=piloting?"calc(125px + env(safe-area-inset-left,0px))":"";
   touchPad.style.transform="";
  }
- $("flight-camera").addEventListener("click",()=>{if(!seatedPilot(get()))return;chase=!chase;syncShipCamera();});
+ $("flight-camera").addEventListener("click",()=>{if(!canPilot(get()))return;chase=!chase;syncShipCamera();});
  $("flight-wide").addEventListener("click",()=>setViewSettings({wide:!wide}));
+ $("flight-hud-mode").addEventListener("click",()=>setViewSettings({hudMode:viewSettings.hudMode==="glass"?"overlay":"glass"}));
+ $("flight-remote").addEventListener("click",()=>{
+  const v=get();
+  if(!v?.active||v?.isCrewTest)return;
+  // Explicit activation: never move the player or silently start engines.
+  remotePilot=!remotePilot;
+  chase=false;translating=false;resetShipStick();
+  if(remotePilot)setViewSettings({hudMode:"overlay"});
+  syncShipCamera();render();
+ });
  $("flight-zoom-near").addEventListener("click",()=>{chaseDistance=Math.max(28,chaseDistance-12);syncShipCamera();});
  $("flight-zoom-far").addEventListener("click",()=>{chaseDistance=Math.min(150,chaseDistance+12);syncShipCamera();});
 
@@ -389,18 +410,18 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   if(!state||!Number.isFinite(dt)||dt<=0||document.querySelector("#avatar-v10-dialog[open]"))return;
   if(lookPointer!==null){
    const d=shipCameraStickDelta(lookStick,dt);
-   if(chase&&seatedPilot(v)){
+   if(chase&&canPilot(v)){
     orbitYaw=(orbitYaw+d.yaw)%(Math.PI*2);
     orbitPitch=clamp(orbitPitch-d.pitch,-.42,1.37);
     syncShipCamera();
    }else state.turn(d.yaw,d.pitch);
   }
   const n=key=>Number(held.has(key));
-  if(state.mode==="interior"&&!state.seated){
+  if(state.mode==="interior"&&!state.seated&&!remotePilot){
    state.turn((n("rightTurn")-n("leftTurn"))*dt*1.7);
    const axis=shipPointer===null?{forward:0,sideways:0}:shipTouchAxes(shipStick);
    state.walk(n("forward")-n("back")+axis.forward,n("right")-n("left")+axis.sideways,dt);
-  }else if(seatedPilot(v)){
+  }else if(canPilot(v)){
    if(translating&&v.canTranslate)return;
    const joystick=shipPointer===null?{x:0,y:0}:shipStick;
    const pilot=shipTouchPilot({x:joystick.x+n("right")-n("left"),
@@ -440,7 +461,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    command(Math.round(clamp(max-(max+100)*position,-100,max)));
   }
   track.addEventListener("pointerdown",event=>{
-   if(pointer!==null||event.button!==0||!seatedPilot(get()))return;
+   if(pointer!==null||event.button!==0||!canPilot(get()))return;
    if(id==="flight-throttle")warpFeedback="";
    event.preventDefault();pointer=event.pointerId;
    track.setPointerCapture(pointer);drag(event);
@@ -450,7 +471,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    track.addEventListener(type,event=>{if(event.pointerId===pointer)pointer=null;});
   track.addEventListener("keydown",event=>{
    const voyage=get();
-   if(!seatedPilot(voyage))return;
+   if(!canPilot(voyage))return;
    const value=read(voyage);
    const up=max>100&&value===100?max:value+5;
    const down=value>100?100:value-5;
@@ -471,7 +492,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  let warpFeedback="";
  const renderThrottle=bindLever("flight-throttle",125,v=>v.warpEngaged?125:Math.round(v.throttle*100),percent=>{
   const v=get();
-  if(!seatedPilot(v))return;
+  if(!canPilot(v))return;
   if(percent>=115){
    if(!v.warpEngaged&&!warpFeedback){
     const result=run(()=>v.setWarp(true));
@@ -485,19 +506,19 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  });
  const renderVOL=bindLever("flight-vol",100,v=>Math.round((v.volThrottle||0)*100),percent=>{
   const v=get();
-  if(!seatedPilot(v)||v.inWarp)return;
+  if(!canPilot(v)||v.inWarp)return;
   v.volThrottle=percent/100;
   if(percent)v.setAutopilot(false);
  });
- $("flight-left").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(-8);});
- $("flight-right").addEventListener("click",()=>{const v=get();if(v&&(v.seated!==false))v.steer(8);});
- $("flight-auto").addEventListener("click",()=>{const v=get();if(v)v.setAutopilot(!v.autopilot);});
+ $("flight-left").addEventListener("click",()=>{const v=get();if(canPilot(v))v.steer(-8);});
+ $("flight-right").addEventListener("click",()=>{const v=get();if(canPilot(v))v.steer(8);});
+ $("flight-auto").addEventListener("click",()=>{const v=get();if(canPilot(v))v.setAutopilot(!v.autopilot);});
  $("flight-translate").addEventListener("click",()=>{
   translating=!translating;resetShipStick();syncShipCamera();
  });
  function translationInput(){
   const v=get();
-  if(root.hidden||!translating||!v?.canTranslate||!seatedPilot(v))return;
+  if(root.hidden||!translating||!v?.canTranslate||!canPilot(v))return;
   const key=name=>Number(held.has(name));
   const stick=shipPointer===null?{x:0,y:0}:shipStick;
   const axes=shipTouchAxes({x:stick.x+key("right")-key("left"),y:stick.y+key("back")-key("forward")});
@@ -510,20 +531,20 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  function render(dt=0){
   const v=get();
   if(activeVoyage!==v){
-   activeVoyage=v;crewTarget=null;crewView=false;nearKey="";lastView="";
+   activeVoyage=v;remotePilot=false;crewTarget=null;crewView=false;nearKey="";lastView="";
    root.classList.toggle("is-crew-test",Boolean(v?.isCrewTest));
   }
-  root.hidden=!v?.active;if(root.hidden){holograms.update({visible:false});held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
+  root.hidden=!v?.active;if(root.hidden){remotePilot=false;holograms.update({visible:false});held.clear();resetShipStick();resetLookStick();shipSensors.hide();return;}
   $("flight-crew-exit").hidden=!v.isCrewTest;
   $("flight-cancel").hidden=v.isCrewTest||!v.canCancelDeparture;
   $("flight-view").hidden=Boolean(v.isCrewTest);
   $("flight-save").hidden=Boolean(v.isCrewTest);
   syncShipCamera();
-  shipSensors.update(v,{visible:seatedPilot(v),chase,wide,fovDeg:viewSettings.fov,
+  shipSensors.update(v,{visible:canPilot(v),chase,wide,fovDeg:viewSettings.fov,
    distance:chaseDistance,orbitYaw,orbitPitch});
   if(!ship3D.supported&&v.interior.mode==="interior")v.interior.mode="cockpit";
   applyMove(dt);
-  const interiorView=v.interior.mode==="interior";
+  const interiorView=v.interior.mode==="interior"&&!remotePilot;
   shipCanvas.hidden=unified||!interiorView;screen.hidden=interiorView;
   $("flight-walk").hidden=!interiorView;$("flight-nearby").hidden=!interiorView;
   $("flight-view").textContent=v.kind==="surface-to-surface"?(v.seated?"🚶 立って船内へ":"🪑 着席"):(interiorView?"🛰️ 操縦席の星図":"🚶 3D船内");
@@ -539,7 +560,8 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   const gravity=gravityBody?gravityBody.gravity*Math.pow(gravityBody.radiusM/(gravityBody.radiusM+gAlt),2):null;
   holograms.update({visible:seatedPilot(v)&&!chase&&!interiorView,altitude:height,gravity});
   // Transparent, full-windscreen 2D HUD; WebXR uses the equivalent 3D mesh.
-  const glassData=seatedPilot(v)&&!chase&&!interiorView&&!v.isCrewTest?
+  const glassData=canPilot(v)&&!chase&&!interiorView&&!v.isCrewTest&&
+   (remotePilot||viewSettings.hudMode==="overlay")?
    windshieldTelemetry(v,{body:bodyById(windshieldBodyId(v)),height}):null;
   windshield.hidden=!glassData;
   $("flight-hud").hidden=Boolean(glassData);
@@ -630,7 +652,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
    (v.status==="flyby"?"\n⚠ 目標軌道を高速通過。逆噴射で減速":"");
  }
  return {render,translationInput,getViewSettings,setViewSettings,showCrew,
-  toggleCamera:()=>{if(!seatedPilot(get()))return {ok:false,message:"操縦席への着席が必要です"};chase=!chase;syncShipCamera();return {ok:true,message:chase?"🎥 船外追従視点":"👁 操縦席視点"};},
+  toggleCamera:()=>{if(!canPilot(get()))return {ok:false,message:"操縦席かリモコン操縦を有効にしてください"};chase=!chase;syncShipCamera();return {ok:true,message:chase?"🎥 船外追従視点":"👁 操縦席視点"};},
   toggleWide:()=>{setViewSettings({wide:!wide});return {ok:true,message:wide?"⛶ 広画面ON":"▣ 詳細UI表示"};},
   close:()=>{held.clear();resetShipStick();resetLookStick();root.hidden=true;},
   show:()=>{root.hidden=false;nearKey="";render();},destroy:ship3D.destroy};

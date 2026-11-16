@@ -48,7 +48,7 @@ export function windshieldTelemetry(v,{body=null,height=null}={}){
  const north=localFlight&&finite(v.airNorth)?v.airNorth:0;
  const coords=site&&(!body?.id||site.bodyId===body.id)?
   shipGeodeticPosition(site,east,north,body?.radiusM):null;
- return {headingDeg:heading,direction:compassLabel(heading),pitchDeg:pitch,
+ return {headingDeg:heading,direction:compassLabel(heading),pitchDeg:pitch,rollDeg:finite(v.rollDeg)?v.rollDeg:0,
   altitudeM:altitude,speedMps:speed,lat:coords?.lat??null,lon:coords?.lon??null};
 }
 export function formatLatitude(lat){
@@ -72,6 +72,7 @@ export function paintWindshieldHUD(ctx,w,h,t){
  ctx.lineCap="round";ctx.lineJoin="round";ctx.shadowColor="#00bdbb";ctx.shadowBlur=5*scale;
  // Graduated horizon and pitch ladder fill the usable windshield width.
  const degreesPerHeight=h/56;
+ ctx.save();ctx.translate(cx,cy);ctx.rotate((t.rollDeg||0)*rad);ctx.translate(-cx,-cy);
  for(let deg=-90;deg<=90;deg+=5){
   const y=cy+pitchLadderOffset(t.pitchDeg,deg,degreesPerHeight);
   if(y<h*.20||y>h*.77)continue;
@@ -87,7 +88,7 @@ export function paintWindshieldHUD(ctx,w,h,t){
   ctx.textAlign="left";ctx.fillText(String(deg)+"°",cx+end+9*scale,y);
   if(major){ctx.textAlign="right";ctx.fillText(String(deg)+"°",cx-end-9*scale,y);}
  }
- ctx.globalAlpha=1;
+ ctx.restore();ctx.globalAlpha=1;
  // Fixed boresight symbol (not an aircraft attitude line): W shaped flight reference.
  ctx.strokeStyle=strong;ctx.lineWidth=2.6*scale;ctx.beginPath();
  ctx.moveTo(cx-29*scale,cy-9*scale);ctx.lineTo(cx-17*scale,cy+7*scale);
