@@ -8,6 +8,7 @@ import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-o
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261108-ciws-captain";
 import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261112-warp";
 import {installShipCockpitHologram} from "./ship-cockpit-hologram.mjs?v=20261115-hologram";
+import {windshieldTelemetry,paintWindshieldHUD} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -108,7 +109,9 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  #space-flight .flight-engine-lever small{font-size:9px;color:#afd7e0}
  #space-flight.ship-piloting .flight-touch-caption{white-space:nowrap}
  @media(max-height:430px){#space-flight .flight-throttle-track{height:76px}#space-flight .flight-engine-lever{padding:3px}}
- #space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:270;pointer-events:none;overflow:hidden}
+ #space-flight .ship-windshield-hud{position:absolute;inset:0;z-index:265;pointer-events:none;width:100%;height:100%;display:block;opacity:.96}
+#space-flight .ship-windshield-hud[hidden],#space-flight .flight-hud[hidden]{display:none!important}
+#space-flight .flight-sensor-layer{position:absolute;inset:0;z-index:270;pointer-events:none;overflow:hidden}
  #space-flight .flight-sensor-layer[hidden]{display:none!important}
  #space-flight .flight-sensor{position:absolute;display:flex;align-items:center;gap:4px;
   transform:translate(-50%,-50%);border:0!important;border-radius:0!important;
@@ -139,7 +142,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  document.head.append(style);
  const root=document.createElement("section");root.id="space-flight";root.hidden=true;root.setAttribute("role","region");root.setAttribute("aria-label","惑星間宇宙船の操縦席");
  root.innerHTML='<div class="flight-head"><strong id="flight-route">🚀 宇宙船 / 航行準備</strong><div><button id="flight-crew-exit" type="button" hidden>テストを終了</button> <button id="flight-avatar-v10" type="button" aria-haspopup="dialog">アバター編集</button> <button id="flight-crew-view" type="button" aria-pressed="false">三人称</button> <button id="flight-view" type="button">🎮 船内 / 操縦席</button> <button id="flight-camera" type="button" aria-pressed="false">🚀 船外追従</button> <button id="flight-wide" type="button" aria-pressed="false">⛶ 広画面</button> <button id="flight-save" type="button">💾 航行保存</button> <button id="flight-cancel" type="button">↶ 出発取消</button></div></div>'+
-  '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><div class="flight-engine-lever" hidden><small>↑ ワープ</small><small id="flight-warp-target" hidden></small><div id="flight-throttle" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="125" aria-valuenow="72" aria-label="アフターバーナーとワープギア"></div><small>↓ 逆噴射</small><output>72%</output></div><div class="flight-engine-lever flight-vol-lever" hidden><small>VOL ↑</small><div id="flight-vol" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-label="VOL上下スラスター"></div><small>↓</small><output>0%</output></div><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
+  '<div class="flight-display"><canvas id="flight-canvas" width="960" height="540" aria-label="宇宙船の操縦席から見える星空と目的惑星"></canvas><canvas id="ship-3d-canvas" aria-label="3D宇宙船船内：操縦室、連絡通路、貨物室" hidden></canvas><canvas class="ship-windshield-hud" id="ship-windshield-hud" aria-label="重力圏フロントガラスHUD：水平線、ピッチ、方位、速度、高度、経緯度" hidden></canvas><div class="flight-sensor-layer" id="flight-sensors" hidden aria-label="宇宙船目標表示"></div><div class="flight-hud" id="flight-hud"></div><div class="flight-engine-lever" hidden><small>↑ ワープ</small><small id="flight-warp-target" hidden></small><div id="flight-throttle" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="125" aria-valuenow="72" aria-label="アフターバーナーとワープギア"></div><small>↓ 逆噴射</small><output>72%</output></div><div class="flight-engine-lever flight-vol-lever" hidden><small>VOL ↑</small><div id="flight-vol" class="flight-throttle-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-label="VOL上下スラスター"></div><small>↓</small><output>0%</output></div><div class="flight-touch-pad" role="group" aria-label="宇宙船・船内の仮想スティック"><div class="flight-touch-ring"><div class="flight-touch-nub"></div></div><small class="flight-touch-caption">船内歩行</small></div><div class="flight-look-pad" role="group" aria-label="右スティック：カメラの視線移動"><div class="flight-look-ring"><div class="flight-look-nub"></div></div><small class="flight-look-caption">👁 視点移動</small></div><div class="flight-view-distance" hidden><button type="button" id="flight-zoom-near" aria-label="宇宙船にカメラを近づける">＋</button><button type="button" id="flight-zoom-far" aria-label="宇宙船からカメラを離す">－</button></div></div>'+
   '<div class="flight-readout"><div class="flight-stat" id="flight-phase"></div><div class="flight-stat" id="flight-fuel"></div><div class="flight-stat" id="flight-heading"></div></div>'+
   '<div id="flight-walk" class="flight-walk"><button type="button" data-flight-move="leftTurn">↶ 視点</button><button type="button" data-flight-move="forward">↑ 前進</button><button type="button" data-flight-move="back">↓ 後退</button><button type="button" data-flight-move="left">← 横移動</button><button type="button" data-flight-move="right">横移動 →</button><button type="button" data-flight-move="rightTurn">視点 ↷</button></div><div id="flight-nearby" class="flight-crew"></div><div id="flight-dialogue" role="status" aria-live="polite"></div><div class="flight-actions"><button type="button" id="flight-left">◀ 左旋回</button><button type="button" id="flight-right">右旋回 ▶</button><button type="button" id="flight-auto">自動航行</button><button type="button" id="flight-translate" aria-pressed="false" hidden>平行移動</button><button type="button" id="flight-main" class="primary">🚀 離陸</button></div>'+
   '<div class="flight-guide">船内：WASD／方向ボタンで歩行、Q/E・ドラッグで見回し。操縦盤の青=スキャン、黄=兵装、赤=発射。船外ハッチ右側の点灯スイッチはVRトリガーで開閉。Quest Xは近接乗船・着席に対応。宇宙戦：📡スキャンで🔹味方・♦資源・🔸敵性・🟢中立を可視化。敵をタップ／VRで視線保持してロックオン♦️、トリガー・Space・発射ボタンで攻撃。📻通信で停戦・降伏の交渉ができます。</div>';
@@ -147,6 +150,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
  const holograms=installShipCockpitHologram({root,getVoyage:get,getCombat,onLaunch,onTransfer,onLand,onHatch,switchWeapon,notify});
  const $=id=>root.querySelector("#"+id);
  const screen=$("flight-canvas"),ctx=screen.getContext("2d"),shipCanvas=$("ship-3d-canvas");
+ const windshield=$("ship-windshield-hud"),windshieldCtx=windshield.getContext("2d");
  const worldCanvas=getWorldCanvas?.();
  const unified=Boolean(worldCanvas);
  const ship3D=unified?{supported:true,render:()=>true,destroy:()=>{}}:
@@ -534,6 +538,20 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   const gAlt=height??0;
   const gravity=gravityBody?gravityBody.gravity*Math.pow(gravityBody.radiusM/(gravityBody.radiusM+gAlt),2):null;
   holograms.update({visible:seatedPilot(v)&&!chase&&!interiorView,altitude:height,gravity});
+  // Transparent, full-windscreen 2D HUD; WebXR uses the equivalent 3D mesh.
+  const glassData=seatedPilot(v)&&!chase&&!interiorView&&!v.isCrewTest?
+   windshieldTelemetry(v,{body:gravityBody,height}):null;
+  windshield.hidden=!glassData;
+  $("flight-hud").hidden=Boolean(glassData);
+  if(glassData&&windshieldCtx){
+   const viewport=windshield.parentElement;
+   const cw=Math.max(1,viewport.clientWidth),ch=Math.max(1,viewport.clientHeight);
+   const dpr=Math.min(2,window.devicePixelRatio||1);
+   const pixelW=Math.round(cw*dpr),pixelH=Math.round(ch*dpr);
+   if(windshield.width!==pixelW||windshield.height!==pixelH){windshield.width=pixelW;windshield.height=pixelH;}
+   windshieldCtx.setTransform(dpr,0,0,dpr,0,0);
+   paintWindshieldHUD(windshieldCtx,cw,ch,glassData);
+  }
   $("flight-phase").textContent="段階："+v.phase+
    (height!==null?" ／ 対地高度 約"+height.toLocaleString("ja-JP")+"m":
     v.kind==="surface-to-surface"&&!v.autopilot&&["cruise","approach","flyby"].includes(v.status)?" ／ 惑星へ接近すると着陸降下":"");
