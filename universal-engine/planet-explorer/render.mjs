@@ -2052,6 +2052,13 @@ export class ExplorerRenderer{
     const color=c.faction==="friendly"?[.45,.77,1]:
      c.faction==="neutral"?[.45,.93,.65]:[.88,.75,.42];
     this.drawMesh(mesh,multiply4(vp,model),[.7,.9,.8],1,.88,color);
+    // Asteroid mining impacts are visible in chase/cockpit/Quest stereo views.
+    const impact=this.shipCombat?.flashes?.find(f=>f.id===c.id&&f.seconds>0);
+    if(impact&&c.type==="resource"){
+     const pulse=multiply4(translate(...c.position),scale3(3.3+impact.seconds*4,3.3+impact.seconds*4,3.3+impact.seconds*4));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,pulse),[1,.84,.51],
+      Math.min(.52,impact.seconds*1.4),1,[1,.77,.33]);
+    }
    }
    if(this.shipCombat){
     // Independent hardpoint bases and barrels share the same aim as fire control.
@@ -2093,7 +2100,7 @@ export class ExplorerRenderer{
      }
      // The diamond is a true 3D marker visible in both Quest stereo eyes.
      if(this.shipScannedIds?.has(contact.id)){
-      const tint=this.shipCombat.locked.includes(contact.id)?[1,.19,.17]:
+      const tint=(this.shipCombat.locked.includes(contact.id)||category==="resource"&&v.navigationTarget?.id===contact.id)?[1,.19,.17]:
        category==="hostile"?[1,.53,.21]:category==="friendly"?[.27,.70,1]:
        category==="neutral"?[.27,.95,.42]:[.95,.8,.38];
       const markerPos=[pos[0],pos[1]+Math.max(5,Math.min(11,Math.abs(pos[2])*.012)),pos[2]];
@@ -2153,7 +2160,7 @@ export class ExplorerRenderer{
       for(const point of shot.trail||[])defenseDot(defensePoint(point),.4,[1,.65,.2],.6);
       continue;
      }
-     const target=this.shipCombat.targets.find(t=>t.id===shot.id);
+     const target=this.shipCombat.targets.find(t=>t.id===shot.id)||this.shipCombat.nonHostiles.find(t=>t.id===shot.id);
      if(!target)continue;
      const destination=shipContactPosition(target,v);
      const progress=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
