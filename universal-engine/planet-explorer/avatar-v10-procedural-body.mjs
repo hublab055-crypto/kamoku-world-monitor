@@ -146,15 +146,13 @@ const TETRA=[
  [0,5,1,6],[0,1,2,6],[0,2,3,6],
  [0,3,7,6],[0,7,4,6],[0,4,5,6]
 ];
-const EDGES=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
 const CUBE=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
 export function createAvatarV10ProceduralBody(rig,{resolution=.041}={}){
  const parts=skeleton(rig);
  if(!parts)return null;
  const {points:p,skinIndex}=parts;
- const female=/(lyra|mina|sera)/i.test(rig.nodes?.find(n=>n.name)?.name||"")||false;
- // Do not infer anatomy from a player name: avatar model ID is supplied by caller.
- const isBust=rig.studyModelBust===true||female;
+ // Model ID comes from the authored V10 roster, not a bone or player name.
+ const isBust=rig.studyModelBust===true;
  const field=bodyField(parts,isBust);
  const boundsX=Object.values(p).map(v=>v[0]);
  const boundsY=Object.values(p).map(v=>v[1]);
@@ -216,18 +214,18 @@ export function createAvatarV10ProceduralBody(rig,{resolution=.041}={}){
   if(neg===0||neg===8)continue;
   const coords=new Map(ids.map((v,n)=>[v,getPos(i+CUBE[n][0],j+CUBE[n][1],k+CUBE[n][2])]));
   for(const tetra of TETRA){
-   const cuts=[];
-   for(const [aa,bb] of EDGES){
-    const a=ids[tetra[aa]],b=ids[tetra[bb]];
-    if((values[a]<0)===(values[b]<0))continue;
-    cuts.push(edgeVertex(a,b,coords));
-   }
-   if(cuts.length===3)emitTriangle(...cuts);
-   else if(cuts.length===4){
-    // A quad has two admissible triangulations. In either case the normal
-    // orientation is explicitly fixed against the signed-distance gradient.
-    emitTriangle(cuts[0],cuts[1],cuts[2]);
-    emitTriangle(cuts[1],cuts[3],cuts[2]);
+   const inside=tetra.map(v=>ids[v]).filter(v=>values[v]<0);
+   const outside=tetra.map(v=>ids[v]).filter(v=>values[v]>=0);
+   if(!inside.length||!outside.length)continue;
+   if(inside.length===1){
+    emitTriangle(...outside.map(v=>edgeVertex(inside[0],v,coords)));
+   }else if(outside.length===1){
+    emitTriangle(...inside.map(v=>edgeVertex(outside[0],v,coords)));
+   }else{
+    const [i0,i1]=inside,[o0,o1]=outside;
+    const a=edgeVertex(i0,o0,coords),b=edgeVertex(i0,o1,coords);
+    const c=edgeVertex(i1,o0,coords),d=edgeVertex(i1,o1,coords);
+    emitTriangle(a,b,c);emitTriangle(b,d,c);
    }
   }
  }
