@@ -6,6 +6,7 @@ import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./spa
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {xrHologramControlHit} from "./ship-hologram-vr.mjs?v=20261115-quest-holo";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
+import {installSpaceIndustryUI} from "./space-resource-industry-ui.mjs?v=20261116";
 
 /** Screen-space markers share the real WebGL ship projection. XR uses the
  * same projected contacts for gaze dwell, but no DOM markers in the headset.
@@ -107,6 +108,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
  fireControl.type="button";
  fireControl.onclick=()=>{const m=getCombat();if(m)m.fireControl=!m.fireControl;};
  consolePanel.append(fireControl);
+ const industryUI=installSpaceIndustryUI({root,consolePanel,getCombat,getVoyage,notify,selectResource:selectNavigation,fireMine:fire});
  const targetNodes=new Map();
  const radio=document.createElement("section");radio.className="ship-radio-overlay";
  radio.hidden=true;radio.setAttribute("role","group");radio.setAttribute("aria-label","宇宙船通信");
@@ -201,11 +203,13 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
    "🛰️ 索敵・火器は宇宙航行中に使用できます。先に離陸してください");
  }
  function fire(){
-  const model=getCombat();
+  const model=getCombat(),voyage=getVoyage();
   if(!model||!active()){feedbackWhenUnavailable();return false;}
-  const result=model.fire(true);
+  const chosen=model.allContacts.find(c=>c.id===voyage?.navigationTarget?.id);
+  const mining=chosen?.faction==="resource";
+  const result=mining?model.mine(chosen.id,voyage):model.fire(true);
   notify(result.ok?result.message:
-   result.message==="敵機をロックオンしてください"?
+   !mining&&result.message==="敵機をロックオンしてください"?
     "🎯 敵機をタップ／VRの視線でロックオンしてください":result.message);
   update(0,{vr:isVR()});
   return true; // Consume a trigger even when no target is locked.
@@ -279,7 +283,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   scannedIds=new Set(model.allContacts.filter(t=>shipContactDistance(t,getVoyage())<=5000).map(t=>t.id));
   const viewer=getRenderer();if(viewer)viewer.shipScannedIds=scannedIds;
   scanUntil=Date.now()+30000;
-  const msg="📡 周囲スキャン："+scannedIds.size+"件の船舶を捕捉（自動スキャン継続中）";
+  const msg="📡 周囲スキャン："+scannedIds.size+"件の船舶・鉱床を捕捉（自動スキャン継続中）";
   notify(msg+(scannedIds.size===0?"／付近に検出対象はありません":""));
   consolePanel.dataset.scanStatus=String(scannedIds.size);
   update(0,{vr:isVR()});
@@ -327,6 +331,11 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   const contact=id==="planet"?{id:"planet",name:"目的惑星",position:[0,0,12000]}:model.allContacts.find(c=>c.id===id);
   if(!contact)return;
   const navigationSelected=v.selectNavigationTarget?.(contact);
+  if(contact.faction==="resource"){
+   if(!combatEligible(v)){notify("🪑 採掘ロックは操縦席から宇宙航行中に使用してください");return;}
+   notify("⛏️ 採掘ロック："+contact.name+"（兵装の発射操作で鉱石を破砕・回収）");
+   industryUI.refresh(true);return;
+  }
   if(contact.faction==="hostile"){
    if(!combatEligible(v)){notify("🪑 攻撃ロックは操縦席に着席して宇宙航行中に使用してください");return;}
    const locked=model.lockContact(id,v);
@@ -386,7 +395,7 @@ export function installSpaceCombatUI({getVoyage,getRenderer,isVR=()=>false,notif
   fireControl.textContent="火器管制 "+(model?.fireControl?"ON":"OFF");
   fireControl.setAttribute("aria-pressed",String(Boolean(model?.fireControl)));
   lockButton.hidden=!engage;
-  dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);service.refresh(show);
+  dashboard.refresh({visible:show,model,v});turretEditor.refresh(show);service.refresh(show);industryUI.refresh();
   if(!show){radio.hidden=true;radioExpanded=false;radioToggle.setAttribute("aria-expanded","false");}
   if(viewer)viewer.shipControlLayout=dashboard.layout;
   markers.hidden=!show;
