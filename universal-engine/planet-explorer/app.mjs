@@ -945,10 +945,10 @@ function doFrame(t,source="window",xrFrameInput=null){
    });
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   // Lower a spacecraft onto the ground while the player descends with it.
-  if(surfaceShip?.flight==="landing"&&controller.altitudeM<=300){
+  if(["landing","recall"].includes(surfaceShip?.flight)&&controller.altitudeM<=300){
    if(surfaceShip.tick(dt)){
     renderer.patchKey=null;
-    log("🛬 宇宙船が地表へ着陸しました。船尾に回るとハッチを開けられます。");
+    log("🛬 副官が宇宙船を着陸させました。船尾に回るとハッチを開けられます。");
     surfaceShipUI?.update(true);
    }
   }
@@ -1678,18 +1678,18 @@ function landStarshipNearPlayer({automatic=false}={}){
   return {ok:false,message:"拘束中は着陸指示を出せません"};
  if(surfaceShip.bodyId&&surfaceShip.bodyId!==solarSystem.currentId)
   return {ok:false,message:"宇宙船は別の惑星にあります。惑星間航行で回収してください"};
- if(surfaceShip.flight==="landing")return {ok:false,message:"宇宙船はすでに着陸中です"};
+ if(["landing","recall"].includes(surfaceShip.flight))return {ok:false,message:"副官が宇宙船を操縦して接近中です"};
  const pad=findStarshipPad(terrain,{lat:controller.lat,lon:controller.lon},{yaw:0,distanceM:30});
  if(!pad)return {ok:false,message:"近くに平坦な着陸地点がありません。開けた平原へ移動して再試行してください"};
  if(automatic&&surfaceShip.present(solarSystem.currentId)){
   const pos=surfaceShip.offsetFromCoords(controller.origin,controller.x,controller.z,planet.radiusM);
   if(pos?.distanceM<45)return {ok:true,message:"宇宙船はすでに近くに着陸しています"};
  }
- surfaceShip.beginLanding(solarSystem.currentId,pad);
+ if(!surfaceShip.beginRecall(solarSystem.currentId,pad,{pilotId:"navigator"}))
+  return {ok:false,message:"副官が接近航行を開始できませんでした"};
  renderer.surfaceStarship=surfaceShip;
  renderer.patchKey=null;surfaceShipUI?.update(true);
- return {ok:true,message:"🛬 宇宙船が地表への着陸を開始しました。着陸予定地点は約"+
-  Math.round(pad.distanceM)+"m先です。"};
+ return {ok:true,message:"📻 副官に遠隔操縦を指示しました。宇宙船が離陸し、約"+Math.round(pad.distanceM)+"m先の安全な場所へ接近・減速・着陸します。"};
 }
 function currentShipHatch(){
  if(!surfaceShip?.present(solarSystem.currentId)||controller.altitudeM>12.1)return null;
