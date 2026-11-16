@@ -1685,7 +1685,7 @@ function landStarshipNearPlayer({automatic=false}={}){
   const pos=surfaceShip.offsetFromCoords(controller.origin,controller.x,controller.z,planet.radiusM);
   if(pos?.distanceM<45)return {ok:true,message:"宇宙船はすでに近くに着陸しています"};
  }
- if(!surfaceShip.beginRecall(solarSystem.currentId,pad,{pilotId:"navigator"}))
+ if(!surfaceShip.beginRecall(solarSystem.currentId,pad,{pilotId:"navigator",radiusM:planet.radiusM}))
   return {ok:false,message:"副官が接近航行を開始できませんでした"};
  renderer.surfaceStarship=surfaceShip;
  renderer.patchKey=null;surfaceShipUI?.update(true);
