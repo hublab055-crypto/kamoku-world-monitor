@@ -240,6 +240,14 @@ function shipWindshieldMesh(t){
  const mesh=builder(),z=-12.945,cy=1.55,green=[.40,.96,.80],white=[.82,1,.93];
  const bar=(x,y,half,thickness=.013,col=green)=>
   box(mesh,x,y-thickness*.5,z,half,thickness,.003,col);
+ const ladderBar=(x,y,half,thickness,col)=>{
+  const bank=-Math.max(-30,Math.min(30,t.rollDeg||0))*DEG;
+  const tilt=Math.tan(bank),left=x-half,right=x+half;
+  quad(mesh,[left,y+left*tilt-thickness/2,z],
+   [right,y+right*tilt-thickness/2,z],
+   [right,y+right*tilt+thickness/2,z],
+   [left,y+left*tilt+thickness/2,z],col);
+ };
  // 0-degree horizon runs nearly the entire front pane; the other pitch ticks
  // climb / fall relative to the fixed boresight when pitch changes.
  for(let deg=-90;deg<=90;deg+=5){
@@ -247,8 +255,8 @@ function shipWindshieldMesh(t){
   if(y<.68||y>2.57)continue;
   const horizon=deg===0,major=deg%10===0;
   const half=horizon?1.28:major?.52:.31,inner=horizon?.16:.13;
-  bar(-half-inner,y,half,horizon?.018:.011,horizon?white:green);
-  bar(half+inner,y,half,horizon?.018:.011,horizon?white:green);
+  ladderBar(-half-inner,y,half,horizon?.018:.011,horizon?white:green);
+  ladderBar(half+inner,y,half,horizon?.018:.011,horizon?white:green);
   if(major)holoLetters(mesh,String(deg),half*2+inner+.25,y+.02,z+.013,{size:.014});
  }
  // Unique W-shaped aircraft reference at the middle of the glass.
@@ -1999,7 +2007,8 @@ export class ExplorerRenderer{
    // yaw/pitch. This same frame is used by the contact-marker overlay.
    const yaw=(Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg:0)*DEG;
    const nose=(Number.isFinite(v.pitchDeg)?v.pitchDeg:0)*DEG;
-   const inertialModel=multiply4(rotX(-nose),rotateY(yaw));
+   const bank=(v.status==="atmosphere"?(v.rollDeg||0):0)*DEG;
+   const inertialModel=multiply4(rotZ(-bank),multiply4(rotX(-nose),rotateY(yaw)));
    if(sky<.91)
     this.drawMesh(this.shipStars,multiply4(vp,inertialModel),[1,1,1],1,1);
    const contacts=shipSensorContacts(v,this.shipCombat);
@@ -2305,7 +2314,7 @@ export class ExplorerRenderer{
     const glass=v.seated&&(xr?.mode==="vr"||this.shipHUDMode==="glass")?windshieldTelemetry(v,{
      body:bodyById(windshieldBodyId(v)),height:phase.lift}):null;
     if(glass){
-     const key=[glass.pitchDeg.toFixed(1),Math.round(glass.headingDeg),
+     const key=[glass.pitchDeg.toFixed(1),Math.round(glass.rollDeg||0),Math.round(glass.headingDeg),
       glass.speedMps===null?"—":Math.round(glass.speedMps/3),
       glass.altitudeM===null?"—":Math.round(glass.altitudeM/10),
       glass.lat===null?"—":glass.lat.toFixed(3),glass.lon===null?"—":glass.lon.toFixed(3)].join("/");
