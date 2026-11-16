@@ -4314,7 +4314,7 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
   const interior=voyage?.interior,member=interior?.crew?.find(c=>c.id===crewPerson.value);
   const relation=interior?.social?.status(crewPerson.value);
   crewSocialPanel.querySelector("[data-crew-status]").textContent=relation?
-   relation.label+" / 親密度 "+relation.points+" / "+(member?.following?"追従中":"待機中"):"乗船中に利用できます";
+   relation.label+" / 親密度 "+relation.points+" / "+(member?.following?"追従中":member?.seated?"着席中":"待機中"):"乗船中に利用できます";
  }
  crewPerson.addEventListener("change",refreshCrewSocial);
  crewSocialPanel.querySelector("[data-crew-close]").addEventListener("click",()=>{crewSocialPanel.style.display="none";});
@@ -4335,6 +4335,10 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
   return result;
  });
  crewAction("ついてきて / 待機",id=>voyage?.interior?.setFollowing(id));
+ crewAction("🪑 席に座る / 立つ",id=>{
+  const member=voyage?.interior?.crew?.find(c=>c.id===id);
+  return voyage?.interior?.setCrewSeated(id,!member?.seated);
+ });
  crewAction("恋人になる",id=>voyage?.interior?.deepenRelationship(id,"romance"));
  crewAction("家族になる",id=>voyage?.interior?.deepenRelationship(id,"family"));
  const crewSocialOpen=document.createElement("button");crewSocialOpen.type="button";
