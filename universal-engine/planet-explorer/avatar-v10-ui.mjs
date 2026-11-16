@@ -195,7 +195,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const anatomySummary=document.createElement("summary");anatomySummary.textContent="🩺 人体構造・軟部組織（追加モード）";
  anatomySection.append(anatomySummary);
  const anatomyIntro=document.createElement("small");
- anatomyIntro.textContent="素体で体表・筋肉の簡易形状を確認。内部器官は現時点では位置ガイドのみで、臨床・手術の判断には使用できません。";
+ anatomyIntro.textContent="素体で皮膚を透明化し、骨格・筋肉・臓器の簡易3Dモデルを重ねて観察できます。教材用の概形であり、人体の医療・手術判断には利用できません。";
  anatomySection.append(anatomyIntro);
  const sourceLabel=document.createElement("label");sourceLabel.textContent="素体の形状 ";
  const anatomySource=document.createElement("select");anatomySource.setAttribute("aria-label","素体の形状方式");
@@ -208,6 +208,16 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const anatomyLayer=document.createElement("select");anatomyLayer.setAttribute("aria-label","人体構造の層");
  for(const [key,label] of Object.entries(ANATOMY_LAYERS))anatomyLayer.add(new Option(label,key));
  anatomyLayerLabel.append(anatomyLayer);anatomySection.append(anatomyLayerLabel);
+ const opacityRow=document.createElement("label");opacityRow.className="avatar-review-control";
+ const opacityLabel=document.createElement("span");opacityLabel.textContent="皮膚の透明度（透視用）";
+ const opacityRange=document.createElement("input");opacityRange.type="range";opacityRange.min="10";opacityRange.max="90";opacityRange.step="5";
+ opacityRange.setAttribute("aria-label","素体の皮膚透明度");
+ const opacityOutput=document.createElement("output");opacityOutput.textContent="70%";
+ opacityRow.append(opacityLabel,opacityRange,opacityOutput);anatomySection.append(opacityRow);
+ opacityRange.addEventListener("input",()=>{
+  opacityOutput.textContent=String(100-opacityRange.valueAsNumber)+"%";
+  updateAnatomy("opacity",opacityRange.valueAsNumber);
+ });
  const anatomyPresetLabel=document.createElement("label");anatomyPresetLabel.textContent="骨盤内の解剖学的モデル ";
  const anatomyPreset=document.createElement("select");anatomyPreset.setAttribute("aria-label","骨盤内の解剖学的モデル");
  for(const [key,label] of Object.entries(ANATOMY_PRESETS))anatomyPreset.add(new Option(label,key));
@@ -224,14 +234,19 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    row.textContent=part.name+"："+part.detail;
    regionList.append(row);
   }
-  if(current.layer==="organs"){
+  if(["xray","bones","muscle","organs"].includes(current.layer)){
    const note=document.createElement("small");
-   note.textContent="※ 内部臓器の3Dメッシュ・骨格連動・切開／手術機能は未実装です。";
+   note.textContent="※ 3Dは骨格に追従する教育用の概形です。組織の精密形状、切開・手術シミュレーションではありません。";
    regionList.prepend(note);
   }
  }
  function updateAnatomy(key,value){
-  fit={...fit,anatomy:{...normalizeAvatarAnatomy(fit.anatomy),[key]:value}};
+  const next={...normalizeAvatarAnatomy(fit.anatomy),[key]:value};
+  if(key==="layer"&&value!=="skin"&&next.source==="legacy"){
+   next.source="procedural";anatomySource.value="procedural";
+  }
+  fit={...fit,anatomy:next};
+  opacityRow.hidden=next.layer==="skin";
   drafts.set(select.value,fit);renderAnatomyList();invalidate();
  }
  anatomySource.addEventListener("change",()=>updateAnatomy("source",anatomySource.value));
@@ -383,6 +398,10 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   anatomySource.value=fit.anatomy?.source||"procedural";
   anatomySource.disabled=disabled;
   anatomyLayer.value=fit.anatomy?.layer||"skin";
+  opacityRange.value=fit.anatomy?.opacity??30;
+  opacityOutput.textContent=String(100-Number(opacityRange.value))+"%";
+  opacityRow.hidden=anatomyLayer.value==="skin";
+  opacityRange.disabled=disabled;
   anatomyPreset.value=fit.anatomy?.preset||"neutral";
   anatomyLayer.disabled=disabled;anatomyPreset.disabled=disabled;
   for(const [key,{input,value}] of anatomyInputs){
