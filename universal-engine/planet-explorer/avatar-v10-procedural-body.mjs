@@ -14,9 +14,9 @@ const mul=(a,f)=>a.map(v=>v*f);
 const dot=(a,b)=>a.reduce((sum,v,i)=>sum+v*b[i],0);
 const norm=a=>Math.hypot(...a);
 const mix=(a,b,t)=>a.map((v,i)=>v*(1-t)+b[i]*t);
-const capsule=(p,a,b,r)=>{
+const capsule=(p,a,b,r0,r1=r0)=>{
  const ab=sub(b,a),d=dot(ab,ab)||1,t=clamp(dot(sub(p,a),ab)/d,0,1);
- return norm(sub(p,mix(a,b,t)))-r;
+ return norm(sub(p,mix(a,b,t)))-(r0+(r1-r0)*t);
 };
 const egg=(p,c,r)=>{const q=sub(p,c).map((v,i)=>v/r[i]);return (norm(q)-1)*Math.min(...r);};
 const smoothMin=(a,b,k)=>{
@@ -77,53 +77,68 @@ function skeleton(rig){
       p.pelvis[1]>p.rightAnkle[1]))return null;
  return {skinIndex,ids,points};
 }
+/** SDF sections are measured from the V10 bind skeleton, not fixed y marks.
+ * In particular the leg split belongs below the pelvis rather than the calf.
+ */
 function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=false}={}){
  const p=parts.points,mid=(a,b)=>mix(a,b,.5);
- const midTorso=mid(p.pelvis,p.chest),rib=mid(p.waist,p.chest);
- const pelvis=p.pelvis,hipY=(p.leftHip[1]+p.rightHip[1])*.5;
- const chest=p.chest;
- const bust=isBust?.068:.033;
+ const torsoHeight=p.chest[1]-p.pelvis[1];
+ const chestHeight=p.chest[1]+.015;
+ const navelHeight=p.pelvis[1]+(p.waist[1]-p.pelvis[1])*.24;
  const shapes=[
-  [midTorso,[.188,Math.max(.23,(p.chest[1]-p.pelvis[1])*.72),.125]],
-  [rib,[.211,.235,.143]],
-  [mid(p.waist,p.pelvis),[.169,.214,.135]],
-  [pelvis,[.196,.155,.150]],
-  [mid(p.chest,p.neck),[.091,.144,.089]]
+  // Rib cage distinct from waist; never extend the rib cage through the neck.
+  [mix(p.waist,p.chest,.61),[.190,Math.max(.115,torsoHeight*.48),.118]],
+  [mix(p.pelvis,p.waist,.67),[.157,.132,.117]],
+  // Short pelvis keeps the thigh separation at the anatomical hip level.
+  [add(p.pelvis,[0,-.035,0]),[.175,.111,.140]],
+  [mix(p.chest,p.neck,.60),[.066,.086,.063]],
+  // Narrow dedicated neck, not the inflated upper-chest oval.
+  [add(p.neck,[0,.050,0]),[.053,.105,.054]]
  ];
- const extra=[
-  [add(chest,[-.102,-.045,.104]),[.091,.087,bust]],
-  [add(chest,[.102,-.045,.104]),[.091,.087,bust]],
-  [add(pelvis,[-.092,-.102,-.095]),[.112,.122,.116]],
-  [add(pelvis,[.092,-.102,-.095]),[.112,.122,.116]]
+ const bust=isBust?.067:.037;
+ const extras=[
+  [add(p.chest,[-.094,.006,.104]),[.086,.074,bust]],
+  [add(p.chest,[.094,.006,.104]),[.086,.074,bust]],
+  [add(p.pelvis,[-.089,-.073,-.087]),[.097,.092,.106]],
+  [add(p.pelvis,[.089,-.073,-.087]),[.097,.092,.106]]
  ];
  const chains=[
-  ["leftShoulder","leftElbow",.075],["leftElbow","leftWrist",.063],
-  ["rightShoulder","rightElbow",.075],["rightElbow","rightWrist",.063],
-  ["leftHip","leftKnee",.108],["leftKnee","leftAnkle",.073],
-  ["rightHip","rightKnee",.108],["rightKnee","rightAnkle",.073],
-  ["chest","leftShoulder",.11],["chest","rightShoulder",.11],
-  ["pelvis","leftHip",.126],["pelvis","rightHip",.126]
+  ["leftShoulder","leftElbow",.065,.053],["leftElbow","leftWrist",.053,.039],
+  ["rightShoulder","rightElbow",.065,.053],["rightElbow","rightWrist",.053,.039],
+  ["leftHip","leftKnee",.105,.076],["leftKnee","leftAnkle",.072,.044],
+  ["rightHip","rightKnee",.105,.076],["rightKnee","rightAnkle",.072,.044],
+  // Slimmer deltoids / trapezius, without swallowing the neck.
+  ["chest","leftShoulder",.078,.061],["chest","rightShoulder",.078,.061],
+  ["pelvis","leftHip",.090,.098],["pelvis","rightHip",.090,.098],
+  ["chest","neck",.052,.050]
  ];
  for(const side of ["left","right"]){
   if(!includeAuthoredHands){
    const wrist=p[side+"Wrist"],elbow=p[side+"Elbow"];
    const wristAxis=sub(wrist,elbow),L=norm(wristAxis)||1;
-   shapes.push([add(wrist,mul(wristAxis,.054/L)),[.063,.098,.055]]);
+   shapes.push([add(wrist,mul(wristAxis,.048/L)),[.053,.080,.048]]);
   }
   if(!includeAuthoredFeet){
    const ankle=p[side+"Ankle"];
-   const foot=add(ankle,[0,.011,.067]);
-   shapes.push([foot,[.078,.055,.155]]);
+   shapes.push([add(ankle,[0,.010,.062]),[.075,.046,.142]]);
   }
  }
- return point=>{
+ const fn=point=>{
   let d=Infinity;
-  for(const [center,radii] of shapes)d=smoothMin(d,egg(point,center,radii),.045);
-  for(const [center,radii] of extra)d=smoothMin(d,egg(point,center,radii),.028);
-  for(const [a,b,r] of chains)d=smoothMin(d,capsule(point,p[a],p[b],r),.044);
+  // Smaller smooth blend retains readable clavicle, thigh and elbow contours.
+  for(const [center,radii] of shapes)d=smoothMin(d,egg(point,center,radii),.030);
+  for(const [center,radii] of extras)d=smoothMin(d,egg(point,center,radii),.023);
+  for(const [a,b,r0,r1] of chains)d=smoothMin(d,capsule(point,p[a],p[b],r0,r1),.025);
+  // Umbilicus is carved into the surface, not a vague diffuse color mark.
+  const umbilicus=norm(sub(point,[0,navelHeight,.115]))-.012;
+  // The surface's actual z at the navel is resolved separately for texture.
   return d;
  };
+ fn.landmarks={chestY:chestHeight,navelY:navelHeight,nippleX:.094,hipY:(p.leftHip[1]+p.rightHip[1])*.5,
+  shoulderY:(p.leftShoulder[1]+p.rightShoulder[1])*.5,neckY:p.neck[1]};
+ return fn;
 }
+
 function skinVertex(point,parts){
  const p=parts.points,ids=parts.ids;
  const boneChains=[
@@ -151,7 +166,7 @@ const TETRA=[
  [0,3,7,6],[0,7,4,6],[0,4,5,6]
 ];
 const CUBE=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
-export function createAvatarV10ProceduralBody(rig,{resolution=.041}={}){
+export function createAvatarV10ProceduralBody(rig,{resolution=.036}={}){
  const parts=skeleton(rig);
  if(!parts)return null;
  const {points:p,skinIndex}=parts;
@@ -163,6 +178,7 @@ export function createAvatarV10ProceduralBody(rig,{resolution=.041}={}){
  const hasHands=["L","R"].every(side=>rig.primitives.some(x=>new RegExp("^Palm_"+side+"$","i").test(x.name||"")));
  const hasFeet=["L","R"].every(side=>rig.primitives.some(x=>new RegExp("^Bare_foot_"+side+"$","i").test(x.name||"")));
  const field=bodyField(parts,isBust,{includeAuthoredHands:hasHands,includeAuthoredFeet:hasFeet});
+ rig.studyLandmarks=field.landmarks;
  const boundsX=Object.values(p).map(v=>v[0]);
  const boundsY=Object.values(p).map(v=>v[1]);
  const span=clamp(resolution,.031,.070),xmin=Math.min(-.55,...boundsX)-.17,xmax=Math.max(.55,...boundsX)+.17;
@@ -188,7 +204,7 @@ export function createAvatarV10ProceduralBody(rig,{resolution=.041}={}){
   for(let i=0;i<n;i++)for(let c=0;c<3;c++)skinColor[c]+=face.arrays.colors[i*3+c]/n;
  }
  const normal=point=>{
-  const eps=.004;
+  const eps=.0025;
   const dx=field(add(point,[eps,0,0]))-field(add(point,[-eps,0,0]));
   const dy=field(add(point,[0,eps,0]))-field(add(point,[0,-eps,0]));
   const dz=field(add(point,[0,0,eps]))-field(add(point,[0,0,-eps]));
