@@ -39,7 +39,7 @@ export class SurfaceStarship{
   * An airborne/unknown-origin craft appears on a distant approach corridor.
   * Movement is continuous in geodetic space; no instantaneous relocation.
   */
- beginRecall(bodyId,pad,{pilotId="navigator"}={}){
+ beginRecall(bodyId,pad,{pilotId="navigator",radiusM=6371000}={}){
   if(!pad||![pad.lat,pad.lon,pad.padElevationM].every(finite)||!bodyId||
    Math.abs(pad.lat)>89.9)throw Error("Invalid recall destination");
   if(this.flight==="recall"||this.flight==="landing")return false;
@@ -48,8 +48,9 @@ export class SurfaceStarship{
   const from=fromHere?{lat:this.lat,lon:this.lon,yaw:this.yaw,
    padElevationM:finite(this.padElevationM)?this.padElevationM:pad.padElevationM}:
    {lat:fallbackLat,lon:wrap(pad.lon+.002),yaw:pad.yaw||0,padElevationM:pad.padElevationM};
-  const distanceM=Math.hypot((from.lat-pad.lat)*radians*6371000,
-   wrap(from.lon-pad.lon)*radians*6371000*Math.cos(pad.lat*radians));
+  const radius=finite(radiusM)&&radiusM>0?radiusM:6371000;
+  const distanceM=Math.hypot((from.lat-pad.lat)*radians*radius,
+   wrap(from.lon-pad.lon)*radians*radius*Math.cos(pad.lat*radians));
   this.bodyId=bodyId;this.flight="recall";this.hatchOpen=false;
   this.recallFrom=from;this.recallTo={lat:pad.lat,lon:pad.lon,yaw:pad.yaw||0,
    padElevationM:pad.padElevationM};
@@ -67,9 +68,20 @@ export class SurfaceStarship{
   const t=smooth(Math.max(0,Math.min(1,(p-.19)/.60)));
   const cruise=150,departure=Math.min(1,p/.19),arrival=Math.max(0,Math.min(1,(1-p)/.21));
   const altitudeM=cruise*smooth(departure)*smooth(arrival);
-  const yaw=from.yaw+headingDelta(from.yaw,to.yaw)*smooth(p);
+  // Nose points along the geodetic flight path during transit rather than
+  // sliding sideways between launch and landing headings.
+  const courseEast=wrap(to.lon-from.lon)*Math.cos(to.lat*radians);
+  const courseNorth=to.lat-from.lat;
+  const heading=Math.hypot(courseEast,courseNorth)>1e-9?
+   Math.atan2(-courseEast,-courseNorth):from.yaw;
+  const align=smooth((p-.10)/.20),final=smooth((p-.68)/.22);
+  const intoCourse=from.yaw+headingDelta(from.yaw,heading)*align;
+  const yaw=intoCourse+headingDelta(intoCourse,to.yaw)*final;
+  const bankDeg=Math.max(-15,Math.min(15,
+   -headingDelta(from.yaw,heading)*180/Math.PI*Math.sin(Math.PI*align)*.2+
+    headingDelta(heading,to.yaw)*180/Math.PI*Math.sin(Math.PI*final)*.2));
   return {lat:lerp(from.lat,to.lat,t),lon:wrap(from.lon+wrap(to.lon-from.lon)*t),
-   yaw,altitudeM,bankDeg:Math.sin(p*Math.PI*2)*12};
+   yaw,altitudeM,bankDeg};
  }
  get recallPhase(){
   if(this.flight!=="recall")return null;
