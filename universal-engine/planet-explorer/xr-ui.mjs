@@ -2,7 +2,7 @@ import {installSocialUI} from "./xr-social-ui.mjs";
 import {sampleSocialPose} from "./xr-social.mjs";
 import {xrAnchor,xrStage,xrMul,xrTranslate,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw,xrHeading} from "./xr-spatial.mjs?v=0.9r-vr-controls";
 import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=20261115-ship-heading";
-import {VRShipHotas} from "./ship-hotas-vr.mjs?v=20261115-physical";
+import {VRShipHotas} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
 import {XR_CONTROL_SOURCES,XR_CONTROL_ACTIONS,loadXRBindings,saveXRBindings,defaultXRBindings,xrBoundAction} from "./xr-control-bindings.mjs?v=1";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";

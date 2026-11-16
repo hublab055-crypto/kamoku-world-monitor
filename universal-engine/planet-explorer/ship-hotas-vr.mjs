@@ -30,7 +30,7 @@ export class VRShipHotas{
  grab(hand,pose,stage,voyage){
   if(!voyage?.seated||!Object.hasOwn(XR_HOTAS,hand)||this.held[hand])return false;
   const point=xrShipLocalPoint(pose,stage),base=XR_HOTAS[hand];
-  if(!point||Math.hypot(point.x-base.x,point.y-base.y,point.z-base.z)>.37)return false;
+  if(!point||Math.hypot(point.x-base.x,point.y-base.y,point.z-base.z)>.24)return false;
   this.held[hand]={start:point,throttle:Number.isFinite(voyage.throttle)?voyage.throttle:0};
   return true;
  }

@@ -55,9 +55,10 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-reach-hotas";
-import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261115-reach-hotas";
+import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
+import {windshieldTelemetry,windshieldBodyId,compassLabel,pitchLadderOffset} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
-import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
+import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261116-windshield-hotas";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
@@ -229,6 +230,51 @@ function shipHoloPlateGeometry(){
   holoLetters(mesh,["SPD","ALT","GRV","FUEL"][i],xs[i],XR_HOLO_READOUT_Y,XR_HOLO_Z+.04,{size:.006});
   box(mesh,xs[i],XR_HOLO_READOUT_Y-.07,XR_HOLO_Z+.024,.067,.012,.008,[.24,.74,.84]);
  }
+ return mesh;
+}
+
+/** Mesh-native windscreen symbology: visible in stereoscopic Quest 3S WebXR.
+ * Transparent boxes sit just in front of the physical front canopy.
+ */
+function shipWindshieldMesh(t){
+ const mesh=builder(),z=-12.945,cy=1.55,green=[.40,.96,.80],white=[.82,1,.93];
+ const bar=(x,y,half,thickness=.013,col=green)=>
+  box(mesh,x,y-thickness*.5,z,half,thickness,.003,col);
+ // 0-degree horizon runs nearly the entire front pane; the other pitch ticks
+ // climb / fall relative to the fixed boresight when pitch changes.
+ for(let deg=-90;deg<=90;deg+=5){
+  const y=cy+pitchLadderOffset(t.pitchDeg,deg,.043);
+  if(y<.68||y>2.57)continue;
+  const horizon=deg===0,major=deg%10===0;
+  const half=horizon?1.28:major?.52:.31,inner=horizon?.16:.13;
+  bar(-half-inner,y,half,horizon?.018:.011,horizon?white:green);
+  bar(half+inner,y,half,horizon?.018:.011,horizon?white:green);
+  if(major)holoLetters(mesh,String(deg),half*2+inner+.25,y+.02,z+.013,{size:.014});
+ }
+ // Unique W-shaped aircraft reference at the middle of the glass.
+ holoLetters(mesh,"W",0,cy+.065,z+.018,{size:.037,color:white});
+ holoLetters(mesh,t.pitchDeg.toFixed(1),0,cy+.24,z+.018,{size:.013,color:white});
+ // Top compass ruler with 8-point direction labels and tick marks.
+ for(let a=-2;a<=2;a++){
+  const compassDeg=Math.round(t.headingDeg/45)*45+a*45;
+  const relative=((compassDeg-t.headingDeg+540)%360)-180;
+  const x=relative*.033;
+  if(Math.abs(x)>2.75)continue;
+  bar(x,2.63,.018,.075,green);
+  holoLetters(mesh,compassLabel(compassDeg),x,2.81,z+.015,{size:.018,color:white});
+ }
+ bar(0,2.57,.028,.060,white);
+ holoLetters(mesh,String(Math.round(t.headingDeg)),0,2.95,z+.015,{size:.015,color:white});
+ // Port SPD, starboard ALT: no central panel to block the world.
+ holoLetters(mesh,"SPD",-2.50,1.94,z+.018,{size:.027,color:white});
+ holoLetters(mesh,t.speedMps===null?"----":String(Math.round(t.speedMps)),-2.50,1.72,z+.018,{size:.033});
+ holoLetters(mesh,"ALT",2.50,1.94,z+.018,{size:.027,color:white});
+ holoLetters(mesh,t.altitudeM===null?"----":String(Math.round(t.altitudeM)),2.50,1.72,z+.018,{size:.033});
+ // Latitude/longitude remain attached to the lower portion of the canopy.
+ holoLetters(mesh,"LAT",-1.92,.56,z+.015,{size:.022,color:white});
+ holoLetters(mesh,t.lat===null?"----":t.lat.toFixed(3),-.85,.56,z+.015,{size:.020});
+ holoLetters(mesh,"LON",.33,.56,z+.015,{size:.022,color:white});
+ holoLetters(mesh,t.lon===null?"----":t.lon.toFixed(3),1.42,.56,z+.015,{size:.020});
  return mesh;
 }
 function cone(b,x,y,z,h,r,col,sides=7){
@@ -851,14 +897,26 @@ export class ExplorerRenderer{
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
    this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
+   this.shipWindshieldHUD=null;this.shipWindshieldHUDKey="";
     this.shipHoloReadout=null;this.shipHoloReadoutKey="";
-    const hotasPedestal=builder(),hotasLever=builder();
-    box(hotasPedestal,0,0,0,.23,.12,.26,[.14,.23,.28]);
-    box(hotasPedestal,0,.07,0,.17,.035,.16,[.35,.44,.51]);
-    box(hotasLever,0,.09,0,.052,.23,.052,[.53,.64,.70]);
-    box(hotasLever,0,.215,0,.13,.11,.09,[.16,.31,.38]);
+    // Premium compact HOTAS. Model grip centres coincide with XR_HOTAS targets.
+    const hotasPedestal=builder(),throttleGrip=builder(),flightStick=builder();
+    box(hotasPedestal,0,0,0,.135,.09,.135,[.11,.17,.22]);
+    box(hotasPedestal,0,.073,0,.105,.028,.110,[.48,.60,.67]);
+    for(const x of [-.092,.092])box(hotasPedestal,x,.093,-.06,.010,.009,.013,[.11,.90,.82]);
+    // Port: compact sliding power lever with machined detent rail and rubber grip.
+    box(throttleGrip,0,.06,0,.022,.175,.024,[.52,.62,.68]);
+    box(throttleGrip,0,.166,0,.074,.075,.076,[.14,.25,.31]);
+    box(throttleGrip,0,.226,-.012,.070,.025,.070,[.35,.48,.53]);
+    for(const x of [-.053,.053])box(throttleGrip,x,.176,.004,.006,.036,.034,[.32,.62,.67]);
+    // Starboard: tapered fly-by-wire stick, thumb hat and index trigger.
+    box(flightStick,0,.035,0,.026,.150,.028,[.48,.61,.68]);
+    box(flightStick,0,.137,.003,.057,.105,.055,[.12,.24,.33]);
+    box(flightStick,0,.216,-.018,.050,.034,.050,[.31,.46,.55]);
+    box(flightStick,.012,.194,-.067,.023,.022,.026,[.95,.68,.25]);
+    box(flightStick,-.052,.139,-.026,.012,.046,.015,[.33,.73,.77]);
     this.shipHotasBase=new Mesh(gl,hotasPedestal);
-    this.shipHotasLever=new Mesh(gl,hotasLever);
+    this.shipHotasLevers={left:new Mesh(gl,throttleGrip),right:new Mesh(gl,flightStick)};
     this.shipVRHotas=null;
    const contactGem=builder();
    cone(contactGem,0,0,0,.78,.41,[1,1,1],4);
@@ -2208,6 +2266,22 @@ export class ExplorerRenderer{
       this.drawMesh(this.shipCockpitButtons,multiply4(vp,tr),[1,1,1],.95,1,color);
      }
     }
+    // Pitch ladder and navigation tape live on the transparent forward glass,
+    // not on a screen-space DOM overlay (WebXR cannot see those overlays).
+    const glass=xr?.mode==="vr"&&v.seated?windshieldTelemetry(v,{
+     body:bodyById(windshieldBodyId(v)),height:phase.lift}):null;
+    if(glass){
+     const key=[glass.pitchDeg.toFixed(1),Math.round(glass.headingDeg),
+      glass.speedMps===null?"—":Math.round(glass.speedMps/3),
+      glass.altitudeM===null?"—":Math.round(glass.altitudeM/10),
+      glass.lat===null?"—":glass.lat.toFixed(3),glass.lon===null?"—":glass.lon.toFixed(3)].join("/");
+     if(key!==this.shipWindshieldHUDKey){
+      this.shipWindshieldHUD?.destroy();
+      this.shipWindshieldHUD=new Mesh(gl,shipWindshieldMesh(glass));
+      this.shipWindshieldHUDKey=key;
+     }
+     this.drawMesh(this.shipWindshieldHUD,vp,[.75,1,.94],.91,1);
+    }
     // Reachable physical HOTAS in the existing ship-local coordinate system.
      if(v.seated){
       const commands=this.shipVRHotas||{};
@@ -2215,9 +2289,9 @@ export class ExplorerRenderer{
        const base=XR_HOTAS[side];
        const value=side==="left"?(v.throttle||0):(commands.pitch||0);
        const yaw=side==="right"?(commands.yaw||0):0;
-       this.drawMesh(this.shipHotasBase,multiply4(vp,translate(base.x,.81,base.z)),[.8,.89,1],1,.93);
-       const lever=multiply4(translate(base.x,.89,base.z),multiply4(rotZ(-yaw*.29),rotX(value*.35)));
-       this.drawMesh(this.shipHotasLever,multiply4(vp,lever),[.9,.92,1],1,.96);
+       this.drawMesh(this.shipHotasBase,multiply4(vp,translate(base.x,.79,base.z)),[.8,.89,1],1,.93);
+       const lever=multiply4(translate(base.x,.88,base.z),multiply4(rotZ(-yaw*.29),rotX(value*.32)));
+       this.drawMesh(this.shipHotasLevers[side],multiply4(vp,lever),[.9,.92,1],1,.96);
       }
      }
      // Physical switch caps share one set of positions with Quest ray picking.

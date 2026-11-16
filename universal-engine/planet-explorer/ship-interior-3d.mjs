@@ -1,4 +1,5 @@
 import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261114-v10-crew";
+import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-compact-hotas";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";
@@ -110,9 +111,12 @@ export function createShipGeometry(open=false,standIns=true){
  for(const [x,z] of [[-.65,PILOT_SEAT_Z-.25],[-.65,PILOT_SEAT_Z+.15],[.65,PILOT_SEAT_Z-.25],[.65,PILOT_SEAT_Z+.15]]){
   box(a,x,.97,z,.13,.08,.13,"light");
  }
- // Engine lever mounted on the right armrest.
- box(a,.65,1.12,PILOT_SEAT_Z+.45,.06,.32,.06,"frame");
- box(a,.65,1.30,PILOT_SEAT_Z+.45,.19,.09,.10,"dark");
+ // Small matching HOTAS mounting plates at the exact Quest grip targets.
+ // The moving throttle/stick assemblies are rendered on these plates in render.mjs.
+ for(const grip of Object.values(XR_HOTAS)){
+  box(a,grip.x,.79,grip.z,.29,.06,.29,"dark");
+  box(a,grip.x,.85,grip.z,.21,.026,.22,"frame");
+ }
  // Thin cyan combiner marks on the front window; target HUD is drawn through it.
  for(const x of [-1.4,1.4])box(a,x,1.75,-13.05,.035,.30,.025,"line");
  // Crew bunks in the corridor and separate utilities.
