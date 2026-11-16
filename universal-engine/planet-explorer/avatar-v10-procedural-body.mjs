@@ -93,8 +93,8 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
  const extra=[
   [add(chest,[-.102,-.045,.104]),[.091,.087,bust]],
   [add(chest,[.102,-.045,.104]),[.091,.087,bust]],
-  [add(pelvis,[-.092,-.026,-.095]),[.112,.122,.116]],
-  [add(pelvis,[.092,-.026,-.095]),[.112,.122,.116]]
+  [add(pelvis,[-.092,-.102,-.095]),[.112,.122,.116]],
+  [add(pelvis,[.092,-.102,-.095]),[.112,.122,.116]]
  ];
  const chains=[
   ["leftShoulder","leftElbow",.075],["leftElbow","leftWrist",.063],
