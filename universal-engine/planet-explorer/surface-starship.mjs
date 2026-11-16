@@ -4,7 +4,7 @@ const radians=Math.PI/180;
 const lerp=(a,b,t)=>a+(b-a)*t;
 const smooth=t=>{const x=Math.min(1,Math.max(0,t));return x*x*(3-2*x);};
 const wrap=n=>((n+180)%360+360)%360-180;
-const headingDelta=(a,b)=>wrap(b-a);
+const headingDelta=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 export class SurfaceStarship{
  constructor(data=null){
   this.shipSystems=data?.shipSystems||null;this.fuel=finite(data?.fuel)?data.fuel:100;
