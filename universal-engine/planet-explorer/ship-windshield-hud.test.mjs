@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {compassLabel,normalizeHeading,shipGeodeticPosition,windshieldTelemetry,
- formatLatitude,formatLongitude,pitchLadderOffset} from "./ship-windshield-hud.mjs";
+ formatLatitude,formatLongitude,pitchLadderOffset,windshieldBodyId} from "./ship-windshield-hud.mjs";
 
 const body={id:"earth",radiusM:6371000};
 const flight=()=>({status:"atmosphere",seated:true,attitudeYawDeg:-45,pitchDeg:12,
@@ -21,6 +21,12 @@ test("HUD reference W is fixed; positive pitch shifts the horizon downward",()=>
  assert.equal(pitchLadderOffset(20,0,8),160);
  assert.equal(pitchLadderOffset(-20,0,8),-160);
  assert.equal(pitchLadderOffset(20,20,8),0);
+});
+
+test("departure and arrival use the correct planetary reference",()=>{
+ assert.equal(windshieldBodyId({status:"docked",originId:"earth",destinationId:"mars"}),"earth");
+ assert.equal(windshieldBodyId({status:"ascent",originId:"earth",destinationId:"mars"}),"earth");
+ assert.equal(windshieldBodyId({status:"atmosphere",originId:"earth",destinationId:"mars"}),"mars");
 });
 
 test("planet-local east and north offsets convert to geographic degrees",()=>{
