@@ -1,10 +1,11 @@
-import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261114-officer-restore";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261115-anatomy-foot";
+import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261117-body";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261117-body";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261114-glsl-chest-fix";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
 import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
+import {ANATOMY_PRESETS,ANATOMY_BODY_SOURCES,ANATOMY_LAYERS,ANATOMY_SLIDERS,visibleAnatomyRegions,normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-body-source";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -86,7 +87,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  });
  handChoice.addEventListener("change",()=>{previewHand=handChoice.value;previewTime=0;invalidate();});
  restart.addEventListener("click",()=>{previewTime=0;previewLast=0;invalidate();});
- const reviewInputs=new Map();
+ const reviewInputs=new Map(),anatomyInputs=new Map();
  function option(value,label){return new Option(label,value);}
  for(const [id,name] of Object.entries(names))select.add(option(id,name));
  for(const [id,name] of Object.entries(AVATAR_V10_MODELS))model.add(option(id,name));
@@ -187,6 +188,69 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const reviewHint=document.createElement("small");
  reviewHint.textContent="元のAvatar Reviewと同じ数値・保存形式です。骨格・顔・衣装の描画はUniversal EngineのGLBに合わせて変換されます。";
  fields.append(reviewHint);
+ // Optional non-clinical anatomy controls. All original Review inputs and
+ // outfit unlock requirements remain untouched.
+ const anatomySection=document.createElement("details");
+ anatomySection.className="avatar-review-group";
+ const anatomySummary=document.createElement("summary");anatomySummary.textContent="🩺 人体構造・軟部組織（追加モード）";
+ anatomySection.append(anatomySummary);
+ const anatomyIntro=document.createElement("small");
+ anatomyIntro.textContent="素体で体表・筋肉の簡易形状を確認。内部器官は現時点では位置ガイドのみで、臨床・手術の判断には使用できません。";
+ anatomySection.append(anatomyIntro);
+ const sourceLabel=document.createElement("label");sourceLabel.textContent="素体の形状 ";
+ const anatomySource=document.createElement("select");anatomySource.setAttribute("aria-label","素体の形状方式");
+ for(const [key,label] of Object.entries(ANATOMY_BODY_SOURCES))anatomySource.add(new Option(label,key));
+ sourceLabel.append(anatomySource);anatomySection.append(sourceLabel);
+ const sourceHint=document.createElement("small");
+ sourceHint.textContent="標準は服の形を使わず骨格から一体の人体表面を生成します。従来の肌色衣服方式も比較用に残します。";
+ anatomySection.append(sourceHint);
+ const anatomyLayerLabel=document.createElement("label");anatomyLayerLabel.textContent="観察する層 ";
+ const anatomyLayer=document.createElement("select");anatomyLayer.setAttribute("aria-label","人体構造の層");
+ for(const [key,label] of Object.entries(ANATOMY_LAYERS))anatomyLayer.add(new Option(label,key));
+ anatomyLayerLabel.append(anatomyLayer);anatomySection.append(anatomyLayerLabel);
+ const anatomyPresetLabel=document.createElement("label");anatomyPresetLabel.textContent="骨盤内の解剖学的モデル ";
+ const anatomyPreset=document.createElement("select");anatomyPreset.setAttribute("aria-label","骨盤内の解剖学的モデル");
+ for(const [key,label] of Object.entries(ANATOMY_PRESETS))anatomyPreset.add(new Option(label,key));
+ anatomyPresetLabel.append(anatomyPreset);anatomySection.append(anatomyPresetLabel);
+ const regionList=document.createElement("div");
+ regionList.style.cssText="max-height:120px;overflow:auto;padding:3px 5px;border-left:2px solid #75a6b5;margin:5px 0;color:#a8cfe3;font:11px/1.45 system-ui";
+ anatomySection.append(regionList);
+ function renderAnatomyList(){
+  const current=normalizeAvatarAnatomy(fit?.anatomy);
+  const items=visibleAnatomyRegions(current);
+  regionList.replaceChildren();
+  for(const part of items){
+   const row=document.createElement("div");
+   row.textContent=part.name+"："+part.detail;
+   regionList.append(row);
+  }
+  if(current.layer==="organs"){
+   const note=document.createElement("small");
+   note.textContent="※ 内部臓器の3Dメッシュ・骨格連動・切開／手術機能は未実装です。";
+   regionList.prepend(note);
+  }
+ }
+ function updateAnatomy(key,value){
+  fit={...fit,anatomy:{...normalizeAvatarAnatomy(fit.anatomy),[key]:value}};
+  drafts.set(select.value,fit);renderAnatomyList();invalidate();
+ }
+ anatomySource.addEventListener("change",()=>updateAnatomy("source",anatomySource.value));
+ anatomyLayer.addEventListener("change",()=>updateAnatomy("layer",anatomyLayer.value));
+ anatomyPreset.addEventListener("change",()=>updateAnatomy("preset",anatomyPreset.value));
+ const sliders=document.createElement("div");
+ sliders.style.cssText="display:grid;gap:3px;margin:5px 0";
+ for(const [key,label] of ANATOMY_SLIDERS){
+  const row=document.createElement("label");row.className="avatar-review-control";
+  const name=document.createElement("span");name.textContent=label;
+  const input=document.createElement("input");
+  input.type="range";input.min="-100";input.max="100";input.step="1";
+  input.setAttribute("aria-label","人体構造｜"+label);
+  const value=document.createElement("output");
+  input.addEventListener("input",()=>{value.value=input.value;updateAnatomy(key,input.valueAsNumber);});
+  row.append(name,input,value);sliders.append(row);anatomyInputs.set(key,{input,value});
+ }
+ anatomySection.append(sliders);
+ fields.append(anatomySection);
  const hairLabel=document.createElement("label");hairLabel.textContent="髪型 ";
  const hairSelect=document.createElement("select");hairSelect.setAttribute("aria-label","髪型");
  for(const [id,name] of Object.entries(hairStyles))hairSelect.add(option(id,name));
@@ -284,6 +348,8 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    const vp=multiply4(perspective(.66,w/h,.035,20),lookAt(eye,[0,y,0]));
    asset.draw(vp,identity,[-.38,.9,.72],"editor",step,{time:previewTime,fit,motion:previewAction,
     motionProgress:duration?Math.min(1,previewTime/duration):0,hand:previewHand});
+   if(fit.outfit==="base"&&fit.anatomy?.source!=="legacy"&&asset.proceduralAttempted&&!asset.proceduralBody)
+    status.value="このモデルの骨格が不足し、人体専用の素体を生成できません。旧方式で表示しています。";
    if(previewAction!=="idle"&&(!duration||AVATAR_DAILY_ACTIONS[previewAction]?.loop||previewTime<duration))invalidate();
   });
  }
@@ -314,6 +380,16 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   load.disabled=original;saveJson.disabled=original;
   outfit.disabled=disabled;swimStyle.disabled=disabled;swimColor.disabled=disabled;
   hairSelect.value=fit.appearance.hairStyle;hairSelect.disabled=disabled;
+  anatomySource.value=fit.anatomy?.source||"procedural";
+  anatomySource.disabled=disabled;
+  anatomyLayer.value=fit.anatomy?.layer||"skin";
+  anatomyPreset.value=fit.anatomy?.preset||"neutral";
+  anatomyLayer.disabled=disabled;anatomyPreset.disabled=disabled;
+  for(const [key,{input,value}] of anatomyInputs){
+   const setting=fit.anatomy?.[key]??0;
+   input.value=setting;value.value=String(setting);input.disabled=disabled;
+  }
+  renderAnatomyList();
   for(const [key,{input,value}] of reviewInputs){
    input.value=fit.appearance[key];
    input.disabled=disabled||(key.startsWith("hair")&&fit.appearance.hairStyle==="bald");

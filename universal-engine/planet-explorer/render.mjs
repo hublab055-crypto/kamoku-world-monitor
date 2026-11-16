@@ -1,6 +1,6 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261116-crew-recall-v1";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261115-anatomy-foot";
-import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261114-officer-restore";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261117-body";
+import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261117-body";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261116-crew-recall-v1";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
 import {buildRiverWaterPatch} from "./landscape-relief.mjs";
@@ -38,7 +38,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261115-anatomy-foot";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261117-procedural-body";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
@@ -61,7 +61,7 @@ import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261116-crew-recall-v1";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
 import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
-import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261112-warp";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261117-mining";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";
 import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
 import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
@@ -2092,6 +2092,13 @@ export class ExplorerRenderer{
     const color=c.faction==="friendly"?[.45,.77,1]:
      c.faction==="neutral"?[.45,.93,.65]:[.88,.75,.42];
     this.drawMesh(mesh,multiply4(vp,model),[.7,.9,.8],1,.88,color);
+    // Asteroid mining impacts are visible in chase/cockpit/Quest stereo views.
+    const impact=this.shipCombat?.flashes?.find(f=>f.id===c.id&&f.seconds>0);
+    if(impact&&c.type==="resource"){
+     const pulse=multiply4(translate(...c.position),scale3(3.3+impact.seconds*4,3.3+impact.seconds*4,3.3+impact.seconds*4));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,pulse),[1,.84,.51],
+      Math.min(.52,impact.seconds*1.4),1,[1,.77,.33]);
+    }
    }
    if(this.shipCombat){
     // Independent hardpoint bases and barrels share the same aim as fire control.
@@ -2133,7 +2140,7 @@ export class ExplorerRenderer{
      }
      // The diamond is a true 3D marker visible in both Quest stereo eyes.
      if(this.shipScannedIds?.has(contact.id)){
-      const tint=this.shipCombat.locked.includes(contact.id)?[1,.19,.17]:
+      const tint=(this.shipCombat.locked.includes(contact.id)||category==="resource"&&v.navigationTarget?.id===contact.id)?[1,.19,.17]:
        category==="hostile"?[1,.53,.21]:category==="friendly"?[.27,.70,1]:
        category==="neutral"?[.27,.95,.42]:[.95,.8,.38];
       const markerPos=[pos[0],pos[1]+Math.max(5,Math.min(11,Math.abs(pos[2])*.012)),pos[2]];
@@ -2193,7 +2200,7 @@ export class ExplorerRenderer{
       for(const point of shot.trail||[])defenseDot(defensePoint(point),.4,[1,.65,.2],.6);
       continue;
      }
-     const target=this.shipCombat.targets.find(t=>t.id===shot.id);
+     const target=this.shipCombat.targets.find(t=>t.id===shot.id)||this.shipCombat.nonHostiles.find(t=>t.id===shot.id);
      if(!target)continue;
      const destination=shipContactPosition(target,v);
      const progress=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);

@@ -3,12 +3,16 @@ import {deformAvatarReviewFace} from "./avatar-review-face.mjs?v=20261114-origin
 import {reviewShaderParams,reviewHairPreset} from "./avatar-review-adapter.mjs?v=20261114-original";
 import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
 import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
+import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117";
 import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
+import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-body-source";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
 uniform vec3 uReviewA,uReviewB,uReviewC,uReviewD;
 uniform vec3 uReviewVol,uReviewShape,uReviewFirm;
 uniform vec2 uReviewHair;
 uniform float uReviewMotion,uReviewHairMesh;
+uniform vec4 uStudySculpt;
+uniform vec3 uStudyLimbs,uStudyMotion;
 uniform bool uAnatomy;
 out vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;
 out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;
@@ -81,14 +85,27 @@ out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec
     exp(-pow((y-.987)/.036,2.))+
     exp(-pow((y-.919)/.038,2.)));
   float navelDimple=exp(-pow(axSkin/.018,2.)-pow((y-.893)/.024,2.));
-  v.z+=frontSkin*(.012*pecRelief+.0055*rectusRelief-.006*navelDimple);
+  v.z+=frontSkin*(.012*pecRelief+.0055*rectusRelief-.006*navelDimple+
+   .009*uStudySculpt.x*pecRelief+.007*uStudySculpt.y*rectusRelief-
+   .008*uStudySculpt.z*navelDimple);
+  float backSkin=smoothstep(.04,.13,-vBodyCoord.z);
+  float buttockRelief=exp(-pow((axSkin-.094)/.10,2.)-pow((y-.79)/.14,2.));
+  v.z-=backSkin*.012*uStudySculpt.w*buttockRelief;
+  float upperArmRelief=exp(-pow((axSkin-.36)/.125,2.)-pow((y-1.22)/.21,2.));
+  float thighRelief=exp(-pow((axSkin-.145)/.12,2.)-pow((y-.53)/.26,2.));
+  v.x+=sign(v.x)*(.012*uStudyLimbs.x*upperArmRelief+
+    .014*uStudyLimbs.y*thighRelief);
  }
  // Three.js editor uses additional skinned soft-bones. The WebGL renderer
  // approximates their motion without changing the shared rig topology.
  float motion=sin(uReviewMotion*13.0)*smoothstep(.01,.16,uReviewMotion);
  float softness=dot(vec3(reviewChest*front,abdomen*front,glutes*back),
   (1.0-uReviewFirm)*.0035)*lateral*motion;
- v.z+=softness*sign(v.z);
+ // Optional inertia lag for soft tissue, conservative to prevent clothing clipping.
+ float studyLag=sin(uReviewMotion*9.2-.52)*smoothstep(.01,.18,uReviewMotion);
+ float studySoft=lateral*studyLag*.010*(uStudyMotion.x*reviewChest*front+
+   uStudyMotion.y*abdomen*front+uStudyMotion.z*glutes*back);
+ v.z+=(softness+(uAnatomy?studySoft:0.0))*sign(v.z);
  if(uReviewHairMesh>.5){
   float ends=1.0-smoothstep(1.48,1.66,y);
   v.x*=1.0+uReviewHair.y*(.32+.44*ends);
@@ -98,7 +115,7 @@ out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec
  gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}`;
 const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nin vec3 vBodyCoord;
 in vec3 vRestBodyCoord;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nuniform bool uSwimBody,uSwimFabric;\nuniform int uSwimStyle;\nuniform vec3 uSwimColor;
-uniform bool uAnatomy;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
+uniform bool uAnatomy;\nuniform vec3 uStudyLimbs;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
  // Procedural skin-fitting swimwear: works for every V10 body without
  // hiding the body mesh or showing the unrelated casual outfit.
  if(uSwimFabric)color=mix(color,uSwimColor*(.7+.3*sun),.92);\n if(uSwimBody){
@@ -137,6 +154,12 @@ uniform bool uAnatomy;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured
    .029*absColumn*(absTop+absMid+absLow)-.038*absColumn*abLines-
    .045*alba+.023*navelRim-.11*navel;
   color*=1.0+anatomyFront*sculpt;
+  if(uStudyLimbs.z>.5){
+   // Simple muscle location shading, NOT a clinical dissection model.
+   float groupShape=exp(-pow((anatomyX-.1)/.095,2.)-pow((anatomyY-1.24)/.11,2.))+
+    exp(-pow((anatomyX-.07)/.06,2.)-pow((anatomyY-1.00)/.17,2.));
+   color=mix(color,color*vec3(1.07,.90,.88),clamp(anatomyFront*groupShape*.18,0.0,.18));
+  }
  }
  // Nonsexual adult body landmarks for future infant-feeding positioning.
  // Rest-pose coordinates keep the areola fixed to the chest during movement.
@@ -212,8 +235,14 @@ function loadTexture(gl,image,owner){
 }
 const asFloat=m=>new Float32Array(m);
 export class SkinnedFrontierAsset{
- constructor(gl,raw){
+ constructor(gl,raw,{model=null}={}){
   this.gl=gl;this.rig=parseFrontierRig(raw);this.disposed=false;this.instances=new Map();
+  // The legacy clothed-silhouette fallback stays selectable, but is no
+  // longer the default body in the study/swim base-body modes.
+  this.rig.studyModelBust=["lyra","mina","sera"].includes(model);
+  // Build the anatomical mesh lazily. The default work/casual roster must
+  // not pay the voxelization cost on every avatar at game startup.
+  this.proceduralBody=null;this.proceduralAttempted=false;
   const body=createAvatarV10BodyMesh(this.rig);
   if(body)this.rig.primitives.push(body);
   this.rig.primitives.push(...createAvatarV10FootMeshes(this.rig));
@@ -228,10 +257,24 @@ export class SkinnedFrontierAsset{
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uReviewA","uReviewB","uReviewC","uReviewD","uReviewVol","uReviewShape","uReviewFirm","uReviewHair","uReviewMotion","uReviewHairMesh","uSwimBody","uSwimFabric","uSwimStyle","uSwimColor","uAnatomy"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
+   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uReviewA","uReviewB","uReviewC","uReviewD","uReviewVol","uReviewShape","uReviewFirm","uReviewHair","uReviewMotion","uReviewHairMesh","uStudySculpt","uStudyLimbs","uStudyMotion","uSwimBody","uSwimFabric","uSwimStyle","uSwimColor","uAnatomy"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
+ ensureAnatomicalBody(){
+  if(this.proceduralAttempted||this.disposed||!this.rig.isV10)return this.proceduralBody;
+  this.proceduralAttempted=true;
+  const mobile=typeof window!=="undefined"&&Boolean(window.matchMedia?.("(pointer: coarse)")?.matches);
+  const body=createAvatarV10ProceduralBody(this.rig,{resolution:mobile?.056:.046});
+  if(!body){
+   console.warn("V10 anatomical body: rig skin joints unavailable; legacy base retained");
+   return null;
+  }
+  this.proceduralBody=body;
+  this.rig.primitives.push(body);
+  this.meshes.push({...mesh(this.gl,body),texture:null});
+  return body;
+ }
  pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
   let state=this.instances.get(id);
   if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
@@ -280,6 +323,8 @@ export class SkinnedFrontierAsset{
   mesh.appliedFace=shape;
  }
  draw(vp,avatar,light,id,dt,opts={}){
+  if(["base","swim"].includes(opts.fit?.outfit)&&opts.fit?.anatomy?.source!=="legacy")
+   this.ensureAnatomicalBody();
   const gl=this.gl,rig=this.rig,pose=this.pose(id,dt,opts);
   gl.useProgram(this.program);
   gl.uniformMatrix4fv(this.u.uVP,false,asFloat(vp));
@@ -308,6 +353,14 @@ export class SkinnedFrontierAsset{
   ]));
   const motion=opts.moving||["walk","run","crouch","sit"].includes(opts.motion);
   gl.uniform1f(this.u.uReviewMotion,!opts.fit?.preserveOriginal&&motion?(this.instances.get(id)?.elapsed||0):0);
+  const study=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  const studyEnabled=Boolean(rig.isV10&&!opts.fit?.preserveOriginal);
+  const ratio=(key)=>studyEnabled?study[key]/100:0;
+  gl.uniform4fv(this.u.uStudySculpt,asFloat([ratio("pecDefinition"),ratio("abdomenDefinition"),
+   ratio("navelDepth"),ratio("gluteDefinition")]));
+  gl.uniform3fv(this.u.uStudyLimbs,asFloat([ratio("armDefinition"),ratio("legDefinition"),
+   studyEnabled&&study.layer==="muscle"?1:0]));
+  gl.uniform3fv(this.u.uStudyMotion,asFloat([ratio("chestJiggle"),ratio("abdomenJiggle"),ratio("gluteJiggle")]));
   const swim=shaderSwimParams(opts.fit);
   gl.uniform1i(this.u.uSwimStyle,swim.style);
   gl.uniform3fv(this.u.uSwimColor,asFloat(swim.color));
@@ -322,6 +375,9 @@ export class SkinnedFrontierAsset{
    !m.source.wardrobe?.includes("base")&&/(?:swim|suit|trunk)/i.test(m.source.name||""));
   const useOriginalSwim=outfit==="swim"&&swim.style===0&&hasDedicatedSwim;
   const renderedOutfit=outfit==="swim"&&!useOriginalSwim?"base":outfit;
+  const anatomy=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  const anatomicalBase=outfit==="base"||outfit==="swim"&&!useOriginalSwim;
+  const useProcedural=anatomicalBase&&anatomy.source!=="legacy"&&Boolean(this.proceduralBody);
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
    // First-person cabin view keeps the fitted body/arms/legs, not the
@@ -330,8 +386,11 @@ export class SkinnedFrontierAsset{
    if(review.hideHair&&/(?:layered hair|hair)/i.test(source.name||""))continue;
    // Neutral base-body mannequin excludes removable wardrobe geometry.
    if(source.wardrobe&&!source.wardrobe.includes(renderedOutfit))continue;
+   if(source.proceduralAnatomy&&!useProcedural)continue;
+   if(useProcedural&&source.wardrobe?.includes("base")&&!source.proceduralAnatomy&&
+     !/(?:face|skull|head|hair|eyes|brow|lip|mouth|ear|teeth|lash|^Bare_foot_[LR]$)/i.test(source.name||""))continue;
    const surface=rig.isV10&&isBodySurface(source.name,source.wardrobe);
-   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&source.name==="V10 generated full body skin")?1:0);
+   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&(source.proceduralAnatomy||source.name==="V10 generated full body skin"))?1:0);
    gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim")&&/(?:suit|swim|trunk)/i.test(source.name||""))?1:0);
    gl.uniform1i(this.u.uAnatomy,Boolean(outfit==="base"&&source.wardrobe?.includes("base")&&surface&&/(?:body|torso|trunk|chest)/i.test(source.name||""))?1:0);
    gl.uniform1f(this.u.uReviewHairMesh,source.name==="Layered hair"?1:0);

@@ -1,4 +1,5 @@
 import {normalizeTurrets,aimTurret} from "./ship-turrets.mjs?v=20261108-vtol";
+import {ASTEROID_CONTACTS,SpaceIndustry} from "./space-resource-industry.mjs?v=20261116";
 /** Shipboard targeting core. No DOM/WebXR dependency; one combat session per voyage.
  * Contacts share the integrated voyage route frame; this is a local encounter
  * simulation rather than a network-authoritative solar-system physics engine.
@@ -13,7 +14,7 @@ const NON_HOSTILES=Object.freeze([
  {id:"fleet-carrier",name:"連邦空母",type:"ship",faction:"friendly",bearing:-48,pitch:12,distance:1150,phase:1.5,hull:"carrier"},
  {id:"ally-surveyor",hull:"fighter",name:"連邦測量艇",type:"ship",faction:"friendly",bearing:-28,pitch:7,distance:510,phase:1.0},
  {id:"trade-caravan",hull:"cargo",name:"貨物船オリオン",type:"ship",faction:"neutral",bearing:32,pitch:-4,distance:650,phase:2.1},
- {id:"asteroid-ore",name:"鉄・ニッケル鉱石群",type:"resource",faction:"resource",bearing:-41,pitch:-12,distance:880,phase:3.7}
+ ...ASTEROID_CONTACTS
 ]);
 const HOSTILES=Object.freeze([
  {id:"pirate-alpha",hull:"fighter",name:"☠️ 海賊迎撃機",bearing:0,pitch:0,distance:260,hp:100,phase:0},
@@ -101,6 +102,7 @@ export class SpaceCombat{
   this.locked=[];this.visible=new Set();this.dwellId=null;this.dwellSeconds=0;
   this.cooldown=0;this.flashes=[];this.projectiles=[];this.explosions=[];this.player={hp:100,maxHp:100,shield:100,maxShield:100,shieldFlash:0};this.enemyCooldown=3;this.lastMessage="";this.elapsed=0;
   this.parts={engine:100,hull:100,weapons:100,shield:100,...saved?.parts};
+  this.industry=new SpaceIndustry(saved?.industry);
   this.supplies={fuel:3,kits:12,...saved?.supplies};this.lastHit=-(saved?.rechargeWait===undefined?100:8-saved.rechargeWait);this.rescueAfter=saved?.rescueWait||0;
   if(saved?.player){this.player.hp=clamp(saved.player.hp,0,100);this.player.shield=clamp(saved.player.shield,0,100);}
   this.lastHeading=null;this.headingRate=0;this.playerRangeTravel=0;
@@ -316,7 +318,30 @@ export class SpaceCombat{
   this.defenseBursts.push({position,seconds:.55,total:.55});
   return true;
  }
- systemSnapshot(){return {weapon:this.weapon,fireControl:this.fireControl,ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
+ systemSnapshot(){return {industry:this.industry.snapshot(),weapon:this.weapon,fireControl:this.fireControl,ciwsEnabled:this.ciwsEnabled,ciwsAmmo:this.ciwsAmmo,flareAmmo:this.flareAmmo,rescueWait:Math.max(0,this.rescueAfter-this.elapsed),rechargeWait:Math.max(0,8-(this.elapsed-this.lastHit)),player:{hp:this.player.hp,shield:this.player.shield},parts:{...this.parts},supplies:{...this.supplies}};}
+ /** Resource targeting is independent of hostile locks; it uses the same
+  * fire input, weapon cooldown, weapon integrity and 1.5 km range.
+  */
+ mine(id,voyage=this.voyage){
+  if(!combatEligible(voyage))return {ok:false,message:"操縦席に着席し、宇宙航行中に採掘してください"};
+  if(this.playerSurrendered)return {ok:false,message:"降伏中は兵装を使用できません"};
+  if(this.parts.weapons<=0)return {ok:false,message:"採掘兵装が破損しています"};
+  if(this.cooldown>0)return {ok:false,message:"兵装再装填中です"};
+  if(this.weapon==="missile"&&this.missiles<=0)return {ok:false,message:"ミサイルの残弾がありません"};
+  const target=this.nonHostiles.find(t=>t.id===id&&t.faction==="resource");
+  if(!target)return {ok:false,message:"小惑星をロックオンしてください"};
+  const range=shipContactDistance(target,voyage);
+  const result=this.industry.mine(id,{weapon:this.weapon,distance:range});
+  if(!result.ok)return result;
+  if(this.weapon==="missile")this.missiles--;
+  this.cooldown=this.config.cooldown;
+  this.flashes.push({id,seconds:.5,shield:false});
+  this.projectiles.push({id,weapon:this.weapon,seconds:Math.max(.15,range/900),total:Math.max(.15,range/900),
+   damage:0,enemy:false,muzzle:[0,2,-7],
+   origin:shipPointToEncounter([0,2,-7],voyage),impact:target.position.slice()});
+  voyage.shipSystems=this.systemSnapshot();
+  return result;
+ }
  refuel(voyage,rescue=false){
   if(!voyage)return {ok:false,message:"宇宙船がありません"};
   if(voyage.fuel>=100)return {ok:false,message:"燃料は満タンです"};
