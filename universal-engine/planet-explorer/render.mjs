@@ -56,7 +56,7 @@ import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-reach-hotas";
 import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261115-reach-hotas";
-import {windshieldTelemetry,compassLabel,pitchLadderOffset} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
+import {windshieldTelemetry,windshieldBodyId,compassLabel,pitchLadderOffset} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261114-v10-crew";
 import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
@@ -2269,7 +2269,7 @@ export class ExplorerRenderer{
     // Pitch ladder and navigation tape live on the transparent forward glass,
     // not on a screen-space DOM overlay (WebXR cannot see those overlays).
     const glass=xr?.mode==="vr"&&v.seated?windshieldTelemetry(v,{
-     body:bodyById(v.flightBodyId||v.originId),height:phase.lift}):null;
+     body:bodyById(windshieldBodyId(v)),height:phase.lift}):null;
     if(glass){
      const key=[glass.pitchDeg.toFixed(1),Math.round(glass.headingDeg),
       glass.speedMps===null?"—":Math.round(glass.speedMps/3),
