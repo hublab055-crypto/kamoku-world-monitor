@@ -6,7 +6,7 @@ import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-bo
 import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117-proportions";
 import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261117-xray";
 import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261114-crew-social-base-swim";
-import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-body-source";
+import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-anatomy-view";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
 uniform vec3 uReviewA,uReviewB,uReviewC,uReviewD;
 uniform vec3 uReviewVol,uReviewShape,uReviewFirm;
