@@ -12,8 +12,11 @@ export const ANATOMY_BODY_SOURCES=Object.freeze({
  procedural:"人体専用メッシュ（標準）",legacy:"旧方式（衣服形状ベース）"
 });
 export const ANATOMY_LAYERS=Object.freeze({
- skin:"皮膚・体表（現行表示）",muscle:"筋肉の表面形状（簡易）",
- organs:"内部器官の位置ガイド（3D未実装）"
+ skin:"通常の皮膚・体表",
+ xray:"X線風：皮膚透明＋内部構造",
+ muscle:"半透明皮膚＋筋肉（簡易3D）",
+ bones:"半透明皮膚＋骨格（簡易3D）",
+ organs:"半透明皮膚＋臓器（教育用3D）"
 });
 export const ANATOMY_SLIDERS=Object.freeze([
  ["pecDefinition","胸筋の輪郭"],
@@ -29,8 +32,8 @@ export const ANATOMY_SLIDERS=Object.freeze([
 const region=(id,name,layer,xyz,detail,preset="neutral")=>
  Object.freeze({id,name,layer,anchorM:xyz,detail,preset});
 export const ANATOMY_REGIONS=Object.freeze([
- region("umbilicus","臍","skin",[0,.90,.12],"腹壁の体表目印"),
- region("chest-surface","胸部・乳輪・乳頭","skin",[.11,1.20,.13],"成人の胸部体表。授乳動作のための位置基準"),
+ region("umbilicus","臍","skin",[0,1.04,.12],"腹壁の体表目印。位置は骨盤基準で動的補正"),
+ region("chest-surface","胸部・乳輪・乳頭","skin",[.095,1.28,.13],"成人の胸部体表。胸郭骨格基準で位置補正"),
  region("gluteal","臀部","skin",[.10,.80,-.15],"骨盤後面の軟部組織"),
  region("biceps","上腕二頭筋","muscle",[.34,1.27,.03],"肘屈曲の主な筋の一つ"),
  region("triceps","上腕三頭筋","muscle",[.37,1.23,-.05],"肘伸展に関与"),
@@ -60,11 +63,12 @@ export function normalizeAvatarAnatomy(saved){
   source:Object.hasOwn(ANATOMY_BODY_SOURCES,saved?.source)?saved.source:"procedural",
   layer:Object.hasOwn(ANATOMY_LAYERS,saved?.layer)?saved.layer:"skin",
   preset:Object.hasOwn(ANATOMY_PRESETS,saved?.preset)?saved.preset:"neutral",
+  opacity:Number.isFinite(saved?.opacity)?Math.max(10,Math.min(90,Math.round(saved.opacity))):30,
   ...Object.fromEntries(ANATOMY_SLIDERS.map(([key])=>[key,value(saved?.[key])]))
  };
 }
 export function visibleAnatomyRegions(anatomy){
  const settings=normalizeAvatarAnatomy(anatomy);
- return ANATOMY_REGIONS.filter(r=>r.layer===settings.layer&&
+ return ANATOMY_REGIONS.filter(r=>(r.layer===settings.layer||settings.layer==="xray"&&["muscle","organs"].includes(r.layer)||settings.layer==="bones"&&r.layer==="muscle")&&
   (r.preset==="neutral"||r.preset===settings.preset));
 }
