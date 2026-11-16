@@ -246,7 +246,7 @@ export class SkinnedFrontierAsset{
   this.rig.studyModelBust=["lyra","mina","sera"].includes(model);
   // Build the anatomical mesh lazily. The default work/casual roster must
   // not pay the voxelization cost on every avatar at game startup.
-  this.proceduralBody=null;this.proceduralAttempted=false;
+  this.proceduralBody=null;this.proceduralAttempted=false;this.inspectionMeshes=null;
   const body=createAvatarV10BodyMesh(this.rig);
   if(body)this.rig.primitives.push(body);
   this.rig.primitives.push(...createAvatarV10FootMeshes(this.rig));
@@ -261,7 +261,7 @@ export class SkinnedFrontierAsset{
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uReviewA","uReviewB","uReviewC","uReviewD","uReviewVol","uReviewShape","uReviewFirm","uReviewHair","uReviewMotion","uReviewHairMesh","uStudySculpt","uStudyLimbs","uStudyMotion","uSwimBody","uSwimFabric","uSwimStyle","uSwimColor","uAnatomy"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
+   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uReviewA","uReviewB","uReviewC","uReviewD","uReviewVol","uReviewShape","uReviewFirm","uReviewHair","uReviewMotion","uReviewHairMesh","uStudySculpt","uStudyLimbs","uStudyMotion","uStudyLandmarks","uOpacity","uSwimBody","uSwimFabric","uSwimStyle","uSwimColor","uAnatomy"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
@@ -269,7 +269,7 @@ export class SkinnedFrontierAsset{
   if(this.proceduralAttempted||this.disposed||!this.rig.isV10)return this.proceduralBody;
   this.proceduralAttempted=true;
   const mobile=typeof window!=="undefined"&&Boolean(window.matchMedia?.("(pointer: coarse)")?.matches);
-  const body=createAvatarV10ProceduralBody(this.rig,{resolution:mobile?.056:.046});
+  const body=createAvatarV10ProceduralBody(this.rig,{resolution:mobile?.048:.036});
   if(!body){
    console.warn("V10 anatomical body: rig skin joints unavailable; legacy base retained");
    return null;
@@ -278,6 +278,15 @@ export class SkinnedFrontierAsset{
   this.rig.primitives.push(body);
   this.meshes.push({...mesh(this.gl,body),texture:null});
   return body;
+ }
+ ensureInspectionMeshes(){
+  if(this.inspectionMeshes||!this.proceduralBody)return this.inspectionMeshes||[];
+  this.inspectionMeshes=createAvatarV10InspectionMeshes(this.rig);
+  for(const part of this.inspectionMeshes){
+   this.rig.primitives.push(part);
+   this.meshes.push({...mesh(this.gl,part),texture:null});
+  }
+  return this.inspectionMeshes;
  }
  pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
   let state=this.instances.get(id);
@@ -327,8 +336,11 @@ export class SkinnedFrontierAsset{
   mesh.appliedFace=shape;
  }
  draw(vp,avatar,light,id,dt,opts={}){
-  if(["base","swim"].includes(opts.fit?.outfit)&&opts.fit?.anatomy?.source!=="legacy")
+  const requestedStudy=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  if(["base","swim"].includes(opts.fit?.outfit)&&requestedStudy.source!=="legacy")
    this.ensureAnatomicalBody();
+  if(opts.fit?.outfit==="base"&&requestedStudy.layer!=="skin"&&requestedStudy.source!=="legacy")
+   this.ensureInspectionMeshes();
   const gl=this.gl,rig=this.rig,pose=this.pose(id,dt,opts);
   gl.useProgram(this.program);
   gl.uniformMatrix4fv(this.u.uVP,false,asFloat(vp));
@@ -365,6 +377,8 @@ export class SkinnedFrontierAsset{
   gl.uniform3fv(this.u.uStudyLimbs,asFloat([ratio("armDefinition"),ratio("legDefinition"),
    studyEnabled&&study.layer==="muscle"?1:0]));
   gl.uniform3fv(this.u.uStudyMotion,asFloat([ratio("chestJiggle"),ratio("abdomenJiggle"),ratio("gluteJiggle")]));
+  const anchors=rig.studyLandmarks||{};
+  gl.uniform4fv(this.u.uStudyLandmarks,asFloat([anchors.chestY??1.27,anchors.navelY??1.04,anchors.nippleX??.094,anchors.hipY??.95]));
   const swim=shaderSwimParams(opts.fit);
   gl.uniform1i(this.u.uSwimStyle,swim.style);
   gl.uniform3fv(this.u.uSwimColor,asFloat(swim.color));
@@ -379,11 +393,38 @@ export class SkinnedFrontierAsset{
    !m.source.wardrobe?.includes("base")&&/(?:swim|suit|trunk)/i.test(m.source.name||""));
   const useOriginalSwim=outfit==="swim"&&swim.style===0&&hasDedicatedSwim;
   const renderedOutfit=outfit==="swim"&&!useOriginalSwim?"base":outfit;
-  const anatomy=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  const anatomy=requestedStudy;
   const anatomicalBase=outfit==="base"||outfit==="swim"&&!useOriginalSwim;
   const useProcedural=anatomicalBase&&anatomy.source!=="legacy"&&Boolean(this.proceduralBody);
+  const inspection=outfit==="base"&&useProcedural&&anatomy.layer!=="skin"&&Boolean(this.inspectionMeshes?.length);
+  const inspectVisible=layer=>{
+   if(layer==="bones")return ["bones","xray"].includes(anatomy.layer);
+   if(layer==="muscles")return ["muscle","xray"].includes(anatomy.layer);
+   if(layer==="organs")return ["organs","xray"].includes(anatomy.layer);
+   if(layer==="organs-uterine"||layer==="organs-testicular")
+    return ["organs","xray"].includes(anatomy.layer)&&anatomy.preset===layer.slice(7);
+   return false;
+  };
+  const priorBlend=gl.isEnabled(gl.BLEND),priorCull=gl.isEnabled(gl.CULL_FACE);
+  const priorDepth=gl.getParameter(gl.DEPTH_WRITEMASK);
+  const priorBlendFactors=[gl.getParameter(gl.BLEND_SRC_RGB),gl.getParameter(gl.BLEND_DST_RGB),
+   gl.getParameter(gl.BLEND_SRC_ALPHA),gl.getParameter(gl.BLEND_DST_ALPHA)];
+  for(const pass of (inspection?["inside","outside"]:["outside"])){
   for(let i=0;i<this.meshes.length;i++){
    const m=this.meshes[i],source=m.source;
+   if(source.inspectLayer){
+    if(pass!=="inside"||!inspectVisible(source.inspectLayer))continue;
+   }else if(pass==="inside")continue;
+   const ghost=inspection&&source.proceduralAnatomy;
+   if(ghost){
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);
+   }else{
+    gl.depthMask(priorDepth);
+    if(!priorBlend)gl.disable(gl.BLEND);
+    if(!priorCull)gl.disable(gl.CULL_FACE);
+   }
+   gl.uniform1f(this.u.uOpacity,ghost?anatomy.opacity/100:1);
    // First-person cabin view keeps the fitted body/arms/legs, not the
    // wearer’s face and hair in front of the headset cameras.
    if(opts.firstPerson&&/(?:head|face|hair|eyebrow|eyelash|eye|nose|mouth|ear|neck)/i.test(source.name||""))continue;
@@ -421,6 +462,11 @@ export class SkinnedFrontierAsset{
    gl.bindVertexArray(m.vao);
    gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_INT,0);
   }
+  }
+  gl.depthMask(priorDepth);
+  gl.blendFuncSeparate(...priorBlendFactors);
+  if(!priorBlend)gl.disable(gl.BLEND);
+  if(!priorCull)gl.disable(gl.CULL_FACE);
   gl.bindVertexArray(null);
  }
  destroy(){
