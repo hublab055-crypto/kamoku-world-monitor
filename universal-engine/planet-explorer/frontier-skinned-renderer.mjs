@@ -240,12 +240,12 @@ export class SkinnedFrontierAsset{
   // The legacy clothed-silhouette fallback stays selectable, but is no
   // longer the default body in the study/swim base-body modes.
   this.rig.studyModelBust=["lyra","mina","sera"].includes(model);
-  this.proceduralBody=createAvatarV10ProceduralBody(this.rig);
+  // Build the anatomical mesh lazily. The default work/casual roster must
+  // not pay the voxelization cost on every avatar at game startup.
+  this.proceduralBody=null;this.proceduralAttempted=false;
   const body=createAvatarV10BodyMesh(this.rig);
   if(body)this.rig.primitives.push(body);
   this.rig.primitives.push(...createAvatarV10FootMeshes(this.rig));
-  if(this.proceduralBody)this.rig.primitives.push(this.proceduralBody);
-  else if(this.rig.isV10)console.warn("V10 anatomical body: required skin joints unavailable; legacy fallback only");
   this.meshes=[];this.textures=new Map();this.boneTexture=null;this.program=null;
   try{
    this.program=createProgram(gl);
@@ -261,6 +261,20 @@ export class SkinnedFrontierAsset{
   }catch(error){this.destroy();throw error;}
  }
  get triangles(){return this.rig.triangles;}
+ ensureAnatomicalBody(){
+  if(this.proceduralAttempted||this.disposed||!this.rig.isV10)return this.proceduralBody;
+  this.proceduralAttempted=true;
+  const mobile=typeof window!=="undefined"&&Boolean(window.matchMedia?.("(pointer: coarse)")?.matches);
+  const body=createAvatarV10ProceduralBody(this.rig,{resolution:mobile?.056:.046});
+  if(!body){
+   console.warn("V10 anatomical body: rig skin joints unavailable; legacy base retained");
+   return null;
+  }
+  this.proceduralBody=body;
+  this.rig.primitives.push(body);
+  this.meshes.push({...mesh(this.gl,body),texture:null});
+  return body;
+ }
  pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
   let state=this.instances.get(id);
   if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
@@ -309,6 +323,8 @@ export class SkinnedFrontierAsset{
   mesh.appliedFace=shape;
  }
  draw(vp,avatar,light,id,dt,opts={}){
+  if(["base","swim"].includes(opts.fit?.outfit)&&opts.fit?.anatomy?.source!=="legacy")
+   this.ensureAnatomicalBody();
   const gl=this.gl,rig=this.rig,pose=this.pose(id,dt,opts);
   gl.useProgram(this.program);
   gl.uniformMatrix4fv(this.u.uVP,false,asFloat(vp));
