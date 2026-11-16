@@ -70,7 +70,7 @@ export function spacecraftGroundGeometry(open=false,gearDown=true){
  * immediately behind the highlighted glazing surface, not behind the opaque
  * nose bulkhead. They remain visible from outside in all flight modes.
  */
-export function spacecraftCockpitCrewWindowGeometry(){
+export function spacecraftCockpitCrewWindowGeometry({standIns=true}={}){
  const g=builder(),glass=[.045,.21,.31],frame=[.32,.62,.67],
   uniform1=[.20,.46,.61],uniform2=[.35,.43,.54],skin=[.79,.57,.40],dark=[.10,.16,.21],
   light=[.38,.83,.86];
@@ -78,7 +78,7 @@ export function spacecraftCockpitCrewWindowGeometry(){
  box(g,0,4.37,-14.17,3.7,.99,.06,glass);
  for(const x of [-1.86,0,1.86])box(g,x,4.37,-14.24,.055,1.03,.035,frame);
  for(const y of [4.37,5.36])box(g,0,y,-14.24,3.83,.045,.035,frame);
- for(const [x,uniform] of [[-1.0,uniform1],[1.0,uniform2]]){
+ if(standIns)for(const [x,uniform] of [[-1.0,uniform1],[1.0,uniform2]]){
   // Distinct seated figures with neck, face and uniform above the consoles.
   box(g,x,4.39,-14.30,.77,.37,.035,uniform);
   box(g,x,4.63,-14.33,.17,.15,.043,skin);
