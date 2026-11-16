@@ -243,7 +243,7 @@ function shipWindshieldMesh(t){
  // 0-degree horizon runs nearly the entire front pane; the other pitch ticks
  // climb / fall relative to the fixed boresight when pitch changes.
  for(let deg=-90;deg<=90;deg+=5){
-  const y=cy+pitchLadderOffset(t.pitchDeg,deg,.043);
+  const y=cy-pitchLadderOffset(t.pitchDeg,deg,.043);
   if(y<.68||y>2.57)continue;
   const horizon=deg===0,major=deg%10===0;
   const half=horizon?1.28:major?.52:.31,inner=horizon?.16:.13;
