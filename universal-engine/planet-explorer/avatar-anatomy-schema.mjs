@@ -8,6 +8,9 @@ export const ANATOMY_PRESETS=Object.freeze({
  uterine:"子宮・卵巣のある骨盤内構造（学習用）",
  testicular:"精巣・前立腺のある骨盤内構造（学習用）"
 });
+export const ANATOMY_BODY_SOURCES=Object.freeze({
+ procedural:"人体専用メッシュ（標準）",legacy:"旧方式（衣服形状ベース）"
+});
 export const ANATOMY_LAYERS=Object.freeze({
  skin:"皮膚・体表（現行表示）",muscle:"筋肉の表面形状（簡易）",
  organs:"内部器官の位置ガイド（3D未実装）"
@@ -54,6 +57,7 @@ export const ANATOMY_REGIONS=Object.freeze([
 const value=n=>Number.isFinite(n)?Math.max(-100,Math.min(100,Math.round(n))):0;
 export function normalizeAvatarAnatomy(saved){
  return {
+  source:Object.hasOwn(ANATOMY_BODY_SOURCES,saved?.source)?saved.source:"procedural",
   layer:Object.hasOwn(ANATOMY_LAYERS,saved?.layer)?saved.layer:"skin",
   preset:Object.hasOwn(ANATOMY_PRESETS,saved?.preset)?saved.preset:"neutral",
   ...Object.fromEntries(ANATOMY_SLIDERS.map(([key])=>[key,value(saved?.[key])]))
