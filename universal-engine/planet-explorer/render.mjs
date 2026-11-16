@@ -52,7 +52,7 @@ import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardra
 import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
 import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
-import {spacecraftGroundGeometry} from "./spacecraft-ground-geometry.mjs?v=20261112-warp";
+import {spacecraftGroundGeometry,spacecraftCockpitCrewWindowGeometry} from "./spacecraft-ground-geometry.mjs?v=20261116-crew-glazing";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-reach-hotas";
 import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
@@ -882,7 +882,7 @@ export class ExplorerRenderer{
    this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
    this.surfaceStarship=null;
    this.shipVoyage=null;this.shipArrivalPreview=null;this.shipCombat=null;this.shipTargets=[];
-   this.shipCameraMode="cockpit";this.shipWideView=true;this.shipCockpitFov=108;this.shipChaseDistance=52;
+   this.shipCameraMode="cockpit";this.shipHUDMode="glass";this.shipRemotePilot=false;this.shipWideView=true;this.shipCockpitFov=108;this.shipChaseDistance=52;
    this.shipOrbitYaw=0;this.shipOrbitPitch=.31;
    this.avatarV10=normalizeAvatarRoster();
    this.avatarV10Assets=new AvatarV10Assets(gl);
@@ -895,6 +895,7 @@ export class ExplorerRenderer{
     new Mesh(gl,sharedShipInteriorGeometry(true))
    ];
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
+   this.shipCrewWindow=new Mesh(gl,spacecraftCockpitCrewWindowGeometry());
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
    this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
    this.shipWindshieldHUD=null;this.shipWindshieldHUDKey="";
@@ -1560,7 +1561,7 @@ export class ExplorerRenderer{
    if(player&&!showPlayer)continue;
    const distance=Math.hypot(actor.x-person.x,actor.z-person.z);
    const sameRoom=person.canReachCrew(actor);
-   if(!player&&!sameRoom&&distance>6)continue;
+   if(!player&&!sameRoom&&distance>6&&!this.shipRemotePilot)continue;
    if(!player){
     const screen=projectScreen(vp,[actor.x,1.33,actor.z]);
     if(screen?.onScreen&&sameRoom)this.shipCrewHitPoints.push({...screen,id:actor.id});
@@ -1922,17 +1923,20 @@ export class ExplorerRenderer{
    gl.uniform1f(this.uXROcclusionEnabled,0);
    // Exterior follow camera is allowed only from the pilot seat. Neither
    // the camera nor the exterior hull is a second spacecraft simulation.
-   const chase=this.xrView?.mode!=="vr"&&this.shipCameraMode==="chase"&&Boolean(v.seated||person.mode==="cockpit");
+   const remote=this.shipRemotePilot&&!v.seated;
+   const chase=this.xrView?.mode!=="vr"&&this.shipCameraMode==="chase"&&Boolean(v.seated||remote||person.mode==="cockpit");
    const landingAttitude=v.status==="entry"&&v.seated?
     -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
     v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
    const camera=shipCameraPose({mode:chase?"chase":"cockpit",
     wide:this.shipWideView,fovDeg:this.shipCockpitFov,distance:this.shipChaseDistance,
     orbitYaw:this.shipOrbitYaw,orbitPitch:this.shipOrbitPitch,
-    interior:{...person,hatchPassable:v.hatchOpen},landingAttitude});
+    interior:{...person,hatchPassable:v.hatchOpen,
+     x:remote?0:person.x,z:remote?PILOT_SEAT_Z:person.z,
+     seated:remote?true:person.seated},landingAttitude});
    const xr=this.xrView;
    const interaction=person.greetings.pair;
-   const crewCamera=!xr&&!chase&&!person.seated&&Boolean(this.shipCrewView||interaction);
+   const crewCamera=!xr&&!chase&&!remote&&!person.seated&&Boolean(this.shipCrewView||interaction);
    if(!crewCamera)this.shipCrewCamera=null;
    if(crewCamera){
     const yaw=person.greetings.playerYaw??(Math.PI-person.yaw);
@@ -2199,8 +2203,11 @@ export class ExplorerRenderer{
    if(chase){
     // Chase camera is ship-local: swiping orbits the camera; ship heading
     // rotates the inertial sky, not the camera's stored orbit offset.
+    const bank=(v.status==="atmosphere"?(v.rollDeg||0):0)*DEG;
+    const bankedVP=multiply4(vp,rotZ(bank));
     this.drawMesh(v.gearDown===false?this.shipGearUpMesh:this.surfaceShipMeshes[v.hatchOpen?1:0],
-     vp,[.57,.89,.49],1,.83);
+     bankedVP,[.57,.89,.49],1,.83);
+    this.drawMesh(this.shipCrewWindow,bankedVP,[1,1,1],1,.96);
     if(Math.abs(v.volThrottle)>.01&&v.fuel>0&&!v.isGrounded?.()){
      for(const x of [-2.7,2.7]){
       const plume=multiply4(translate(x,1.8,2),multiply4(rotX(Math.sign(v.volThrottle)*Math.PI/2),
@@ -2268,7 +2275,7 @@ export class ExplorerRenderer{
     }
     // Pitch ladder and navigation tape live on the transparent forward glass,
     // not on a screen-space DOM overlay (WebXR cannot see those overlays).
-    const glass=xr?.mode==="vr"&&v.seated?windshieldTelemetry(v,{
+    const glass=v.seated&&(xr?.mode==="vr"||this.shipHUDMode==="glass")?windshieldTelemetry(v,{
      body:bodyById(windshieldBodyId(v)),height:phase.lift}):null;
     if(glass){
      const key=[glass.pitchDeg.toFixed(1),Math.round(glass.headingDeg),
@@ -3258,14 +3265,19 @@ export class ExplorerRenderer{
    this.drawHarbor(vp,light,s,radius);
    const starship=this.surfaceStarship;
    if(starship?.visible(this.planet.id)){
-    const land=geoLocal(s.origin.lat,s.origin.lon,starship.lat,starship.lon,this.planet.radiusM);
+    const flightPose=starship.renderPose?.()||{lat:starship.lat,lon:starship.lon,yaw:starship.yaw,altitudeM:0,bankDeg:0};
+    const land=geoLocal(s.origin.lat,s.origin.lon,flightPose.lat,flightPose.lon,this.planet.radiusM);
     if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+125){
      const gx=land.eastM-this.cx,gz=land.northM-this.cz;
-     const height=Number.isFinite(starship.padElevationM)?starship.padElevationM:
+     const height=starship.flight==="recall"?
+     Math.max(0,terrainSurface(this.terrain,flightPose.lat,flightPose.lon).elevationM)+.12:
+     Number.isFinite(starship.padElevationM)?starship.padElevationM:
       Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
-     const descent=starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0;
-     const matrix=multiply4(translate(gx,height+descent,gz),rotateY(starship.yaw||0));
-     if(starship.flight==="landing"){
+     const descent=starship.flight==="recall"?flightPose.altitudeM:
+      starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0;
+     const matrix=multiply4(translate(gx,height+descent,gz),
+      multiply4(rotateY(flightPose.yaw||0),rotZ((flightPose.bankDeg||0)*DEG)));
+     if(["landing","recall"].includes(starship.flight)){
       // A glowing elliptical pad marks where the engines are lowering the ship.
       const ring=multiply4(translate(gx,height+.07,gz),
        multiply4(rotateY(starship.yaw||0),scale3(6.4,1,11.0)));
@@ -3279,6 +3291,7 @@ export class ExplorerRenderer{
       }
      }
      this.drawMesh(this.surfaceShipMeshes[starship.hatchOpen?1:0],multiply4(vp,matrix),light,1,.88);
+     this.drawMesh(this.shipCrewWindow,multiply4(vp,matrix),light,1,.96);
     }
    }
    const railStation=this.railway?.station(this.settlementId);
