@@ -266,3 +266,6 @@ export function createAvatarV10ProceduralBody(rig,{resolution=.036}={}){
   material:"procedural anatomy",gloveColor:null,doubleSided:false,
   name:"V10 procedural anatomical body",proceduralAnatomy:true};
 }
+
+// Reuse the exact same bind-frame joints for transparent inspection overlays.
+export {skeleton as avatarV10Skeleton,skinVertex as avatarV10SkinWeights};
