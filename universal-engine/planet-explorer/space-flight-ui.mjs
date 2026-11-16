@@ -8,7 +8,7 @@ import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-o
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261108-ciws-captain";
 import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261112-warp";
 import {installShipCockpitHologram} from "./ship-cockpit-hologram.mjs?v=20261115-hologram";
-import {windshieldTelemetry,paintWindshieldHUD} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
+import {windshieldTelemetry,windshieldBodyId,paintWindshieldHUD} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
  const gradient=ctx.createRadialGradient(x-r*.27,y-r*.32,1,x,y,r);
@@ -540,7 +540,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
   holograms.update({visible:seatedPilot(v)&&!chase&&!interiorView,altitude:height,gravity});
   // Transparent, full-windscreen 2D HUD; WebXR uses the equivalent 3D mesh.
   const glassData=seatedPilot(v)&&!chase&&!interiorView&&!v.isCrewTest?
-   windshieldTelemetry(v,{body:gravityBody,height}):null;
+   windshieldTelemetry(v,{body:bodyById(windshieldBodyId(v)),height}):null;
   windshield.hidden=!glassData;
   $("flight-hud").hidden=Boolean(glassData);
   if(glassData&&windshieldCtx){
