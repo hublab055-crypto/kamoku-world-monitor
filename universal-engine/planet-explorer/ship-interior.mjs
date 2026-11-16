@@ -7,9 +7,9 @@ const valid=v=>Number.isFinite(v);
 export const PILOT_SEAT_Z=-11.25;
 export const PILOT_ACCESS_Z=-9.7;
 export const SHIP_CREW=Object.freeze([
- {id:"navigator",name:"航法士",title:"副官",role:"航法・通信",x:-2.3,z:-10.8,yaw:1.1},
- {id:"engineer",name:"機関士",role:"機関・整備",x:1.6,z:7.2,yaw:-Math.PI/2},
- {id:"companion",name:"同行者",role:"探索・支援",x:-2.5,z:3.0,yaw:Math.PI/2}
+ {id:"navigator",name:"航法士",title:"副官",role:"航法・通信",x:-2.3,z:-10.8,yaw:0,seated:true},
+ {id:"engineer",name:"機関士",role:"機関・整備",x:1.6,z:7.2,yaw:-Math.PI/2,seated:true},
+ {id:"companion",name:"同行者",role:"探索・支援",x:-2.5,z:3.0,yaw:Math.PI/2,seated:true}
 ]);
 export const SHIP_STATIONS=Object.freeze([
  {id:"helm",name:"操縦席",x:0,z:PILOT_ACCESS_Z,radius:2.3},
@@ -39,7 +39,7 @@ export class ShipInterior{
     const prior=Array.isArray(data.crew)?data.crew.find(v=>v?.id===c.id):null;
     const x=valid(prior?.x)?clamp(prior.x,-3.45,3.45):c.x;
     const z=valid(prior?.z)?clamp(prior.z,-12.4,12.7):c.z;
-    return {...c,x,z,yaw:valid(prior?.yaw)?prior.yaw:c.yaw,following:Boolean(prior?.following),moving:false};
+    return {...c,x,z,yaw:valid(prior?.yaw)?prior.yaw:c.yaw,following:Boolean(prior?.following),seated:prior?.seated===undefined?c.seated:Boolean(prior.seated),moving:false};
    });
    this.social=new ShipCrewSocial(data.social);
    this.greetings=new ShipCrewGreetings(this.crew);
@@ -121,7 +121,7 @@ export class ShipInterior{
   if(!valid(dt)||dt<=0)return;
   for(const [i,member] of this.crew.entries()){
    member.moving=false;
-   if(!member.following)continue;
+   if(!member.following||member.seated)continue;
    let target={x:this.x+(i-1)*.65,z:this.z+1.25};
    const crossing=[-4.8,4.5].find(w=>(member.z-w)*(target.z-w)<0);
    if(crossing!==undefined)target={x:0,z:crossing+(member.z<crossing?1:-1)};
@@ -144,7 +144,16 @@ export class ShipInterior{
   if(!member.following&&(this.seated||this.distance(member)>CREW_REACH||!this.canReachCrew(member)))
    return {ok:false,message:member.name+"の近くで追従を頼んでください"};
   member.following=!member.following;
-  return {ok:true,message:member.name+(member.following?"がついてきます":"はここで待機します"),following:member.following};
+  if(member.following)member.seated=false;
+  return {ok:true,message:member.name+(member.following?"が席を立ってついてきます":"はここで待機します"),following:member.following};
+ }
+ setCrewSeated(id,seated){
+  const member=this.crew.find(c=>c.id===id);
+  if(!member)return {ok:false,message:"乗員が見つかりません"};
+  if(this.seated||this.distance(member)>CREW_REACH||!this.canReachCrew(member))
+   return {ok:false,message:"乗員の近くで着席を指示してください"};
+  member.seated=Boolean(seated);if(member.seated)member.following=false;
+  return {ok:true,message:member.name+(member.seated?"が持ち場の席に座りました":"が席を立ちました")};
  }
  socialAction(id,action,options={}){
   const member=this.crew.find(m=>m.id===id);
@@ -162,6 +171,6 @@ export class ShipInterior{
  }
  snapshot(){return {schemaVersion:2,x:this.x,z:this.z,yaw:this.yaw,pitch:this.pitch,mode:this.mode,
    lastCrewId:this.lastCrewId,seated:this.seated,suitOn:this.suitOn,hatchPassable:this.hatchPassable,
-   crew:this.crew.map(c=>({id:c.id,x:c.x,z:c.z,yaw:c.yaw,following:c.following})),social:this.social.snapshot()};}
+   crew:this.crew.map(c=>({id:c.id,x:c.x,z:c.z,yaw:c.yaw,following:c.following,seated:c.seated})),social:this.social.snapshot()};}
  static fromSnapshot(data){return new ShipInterior([1,2].includes(data?.schemaVersion)?data:{});}
 }
