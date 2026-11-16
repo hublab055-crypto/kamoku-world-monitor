@@ -2268,7 +2268,7 @@ export class ExplorerRenderer{
     }
     // Pitch ladder and navigation tape live on the transparent forward glass,
     // not on a screen-space DOM overlay (WebXR cannot see those overlays).
-    const glass=v.seated?windshieldTelemetry(v,{
+    const glass=xr?.mode==="vr"&&v.seated?windshieldTelemetry(v,{
      body:bodyById(v.flightBodyId||v.originId),height:phase.lift}):null;
     if(glass){
      const key=[glass.pitchDeg.toFixed(1),Math.round(glass.headingDeg),
