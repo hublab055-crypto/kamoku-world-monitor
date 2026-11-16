@@ -5,7 +5,7 @@ import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
 import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
-import {ANATOMY_PRESETS,ANATOMY_LAYERS,ANATOMY_SLIDERS,visibleAnatomyRegions,normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261116";
+import {ANATOMY_PRESETS,ANATOMY_BODY_SOURCES,ANATOMY_LAYERS,ANATOMY_SLIDERS,visibleAnatomyRegions,normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-body-source";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -197,6 +197,13 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  const anatomyIntro=document.createElement("small");
  anatomyIntro.textContent="素体で体表・筋肉の簡易形状を確認。内部器官は現時点では位置ガイドのみで、臨床・手術の判断には使用できません。";
  anatomySection.append(anatomyIntro);
+ const sourceLabel=document.createElement("label");sourceLabel.textContent="素体の形状 ";
+ const anatomySource=document.createElement("select");anatomySource.setAttribute("aria-label","素体の形状方式");
+ for(const [key,label] of Object.entries(ANATOMY_BODY_SOURCES))anatomySource.add(new Option(label,key));
+ sourceLabel.append(anatomySource);anatomySection.append(sourceLabel);
+ const sourceHint=document.createElement("small");
+ sourceHint.textContent="標準は服の形を使わず骨格から一体の人体表面を生成します。従来の肌色衣服方式も比較用に残します。";
+ anatomySection.append(sourceHint);
  const anatomyLayerLabel=document.createElement("label");anatomyLayerLabel.textContent="観察する層 ";
  const anatomyLayer=document.createElement("select");anatomyLayer.setAttribute("aria-label","人体構造の層");
  for(const [key,label] of Object.entries(ANATOMY_LAYERS))anatomyLayer.add(new Option(label,key));
@@ -227,6 +234,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   fit={...fit,anatomy:{...normalizeAvatarAnatomy(fit.anatomy),[key]:value}};
   drafts.set(select.value,fit);renderAnatomyList();invalidate();
  }
+ anatomySource.addEventListener("change",()=>updateAnatomy("source",anatomySource.value));
  anatomyLayer.addEventListener("change",()=>updateAnatomy("layer",anatomyLayer.value));
  anatomyPreset.addEventListener("change",()=>updateAnatomy("preset",anatomyPreset.value));
  const sliders=document.createElement("div");
@@ -351,7 +359,11 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   try{
    renderer().assets.load(fit.model).then(result=>{
     if(!dialog.open||request!==token)return;
-    asset=result;status.value=fit.preserveOriginal?"元の副官モデルをそのまま表示しています。":"";invalidate();
+    asset=result;
+    status.value=fit.preserveOriginal?"元の副官モデルをそのまま表示しています。":
+     fit.outfit==="base"&&fit.anatomy?.source!=="legacy"&&!result?.proceduralBody?
+      "このGLBの骨格が不足しているため、新しい素体を生成できません。旧方式に切り替わります。":"";
+    invalidate();
    }).catch(error=>{if(request===token)status.value="プレビューを表示できませんでした。 "+error.message;});
   }catch(error){status.value=error.message;}
  }
@@ -370,6 +382,8 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
   load.disabled=original;saveJson.disabled=original;
   outfit.disabled=disabled;swimStyle.disabled=disabled;swimColor.disabled=disabled;
   hairSelect.value=fit.appearance.hairStyle;hairSelect.disabled=disabled;
+  anatomySource.value=fit.anatomy?.source||"procedural";
+  anatomySource.disabled=disabled;
   anatomyLayer.value=fit.anatomy?.layer||"skin";
   anatomyPreset.value=fit.anatomy?.preset||"neutral";
   anatomyLayer.disabled=disabled;anatomyPreset.disabled=disabled;
