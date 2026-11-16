@@ -38,7 +38,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261115-anatomy-foot";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261117-procedural-body";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
