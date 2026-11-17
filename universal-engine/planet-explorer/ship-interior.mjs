@@ -170,8 +170,9 @@ export class ShipInterior{
   if(this.seated||this.distance(member)>CREW_REACH||!this.canReachCrew(member))
    return {ok:false,message:"乗員の近くで着席を指示してください"};
   if(!seated){
+   this.routine.endIfParticipant?.(this,id);
    member.seated=false;member.returning=false;member.seatLocked=false;
-   member.routineTarget=null;this.routine.endIfParticipant?.(this,id);
+   member.routineTarget=null;
    return {ok:true,message:member.name+"が席を立ちました"};
   }
   const home=SHIP_CREW.find(c=>c.id===id);
