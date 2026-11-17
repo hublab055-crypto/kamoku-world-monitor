@@ -3,7 +3,7 @@ import {LocalPrivateScene,LOCAL_PRIVATE_GESTURES} from "./family-private-local-s
 /** Single-player family UI. No intimate content is rendered. The adult-only
  * unlock is a local content gate, not a real-world age-verification system.
  */
-export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onCarePose=()=>{},onAdultPose=()=>{}}={}){
+export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onCarePose=()=>{},onAdultPose=()=>{},onAdultControl=()=>({ok:false,message:"操作できません"})}={}){
  if(typeof document==="undefined")return {refresh(){},destroy(){}};
  const button=document.createElement("button");button.id="family-life-open";button.type="button";
  button.textContent="👪 家族";button.setAttribute("aria-controls","family-life-panel");
@@ -22,7 +22,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
  '<div data-gate style="display:flex;flex-wrap:wrap;gap:5px"><label>成人向け表示コード <input data-code type="password" inputmode="numeric" autocomplete="off" maxlength="4" style="width:75px"></label><label><input type="checkbox" data-adult> 私は成人です</label><button type="button" data-unlock>9876で解禁</button><button type="button" data-lock>閉じる</button></div>'+
  '<div data-adult-actions style="display:flex;flex-wrap:wrap;gap:5px"></div>'+
  '<div data-private-screen hidden style="padding:24px;text-align:center;border-radius:8px;background:#03080f;color:#d5e5f4">🌌 ふたりの時間<br><small>画面暗転／内容は描写しません</small><div><button type="button" data-private-close>戻る</button></div></div>'+
- '<div data-local-scene hidden style="padding:10px;margin:8px 0;border:1px solid #76b5c1;border-radius:8px;background:#163746"><strong>🎬 ローカル・ペアモーション</strong><div><small>カメラ暗転なし。成人同士の合意に基づく非露骨な交流モーションです。3D表示は通常の船内カメラを使います。</small></div><div data-local-controls style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div><div data-local-status role="status" aria-live="polite"></div></div>'+ 
+ '<div data-local-scene hidden style="padding:10px;margin:8px 0;border:1px solid #76b5c1;border-radius:8px;background:#163746"><strong>🎬 ローカル・ペアモーション</strong><div><small>カメラ暗転なし。成人同士の合意に基づく非露骨な交流モーションです。3D表示は通常の船内カメラを使います。</small></div><div data-local-controls style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div><div data-local-status role="status" aria-live="polite"></div><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:7px"><label>位置 <input data-local-seek type="range" min="0" max="99" step="1" value="0"></label><label>再生速度 <select data-local-speed><option value="0.5">0.5倍</option><option value="1" selected>1倍</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label></div></div>'+ 
  '<h4>妊娠・胎児</h4><label>妊娠する保護者 <select data-gestational></select></label><input data-baby-name placeholder="赤ちゃんの名前（任意）" maxlength="48">'+
  '<div data-pregnancies>妊娠中の家族はいません</div>'+
  '<h4>育児・成長</h4><label>子ども <select data-child></select></label>'+
@@ -75,7 +75,8 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
     w.adults?.player?.ageYears>=18&&w.adults?.[id]?.ageYears>=18&&
     w.adults?.player?.available&&w.adults?.[id]?.available);
   },
-  play:(kind,id)=>onAdultPose(kind,id)
+  play:(kind,id)=>onAdultPose(kind,id),
+  control:(operation,id,value)=>onAdultControl(operation,id,value)
  });
  const closeLocal=()=>{
   localScene.close();
@@ -88,7 +89,15 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
  for(const gesture of LOCAL_PRIVATE_GESTURES){
   buttonAction(el("[data-local-controls]"),gesture.key+" "+gesture.label,()=>showLocalResult(localScene.playMotion(gesture.id)));
  }
- buttonAction(el("[data-local-controls]"),"↻ 再生",()=>showLocalResult(localScene.replay()));
+ buttonAction(el("[data-local-controls]"),"↻ 再生",()=>{
+  const result=localScene.replay();
+  if(result.ok)el("[data-local-seek]").value="0";
+  showLocalResult(result);
+ });
+ buttonAction(el("[data-local-controls]"),"⏸ 一時停止",()=>showLocalResult(localScene.setPaused(true)));
+ buttonAction(el("[data-local-controls]"),"▶ 再開",()=>showLocalResult(localScene.setPaused(false)));
+ el("[data-local-seek]").addEventListener("input",()=>showLocalResult(localScene.seek(Number(el("[data-local-seek]").value)/100)));
+ el("[data-local-speed]").addEventListener("change",()=>showLocalResult(localScene.setSpeed(Number(el("[data-local-speed]").value))));
  buttonAction(el("[data-local-controls]"),"終了",()=>{
   closeLocal();el("[data-result]").textContent="ローカルのモーション操作を終了しました";
  });
@@ -121,7 +130,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
       window.dispatchEvent(new CustomEvent(FAMILY_PRIVATE_MOD_EVENT,{detail}));
       const opened=localScene.open(result.event);
       localPanel.hidden=!opened.ok;
-      if(opened.ok)showLocalResult(localScene.playMotion("hug"));
+      if(opened.ok){el("[data-local-seek]").value="0";el("[data-local-speed]").value="1";}
       el("[data-result]").textContent=opened.message;
      }
     }
@@ -165,6 +174,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
  el("[data-private-close]").addEventListener("click",()=>{el("[data-private-screen]").hidden=true;});
  el("[data-close]").addEventListener("click",()=>{closeLocal();panel.hidden=true;});
  el("[data-consent]").addEventListener("change",()=>{if(!agreed())closeLocal();});
+ el("[data-mod]").addEventListener("change",()=>{if(!el("[data-mod]").checked)closeLocal();});
  button.addEventListener("click",()=>{if(!panel.hidden)closeLocal();panel.hidden=!panel.hidden;refresh();});
  partner.addEventListener("change",()=>{closeLocal();refresh();});
  childSelect.addEventListener("change",refresh);
