@@ -1,6 +1,6 @@
 /** Shared WebGL2 geometry: the cabin is drawn on the same framebuffer and view matrix as the world. */
-import {ESCAPE_ALTITUDE_M} from "./ship-journey.mjs?v=20261116-crew-recall-v1";
-import {createShipGeometry} from "./ship-interior-3d.mjs?v=20261116-crew-recall-v1";
+import {ESCAPE_ALTITUDE_M} from "./ship-journey.mjs?v=20261117-crew-life";
+import {createShipGeometry} from "./ship-interior-3d.mjs?v=20261117-crew-life";
 export function triangleSoupToIndexed(soup){
  if(!soup||soup.length%9!==0)throw Error("Ship mesh data must have position/normal/color stride 9");
  const vertices=soup.length/9;
