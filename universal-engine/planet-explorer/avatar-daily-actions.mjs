@@ -11,7 +11,15 @@ export const AVATAR_DAILY_ACTIONS=Object.freeze({
  eat:{label:"🍽️ 食べる",seconds:2.4,loop:true},
  pickup:{label:"🤏 片手で拾う",seconds:1.7,loop:false},
  lift:{label:"📦 しゃがんで両手で持ち上げる",seconds:2.5,loop:false},
- holdBaby:{label:"👶 赤ちゃんを抱える（姿勢テスト）",seconds:0,loop:true}
+ holdBaby:{label:"👶 赤ちゃんを抱える（姿勢テスト）",seconds:0,loop:true},
+ wave:{label:"👋 手を振る",seconds:2,loop:true},
+ stretch:{label:"🙆 両腕のストレッチ",seconds:3,loop:true},
+ kneel:{label:"🧎 片膝をつく",seconds:3,loop:true},
+ pelvicTilt:{label:"🧘 骨盤をゆっくり傾ける",seconds:4,loop:true},
+ supportedSquat:{label:"🤲 支えを使ったしゃがみ姿勢（教材用）",seconds:4,loop:true},
+ laborBreathing:{label:"🫁 呼吸法の姿勢練習（産科教材）",seconds:6,loop:true},
+ sideRest:{label:"🛏️ 横向き休息の姿勢（教材用）",seconds:5,loop:true},
+ rockBaby:{label:"👶 抱っこのゆらし動作",seconds:3,loop:true}
 });
 export function sampleAvatarDailyPose(action,{time=0,progress=0,hand="right"}={}){
  if(!Object.hasOwn(AVATAR_DAILY_ACTIONS,action))return null;
@@ -76,6 +84,55 @@ export function sampleAvatarDailyPose(action,{time=0,progress=0,hand="right"}={}
   p.leftElbowX=-.35*squat-1.10*hold;
   p.rightElbowX=-.35*squat-1.10*hold;
   p.leftWristX=-.12+.25*hold;p.rightWristX=-.12+.25*hold;
+ }else if(action==="wave"){
+  p.rightShoulderX=-1.27;p.rightShoulderZ=.30;
+  p.rightElbowX=-1.02;p.rightWristX=.28*Math.sin(time*5.5);
+  p.headY=.06*Math.sin(time*2);
+ }else if(action==="stretch"){
+  const v=Math.sin(time*2.15);
+  p.leftShoulderX=-1.65-.09*v;p.rightShoulderX=-1.65-.09*v;
+  p.leftShoulderZ=-.57;p.rightShoulderZ=.57;
+  p.leftElbowX=-.08;p.rightElbowX=-.08;
+  p.torsoX=.08*v;
+ }else if(action==="kneel"){
+  p.rootY=-.34;p.torsoX=.11;
+  p.leftHipX=-.79;p.leftKneeX=1.57;
+  p.rightHipX=-.34;p.rightKneeX=.72;
+  p.leftAnkleX=-.31;p.rightAnkleX=-.22;
+  p.leftShoulderX=-.32;p.rightShoulderX=-.32;
+ }else if(action==="pelvicTilt"){
+  const v=Math.sin(time*1.55);
+  p.torsoX=.18*v;p.rootY=-.015+.022*v;
+  p.leftHipX=-.17*v;p.rightHipX=-.17*v;
+  p.leftKneeX=.13;p.rightKneeX=.13;
+  p.leftShoulderX=-.36;p.rightShoulderX=-.36;
+ }else if(action==="supportedSquat"){
+  const phase=.5-.5*Math.cos(time*1.55);
+  p.rootY=-.40*phase;p.torsoX=.22*phase;
+  p.leftHipX=-1.02*phase;p.rightHipX=-1.02*phase;
+  p.leftKneeX=1.53*phase;p.rightKneeX=1.53*phase;
+  p.leftAnkleX=-.41*phase;p.rightAnkleX=-.41*phase;
+  p.leftShoulderX=-.84;p.rightShoulderX=-.84;
+  p.leftElbowX=-.48;p.rightElbowX=-.48;
+ }else if(action==="laborBreathing"){
+  // Calm posture rehearsal, not a simulation of actual labor physiology.
+  const inhale=.5+.5*Math.sin(time*1.05);
+  p.torsoX=.10+.035*inhale;p.rootY=-.03;
+  p.leftShoulderX=-.41-.045*inhale;p.rightShoulderX=-.41-.045*inhale;
+  p.leftElbowX=-.89;p.rightElbowX=-.89;
+  p.leftShoulderZ=-.23;p.rightShoulderZ=.23;
+  p.headY=-.08*inhale;
+ }else if(action==="sideRest"){
+  p.rootY=-.62;p.torsoX=-1.12;p.torsoZ=.42;
+  p.leftHipX=-1.16;p.rightHipX=-.96;
+  p.leftKneeX=1.33;p.rightKneeX=1.25;
+  p.leftShoulderX=-.45;p.rightShoulderX=-.58;
+ }else if(action==="rockBaby"){
+  p.torsoX=.04*Math.sin(time*2.1);p.torsoY=.06*Math.sin(time*1.6);
+  p.leftShoulderX=-.90;p.rightShoulderX=-.90;
+  p.leftShoulderZ=-.28;p.rightShoulderZ=.28;
+  p.leftElbowX=-1.26;p.rightElbowX=-1.26;
+  p.leftWristX=.19;p.rightWristX=.19;
  }else if(action==="holdBaby"){
   // Balanced two-arm cradle; does not instantiate a baby or transfer milk.
   p.torsoX=-.045;p.headY=-.12;
