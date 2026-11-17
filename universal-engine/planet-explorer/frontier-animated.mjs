@@ -302,7 +302,7 @@ export function applyAvatarDailyRigPose(rig,poses,kind,time,{progress=0,hand="ri
   const node=poses[id];if(!node)continue;
   if(name==="pelvis"){
    node.translation[1]+=(data.rootY||0)/(rig.scale||1);
-  }else if(name==="waist")node.rotation=qmul(qx(data.torsoX||0),qy(data.torsoY||0));
+  }else if(name==="waist")node.rotation=qmul(qmul(qx(data.torsoX||0),qy(data.torsoY||0)),qz(data.torsoZ||0));
   else if(name==="neck"||name==="head"){
    if(name==="head")node.rotation=qmul(node.rotation,qy(data.headY||0));
   }else{
