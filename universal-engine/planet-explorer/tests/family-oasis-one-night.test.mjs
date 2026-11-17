@@ -35,6 +35,7 @@ test("OASIS single-player one-night requires both player opt-in and NPC acceptan
  assert.equal(result.event.modEvent.renderContent,"external-only");
  assert.equal(family.partners.navigator,undefined,"casual relationship must not become permanent");
  assert.equal(family.encounters.navigator.privateTime,1);
+ assert.equal(family.snapshot().history.some(e=>e.type==="private"),false,"never persist private MOD event details");
  assert.equal(social.consumeCasualConsent("navigator"),true);
  assert.equal(social.status("navigator").casualConsent,false);
  assert.equal(family.action("navigator","private",{oneNight:true,mutualConsent:true,
