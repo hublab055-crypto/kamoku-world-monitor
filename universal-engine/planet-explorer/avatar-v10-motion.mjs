@@ -1,4 +1,4 @@
-import {crewPhase} from "./ship-crew-greetings.mjs?v=1";
+import {crewPhase} from "./ship-crew-greetings.mjs?v=20261117-family-gestures";
 
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
