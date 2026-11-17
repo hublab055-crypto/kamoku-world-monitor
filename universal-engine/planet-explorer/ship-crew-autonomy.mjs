@@ -41,6 +41,7 @@ export class ShipCrewAutonomy{
   this.nextAt=finite(saved?.nextAt)?Math.max(0,saved.nextAt):7;
   this.phase=["idle","gather","talk","return"].includes(saved?.phase)?saved.phase:"idle";
   this.pair=Array.isArray(saved?.pair)&&saved.pair.length===2&&
+   saved.pair[0]!==saved.pair[1]&&
    saved.pair.every(id=>["engineer","navigator","companion"].includes(id))?
    [...saved.pair]:[];
   this.topic=finite(saved?.topic)?Math.abs(Math.floor(saved.topic))%TOPICS.length:0;
@@ -75,6 +76,9 @@ export class ShipCrewAutonomy{
    };
   }
   return true;
+ }
+ endIfParticipant(interior,id){
+  if(["gather","talk"].includes(this.phase)&&this.pair.includes(id))this.end(interior);
  }
  end(interior,{completed=false}={}){
   if(completed&&this.pair.length===2){
@@ -115,8 +119,10 @@ export class ShipCrewAutonomy{
      c.yaw=Math.atan2(members[1-i].x-c.x,members[1-i].z-c.z);});
    }else if(this.elapsed>42)this.end(interior);
   }else if(this.phase==="talk"){
-   if(members.some(c=>!c||Math.hypot(c.x-members[1-members.indexOf(c)].x,
-    c.z-members[1-members.indexOf(c)].z)>2.8)){this.end(interior);return;}
+   if(members.length!==2||members.some(c=>!c)||
+    Math.hypot(members[0].x-members[1].x,members[0].z-members[1].z)>2.8){
+    this.end(interior);return;
+   }
    this.elapsed+=step;
    if(this.elapsed>=4.3){
     this.elapsed-=4.3;this.line++;
