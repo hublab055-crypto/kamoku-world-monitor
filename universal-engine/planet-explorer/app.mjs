@@ -10,8 +10,8 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261117-family-gestures";
-import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
+import {ShipJourney} from "./ship-journey.mjs?v=20261117-oasis-consent";
+import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-oasis-consent";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261116-crew-recall-v1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
@@ -86,8 +86,8 @@ import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-sl
 import {createPortableSave,parsePortableSave,MAX_PORTABLE_SAVE_BYTES,VR_WEARABLE_SAVE_KEY} from "./portable-save.mjs?v=0.9u";
 import {VoyageLog,seaDistance} from "./circumnavigation.mjs";
 import {createScenario,INTRO_QUESTS} from "./scenario-engine.mjs?v=1";
-import {FamilyLife} from "./family-life.mjs?v=20261117-family-covenant";
-import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-family-covenant";
+import {FamilyLife} from "./family-life.mjs?v=20261117-oasis-mod-bridge";
+import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-oasis-mod-bridge";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
