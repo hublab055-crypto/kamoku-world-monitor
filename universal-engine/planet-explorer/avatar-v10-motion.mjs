@@ -1,4 +1,5 @@
-import {crewPhase} from "./ship-crew-greetings.mjs?v=20261117-family-gestures";
+import {crewPhase} from "./ship-crew-greetings.mjs?v=20261117-numeric";
+import {sampleNumericPairPose} from "./pair-motion-numeric-poses.mjs?v=20261117-numeric";
 
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
@@ -92,6 +93,27 @@ export function poseAvatarV10Gesture(rig,pose,{motion,time,grip,yaw=0,x=0,z=0}) 
  const arm=(side,goal,finger,palm,weight,curl,bend,thumbDirection=null)=>
   poseArm(rig,pose,side,goal,orientation(finger,palm),bend,weight,curl,thumbDirection);
  const envelope=(on,ready,release,end)=>crewPhase(time,on,ready)*(1-crewPhase(time,release,end));
+ // Data-driven, non-graphic two-avatar poses: joint Euler values are turned
+ // into local quaternions and the wrists are positioned through arm IK.
+ const numeric=sampleNumericPairPose(motion,time);
+ if(numeric){
+  const pitch=[1,0,0];
+  for(const [bone,turns] of Object.entries(numeric.bones)){
+   const index=names.get(bone);
+   if(index===undefined)continue;
+   const [rx,ry,rz]=turns;
+   const rotation=combine(combine(angle(pitch,rx),angle(yAxis,ry)),angle(front,rz));
+   pose[index].rotation=mix(pose[index].rotation,rotation,numeric.blend);
+  }
+  for(const side of ["L","R"]){
+   const goal=numeric.hands[side];
+   if(!goal)continue;
+   const sign=side==="L"?1:-1;
+   arm(side,native(goal),[-sign,.07,.47],[0,.9,-.3],
+    numeric.blend,numeric.curl,[sign*.88,-.28,.10]);
+  }
+  return;
+ }
  if(motion==="salute"){
   const formal=envelope(0,.30,1.93,2.20);
   for(const i of [hips,chest,head])pose[i].rotation=mix(pose[i].rotation,identity,formal*.94);
