@@ -1,5 +1,5 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261117-anatomy-view";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261117-family-gestures";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261117-anatomy-view";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261117-crew-life";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
