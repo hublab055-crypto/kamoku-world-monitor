@@ -108,6 +108,25 @@ export function poseAvatarV10Gesture(rig,pose,{motion,time,grip,yaw=0,x=0,z=0}) 
   const anchor=rig.nodes[names.get("Review_grip_R")]?.translation||[0,-.052,0];
   const goal=sub(place(grip),rotate(anchor,hand));
   poseArm(rig,pose,"R",goal,hand,[-.68,-1,.15],weight,.53);
+ }else if(motion==="handhold"&&grip){
+  // Both players extend their right hands to a shared contact point.
+  const weight=envelope(.13,.63,1.82,2.59);
+  const hand=orientation([.24,-.56,1],[.05,1,.15]);
+  const anchor=rig.nodes[names.get("Review_grip_R")]?.translation||[0,-.052,0];
+  const goal=sub(place(grip),rotate(anchor,hand));
+  poseArm(rig,pose,"R",goal,hand,[-.48,-1,.18],weight,.19);
+  pose[head].rotation=mix(pose[head].rotation,angle([1,0,0],.08),weight);
+ }else if(motion==="kiss"){
+  // A brief, non-explicit affectionate pose; no intimate contact simulation.
+  const weight=envelope(.18,.66,1.67,2.38);
+  pose[chest].rotation=mix(pose[chest].rotation,angle([1,0,0],.075),weight);
+  pose[head].rotation=mix(pose[head].rotation,
+   combine(angle([1,0,0],.11),angle([0,0,1],.11)),weight);
+  for(const side of ["L","R"]){
+   const sign=side==="L"?1:-1;
+   arm(side,native([sign*.25,1.17,.30]),[-sign*.18,-.10,.92],[0,1,-.12],
+    weight*.80,.12,[sign*.78,-.45,0]);
+  }
  }else if(motion==="hug"){
   const weight=envelope(.13,.79,1.88,2.74);
   pose[chest].rotation=mix(pose[chest].rotation,angle([1,0,0],.10),weight);
