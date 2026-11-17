@@ -7,14 +7,17 @@
 export const LOCAL_PRIVATE_GESTURES=Object.freeze([
  Object.freeze({id:"handhold",label:"手をつなぐ",key:"1"}),
  Object.freeze({id:"hug",label:"ハグ",key:"2"}),
- Object.freeze({id:"kiss",label:"キス",key:"3"})
+ Object.freeze({id:"kiss",label:"キス",key:"3"}),
+ Object.freeze({id:"9989",motion:"closeEmbrace",label:"長い抱擁",key:"4"}),
+ Object.freeze({id:"9966",motion:"foreheadRest",label:"額を寄せる",key:"5"})
 ]);
 
 const validGesture=id=>LOCAL_PRIVATE_GESTURES.some(entry=>entry.id===id);
 export class LocalPrivateScene {
- constructor({play=()=>({ok:false,message:"モーションがありません"}),guard=()=>false}={}){
+ constructor({play=()=>({ok:false,message:"モーションがありません"}),guard=()=>false,control=()=>({ok:false,message:"再生操作に未対応です"})}={}){
   this.play=play;
   this.guard=guard;
+  this.control=control;
   this.partner=null;
   this.active=false;
   this.lastMotion=null;
@@ -40,7 +43,8 @@ export class LocalPrivateScene {
    return {ok:false,message:"条件が変わったため、ローカル操作を終了しました"};
   }
   if(!validGesture(id))return {ok:false,message:"対応していないモーションです"};
-  const result=this.play(id,this.partner)??{ok:false,message:"モーションを実行できません"};
+  const gesture=LOCAL_PRIVATE_GESTURES.find(entry=>entry.id===id);
+  const result=this.play(gesture.motion??id,this.partner)??{ok:false,message:"モーションを実行できません"};
   if(result.ok)this.lastMotion=id;
   return result;
  }
@@ -48,7 +52,21 @@ export class LocalPrivateScene {
   return this.lastMotion?this.playMotion(this.lastMotion):
    {ok:false,message:"再生するモーションを選択してください"};
  }
+ command(operation,value){
+  if(!this.active)return {ok:false,message:"ローカル操作は開始されていません"};
+  if(!this.guard(this.partner)){
+   this.close();
+   return {ok:false,message:"合意・距離などの条件が失われました"};
+  }
+  if(!["seek","pause","speed"].includes(operation))
+   return {ok:false,message:"未対応の操作です"};
+  return this.control(operation,this.partner,value);
+ }
+ seek(progress){return this.command("seek",progress);}
+ setPaused(paused){return this.command("pause",paused);}
+ setSpeed(speed){return this.command("speed",speed);}
  close(){
+  if(this.active)this.control("stop",this.partner);
   this.active=false;
   this.partner=null;
   this.lastMotion=null;
