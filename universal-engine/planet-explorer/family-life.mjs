@@ -15,7 +15,7 @@ export const FAMILY_GESTATION_DAYS=280;
 export const FAMILY_ADULT_AGE=18;
 export const FAMILY_PRIVATE_MOD_EVENT="universal-engine:adult-private-scene";
 export const FAMILY_PRIVATE_MOD_API_VERSION=1;
-export const FAMILY_ONENIGHT_MIN_AFFINITY=20;
+export const FAMILY_ONENIGHT_MIN_AFFINITY=75;
 export const FAMILY_GROWTH_STAGES=Object.freeze([
  {id:"infant",label:"乳児",age:0},
  {id:"toddler",label:"幼児",age:2},
@@ -138,8 +138,8 @@ export class FamilyLife {
   const regular=Boolean(this.partners[id]);
   // One-night requires a live NPC rapport signal as well as the player's
   // confirmation; a single checkbox cannot manufacture NPC consent.
-  const casual=oneNight===true&&Number.isFinite(relationship?.points)&&
-   relationship.points>=FAMILY_ONENIGHT_MIN_AFFINITY;
+  const casual=oneNight===true&&relationship?.casualConsent===true&&
+   Number.isFinite(relationship?.points)&&relationship.points>=FAMILY_ONENIGHT_MIN_AFFINITY;
   if(!regular&&!casual)return this._deny("交際関係、または相互の同意と一定の信頼関係が必要です");
   if(kind==="private"){
    if(!casual&&this.partners[id]?.status!=="married")
