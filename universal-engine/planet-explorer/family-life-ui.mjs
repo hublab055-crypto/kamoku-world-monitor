@@ -18,7 +18,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
  '<div data-relationship></div>'+
  '<label><input type="checkbox" data-consent> 双方の明示的な同意を確認</label>'+
  '<label style="display:block"><input type="checkbox" data-one-night> 婚姻・交際なしのワンナイト（成人・相互合意＋親密度 '+FAMILY_ONENIGHT_MIN_AFFINITY+'以上）</label>'+
- '<label style="display:block"><input type="checkbox" data-mod> 非公式MODイベント連携（カメラ暗転なし／ゲーム本体では非描写）</label>'+
+ '<label style="display:block"><input type="checkbox" data-mod> ローカル非暗転モーション操作＋非公式MODイベント（露骨な描写なし）</label>'+
  '<div data-gate style="display:flex;flex-wrap:wrap;gap:5px"><label>成人向け表示コード <input data-code type="password" inputmode="numeric" autocomplete="off" maxlength="4" style="width:75px"></label><label><input type="checkbox" data-adult> 私は成人です</label><button type="button" data-unlock>9876で解禁</button><button type="button" data-lock>閉じる</button></div>'+
  '<div data-adult-actions style="display:flex;flex-wrap:wrap;gap:5px"></div>'+
  '<div data-private-screen hidden style="padding:24px;text-align:center;border-radius:8px;background:#03080f;color:#d5e5f4">🌌 ふたりの時間<br><small>画面暗転／内容は描写しません</small><div><button type="button" data-private-close>戻る</button></div></div>'+
@@ -165,7 +165,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
  el("[data-private-close]").addEventListener("click",()=>{el("[data-private-screen]").hidden=true;});
  el("[data-close]").addEventListener("click",()=>{closeLocal();panel.hidden=true;});
  el("[data-consent]").addEventListener("change",()=>{if(!agreed())closeLocal();});
- button.addEventListener("click",()=>{panel.hidden=!panel.hidden;refresh();});
+ button.addEventListener("click",()=>{if(!panel.hidden)closeLocal();panel.hidden=!panel.hidden;refresh();});
  partner.addEventListener("change",()=>{closeLocal();refresh();});
  childSelect.addEventListener("change",refresh);
  function refresh(){
