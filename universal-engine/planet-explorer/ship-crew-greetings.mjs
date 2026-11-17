@@ -1,3 +1,5 @@
+import {NUMERIC_PAIR_POSES} from "./pair-motion-numeric-poses.mjs?v=20261117-numeric";
+
 export const CREW_GESTURES = Object.freeze({
  salute:{label:"敬礼",seconds:2.2},
  handshake:{label:"握手",seconds:2.65,distance:1.85,gap:.84},
@@ -5,7 +7,11 @@ export const CREW_GESTURES = Object.freeze({
  doubleThumbs:{label:"両手グッド",seconds:2.15},
  hug:{label:"ハグ",seconds:2.85,distance:1.45,gap:.54},
  handhold:{label:"手をつなぐ",seconds:2.6,distance:1.75,gap:.78},
- kiss:{label:"短いキス",seconds:2.4,distance:1.75,gap:.43}
+ kiss:{label:"短いキス",seconds:2.4,distance:1.75,gap:.43},
+ closeEmbrace:{label:NUMERIC_PAIR_POSES["9989"].label,seconds:NUMERIC_PAIR_POSES["9989"].seconds,
+  distance:NUMERIC_PAIR_POSES["9989"].distance,gap:NUMERIC_PAIR_POSES["9989"].gap},
+ foreheadRest:{label:NUMERIC_PAIR_POSES["9966"].label,seconds:NUMERIC_PAIR_POSES["9966"].seconds,
+  distance:NUMERIC_PAIR_POSES["9966"].distance,gap:NUMERIC_PAIR_POSES["9966"].gap}
 });
 
 export const CREW_REACH = 2.6;
@@ -51,7 +57,7 @@ export class ShipCrewGreetings {
    return;
   }
   if(this.pair){
-   this.pair.time+=dt;
+   if(!this.pair.paused)this.pair.time+=dt*(this.pair.playbackRate??1);
    if(this.pair.time>=CREW_GESTURES[this.pair.action].seconds)this.pair=null;
   }
   if(this.formal){
@@ -101,8 +107,40 @@ export class ShipCrewGreetings {
   this.formal=null;
   this.nearby.set(id,{cooldown:REARM_SECONDS,left:false});
   this.playerYaw=face(origin,member);
-  this.pair={member,action,time:0,origin,pad:{x:dx*step,z:dz*step}};
+  this.pair={member,action,time:0,origin,pad:{x:dx*step,z:dz*step},paused:false,playbackRate:1};
   return {ok:true,message:member.name+"と"+move.label};
+ }
+
+ /**
+  * Local playback controls affect the currently authorized, non-graphic
+  * paired motion only.  These values are never serialized into a game save.
+  */
+ control(id,operation,value){
+  const pair=this.pair;
+  if(!pair||pair.member?.id!==id)
+   return {ok:false,message:"対象のペアモーションは再生されていません"};
+  const duration=CREW_GESTURES[pair.action].seconds;
+  if(operation==="seek"){
+   if(!Number.isFinite(value)||value<0||value>1)return {ok:false,message:"再生位置は0～1の範囲です"};
+   pair.time=Math.min(duration-.001,value*duration);
+   return {ok:true,message:"再生位置 "+Math.round(value*100)+"%"};
+  }
+  if(operation==="pause"){
+   if(typeof value!=="boolean")return {ok:false,message:"操作値が無効です"};
+   pair.paused=value;
+   return {ok:true,message:value?"一時停止しました":"再開しました"};
+  }
+  if(operation==="speed"){
+   if(!Number.isFinite(value)||value<.25||value>2)
+    return {ok:false,message:"速度は0.25～2倍の範囲です"};
+   pair.playbackRate=value;
+   return {ok:true,message:"再生速度 "+value+"倍"};
+  }
+  if(operation==="stop"){
+   this.pair=null;
+   return {ok:true,message:"ペアモーションを終了しました"};
+  }
+  return {ok:false,message:"未対応の再生操作です"};
  }
 
  actors(interior) {
