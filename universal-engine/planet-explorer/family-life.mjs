@@ -42,13 +42,13 @@ function readChild(raw){
  const parents=raw.parents.filter(id=>ADULT_ROSTER.includes(id)).slice(0,2);
  return {
   id:raw.id,name:typeof raw.name==="string"?raw.name.slice(0,48):"子ども",
-  birthDay:raw.birthDay,parents,guardian:ADULT_ROSTER.includes(raw.guardian)?raw.guardian:null,
+  birthDay:raw.birthDay,parents,guardian:ADULT_ROSTER.includes(raw.guardian)?raw.guardian:raw.guardian==="overlord"?"overlord":null,
   location:["home","sanctuary","foster"].includes(raw.location)?raw.location:"home",
   homeSafe:raw.homeSafe!==false,
   care:{nutrition:clamp(Number(raw.care?.nutrition)||75,0,100),
    comfort:clamp(Number(raw.care?.comfort)||75,0,100),
    learning:clamp(Number(raw.care?.learning)||0,0,100)},
-  protected:true,injuries:0,fatalIllness:false,dead:false,combatEligible:false,
+  protected:true,injuries:0,fatalIllness:false,dead:false,combatEligible:false,inherited:raw.inherited===true,
   growthStage:"infant",ageYears:0
  };
 }
@@ -192,7 +192,12 @@ export class FamilyLife {
    child.combatEligible=false;
    const primary=child.parents.some(id=>this.adults[id]?.available);
    const foster=child.guardian&&this.adults[child.guardian]?.available;
-   if(!primary&&!foster){child.homeSafe=false;child.location="sanctuary";}
+   if(!primary&&!foster){
+    child.homeSafe=false;child.location="sanctuary";child.guardian="overlord";
+    // A sanctuary caregiver continues safe upbringing and education.
+    child.care.nutrition=Math.max(75,child.care.nutrition);
+    child.care.comfort=Math.max(75,child.care.comfort);
+   }
   }
  }
  advanceTo(day){
@@ -237,6 +242,7 @@ export class FamilyLife {
   const foster=child.guardian&&this.adults[child.guardian]?.available;
   if(!homeSafe||!parent&&!foster)return this._deny("帰還には安全な家と成人の保護者が必要です");
   child.location=parent?"home":"foster";child.homeSafe=true;
+  if(parent&&child.guardian==="overlord")child.guardian=null;
   return this._event("return","安全を確認し、子どもが庇護界から帰還しました",{childId});
  }
  canInherit(childId){
