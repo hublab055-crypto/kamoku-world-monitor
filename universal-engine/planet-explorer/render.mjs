@@ -1643,7 +1643,8 @@ export class ExplorerRenderer{
   // own their specialized poses and equipment; V10 uses its authored daily clips.
   if(this.xrView||this.captureFX||this.fauna?.mount||this.marine?.boardedId||
    (unit.moving&&!["idle","run","crouch"].includes(motion.action))||
-   !["idle","sit","eat","sleep","run","crouch","pickup","lift","holdBaby"].includes(motion.action))return false;
+   !["idle","sit","eat","sleep","run","crouch","pickup","lift","holdBaby",
+    "wave","stretch","kneel","pelvicTilt","supportedSquat","laborBreathing","sideRest","rockBaby"].includes(motion.action))return false;
   const animation=this.socialAnimations.get("player");
   if(animation)return false;
   const action={sit:"Seated"}[motion.action]||motion.action;
