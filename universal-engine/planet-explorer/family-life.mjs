@@ -2,8 +2,9 @@
  * Universal Engine: family life-cycle and Overlord's Covenant.
  *
  * All romantic/private actions require explicitly adult characters, mutual
- * consent and a separate per-session study-mode unlock. Private intimacy is
- * ALWAYS a fade-to-black event, never an explicit or simulated sexual act.
+ * consent and a separate per-session study-mode unlock. The base game fades
+ * to black. An optional MOD signal can leave the camera visible, but the
+ * engine never generates, records or simulates explicit sexual activity.
  * Children (including prenatal life) can never suffer injuries, be combat
  * targets, die, or develop a fatal illness. Protection is authoritative here
  * rather than a render-only effect.
@@ -12,6 +13,9 @@ export const FAMILY_VERSION=1;
 export const FAMILY_YEAR_DAYS=365;
 export const FAMILY_GESTATION_DAYS=280;
 export const FAMILY_ADULT_AGE=18;
+export const FAMILY_PRIVATE_MOD_EVENT="universal-engine:adult-private-scene";
+export const FAMILY_PRIVATE_MOD_API_VERSION=1;
+export const FAMILY_ONENIGHT_MIN_AFFINITY=20;
 export const FAMILY_GROWTH_STAGES=Object.freeze([
  {id:"infant",label:"乳児",age:0},
  {id:"toddler",label:"幼児",age:2},
@@ -63,6 +67,16 @@ export class FamilyLife {
     available:value.available!==false}];
   }));
   this.partners={};this.pregnancies=[];this.children=[];
+  // Casual meetings do not create a long-term romantic or marriage flag.
+  // Keep only a fictional event count needed for separately consented
+  // family planning, never session unlocks or intimate details.
+  this.encounters={};
+  for(const [id,v] of Object.entries(saved?.encounters||{})){
+   if(!ADULT_ROSTER.includes(id)||id==="player")continue;
+   const count=Number(v?.privateTime);
+   if(Number.isSafeInteger(count)&&count>0&&count<=1000)
+    this.encounters[id]={privateTime:count,lastDay:validDay(v.lastDay)?v.lastDay:this.day};
+  }
   for(const [id,v] of Object.entries(saved?.partners||{})){
    if(!ADULT_ROSTER.includes(id)||id==="player"||!["dating","married"].includes(v?.status))continue;
    this.partners[id]={status:v.status,consent:Boolean(v.consent),
@@ -115,25 +129,45 @@ export class FamilyLife {
   this.partners[id].status="married";
   return this._event("marriage","結婚しました。新しい家族が始まります",{partner:id});
  }
- action(id,kind,{mutualConsent=false}={}){
-  const action={handhold:"手をつなぐ",hug:"ハグ",kiss:"キス",
-   private:"ふたりの時間（画面暗転・非描写）"};
-  if(!Object.hasOwn(action,kind))return this._deny("対応していないアクションです");
+ action(id,kind,{mutualConsent=false,oneNight=false,relationship=null,sceneMode="fade"}={}){
+  const actions={handhold:"手をつなぐ",hug:"ハグ",kiss:"キス",private:"ふたりの時間（非描写）"};
+  if(!Object.hasOwn(actions,kind))return this._deny("対応していないアクションです");
   if(!this.privateUnlocked)return this._deny("専用コード9876で成人モードを解禁してください");
-  if(!this._adults("player",id)||!this.partners[id]||!mutualConsent)
-   return this._deny("成人同士の交際・同意が必要です");
+  if(!this._adults("player",id)||!mutualConsent)
+   return this._deny("成人同士の明示的な合意が必要です");
+  const regular=Boolean(this.partners[id]);
+  // One-night requires a live NPC rapport signal as well as the player's
+  // confirmation; a single checkbox cannot manufacture NPC consent.
+  const casual=oneNight===true&&Number.isFinite(relationship?.points)&&
+   relationship.points>=FAMILY_ONENIGHT_MIN_AFFINITY;
+  if(!regular&&!casual)return this._deny("交際関係、または相互の同意と一定の信頼関係が必要です");
   if(kind==="private"){
-   if(this.partners[id].status!=="married")return this._deny("プライベートな家族計画は婚姻後に選択できます");
-   this.partners[id].privateTime++;
+   if(!casual&&this.partners[id]?.status!=="married")
+    return this._deny("結婚後の家族計画か、同意したワンナイトの選択が必要です");
+   if(!["fade","mod"].includes(sceneMode))return this._deny("シーン方式が無効です");
+   if(regular)this.partners[id].privateTime++;
+   else{
+    const prev=this.encounters[id]?.privateTime||0;
+    this.encounters[id]={privateTime:Math.min(1000,prev+1),lastDay:this.day};
+   }
+   // The core engine deliberately includes no explicit animation data.
+   // Mods receive only a non-graphic, consent-gated notification.
+   return this._event(kind,actions[kind],{partner:id,
+    relationshipType:regular?this.partners[id].status:"one-night",
+    fadeToBlack:sceneMode==="fade",cameraTransition:sceneMode==="mod"?"retain":"fade",
+    ...(sceneMode==="mod"?{modEvent:{name:FAMILY_PRIVATE_MOD_EVENT,
+     version:FAMILY_PRIVATE_MOD_API_VERSION,partner:id,adults:true,consent:true,
+     renderContent:"external-only"}}:{})});
   }
-  return this._event(kind,action[kind],{partner:id,fadeToBlack:kind==="private"});
+  return this._event(kind,actions[kind],{partner:id,fadeToBlack:false});
  }
  planPregnancy(id,{mutualConsent=false,gestationalParent="player",name="赤ちゃん"}={}){
   if(!this.privateUnlocked)return this._deny("成人モードを解禁してください");
-  if(!this._adults("player",id)||this.partners[id]?.status!=="married"||!mutualConsent)
-   return this._deny("成人同士の婚姻と家族計画への合意が必要です");
+  if(!this._adults("player",id)||!mutualConsent)
+   return this._deny("成人同士の家族計画への明示的な合意が必要です");
   if(!["player",id].includes(gestationalParent))return this._deny("妊娠する保護者を選択してください");
-  if(!this.partners[id].privateTime)return this._deny("先にプライベートな時間を選択してください");
+  if(!(this.partners[id]?.privateTime>0)&&!(this.encounters[id]?.privateTime>0))
+   return this._deny("先に合意したプライベートな時間を選択してください");
   if(this.pregnancies.some(x=>x.gestationalParent===gestationalParent))
    return this._deny("妊娠の進行中です");
   const pregnancy={id:"pregnancy-"+this.nextId++,gestationalParent,
@@ -257,7 +291,7 @@ export class FamilyLife {
   return this._event("inheritance","新しい世代に家族と文明を引き継ぎました",{childId});
  }
  snapshot(){
-  return copy({version:FAMILY_VERSION,day:this.day,adults:this.adults,partners:this.partners,
+  return copy({version:FAMILY_VERSION,day:this.day,adults:this.adults,partners:this.partners,encounters:this.encounters,
    pregnancies:this.pregnancies,children:this.children,nextId:this.nextId,history:this.history});
  }
 }
