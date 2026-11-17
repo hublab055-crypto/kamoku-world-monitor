@@ -15,13 +15,18 @@ export class ShipCrewSocial {
  constructor(saved={}){
   this.clock=Number.isFinite(saved?.clock)?Math.max(0,saved.clock):0;
   this.members={};
+  // Session-only NPC consent; a save/load or timeout revokes it automatically.
+  this.casualOffers=new Map();
   for(const id of ["navigator","engineer","companion"]){
    const v=saved?.members?.[id]||{};
    this.members[id]={points:clamp(v.points),romance:Boolean(v.romance),family:Boolean(v.family),
     last:Object.fromEntries(Object.keys(CREW_ACTIONS).map(action=>[action,Number.isFinite(v.last?.[action])?v.last[action]:-1e9]))};
   }
  }
- advance(dt){if(Number.isFinite(dt)&&dt>0)this.clock+=Math.min(dt,.16);}
+ advance(dt){
+  if(Number.isFinite(dt)&&dt>0)this.clock+=Math.min(dt,.16);
+  for(const [id,until] of this.casualOffers)if(until<this.clock)this.casualOffers.delete(id);
+ }
  status(id){
   const s=this.members[id];if(!s)return null;
   let level=CREW_RELATIONSHIP_LEVELS[0];
@@ -29,7 +34,8 @@ export class ShipCrewSocial {
   else if(s.points>=150&&s.romance)level=CREW_RELATIONSHIP_LEVELS[3];
   else if(s.points>=75)level=CREW_RELATIONSHIP_LEVELS[2];
   else if(s.points>=20)level=CREW_RELATIONSHIP_LEVELS[1];
-  return {id:level.id,label:level.label,points:s.points,romance:s.romance,family:s.family};
+  return {id:level.id,label:level.label,points:s.points,romance:s.romance,family:s.family,
+   casualConsent:(this.casualOffers.get(id)??-Infinity)>=this.clock};
  }
  interact(id,action,{hasGift=false}={}){
   const member=this.members[id],spec=CREW_ACTIONS[action];
@@ -44,9 +50,19 @@ export class ShipCrewSocial {
  }
  deepen(id,kind){
   const s=this.members[id];if(!s)return {ok:false,message:"乗員が見つかりません"};
+  if(kind==="casual"){
+   if(s.points<75)return {ok:false,message:"相手はまだ親密な誘いに同意していません。信頼関係を築いてください"};
+   this.casualOffers.set(id,this.clock+180);
+   return {ok:true,message:"相手から、この場限りのプライベートな交流について同意を得ました（3分間有効）"};
+  }
   if(kind==="romance"&&s.points>=150&&!s.romance){s.romance=true;return {ok:true,message:"お互いの意思を確認して恋人になりました"};}
   if(kind==="family"&&s.points>=280&&s.romance&&!s.family){s.family=true;return {ok:true,message:"家族としての絆を結びました"};}
   return {ok:false,message:"今の親密度・関係では選択できません"};
+ }
+ consumeCasualConsent(id){
+  const agreed=(this.casualOffers.get(id)??-Infinity)>=this.clock;
+  this.casualOffers.delete(id);
+  return agreed;
  }
  snapshot(){
   return {version:1,clock:this.clock,members:Object.fromEntries(Object.entries(this.members).map(([id,s])=>
