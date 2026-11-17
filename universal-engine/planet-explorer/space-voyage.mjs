@@ -1,5 +1,5 @@
 import {bodyById} from "./solar-system.mjs";
-import {ShipInterior} from "./ship-interior.mjs?v=20261114-v10-crew";
+import {ShipInterior} from "./ship-interior.mjs?v=20261117-family-gestures";
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const valid=n=>Number.isFinite(n);
 /** Ground -> airlock -> ascent -> origin orbit -> transfer -> destination orbit -> descent -> surface. */

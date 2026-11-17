@@ -1,6 +1,6 @@
 import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261117-anatomy-view";
 import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
-import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261117-anatomy-view";
+import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261117-family-gestures";
 import {shipContactDistance} from "./space-combat.mjs?v=20261117-mining";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
@@ -10,8 +10,8 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261117-crew-life";
-import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-crew-life";
+import {ShipJourney} from "./ship-journey.mjs?v=20261117-family-gestures";
+import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261116-crew-recall-v1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261117-crew-life";
+import {ExplorerRenderer} from "./render.mjs?v=20261117-family-gestures";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -86,6 +86,8 @@ import {writeSlot,readSlot,eraseSlot,slotIndex} from "./save-slots.mjs?v=0.8y-sl
 import {createPortableSave,parsePortableSave,MAX_PORTABLE_SAVE_BYTES,VR_WEARABLE_SAVE_KEY} from "./portable-save.mjs?v=0.9u";
 import {VoyageLog,seaDistance} from "./circumnavigation.mjs";
 import {createScenario,INTRO_QUESTS} from "./scenario-engine.mjs?v=1";
+import {FamilyLife} from "./family-life.mjs?v=20261117-family-covenant";
+import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-family-covenant";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
@@ -321,7 +323,7 @@ function guardGroundPassable(fx,fz,tx,tz){
  return !after.water&&!after.river&&after.elevationM<2800&&
   Math.abs(after.elevationM-before.elevationM)<=Math.max(.5,step*1.8);
 }
-let scenario=null;
+let scenario=null,familyLife=null,familyLifeUI=null,lastFamilyUIEpoch=-1;
 function init(saved=null){
  try{
   avatarV10=normalizeAvatarRoster(saved?.avatarV10?.roster??loadAvatarV10());
@@ -368,6 +370,9 @@ function init(saved=null){
   footVoyage=new VoyageLog(saved?.v0_9u?.footVoyage||null,{lat:controller.lat,lon:controller.lon});
   scenario=createScenario(saved?.v0_9v?.scenario||null);
   if(!saved?.v0_9v?.scenario)for(const quest of INTRO_QUESTS)scenario.addQuest(quest);
+  familyLife=new FamilyLife(saved?.v0_family?.life||null,{day:planet.timeDays});
+  familyLife.advanceTo(planet.timeDays);lastFamilyUIEpoch=-1;
+  familyLifeUI?.refresh();
   townLife=new TownLife(saved?.v0_8s||(!saved?loadTownJournal():null));
    law=new LawSystem(saved?.v0_9d||(!saved?loadLawJournal():null));
   railway=new RailwaySystem(saved?.v0_8t||(!saved?loadRailwayJournal():null));
@@ -736,6 +741,13 @@ function doFrame(t,source="window",xrFrameInput=null){
   return;
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
+ if(familyLife&&planet&&planet.timeDays>familyLife.day){
+  const events=familyLife.advanceTo(planet.timeDays);
+  for(const item of events)if(item?.message)log("👪 "+item.message);
+ }
+ if(familyLife&&Math.floor(familyLife.day)!==lastFamilyUIEpoch){
+  lastFamilyUIEpoch=Math.floor(familyLife.day);familyLifeUI?.refresh();
+ }
  mobileUI?.update(dt);
   const socialButton=document.getElementById("ship-crew-social-open");
   if(socialButton){socialButton.style.display=voyage?.active&&!voyage.seated?"block":"none";if(!voyage?.active)document.getElementById("ship-crew-social").style.display="none";}
@@ -1661,6 +1673,7 @@ function captureGame(){
     v0_9n:{schemaVersion:1,media:mediaUI?.library.snapshot()??null},
     v0_9u:{schemaVersion:1,footVoyage:footVoyage?.snapshot()??null},
     v0_9v:{schemaVersion:1,scenario:scenario?.snapshot()??null},
+    v0_family:{schemaVersion:1,life:familyLife?.snapshot()??null},
     v0_9z:{schemaVersion:1,custodyFacility:custodyFacility?custodyFacilitySnapshot(custodyFacility):null},
    v0_8y:{schemaVersion:1,ferry:ferry.snapshot()},v0_9d:law.snapshot()};
   if(solarSystem){
@@ -4341,6 +4354,22 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  });
  crewAction("恋人になる",id=>voyage?.interior?.deepenRelationship(id,"romance"));
  crewAction("家族になる",id=>voyage?.interior?.deepenRelationship(id,"family"));
+ // Family progress is a separate save-backed model. The adult relationship
+ // buttons reuse the existing crew social proximity/affinity checks.
+ familyLifeUI?.destroy();
+ familyLifeUI=installFamilyLifeUI({
+  world:()=>familyLife,crew:()=>voyage?.interior||null,notify:message=>log("👪 "+message),
+  inherit:id=>scenario?.inherit(id),
+  onCarePose:kind=>{
+   if(kind==="hold"&&avatarDailyAvailable())activateAvatarDaily("holdBaby");
+  },
+  onAdultPose:(kind,id)=>{
+   const interior=voyage?.interior;
+   if(!interior)return {ok:false,message:"船内で相手に近づくとペアモーションを再生できます"};
+   return interior.greetings?.start(interior,id,kind)||
+    {ok:false,message:"ペアモーションを利用できません"};
+  }
+ });
  const crewSocialOpen=document.createElement("button");crewSocialOpen.type="button";
  crewSocialOpen.id="ship-crew-social-open";crewSocialOpen.textContent="💬 乗員交流";
  crewSocialOpen.style.cssText="position:fixed;right:12px;bottom:42px;z-index:119;padding:8px;background:#205069;color:#fff;border:1px solid #81b5c2;border-radius:7px;display:none";
