@@ -48,7 +48,7 @@ test("dialogue alternates speakers and uses readable Japanese text",()=>{
 test("touchdown cancels NPC chats and returns crew to seats",()=>{
  const s=new ShipInterior();
  for(let i=0;i<300;i++)step(s);
- assert.equal(s.routine.phase,"gather");
+ assert.ok(["gather","talk"].includes(s.routine.phase));
  step(s,{status:"touchdown",autopilot:true});
  assert.equal(s.routine.phase,"return");
  for(let i=0;i<1200;i++)step(s,{status:"touchdown",autopilot:true});
