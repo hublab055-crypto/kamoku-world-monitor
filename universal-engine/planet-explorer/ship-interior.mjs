@@ -1,4 +1,4 @@
-import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261117-family-gestures";
+import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261117-numeric";
 import {ShipCrewSocial} from "./ship-crew-social.mjs?v=20261117-oasis-consent";
 import {ShipCrewAutonomy} from "./ship-crew-autonomy.mjs?v=20261117-crew-life";
 
