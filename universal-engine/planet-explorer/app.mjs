@@ -10,14 +10,14 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261116-crew-recall-v1";
-import {SHIP_CREW} from "./ship-interior.mjs?v=20261116-crew-recall-v1";
+import {ShipJourney} from "./ship-journey.mjs?v=20261117-crew-life";
+import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-crew-life";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261116-crew-recall-v1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
 import {installSurfaceStarshipUI} from "./surface-starship-ui.mjs?v=20261116-crew-recall-v1";
 import {installShipInteractionUI} from "./ship-interaction-ui.mjs?v=20261114-seat";
-import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261116-crew-recall-v1";
+import {installSpaceFlightUI} from "./space-flight-ui.mjs?v=20261117-crew-life";
 import {installSpaceCombatUI} from "./space-combat-ui.mjs?v=20261117-mining";
 import {xrRayPointDistance,exteriorHatchWorldPoint} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {installCelestialSkyViewport} from "./celestial-sky-viewport.mjs?v=20261112-warp";
@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261117-anatomy-view";
+import {ExplorerRenderer} from "./render.mjs?v=20261117-crew-life";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -752,12 +752,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady);
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady);
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
