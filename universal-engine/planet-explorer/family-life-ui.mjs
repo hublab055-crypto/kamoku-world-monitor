@@ -69,6 +69,11 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
   mutualConsent:agreed(),relationship:currentRelation()}),{requiresProximity:true}));
  buttonAction(actions,"結婚",()=>execute(w=>w.marry(partner.value,{
   mutualConsent:agreed(),relationship:currentRelation()}),{requiresProximity:true}));
+ buttonAction(actions,"ワンナイトを提案（NPC側の承諾）",()=>execute(()=>{
+  if(!agreed())return {ok:false,message:"双方の意思を確認してください"};
+  return conn()?.deepenRelationship?.(partner.value,"casual")||
+   {ok:false,message:"クルーが見つかりません"};
+ },{requiresProximity:true}));
  for(const [kind,label] of [["handhold","手をつなぐ"],["hug","ハグ"],["kiss","キス"],["private","🌙 ふたりの時間"]]){
   buttonAction(actions,label,()=>{
    const oneNight=el("[data-one-night]").checked===true;
@@ -78,6 +83,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
     sceneMode:kind==="private"&&mod?"mod":"fade"
    }),{requiresProximity:true});
    if(result?.ok&&kind==="private"){
+    if(oneNight)conn()?.social?.consumeCasualConsent?.(partner.value);
     if(result.event?.fadeToBlack)el("[data-private-screen]").hidden=false;
     else{
      el("[data-private-screen]").hidden=true;
@@ -137,6 +143,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
   const relation=currentRelation();
   el("[data-relationship]").textContent=relation?
    "既存の関係："+relation.label+" / 親密度 "+relation.points+
+   (relation.casualConsent?" / この場限りのNPC同意あり":"")+
    "｜家族ステータス："+(w.partners[partner.value]?.status==="married"?"結婚":w.partners[partner.value]?"交際":"未交際"):
    "クルーとの関係は乗船して確認できます";
   el("[data-code]").disabled=w.privateUnlocked;
@@ -144,7 +151,7 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
   el("[data-one-night]").disabled=!active;
   el("[data-mod]").disabled=!active;
   for(const b of [...actions.querySelectorAll("button")]){
-   if(/ハグ|キス|手をつなぐ|ふたりの時間|家族計画/.test(b.textContent))b.disabled=!active;
+   if(/ハグ|キス|手をつなぐ|ふたりの時間|家族計画|ワンナイト/.test(b.textContent))b.disabled=!active;
   }
   const old=childSelect.value;childSelect.replaceChildren();
   if(!w.children.length)childSelect.add(new Option("まだいません",""));
