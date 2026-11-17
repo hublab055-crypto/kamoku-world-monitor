@@ -84,3 +84,27 @@ External extensions must not bypass the child-protection contract.
 - Private-event details absent from persisted family history.
 - Family planning requires independent consent; gestation and newborn
   combat immunity remain effective.
+
+## Local interactive mode (camera retained)
+
+After the user confirms adulthood and unlocks with `9876`, the existing
+`MOD connection (no fade)` option keeps the ordinary ship-interior camera.
+Once the existing family module approves the private scene, the UI opens a
+**local, non-graphic pair-motion panel**. The player can choose:
+
+- `1` / handhold, `2` / hug, `3` / brief kiss (click/tap controls).
+- Replay the last selected gesture; close the panel to end the local session.
+
+These are the same visible crew-pair motions already used by the game.
+The module does not supply or render explicit sexual poses or scenes.
+Animations may be retriggered, but this is **not frame-level pause/scrub**
+and the ship motion system may reject a new motion while one is playing.
+If an NPC is too far away, the player has to approach before a motion can play.
+
+The UI revokes control when the 9876 session is locked, consent is withdrawn,
+the partner is changed, the player leaves interaction distance, or the panel
+is closed. Motion choices and temporary session state are not saved.
+The third-party event bridge remains separate and unchanged.
+
+Integration: `family-private-local-scene.mjs` + `family-life-ui.mjs`.
+Tests: `tests/family-private-local-scene.test.mjs`.
