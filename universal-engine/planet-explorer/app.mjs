@@ -87,7 +87,7 @@ import {createPortableSave,parsePortableSave,MAX_PORTABLE_SAVE_BYTES,VR_WEARABLE
 import {VoyageLog,seaDistance} from "./circumnavigation.mjs";
 import {createScenario,INTRO_QUESTS} from "./scenario-engine.mjs?v=1";
 import {FamilyLife} from "./family-life.mjs?v=20261117-oasis-mod-bridge";
-import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-oasis-mod-bridge";
+import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-local-motion";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
