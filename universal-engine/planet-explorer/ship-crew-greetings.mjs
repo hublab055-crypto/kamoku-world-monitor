@@ -3,7 +3,9 @@ export const CREW_GESTURES = Object.freeze({
  handshake:{label:"握手",seconds:2.65,distance:1.85,gap:.84},
  thumbsUp:{label:"グッドサイン",seconds:2.0},
  doubleThumbs:{label:"両手グッド",seconds:2.15},
- hug:{label:"ハグ",seconds:2.85,distance:1.45,gap:.54}
+ hug:{label:"ハグ",seconds:2.85,distance:1.45,gap:.54},
+ handhold:{label:"手をつなぐ",seconds:2.6,distance:1.75,gap:.78},
+ kiss:{label:"短いキス",seconds:2.4,distance:1.25,gap:.43}
 });
 
 export const CREW_REACH = 2.6;
@@ -129,8 +131,10 @@ export class ShipCrewGreetings {
    actor.motion=action;
    actor.time=time;
   }
-  if(action==="handshake"){
-   const grip=[(player.x+mate.x)/2,1.11+.037*Math.sin((time-.8)*16)*crewPhase(time,.58,.83)*(1-crewPhase(time,1.65,1.95)),(player.z+mate.z)/2];
+  if(action==="handshake"||action==="handhold"){
+   const grip=[(player.x+mate.x)/2,
+    action==="handshake"?1.11+.037*Math.sin((time-.8)*16)*crewPhase(time,.58,.83)*(1-crewPhase(time,1.65,1.95)):.91,
+    (player.z+mate.z)/2];
    player.grip=mate.grip=grip;
   }
   return [player,...crew];
