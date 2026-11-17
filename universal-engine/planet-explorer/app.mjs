@@ -4362,6 +4362,12 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
   inherit:id=>scenario?.inherit(id),
   onCarePose:kind=>{
    if(kind==="hold"&&avatarDailyAvailable())activateAvatarDaily("holdBaby");
+  },
+  onAdultPose:(kind,id)=>{
+   const interior=voyage?.interior;
+   if(!interior)return {ok:false,message:"船内で相手に近づくとペアモーションを再生できます"};
+   return interior.greetings?.start(interior,id,kind)||
+    {ok:false,message:"ペアモーションを利用できません"};
   }
  });
  const crewSocialOpen=document.createElement("button");crewSocialOpen.type="button";
