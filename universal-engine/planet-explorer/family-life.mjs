@@ -152,12 +152,16 @@ export class FamilyLife {
    }
    // The core engine deliberately includes no explicit animation data.
    // Mods receive only a non-graphic, consent-gated notification.
-   return this._event(kind,actions[kind],{partner:id,
+   // Do not persist private-event details or ephemeral NPC acceptance.
+   // Saves retain only fictional progression counters and any separately
+   // chosen family-planning outcomes, never moment-by-moment scene records.
+   const event={type:kind,day:this.day,message:actions[kind],partner:id,
     relationshipType:regular?this.partners[id].status:"one-night",
     fadeToBlack:sceneMode==="fade",cameraTransition:sceneMode==="mod"?"retain":"fade",
     ...(sceneMode==="mod"?{modEvent:{name:FAMILY_PRIVATE_MOD_EVENT,
      version:FAMILY_PRIVATE_MOD_API_VERSION,partner:id,adults:true,consent:true,
-     renderContent:"external-only"}}:{})});
+     renderContent:"external-only"}}:{})};
+   return {ok:true,message:actions[kind],event};
   }
   return this._event(kind,actions[kind],{partner:id,fadeToBlack:false});
  }
