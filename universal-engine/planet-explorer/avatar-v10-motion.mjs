@@ -145,3 +145,38 @@ export function poseAvatarV10Gesture(rig,pose,{motion,time,grip,yaw=0,x=0,z=0}) 
   }
  }
 }
+
+/** Applies recorded HMD + controller poses to a real V10 skinned skeleton.
+ * User height calibrates against the initial HMD; missing controllers fall
+ * back to the original idle animation. Legs/feet are never claimed tracked.
+ * A yaw-aligned replay requires no WebXR session or external assets.
+ */
+export function poseAvatarV10MotionActor(rig,pose,frame){
+ if(!frame?.head?.p?.length||!frame?.first?.p?.length)return false;
+ const index=rig.jointsByName,headID=index?.get("Head"),pelvisID=index?.get("Hips");
+ if(headID===undefined||pelvisID===undefined)return false;
+ const origin=frame.first.p;
+ const metresPerBody=frame.floorTracked?clampActor(1.60/(origin[1]||1.60),.78,1.24):1;
+ const normalized=raw=>[
+  (raw[0]-origin[0])*metresPerBody,
+  (frame.floorTracked?raw[1]*metresPerBody:1.58+(raw[1]-origin[1])),
+  (origin[2]-raw[2])*metresPerBody
+ ];
+ const native=raw=>normalized(raw).map((v,i)=>v/rig.scale+rig.center[i]);
+ const mirrorQuat=q=>norm([-q[0],-q[1],q[2],q[3]]);
+ pose[headID].rotation=mix(pose[headID].rotation,mirrorQuat(frame.head.q||identity),.78);
+ // Approximate bobbing and crouching from HMD height. This is inferred
+ // centre-of-mass motion, NOT knee or foot position sensing.
+ if(frame.floorTracked){
+  const dy=clampActor((frame.head.p[1]-origin[1])*metresPerBody,-.42,.18);
+  pose[pelvisID].translation[1]+=dy*.55/rig.scale;
+ }
+ for(const [side,tracked] of [["L",frame.left],["R",frame.right]]){
+  if(!tracked?.p?.length||!tracked?.q?.length)continue;
+  const goal=native(tracked.p),rot=mirrorQuat(tracked.q);
+  const bend=side==="L"?[.7,-1,.2]:[-.7,-1,.2];
+  poseArm(rig,pose,side,goal,rot,bend,.94,.11);
+ }
+ return true;
+}
+function clampActor(n,a,b){return Math.max(a,Math.min(b,n));}
