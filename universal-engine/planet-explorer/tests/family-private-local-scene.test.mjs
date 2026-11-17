@@ -29,7 +29,7 @@ test("local scene plays only existing non-graphic crew gestures",()=>{
  });
  assert.equal(scene.playMotion("hug").ok,false,"must enter through authorized event");
  assert.equal(scene.open(event()).ok,true);
- assert.deepEqual(LOCAL_PRIVATE_GESTURES.map(g=>g.id),["handhold","hug","kiss"]);
+ assert.deepEqual(LOCAL_PRIVATE_GESTURES.map(g=>g.id),["handhold","hug","kiss","9989","9966"]);
  assert.equal(scene.playMotion("hug").ok,true);
  assert.equal(scene.replay().ok,true);
  assert.deepEqual(plays,[["hug","navigator"],["hug","navigator"]]);
@@ -46,4 +46,24 @@ test("closing or reopening local control discards temporary state",()=>{
  assert.equal(scene.lastMotion,null);
  scene.open(event());
  assert.equal(scene.replay().ok,false);
+});
+
+test("coded poses resolve to safe gesture names, with reversible local playback",()=>{
+ const calls=[],scene=new LocalPrivateScene({
+  guard:()=>true,
+  play:(motion,partner)=>{calls.push([motion,partner]);return {ok:true,message:motion};},
+  control:(operation,partner,value)=>{calls.push([operation,partner,value]);return {ok:true,message:operation};}
+ });
+ scene.open(event());
+ assert.equal(scene.playMotion("9989").ok,true);
+ assert.deepEqual(calls[0],["closeEmbrace","navigator"]);
+ assert.equal(scene.playMotion("9966").ok,true);
+ assert.deepEqual(calls[1],["foreheadRest","navigator"]);
+ assert.equal(scene.seek(.5).ok,true);
+ assert.equal(scene.setPaused(true).ok,true);
+ assert.equal(scene.setPaused(false).ok,true);
+ assert.equal(scene.setSpeed(1.5).ok,true);
+ scene.close();
+ assert.deepEqual(calls.at(-1),["stop","navigator",undefined]);
+ assert.equal(scene.seek(.5).ok,false);
 });
