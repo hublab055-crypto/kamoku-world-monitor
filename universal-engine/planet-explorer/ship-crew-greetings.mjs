@@ -35,8 +35,8 @@ export class ShipCrewGreetings {
   this.lastPosition = null;
  }
 
- advance(interior, dt, isReady=()=>true) {
-  interior.advanceCrew?.(dt);
+ advance(interior, dt, isReady=()=>true, context={}) {
+  interior.advanceCrew?.(dt,context);
   if(this.lastPosition){
    const {x,z}=this.lastPosition;
    this.playerMoving=Math.hypot(interior.x-x,interior.z-z)>.001;
@@ -68,7 +68,8 @@ export class ShipCrewGreetings {
   // Queue a visible salute as soon as the crew asset is ready. Facing
   // alignment is not required: officers turn toward approaching captains.
   const member=interior.nearCrew(CREW_GREET_RADIUS).find(actor=>
-   isReady(actor)&&!this.nearby.has(actor.id));
+   isReady(actor)&&!this.nearby.has(actor.id)&&
+   !interior.routine?.pair.includes(actor.id));
   if(!member)return;
   this.nearby.set(member.id,{cooldown:REARM_SECONDS,left:false});
   this.formal={member,time:0};
@@ -108,8 +109,13 @@ export class ShipCrewGreetings {
    motion:interior.seated?"Seated":this.playerMoving?"walk":"idle",time:null};
   const crew=this.crew.map(member=>({
    id:member.id,x:member.x,z:member.z,
-   yaw:interior.distance(member)<3.4?face(member,interior):member.yaw,
-   motion:this.formal?.member===member?"salute":member.moving?"walk":member.seated?"Seated":"idle",time:this.formal?.member===member?this.formal.time:null
+   yaw:interior.routine?.phase==="talk"&&interior.routine.pair.includes(member.id)?
+    face(member,this.crew.find(c=>c.id!==member.id&&interior.routine.pair.includes(c.id))):
+    interior.distance(member)<3.4?face(member,interior):member.yaw,
+   motion:this.formal?.member===member?"salute":member.moving?"walk":member.seated?"Seated":"idle",
+   talking:interior.routine?.phase==="talk"&&interior.routine.pair.includes(member.id),
+   speaking:interior.routine?.speech?.speakerId===member.id,
+   time:this.formal?.member===member?this.formal.time:null
   }));
   if(!pair)return [player,...crew];
   const mate=crew.find(actor=>actor.id===pair.member.id);
