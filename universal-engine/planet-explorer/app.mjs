@@ -10,8 +10,8 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261117-oasis-consent";
-import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-oasis-consent";
+import {ShipJourney} from "./ship-journey.mjs?v=20261117-numeric";
+import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-numeric";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261116-crew-recall-v1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261117-family-gestures";
+import {ExplorerRenderer} from "./render.mjs?v=20261117-numeric";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -87,7 +87,7 @@ import {createPortableSave,parsePortableSave,MAX_PORTABLE_SAVE_BYTES,VR_WEARABLE
 import {VoyageLog,seaDistance} from "./circumnavigation.mjs";
 import {createScenario,INTRO_QUESTS} from "./scenario-engine.mjs?v=1";
 import {FamilyLife} from "./family-life.mjs?v=20261117-oasis-mod-bridge";
-import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-local-motion";
+import {installFamilyLifeUI} from "./family-life-ui.mjs?v=20261117-numeric";
 import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./passenger-ferry.mjs?v=0.8y-ferry";
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
@@ -4368,6 +4368,12 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
    if(!interior)return {ok:false,message:"船内で相手に近づくとペアモーションを再生できます"};
    return interior.greetings?.start(interior,id,kind)||
     {ok:false,message:"ペアモーションを利用できません"};
+  },
+  onAdultControl:(operation,id,value)=>{
+   const interior=voyage?.interior;
+   if(!interior)return {ok:false,message:"船内で操作してください"};
+   return interior.greetings?.control(id,operation,value)||
+    {ok:false,message:"再生操作を利用できません"};
   }
  });
  const crewSocialOpen=document.createElement("button");crewSocialOpen.type="button";
