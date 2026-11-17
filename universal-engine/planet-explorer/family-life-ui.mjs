@@ -2,7 +2,7 @@ import {FAMILY_GROWTH_STAGES,OVERLORD_COVENANT} from "./family-life.mjs?v=202611
 /** Single-player family UI. No intimate content is rendered. The adult-only
  * unlock is a local content gate, not a real-world age-verification system.
  */
-export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onCarePose=()=>{}}={}){
+export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onCarePose=()=>{},onAdultPose=()=>{}}={}){
  if(typeof document==="undefined")return {refresh(){},destroy(){}};
  const button=document.createElement("button");button.id="family-life-open";button.type="button";
  button.textContent="👪 家族";button.setAttribute("aria-controls","family-life-panel");
@@ -71,6 +71,10 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
   buttonAction(actions,label,()=>{
    const result=execute(w=>w.action(partner.value,kind,{mutualConsent:agreed()}),{requiresProximity:true});
    if(result?.ok&&kind==="private")el("[data-private-screen]").hidden=false;
+   if(result?.ok&&["handhold","hug","kiss"].includes(kind)){
+    const motion=onAdultPose(kind,partner.value);
+    if(motion?.ok===false)el("[data-result]").textContent=motion.message+"（関係の記録は保存されています）";
+   }
   });
  }
  const gestation=el("[data-gestational]");
