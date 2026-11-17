@@ -207,7 +207,7 @@ function skinVertex(point,parts){
  const shoulderY=(p.leftShoulder[1]+p.rightShoulder[1])*.5;
  const shoulderWidth=Math.abs(p.rightShoulder[0]-p.leftShoulder[0]);
  const midX=(p.leftShoulder[0]+p.rightShoulder[0])*.5;
- const ribEdge=clamp(shoulderWidth*.56,.22,.31);
+ const ribEdge=clamp(shoulderWidth*.62,.280,.35);
  const zCenter=p.pelvis[2]+(p.chest[2]-p.pelvis[2])*
   clamp((point[1]-p.pelvis[1])/(shoulderY-p.pelvis[1]||1),0,1);
  const lateral=clamp((ribEdge-Math.abs(point[0]-midX))/.065,0,1);
