@@ -108,3 +108,27 @@ The third-party event bridge remains separate and unchanged.
 
 Integration: `family-private-local-scene.mjs` + `family-life-ui.mjs`.
 Tests: `tests/family-private-local-scene.test.mjs`.
+
+## Numeric joint-pose controls (non-graphic extension)
+
+`pair-motion-numeric-poses.mjs` defines two additional, non-graphic pair
+gestures as numbers for preset lookup; the IDs do **not** conceal the action:
+
+| Preset | Motion identifier | Visible action | Duration |
+| --- | --- | --- | --- |
+| `9989` | `closeEmbrace` | Long embrace | 4.60 s |
+| `9966` | `foreheadRest` | Gently rest foreheads together | 3.80 s |
+
+Each preset contains explicit numeric keyframes for Hips/Chest/Head local
+rotations (radians), L/R hand IK targets (metres), grip curl and blend weight.
+`sampleNumericPairPose()` uses clamped smoothstep interpolation.
+`poseAvatarV10Gesture()` turns those values into quaternions and IK targets.
+The ship crew's paired-gesture system supplies distance constraints, facing,
+timing and independent playback controls.
+
+The local panel also provides pause/resume, speed at 0.5/1/1.5/2 times and
+a 0-99% seek slider while a gesture is active. End or revoke consent to
+stop the pair. These controls are never written to save data and are
+not exposed as a multiplayer sexual-scene API.
+
+New tests: `tests/numeric-pair-motion.test.mjs`.
