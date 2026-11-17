@@ -201,10 +201,35 @@ function skinVertex(point,parts){
   const score=dist+((a==="pelvis"||a==="waist"||a==="chest")?.006:0);
   if(!best||score<best.score)best={a,b,t,score};
  }
- const weights=[1-best.t,best.t],joints=[ids[best.a],ids[best.b]];
- // Blend across a joint rather than giving a hard deformation hinge.
- weights[0]=clamp(weights[0],.05,.95);weights[1]=1-weights[0];
- return {joints:[...joints,0,0],weights:[...weights,0,0]};
+ // Generic nearest-chain skinning sometimes binds the lateral ribs to the
+ // Chest -> UpperArm chain. As the arm moves it pulls away the side of the rib
+ // cage, making a visually missing patch. The trunk must follow its spine.
+ const shoulderY=(p.leftShoulder[1]+p.rightShoulder[1])*.5;
+ const shoulderWidth=Math.abs(p.rightShoulder[0]-p.leftShoulder[0]);
+ const midX=(p.leftShoulder[0]+p.rightShoulder[0])*.5;
+ const ribEdge=clamp(shoulderWidth*.56,.22,.31);
+ const zCenter=p.pelvis[2]+(p.chest[2]-p.pelvis[2])*
+  clamp((point[1]-p.pelvis[1])/(shoulderY-p.pelvis[1]||1),0,1);
+ const lateral=clamp((ribEdge-Math.abs(point[0]-midX))/.065,0,1);
+ const belowShoulder=clamp((shoulderY-.025-point[1])/.085,0,1);
+ const abovePelvis=clamp((point[1]-p.pelvis[1]+.015)/.11,0,1);
+ const nearTorso=clamp((.26-Math.abs(point[2]-zCenter))/.075,0,1);
+ const torsoWeight=lateral*belowShoulder*abovePelvis*nearTorso;
+ const lower=point[1]<p.waist[1];
+ const a=lower?"pelvis":"waist",b=lower?"waist":"chest";
+ const target=clamp((point[1]-p[a][1])/(p[b][1]-p[a][1]||1),0,1);
+ const influence=new Map();
+ const put=(index,weight)=>influence.set(index,(influence.get(index)||0)+weight);
+ // Preserve the original arm/leg influence near the actual joints and
+ // blend to torso-only weights towards the ribs and abdomen.
+ put(ids[best.a],(1-best.t)*(1-torsoWeight));
+ put(ids[best.b],best.t*(1-torsoWeight));
+ put(ids[a],(1-target)*torsoWeight);
+ put(ids[b],target*torsoWeight);
+ const top=[...influence.entries()].sort((x,y)=>y[1]-x[1]).slice(0,4);
+ const sum=top.reduce((v,item)=>v+item[1],0)||1;
+ return {joints:[...top.map(item=>item[0]),...Array(4-top.length).fill(0)],
+  weights:[...top.map(item=>item[1]/sum),...Array(4-top.length).fill(0)]};
 }
 const TETRA=[
  [0,5,1,6],[0,1,2,6],[0,2,3,6],
