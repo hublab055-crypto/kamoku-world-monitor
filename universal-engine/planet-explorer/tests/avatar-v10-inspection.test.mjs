@@ -25,7 +25,7 @@ for(const model of ["ren","lyra"]){
   assert(anchors.neckY>anchors.chestY,"neck must extend beyond chest");
   const inspection=createAvatarV10InspectionMeshes(rig);
   assert.deepEqual(inspection.map(x=>x.inspectLayer).sort(),
-   ["bones","muscles","organs","organs-testicular","organs-uterine"].sort());
+   ["bones","muscles","organs","organs-obstetric","organs-testicular","organs-uterine"].sort());
   for(const piece of inspection){
    assert(piece.indices.length>0,piece.inspectLayer);
    assert(piece.arrays.positions.every(Number.isFinite),piece.inspectLayer);
