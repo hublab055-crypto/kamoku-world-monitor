@@ -5,6 +5,13 @@ import {XRMotionActorRecorder,getXRMotionTextSummary,setXRMotionPlayback,getXRMo
  */
 export function installXRMotionActorUI(host){
  const recorder=new XRMotionActorRecorder();
+ // Standalone Node XR diagnostics use a reduced DOM harness. Recording is
+ // completely inactive there; do not alter any existing VR session behavior.
+ if(typeof document==="undefined"||typeof document.createElement!=="function"){
+  return {recorder,get armed(){return false;},start:()=>false,
+   finish:()=>{},refresh:()=>{},onSessionStart:()=>{},onSessionEnd:()=>{},
+   onCapture:()=>{},stop:()=>{},dispose:()=>{}};
+ }
  const box=document.createElement("details");
  box.id="xr-motion-actor";
  const heading=document.createElement("summary");
