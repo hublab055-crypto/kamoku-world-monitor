@@ -1,4 +1,4 @@
-import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261116-crew-recall-v1";
+import {CREW_REACH,ShipCrewGreetings} from "./ship-crew-greetings.mjs?v=20261117-crew-life";
 import {ShipCrewSocial} from "./ship-crew-social.mjs?v=20261115";
 import {ShipCrewAutonomy} from "./ship-crew-autonomy.mjs?v=20261117-crew-life";
 
