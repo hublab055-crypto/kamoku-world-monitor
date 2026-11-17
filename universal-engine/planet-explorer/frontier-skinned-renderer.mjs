@@ -4,9 +4,10 @@ import {reviewShaderParams,reviewHairPreset} from "./avatar-review-adapter.mjs?v
 import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
 import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
 import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117-hip-articulation";
-import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261117-xray";
-import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261117-family-gestures";
-import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-anatomy-view";
+import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261118-obstetric";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261118-mocap-ik";
+import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261118-obstetric";
+import {currentXRMotionActorPose} from "./xr-motion-actor.mjs?v=20261118-vr-mocap";
 import {isAvatarHandDetail,preserveAvatarSkinDetail} from "./avatar-v10-skin-detail.mjs?v=20261117-proportions-fix";
 const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
 uniform vec3 uReviewA,uReviewB,uReviewC,uReviewD;
@@ -299,6 +300,10 @@ export class SkinnedFrontierAsset{
   const options={motionProgress,variant,hand,moving};
   if(lookAt)options.lookAt=lookAt;
   if(gesture)options.gesture=gesture;
+  if(id==="player"||id==="editor"){
+   const actor=currentXRMotionActorPose(typeof performance!=="undefined"?performance.now():Date.now());
+   if(actor)options.motionActor=actor;
+  }
   const pose=poseFrontierRig(this.rig,body,time??state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,options);
   if(time!==null)state.fade=0;
   if(time===null&&state.fade>0&&state.previous){
@@ -399,9 +404,10 @@ export class SkinnedFrontierAsset{
   const useProcedural=anatomicalBase&&anatomy.source!=="legacy"&&Boolean(this.proceduralBody);
   const inspection=outfit==="base"&&useProcedural&&anatomy.layer!=="skin"&&Boolean(this.inspectionMeshes?.length);
   const inspectVisible=layer=>{
-   if(layer==="bones")return ["bones","xray"].includes(anatomy.layer);
+   if(layer==="bones")return ["bones","xray","obstetric"].includes(anatomy.layer);
    if(layer==="muscles")return ["muscle","xray"].includes(anatomy.layer);
    if(layer==="organs")return ["organs","xray"].includes(anatomy.layer);
+   if(layer==="organs-obstetric")return anatomy.layer==="obstetric"&&anatomy.preset==="uterine";
    if(layer==="organs-uterine"||layer==="organs-testicular")
     return ["organs","xray"].includes(anatomy.layer)&&anatomy.preset===layer.slice(7);
    return false;

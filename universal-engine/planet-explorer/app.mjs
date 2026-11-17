@@ -1,6 +1,6 @@
-import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261117-anatomy-view";
-import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
-import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261117-hip-articulation";
+import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
+import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
+import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261118-mocap-medical";
 import {shipContactDistance} from "./space-combat.mjs?v=20261117-mining";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261117-hip-articulation";
+import {ExplorerRenderer} from "./render.mjs?v=20261118-mocap-medical";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -92,7 +92,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261115-reach-hotas";
+import {installXRUI} from "./xr-ui.mjs?v=20261118-mocap";
 import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=20261114-social-2";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";

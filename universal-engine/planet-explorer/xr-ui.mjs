@@ -13,6 +13,7 @@ import {vrNearestPickup,vrHandAtBag} from "./xr-backpack.mjs?v=0.9t-bag";
 import {WearableInventory,starterWearables,pocketSocketForOutfit} from "./wearable-inventory.mjs?v=3";
 import {detectShipCrewTouch} from "./ship-crew-vr-contact.mjs?v=1";
 import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
+import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -36,6 +37,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const placeButton=$("xr-place"),landButton=$("xr-planet-land");
  const allButton=$("xr-rts-all"),rotateLeft=$("xr-rotate-left"),rotateRight=$("xr-rotate-right");
  const vrDiag=$("xr-vr-diagnostics");
+ const motionActorUI=installXRMotionActorUI($("xr-controls"));
+ let vrMotionChordHeld=false;
  let session=null,activeMode=null,space=null,anchor=null,lastTime=0,viewerSpace=null,hitSource=null,hitPose=null;
  let usingFloor=false,disposed=false,starting=false,readyPromise=Promise.resolve();
  let compatibilityRenderer=null,depthTexture=null;
@@ -255,6 +258,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function endCleanup(){
+  if(activeMode==="vr")motionActorUI.onSessionEnd();
   if(activeMode==="mr-social")social.activate(false);
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
@@ -372,6 +376,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      hitSource=await newSession.requestHitTestSource({space:viewerSpace});
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
+   if(mode==="vr")motionActorUI.onSessionStart(usingFloor);
    if(mode==="mr-social"){
     social.activate(true);
     space.addEventListener("reset",()=>{
@@ -469,6 +474,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(!head)try{head=frame.getViewerPose(space)?.transform.matrix||null;}catch(_){}
   const last=vrPhysical.pose||{};
   const trackedLeft=matrix(left,"grip"),trackedRight=matrix(right,"grip");
+  motionActorUI.onCapture(time,{head,left:trackedLeft,right:trackedRight,leftSource:left,rightSource:right});
    vrHotasTracked={left:trackedLeft,right:trackedRight};
   const gear={head:head||last.head,left:trackedLeft||last.left,
    right:trackedRight||last.right,
@@ -830,6 +836,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function vrButtonsFrame(sources){
   if(activeMode!=="vr")return;
+  const bothSticks=["left","right"].every(hand=>sources.some(s=>
+   s.handedness===hand&&s.gamepad?.buttons?.[3]?.pressed));
+  if(bothSticks&&motionActorUI.recorder.recording){
+   if(!vrMotionChordHeld){motionActorUI.stop();statusText("🎭 VRモーション記録を停止しました。VR終了後にJSONをコピーできます。");}
+   vrMotionChordHeld=true;vrButtons.clear();return;
+  }
+  vrMotionChordHeld=bothSticks;
   const {next,pressed}=xrButtonEdges(sources,vrButtons);
   vrButtons=next;
   for(const button of pressed)runVRBinding(xrBoundAction(vrBindings,button));
@@ -1298,6 +1311,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    vrWearables=restored;saveWearables();syncVRClothing();return true;
   },
   close:()=>session?.end(),dispose:()=>{
+   motionActorUI.dispose();
    disposed=true;
    social?.link.disconnect();
    if(session)session.end().catch(()=>{});

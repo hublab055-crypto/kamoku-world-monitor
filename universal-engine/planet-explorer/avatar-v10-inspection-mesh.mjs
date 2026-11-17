@@ -92,6 +92,23 @@ export function createAvatarV10InspectionMeshes(rig){
  ellipsoid("organs",[0,pelvisY-.059,.055],[.048,.042,.042],bladder);
  ellipsoid("organs-uterine",[0,pelvisY-.025,.020],[.046,.038,.029],heart);
  ellipsoid("organs-testicular",[0,pelvisY-.099,.027],[.039,.026,.030],viscera);
+ // Optional OB/GYN learning volumes. This is a simplified adult pelvic
+ // orientation aid, not an obstetric measurement, surgical simulator or
+ // representation of a fetus. The regular skin mesh remains unchanged.
+ const obstetric="organs-obstetric";
+ const soft=[.81,.40,.53],connective=[.92,.72,.55],pelvicFloor=[.55,.65,.72];
+ ellipsoid(obstetric,add(p.pelvis,[0,-.014,.028]),[.077,.081,.051],soft);  // uterine body
+ ellipsoid(obstetric,add(p.pelvis,[0,-.092,.034]),[.029,.030,.028],soft); // cervix
+ bone(obstetric,add(p.pelvis,[0,-.103,.040]),add(p.pelvis,[0,-.174,.067]),.022,connective);
+ ellipsoid(obstetric,add(p.pelvis,[0,-.145,.006]),[.136,.014,.084],pelvicFloor);
+ for(const side of [-1,1]){
+  ellipsoid(obstetric,add(p.pelvis,[side*.087,-.018,.016]),[.024,.017,.019],connective);
+ }
+ // Pelvic brim guide, approximated with small bones anchored to the pelvis.
+ for(const side of [-1,1]){
+  bone(obstetric,add(p.pelvis,[side*.040,.014,.024]),
+   add(p.pelvis,[side*.141,-.057,.013]),.013,ivory);
+ }
  return [...groups.entries()].map(([inspectLayer,g])=>({
   node:rig.skins[parts.skinIndex]?.skeleton??0,skin:parts.skinIndex,
   arrays:{positions:new Float32Array(g.positions),normals:new Float32Array(g.normals),

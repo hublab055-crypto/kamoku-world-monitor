@@ -1,6 +1,6 @@
 import {normalizeAvatarV10Body,normalizeAvatarV10Swim} from "./avatar-v10-body.mjs?v=20261114-body";
 import {migrateLegacyFit} from "./avatar-review-adapter.mjs?v=20261114-original";
-import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-anatomy-view";
+import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261118-obstetric";
 export const AVATAR_V10_MODELS = Object.freeze({
  lyra:"ライラ", mina:"ミナ", sera:"セラ", ren:"レン", noah:"ノア", elio:"エリオ"
 });

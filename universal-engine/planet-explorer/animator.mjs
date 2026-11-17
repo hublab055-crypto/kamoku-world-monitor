@@ -6,7 +6,7 @@
  * Moving arms and locomotion do not reset when a tool animation starts.
  */
 import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
-import {sampleAvatarDailyPose,AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
+import {sampleAvatarDailyPose,AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8q-splash";
 const alpha=(dt,tau)=>1-Math.exp(-Math.max(0,dt)/Math.max(.001,tau));
 const smooth=(a,b,t)=>a+(b-a)*t;

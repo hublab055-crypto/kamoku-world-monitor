@@ -16,7 +16,8 @@ export const ANATOMY_LAYERS=Object.freeze({
  xray:"X線風：皮膚透明＋内部構造",
  muscle:"半透明皮膚＋筋肉（簡易3D）",
  bones:"半透明皮膚＋骨格（簡易3D）",
- organs:"半透明皮膚＋臓器（教育用3D）"
+ organs:"半透明皮膚＋臓器（教育用3D）",
+ obstetric:"産科教材：骨盤・子宮・子宮頸部・骨盤底・産道（簡易3D）"
 });
 export const ANATOMY_SLIDERS=Object.freeze([
  ["pecDefinition","胸筋の輪郭"],
@@ -53,6 +54,13 @@ export const ANATOMY_REGIONS=Object.freeze([
  region("large-intestine","大腸","organs",[0,.85,.02],"水分吸収・便形成"),
  region("bladder","膀胱","organs",[0,.72,.05],"尿の貯留"),
  region("uterus","子宮","organs",[0,.76,.005],"生殖器官の学習用位置", "uterine"),
+ region("maternal-pelvis","母体骨盤","obstetric",[0,.78,0],"骨盤入口・出口の位置関係（簡易モデル）","uterine"),
+ region("uterine-body","子宮体部","obstetric",[0,.79,.03],"子宮の体部を模式化した3D体積","uterine"),
+ region("cervix","子宮頸部","obstetric",[0,.72,.045],"子宮と産道の間の頸部（模式図）","uterine"),
+ region("birth-canal","産道","obstetric",[0,.67,.063],"骨盤内の通路の位置関係を示す教育用ガイド","uterine"),
+ region("pelvic-floor","骨盤底筋群","obstetric",[0,.69,.010],"骨盤底を支える筋群の概形（診断には使用不可）","uterine"),
+ region("ovary-left","卵巣（左）","obstetric",[-.085,.80,.01],"卵巣の配置目印","uterine"),
+ region("ovary-right","卵巣（右）","obstetric",[.085,.80,.01],"卵巣の配置目印","uterine"),
  region("ovaries","卵巣","organs",[.07,.78,.015],"生殖細胞とホルモン産生", "uterine"),
  region("testes","精巣","organs",[.05,.64,.06],"生殖細胞とホルモン産生", "testicular"),
  region("prostate","前立腺","organs",[0,.68,.015],"骨盤内の腺", "testicular")

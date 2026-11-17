@@ -1,11 +1,11 @@
-import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261117-anatomy-view";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261117-hip-articulation";
-import {lookAt,multiply4,perspective} from "./render.mjs?v=20261117-family-gestures";
+import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261118-medical";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
+import {lookAt,multiply4,perspective} from "./render.mjs?v=20261118-mocap-medical";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
 import {AVATAR_V10_BODY,AVATAR_V10_SWIM_STYLES,AVATAR_V10_SWIM_COLORS} from "./avatar-v10-body.mjs?v=20261114-body";
-import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261115";
-import {ANATOMY_PRESETS,ANATOMY_BODY_SOURCES,ANATOMY_LAYERS,ANATOMY_SLIDERS,visibleAnatomyRegions,normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261117-anatomy-view";
+import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
+import {ANATOMY_PRESETS,ANATOMY_BODY_SOURCES,ANATOMY_LAYERS,ANATOMY_SLIDERS,visibleAnatomyRegions,normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261118-obstetric";
 
 const names={player:"自分",navigator:"副官（航法・通信）",engineer:"機関士",companion:"同行者"};
 const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -234,7 +234,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
    row.textContent=part.name+"："+part.detail;
    regionList.append(row);
   }
-  if(["xray","bones","muscle","organs"].includes(current.layer)){
+  if(["xray","bones","muscle","organs","obstetric"].includes(current.layer)){
    const note=document.createElement("small");
    note.textContent="※ 3Dは骨格に追従する教育用の概形です。組織の精密形状、切開・手術シミュレーションではありません。";
    regionList.prepend(note);
@@ -242,6 +242,7 @@ export function installAvatarV10Editor({getRoster,apply,save}) {
  }
  function updateAnatomy(key,value){
   const next={...normalizeAvatarAnatomy(fit.anatomy),[key]:value};
+   if(key==="layer"&&value==="obstetric"){next.preset="uterine";anatomyPreset.value="uterine";}
   if(key==="layer"&&value!=="skin"&&next.source==="legacy"){
    next.source="procedural";anatomySource.value="procedural";
   }
