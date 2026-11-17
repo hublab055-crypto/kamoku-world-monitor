@@ -8,6 +8,7 @@ import {matIdentity,matTRS,matMultiply} from "./frontier-animated.mjs?v=20261114
  * It is an anatomical game approximation, not a surgical model.
  */
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const smooth01=t=>{const x=clamp(t,0,1);return x*x*(3-2*x);};
 const sub=(a,b)=>a.map((v,i)=>v-b[i]);
 const add=(a,b)=>a.map((v,i)=>v+b[i]);
 const mul=(a,f)=>a.map(v=>v*f);
@@ -135,21 +136,26 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
  const extras=[
   [[trunkX-.094,chestHeight-.005,p.chest[2]+.104],[.086,.074,bust]],
   [[trunkX+.094,chestHeight-.005,p.chest[2]+.104],[.086,.074,bust]],
-  // A shallow transition into the upper thighs; no detached rear ellipsoids.
+  // Shallow gluteal transition is retained; do not restore rear bulges.
   [add(p.pelvis,[-.075,-.065,-.031]),[.097,.085,.114]],
   [add(p.pelvis,[.075,-.065,-.031]),[.097,.085,.114]]
+
  ];
  const chains=[
   ["leftShoulder","leftElbow",.069,.060],["leftElbow","leftWrist",.061,.052],
   ["rightShoulder","rightElbow",.069,.060],["rightElbow","rightWrist",.061,.052],
-  ["leftHip","leftKnee",.105,.076],["leftKnee","leftAnkle",.072,.044],
-  ["rightHip","rightKnee",.105,.076],["rightKnee","rightAnkle",.072,.044],
+  ["leftHip","leftKnee",.109,.076],["leftKnee","leftAnkle",.072,.044],
+  ["rightHip","rightKnee",.109,.076],["rightKnee","rightAnkle",.072,.044],
   // Slimmer deltoids / trapezius, without swallowing the neck.
   ["chest","leftShoulder",.093,.075],["chest","rightShoulder",.093,.075],
   ["pelvis","leftHip",.090,.098],["pelvis","rightHip",.090,.098],
   ["chest","neck",.052,.050]
  ];
  for(const side of ["left","right"]){
+  const hip=p[side+"Hip"],sign=Math.sign(hip[0]-p.pelvis[0])||(side==="left"?-1:1);
+  // Rounded greater-trochanter / anterior upper-thigh transition.
+  // Keep the new volume in front of the hip so the improved rear glutes remain.
+  extras.push([add(hip,[sign*.016,-.039,.027]),[.104,.121,.093]]);
   const wrist=p[side+"Wrist"];
   // Fill the narrow forearm-to-palm seam even when authored fingers exist.
   shapes.push([wrist,[.055,.052,.054]]);
@@ -226,6 +232,24 @@ function skinVertex(point,parts){
  put(ids[best.b],best.t*(1-torsoWeight));
  put(ids[a],(1-target)*torsoWeight);
  put(ids[b],target*torsoWeight);
+ // The greater trochanter and upper thigh must blend with the pelvis.
+ // A nearest-segment-only assignment produces sharp cracks in hip flexion.
+ // Preserve left/right separation at the midline and the original femur
+ // influence below the transition band.
+ const hipSide=Math.abs(point[0]-p.leftHip[0])<=Math.abs(point[0]-p.rightHip[0])?"left":"right";
+ const hip=p[hipSide+"Hip"],hipId=ids[hipSide+"Hip"];
+ const nearHip=smooth01((.157-Math.abs(point[0]-hip[0]))/.058);
+ const offCenter=smooth01((Math.abs(point[0]-p.pelvis[0])-.028)/.054);
+ const high=smooth01((hip[1]+.105-point[1])/.050);
+ const low=smooth01((point[1]-(hip[1]-.143))/.050);
+ const depth=smooth01((.185-Math.abs(point[2]-hip[2]))/.055);
+ const hipBlend=nearHip*offCenter*high*low*depth*(1-torsoWeight);
+ if(hipBlend>.0001){
+  const drive=smooth01((hip[1]+.044-point[1])/.135);
+  for(const [j,w] of influence)influence.set(j,w*(1-hipBlend));
+  put(ids.pelvis,hipBlend*(1-drive));
+  put(hipId,hipBlend*drive);
+ }
  const top=[...influence.entries()].sort((x,y)=>y[1]-x[1]).slice(0,4);
  const sum=top.reduce((v,item)=>v+item[1],0)||1;
  return {joints:[...top.map(item=>item[0]),...Array(4-top.length).fill(0)],
