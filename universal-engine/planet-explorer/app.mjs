@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261118-mocap-medical";
+import {ExplorerRenderer} from "./render.mjs?v=20261118-extended-world-motions";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -695,7 +695,7 @@ function activateAvatarDaily(raw){
  if(!avatarDailyAvailable()){log("地上で、VR・宇宙船・勾留モードを終了してから動作を選んでください");return false;}
  const action=raw==="pickupLeft"?"pickup":raw;
  if(action!=="idle"&&!Object.hasOwn(AVATAR_DAILY_ACTIONS,action))return false;
- const loops=["run","crouch","sleep","holdBaby"];
+ const loops=["run","crouch","sleep","holdBaby","stretch","kneel","pelvicTilt","supportedSquat","laborBreathing","sideRest","rockBaby"];
  avatarDailyState.action=action==="idle"||loops.includes(action)&&avatarDailyState.action===action?
   null:action;
  avatarDailyState.hand=raw==="pickupLeft"?"left":"right";
@@ -719,8 +719,13 @@ function updateAvatarDaily(dt){
   avatarDailyState.elapsed+=running?dt:0;
   const seconds=AVATAR_DAILY_ACTIONS[action]?.seconds||0;
   if(seconds>0&&avatarDailyState.elapsed>=seconds){
-   avatarDailyState.action=null;
-   document.querySelectorAll("[data-avatar-daily]").forEach(btn=>btn.setAttribute("aria-pressed","false"));
+   // Repeated posture rehearsals should continue until explicitly cancelled.
+   if(["stretch","kneel","pelvicTilt","supportedSquat","laborBreathing","sideRest","rockBaby"].includes(action))
+    avatarDailyState.elapsed%=seconds;
+   else{
+    avatarDailyState.action=null;
+    document.querySelectorAll("[data-avatar-daily]").forEach(btn=>btn.setAttribute("aria-pressed","false"));
+   }
   }
  }
  const active=avatarDailyState.action;
@@ -4841,6 +4846,10 @@ for(const id of ["viewport-mr-social","toolbar-mr-social"]){
 }
 
 avatarEditor=installAvatarV10Editor({getRoster:()=>avatarV10,apply:applyAvatarV10,save:saveAvatarV10});
+document.getElementById("avatar-daily-extended")?.addEventListener("change",event=>{
+ const action=event.target.value;event.target.value="";
+ if(action&&activateAvatarDaily(action))closeCompactMenus();
+});
 document.getElementById("viewport-avatar-actions")?.addEventListener("click",event=>{
  const button=event.target.closest?.("[data-avatar-daily]");
  if(!button)return;
