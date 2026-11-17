@@ -5,7 +5,7 @@ export const CREW_GESTURES = Object.freeze({
  doubleThumbs:{label:"両手グッド",seconds:2.15},
  hug:{label:"ハグ",seconds:2.85,distance:1.45,gap:.54},
  handhold:{label:"手をつなぐ",seconds:2.6,distance:1.75,gap:.78},
- kiss:{label:"短いキス",seconds:2.4,distance:1.25,gap:.43}
+ kiss:{label:"短いキス",seconds:2.4,distance:1.75,gap:.43}
 });
 
 export const CREW_REACH = 2.6;
