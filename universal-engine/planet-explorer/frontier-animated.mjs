@@ -1,4 +1,4 @@
-import {poseAvatarV10Gesture} from "./avatar-v10-motion.mjs?v=20261117-family-gestures";
+import {poseAvatarV10Gesture} from "./avatar-v10-motion.mjs?v=20261117-numeric";
 import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
 import {sampleAvatarDailyPose} from "./avatar-daily-actions.mjs?v=20261115";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8q-splash";
