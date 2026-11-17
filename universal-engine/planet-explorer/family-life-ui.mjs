@@ -1,4 +1,4 @@
-import {FAMILY_GROWTH_STAGES,OVERLORD_COVENANT} from "./family-life.mjs?v=20261117-family-covenant";
+import {FAMILY_GROWTH_STAGES,OVERLORD_COVENANT,FAMILY_PRIVATE_MOD_EVENT,FAMILY_ONENIGHT_MIN_AFFINITY} from "./family-life.mjs?v=20261117-oasis-mod-bridge";
 /** Single-player family UI. No intimate content is rendered. The adult-only
  * unlock is a local content gate, not a real-world age-verification system.
  */
@@ -16,6 +16,8 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
  '<label>相手 <select data-partner></select></label>'+
  '<div data-relationship></div>'+
  '<label><input type="checkbox" data-consent> 双方の明示的な同意を確認</label>'+
+ '<label style="display:block"><input type="checkbox" data-one-night> 婚姻・交際なしのワンナイト（成人・相互合意＋親密度 '+FAMILY_ONENIGHT_MIN_AFFINITY+'以上）</label>'+
+ '<label style="display:block"><input type="checkbox" data-mod> 非公式MODイベント連携（カメラ暗転なし／ゲーム本体では非描写）</label>'+
  '<div data-gate style="display:flex;flex-wrap:wrap;gap:5px"><label>成人向け表示コード <input data-code type="password" inputmode="numeric" autocomplete="off" maxlength="4" style="width:75px"></label><label><input type="checkbox" data-adult> 私は成人です</label><button type="button" data-unlock>9876で解禁</button><button type="button" data-lock>閉じる</button></div>'+
  '<div data-adult-actions style="display:flex;flex-wrap:wrap;gap:5px"></div>'+
  '<div data-private-screen hidden style="padding:24px;text-align:center;border-radius:8px;background:#03080f;color:#d5e5f4">🌌 ふたりの時間<br><small>画面暗転／内容は描写しません</small><div><button type="button" data-private-close>戻る</button></div></div>'+
@@ -67,10 +69,33 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
   mutualConsent:agreed(),relationship:currentRelation()}),{requiresProximity:true}));
  buttonAction(actions,"結婚",()=>execute(w=>w.marry(partner.value,{
   mutualConsent:agreed(),relationship:currentRelation()}),{requiresProximity:true}));
+ buttonAction(actions,"ワンナイトを提案（NPC側の承諾）",()=>execute(()=>{
+  if(!agreed())return {ok:false,message:"双方の意思を確認してください"};
+  return conn()?.deepenRelationship?.(partner.value,"casual")||
+   {ok:false,message:"クルーが見つかりません"};
+ },{requiresProximity:true}));
  for(const [kind,label] of [["handhold","手をつなぐ"],["hug","ハグ"],["kiss","キス"],["private","🌙 ふたりの時間"]]){
   buttonAction(actions,label,()=>{
-   const result=execute(w=>w.action(partner.value,kind,{mutualConsent:agreed()}),{requiresProximity:true});
-   if(result?.ok&&kind==="private")el("[data-private-screen]").hidden=false;
+   const oneNight=el("[data-one-night]").checked===true;
+   const mod=el("[data-mod]").checked===true;
+   const result=execute(w=>w.action(partner.value,kind,{
+    mutualConsent:agreed(),oneNight,relationship:currentRelation(),
+    sceneMode:kind==="private"&&mod?"mod":"fade"
+   }),{requiresProximity:true});
+   if(result?.ok&&kind==="private"){
+    if(oneNight)conn()?.social?.consumeCasualConsent?.(partner.value);
+    if(result.event?.fadeToBlack)el("[data-private-screen]").hidden=false;
+    else{
+     el("[data-private-screen]").hidden=true;
+     const detail=result.event?.modEvent;
+     if(detail?.name===FAMILY_PRIVATE_MOD_EVENT&&typeof window!=="undefined"){
+      // Third-party listeners receive a private-event token, not a scene,
+      // animation, user identity, or an exemption from age/consent checks.
+      window.dispatchEvent(new CustomEvent(FAMILY_PRIVATE_MOD_EVENT,{detail}));
+      el("[data-result]").textContent="MOD接続イベントを通知しました。ゲーム本体はカメラを維持し、親密な内容は描写しません。";
+     }
+    }
+   }
    if(result?.ok&&["handhold","hug","kiss"].includes(kind)){
     const motion=onAdultPose(kind,partner.value);
     if(motion?.ok===false)el("[data-result]").textContent=motion.message+"（関係の記録は保存されています）";
@@ -118,12 +143,15 @@ export function installFamilyLifeUI({world,crew,notify=()=>{},inherit=()=>{},onC
   const relation=currentRelation();
   el("[data-relationship]").textContent=relation?
    "既存の関係："+relation.label+" / 親密度 "+relation.points+
+   (relation.casualConsent?" / この場限りのNPC同意あり":"")+
    "｜家族ステータス："+(w.partners[partner.value]?.status==="married"?"結婚":w.partners[partner.value]?"交際":"未交際"):
    "クルーとの関係は乗船して確認できます";
   el("[data-code]").disabled=w.privateUnlocked;
   const active=w.privateUnlocked;
+  el("[data-one-night]").disabled=!active;
+  el("[data-mod]").disabled=!active;
   for(const b of [...actions.querySelectorAll("button")]){
-   if(/ハグ|キス|手をつなぐ|ふたりの時間|家族計画/.test(b.textContent))b.disabled=!active;
+   if(/ハグ|キス|手をつなぐ|ふたりの時間|家族計画|ワンナイト/.test(b.textContent))b.disabled=!active;
   }
   const old=childSelect.value;childSelect.replaceChildren();
   if(!w.children.length)childSelect.add(new Option("まだいません",""));
