@@ -70,3 +70,13 @@ test("save/restore retains roaming targets and clock deterministically",()=>{
  step(s);step(restored);
  assert.deepEqual(restored.snapshot(),s.snapshot());
 });
+
+test("manual standing a chatting crew member stays in control, not automatic return",()=>{
+ const s=new ShipInterior();
+ for(let i=0;i<130;i++)step(s);
+ const c=s.crew.find(x=>x.id==="engineer");
+ s.x=c.x+.75;s.z=c.z;
+ assert.equal(s.setCrewSeated("engineer",false).ok,true);
+ assert.equal(c.returning,false);
+ assert.equal(c.routineTarget,null);
+});
