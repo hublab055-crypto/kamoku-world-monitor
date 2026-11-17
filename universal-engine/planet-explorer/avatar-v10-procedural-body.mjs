@@ -83,7 +83,7 @@ function skeleton(rig){
  * In particular the leg split belongs below the pelvis rather than the calf.
  */
 function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=false}={}){
- const p=parts.points,mid=(a,b)=>mix(a,b,.5);
+ const p=parts.points;
  // Chest joint is often an upper-rib/clavicle pivot: use measured landmarks.
  const shoulderY=(p.leftShoulder[1]+p.rightShoulder[1])*.5;
  const kneeY=(p.leftKnee[1]+p.rightKnee[1])*.5;
@@ -92,36 +92,69 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
  const navelHeight=p.pelvis[1]+clamp((p.waist[1]-p.pelvis[1])*.48,.035,.135);
  const crotchY=p.pelvis[1]-clamp((p.pelvis[1]-kneeY)*.28,.105,.16);
  const trunkX=(p.leftShoulder[0]+p.rightShoulder[0])*.5;
+ // A continuous oval rib cage/waist replaces two discrete overlapping eggs.
+ // Overlapping eggs created concave underarms and a corset-like waist pinching.
+ // Radius is measured in metres in the normalized 1.8m avatar frame.
+ const shoulderWidth=Math.abs(p.rightShoulder[0]-p.leftShoulder[0]);
+ const torsoScale=clamp(shoulderWidth/.50,.86,1.16);
+ const torsoLevels=[
+  [0,.185,.138],  // pelvis
+  [.28,.177,.132], // waist: never collapse to a narrow hourglass
+  [.55,.194,.135], // lower ribs
+  [.82,.215,.142], // armpit-to-rib-cage continuity
+  [1,.198,.133]    // shoulders
+ ];
+ const torsoProfile=y=>{
+  const t=clamp((y-p.pelvis[1])/(torsoHeight||1),0,1);
+  for(let i=1;i<torsoLevels.length;i++){
+   if(t<=torsoLevels[i][0]){
+    const a=torsoLevels[i-1],b=torsoLevels[i];
+    const u=clamp((t-a[0])/(b[0]-a[0]),0,1),e=u*u*(3-2*u);
+    return [mix([a[1],a[2]],[b[1],b[2]],e)[0]*torsoScale,
+            mix([a[1],a[2]],[b[1],b[2]],e)[1]];
+   }
+  }
+  return [torsoLevels.at(-1)[1]*torsoScale,torsoLevels.at(-1)[2]];
+ };
+ const torsoField=point=>{
+  const [radiusX,radiusZ]=torsoProfile(point[1]);
+  const zCenter=p.pelvis[2]+(p.chest[2]-p.pelvis[2])*clamp((point[1]-p.pelvis[1])/(torsoHeight||1),0,1);
+  const x=(point[0]-trunkX)/radiusX,z=(point[2]-zCenter)/radiusZ;
+  const radial=(Math.hypot(x,z)-1)*Math.min(radiusX,radiusZ);
+  const bottom=p.pelvis[1]-.080,top=shoulderY+.025;
+  const cap=Math.max(bottom-point[1],point[1]-top);
+  return -smoothMin(-radial,-cap,.045); // smooth intersection with rounded ends
+ };
  const shapes=[
-  // Rib cage distinct from waist; never extend the rib cage through the neck.
-  [[trunkX,(shoulderY+chestHeight)*.5,p.chest[2]],[.190,Math.max(.115,torsoHeight*.26),.118]],
-  [[trunkX,(chestHeight+navelHeight)*.5,p.waist[2]],[.157,Math.max(.115,(chestHeight-navelHeight)*.54),.117]],
-  // Short pelvis keeps the thigh separation at the anatomical hip level.
-  [add(p.pelvis,[0,-.035,0]),[.175,.111,.140]],
-  [mix(p.chest,p.neck,.60),[.066,.086,.063]],
-  // Narrow dedicated neck, not the inflated upper-chest oval.
+  // An oval pelvis supports a modest gluteal contour without rearward bulbs.
+  [add(p.pelvis,[0,-.030,-.011]),[.188,.128,.143]],
+  [mix(p.chest,p.neck,.60),[.067,.085,.063]],
   [add(p.neck,[0,.050,0]),[.053,.105,.054]]
  ];
  const bust=isBust?.067:.037;
  const extras=[
   [[trunkX-.094,chestHeight-.005,p.chest[2]+.104],[.086,.074,bust]],
   [[trunkX+.094,chestHeight-.005,p.chest[2]+.104],[.086,.074,bust]],
-  [add(p.pelvis,[-.089,-.073,-.087]),[.097,.092,.106]],
-  [add(p.pelvis,[.089,-.073,-.087]),[.097,.092,.106]]
+  // A shallow transition into the upper thighs; no detached rear ellipsoids.
+  [add(p.pelvis,[-.075,-.065,-.031]),[.097,.085,.114]],
+  [add(p.pelvis,[.075,-.065,-.031]),[.097,.085,.114]]
  ];
  const chains=[
-  ["leftShoulder","leftElbow",.065,.053],["leftElbow","leftWrist",.053,.039],
-  ["rightShoulder","rightElbow",.065,.053],["rightElbow","rightWrist",.053,.039],
+  ["leftShoulder","leftElbow",.069,.060],["leftElbow","leftWrist",.061,.052],
+  ["rightShoulder","rightElbow",.069,.060],["rightElbow","rightWrist",.061,.052],
   ["leftHip","leftKnee",.105,.076],["leftKnee","leftAnkle",.072,.044],
   ["rightHip","rightKnee",.105,.076],["rightKnee","rightAnkle",.072,.044],
   // Slimmer deltoids / trapezius, without swallowing the neck.
-  ["chest","leftShoulder",.078,.061],["chest","rightShoulder",.078,.061],
+  ["chest","leftShoulder",.093,.075],["chest","rightShoulder",.093,.075],
   ["pelvis","leftHip",.090,.098],["pelvis","rightHip",.090,.098],
   ["chest","neck",.052,.050]
  ];
  for(const side of ["left","right"]){
+  const wrist=p[side+"Wrist"];
+  // Fill the narrow forearm-to-palm seam even when authored fingers exist.
+  shapes.push([wrist,[.055,.052,.054]]);
   if(!includeAuthoredHands){
-   const wrist=p[side+"Wrist"],elbow=p[side+"Elbow"];
+   const elbow=p[side+"Elbow"];
    const wristAxis=sub(wrist,elbow),L=norm(wristAxis)||1;
    const palm=add(wrist,mul(wristAxis,.048/L));
    shapes.push([palm,[.061,.072,.054]]);
@@ -135,13 +168,11 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
   }
  }
  const fn=point=>{
-  let d=Infinity;
+  let d=torsoField(point);
   // Smaller smooth blend retains readable clavicle, thigh and elbow contours.
   for(const [center,radii] of shapes)d=smoothMin(d,egg(point,center,radii),.030);
   for(const [center,radii] of extras)d=smoothMin(d,egg(point,center,radii),.023);
   for(const [a,b,r0,r1] of chains)d=smoothMin(d,capsule(point,p[a],p[b],r0,r1),.025);
-  // Umbilicus is carved into the surface, not a vague diffuse color mark.
-  const umbilicus=norm(sub(point,[0,navelHeight,.115]))-.012;
   // Open a separation only BELOW the pelvis, not at knee height.
   const gap=clamp(Math.abs(p.leftHip[0]-p.rightHip[0])*.16,.035,.057);
   const below=crotchY-point[1],inside=gap-Math.abs(point[0]-p.pelvis[0]);
@@ -282,4 +313,5 @@ export function createAvatarV10ProceduralBody(rig,{resolution=.036}={}){
 }
 
 // Reuse the exact same bind-frame joints for transparent inspection overlays.
-export {skeleton as avatarV10Skeleton,skinVertex as avatarV10SkinWeights};
+export {skeleton as avatarV10Skeleton,skinVertex as avatarV10SkinWeights,
+ bodyField as avatarV10BodyField};
