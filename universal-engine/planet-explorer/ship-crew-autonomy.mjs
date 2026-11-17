@@ -47,11 +47,10 @@ export class ShipCrewAutonomy{
   this.topic=finite(saved?.topic)?Math.abs(Math.floor(saved.topic))%TOPICS.length:0;
   this.line=finite(saved?.line)?clamp(Math.floor(saved.line),0,TOPICS[0].lines.length-1):0;
   this.elapsed=finite(saved?.elapsed)?Math.max(0,saved.elapsed):0;
-  this.bonds=saved?.bonds&&typeof saved.bonds==="object"?{
-   "engineer:companion":Math.max(0,Number(saved.bonds["engineer:companion"])||0),
-   "navigator:companion":Math.max(0,Number(saved.bonds["navigator:companion"])||0),
-   "navigator:engineer":Math.max(0,Number(saved.bonds["navigator:engineer"])||0)
-  }:{};
+  const validPairs=new Set(PAIRS.map(ids=>ids.join(":")));
+  this.bonds=Object.fromEntries(Object.entries(saved?.bonds||{})
+   .filter(([key,value])=>validPairs.has(key)&&Number.isFinite(value))
+   .map(([key,value])=>[key,clamp(value,0,500)]));
  }
  get speech(){
   if(this.phase!=="talk"||this.pair.length!==2)return null;
