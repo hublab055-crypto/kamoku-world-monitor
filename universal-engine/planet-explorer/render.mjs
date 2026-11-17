@@ -905,6 +905,12 @@ export class ExplorerRenderer{
    this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
    this.shipCrewWindow=new Mesh(gl,spacecraftCockpitCrewWindowGeometry());
    this.shipCrewWindowFrame=new Mesh(gl,spacecraftCockpitCrewWindowGeometry({standIns:false}));
+   // Small luminous three-dot radio bubbles stay in the same world-space
+   // coordinate frame as each speaker (including stereoscopic Quest VR).
+   const crewChatGlyph=builder();
+   for(const x of [-.16,0,.16])box(crewChatGlyph,x,0,0,.035,.035,.012,[.56,.96,.87]);
+   box(crewChatGlyph,0,-.065,0,.28,.009,.008,[.20,.65,.68]);
+   this.shipCrewTalkMarker=new Mesh(gl,crewChatGlyph);
    this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
    this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
    this.shipWindshieldHUD=null;this.shipWindshieldHUDKey="";
@@ -1604,13 +1610,19 @@ export class ExplorerRenderer{
    const y=player&&person.z>13&&person.hatchPassable?-.25*(person.z-13):0;
    const transform=multiply4(translate(actor.x,y,actor.z),rotateY(actor.yaw));
    const gesture=actor.time===null?null:actor;
-   const gaze=!player&&distance<3.4?{
+   const gaze=!player&&actor.talking?{yaw:0,pitch:.04+.035*Math.sin((person.routine?.clock||0)*2)}:
+    !player&&distance<3.4?{
     yaw:Math.max(-.45,Math.min(.45,Math.atan2(person.x-actor.x,person.z-actor.z)-actor.yaw)),
     pitch:Math.max(-.30,Math.min(.22,Math.atan2((person.seated?1.19:1.59)-1.59,Math.max(.35,distance))))
    }:null;
    const asset=this.drawAvatarV10(actor.id,vp,transform,light,dt,{motion:actor.motion,
     time:actor.time,gesture,lookAt:gaze,
     firstPerson:player&&this.xrView?.mode==="vr"&&!this.xrView.showAvatar});
+   if(!player&&actor.speaking){
+    const floatY=2.18+.055*Math.sin((person.routine?.clock||0)*3);
+    const mark=multiply4(vp,translate(actor.x,floatY,actor.z));
+    this.drawMesh(this.shipCrewTalkMarker,mark,light,1,.98);
+   }
    if(asset)continue;
    if(player){
      // XR renders one authored player plus tracked hands, never the old rig.
@@ -3586,6 +3598,7 @@ export class ExplorerRenderer{
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.avatarV10Assets.destroy();
    for(const mesh of this.shipCrewFallbacks.values())mesh.destroy();
+   this.shipCrewTalkMarker?.destroy();
    for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
    this.gl.deleteProgram(this.program);
  }
