@@ -73,8 +73,10 @@ function skeleton(rig){
  }
  const p=points;
  // Do not accidentally generate a folded, upside-down or wildly scaled body.
- if(!(p.neck[1]>p.pelvis[1]&&p.pelvis[1]>p.leftAnkle[1]&&
-      p.pelvis[1]>p.rightAnkle[1]))return null;
+ const sh=(p.leftShoulder[1]+p.rightShoulder[1])*.5,knees=(p.leftKnee[1]+p.rightKnee[1])*.5;
+ if(!(p.neck[1]>sh-.10&&sh>p.pelvis[1]+.22&&p.pelvis[1]>knees+.20&&
+      p.leftHip[1]>p.leftKnee[1]+.17&&p.rightHip[1]>p.rightKnee[1]+.17&&
+      p.leftKnee[1]>p.leftAnkle[1]+.15&&p.rightKnee[1]>p.rightAnkle[1]+.15))return null;
  return {skinIndex,ids,points};
 }
 /** SDF sections are measured from the V10 bind skeleton, not fixed y marks.
@@ -82,13 +84,18 @@ function skeleton(rig){
  */
 function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=false}={}){
  const p=parts.points,mid=(a,b)=>mix(a,b,.5);
- const torsoHeight=p.chest[1]-p.pelvis[1];
- const chestHeight=p.chest[1]+.015;
- const navelHeight=p.pelvis[1]+(p.waist[1]-p.pelvis[1])*.24;
+ // Chest joint is often an upper-rib/clavicle pivot: use measured landmarks.
+ const shoulderY=(p.leftShoulder[1]+p.rightShoulder[1])*.5;
+ const kneeY=(p.leftKnee[1]+p.rightKnee[1])*.5;
+ const torsoHeight=shoulderY-p.pelvis[1];
+ const chestHeight=shoulderY-clamp(torsoHeight*.34,.125,.20);
+ const navelHeight=p.pelvis[1]+clamp((p.waist[1]-p.pelvis[1])*.48,.035,.135);
+ const crotchY=p.pelvis[1]-clamp((p.pelvis[1]-kneeY)*.28,.105,.16);
+ const trunkX=(p.leftShoulder[0]+p.rightShoulder[0])*.5;
  const shapes=[
   // Rib cage distinct from waist; never extend the rib cage through the neck.
-  [mix(p.waist,p.chest,.61),[.190,Math.max(.115,torsoHeight*.48),.118]],
-  [mix(p.pelvis,p.waist,.67),[.157,.132,.117]],
+  [[trunkX,(shoulderY+chestHeight)*.5,p.chest[2]],[.190,Math.max(.115,torsoHeight*.26),.118]],
+  [[trunkX,(chestHeight+navelHeight)*.5,p.waist[2]],[.157,Math.max(.115,(chestHeight-navelHeight)*.54),.117]],
   // Short pelvis keeps the thigh separation at the anatomical hip level.
   [add(p.pelvis,[0,-.035,0]),[.175,.111,.140]],
   [mix(p.chest,p.neck,.60),[.066,.086,.063]],
@@ -97,8 +104,8 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
  ];
  const bust=isBust?.067:.037;
  const extras=[
-  [add(p.chest,[-.094,.006,.104]),[.086,.074,bust]],
-  [add(p.chest,[.094,.006,.104]),[.086,.074,bust]],
+  [[trunkX-.094,chestHeight-.005,p.chest[2]+.104],[.086,.074,bust]],
+  [[trunkX+.094,chestHeight-.005,p.chest[2]+.104],[.086,.074,bust]],
   [add(p.pelvis,[-.089,-.073,-.087]),[.097,.092,.106]],
   [add(p.pelvis,[.089,-.073,-.087]),[.097,.092,.106]]
  ];
@@ -116,7 +123,11 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
   if(!includeAuthoredHands){
    const wrist=p[side+"Wrist"],elbow=p[side+"Elbow"];
    const wristAxis=sub(wrist,elbow),L=norm(wristAxis)||1;
-   shapes.push([add(wrist,mul(wristAxis,.048/L)),[.053,.080,.048]]);
+   const palm=add(wrist,mul(wristAxis,.048/L));
+   shapes.push([palm,[.061,.072,.054]]);
+   // Fallback digits only when original palm meshes are unavailable.
+   for(const dx of [-.031,-.010,.011,.032])
+    extras.push([add(palm,[dx,-.014,.014]),[.012,.047,.014]]);
   }
   if(!includeAuthoredFeet){
    const ankle=p[side+"Ankle"];
@@ -131,11 +142,14 @@ function bodyField(parts,isBust,{includeAuthoredHands=false,includeAuthoredFeet=
   for(const [a,b,r0,r1] of chains)d=smoothMin(d,capsule(point,p[a],p[b],r0,r1),.025);
   // Umbilicus is carved into the surface, not a vague diffuse color mark.
   const umbilicus=norm(sub(point,[0,navelHeight,.115]))-.012;
-  // The surface's actual z at the navel is resolved separately for texture.
+  // Open a separation only BELOW the pelvis, not at knee height.
+  const gap=clamp(Math.abs(p.leftHip[0]-p.rightHip[0])*.16,.035,.057);
+  const below=crotchY-point[1],inside=gap-Math.abs(point[0]-p.pelvis[0]);
+  if(below>0&&inside>0)d=Math.max(d,Math.min(below,inside));
   return d;
  };
  fn.landmarks={chestY:chestHeight,navelY:navelHeight,nippleX:.094,hipY:(p.leftHip[1]+p.rightHip[1])*.5,
-  shoulderY:(p.leftShoulder[1]+p.rightShoulder[1])*.5,neckY:p.neck[1]};
+  shoulderY,neckY:p.neck[1],crotchY};
  return fn;
 }
 
