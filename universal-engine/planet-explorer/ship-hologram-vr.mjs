@@ -10,8 +10,8 @@ export const XR_HOLO_PANELS=Object.freeze([
  Object.freeze({side:"right",x:.76,y:.78,z:XR_HOLO_Z,width:.78,height:.84})
 ]);
 export const XR_HOLO_SLIDERS=Object.freeze([
- Object.freeze({id:"main",x:-.96,minY:.60,maxY:.81,z:XR_HOLO_Z,vol:false}),
- Object.freeze({id:"vol",x:-.57,minY:.60,maxY:.81,z:XR_HOLO_Z,vol:true})
+ Object.freeze({id:"main",x:-.96,minY:.64,maxY:.81,z:XR_HOLO_Z,vol:false}),
+ Object.freeze({id:"vol",x:-.57,minY:.64,maxY:.81,z:XR_HOLO_Z,vol:true})
 ]);
 export const XR_HOLO_BUTTONS=Object.freeze([
  Object.freeze({id:"gear",x:-.96,y:1.04,z:XR_HOLO_Z,label:"GEAR"}),
