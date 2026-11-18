@@ -36,3 +36,27 @@ Supplemental:
 \`node --check planet-explorer/world-tablet.mjs\`
 
 Existing: \`test-universal-engine.yml\` CI runs \`npm test\` on pushes and pull requests.
+
+## YouTube検索・URL登録（2026-11-19追加）
+
+画面操作：`▣ タブレット → ▶ 動画`
+
+- URL（YouTube watch / youtu.be / shorts / live / embed、または動画ID）を入力し、「再生」でYouTube公式埋め込みプレーヤーを開く。
+- 「登録名（任意）」を入力して「☆ URL登録」を押すと、同一ブラウザの localStorage `universal-engine:youtube-urls:v1` に動画ID、登録名、登録日時を保存。最大100件、同一動画は重複させず登録名を更新。リストには「再生」「URLをコピー」「削除」を用意する。動画コンテンツや認証情報は保存しない。保存は機器・ブラウザごとに独立する。
+- YouTube動画をキーワード検索。認証された同一オリジンの検索APIが構成されていればタブレット内に検索結果が表示され、結果から直接再生・登録できる。未構成時は公式YouTube検索ページを新規タブで開き、見つけた動画URLをタブレットで登録できる。
+- YouTube埋め込みの公開・年齢制限・埋め込み禁止は尊重する。ゲーム内WebGL壁テクスチャへの配信はこの段階に含まれない。
+- URL文字列と検索結果テキストは検証し、ユーザー提供のHTMLとして実行しない。検索APIキーはブラウザに公開しない。
+
+### 任意のゲーム内検索サーバの仕様
+
+静的サイトだけでは公式YouTube検索結果を取得できない。ゲーム内に検索結果を表示するには、YouTube Data API v3の`search.list`を呼ぶ認証・レート制限付きのバックエンドが必要。APIキーはサーバの秘密環境変数に保存し、認証、アクセス制限、使用量制限、キャッシュ、結果検証を実装してから公開HTMLに下記を設定する。
+
+```html
+<meta name="universal-engine-youtube-search-endpoint" content="/api/youtube-search">
+```
+
+- 要求: 同一オリジン `GET /api/youtube-search?q=<URLエンコード済み検索語>`
+- 応答: `{ "results": [{"videoId":"M7lc1UVf-VE","title":"Sample video","channelTitle":"Sample channel"}] }`
+- YouTube APIへのサーバ側検索例: `search.list(part=snippet,type=video,q=...,maxResults=10,videoEmbeddable=true)`。Quota costとAPI利用規約を遵守する。
+- フロントは上限20件まで表示し、識別子をYouTubeの11文字動画IDとして検証する。
+- サーバ未導入時は外部検索フォールバックであり、ゲーム内検索結果が取得できたと表示しない。
