@@ -208,6 +208,28 @@ function holoLetters(mesh,text,x,y,z,{size=.009,color=[.68,.95,1]}={}){
    box(mesh,start+i*cell+col*size+size*.5,y-r*size,z,size*.44,size*.9,size*.1,color);
  }
 }
+/** Quest tablet: original 3D button geometry (no remote video textures). */
+function vrWorldTabletGeometry(){
+ const b=builder();
+ box(b,0,-.255,-.030,.242,.510,.024,[.10,.16,.21]);
+ box(b,0,-.241,-.004,.226,.482,.004,[.014,.065,.092]);
+ box(b,0,.207,.006,.214,.044,.003,[.10,.34,.43]);
+ holoLetters(b,"WORLD",0,.218,.018,{size:.007,color:[.66,.96,1]});
+ const groups=[
+  ["VIDEO",-.15,.14],["WEB",0,.14],["CHAT",.15,.14],
+  ["SET",-.15,0],["MOTION",0,0],["RTS",.15,0],
+  ["WALL",-.15,-.14],["HAND",0,-.14],["OFF",.15,-.14]
+ ];
+ for(const [label,x,y]of groups){
+  const col=label==="OFF"?[.43,.13,.19]:
+   label==="WALL"?[.19,.39,.30]:[.11,.31,.42];
+  box(b,x,y-.054,.010,.064,.108,.006,col);
+  holoLetters(b,label,x,y+.012,.021,{size:.0057,color:[.78,.98,1]});
+ }
+ box(b,0,-.247,.004,.21,.006,.003,[.27,.67,.71]);
+ return b;
+}
+
 function shipHoloPlateGeometry(){
  const mesh=builder();
  for(const p of XR_HOLO_PANELS){
@@ -767,6 +789,7 @@ export class ExplorerRenderer{
   this.xrView=null; // ephemeral per-eye WebXR pass, never serialized
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
+  this.vrTabletMesh=new Mesh(gl,vrWorldTabletGeometry());
 
   this.cameraController=new CameraController();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
@@ -2719,6 +2742,19 @@ export class ExplorerRenderer{
   * visible while the scene is black, headset projection and framebuffer work
   * and the missing imagery is in the scene renderer instead.
   */
+ /**
+  * Draw room-space XR geometry (metres), independently of planet/ship stage.
+  * No iframe pixels or protected video are sampled.
+  */
+ drawVRWorldTablet(xr,model){
+  if(!xr||!model||!this.vrTabletMesh)return;
+  const vp=multiply4(xr.projection,multiply4(xr.view,model));
+  const gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawMesh(this.vrTabletMesh,vp,[.66,1,.78],1,.89);
+ }
  drawVRGuide(xr,anchor){
   if(!xr||!anchor||!this.globe)return;
   const p=anchor.position;

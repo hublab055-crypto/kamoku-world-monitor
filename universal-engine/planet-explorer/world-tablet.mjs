@@ -130,6 +130,24 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
 
  const $=sel=>shell.querySelector(sel);
  const state=(text)=>{$("[data-status]").textContent=text;};
+ // Opt-in. Only a low-poly terminal is drawn in Quest WebXR; it never
+ // pretends to reproduce the cross-origin video/browser framebuffer.
+ const xrKey="universal-engine:tablet:vr-enabled:v1";
+ let xrEnabled=false;
+ try{xrEnabled=localStorage.getItem(xrKey)==="true";}catch(_){}
+ shell.dataset.xrEnabled=String(xrEnabled);
+ const xrButton=button("🥽 3D端末 "+(xrEnabled?"ON":"OFF"),()=>{
+  xrEnabled=!xrEnabled;
+  shell.dataset.xrEnabled=String(xrEnabled);
+  xrButton.textContent="🥽 3D端末 "+(xrEnabled?"ON":"OFF");
+  try{localStorage.setItem(xrKey,String(xrEnabled));}catch(_){}
+  state(xrEnabled?
+   "VR立体端末を有効にしました。Questで左コントローラーに追従し、右トリガーで9ボタンを操作します。":
+   "VR立体端末を無効にしました。");
+ });
+ xrButton.setAttribute("aria-label","Quest VRの3Dタブレット表示を切り替える");
+ shell.querySelector(".ue-tablet-head").insertBefore(xrButton,$("[data-close]"));
+
  const youtubeEndpoint=sameOriginChatEndpoint(document.querySelector('meta[name="universal-engine-youtube-search-endpoint"]')?.content||"",location.origin);
  const youtubeUI=installYoutubeTabletUI({root:shell,state,extractVideoId:youtubeVideoId,searchEndpoint:youtubeEndpoint});
  const showTab=(tab)=>{
@@ -279,6 +297,6 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  return {open,close,showTab,get visible(){return !shell.hidden;},dispose(){
   document.removeEventListener("keydown",keyboard);
   opener.remove();quickButton.remove();document.getElementById("toolbar-tablet")?.remove();
-  youtubeUI?.dispose();shell.remove();style.remove();
+  youtubeUI?.dispose();xrButton.remove();shell.remove();style.remove();
  }};
 }
