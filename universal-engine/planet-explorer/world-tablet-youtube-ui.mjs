@@ -100,9 +100,8 @@ export function installYoutubeTabletUI({root,state,extractVideoId,searchEndpoint
  const openYoutubeSearch=()=>{
   const href=youtubeSearchHref(queryInput.value);
   if(!href){searchStatus.textContent="検索キーワードを入力してください";return;}
-  const w=window.open(href,"_blank","noopener,noreferrer");
-  searchStatus.textContent="YouTube公式検索を新しいタブで開きました。見つけた動画のURLをこのタブレットに登録できます。";
-  if(!w)searchStatus.textContent+=" ポップアップが制限される場合はブラウザ設定を確認してください。";
+  window.open(href,"_blank","noopener,noreferrer");
+  searchStatus.textContent="YouTube公式検索を別タブで開く操作を実行しました。表示されない場合はポップアップ許可をご確認ください。見つけた動画URLはこの端末に登録できます。";
  };
  options.querySelector("[data-search-website]").addEventListener("click",openYoutubeSearch);
  let searchSequence=0;
