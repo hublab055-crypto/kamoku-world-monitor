@@ -60,3 +60,28 @@ Existing: \`test-universal-engine.yml\` CI runs \`npm test\` on pushes and pull 
 - YouTube APIへのサーバ側検索例: `search.list(part=snippet,type=video,q=...,maxResults=10,videoEmbeddable=true)`。Quota costとAPI利用規約を遵守する。
 - フロントは上限20件まで表示し、識別子をYouTubeの11文字動画IDとして検証する。
 - サーバ未導入時は外部検索フォールバックであり、ゲーム内検索結果が取得できたと表示しない。
+
+## Quest 3S / WebXR: 3D物理タブレット v1.5（2026-11-19）
+
+ワールドタブレット上部の「🥽 3D端末 OFF」を押してONにした後、Quest 3SのVRを開始する。ON/OFF状態は同じブラウザのlocalStorageで記憶する。初期値はOFF。WebXRでは独立したオリジナル形状のWebGL2メッシュを両眼に描画する。
+
+- 手持ち：左Touchコントローラーの実測gripSpaceに追従する。左コントローラーが見失われたときは、実測値だと偽らず、頭部追従のフォールバック表示にする。
+- 右トリガー：3Dメニューの9ボタンをレイと平面の交差で判定。動画、Web、ChatGPT、設定、モーション、RTS、WALL、HAND、OFF。押したVRタブレットのボタンは通常の射撃やコックピットの操作に流さない。
+- WALL：VR開始中の現在空間で、視線の前方約1.65mに3Dスクリーンを固定。頭を動かしても追従しない。HANDで左手追従に戻す。再XRセッション時には位置をクリア。
+- RTS：既存XR RTS指揮モードのON/OFFに接続。既存のコントローラーレイを使った部隊選択・移動は従来どおり。
+- 動画/Web/ChatGPT/設定/モーション：既存ブラウザタブレットの各パネルを開く。**これはVR 3Dサーフェス上の実際のWebサイト表示・動画描画ではない**。Questの没入セッションでブラウザDOMが見える保証はない。
+- 「OFF」でVR立体端末を無効にする。武器やHOTASの競合回避のためオプトインにしている。
+
+### この段階では実装していない機能
+
+1. YouTube動画ピクセルを3Dスクリーンにリアルタイム描画すること。YouTubeのクロスオリジンiframeからWebGLテクスチャへフレームを取得することはできず、その制約を回避する実装は行わない。
+2. 建物の実際の壁の面をレイキャストして、スクリーンを幾何形状に吸着すること。WALLはあくまでXRルーム空間の浮遊固定スクリーンであり、壁との物理衝突・建築保存・多人同期はまだない。
+3. WebXR DOM OverlayによるブラウザUIのQuest 3S没入セッション表示保証。Chrome/Questブラウザの実機確認が必要。
+4. タブレットの両手把持・掴み判定・触覚フィードバック・動的動画テクスチャ・部隊ミニマップ。
+
+### 確認方法
+
+通常のブラウザでゲームを開き「▣ タブレット → 🥽 3D端末 ON」を選択し、QuestのVRモードを開始。左コントローラーの動きに端末が追従するか、右トリガーでVIDEO/RTS/WALL/HAND/OFFが反応するかを確認する。
+
+ノードの幾何・座標・入力テスト：`cd universal-engine && node --test planet-explorer/world-tablet-spatial.test.mjs`。
+表示・入力のQuest実機検証はCIでは行えない。
