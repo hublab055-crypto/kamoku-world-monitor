@@ -54,7 +54,7 @@ import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeomet
 import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
 import {spacecraftGroundGeometry,spacecraftCockpitCrewWindowGeometry} from "./spacecraft-ground-geometry.mjs?v=20261116-crew-glazing";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
-import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261115-reach-hotas";
+import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261118-clear-view";
 import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
 import {windshieldTelemetry,windshieldBodyId,compassLabel,pitchLadderOffset} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
@@ -212,14 +212,14 @@ function shipHoloPlateGeometry(){
  const mesh=builder();
  for(const p of XR_HOLO_PANELS){
   const left=p.x-p.width*.5,right=p.x+p.width*.5;
-  box(mesh,p.x,p.y,p.z,p.width,p.height,.008,[.025,.31,.42]);
+  // Remove the filled slab; panel controls and slim frame remain visible.
   for(const x of [left,right])box(mesh,x,p.y,p.z+.014,.008,p.height,.015,[.18,.85,.95]);
   for(const yy of [p.y-p.height*.5,p.y+p.height*.5])
    box(mesh,p.x,yy,p.z+.014,p.width,.013,.015,[.18,.85,.95]);
  }
  for(const s of XR_HOLO_SLIDERS){
   box(mesh,s.x,s.minY,s.z+.028,.026,s.maxY-s.minY,.012,[.15,.65,.80]);
-  holoLetters(mesh,s.id==="main"?"MAIN":"VOL",s.x,1.54,s.z+.04,{size:.009});
+  holoLetters(mesh,s.id==="main"?"MAIN":"VOL",s.x,.87,s.z+.04,{size:.009});
  }
  for(const b of XR_HOLO_BUTTONS){
   box(mesh,b.x,b.y-.065,b.z+.023,.135,.13,.015,[.09,.49,.58]);
