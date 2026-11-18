@@ -41,7 +41,7 @@ test("Quest main and VOL levers use hit height, clamping and detents",()=>{
 });
 test("Quest intersection respects tracking-space translation and ray direction",()=>{
  const stage=identityAt(3,0,5);
- const hit=pointTo(.77+3,1.67,XR_HOLO_Z+5+.55,stage);
+ const hit=pointTo(.77+3,XR_HOLO_BUTTONS.find(b=>b.id==="lock").y,XR_HOLO_Z+5+.55,stage);
  assert.equal(hit?.id,"lock");
  assert.equal(xrHologramControlHit(identityAt(.77,1.67,XR_HOLO_Z-.3),identityAt()),null);
  assert.equal(xrHologramPlaneHit(identityAt(.77,1.67,XR_HOLO_Z+10),identityAt()),null);
