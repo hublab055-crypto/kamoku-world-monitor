@@ -42,11 +42,12 @@ export function installShipCockpitHologram({
  if(!viewport)return {update:()=>{},destroy:()=>{}};
  const style=document.createElement("style");
  style.textContent=[
- '#space-flight .ship-holo-wrap{position:absolute;z-index:286;top:21%;left:8px;right:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none;font:12px/1.4 system-ui;color:#d7faff}',
+ '#space-flight .ship-holo-wrap{position:absolute;z-index:286;top:25%;left:6px;right:6px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none;font:12px/1.4 system-ui;color:#d7faff}',
  '#space-flight .ship-holo-wrap[hidden]{display:none!important}',
- '#space-flight .ship-holo-panel{box-sizing:border-box;width:min(225px,38vw);max-height:min(61dvh,520px);overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;border:1px solid #71e5f5ae;border-radius:12px;background:linear-gradient(120deg,#062b40d9,#063444b9);box-shadow:inset 0 0 20px #29c8dd22,0 0 20px #17aecd40;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}',
+ '#space-flight .ship-holo-panel{box-sizing:border-box;width:min(196px,30vw);max-height:min(54dvh,460px);overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;border:1px solid #71e5f5ae;border-radius:12px;background:linear-gradient(120deg,#062b40a6,#0634448c);box-shadow:inset 0 0 20px #29c8dd22,0 0 20px #17aecd40;backdrop-filter:none;-webkit-backdrop-filter:none}',
  '#space-flight .ship-holo-panel[data-folded="true"] .ship-holo-body{display:none}',
- '#space-flight .ship-holo-toggle{width:100%;text-align:left;font-weight:750;letter-spacing:.06em;color:#a7f6ff;background:#0d465da8;border:0;border-bottom:1px solid #63cee28c;min-height:39px;padding:7px 9px;cursor:pointer}',
+ '#space-flight .ship-holo-panel[data-folded="true"]{width:98px}',
+ '#space-flight .ship-holo-toggle{width:100%;text-align:left;font-weight:750;letter-spacing:.06em;color:#a7f6ff;background:#0d465da8;border:0;border-bottom:1px solid #63cee28c;min-height:39px;padding:7px 9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
  '#space-flight .ship-holo-body{padding:9px;display:grid;gap:8px}',
  '#space-flight .ship-holo-body button,#space-flight .ship-holo-body select{min-height:35px;border-radius:6px;border:1px solid #80dce8;background:#15485e;color:#f2ffff;font:12px system-ui;padding:5px 7px;cursor:pointer}',
  '#space-flight .ship-holo-body button:disabled{opacity:.45;cursor:not-allowed}',
@@ -66,7 +67,7 @@ export function installShipCockpitHologram({
  '#space-flight .ship-holo-body .ship-holo-pair{display:grid;grid-template-columns:1fr 1fr;gap:5px}',
  '#space-flight .ship-holo-body .ship-holo-levers small{font-size:9px;color:#99d3dd}',
  '#space-flight .ship-holo-panel:focus-within{border-color:#d4ffff}',
- '@media(max-width:700px){#space-flight .ship-holo-wrap{top:23%;left:4px;right:4px;gap:3px}#space-flight .ship-holo-panel{width:min(210px,47vw);max-height:55dvh}#space-flight .ship-holo-panel[data-folded="true"]{width:110px}#space-flight .ship-holo-body{padding:6px;gap:5px}#space-flight .ship-holo-levers input{height:83px}#space-flight .ship-holo-toggle{font-size:11px;padding:5px;min-height:34px}}',
+ '@media(max-width:700px){#space-flight .ship-holo-wrap{top:26%;left:4px;right:4px;gap:3px}#space-flight .ship-holo-panel{width:min(180px,44vw);max-height:52dvh}#space-flight .ship-holo-panel[data-folded="true"]{width:87px}#space-flight .ship-holo-body{padding:6px;gap:5px}#space-flight .ship-holo-levers input{height:83px}#space-flight .ship-holo-toggle{font-size:11px;padding:5px;min-height:34px}}',
  '@media(max-height:420px){#space-flight .ship-holo-wrap{top:18%}#space-flight .ship-holo-panel{max-height:57dvh}}'
  ].join("");
  document.head.append(style);
@@ -92,18 +93,22 @@ export function installShipCockpitHologram({
  const levers=[pick('[data-lever="main"]'),pick('[data-lever="vol"]')];
  const weapon=pick("[data-weapon]");
  for(const [id,config] of Object.entries(SHIP_WEAPONS))weapon.add(new Option(config.name,id));
- for(const panel of wrap.querySelectorAll(".ship-holo-panel")){
-  const toggle=panel.querySelector(".ship-holo-toggle");
-  toggle.addEventListener("click",()=>{
-   const folded=panel.dataset.folded!=="true";panel.dataset.folded=String(folded);
-   toggle.setAttribute("aria-expanded",String(!folded));
+ // An unobstructed windscreen is the default on desktop and phone alike.
+ // Expanded controls are still one tap away; small screens expand one side at a time.
+ const panels=[...wrap.querySelectorAll(".ship-holo-panel")];
+ const fold=(panel,folded)=>{
+  panel.dataset.folded=String(folded);
+  panel.querySelector(".ship-holo-toggle").setAttribute("aria-expanded",String(!folded));
+ };
+ for(const panel of panels){
+  fold(panel,true);
+  panel.querySelector(".ship-holo-toggle").addEventListener("click",()=>{
+   const expand=panel.dataset.folded==="true";
+   if(expand&&typeof window!=="undefined"&&window.matchMedia?.("(max-width:700px)")?.matches){
+    for(const other of panels)if(other!==panel)fold(other,true);
+   }
+   fold(panel,!expand);
   });
- }
- // Keep the cockpit clear on a phone; both holograms remain a tap away.
- if(typeof window!=="undefined"&&window.matchMedia?.("(max-width:700px)")?.matches){
-  for(const panel of wrap.querySelectorAll(".ship-holo-panel")){
-   panel.dataset.folded="true";panel.querySelector(".ship-holo-toggle").setAttribute("aria-expanded","false");
-  }
  }
  const seated=()=>{const v=getVoyage();return v?.seated===true&&!v.isCrewTest?v:null;};
  const combat=()=>getCombat?.();

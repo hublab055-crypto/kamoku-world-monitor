@@ -4,7 +4,7 @@ import {installTurretEditor} from "./ship-turret-editor.mjs?v=20261108-vtol";
 import {normalizeTurrets} from "./ship-turrets.mjs?v=20261108-vtol";
 import {SpaceCombat,SHIP_WEAPONS,combatEligible,shipContactDistance} from "./space-combat.mjs?v=20261117-mining";
 import {xrCockpitControlHit} from "./ship-control-hit.mjs?v=20261109-pilot-access";
-import {xrHologramControlHit} from "./ship-hologram-vr.mjs?v=20261115-quest-holo";
+import {xrHologramControlHit} from "./ship-hologram-vr.mjs?v=20261118-clear-view";
 import {installCockpitDashboard} from "./ship-cockpit-dashboard-ui.mjs?v=20261107";
 import {installSpaceIndustryUI} from "./space-resource-industry-ui.mjs?v=20261116";
 

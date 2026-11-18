@@ -7,7 +7,7 @@ import {groundScenePhase} from "./ship-shared-scene.mjs?v=20261117-crew-life";
 import {shipTouchAxes,shipTouchPilot} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {normalizeShipViewSettings,shipCameraStickDelta} from "./ship-dashboard-layout.mjs?v=20261116-crew-recall-v1";
 import {installShipSensorHUD} from "./ship-sensor-hud.mjs?v=20261112-warp";
-import {installShipCockpitHologram} from "./ship-cockpit-hologram.mjs?v=20261115-hologram";
+import {installShipCockpitHologram} from "./ship-cockpit-hologram.mjs?v=20261118-clear-view";
 import {windshieldTelemetry,windshieldBodyId,paintWindshieldHUD} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function disk(ctx,x,y,r,color){
