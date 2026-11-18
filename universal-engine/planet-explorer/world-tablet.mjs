@@ -143,11 +143,9 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  const open=(tab="video")=>{shell.hidden=false;showTab(tab);state("タブレットを開きました");};
  const close=()=>{shell.hidden=true;};
  const toggle=()=>shell.hidden?open():close();
- const opener=button("▣","", "ue-tablet-launch");
+ const opener=button("▣",toggle,"ue-tablet-launch");
  opener.id="viewport-tablet";opener.setAttribute("aria-label","ワールドタブレットを開く");
  opener.setAttribute("title","ワールドタブレット");
- opener.removeEventListener("click",()=>{});
- opener.addEventListener("click",toggle);
  bar.append(opener);
  const quickButton=button("▣ タブレット",toggle);quickButton.id="viewport-tablet-menu";
  quick.insertBefore(quickButton,quick.querySelector("#viewport-menu"));
@@ -159,6 +157,7 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  $("[data-wall]").addEventListener("click",()=>{
   const wall=shell.dataset.position!=="wall";
   shell.dataset.position=wall?"wall":"hand";
+  shell.dataset.x="0";shell.dataset.y="0";
   shell.style.setProperty("--ue-x","0px");shell.style.setProperty("--ue-y","0px");
   $("[data-wall]").textContent=wall?"✋ 手持ち表示":"🧱 壁表示";
   $("[data-mode]").textContent=wall?"壁スクリーン（2D仮配置）":"手持ち（画面上の端末）";
@@ -280,7 +279,7 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
   if(ids[action])clickExisting(ids[action]);
  });
  const keyboard=event=>{
-  if(event.key.toLowerCase()!=="t"||event.altKey||event.ctrlKey||event.metaKey||event.repeat)return;
+  if(event.key.toLowerCase()!=="t"||!event.altKey||event.ctrlKey||event.metaKey||event.repeat)return;
   if(event.target.closest?.("input,textarea,select,[contenteditable]"))return;
   toggle();
  };
