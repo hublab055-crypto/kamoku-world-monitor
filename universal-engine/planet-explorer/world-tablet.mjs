@@ -3,6 +3,7 @@
  * The "wall" variant is a 2D overlay, NOT a WebGL texture or XR quad layer.
  * Remote sites, including YouTube, cannot be painted onto a WebGL surface.
  */
+import {installYoutubeTabletUI} from "./world-tablet-youtube-ui.mjs?v=20261119-search-register";
 const VIDEO_ID=/^[A-Za-z0-9_-]{11}$/;
 
 export function youtubeVideoId(value){
@@ -65,7 +66,7 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  if(!wrap||!bar||!quick)return null;
 
  const style=document.createElement("link");
- style.rel="stylesheet";style.href="./world-tablet.css?v=20261119-a";
+ style.rel="stylesheet";style.href="./world-tablet.css?v=20261119-search-register";
  document.head.append(style);
 
  const shell=el("section","ue-world-tablet");
@@ -129,6 +130,8 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
 
  const $=sel=>shell.querySelector(sel);
  const state=(text)=>{$("[data-status]").textContent=text;};
+ const youtubeEndpoint=sameOriginChatEndpoint(document.querySelector('meta[name="universal-engine-youtube-search-endpoint"]')?.content||"",location.origin);
+ const youtubeUI=installYoutubeTabletUI({root:shell,state,extractVideoId:youtubeVideoId,searchEndpoint:youtubeEndpoint});
  const showTab=(tab)=>{
   for(const item of shell.querySelectorAll("[data-tab]")){
    const active=item.dataset.tab===tab;
@@ -183,17 +186,6 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  shell.addEventListener("keydown",e=>e.stopPropagation());
  shell.addEventListener("pointerdown",e=>e.stopPropagation());
 
- $("[data-video-form]").addEventListener("submit",event=>{
-  event.preventDefault();
-  const id=youtubeVideoId($('[name="video"]').value);
-  if(!id){state("YouTubeのURLまたは11文字の動画IDを入力してください");return;}
-  const params=new URLSearchParams({playsinline:"1"});
-  $("[data-video-frame]").src="https://www.youtube-nocookie.com/embed/"+id+"?"+params;
-  state("YouTube公式プレーヤーに読み込みを要求しました");
- });
- $("[data-video-stop]").addEventListener("click",()=>{
-  $("[data-video-frame]").removeAttribute("src");state("動画を停止しました");
- });
  let webUrl=null;
  $("[data-web-form]").addEventListener("submit",event=>{
   event.preventDefault();
@@ -287,6 +279,6 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  return {open,close,showTab,get visible(){return !shell.hidden;},dispose(){
   document.removeEventListener("keydown",keyboard);
   opener.remove();quickButton.remove();document.getElementById("toolbar-tablet")?.remove();
-  shell.remove();style.remove();
+  youtubeUI?.dispose();shell.remove();style.remove();
  }};
 }
