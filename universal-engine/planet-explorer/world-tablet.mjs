@@ -58,7 +58,8 @@ function button(text,action,className){
  return node;
 }
 
-export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,getRenderer=()=>null,getController=()=>null,getXRActive=()=>false,notify=()=>{}}={}){
+export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,getRenderer=()=>null,getController=()=>null,getXRActive=()=>false,getAvatarAppearance=()=>null,onAvatarAdjust=()=>({ok:false}),
+ onAvatarSave=()=>false,onShipRecall=()=>({ok:false}),notify=()=>{}}={}){
  if(typeof document==="undefined")return null;
  const wrap=document.querySelector(".view-panel .canvas-wrap");
  const bar=document.querySelector(".viewport-compact-bar");
@@ -67,7 +68,7 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  if(!wrap||!bar||!quick)return null;
 
  const style=document.createElement("link");
- style.rel="stylesheet";style.href="./world-tablet.css?v=20261119-wall-display";
+ style.rel="stylesheet";style.href="./world-tablet.css?v=20261120-watch-edit";
  document.head.append(style);
 
  const shell=el("section","ue-world-tablet");
@@ -87,7 +88,9 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  '<button type="button" data-tab="chat">✦ ChatGPT</button>'+
  '<button type="button" data-tab="settings">⚙ 設定</button>'+
  '<button type="button" data-tab="motion">🎭 動作</button>'+
- '<button type="button" data-tab="rts">⌖ 指揮</button></nav>'+
+ '<button type="button" data-tab="rts">⌖ 指揮</button>'+
+ '<button type="button" data-tab="avatar">🧬 外見</button>'+
+ '<button type="button" data-tab="ship">🚀 宇宙船</button></nav>'+
  '<section class="ue-tablet-pane" data-pane="video">'+
  '<form data-video-form class="ue-tablet-form"><label>YouTubeのURL / 動画ID<input name="video" autocomplete="off" placeholder="https://youtu.be/..."></label>'+
  '<button type="submit">再生</button><button type="button" data-video-stop>停止</button></form>'+
@@ -118,6 +121,16 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  '<button type="button" data-action="motion-arm">次のVR開始時に録画</button>'+
  '<button type="button" data-action="motion-copy">記録JSONをコピー</button></div>'+
  '<output data-motion-state></output></section>'+
+ '<section class="ue-tablet-pane" data-pane="avatar" hidden>'+
+ '<p>調整した瞬間に自分のアバターへ反映します。「保存」を押すと次回にも引き継ぎます。</p>'+
+ '<div data-avatar-live></div>'+
+ '<div class="ue-tablet-buttons"><button type="button" data-action="avatar-full">全身の詳細編集</button>'+
+ '<button type="button" data-action="avatar-save">設定を保存</button></div>'+
+ '<output data-avatar-state></output></section>'+
+ '<section class="ue-tablet-pane" data-pane="ship" hidden>'+
+ '<p>副官へ迎えを依頼します。実際に飛行して安全な場所へ着陸します。</p>'+
+ '<button type="button" data-action="ship-recall">🚀 宇宙船を呼ぶ</button>'+
+ '<output data-ship-state></output></section>'+
  '<section class="ue-tablet-pane" data-pane="rts" hidden>'+
  '<p>ゲーム本体のRTSカメラ・部隊選択・命令を利用します。操作後もタブレットを開いたままにできます。</p>'+
  '<div class="ue-tablet-buttons"><button type="button" data-action="rts-enter">俯瞰視点</button>'+
@@ -155,6 +168,21 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
   extractVideoId:youtubeVideoId,notify});
  const youtubeUI=installYoutubeTabletUI({root:shell,state,extractVideoId:youtubeVideoId,
   searchEndpoint:youtubeEndpoint,onPlay:id=>wallUI?.play(id),onStop:()=>wallUI?.stop()});
+ const specs=[["eyeSize","目",76,126],["browSize","眉",76,126],
+  ["mouthSize","口",76,126],["torsoWidth","胴体",80,120],["legLength","脚",80,120]];
+ for(const [key,label,min,max]of specs){
+  const row=el("label","ue-tablet-avatar-slider");
+  row.append(document.createTextNode(label+" "));
+  const input=el("input");input.type="range";input.min=String(min);input.max=String(max);input.step="1";
+  input.dataset.avatarKey=key;input.setAttribute("aria-label",label+"の調整");
+  const output=el("output");output.dataset.avatarValue=key;
+  input.addEventListener("input",()=>{
+   const result=onAvatarAdjust(key,input.valueAsNumber);
+   output.textContent=result?.ok?result.value+"%":"反映不可";
+   $("[data-avatar-state]").textContent=result?.ok?"リアルタイム反映中（未保存）":(result?.message||"編集できません");
+  });
+  row.append(input,output);$("[data-avatar-live]").append(row);
+ }
  const showTab=(tab)=>{
   for(const item of shell.querySelectorAll("[data-tab]")){
    const active=item.dataset.tab===tab;
@@ -163,6 +191,11 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
   }
   for(const item of shell.querySelectorAll("[data-pane]"))item.hidden=item.dataset.pane!==tab;
   $("[data-camera-state]").textContent="現在の視点: "+(getCameraMode()||"未取得");
+  if(tab==="avatar")for(const input of shell.querySelectorAll("[data-avatar-key]")){
+   const n=Number(getAvatarAppearance()?.[input.dataset.avatarKey]);
+   input.value=String(Number.isFinite(n)?n:100);
+   shell.querySelector('[data-avatar-value="'+input.dataset.avatarKey+'"]').textContent=input.value+"%";
+  }
   const armed=document.getElementById("xr-motion-actor-armed");
   $("[data-motion-state]").textContent=armed?.checked?"次回VR起動で録画予定":"録画は未予約";
  };
@@ -264,7 +297,15 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
   }
   if(action==="display"){clickExisting("ui-display-access");return;}
   if(action==="game-settings"){clickExisting("viewport-settings-toggle");return;}
-  if(action==="avatar"){clickExisting("viewport-avatar-v10");return;}
+  if(action==="avatar"||action==="avatar-full"){clickExisting("viewport-avatar-v10");return;}
+  if(action==="avatar-save"){
+   const ok=onAvatarSave();$("[data-avatar-state]").textContent=ok?"設定を保存しました":"設定の保存に失敗しました";
+   state($("[data-avatar-state]").textContent);return;
+  }
+  if(action==="ship-recall"){
+   const result=onShipRecall();$("[data-ship-state]").textContent=result?.message||"宇宙船を呼び出せません";
+   state($("[data-ship-state]").textContent);return;
+  }
   if(action==="motion-settings"){
    const body=document.getElementById("xr-settings-body");if(body)body.hidden=false;
    const details=document.getElementById("xr-motion-actor");if(details)details.open=true;
