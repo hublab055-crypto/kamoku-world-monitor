@@ -148,3 +148,9 @@
 @media(max-width:620px){
  .ue-wall-placement-tools button{font-size:11px}
 }
+
+/* In-tablet live morph editor and responsive eight-tab navigation. */
+.ue-tablet-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ue-tablet-avatar-slider{display:grid;grid-template-columns:54px minmax(0,1fr) 44px;align-items:center;gap:8px;margin:9px 0}
+.ue-tablet-avatar-slider input{width:100%;accent-color:#7fd6ec}
+.ue-tablet-avatar-slider output{text-align:right;font-variant-numeric:tabular-nums}
