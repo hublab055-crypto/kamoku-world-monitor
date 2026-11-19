@@ -14,7 +14,8 @@ import {WearableInventory,starterWearables,pocketSocketForOutfit} from "./wearab
 import {detectShipCrewTouch} from "./ship-crew-vr-contact.mjs?v=1";
 import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
-import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
+import {XRWorldTablet,VR_AVATAR_ADJUSTMENTS} from "./world-tablet-spatial.mjs?v=20261120-watch-edit";
+import {XRWristWatch} from "./xr-wrist-device.mjs?v=20261120-watch-edit";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -29,7 +30,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
  onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
  onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),onVRShipCrewGesture=()=>({ok:false}),onVRShipStand=()=>({ok:false}),
- onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
+ onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,
+ onVRShipRecall=()=>({ok:false}),onVRAvatarAdjust=()=>({ok:false}),onVRAvatarSave=()=>false,
+ notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const social=$("xr-social")?installSocialUI($):null;
  let supportsAR=false;
@@ -40,6 +43,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const vrDiag=$("xr-vr-diagnostics");
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
+ const xrWristWatch=new XRWristWatch();
  const vrTabletTriggerConsumed=new Set();
  let vrMotionChordHeld=false;
  let session=null,activeMode=null,space=null,anchor=null,lastTime=0,viewerSpace=null,hitSource=null,hitPose=null;
@@ -265,7 +269,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="mr-social")social.activate(false);
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
-  vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();
+  vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();xrWristWatch.resetSession();
   const renderer=getRenderer();
   if(renderer){renderer.xrView=null;renderer.shipVRHotas=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
@@ -650,39 +654,92 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrGripConsumed.delete(hand);
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
+ // Watch actions use the same live game systems as desktop/mobile controls.
+ function setVRTabletVisible(enabled,page="main"){
+  const shell=document.getElementById("ue-world-tablet");
+  if(!shell)return false;
+  const wants=String(Boolean(enabled));
+  if(shell.dataset.xrEnabled!==wants){
+   // Let the original button maintain its own closure, label, and saved setting.
+   shell.querySelector(".ue-tablet-head button[aria-label='Quest VRの3Dタブレット表示を切り替える']")?.click();
+  }
+  xrWorldTablet.setEnabled(Boolean(enabled));
+  xrWorldTablet.setPage(page);
+  if(enabled&&["avatar","motion"].includes(page))
+   shell.querySelector('[data-tab="'+page+'"]')?.click();
+  return true;
+ }
+ function toggleMotionCapture(){
+  if(motionActorUI.recorder.recording){
+   motionActorUI.stop();return "🎭 記録を停止。JSONはXR設定で確認できます";
+  }
+  motionActorUI.start({floorTracked:usingFloor});
+  return "● モーション記録開始（最大25秒、HMDと左右Touchのみ）";
+ }
+ function doTabletAction(action){
+  const shell=document.getElementById("ue-world-tablet");
+  if(action==="hide"){
+   setVRTabletVisible(false);statusText("▣ タブレット収納。腕時計のTABから再表示できます");return;
+  }
+  if(action==="wall"){statusText("🧱 XR空間へスクリーンを固定しました");return;}
+  if(action==="hand"){statusText("✋ XRタブレットを左手追従に戻しました");return;}
+  if(action==="avatar"||action==="motion"){
+   shell?.querySelector('[data-tab="'+action+'"]')?.click();
+   statusText(action==="avatar"?"🧬 アバター：+/-で即時変更、SAVEで保存":"🎭 モーション：REC／STOP／PLAY");return;
+  }
+  if(action==="back"){statusText("▣ タブレットのメインメニューへ戻りました");return;}
+  if(VR_AVATAR_ADJUSTMENTS[action]){
+   const [key,delta]=VR_AVATAR_ADJUSTMENTS[action],result=onVRAvatarAdjust(key,delta);
+   statusText(result?.ok?"🧬 "+key+" = "+result.value+"%（即時反映中）":(result?.message||"アバター編集できません"));return;
+  }
+  if(action==="save"){
+   statusText(onVRAvatarSave()?"✓ アバター設定を保存しました":"⚠ アバター設定の保存に失敗しました");return;
+  }
+  if(action==="ship"){
+   const result=onVRShipRecall();
+   statusText(result?.message||(result?.ok?"🚀 宇宙船を呼びました":"🚀 宇宙船を呼び出せません"));return;
+  }
+  if(action==="rec"||action==="record"){statusText(toggleMotionCapture());return;}
+  if(action==="stop"){motionActorUI.stop();statusText("🎭 VRモーション記録を停止");return;}
+  if(action==="play"){statusText(motionActorUI.togglePlayback()?"🎭 モーション再生状態を切り替えました":"🎭 再生できる記録がありません");return;}
+  if(action==="clear"){motionActorUI.clear();statusText("🎭 一時モーション記録を消去しました");return;}
+  if(action==="rts"){
+   const next=!vrRTS;
+   if(onVRToggleRTS(next)!==false){
+    vrRTS=next;vrPlanetOverview=false;vrPlanetAnchor=null;planetSelected=false;
+    statusText(vrRTS?"🥽 XRタブレットからRTS指揮へ":"🥽 VR徒歩視点へ戻りました");
+   }else statusText("現在はRTS指揮に切り替えられません");
+   return;
+  }
+  shell?.querySelector('[data-tab="'+action+'"]')?.click();
+  statusText("▣ "+action.toUpperCase()+"を選択。動画・Webは通常ブラウザ画面で操作してください");
+ }
  function tryVRTabletPress(event){
-  if(activeMode!=="vr"||!event.frame||!space||!xrWorldTablet.enabled)return false;
-  const hand=event.inputSource?.handedness;
-  const raySpace=event.inputSource?.targetRaySpace;
+  if(activeMode!=="vr"||!event.frame||!space)return false;
+  const hand=event.inputSource?.handedness,raySpace=event.inputSource?.targetRaySpace;
   if(!["left","right"].includes(hand)||!raySpace)return false;
   let ray=null;
   try{ray=event.frame.getPose(raySpace,space)?.transform.matrix||null;}catch(_){}
   if(!ray)return false;
+  // Only the right-hand ray can activate buttons attached to the left wrist.
+  const watch=hand==="right"?xrWristWatch.press(ray):null;
+  if(watch){
+   vrTabletTriggerConsumed.add(hand);
+   if(watch.action==="tablet"){
+    const enabled=!xrWorldTablet.enabled;
+    setVRTabletVisible(enabled);
+    statusText(enabled?"⌚ 腕時計からタブレットを展開":"⌚ タブレットを収納");
+   }else if(watch.action==="avatar"){
+    setVRTabletVisible(true,"avatar");statusText("⌚ アバター編集を開きました");
+   }else if(watch.action==="record")statusText(toggleMotionCapture());
+   else if(watch.action==="ship")doTabletAction("ship");
+   return true;
+  }
+  if(!xrWorldTablet.enabled)return false;
   const hit=xrWorldTablet.press(ray);
   if(!hit)return false;
   vrTabletTriggerConsumed.add(hand);
-  const shell=document.getElementById("ue-world-tablet");
-  if(hit.action==="hide"){
-   // The existing button owns both persisted state and the DOM flag.
-   shell?.querySelector(".ue-tablet-head button[aria-label='Quest VRの3Dタブレット表示を切り替える']")?.click();
-   statusText("🥽 立体端末を閉じました。再表示は通常画面のタブレットから");
-  }else if(hit.action==="wall"){
-   statusText("🧱 XR空間にスクリーンを固定しました（今のVRセッション内のみ）");
-  }else if(hit.action==="hand"){
-   statusText("✋ タブレットを左コントローラー追従に戻しました");
-  }else if(hit.action==="rts"){
-   const next=!vrRTS;
-   if(onVRToggleRTS(next)!==false){
-    vrRTS=next;vrPlanetOverview=false;vrPlanetAnchor=null;planetSelected=false;
-    statusText(vrRTS?"🥽 立体タブレットからRTS俯瞰指揮へ切り替え":"🥽 徒歩視点に戻りました");
-   }else statusText("現在の状態ではRTS指揮に切り替えられません");
-  }else{
-   // A VR 3D plate is the command switch. Cross-origin iframe/video pixels
-   // remain in the browser DOM, whose immersive overlay support varies.
-   if(shell?.hidden)document.getElementById("viewport-tablet")?.click();
-   shell?.querySelector('[data-tab="'+hit.action+'"]')?.click();
-   statusText("▣ "+hit.action.toUpperCase()+"を選択。動画・Webはブラウザ側の画面で操作してください");
-  }
+  doTabletAction(hit.action);
   return true;
  }
  function onVRSelectStart(event){
@@ -1164,6 +1221,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     leftPose=ref?frame.getPose(ref,space)?.transform.matrix||null:null;
    }catch(_){}
    xrWorldTablet.update(pose.transform.matrix,leftPose);
+   xrWristWatch.update(pose.transform.matrix,leftPose);
   }
    const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
    if(mode==="vr"){
@@ -1281,7 +1339,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
        [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
      });
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
-    if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model);
+    if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model,xrWorldTablet.page);
+    if(mode==="vr"&&xrWristWatch.model)renderer.drawVRWristWatch(renderer.xrView,xrWristWatch.model);
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
      if(sceneErr){
