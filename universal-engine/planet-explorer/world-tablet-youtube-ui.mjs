@@ -13,7 +13,7 @@ const btn=(label,action)=>{
  const b=create("button","",label);b.type="button";b.addEventListener("click",action);return b;
 };
 
-export function installYoutubeTabletUI({root,state,extractVideoId,searchEndpoint=null}){
+export function installYoutubeTabletUI({root,state,extractVideoId,searchEndpoint=null,onPlay=()=>false,onStop=()=>{}}){
  if(!root)return null;
  const $=selector=>root.querySelector(selector);
  const pane=$('[data-pane="video"]');
@@ -51,7 +51,7 @@ export function installYoutubeTabletUI({root,state,extractVideoId,searchEndpoint
 
  const play=(id)=>{
   input.value="https://www.youtube.com/watch?v="+id;
-  iframe.src="https://www.youtube-nocookie.com/embed/"+id+"?playsinline=1";
+  if(onPlay(id)!==true)iframe.src="https://www.youtube-nocookie.com/embed/"+id+"?playsinline=1";
   state("動画を再生します: "+id);
  };
  const persist=(next)=>{
@@ -153,7 +153,7 @@ export function installYoutubeTabletUI({root,state,extractVideoId,searchEndpoint
  };
  form.addEventListener("submit",existingPlay);
  $("[data-video-stop]").addEventListener("click",()=>{
-  iframe.removeAttribute("src");state("動画を停止しました");
+  iframe.removeAttribute("src");onStop();state("動画を停止しました");
  });
  return {registerCurrent,renderSaved,dispose(){
   window.removeEventListener("storage",syncBookmarks);
