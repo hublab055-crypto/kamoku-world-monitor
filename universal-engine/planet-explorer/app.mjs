@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261119-wall-player";
+import {ExplorerRenderer} from "./render.mjs?v=20261120-watch-edit";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -92,12 +92,13 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261119-quest-spatial-3d";
+import {installXRUI} from "./xr-ui.mjs?v=20261120-watch-edit";
 import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=20261114-social-2";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
-import {installWorldTablet} from "./world-tablet.mjs?v=20261119-wall-player";
+import {installWorldTablet} from "./world-tablet.mjs?v=20261120-watch-edit";
+import {liveAvatarValue,setLiveAvatarValue} from "./avatar-live-control.mjs?v=20261120-watch-edit";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -142,6 +143,13 @@ function applyAvatarV10(next){
   for(const fit of Object.values(avatarV10))renderer.avatarV10Assets.prefetch(fit.model);
  }
 }
+function adjustLivePlayerAvatar(key,value,{relative=false}={}){
+ const next=setLiveAvatarValue(avatarV10,key,relative?(liveAvatarValue(avatarV10,key)??100)+value:value);
+ if(!next)return {ok:false,message:"未対応のアバター調整項目です"};
+ applyAvatarV10(next.roster);
+ return {ok:true,value:next.value};
+}
+function saveLivePlayerAvatar(){return saveAvatarV10(avatarV10);}
 function crewAvatarReady({id}){
  return Boolean(renderer?.avatarV10Assets.get(avatarV10[id].model)||renderer?.shipCrewFallbacks.has(id));
 }
@@ -1692,7 +1700,7 @@ function captureGame(){
 }
 function landStarshipNearPlayer({automatic=false}={}){
  if(!surfaceShip||!controller||!terrain)return {ok:false,message:"宇宙船と地表を読み込めません"};
- if(voyage?.active||xrUI?.active)return {ok:false,message:"船内やVR/MRでの着陸指示には未対応です"};
+ if(voyage?.active||(xrUI?.active&&xrUI?.mode!=="vr"))return {ok:false,message:"船内やMRでの着陸指示には未対応です"};
  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver)
   return {ok:false,message:"拘束中は着陸指示を出せません"};
  if(surfaceShip.bodyId&&surfaceShip.bodyId!==solarSystem.currentId)
@@ -4299,7 +4307,11 @@ init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.cameraController?.mode,
- getRenderer:()=>renderer,getController:()=>controller,getXRActive:()=>Boolean(xrUI?.active),notify:log});
+ getRenderer:()=>renderer,getController:()=>controller,getXRActive:()=>Boolean(xrUI?.active),
+ getAvatarAppearance:()=>avatarV10.player?.appearance,
+ onAvatarAdjust:(key,value)=>adjustLivePlayerAvatar(key,value),
+ onAvatarSave:saveLivePlayerAvatar,
+ onShipRecall:()=>landStarshipNearPlayer(),notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
@@ -4399,6 +4411,9 @@ celestialSky=installCelestialSkyViewport({get:()=>({
 solarUI.refresh();voyageUI.render();shipInteractionUI.update(true);surfaceShipUI.update(true);celestialSky.update(true);
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ onVRShipRecall:()=>landStarshipNearPlayer(),
+ onVRAvatarAdjust:(key,delta)=>adjustLivePlayerAvatar(key,delta,{relative:true}),
+ onVRAvatarSave:saveLivePlayerAvatar,
  onVRGroundStart:()=>{
   // VR cabin starts at the current crew-test or starship position. Never
   // teleport the ground controller to a settlement while a ship is active.
