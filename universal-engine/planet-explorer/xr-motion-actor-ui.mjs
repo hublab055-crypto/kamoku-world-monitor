@@ -10,7 +10,7 @@ export function installXRMotionActorUI(host){
  if(typeof document==="undefined"||typeof document.createElement!=="function"){
   return {recorder,get armed(){return false;},start:()=>false,
    finish:()=>{},refresh:()=>{},onSessionStart:()=>{},onSessionEnd:()=>{},
-   onCapture:()=>{},stop:()=>{},dispose:()=>{}};
+   onCapture:()=>{},stop:()=>{},togglePlayback:()=>false,clear:()=>{},dispose:()=>{}};
  }
  const box=document.createElement("details");
  box.id="xr-motion-actor";
@@ -43,13 +43,17 @@ export function installXRMotionActorUI(host){
  };
  const finish=()=>{if(recorder.recording)recorder.stop();refresh();};
  make("■ 停止・確定",()=>{finish();armed.checked=false;});
- const preview=make("▶ アバターに再生",()=>{
-  if(getXRMotionPlayback()){setXRMotionPlayback(null);preview.textContent="▶ アバターに再生";state.textContent="再生停止";return;}
-  if(!recorder.track?.frames.length){state.textContent="再生できる記録がありません";return;}
+ const preview=make("▶ アバターに再生",()=>togglePlayback());
+ function togglePlayback(){
+  if(getXRMotionPlayback()){
+   setXRMotionPlayback(null);preview.textContent="▶ アバターに再生";state.textContent="再生停止";return true;
+  }
+  if(!recorder.track?.frames.length){state.textContent="再生できる記録がありません";return false;}
   const ok=setXRMotionPlayback(recorder.track,performance.now());
   state.textContent=ok?"プレイヤーのV10モデルへ、頭と左右腕のIK再生中":"記録の形式が不正です";
   preview.textContent=ok?"■ 再生停止":"▶ アバターに再生";
- });
+  return ok;
+ }
  make("JSONをコピー",async()=>{
   if(!json.value){state.textContent="記録がありません";return;}
   try{await navigator.clipboard.writeText(json.value);state.textContent="コピーしました。ChatGPTに貼り付けて送信してください。";}
@@ -78,6 +82,8 @@ export function installXRMotionActorUI(host){
    if(wasRecording&&!recorder.recording){armed.checked=false;refresh();}
   },
   stop(){finish();armed.checked=false;},
+  togglePlayback,
+  clear(){recorder.clear();setXRMotionPlayback(null);armed.checked=false;preview.textContent="▶ アバターに再生";refresh();},
   dispose(){setXRMotionPlayback(null);recorder.clear();box.remove();}
  };
 }
