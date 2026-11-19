@@ -105,3 +105,46 @@
  .ue-tablet-video-actions{justify-content:flex-start}
  .ue-tablet-form [data-search-website]{font-size:11px}
 }
+
+
+/* Actual building-facade wall screen for the ordinary 2D game viewport.
+ * The official YouTube iframe remains DOM-composited; it is NOT a WebGL
+ * texture and intentionally does not render in immersive WebXR.
+ */
+.ue-world-wall-screen{
+ position:absolute;
+ left:0;top:0;width:960px;height:540px;
+ z-index:61;overflow:hidden;
+ transform-origin:0 0;
+ backface-visibility:hidden;
+ box-sizing:border-box;
+ border:5px solid #12303d;border-radius:8px;
+ background:#02070e;
+ box-shadow:inset 0 0 0 2px #8bc8de,0 0 18px #07172488;
+ pointer-events:auto;will-change:transform;
+}
+.ue-world-wall-screen[hidden]{display:none!important}
+.ue-world-wall-screen iframe{
+ width:100%;height:100%;display:block;
+ border:0;background:#02070e;
+}
+.ue-world-wall-detach{
+ position:absolute;right:12px;top:10px;
+ padding:5px 9px;min-height:31px;
+ background:#153548ee;color:#e8faff;
+ border:1px solid #83b9ce;border-radius:5px;
+ font:13px system-ui,sans-serif;
+ cursor:pointer;
+}
+.ue-wall-placement-tools{
+ display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+ margin:7px 0 11px;padding:6px;
+ border:1px solid #32566c;border-radius:7px;
+ background:#0d2736;
+}
+.ue-wall-placement-tools .ue-wall-placement-state{
+ color:#c7deec;flex:1 1 100%;font-size:11px;
+}
+@media(max-width:620px){
+ .ue-wall-placement-tools button{font-size:11px}
+}

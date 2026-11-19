@@ -3,7 +3,8 @@
  * The "wall" variant is a 2D overlay, NOT a WebGL texture or XR quad layer.
  * Remote sites, including YouTube, cannot be painted onto a WebGL surface.
  */
-import {installYoutubeTabletUI} from "./world-tablet-youtube-ui.mjs?v=20261119-search-register";
+import {installYoutubeTabletUI} from "./world-tablet-youtube-ui.mjs?v=20261119-wall-display";
+import {installWorldTabletWallUI} from "./world-tablet-wall-ui.mjs?v=20261119-wall-display";
 const VIDEO_ID=/^[A-Za-z0-9_-]{11}$/;
 
 export function youtubeVideoId(value){
@@ -57,7 +58,7 @@ function button(text,action,className){
  return node;
 }
 
-export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,notify=()=>{}}={}){
+export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,getRenderer=()=>null,getController=()=>null,getXRActive=()=>false,notify=()=>{}}={}){
  if(typeof document==="undefined")return null;
  const wrap=document.querySelector(".view-panel .canvas-wrap");
  const bar=document.querySelector(".viewport-compact-bar");
@@ -66,7 +67,7 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  if(!wrap||!bar||!quick)return null;
 
  const style=document.createElement("link");
- style.rel="stylesheet";style.href="./world-tablet.css?v=20261119-search-register";
+ style.rel="stylesheet";style.href="./world-tablet.css?v=20261119-wall-display";
  document.head.append(style);
 
  const shell=el("section","ue-world-tablet");
@@ -125,7 +126,7 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  '<button type="button" data-action="rts-assemble">集合</button>'+
  '<button type="button" data-action="rts-stop">停止</button></div>'+
  '<output data-rts-state></output></section>'+
- '<footer class="ue-tablet-foot"><output data-status role="status">端末待機中</output><small>壁表示は2D配置の試作です。実際の3D壁面・VR投影は未対応。</small></footer>';
+ '<footer class="ue-tablet-foot"><output data-status role="status">端末待機中</output><small>通常画面では建物の壁へのYouTube iframe重畳に対応。没入VRへの動画描画は未対応。</small></footer>';
  wrap.append(shell);
 
  const $=sel=>shell.querySelector(sel);
@@ -149,7 +150,11 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  shell.querySelector(".ue-tablet-head").insertBefore(xrButton,$("[data-close]"));
 
  const youtubeEndpoint=sameOriginChatEndpoint(document.querySelector('meta[name="universal-engine-youtube-search-endpoint"]')?.content||"",location.origin);
- const youtubeUI=installYoutubeTabletUI({root:shell,state,extractVideoId:youtubeVideoId,searchEndpoint:youtubeEndpoint});
+ const wallUI=installWorldTabletWallUI({wrap,shell,getRenderer,getController,getXRActive,
+  videoInput:()=>shell.querySelector('[name="video"]')?.value,
+  extractVideoId:youtubeVideoId,notify});
+ const youtubeUI=installYoutubeTabletUI({root:shell,state,extractVideoId:youtubeVideoId,
+  searchEndpoint:youtubeEndpoint,onPlay:id=>wallUI?.play(id),onStop:()=>wallUI?.stop()});
  const showTab=(tab)=>{
   for(const item of shell.querySelectorAll("[data-tab]")){
    const active=item.dataset.tab===tab;
@@ -297,6 +302,6 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  return {open,close,showTab,get visible(){return !shell.hidden;},dispose(){
   document.removeEventListener("keydown",keyboard);
   opener.remove();quickButton.remove();document.getElementById("toolbar-tablet")?.remove();
-  youtubeUI?.dispose();xrButton.remove();shell.remove();style.remove();
+  wallUI?.dispose();youtubeUI?.dispose();xrButton.remove();shell.remove();style.remove();
  }};
 }

@@ -25,7 +25,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261119-quest-spatial-3d";
+import {ExplorerRenderer} from "./render.mjs?v=20261119-wall-player";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -97,7 +97,7 @@ import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=20261114-social-2";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
-import {installWorldTablet} from "./world-tablet.mjs?v=20261119-quest-spatial-3d";
+import {installWorldTablet} from "./world-tablet.mjs?v=20261119-wall-player";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -4298,7 +4298,8 @@ window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal()
 init();
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
-const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.cameraController?.mode,notify:log});
+const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.cameraController?.mode,
+ getRenderer:()=>renderer,getController:()=>controller,getXRActive:()=>Boolean(xrUI?.active),notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
