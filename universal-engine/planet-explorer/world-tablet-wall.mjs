@@ -20,7 +20,7 @@ export function candidateWallSites(renderer,controller){
   if(!site||!FINITE(site.id)||!FINITE(site.x)||!FINITE(site.z)||!FINITE(site.height))continue;
   const config=FACILITIES[site.kind],stone=site.kind==="stone-wall";
   if(!stone&&!config)continue;
-  const halfX=stone?1.05:config.footprint*.48,halfZ=stone?.40:config.footprint*.38;
+  const halfX=stone?1.05:config.footprint*.48,halfZ=stone?0.40:config.footprint*.38;
   raw.push({scope:"construction",id:site.id,kind:site.kind,x:site.x,y:site.height,z:site.z,
    rotation:FINITE(site.rotation)?site.rotation:0,halfX,halfZ,planetId:sceneId});
  }
@@ -41,7 +41,8 @@ export function candidateWallSites(renderer,controller){
  * matches the existing placedBuildingGeometry() rotations and dimensions. */
 export function facadeForSite(site,viewer,side=null){
  if(!finiteSite(site)||!viewer||![viewer.x,viewer.z].every(FINITE))return null;
- const choices=Object.entries(SIDE_YAW).map(([key,turn])=>{
+ const choices=Object.entries(SIDE_YAW).filter(([key])=>
+  site.kind!=="stone-wall"||key==="front"||key==="back").map(([key,turn])=>{
   const yaw=site.rotation+turn,nx=Math.sin(yaw),nz=Math.cos(yaw);
   const distance=(viewer.x-site.x)*nx+(viewer.z-site.z)*nz;
   return {key,yaw,nx,nz,distance};
