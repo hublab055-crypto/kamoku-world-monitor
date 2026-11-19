@@ -88,7 +88,7 @@ export function sanitizeMountedWall(raw){
  try{if(typeof v==="string")v=JSON.parse(v);}
  catch(_){return null;}
  if(!v||!["construction","owner"].includes(v.scope)||!Number.isSafeInteger(v.id)||v.id<1||
-  !Object.hasOwn(SIDE_YAW,v.side)||typeof v.planetId!=="string"||v.planetId.length>60||
+  !Object.hasOwn(SIDE_YAW,v.side)||typeof v.planetId!=="string"||!v.planetId||v.planetId.length>60||
   !Array.isArray(v.origin)||v.origin.length!==2||!v.origin.every(FINITE)||
   Math.abs(v.origin[0])>90||Math.abs(v.origin[1])>180)return null;
  return {scope:v.scope,id:v.id,side:v.side,planetId:v.planetId,origin:v.origin.slice()};
