@@ -1,6 +1,7 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {VR_TABLET_KEYS,VR_AVATAR_KEYS,VR_MOTION_KEYS} from "./world-tablet-spatial.mjs?v=20261120-watch-edit";
 import {VR_WRIST_KEYS} from "./xr-wrist-device.mjs?v=20261120-watch-edit";
+import {POSE_EDITOR_JOINTS} from "./xr-avatar-pose-editor.mjs?v=20261120-two-grip";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261117-crew-life";
@@ -801,6 +802,9 @@ export class ExplorerRenderer{
   this.vrTabletAvatarMesh=new Mesh(gl,vrWorldTabletGeometry(VR_AVATAR_KEYS,"AVATAR"));
   this.vrTabletMotionMesh=new Mesh(gl,vrWorldTabletGeometry(VR_MOTION_KEYS,"MOTION"));
   this.vrWristWatchMesh=new Mesh(gl,vrWristWatchGeometry());
+  const editorHandle=builder();
+  box(editorHandle,0,0,0,.055,.055,.055,[.42,.92,1]);
+  this.vrPoseEditorHandleMesh=new Mesh(gl,editorHandle);
 
   this.cameraController=new CameraController();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
@@ -1590,7 +1594,7 @@ export class ExplorerRenderer{
   const asset=this.avatarV10Assets.get(fit.model);
   if(!asset){this.avatarV10Assets.prefetch(fit.model);return null;}
   try{
-   asset.draw(vp,transform,light,id,dt,{...options,fit});
+   asset.draw(vp,transform,light,options.instanceId||id,dt,{...options,fit});
    return asset;
   }catch(error){
    // A model/shader failure must not make the navigator or other crew vanish.
@@ -2766,6 +2770,27 @@ export class ExplorerRenderer{
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
   const mesh=page==="avatar"?this.vrTabletAvatarMesh:page==="motion"?this.vrTabletMotionMesh:this.vrTabletMesh;
   this.drawMesh(mesh,vp,[.66,1,.78],1,.89);
+ }
+ /** Draw a real, independently skinned V10 NPC preview plus movable joint handles.
+  * This is room-space editor geometry, not a clone added to gameplay/saves.
+  */
+ drawVRPoseEditor(xr,editor){
+  if(!xr||!editor?.anchor||!editor?.joints||!this.vrPoseEditorHandleMesh)return;
+  const vp=multiply4(xr.projection,xr.view);
+  const light=[-.28,.91,.48];
+  this.drawAvatarV10(editor.target,vp,editor.anchor,light,0,{
+   instanceId:"xr-pose-editor-"+editor.target,motion:"idle",
+   poseEditor:editor});
+  // Handles remain visible if the optional GLB has not downloaded yet.
+  const matrix=editor.anchor;
+  for(const [id,p] of Object.entries(editor.joints)){
+   if(!POSE_EDITOR_JOINTS[id]||p.length!==3)continue;
+   const picked=editor.held?.left===id||editor.held?.right===id;
+   const transform=multiply4(matrix,translate(p[0],p[1],p[2]));
+   const projection=multiply4(vp,transform);
+   const c=picked?[1,.71,.24]:[.48,.91,1];
+   this.drawMesh(this.vrPoseEditorHandleMesh,projection,c,1,picked?1:.87);
+  }
  }
  drawVRWristWatch(xr,model){
   if(!xr||!model||!this.vrWristWatchMesh)return;
