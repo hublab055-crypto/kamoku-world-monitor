@@ -59,7 +59,8 @@ function button(text,action,className){
 }
 
 export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,getRenderer=()=>null,getController=()=>null,getXRActive=()=>false,getAvatarAppearance=()=>null,onAvatarAdjust=()=>({ok:false}),
- onAvatarSave=()=>false,onShipRecall=()=>({ok:false}),notify=()=>{}}={}){
+ onAvatarSave=()=>false,onShipRecall=()=>({ok:false}),
+ onPoseCommand=()=>false,getPoseTrackJSON=()=>null,notify=()=>{}}={}){
  if(typeof document==="undefined")return null;
  const wrap=document.querySelector(".view-panel .canvas-wrap");
  const bar=document.querySelector(".viewport-compact-bar");
@@ -119,7 +120,11 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
  '<p>Quest 3SのHMDと左右コントローラーのモーション記録機能に接続します。足の実測には別途トラッカーが必要です。</p>'+
  '<div class="ue-tablet-buttons"><button type="button" data-action="motion-settings">録画・再生パネル</button>'+
  '<button type="button" data-action="motion-arm">次のVR開始時に録画</button>'+
- '<button type="button" data-action="motion-copy">記録JSONをコピー</button></div>'+
+ '<button type="button" data-action="motion-copy">記録JSONをコピー</button>'+
+ '<button type="button" data-action="pose-toggle">NPC関節編集の開始/終了</button>'+
+ '<button type="button" data-action="pose-target">編集するNPCを切替</button>'+
+ '<button type="button" data-action="pose-copy">NPC関節記録JSONをコピー</button>'+
+ '<button type="button" data-action="pose-save">NPC関節記録をファイル保存</button></div>'+
  '<output data-motion-state></output></section>'+
  '<section class="ue-tablet-pane" data-pane="avatar" hidden>'+
  '<p>調整した瞬間に自分のアバターへ反映します。「保存」を押すと次回にも引き継ぎます。</p>'+
@@ -324,6 +329,26 @@ export function installWorldTablet({setCameraMode=()=>{},getCameraMode=()=>null,
    if(!source){state("コピー可能な記録はありません");return;}
    try{await navigator.clipboard.writeText(source);state("記録JSONをコピーしました");}
    catch(_){state("コピー不可。VRモーション設定画面からコピーしてください");}
+   return;
+  }
+  if(action==="pose-toggle"||action==="pose-target"){
+   const ok=onPoseCommand(action==="pose-toggle"?"pose":"target");
+   state(ok?"VR内のNPCポーズ編集操作を送信しました":"QuestのVRセッション中に利用してください");return;
+  }
+  if(action==="pose-copy"||action==="pose-save"){
+   const source=getPoseTrackJSON();
+   if(!source){state("NPC関節記録はまだありません。VRでREC→STOPしてから実行してください");return;}
+   if(action==="pose-copy"){
+    try{await navigator.clipboard.writeText(source);state("NPC関節モーションJSONをコピーしました");}
+    catch(_){state("コピーに失敗しました。ファイル保存をご利用ください");}
+    return;
+   }
+   try{
+    const url=URL.createObjectURL(new Blob([source],{type:"application/json"}));
+    const a=document.createElement("a");a.download="universal-engine-npc-joint-motion.json";a.href=url;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    state("NPC関節モーションJSONの保存を開始しました");
+   }catch(_){state("ファイル保存に失敗しました");}
    return;
   }
   if(action==="rts-enter"){
