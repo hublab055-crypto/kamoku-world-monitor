@@ -180,3 +180,74 @@ export function poseAvatarV10MotionActor(rig,pose,frame){
  return true;
 }
 function clampActor(n,a,b){return Math.max(a,Math.min(b,n));}
+
+/** Two-bone IK for avatar editor leg targets. Preserves the hip and actual GLB bone lengths. */
+function poseEditorLeg(rig,pose,side,ankleGoal,kneeGoal){
+ const idx=rig.jointsByName;
+ const upper=idx.get("UpperLeg_"+side),lower=idx.get("LowerLeg_"+side),foot=idx.get("Foot_"+side);
+ if([upper,lower,foot].some(i=>i===undefined))return;
+ const parent=jointWorld(pose,rig.parents,rig.parents[upper]);
+ const hip=jointWorld(pose,rig.parents,upper);
+ const leg=pose[lower].translation,shin=pose[foot].translation;
+ const l1=Math.hypot(...leg),l2=Math.hypot(...shin);
+ if(l1<.001||l2<.001)return;
+ const delta=sub(ankleGoal,hip.p),axis=norm(delta);
+ const length=clampActor(Math.hypot(...delta),Math.abs(l1-l2)+.002,l1+l2-.002);
+ const kneeDirection=sub(kneeGoal,hip.p);
+ let pole=sub(kneeDirection,mul(axis,dot(kneeDirection,axis)));
+ if(Math.hypot(...pole)<.0001)pole=[0,0,1];
+ pole=norm(pole);
+ const reach=(l1*l1-l2*l2+length*length)/(2*length);
+ const bend=add(mul(axis,reach),mul(pole,Math.sqrt(Math.max(0,l1*l1-reach*reach))));
+ const upperWorld=combine(aim(rotate(leg,hip.q),bend),hip.q);
+ const lowerBase=combine(upperWorld,pose[lower].rotation);
+ const lowerWorld=combine(aim(rotate(shin,lowerBase),sub(mul(axis,length),bend)),lowerBase);
+ pose[upper].rotation=norm(combine(inverse(parent.q),upperWorld));
+ pose[lower].rotation=norm(combine(inverse(upperWorld),lowerWorld));
+}
+/** Pose-editor point coordinates are in avatar local metres (not world XR metres).
+ * In-place changes are made to temporary rig pose data, not the permanent GLB.
+ */
+export function poseAvatarV10JointEditor(rig,pose,editor){
+ if(!editor?.joints||!editor?.touched)return false;
+ const touched=editor.touched,joints=editor.joints,idx=rig.jointsByName;
+ const native=point=>point.map((v,i)=>v/rig.scale+rig.center[i]);
+ let changed=false;
+ for(const [side,word]of [["L","left"],["R","right"]]){
+  const elbow=word+"Elbow",hand=word+"Hand";
+  if(touched[elbow]||touched[hand]){
+   const upper=idx.get("UpperArm_"+side),lower=idx.get("LowerArm_"+side),wrist=idx.get("Hand_"+side);
+   if([upper,lower,wrist].every(i=>i!==undefined)){
+    const shoulder=jointWorld(pose,rig.parents,upper);
+    const end=touched[hand]?native(joints[hand]):jointWorld(pose,rig.parents,wrist).p;
+    const pole=touched[elbow]?sub(native(joints[elbow]),shoulder.p):
+     sub(jointWorld(pose,rig.parents,lower).p,shoulder.p);
+    const handRot=jointWorld(pose,rig.parents,wrist).q;
+    poseArm(rig,pose,side,end,handRot,pole,1,0);
+    changed=true;
+   }
+  }
+  const knee=word+"Knee",foot=word+"Foot";
+  if(touched[knee]||touched[foot]){
+   const upper=idx.get("UpperLeg_"+side),lower=idx.get("LowerLeg_"+side),ankle=idx.get("Foot_"+side);
+   if([upper,lower,ankle].every(i=>i!==undefined)){
+    const end=touched[foot]?native(joints[foot]):jointWorld(pose,rig.parents,ankle).p;
+    const bend=touched[knee]?native(joints[knee]):jointWorld(pose,rig.parents,lower).p;
+    poseEditorLeg(rig,pose,side,end,bend);changed=true;
+   }
+  }
+ }
+ if(touched.head){
+  const head=idx.get("Head");
+  if(head!==undefined){
+   const delta=sub(joints.head,[0,1.66,0]);
+   const yaw=clampActor(delta[0]*2,-.48,.48);
+   const pitch=clampActor(-delta[1]*2,-.35,.35);
+   const tilt=clampActor(-delta[0]*1.1,-.35,.35);
+   pose[head].rotation=norm(combine(pose[head].rotation,
+    combine(angle(yAxis,yaw),combine(angle([1,0,0],pitch),angle(front,tilt)))));
+   changed=true;
+  }
+ }
+ return changed;
+}
