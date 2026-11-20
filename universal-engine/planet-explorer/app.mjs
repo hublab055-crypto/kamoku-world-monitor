@@ -4311,7 +4311,9 @@ const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.
  getAvatarAppearance:()=>avatarV10.player?.appearance,
  onAvatarAdjust:(key,value)=>adjustLivePlayerAvatar(key,value),
  onAvatarSave:saveLivePlayerAvatar,
- onShipRecall:()=>landStarshipNearPlayer(),notify:log});
+ onShipRecall:()=>landStarshipNearPlayer(),
+ onPoseCommand:command=>xrUI?.poseEditorCommand(command)||false,
+ getPoseTrackJSON:()=>xrUI?.exportPoseEditorJSON()||null,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
