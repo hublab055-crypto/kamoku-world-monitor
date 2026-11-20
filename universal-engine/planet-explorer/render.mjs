@@ -2778,6 +2778,9 @@ export class ExplorerRenderer{
   if(!xr||!editor?.anchor||!editor?.joints||!this.vrPoseEditorHandleMesh)return;
   const vp=multiply4(xr.projection,xr.view);
   const light=[-.28,.91,.48];
+  this.gl.useProgram(this.program);
+  this.gl.uniform1f(this.uXROcclusionEnabled,0);
+  this.gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
   this.drawAvatarV10(editor.target,vp,editor.anchor,light,0,{
    instanceId:"xr-pose-editor-"+editor.target,motion:"idle",
    poseEditor:editor});
