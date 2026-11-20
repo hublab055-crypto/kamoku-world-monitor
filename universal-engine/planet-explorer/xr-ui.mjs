@@ -887,6 +887,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
  function onVRSelectEnd(event){
+  if(activeMode==="vr"&&vrPoseEditor.active)return;
   if(vrTabletTriggerConsumed.has(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&onVRShipCombatActive())return;
@@ -906,6 +907,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  function onSelect(event){
   if(vrTabletTriggerConsumed.delete(event.inputSource?.handedness))return;
   if(tryVRTabletPress(event)){vrTabletTriggerConsumed.delete(event.inputSource?.handedness);return;}
+  if(activeMode==="vr"&&vrPoseEditor.active)return;
   if(activeMode==="mr-social"){
    social.select(event.inputSource?.handedness);
    return;
@@ -1024,6 +1026,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function inputVector(){
   if(!session||activeMode!=="vr")return null;
+  if(vrPoseEditor.active)return {forward:0,strafe:0,turn:0,tableTurn:0};
   // XR gamepad data is sampled in immersive session frames, not window RAF.
   // Stop motion if the headset is no longer delivering controller frames.
   if(!vrInputSampleAt||performance.now()-vrInputSampleAt>250)
@@ -1032,6 +1035,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function vrButtonsFrame(sources){
   if(activeMode!=="vr")return;
+  if(vrPoseEditor.active){vrButtons.clear();return;}
   const bothSticks=["left","right"].every(hand=>sources.some(s=>
    s.handedness===hand&&s.gamepad?.buttons?.[3]?.pressed));
   if(bothSticks&&motionActorUI.recorder.recording){
@@ -1520,6 +1524,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   exportWearables:()=>vrWearables.snapshot(),
   poseEditorState:()=>vrPoseEditor.renderState(),
   exportPoseEditorJSON:()=>vrPoseEditor.exportJSON(),
+  poseEditorCommand:action=>{if(activeMode!=="vr")return false;doTabletAction(action);return true;},
   restoreWearables:data=>{
    const restored=WearableInventory.fromSnapshot(data);
    vrWearables=restored;saveWearables();syncVRClothing();return true;
