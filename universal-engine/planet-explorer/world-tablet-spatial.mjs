@@ -25,9 +25,12 @@ export const VR_AVATAR_KEYS=Object.freeze([
  {id:"save",label:"SAVE",x:.06,y:-.14},{id:"back",label:"BACK",x:.18,y:-.14}
 ]);
 export const VR_MOTION_KEYS=Object.freeze([
- {id:"record",label:"REC",x:-.18,y:.14},{id:"stop",label:"STOP",x:-.06,y:.14},
- {id:"play",label:"PLAY",x:.06,y:.14},{id:"clear",label:"CLEAR",x:.18,y:.14},
- {id:"back",label:"BACK",x:.18,y:-.14}
+ {id:"pose",label:"POSE",x:-.18,y:.14},{id:"target",label:"NPC",x:-.06,y:.14},
+ {id:"record",label:"REC",x:.06,y:.14},{id:"stop",label:"STOP",x:.18,y:.14},
+ {id:"play",label:"PLAY",x:-.18,y:0},{id:"key",label:"KEY",x:-.06,y:0},
+ {id:"reset",label:"RESET",x:.06,y:0},{id:"clear",label:"CLEAR",x:.18,y:0},
+ {id:"export",label:"SAVE",x:-.18,y:-.14},{id:"help",label:"HELP",x:-.06,y:-.14},
+ {id:"back",label:"BACK",x:.06,y:-.14},{id:"hide",label:"OFF",x:.18,y:-.14}
 ]);
 export const VR_AVATAR_ADJUSTMENTS=Object.freeze({
  "eye-less":["eyeSize",-3],"eye-more":["eyeSize",3],
