@@ -5,7 +5,7 @@ import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body
 import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
 import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117-hip-articulation";
 import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261118-obstetric";
-import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261118-mocap-ik";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261120-grip-ik";
 import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261118-obstetric";
 import {currentXRMotionActorPose} from "./xr-motion-actor.mjs?v=20261118-vr-mocap";
 import {isAvatarHandDetail,preserveAvatarSkinDetail} from "./avatar-v10-skin-detail.mjs?v=20261117-proportions-fix";
@@ -290,7 +290,7 @@ export class SkinnedFrontierAsset{
   }
   return this.inspectionMeshes;
  }
- pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
+ pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null,poseEditor=null}={}){
   let state=this.instances.get(id);
   if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
   const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
@@ -300,6 +300,7 @@ export class SkinnedFrontierAsset{
   const options={motionProgress,variant,hand,moving};
   if(lookAt)options.lookAt=lookAt;
   if(gesture)options.gesture=gesture;
+  if(poseEditor)options.poseEditor=poseEditor;
   if(id==="player"||id==="editor"){
    const actor=currentXRMotionActorPose(typeof performance!=="undefined"?performance.now():Date.now());
    if(actor)options.motionActor=actor;
