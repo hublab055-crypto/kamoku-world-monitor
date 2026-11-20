@@ -9,10 +9,10 @@ export const POSE_EDITOR_INTERVAL_MS=50;
 export const POSE_EDITOR_TARGETS=Object.freeze(["navigator","engineer","companion"]);
 export const POSE_EDITOR_JOINTS=Object.freeze({
  head:[0,1.66,0],
- leftElbow:[-.38,1.18,.08],leftHand:[-.52,.98,.13],
- rightElbow:[.38,1.18,.08],rightHand:[.52,.98,.13],
- leftKnee:[-.14,.51,.10],leftFoot:[-.14,.095,.15],
- rightKnee:[.14,.51,.10],rightFoot:[.14,.095,.15]
+ leftElbow:[.38,1.18,.08],leftHand:[.52,.98,.13],
+ rightElbow:[-.38,1.18,.08],rightHand:[-.52,.98,.13],
+ leftKnee:[.14,.51,.10],leftFoot:[.14,.095,.15],
+ rightKnee:[-.14,.51,.10],rightFoot:[-.14,.095,.15]
 });
 export const POSE_EDITOR_LINKS=Object.freeze([
  ["leftElbow","leftHand"],["rightElbow","rightHand"],
@@ -73,11 +73,11 @@ export function samplePoseEditorTrack(track,elapsedMs){
  const a=frames[i],b=frames[Math.min(i+1,frames.length-1)],s=b.t>a.t?(t-a.t)/(b.t-a.t):0;
  const joints=Object.fromEntries(Object.keys(POSE_EDITOR_JOINTS).map(id=>
   [id,a.joints[id].map((v,k)=>v+(b.joints[id][k]-v)*s)]));
- return {joints,t,duration};
+ return {joints,t,duration,touched:{...a.touched,...b.touched}};
 }
 export class XRAvatarPoseEditor{
  constructor(){
-  this.active=false;this.anchor=null;this.target="navigator";this.joints=copyJoints(POSE_EDITOR_JOINTS);
+  this.active=false;this.anchor=null;this.target="navigator";this.joints=copyJoints(POSE_EDITOR_JOINTS);this.touched={};
   this.held={left:null,right:null};this.recording=false;this.track=null;
   this.startedAt=null;this.lastSample=-Infinity;this.playing=false;this.playbackAt=null;
   this.status="編集停止";
@@ -95,14 +95,14 @@ export class XRAvatarPoseEditor{
   this.target=POSE_EDITOR_TARGETS[(i+1)%POSE_EDITOR_TARGETS.length];
   this.resetPose();this.clear();return this.target;
  }
- resetPose(){this.joints=copyJoints(POSE_EDITOR_JOINTS);this.held={left:null,right:null};this.playing=false;}
+ resetPose(){this.joints=copyJoints(POSE_EDITOR_JOINTS);this.touched={};this.held={left:null,right:null};this.playing=false;}
  grab(hand,matrix){
   if(!this.active||this.playing||!["left","right"].includes(hand)||!poseMatrix(matrix))return null;
   if(this.held[hand])return null;
   const candidate=xrJointHit(this.joints,this.anchor,matrix,{held:this.held});
   if(!candidate)return null;
   const local=inversePoint(this.anchor,pos(matrix));
-  this.held[hand]={joint:candidate.joint,offset:sub(this.joints[candidate.joint],local)};
+  this.held[hand]={joint:candidate.joint,offset:sub(this.joints[candidate.joint],local)};this.touched[candidate.joint]=true;
   this.status=hand+" grip: "+candidate.joint;return candidate.joint;
  }
  release(hand){
@@ -113,7 +113,7 @@ export class XRAvatarPoseEditor{
   if(!this.active)return;
   if(this.playing&&this.track){
    const frame=samplePoseEditorTrack(this.track,timeMs-this.playbackAt);
-   if(frame)this.joints=frame.joints;
+   if(frame){this.joints=frame.joints;this.touched=frame.touched||{};}
    if(!frame||frame.t>=frame.duration)this.playing=false;
    return;
   }
@@ -140,7 +140,7 @@ export class XRAvatarPoseEditor{
   if(!this.active||!Number.isFinite(timeMs))return false;
   if(!this.track||!this.recording)return false;
   const elapsed=Math.round(Math.max(0,timeMs-(this.startedAt??timeMs)));
-  this.track.frames.push({t:elapsed,joints:copyJoints(this.joints)});
+  this.track.frames.push({t:elapsed,joints:copyJoints(this.joints),touched:{...this.touched}});
   this.lastSample=elapsed;return true;
  }
  start(timeMs){
@@ -163,6 +163,6 @@ export class XRAvatarPoseEditor{
  }
  clear(){this.track=null;this.recording=false;this.playing=false;this.startedAt=null;this.lastSample=-Infinity;}
  renderState(){return this.active&&this.anchor?{target:this.target,anchor:this.anchor,
-  joints:copyJoints(this.joints),held:{left:this.held.left?.joint||null,right:this.held.right?.joint||null}}:null;}
+  joints:copyJoints(this.joints),touched:{...this.touched},held:{left:this.held.left?.joint||null,right:this.held.right?.joint||null}}:null;}
  exportJSON(){return validPoseEditorTrack(this.track)?JSON.stringify(this.track,null,2):null;}
 }
