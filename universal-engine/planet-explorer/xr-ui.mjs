@@ -16,6 +16,7 @@ import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet,VR_AVATAR_ADJUSTMENTS} from "./world-tablet-spatial.mjs?v=20261120-watch-edit";
 import {XRWristWatch} from "./xr-wrist-device.mjs?v=20261120-watch-edit";
+import {XRAvatarPoseEditor} from "./xr-avatar-pose-editor.mjs?v=20261120-two-grip";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -44,6 +45,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
  const xrWristWatch=new XRWristWatch();
+ const vrPoseEditor=new XRAvatarPoseEditor();
  const vrTabletTriggerConsumed=new Set();
  let vrMotionChordHeld=false;
  let session=null,activeMode=null,space=null,anchor=null,lastTime=0,viewerSpace=null,hitSource=null,hitPose=null;
@@ -269,7 +271,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="mr-social")social.activate(false);
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
-  vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();xrWristWatch.resetSession();
+  vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();xrWristWatch.resetSession();vrPoseEditor.exit();
   const renderer=getRenderer();
   if(renderer){renderer.xrView=null;renderer.shipVRHotas=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
@@ -489,6 +491,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    leftRay:matrix(left,"ray")||last.leftRay,rightRay:matrix(right,"ray")||last.rightRay};
   const prevRigTime=vrPhysical.lastTime;
   const events=vrPhysical.setPose(gear,time,{floorY:usingFloor?0:null});
+  if(vrPoseEditor.active){
+   // During explicit posing, grips never trigger weapons, equipment or crew social gestures.
+   vrPoseEditor.update(time,{left:trackedLeft,right:trackedRight});
+   return;
+  }
   syncVRClothing();
   if(activeMode==="vr"&&onVRCustody("state")?.handled){
    // Only fresh grip poses count. Last-known body poses are NOT climbing input.
@@ -538,7 +545,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  function onVRSqueezeStart(event){
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   const hand=event.inputSource?.handedness;
-  if(!["left","right"].includes(hand)||!nativeGrip(hand))return;
+  if(!["left","right"].includes(hand))return;
+  if(vrPoseEditor.active){
+   let grip=null;
+   try{
+    const src=event.inputSource,spaceRef=src?.gripSpace||src?.targetRaySpace;
+    grip=spaceRef&&space?event.frame.getPose(spaceRef,space)?.transform.matrix||null:null;
+   }catch(_){}
+   const joint=vrPoseEditor.grab(hand,grip);
+   vrGripConsumed.add(hand);
+   statusText(joint?"✊ "+hand+"で"+joint+"をつかみました。動かして離すとポーズを保持":
+    "✋ 編集対象の青い関節に手を近づけてグリップを押してください");
+   return;
+  }
+  if(!nativeGrip(hand))return;
   const ship=getRenderer()?.shipVoyage;
   if(ship?.active&&ship.seated&&vrCurrentStage){
    let gripPose=null;
@@ -647,6 +667,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="vr")return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
+  if(vrPoseEditor.active){
+   const released=vrPoseEditor.release(hand);
+   vrGripConsumed.delete(hand);
+   if(released)statusText("✋ "+hand+"の関節を離しました。現在のポーズを保持中");
+   return;
+  }
   vrShipHeldGrips.delete(hand);
   if(!vrShipHeldGrips.size)vrShipContactLatched=false;
   if(vrHotas.isHeld(hand)){vrHotas.release(hand);statusText("✋ 操縦レバーから手を離しました");}
@@ -676,9 +702,59 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   motionActorUI.start({floorTracked:usingFloor});
   return "● モーション記録開始（最大25秒、HMDと左右Touchのみ）";
  }
+ function downloadPoseTrack(){
+  const json=vrPoseEditor.exportJSON();
+  if(!json)return false;
+  try{
+   const blob=new Blob([json],{type:"application/json"});
+   const url=URL.createObjectURL(blob),a=document.createElement("a");
+   a.href=url;a.download="universal-engine-npc-pose-"+vrPoseEditor.target+".json";
+   a.style.display="none";document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),1000);
+   return true;
+  }catch(_){return false;}
+ }
  function doTabletAction(action){
   const shell=document.getElementById("ue-world-tablet");
+  if(action==="pose"){
+   if(vrPoseEditor.active){
+    vrPoseEditor.exit();statusText("🎭 関節編集を終了し、通常のVR操作に戻りました");return;
+   }
+   const seated=Boolean(getRenderer()?.shipVoyage?.active&&getRenderer()?.shipVoyage?.seated);
+   if(vrRTS||seated||onVRCustody("state")?.handled){
+    statusText("🎭 関節編集はVR徒歩モードで、拘束・着席していない状態で使えます");return;
+   }
+   if(!vrPhysical.pose?.head||!vrPoseEditor.enter(vrPhysical.pose.head,{floorTracked:usingFloor})){
+    statusText("🎭 HMD追跡が取得できません。両コントローラーを検出して再試行してください");return;
+   }
+   motionActorUI.stop();vrShipHeldGrips.clear();vrShipContactLatched=false;
+   statusText("🎭 副官のポーズ編集開始。左右グリップで青い関節をつかめます");return;
+  }
+  if(action==="target"){
+   if(!vrPoseEditor.active){statusText("🎭 先にPOSEを選択してください");return;}
+   if(vrPoseEditor.recording){statusText("🎭 録画を停止してからNPCを切り替えてください");return;}
+   statusText("🎭 編集対象を"+vrPoseEditor.cycleTarget()+"に切り替えました");return;
+  }
+  if(action==="key"){
+   if(!vrPoseEditor.active){statusText("🎭 POSEモードで利用できます");return;}
+   if(vrPoseEditor.recording){vrPoseEditor.keyframe(performance.now());}
+   else{vrPoseEditor.start(performance.now());vrPoseEditor.stop();}
+   statusText("🎭 現在の関節ポーズをキーフレームに記録しました");return;
+  }
+  if(action==="reset"){
+   if(vrPoseEditor.active){vrPoseEditor.resetPose();statusText("🎭 ポーズを初期化しました");}
+   else statusText("🎭 先にPOSEを選択してください");
+   return;
+  }
+  if(action==="help"){
+   statusText("🎭 POSEで編集開始、NPCで対象変更。両手グリップで関節を保持し移動。REC→STOP→PLAY、SAVEでJSONを書き出し");return;
+  }
+  if(action==="export"){
+   statusText(downloadPoseTrack()?"🎭 JSON保存を開始しました。ブラウザのダウンロードを確認してください":
+    "🎭 記録がありません。RECとSTOPの後に保存してください");return;
+  }
   if(action==="hide"){
+   if(vrPoseEditor.active)vrPoseEditor.exit();
    setVRTabletVisible(false);statusText("▣ タブレット収納。腕時計のTABから再表示できます");return;
   }
   if(action==="wall"){statusText("🧱 XR空間へスクリーンを固定しました");return;}
@@ -687,7 +763,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    shell?.querySelector('[data-tab="'+action+'"]')?.click();
    statusText(action==="avatar"?"🧬 アバター：+/-で即時変更、SAVEで保存":"🎭 モーション：REC／STOP／PLAY");return;
   }
-  if(action==="back"){statusText("▣ タブレットのメインメニューへ戻りました");return;}
+  if(action==="back"){
+   if(vrPoseEditor.active)vrPoseEditor.exit();
+   statusText("▣ 編集モードを終了し、メインメニューへ戻りました");return;
+  }
   if(VR_AVATAR_ADJUSTMENTS[action]){
    const [key,delta]=VR_AVATAR_ADJUSTMENTS[action],result=onVRAvatarAdjust(key,delta);
    statusText(result?.ok?"🧬 "+key+" = "+result.value+"%（即時反映中）":(result?.message||"アバター編集できません"));return;
@@ -699,10 +778,26 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const result=onVRShipRecall();
    statusText(result?.message||(result?.ok?"🚀 宇宙船を呼びました":"🚀 宇宙船を呼び出せません"));return;
   }
-  if(action==="rec"||action==="record"){statusText(toggleMotionCapture());return;}
-  if(action==="stop"){motionActorUI.stop();statusText("🎭 VRモーション記録を停止");return;}
-  if(action==="play"){statusText(motionActorUI.togglePlayback()?"🎭 モーション再生状態を切り替えました":"🎭 再生できる記録がありません");return;}
-  if(action==="clear"){motionActorUI.clear();statusText("🎭 一時モーション記録を消去しました");return;}
+  if(action==="rec"||action==="record"){
+   if(vrPoseEditor.active){
+    if(vrPoseEditor.recording)vrPoseEditor.stop();
+    else vrPoseEditor.start(performance.now());
+    statusText(vrPoseEditor.recording?"● NPC関節モーションを録画開始（最大25秒）":"🎭 NPC関節モーションの録画を終了しました");return;
+   }
+   statusText(toggleMotionCapture());return;
+  }
+  if(action==="stop"){
+   if(vrPoseEditor.active)vrPoseEditor.stop();else motionActorUI.stop();
+   statusText("🎭 モーション記録を停止");return;
+  }
+  if(action==="play"){
+   const ok=vrPoseEditor.active?vrPoseEditor.togglePlayback(performance.now()):motionActorUI.togglePlayback();
+   statusText(ok?"🎭 モーション再生を切り替えました":"🎭 再生できる記録がありません");return;
+  }
+  if(action==="clear"){
+   if(vrPoseEditor.active)vrPoseEditor.clear();else motionActorUI.clear();
+   statusText("🎭 一時モーション記録を消去しました");return;
+  }
   if(action==="rts"){
    const next=!vrRTS;
    if(onVRToggleRTS(next)!==false){
@@ -744,6 +839,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function onVRSelectStart(event){
   if(tryVRTabletPress(event))return;
+  if(activeMode==="vr"&&vrPoseEditor.active)return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
    // The switch bank always responds, even docked (with a clear flight interlock message).
@@ -1340,6 +1436,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      });
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model,xrWorldTablet.page);
+    if(mode==="vr"&&vrPoseEditor.active)renderer.drawVRPoseEditor(renderer.xrView,vrPoseEditor.renderState());
     if(mode==="vr"&&xrWristWatch.model)renderer.drawVRWristWatch(renderer.xrView,xrWristWatch.model);
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
@@ -1421,6 +1518,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  update();probe();
  return {get active(){return present();},get mode(){return activeMode;},inputVector,
   exportWearables:()=>vrWearables.snapshot(),
+  poseEditorState:()=>vrPoseEditor.renderState(),
+  exportPoseEditorJSON:()=>vrPoseEditor.exportJSON(),
   restoreWearables:data=>{
    const restored=WearableInventory.fromSnapshot(data);
    vrWearables=restored;saveWearables();syncVRClothing();return true;
