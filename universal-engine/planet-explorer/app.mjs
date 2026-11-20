@@ -1,6 +1,6 @@
 import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
-import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261118-mocap-medical";
+import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261120-grip-ik";
 import {shipContactDistance} from "./space-combat.mjs?v=20261117-mining";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
