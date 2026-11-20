@@ -94,3 +94,28 @@ test("OFF closes the world-space panel; session reset removes room anchors",()=>
  assert.equal(t.model,null);
  assert.equal(t.press(xrIdentity()),null);
 });
+
+test("Tablet avatar and motion pages change keys but retain main actions",()=>{
+ const tablet=new XRWorldTablet();tablet.setEnabled(true);tablet.update(head(),left());
+ const key=(id,keys=VR_TABLET_KEYS)=>keys.find(x=>x.id===id);
+ const press=(id,keys)=>{const k=key(id,keys);return tablet.press(rayAt(tablet.model,k.x,k.y));};
+ assert.equal(press("avatar").action,"avatar");
+ assert.equal(tablet.page,"avatar");
+ assert.equal(tablet.press(rayAt(tablet.model,.18,.14)).action,"brow-more");
+ assert.equal(press("back",[{id:"back",x:.18,y:-.14}]).action,"back");
+ assert.equal(tablet.page,"main");
+ assert.equal(press("motion").action,"motion");
+ assert.equal(tablet.page,"motion");
+ assert.equal(press("record",[{id:"record",x:.06,y:.14}]).action,"record");
+ tablet.resetSession();assert.equal(tablet.page,"main");
+});
+
+test("Motion panel exposes isolated pose editor commands to the right-hand ray",()=>{
+ const t=new XRWorldTablet();t.setEnabled(true);t.update(head(),left());
+ const main=VR_TABLET_KEYS.find(k=>k.id==="motion");
+ t.press(rayAt(t.model,main.x,main.y));
+ assert.equal(t.page,"motion");
+ for(const [id,x,y]of [["pose",-.18,.14],["target",-.06,.14],["key",-.06,0],["export",-.18,-.14]]){
+  assert.equal(t.press(rayAt(t.model,x,y))?.action,id);
+ }
+});

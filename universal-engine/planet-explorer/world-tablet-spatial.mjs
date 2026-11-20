@@ -9,17 +9,37 @@
 import {xrForward,xrMul,xrRotateY,xrTranslate} from "./xr-spatial.mjs?v=20261119-tablet-3d";
 
 export const VR_TABLET_KEYS=Object.freeze([
- {id:"video",label:"VIDEO",x:-.15,y:.14},
- {id:"web",label:"WEB",x:0,y:.14},
- {id:"chat",label:"CHAT",x:.15,y:.14},
- {id:"settings",label:"SET",x:-.15,y:0},
- {id:"motion",label:"MOTION",x:0,y:0},
- {id:"rts",label:"RTS",x:.15,y:0},
- {id:"wall",label:"WALL",x:-.15,y:-.14},
- {id:"hand",label:"HAND",x:0,y:-.14},
- {id:"hide",label:"OFF",x:.15,y:-.14}
+ {id:"video",label:"VIDEO",x:-.18,y:.14},{id:"web",label:"WEB",x:-.06,y:.14},
+ {id:"chat",label:"CHAT",x:.06,y:.14},{id:"avatar",label:"AVTR",x:.18,y:.14},
+ {id:"settings",label:"SET",x:-.18,y:0},{id:"motion",label:"MOTION",x:-.06,y:0},
+ {id:"rts",label:"RTS",x:.06,y:0},{id:"ship",label:"SHIP",x:.18,y:0},
+ {id:"wall",label:"WALL",x:-.18,y:-.14},{id:"hand",label:"HAND",x:-.06,y:-.14},
+ {id:"rec",label:"REC",x:.06,y:-.14},{id:"hide",label:"OFF",x:.18,y:-.14}
 ]);
-export const VR_TABLET_WIDTH=.46,VR_TABLET_HEIGHT=.51;
+export const VR_AVATAR_KEYS=Object.freeze([
+ {id:"eye-less",label:"EYE-",x:-.18,y:.14},{id:"eye-more",label:"EYE+",x:-.06,y:.14},
+ {id:"brow-less",label:"BROW-",x:.06,y:.14},{id:"brow-more",label:"BROW+",x:.18,y:.14},
+ {id:"mouth-less",label:"LIP-",x:-.18,y:0},{id:"mouth-more",label:"LIP+",x:-.06,y:0},
+ {id:"torso-less",label:"BODY-",x:.06,y:0},{id:"torso-more",label:"BODY+",x:.18,y:0},
+ {id:"leg-less",label:"LEG-",x:-.18,y:-.14},{id:"leg-more",label:"LEG+",x:-.06,y:-.14},
+ {id:"save",label:"SAVE",x:.06,y:-.14},{id:"back",label:"BACK",x:.18,y:-.14}
+]);
+export const VR_MOTION_KEYS=Object.freeze([
+ {id:"pose",label:"POSE",x:-.18,y:.14},{id:"target",label:"NPC",x:-.06,y:.14},
+ {id:"record",label:"REC",x:.06,y:.14},{id:"stop",label:"STOP",x:.18,y:.14},
+ {id:"play",label:"PLAY",x:-.18,y:0},{id:"key",label:"KEY",x:-.06,y:0},
+ {id:"reset",label:"RESET",x:.06,y:0},{id:"clear",label:"CLEAR",x:.18,y:0},
+ {id:"export",label:"SAVE",x:-.18,y:-.14},{id:"help",label:"HELP",x:-.06,y:-.14},
+ {id:"back",label:"BACK",x:.06,y:-.14},{id:"hide",label:"OFF",x:.18,y:-.14}
+]);
+export const VR_AVATAR_ADJUSTMENTS=Object.freeze({
+ "eye-less":["eyeSize",-3],"eye-more":["eyeSize",3],
+ "brow-less":["browSize",-3],"brow-more":["browSize",3],
+ "mouth-less":["mouthSize",-3],"mouth-more":["mouthSize",3],
+ "torso-less":["torsoWidth",-3],"torso-more":["torsoWidth",3],
+ "leg-less":["legLength",-3],"leg-more":["legLength",3]
+});
+export const VR_TABLET_WIDTH=.56,VR_TABLET_HEIGHT=.51;
 export const VR_TABLET_WALL_SCALE=2.25;
 const finiteMatrix=m=>m&&m.length>=16&&[0,1,2,4,5,6,8,9,10,12,13,14].every(i=>Number.isFinite(m[i]));
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -86,12 +106,12 @@ export function vrTabletRayHit(ray,model,{maxDistance=3.5}={}){
 }
 
 export function vrTabletButtonAt(x,y){
- return VR_TABLET_KEYS.find(k=>Math.abs(x-k.x)<=.065&&Math.abs(y-k.y)<=.054)?.id||null;
+ return VR_TABLET_KEYS.find(k=>Math.abs(x-k.x)<=.052&&Math.abs(y-k.y)<=.052)?.id||null;
 }
 
 export class XRWorldTablet{
  constructor(){
-  this.enabled=false;this.position="hand";this.model=null;
+  this.enabled=false;this.position="hand";this.model=null;this.page="main";
   this.head=null;this.left=null;this.wall=null;
  }
  setEnabled(enabled){
@@ -107,12 +127,19 @@ export class XRWorldTablet{
    this.wall:vrTabletHandPose(this.head,this.left);
   return this.model;
  }
+ setPage(page){
+  if(!["main","avatar","motion"].includes(page))return false;
+  this.page=page;return true;
+ }
  press(ray){
   if(!this.enabled||!this.model)return null;
   const hit=vrTabletRayHit(ray,this.model);
   if(!hit)return null;
-  const action=vrTabletButtonAt(hit.x,hit.y);
+  const keys=this.page==="avatar"?VR_AVATAR_KEYS:this.page==="motion"?VR_MOTION_KEYS:VR_TABLET_KEYS;
+  const action=keys.find(k=>Math.abs(hit.x-k.x)<=.052&&Math.abs(hit.y-k.y)<=.052)?.id;
   if(!action)return null;
+  if(action==="avatar"||action==="motion")this.setPage(action);
+  else if(action==="back")this.setPage("main");
   if(action==="wall"){
    const placed=vrTabletWallPose(this.head);
    if(!placed)return null;
@@ -125,7 +152,7 @@ export class XRWorldTablet{
   return {action,hit};
  }
  resetSession(){
-  this.head=null;this.left=null;this.wall=null;this.position="hand";this.model=null;
+  this.head=null;this.left=null;this.wall=null;this.position="hand";this.page="main";this.model=null;
  }
  get scale(){return this.position==="wall"?VR_TABLET_WALL_SCALE:1;}
 }

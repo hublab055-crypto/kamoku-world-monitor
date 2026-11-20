@@ -1,4 +1,4 @@
-import {poseAvatarV10Gesture,poseAvatarV10MotionActor} from "./avatar-v10-motion.mjs?v=20261118-mocap-ik";
+import {poseAvatarV10Gesture,poseAvatarV10MotionActor,poseAvatarV10JointEditor} from "./avatar-v10-motion.mjs?v=20261120-grip-ik";
 import {samplePose} from "./rig.mjs?v=0.8p-fishing-motion";
 import {sampleAvatarDailyPose} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
 import {swimStroke,isAquaticAction} from "./swim-motion.mjs?v=0.8q-splash";
@@ -340,6 +340,7 @@ export function poseFrontierRig(rig,bodyKind,time,faceKind="faceIdle",faceTime=t
  applyAvatarDailyRigPose(rig,pose,bodyKind,time,{progress:opts.motionProgress??0,hand:opts.hand||"right"});
  if(rig.isV10&&opts.gesture)poseAvatarV10Gesture(rig,pose,opts.gesture);
  if(rig.isV10&&opts.motionActor)poseAvatarV10MotionActor(rig,pose,opts.motionActor);
+ if(rig.isV10&&opts.poseEditor)poseAvatarV10JointEditor(rig,pose,opts.poseEditor);
  // Live neck/head tracking: the officer lowers her gaze when the player
  // is seated, and turns her eyes/head toward the nearby player while standing.
  if(rig.isV10&&opts.lookAt){

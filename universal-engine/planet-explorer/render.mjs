@@ -1,5 +1,8 @@
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
+import {VR_TABLET_KEYS,VR_AVATAR_KEYS,VR_MOTION_KEYS} from "./world-tablet-spatial.mjs?v=20261120-watch-edit";
+import {VR_WRIST_KEYS} from "./xr-wrist-device.mjs?v=20261120-watch-edit";
+import {POSE_EDITOR_JOINTS} from "./xr-avatar-pose-editor.mjs?v=20261120-two-grip";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261120-grip-ik";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261117-crew-life";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
@@ -38,7 +41,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261118-mocap-medical";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261120-grip-ik";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
@@ -208,25 +211,31 @@ function holoLetters(mesh,text,x,y,z,{size=.009,color=[.68,.95,1]}={}){
    box(mesh,start+i*cell+col*size+size*.5,y-r*size,z,size*.44,size*.9,size*.1,color);
  }
 }
-/** Quest tablet: original 3D button geometry (no remote video textures). */
-function vrWorldTabletGeometry(){
+/** Native XR geometry shares its labels with the ray hitbox declarations. */
+function vrWorldTabletGeometry(keys=VR_TABLET_KEYS,title="WORLD"){
  const b=builder();
- box(b,0,-.255,-.030,.242,.510,.024,[.10,.16,.21]);
- box(b,0,-.241,-.004,.226,.482,.004,[.014,.065,.092]);
- box(b,0,.207,.006,.214,.044,.003,[.10,.34,.43]);
- holoLetters(b,"WORLD",0,.218,.018,{size:.007,color:[.66,.96,1]});
- const groups=[
-  ["VIDEO",-.15,.14],["WEB",0,.14],["CHAT",.15,.14],
-  ["SET",-.15,0],["MOTION",0,0],["RTS",.15,0],
-  ["WALL",-.15,-.14],["HAND",0,-.14],["OFF",.15,-.14]
- ];
- for(const [label,x,y]of groups){
-  const col=label==="OFF"?[.43,.13,.19]:
-   label==="WALL"?[.19,.39,.30]:[.11,.31,.42];
-  box(b,x,y-.054,.010,.064,.108,.006,col);
-  holoLetters(b,label,x,y+.012,.021,{size:.0057,color:[.78,.98,1]});
+ box(b,0,0,-.025,.584,.526,.024,[.10,.16,.21]);
+ box(b,0,0,-.004,.564,.507,.004,[.014,.065,.092]);
+ box(b,0,.229,.006,.53,.038,.003,[.10,.34,.43]);
+ holoLetters(b,title,0,.242,.018,{size:.007,color:[.66,.96,1]});
+ for(const {label,x,y} of keys){
+  const col=label==="OFF"||label==="BACK"?[.43,.13,.19]:
+   label==="SAVE"||label==="REC"?[.19,.39,.30]:[.11,.31,.42];
+  box(b,x,y-.046,.010,.051,.099,.006,col);
+  holoLetters(b,label,x,y+.014,.021,{size:.0051,color:[.78,.98,1]});
  }
- box(b,0,-.247,.004,.21,.006,.003,[.27,.67,.71]);
+ box(b,0,-.247,.004,.54,.006,.003,[.27,.67,.71]);
+ return b;
+}
+function vrWristWatchGeometry(){
+ const b=builder();
+ box(b,0,0,-.018,.222,.235,.030,[.10,.13,.16]);
+ box(b,0,0,.002,.206,.220,.006,[.035,.17,.23]);
+ holoLetters(b,"WRIST",0,.110,.018,{size:.0047,color:[.77,1,1]});
+ for(const {label,x,y}of VR_WRIST_KEYS){
+  box(b,x,y-.029,.010,.046,.082,.006,[.12,.36,.45]);
+  holoLetters(b,label,x,y+.014,.022,{size:.004,color:[.85,1,1]});
+ }
  return b;
 }
 
@@ -790,6 +799,12 @@ export class ExplorerRenderer{
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
   this.vrTabletMesh=new Mesh(gl,vrWorldTabletGeometry());
+  this.vrTabletAvatarMesh=new Mesh(gl,vrWorldTabletGeometry(VR_AVATAR_KEYS,"AVATAR"));
+  this.vrTabletMotionMesh=new Mesh(gl,vrWorldTabletGeometry(VR_MOTION_KEYS,"MOTION"));
+  this.vrWristWatchMesh=new Mesh(gl,vrWristWatchGeometry());
+  const editorHandle=builder();
+  box(editorHandle,0,0,0,.055,.055,.055,[.42,.92,1]);
+  this.vrPoseEditorHandleMesh=new Mesh(gl,editorHandle);
 
   this.cameraController=new CameraController();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
@@ -1579,7 +1594,7 @@ export class ExplorerRenderer{
   const asset=this.avatarV10Assets.get(fit.model);
   if(!asset){this.avatarV10Assets.prefetch(fit.model);return null;}
   try{
-   asset.draw(vp,transform,light,id,dt,{...options,fit});
+   asset.draw(vp,transform,light,options.instanceId||id,dt,{...options,fit});
    return asset;
   }catch(error){
    // A model/shader failure must not make the navigator or other crew vanish.
@@ -2746,14 +2761,48 @@ export class ExplorerRenderer{
   * Draw room-space XR geometry (metres), independently of planet/ship stage.
   * No iframe pixels or protected video are sampled.
   */
- drawVRWorldTablet(xr,model){
+ drawVRWorldTablet(xr,model,page="main"){
   if(!xr||!model||!this.vrTabletMesh)return;
   const vp=multiply4(xr.projection,multiply4(xr.view,model));
   const gl=this.gl;
   gl.useProgram(this.program);
   gl.uniform1f(this.uXROcclusionEnabled,0);
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
-  this.drawMesh(this.vrTabletMesh,vp,[.66,1,.78],1,.89);
+  const mesh=page==="avatar"?this.vrTabletAvatarMesh:page==="motion"?this.vrTabletMotionMesh:this.vrTabletMesh;
+  this.drawMesh(mesh,vp,[.66,1,.78],1,.89);
+ }
+ /** Draw a real, independently skinned V10 NPC preview plus movable joint handles.
+  * This is room-space editor geometry, not a clone added to gameplay/saves.
+  */
+ drawVRPoseEditor(xr,editor){
+  if(!xr||!editor?.anchor||!editor?.joints||!this.vrPoseEditorHandleMesh)return;
+  const vp=multiply4(xr.projection,xr.view);
+  const light=[-.28,.91,.48];
+  this.gl.useProgram(this.program);
+  this.gl.uniform1f(this.uXROcclusionEnabled,0);
+  this.gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawAvatarV10(editor.target,vp,editor.anchor,light,0,{
+   instanceId:"xr-pose-editor-"+editor.target,motion:"idle",
+   poseEditor:editor});
+  // Handles remain visible if the optional GLB has not downloaded yet.
+  const matrix=editor.anchor;
+  for(const [id,p] of Object.entries(editor.joints)){
+   if(!POSE_EDITOR_JOINTS[id]||p.length!==3)continue;
+   const picked=editor.held?.left===id||editor.held?.right===id;
+   const transform=multiply4(matrix,translate(p[0],p[1],p[2]));
+   const projection=multiply4(vp,transform);
+   const c=picked?[1,.71,.24]:[.48,.91,1];
+   this.drawMesh(this.vrPoseEditorHandleMesh,projection,c,1,picked?1:.87);
+  }
+ }
+ drawVRWristWatch(xr,model){
+  if(!xr||!model||!this.vrWristWatchMesh)return;
+  const vp=multiply4(xr.projection,multiply4(xr.view,model));
+  const gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawMesh(this.vrWristWatchMesh,vp,[.73,.94,1],1,.92);
  }
  drawVRGuide(xr,anchor){
   if(!xr||!anchor||!this.globe)return;
