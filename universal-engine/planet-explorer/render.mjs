@@ -263,9 +263,9 @@ function vrWristWatchGeometry({style="smart",clocks={real:"00:00:00",world:"00:0
   holoLetters(b,"WORLD",.045,-.057,.021,{size:.0034,color:[.44,.94,.91]});
  }else{
   holoLetters(b,"REAL",0,.061,.021,{size:.005,color:[.58,.84,.96]});
-  holoLetters(b,clocks.real,0,.036,.022,{size:.0060,color:[.94,.98,1]});
+  holoLetters(b,clocks.real,0,.036,.022,{size:.0053,color:[.94,.98,1]});
   holoLetters(b,"WORLD",0,-.006,.021,{size:.005,color:[.48,1,.79]});
-  holoLetters(b,clocks.world,0,-.033,.022,{size:.006,color:[.61,1,.80]});
+  holoLetters(b,clocks.world,0,-.033,.022,{size:.0053,color:[.61,1,.80]});
  }
  if(open){
   box(b,0,-.188,-.008,.208,.191,.020,[.055,.13,.19]);
