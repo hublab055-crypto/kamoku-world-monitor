@@ -1,7 +1,7 @@
 import {geoOffset,geoLocal,terrainSurface} from "./geo.mjs?v=0.8v-alpine-horizon";
 import {VoyageLog} from "./circumnavigation.mjs?v=0.8m-geodesic";
 import {ShipFishing,SHIP_FURNITURE} from "./ship-life.mjs?v=0.8p-cast-reel";
-import {ShipboardWorld} from "./shipboard.mjs?v=0.8n-crew-walking";
+import {ShipboardWorld} from "./shipboard.mjs?v=20261122-wristwatch";
 import {SWIM_STYLES,DIVE_GEAR,SEA_SITE_TYPES,seaSitesNear,oceanFloorDepth} from "./ocean-exploration.mjs?v=0.8o-seabed";
 import {islandCenters} from "../planet/island-archipelago.mjs?v=0.8p-islands";
 
