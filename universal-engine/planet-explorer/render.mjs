@@ -197,7 +197,7 @@ const HOLO_FONT=Object.freeze({
  "2":["110","001","111","100","111"],"3":["110","001","110","001","110"],"4":["101","101","111","001","001"],
  "5":["111","100","110","001","110"],"6":["011","100","111","101","111"],"7":["111","001","010","010","010"],
  "8":["111","101","111","101","111"],"9":["111","101","111","001","110"],
- ".":["000","000","000","000","010"],"-":["000","000","111","000","000"],"%":["101","001","010","100","101"]
+ ".":["000","000","000","000","010"],":":["000","010","000","010","000"],"-":["000","000","111","000","000"],"%":["101","001","010","100","101"]
 });
 function holoLetters(mesh,text,x,y,z,{size=.009,color=[.68,.95,1]}={}){
  const word=String(text).toUpperCase().slice(0,10),cell=4*size;
@@ -228,6 +228,57 @@ function vrWorldTabletGeometry(){
   holoLetters(b,label,x,y+.012,.021,{size:.0057,color:[.78,.98,1]});
  }
  box(b,0,-.247,.004,.21,.006,.003,[.27,.67,.71]);
+ return b;
+}
+
+
+/** Wristwatch: the same local model is used for both eyes and for ray hits. */
+function vrWristWatchGeometry({style="smart",clocks={real:"00:00:00",world:"00:00:00"},open=false}={}){
+ const b=builder();
+ const metal=style==="mechanical"?[.42,.39,.32]:[.09,.22,.29];
+ box(b,0,.105,-.014,.085,.066,.021,[.12,.17,.20]);
+ box(b,0,-.105,-.014,.085,.066,.021,[.12,.17,.20]);
+ box(b,0,0,-.012,.200,.178,.027,metal);
+ box(b,0,0,.005,.176,.157,.006,[.012,.051,.068]);
+ if(style==="mechanical"){
+  const dial=(cx,cy,time,color)=>{
+   for(let n=0;n<12;n++){
+    const a=n*Math.PI/6;
+    box(b,cx+Math.sin(a)*.037,cy+Math.cos(a)*.037,.017,.004,.004,.003,color);
+   }
+   const parts=time.split(":").map(v=>Number(v)||0);
+   const hour=((parts[0]%12)+parts[1]/60)*Math.PI/6,minute=(parts[1]+parts[2]/60)*Math.PI/30;
+   for(const [angle,length,thickness] of [[hour,.022,.004],[minute,.030,.0027]]){
+    for(let n=1;n<=7;n++){
+     const fraction=n/7;
+     box(b,cx+Math.sin(angle)*length*fraction,cy+Math.cos(angle)*length*fraction,.019,
+      thickness,thickness,.003,color);
+    }
+   }
+   box(b,cx,cy,.020,.005,.005,.004,color);
+  };
+  dial(-.045,0,clocks.real,[.91,.84,.61]);
+  dial(.045,0,clocks.world,[.44,.94,.91]);
+  holoLetters(b,"REAL",-.045,-.057,.021,{size:.0036,color:[.91,.84,.61]});
+  holoLetters(b,"WORLD",.045,-.057,.021,{size:.0034,color:[.44,.94,.91]});
+ }else{
+  holoLetters(b,"REAL",0,.061,.021,{size:.005,color:[.58,.84,.96]});
+  holoLetters(b,clocks.real,0,.036,.022,{size:.0060,color:[.94,.98,1]});
+  holoLetters(b,"WORLD",0,-.006,.021,{size:.005,color:[.48,1,.79]});
+  holoLetters(b,clocks.world,0,-.033,.022,{size:.006,color:[.61,1,.80]});
+ }
+ if(open){
+  box(b,0,-.188,-.008,.208,.191,.020,[.055,.13,.19]);
+  const buttons=[
+   ["MENU",-.063,-.131],["SET",0,-.131],["VIEW",.063,-.131],
+   ["XR",-.063,-.189],["TAB",0,-.189],["TIME",.063,-.189],
+   ["PAUSE",-.063,-.247],["SPEED",0,-.247],["BACK",.063,-.247]
+  ];
+  for(const [word,x,y]of buttons){
+   box(b,x,y,.011,.058,.051,.005,word==="PAUSE"?[.37,.24,.17]:[.12,.36,.43]);
+   holoLetters(b,word,x,y+.010,.021,{size:.0034,color:[.88,1,.91]});
+  }
+ }
  return b;
 }
 
@@ -791,6 +842,7 @@ export class ExplorerRenderer{
   const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
   this.vrBodySegment=new Mesh(gl,vrBox);
   this.vrTabletMesh=new Mesh(gl,vrWorldTabletGeometry());
+  this.vrWatchMesh=null;this.vrWatchKey=null;
 
   this.cameraController=new CameraController();
   this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
@@ -2776,6 +2828,22 @@ export class ExplorerRenderer{
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
   this.drawMesh(this.vrTabletMesh,vp,[.66,1,.78],1,.89);
  }
+ drawVRWristWatch(xr,model,{style="smart",clocks,open=false}={}){
+  if(!xr||!model)return;
+  const data={style,clocks:clocks||{real:"00:00:00",world:"00:00:00"},open};
+  const key=style+"|"+data.clocks.real+"|"+data.clocks.world+"|"+open;
+  if(!this.vrWatchMesh||this.vrWatchKey!==key){
+   this.vrWatchMesh?.destroy();
+   this.vrWatchMesh=new Mesh(this.gl,vrWristWatchGeometry(data));
+   this.vrWatchKey=key;
+  }
+  const vp=multiply4(xr.projection,multiply4(xr.view,model));
+  const gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawMesh(this.vrWatchMesh,vp,[.86,.97,1],1,.95);
+ }
  drawVRGuide(xr,anchor){
   if(!xr||!anchor||!this.globe)return;
   const p=anchor.position;
@@ -3657,7 +3725,7 @@ export class ExplorerRenderer{
   return "ground";
  }
  destroy(){
-   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.vrWatchMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    this.henshinMeshes?.destroy();
    this.avatarV10Assets.destroy();
