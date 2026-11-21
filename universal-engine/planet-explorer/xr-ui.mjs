@@ -41,6 +41,33 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
  const vrTabletTriggerConsumed=new Set();
+ const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
+ function sampleHenshin(frame,head=null,time=performance.now()){
+  if(!["vr","mr-henshin"].includes(activeMode))return;
+  const runtime=getRenderer()?.henshin;
+  if(!runtime?.enabled||!space||!frame)return;
+  const sources=xrControllerSources(session),pose=source=>{
+   try{const ref=source?.gripSpace||source?.targetRaySpace;
+    return ref?frame.getPose(ref,space)?.transform.matrix||null:null;}catch(_){return null;}
+  };
+  if(!head)try{head=frame.getViewerPose(space)?.transform.matrix||null;}catch(_){}
+  runtime.updateXR({head,left:pose(sources.find(s=>s.handedness==="left")),right:pose(sources.find(s=>s.handedness==="right")),time:time/1000,floorY:usingFloor?0:null});
+ }
+ function henshinInput(event,kind){
+  if(!["vr","mr-henshin"].includes(activeMode))return false;
+  const runtime=getRenderer()?.henshin;
+  if(!runtime?.enabled||!event.frame||!space)return false;
+  const hand=event.inputSource?.handedness;
+  if(!["left","right"].includes(hand))return false;
+  sampleHenshin(event.frame);
+  if(kind==="grab")return runtime.gripStart(hand);
+  if(kind==="release")return runtime.gripEnd(hand);
+  let ray=null;try{ray=event.inputSource.targetRaySpace?event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix:null;}catch(_){}
+  const action=runtime.trigger(hand,ray);
+  if(action==="exit")session?.end().catch(()=>{});
+  if(action)try{event.inputSource.gamepad?.hapticActuators?.[0]?.pulse(.3,65);}catch(_){}
+  return Boolean(action);
+ }
  let vrMotionChordHeld=false;
  let session=null,activeMode=null,space=null,anchor=null,lastTime=0,viewerSpace=null,hitSource=null,hitPose=null;
  let usingFloor=false,disposed=false,starting=false,readyPromise=Promise.resolve();
@@ -261,6 +288,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function endCleanup(){
+  getRenderer()?.henshin?.resetXR();henshinTriggerConsumed.clear();henshinGripConsumed.clear();
   if(activeMode==="vr")motionActorUI.onSessionEnd();
   if(activeMode==="mr-social")social.activate(false);
   onVRCustody("climb-reset");
@@ -300,7 +328,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(disposed||starting)return;
   if(session){
    if(activeMode===mode)return;
-   if(activeMode!=="mr-social"&&mode!=="mr-social"&&activeMode.startsWith("mr-")&&mode.startsWith("mr-")){
+   if(!["mr-social","mr-henshin"].includes(activeMode)&&!["mr-social","mr-henshin"].includes(mode)&&activeMode.startsWith("mr-")&&mode.startsWith("mr-")){
     activeMode=mode;anchor=null;hitPose=null;placementArmed=false;planetSelected=false;planetYaw=0;
     previousPlanetHit=null;previousPlanetHitTime=0;update();
     statusText(mode==="mr-rts"?"MR卓上RTSに切り替えました":"MR惑星モデルに切り替えました");
@@ -323,7 +351,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const wantsLayers=requestedType==="immersive-vr"&&canUseXRProjection();
    const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
    if(root)init.domOverlay={root};
-   if(mode==="mr-social"){
+   if(mode==="mr-social"||mode==="mr-henshin"){
     init.requiredFeatures=["local-floor"];
     init.optionalFeatures=init.optionalFeatures.filter(feature=>feature!=="local-floor"&&feature!=="hit-test");
     init.optionalFeatures.push("hand-tracking");
@@ -371,15 +399,16 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }
    try{space=await newSession.requestReferenceSpace("local-floor");usingFloor=true;}
    catch(error){
-    if(mode==="mr-social")throw Error("この試験モードには床面追跡が必要です",{cause:error});
+    if(mode==="mr-social"||mode==="mr-henshin")throw Error("この試験モードには床面追跡が必要です",{cause:error});
     space=await newSession.requestReferenceSpace("local");usingFloor=false;
    }
-   if(mode!=="mr-social")try{
+   if(mode!=="mr-social"&&mode!=="mr-henshin")try{
     viewerSpace=await newSession.requestReferenceSpace("viewer");
     if(requestedType==="immersive-ar"&&newSession.requestHitTestSource)
      hitSource=await newSession.requestHitTestSource({space:viewerSpace});
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
+   getRenderer()?.henshin?.resetXR();
    if(mode==="vr")motionActorUI.onSessionStart(usingFloor);
    if(mode==="mr-social"){
     social.activate(true);
@@ -532,6 +561,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   return true;
  }
  function onVRSqueezeStart(event){
+  henshinGripConsumed.delete(event.inputSource?.handedness);
+  if(henshinInput(event,"grab")){henshinGripConsumed.add(event.inputSource.handedness);return;}
+  if(activeMode==="mr-henshin")return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand)||!nativeGrip(hand))return;
@@ -640,6 +672,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🥽 "+({bow:"左肩から弓",arrow:"右肩の矢筒から矢",sword:"左腰から剣"}[result.kind]||result.kind)+"を取り出しました");
  }
  function onVRSqueezeEnd(event){
+  if(henshinGripConsumed.has(event.inputSource?.handedness)){henshinInput(event,"release");return;}
+  if(activeMode==="mr-henshin")return;
   if(activeMode!=="vr")return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
@@ -686,6 +720,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   return true;
  }
  function onVRSelectStart(event){
+  henshinTriggerConsumed.delete(event.inputSource?.handedness);
+  if(henshinInput(event,"trigger")){henshinTriggerConsumed.add(event.inputSource.handedness);return;}
+  if(activeMode==="mr-henshin")return;
   if(tryVRTabletPress(event))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
@@ -734,6 +771,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
  function onVRSelectEnd(event){
+  if(henshinTriggerConsumed.has(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
   if(vrTabletTriggerConsumed.has(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&onVRShipCombatActive())return;
@@ -751,6 +789,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
  }
  function onSelect(event){
+  if(henshinTriggerConsumed.delete(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
   if(vrTabletTriggerConsumed.delete(event.inputSource?.handedness))return;
   if(tryVRTabletPress(event)){vrTabletTriggerConsumed.delete(event.inputSource?.handedness);return;}
   if(activeMode==="mr-social"){
@@ -842,6 +881,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  function onSqueeze(event){
+  if(henshinGripConsumed.delete(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
   if(activeMode==="vr"){
    const hand=event.inputSource?.handedness;
    if(["left","right"].includes(hand)&&!nativeGrip(hand)){
@@ -1058,6 +1098,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   if(!pose){
+   getRenderer()?.henshin?.updateXR({head:null});
    // Present a visible neutral blue frame when VR tracking has not supplied
    // eyes yet; an all-black compositor image would hide this distinction.
    if(activeMode==="vr"&&session.renderState.baseLayer){
@@ -1079,6 +1120,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(vrDrawError==="追跡姿勢が取得できません")vrDrawError="";
    if(vrFrames===1)vrMark("追跡姿勢取得／"+pose.views.length+"眼",{force:true});
   }
+  sampleHenshin(frame,pose.transform.matrix,time);
+  if(activeMode==="mr-henshin"){drawHenshinFrame(renderer,pose);return;}
   if(activeMode==="mr-social"){drawSocialFrame(renderer,pose,frame,time);return;}
   if(!anchor)anchor=xrAnchor(pose.transform.matrix,{floor:usingFloor});
   if(activeMode==="vr"){
@@ -1280,6 +1323,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
       heldWearables:Object.fromEntries(["left","right"].map(hand=>
        [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
      });
+    renderer.drawHenshinXR?.(renderer.xrView);
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model);
     if(mode==="vr"){
@@ -1316,6 +1360,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.disable(gl.SCISSOR_TEST);
    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
+ }
+ function drawHenshinFrame(renderer,viewer){
+  const gl=renderer.gl,layer=activeLegacyXRLayer(session);if(!layer)return;
+  try{
+   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);gl.enable(gl.SCISSOR_TEST);
+   for(const view of viewer.views){
+    const viewport=layer.getViewport(view);if(!viewport)continue;
+    gl.viewport(viewport.x,viewport.y,viewport.width,viewport.height);gl.scissor(viewport.x,viewport.y,viewport.width,viewport.height);
+    gl.colorMask(true,true,true,true);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.BLEND);
+    gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    renderer.drawHenshinXR?.({mode:"mr-henshin",projection:view.projectionMatrix,view:view.transform.inverse.matrix,viewport});
+   }
+  }catch(error){notify("MR変身の描画エラー: "+error.message);session.end().catch(()=>{});}
+  finally{gl.disable(gl.SCISSOR_TEST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);}
  }
  function drawSocialFrame(renderer,viewer,frame,time){
   const gl=renderer.gl,layer=activeLegacyXRLayer(session);
@@ -1361,6 +1419,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  buttons.exit.addEventListener("click",()=>session?.end().catch(error=>statusText(String(error))));
  update();probe();
  return {get active(){return present();},get mode(){return activeMode;},inputVector,
+  startHenshin:mode=>start(mode==="mr"?"mr-henshin":"vr"),
   exportWearables:()=>vrWearables.snapshot(),
   restoreWearables:data=>{
    const restored=WearableInventory.fromSnapshot(data);

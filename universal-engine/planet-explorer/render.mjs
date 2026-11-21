@@ -1,3 +1,4 @@
+import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
@@ -1573,6 +1574,21 @@ export class ExplorerRenderer{
       this.drawFlyingArrow(vp,characterTransform,light,motion.progress,[1,1,1],hand);
    }
  }
+ henshinScene(){
+  this.henshinMeshes??=new HenshinSceneRenderer(this,geometry=>new Mesh(this.gl,geometry));
+  return this.henshinMeshes;
+ }
+ drawHenshinAvatar(vp,transform,unit={}){
+  if(!this.henshin?.enabled)return false;
+  this.henshinScene().avatar(vp,transform,this.henshin,{moving:Boolean(unit.moving),phase:(unit.totalDistanceM||0)*2.7});
+  return this.henshin.transformed;
+ }
+ drawHenshinXR(xr){
+  if(!this.henshin?.enabled||!["vr","mr-henshin"].includes(xr?.mode))return;
+  const gl=this.gl;gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.henshinScene().room(xr,this.henshin);
+ }
  drawAvatarV10(id,vp,transform,light,dt,options={}) {
   const fit=this.avatarV10[id];
   if(!fit||fit.model==="classic")return null;
@@ -1638,6 +1654,10 @@ export class ExplorerRenderer{
     yaw:Math.max(-.45,Math.min(.45,Math.atan2(person.x-actor.x,person.z-actor.z)-actor.yaw)),
     pitch:Math.max(-.30,Math.min(.22,Math.atan2((person.seated?1.19:1.59)-1.59,Math.max(.35,distance))))
    }:null;
+   if(player&&this.henshin?.enabled){
+    if(this.xrView?.mode==="vr"&&!this.xrView.showAvatar&&this.henshin.transformed)continue;
+    if(this.drawHenshinAvatar(vp,transform,{moving:person.greetings.playerMoving}))continue;
+   }
    const asset=this.drawAvatarV10(actor.id,vp,transform,light,dt,{motion:actor.motion,
     time:actor.time,gesture,lookAt:gaze,
     firstPerson:player&&this.xrView?.mode==="vr"&&!this.xrView.showAvatar});
@@ -1662,6 +1682,7 @@ export class ExplorerRenderer{
   }
  }
  drawGroundAvatarV10(vp,transform,unit,light,dt,motion){
+  if(this.drawHenshinAvatar(vp,multiply4(transform,rotateY(unit.yaw||0)),unit))return true;
   // On the ground the original combat, swimming, capture and mounted rigs still
   // own their specialized poses and equipment; V10 uses its authored daily clips.
   if(this.xrView||this.captureFX||this.fauna?.mount||this.marine?.boardedId||
@@ -2793,6 +2814,7 @@ export class ExplorerRenderer{
   gl.uniform1f(this.uXROcclusionEnabled,0);
  }
  drawVRBody(xr,rig){
+  if(this.henshin?.enabled&&this.henshin.transformed&&!rig?.social)return;
   if(!xr||!rig?.anchors||!this.vrBodySegment)return;
   const a=rig.anchors,gl=this.gl;
   gl.useProgram(this.program);
@@ -3637,6 +3659,7 @@ export class ExplorerRenderer{
  destroy(){
    for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
+   this.henshinMeshes?.destroy();
    this.avatarV10Assets.destroy();
    for(const mesh of this.shipCrewFallbacks.values())mesh.destroy();
    this.shipCrewTalkMarker?.destroy();
