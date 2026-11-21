@@ -147,10 +147,13 @@ export class ShipboardWorld{
   if(!isShipWalkable(x,z,p.zone))return result(false,"船内・甲板の歩ける範囲を選んでください");
   p.goal={x,z,zone:p.zone};return result(true,"📍 船内の目的地へ歩きます");
  }
- advance(dt,input={}){
+ advance(dt,input={},options={}){
   if(!Number.isFinite(dt)||dt<0)throw RangeError("Invalid shipboard delta");
-  const delta=clamp(dt,0,.1);if(!delta)return [];
-  this.elapsed+=delta;
+  const worldDt=options.worldDt??dt;
+  if(!Number.isFinite(worldDt)||worldDt<0)throw RangeError("Invalid shipboard world delta");
+  const delta=clamp(dt,0,.1),crewDelta=clamp(worldDt,0,.1);
+  if(!delta&&!crewDelta)return [];
+  this.elapsed+=crewDelta;
   this.doorProgress=clamp(this.doorProgress+(this.doorOpen?delta*3:-delta*3),0,1);
   const p=this.player,events=[];
   if(p.goal&&Math.abs(input.forward||0)+Math.abs(input.strafe||0)+Math.abs(input.turn||0)>.12)p.goal=null;
@@ -167,6 +170,7 @@ export class ShipboardWorld{
    }else this.move(p,{forward:1,strafe:0,turn:0},delta,{dx:dx/d,dz:dz/d});
   }else this.move(p,input,delta);
   for(let i=0;i<this.crew.length;i++){
+   if(!crewDelta)break;
    const c=this.crew[i];c.moving=false;
    if(c.id===this.helmId){
     c.zone="deck";c.x=SHIP_HELM.x;c.z=SHIP_HELM.z;
@@ -189,7 +193,7 @@ export class ShipboardWorld{
    if(!c.goal)continue;
    const dx=c.goal.x-c.x,dz=c.goal.z-c.z,d=Math.hypot(dx,dz);
    if(d>.17){
-    this.move(c,{forward:1,strafe:0,turn:0},delta,{dx:dx/d,dz:dz/d},1.15);
+    this.move(c,{forward:1,strafe:0,turn:0},crewDelta,{dx:dx/d,dz:dz/d},1.15);
     continue;
    }
    c.moving=false;
