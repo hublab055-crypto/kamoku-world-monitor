@@ -2776,6 +2776,97 @@ export class ExplorerRenderer{
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
   this.drawMesh(this.vrTabletMesh,vp,[.66,1,.78],1,.89);
  }
+
+ /** Dual-world/real-time 3D watch. Independent of planet stage and headset pause. */
+ drawVRWatch(xr,watch){
+  if(!xr||!watch?.model||!this.vrBodySegment)return;
+  this.drawVRWorldTablet(xr,watch.model);
+  if(watch.menuModel)this.drawVRWorldTablet(xr,watch.menuModel);
+  const gl=this.gl,vp=multiply4(xr.projection,xr.view);
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const light=[.9,1,.98],silver=[.87,.94,1],green=[.48,1,.74],amber=[1,.72,.36];
+  const line=(model,x1,y1,x2,y2,tint=silver,width=.008)=>{
+   const dx=x2-x1,dy=y2-y1,n=Math.hypot(dx,dy);
+   if(n<.0001)return;
+   // The VR body segment mesh grows along +Y from its first endpoint.
+   const m=[dy/n*width,-dx/n*width,0,0,dx,dy,0,0,
+    0,0,.012,0,x1,y1,.024,1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,multiply4(model,m)),light,1,.89,tint);
+  };
+  const rect=(model,x,y,w,h,tint=silver)=>{
+   line(model,x-w/2,y-h/2,x+w/2,y-h/2,tint);
+   line(model,x+w/2,y-h/2,x+w/2,y+h/2,tint);
+   line(model,x+w/2,y+h/2,x-w/2,y+h/2,tint);
+   line(model,x-w/2,y+h/2,x-w/2,y-h/2,tint);
+  };
+  const circle=(model,x,y,r,tint=silver)=>{
+   for(let j=0;j<16;j++){
+    const a=j*2*Math.PI/16,b=(j+1)*2*Math.PI/16;
+    line(model,x+r*Math.cos(a),y+r*Math.sin(a),x+r*Math.cos(b),y+r*Math.sin(b),tint,.006);
+   }
+  };
+  const digits=(model,txt,y,tint=green)=>{
+   const masks={0:63,1:6,2:91,3:79,4:102,5:109,6:125,7:7,8:127,9:111};
+   const parts=[[-.016,.029,.016,.029],[.016,.029,.016,0],[.016,0,.016,-.029],
+    [-.016,-.029,.016,-.029],[-.016,0,-.016,-.029],[-.016,.029,-.016,0],[-.016,0,.016,0]];
+   const start=-(txt.length-1)*.026;
+   for(let k=0;k<txt.length;k++){
+    const chr=txt[k],x=start+k*.052;
+    if(chr===":"){
+     line(model,x,y+.015,x,y+.017,tint,.012);
+     line(model,x,y-.016,x,y-.014,tint,.012);continue;
+    }
+    if(chr==="."){line(model,x,y-.028,x,y-.026,tint,.012);continue;}
+    const mask=masks[chr];
+    if(mask===undefined)continue;
+    for(let j=0;j<7;j++)if((mask>>j)&1){
+     const p=parts[j];line(model,x+p[0],y+p[1],x+p[2],y+p[3],tint,.006);
+    }
+   }
+  };
+  rect(watch.model,0,0,.42,.47,watch.display?.style==="mechanical"?silver:green);
+  const d=watch.display||{};
+  if(d.style==="mechanical"){
+   for(const [y,hands,color] of [[.112,d.gameHands,green],[-.112,d.realHands,amber]]){
+    circle(watch.model,0,y,.092,color);
+    for(let i=0;i<12;i++){
+     const a=i*Math.PI/6;
+     line(watch.model,Math.sin(a)*.078,y+Math.cos(a)*.078,
+      Math.sin(a)*.087,y+Math.cos(a)*.087,color,.007);
+    }
+    for(const [key,size,thick] of [["hour",.052,.013],["minute",.071,.009],["second",.081,.004]]){
+     const a=((hands?.[key]||0)*Math.PI/180);
+     line(watch.model,0,y,Math.sin(a)*size,y+Math.cos(a)*size,color,thick);
+    }
+   }
+  }else{
+   digits(watch.model,d.local||"00:00:00",.115,green);
+   digits(watch.model,d.real||"00:00:00",-.115,amber);
+   line(watch.model,-.19,0,.19,0,silver,.006);
+  }
+  if(watch.menuModel){
+   const yRows=[.13,-.13],xs=[-.15,0,.15],model=watch.menuModel;
+   for(let i=0;i<6;i++){
+    const x=xs[i%3],y=yRows[Math.floor(i/3)];
+    rect(model,x,y,.132,.19,silver);
+    if(watch.page==="time"){
+     // 1 pause, 2 quarter speed, 3 normal, 4 double, 5 fast, 6 rewind.
+     digits(model,String(i+1),y,i===0?amber:green);
+    }else{
+     if(i===0){for(const dy of [-.04,0,.04])line(model,x-.040,y+dy,x+.040,y+dy,green);}
+     else if(i===1){circle(model,x,y,.025,green);for(let a=0;a<8;a++){
+       const v=a*Math.PI/4;line(model,x+.029*Math.cos(v),y+.029*Math.sin(v),x+.042*Math.cos(v),y+.042*Math.sin(v),green);
+     }}
+     else if(i===2){circle(model,x,y,.032,green);circle(model,x,y,.013,green);}
+     else if(i===3){rect(model,x,y,.083,.038,green);line(model,x,y-.019,x,y+.019,green);}
+     else if(i===4){rect(model,x,y,.075,.092,green);line(model,x-.028,y-.029,x+.028,y-.029,green);}
+     else{circle(model,x,y,.037,amber);line(model,x,y,x,y+.026,amber);line(model,x,y,x+.020,y-.010,amber);}
+    }
+   }
+  }
+ }
  drawVRGuide(xr,anchor){
   if(!xr||!anchor||!this.globe)return;
   const p=anchor.position;
