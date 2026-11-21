@@ -15,6 +15,7 @@ import {detectShipCrewTouch} from "./ship-crew-vr-contact.mjs?v=1";
 import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
+import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -29,7 +30,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
  onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
  onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),onVRShipCrewGesture=()=>({ok:false}),onVRShipStand=()=>({ok:false}),
- onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,notify=()=>{}}){
+ onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,
+ getWristWatch=()=>null,onWristWatchAction=()=>{},notify=()=>{}}){
  const $=id=>document.getElementById(id);
  const social=$("xr-social")?installSocialUI($):null;
  let supportsAR=false;
@@ -40,6 +42,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const vrDiag=$("xr-vr-diagnostics");
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
+ const xrWristWatch=new XRWristWatch();
+ const vrWatchTriggerConsumed=new Set();
  const vrTabletTriggerConsumed=new Set();
  const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
  function sampleHenshin(frame,head=null,time=performance.now()){
@@ -294,6 +298,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();
+  vrWatchTriggerConsumed.clear();xrWristWatch.reset();
   const renderer=getRenderer();
   if(renderer){renderer.xrView=null;renderer.shipVRHotas=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
@@ -684,6 +689,24 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrGripConsumed.delete(hand);
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
+ function tryVRWristWatchPress(event){
+  if(activeMode!=="vr"||!event.frame||!space)return false;
+  const hand=event.inputSource?.handedness,source=event.inputSource?.targetRaySpace;
+  if(!["left","right"].includes(hand)||!source)return false;
+  let ray=null;
+  try{ray=event.frame.getPose(source,space)?.transform.matrix||null;}catch(_){}
+  if(!ray)return false;
+  const hit=xrWristWatch.press(ray);
+  if(!hit)return false;
+  vrWatchTriggerConsumed.add(hand);
+  if(hit.action==="toggle")statusText(hit.open?"⌚ 腕時計メニューを表示":"⌚ 腕時計メニューを収納");
+  else{
+   const r=onWristWatchAction(hit.action);
+   if(r?.message)statusText("⌚ "+r.message);
+   else statusText(hit.action==="time-page"?"⌚ 時間操作を選択":"⌚ "+hit.action);
+  }
+  return true;
+ }
  function tryVRTabletPress(event){
   if(activeMode!=="vr"||!event.frame||!space||!xrWorldTablet.enabled)return false;
   const hand=event.inputSource?.handedness;
@@ -723,7 +746,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   henshinTriggerConsumed.delete(event.inputSource?.handedness);
   if(henshinInput(event,"trigger")){henshinTriggerConsumed.add(event.inputSource.handedness);return;}
   if(activeMode==="mr-henshin")return;
-  if(tryVRTabletPress(event))return;
+  if(tryVRWristWatchPress(event)||tryVRTabletPress(event))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
    // The switch bank always responds, even docked (with a clear flight interlock message).
@@ -772,6 +795,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function onVRSelectEnd(event){
   if(henshinTriggerConsumed.has(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
+  if(vrWatchTriggerConsumed.has(event.inputSource?.handedness))return;
   if(vrTabletTriggerConsumed.has(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&onVRShipCombatActive())return;
@@ -790,7 +814,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  }
  function onSelect(event){
   if(henshinTriggerConsumed.delete(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
+  if(vrWatchTriggerConsumed.delete(event.inputSource?.handedness))return;
   if(vrTabletTriggerConsumed.delete(event.inputSource?.handedness))return;
+  if(tryVRWristWatchPress(event)){vrWatchTriggerConsumed.delete(event.inputSource?.handedness);return;}
   if(tryVRTabletPress(event)){vrTabletTriggerConsumed.delete(event.inputSource?.handedness);return;}
   if(activeMode==="mr-social"){
    social.select(event.inputSource?.handedness);
@@ -1207,6 +1233,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     leftPose=ref?frame.getPose(ref,space)?.transform.matrix||null:null;
    }catch(_){}
    xrWorldTablet.update(pose.transform.matrix,leftPose);
+   const rightSource=controllerSources.find(src=>src.handedness==="right");
+   let rightPose=null;
+   try{const ref=rightSource?.gripSpace||rightSource?.targetRaySpace;
+    rightPose=ref?frame.getPose(ref,space)?.transform.matrix||null:null;}catch(_){}
+   xrWristWatch.update(pose.transform.matrix,leftPose,rightPose,getWristWatch()||{});
   }
    const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
    if(mode==="vr"){
@@ -1326,6 +1357,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     renderer.drawHenshinXR?.(renderer.xrView);
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model);
+    if(mode==="vr"&&xrWristWatch.model)renderer.drawVRWatch?.(renderer.xrView,xrWristWatch);
     if(mode==="vr"){
      const sceneErr=readGLError(gl);
      if(sceneErr){
