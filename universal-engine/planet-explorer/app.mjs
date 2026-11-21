@@ -1,3 +1,6 @@
+import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
+import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
+import {installHenshinUI} from "./henshin-ui.mjs?v=20261121-native";
 import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
 import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261118-mocap-medical";
@@ -25,7 +28,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261119-wall-player";
+import {ExplorerRenderer} from "./render.mjs?v=20261121-henshin";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -92,7 +95,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261119-quest-spatial-3d";
+import {installXRUI} from "./xr-ui.mjs?v=20261121-henshin";
 import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=20261114-social-2";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
@@ -129,6 +132,12 @@ let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,a
 let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
 let xrUI=null,mediaUI=null,footVoyage=null;
+const henshinAudio=new HenshinAudio({notify:message=>log(message)});
+const henshin=new HenshinRuntime({notify:message=>log(message),onAction:event=>{
+ henshinAudio.play(henshin.project,event.action);
+ if(typeof CustomEvent!=="undefined")window.dispatchEvent(new CustomEvent("henshin:action",{detail:event}));
+}});
+let henshinUI=null;
 let avatarV10=normalizeAvatarRoster(),avatarEditor=null,crewTestState=null;
 const avatarDailyState={action:null,elapsed:0,hand:"right"};
 function loadAvatarV10(){
@@ -442,6 +451,7 @@ function init(saved=null){
    planet.advance(gameDaysForRealSeconds(dt,$("days-per-second").value)));
   simWorld.clock.paused=!running;
   renderer=new ExplorerRenderer($("world"),planet,terrain);
+  renderer.henshin=henshin;
   renderer.surfaceStarship=surfaceShip;
   renderer.shipVoyage=voyage;
   renderer.avatarV10=avatarV10;
@@ -4300,6 +4310,7 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.cameraController?.mode,
  getRenderer:()=>renderer,getController:()=>controller,getXRActive:()=>Boolean(xrUI?.active),notify:log});
+henshinUI=installHenshinUI({runtime:henshin,audio:henshinAudio,getXR:()=>xrUI,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
 voyageUI=installSpaceFlightUI({get:()=>voyage,
