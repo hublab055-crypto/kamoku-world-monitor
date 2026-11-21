@@ -4492,7 +4492,8 @@ xrUI=installXRUI({
    const result=visitSettlement(destinationById(activeSettlementId)||destinationById("pioneer"));
    if(!result.ok)return result;
   }
-  running=true;simWorld.clock.paused=false;updateHUD();
+  // Entering VR must not override the wrist terminal time-stop state.
+  running=!wristWatch?.paused;simWorld.clock.paused=!running;updateHUD();
   return {ok:true,message:"🥽 地表の現在地点からVR冒険を始めます"};
  },
  getVRAppearance:()=>appearance,
