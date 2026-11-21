@@ -760,7 +760,8 @@ function doFrame(t,source="window",xrFrameInput=null){
   return;
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
- const worldDt=running?(wristTime?.worldDelta(dt)??dt):0;
+ const shipWorldDt=wristTime?.worldDelta(dt)??dt;
+ const worldDt=running?shipWorldDt:0;
  const worldActive=worldDt>0;
  wristUI?.refresh();
  if(familyLife&&planet&&planet.timeDays>familyLife.day){
@@ -786,12 +787,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,worldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,shipWorldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,worldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,shipWorldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -810,7 +811,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    }
    const previousOffset=voyage.planetOffset;
    const wasWarping=voyage.inWarp;
-   const before=voyage.status,advanced=voyage.tick(worldDt,voyageUI?.translationInput());
+   const before=voyage.status,advanced=voyage.tick(shipWorldDt,voyageUI?.translationInput());
    if(previousOffset&&!wasWarping&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
@@ -838,7 +839,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    if(source==="window"){
     renderer.frame(controller,dt);
     voyageUI?.render(dt);shipInteractionUI?.update();
-    shipCombatUI?.update(worldDt,{vr:false});
+    shipCombatUI?.update(shipWorldDt,{vr:false});
    }
    if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>18.3){
     const leave=shipEgress();if(leave?.message)log(leave.message);
