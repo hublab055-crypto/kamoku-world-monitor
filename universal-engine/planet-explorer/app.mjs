@@ -879,10 +879,10 @@ function doFrame(t,source="window",xrFrameInput=null){
    input.strafe=xrAxes.strafe;
    input.turn=xrAxes.turn;
   }
-  if(onTrain&&!jailCellActive)railway.walk(running?dt:0,input);
-  if(onFerry&&!jailCellActive)ferry.walk(running?dt:0,input);
-  if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
-  if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
+  if(onTrain&&!jailCellActive)railway.walk(running||wristWatch?.paused?dt:0,input);
+  if(onFerry&&!jailCellActive)ferry.walk(running||wristWatch?.paused?dt:0,input);
+  if(inConcourse&&!jailCellActive)railway.walkConcourse(running||wristWatch?.paused?dt:0,input);
+  if(townLife.inside&&!jailCellActive)townLife.walk(running||wristWatch?.paused?dt:0,input);
   // Only the physical on-screen stick is screen-relative. Preserve VR axes,
   // keyboard walking, vehicle steering and scripted/automatic destinations.
   if(source!=="xr"&&acceptsWorldInput&&stickPointer!==null&&controlMode==="stick"&&
