@@ -43,6 +43,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const vrTabletTriggerConsumed=new Set();
  const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
  function sampleHenshin(frame,head=null,time=performance.now()){
+  if(!["vr","mr-henshin"].includes(activeMode))return;
   const runtime=getRenderer()?.henshin;
   if(!runtime?.enabled||!space||!frame)return;
   const sources=xrControllerSources(session),pose=source=>{
@@ -53,6 +54,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   runtime.updateXR({head,left:pose(sources.find(s=>s.handedness==="left")),right:pose(sources.find(s=>s.handedness==="right")),time:time/1000,floorY:usingFloor?0:null});
  }
  function henshinInput(event,kind){
+  if(!["vr","mr-henshin"].includes(activeMode))return false;
   const runtime=getRenderer()?.henshin;
   if(!runtime?.enabled||!event.frame||!space)return false;
   const hand=event.inputSource?.handedness;

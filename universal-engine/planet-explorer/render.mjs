@@ -1584,7 +1584,7 @@ export class ExplorerRenderer{
   return this.henshin.transformed;
  }
  drawHenshinXR(xr){
-  if(!this.henshin?.enabled)return;
+  if(!this.henshin?.enabled||!["vr","mr-henshin"].includes(xr?.mode))return;
   const gl=this.gl;gl.useProgram(this.program);
   gl.uniform1f(this.uXROcclusionEnabled,0);gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
   this.henshinScene().room(xr,this.henshin);
