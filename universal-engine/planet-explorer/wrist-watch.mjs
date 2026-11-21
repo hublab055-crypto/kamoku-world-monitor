@@ -69,7 +69,9 @@ export class WristWatch{
  setStyle(style){return this.style=watchStyle(style);}
  setPause(paused){
   if(this.mode==="multiverse")return false;
-  this.paused=Boolean(paused);this.onPause(this.paused);return true;
+  const next=Boolean(paused);
+  if(next===this.paused)return true;
+  this.paused=next;this.onPause(this.paused);return true;
  }
  setSpeed(scale){
   if(this.mode!=="creative")return false;
