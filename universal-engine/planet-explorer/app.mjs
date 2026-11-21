@@ -101,6 +101,8 @@ import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {installWorldTablet} from "./world-tablet.mjs?v=20261119-wall-player";
+import {WristWatch} from "./wrist-watch.mjs?v=20261121";
+import {installWristWatchUI,loadWristPreference} from "./wrist-watch-ui.mjs?v=20261121";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -296,6 +298,7 @@ let controlMode="stick",stick={x:0,y:0},stickPointer=null,stickHeadingYaw=null;
 let running=true,lastTime=0,frameTime=0,frameCount=0,displayMode="",lastHud=0,voyageSaveElapsed=0;
 let avatarStyle="pioneer",appearance=createAppearance(),lastExpressionPreset="neutral";
 let frontierUI=null,worldUI=null,groupUI=null;
+let wristWatch=null,wristUI=null,wristWasRunning=false;
 const lastNpcStatus=new Map();
 const resourceNames={wood:"🪵 木材",stone:"🪨 石材",fiber:"🌿 繊維",clay:"🧱 粘土",metal:"⚙️ 金属",ironOre:"⛏️ 鉄鉱石",plank:"🪚 板材",soil:"🟫 土",wheat:"🌾 小麦",straw:"🟡 麦わら",carrot:"🥕 ニンジン",apple:"🍎 リンゴ",fish:"🐟 魚",ancientCoins:"🪙 古代金貨",dragonRelic:"🐉 竜人文明遺物"};
 const keys=new Set(),touches=new Set();
@@ -338,6 +341,7 @@ function init(saved=null){
  try{
   avatarV10=normalizeAvatarRoster(saved?.avatarV10?.roster??loadAvatarV10());
   // A freshly loaded game must not inherit the previous session's paused state.
+  if(wristWatch){wristWatch.paused=false;wristWatch.timeline.clear();}
   running=true;
   custodyConversation=false;custodyFacility=null;
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
@@ -757,6 +761,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   return;
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
+ wristWatch?.tick(t);
  if(familyLife&&planet&&planet.timeDays>familyLife.day){
   const events=familyLife.advanceTo(planet.timeDays);
   for(const item of events)if(item?.message)log("👪 "+item.message);
@@ -780,12 +785,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,wristWatch?.paused?0:dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,wristWatch?.paused?0:dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -804,7 +809,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    }
    const previousOffset=voyage.planetOffset;
    const wasWarping=voyage.inWarp;
-   const before=voyage.status,advanced=voyage.tick(dt,voyageUI?.translationInput());
+   const before=voyage.status,advanced=voyage.tick(wristWatch?.paused?0:dt,voyageUI?.translationInput());
    if(previousOffset&&!wasWarping&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
@@ -874,10 +879,10 @@ function doFrame(t,source="window",xrFrameInput=null){
    input.strafe=xrAxes.strafe;
    input.turn=xrAxes.turn;
   }
-  if(onTrain&&!jailCellActive)railway.walk(running?dt:0,input);
-  if(onFerry&&!jailCellActive)ferry.walk(running?dt:0,input);
-  if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
-  if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
+  if(onTrain&&!jailCellActive)railway.walk(running||wristWatch?.paused?dt:0,input);
+  if(onFerry&&!jailCellActive)ferry.walk(running||wristWatch?.paused?dt:0,input);
+  if(inConcourse&&!jailCellActive)railway.walkConcourse(running||wristWatch?.paused?dt:0,input);
+  if(townLife.inside&&!jailCellActive)townLife.walk(running||wristWatch?.paused?dt:0,input);
   // Only the physical on-screen stick is screen-relative. Preserve VR axes,
   // keyboard walking, vehicle steering and scripted/automatic destinations.
   if(source!=="xr"&&acceptsWorldInput&&stickPointer!==null&&controlMode==="stick"&&
@@ -974,7 +979,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   // Lower a spacecraft onto the ground while the player descends with it.
   if(["landing","recall"].includes(surfaceShip?.flight)&&controller.altitudeM<=300){
-   if(surfaceShip.tick(dt)){
+   if(surfaceShip.tick(wristWatch?.paused?0:dt)){
     renderer.patchKey=null;
     log("🛬 副官が宇宙船を着陸させました。船尾に回るとハッチを開けられます。");
     surfaceShipUI?.update(true);
@@ -1012,7 +1017,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
-  for(const event of railwaySecurity?.advance(dt,{
+  for(const event of railwaySecurity?.advance(wristWatch?.paused?0:dt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
    stamina:squad.frontier.person("player").stamina,
    eligible:controller.altitudeM<=12&&!onTrain&&!onFerry&&!inConcourse&&!detained&&!townLife.inside&&!marine?.cabinId&&
@@ -1220,7 +1225,7 @@ function doFrame(t,source="window",xrFrameInput=null){
     }
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
-   life.advance(dt,onTrain?false:onShip?marine.shipboard.player.moving:controller.moving);
+   life.advance(wristWatch?.paused?0:dt,onTrain?false:onShip?marine.shipboard.player.moving:controller.moving);
    if(running){
     for(const actor of squad.agents){
      const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
@@ -1607,6 +1612,7 @@ $("next-season").addEventListener("click",()=>{
  planet.advance(90);log("惑星時間を90日進めました。");updateHUD();
 });
 $("play").addEventListener("click",()=>{
+ if(wristWatch?.paused){log("⌚ 腕時計で時間停止中です。腕時計から再開してください");return;}
  if(law?.custody||railwaySecurity?.jailed||law?.pendingDeath||law?.gameOver){log("勾留中・継承待ち・ゲームオーバー中は再生できません");return;}
  running=!running;simWorld.clock.paused=!running;updateHUD();
 });
@@ -4310,6 +4316,61 @@ mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.cameraController?.mode,
  getRenderer:()=>renderer,getController:()=>controller,getXRActive:()=>Boolean(xrUI?.active),notify:log});
+
+function watchContextKey(){
+ return (solarSystem?.currentId||"unknown")+"|"+(voyage?.active?(voyage.kind||"ship"):"ground")+
+  "|"+(law?.custody?"custody":railwaySecurity?.jailed?"rail-jail":"free");
+}
+function captureWatchWorld(){
+ if(!planet)return null;
+ return {
+  contextKey:watchContextKey(),
+  gameDays:planet.timeDays,
+  // Player and camera are deliberately NOT captured.
+  others:(squad?.agents||[]).filter(a=>a.id!=="player"&&a.control)
+   .map(a=>({id:a.id,hp:a.hp,status:a.status||"",control:{
+    x:a.control.x,z:a.control.z,lat:a.control.lat,lon:a.control.lon,yaw:a.control.yaw
+   }})),
+  enemies:(battle?.enemies||[]).map(a=>({id:a.id,hp:a.hp,x:a.x,z:a.z,yaw:a.yaw}))
+ };
+}
+function restoreWatchWorld(state){
+ if(!state||state.contextKey!==watchContextKey()||!Number.isFinite(state.gameDays))return false;
+ planet.timeDays=state.gameDays;solarSystem?.sync(planet.timeDays);
+ const actors=new Map((squad?.agents||[]).map(a=>[a.id,a]));
+ for(const a of state.others||[]){
+  const target=actors.get(a.id);
+  if(!target?.control)continue;
+  for(const k of ["x","z","lat","lon","yaw"])
+   if(Number.isFinite(a.control?.[k]))target.control[k]=a.control[k];
+  if(Number.isFinite(a.hp))target.hp=a.hp;
+  target.status=a.status;
+ }
+ const enemies=new Map((battle?.enemies||[]).map(a=>[a.id,a]));
+ for(const a of state.enemies||[]){
+  const target=enemies.get(a.id);if(!target)continue;
+  for(const k of ["hp","x","z","yaw"])if(Number.isFinite(a[k]))target[k]=a[k];
+ }
+ renderer.patchKey=null;updateHUD();
+ return true;
+}
+wristWatch=new WristWatch({
+ style:loadWristPreference("universal-engine:wrist:style:v1","smart"),
+ mode:loadWristPreference("universal-engine:wrist:mode:v1","universe"),
+ capture:captureWatchWorld,restore:restoreWatchWorld,
+ onPause:paused=>{
+  if(paused){wristWasRunning=running;running=false;}
+  else if(wristWasRunning&&!law?.custody&&!railwaySecurity?.jailed&&!law?.pendingDeath&&!law?.gameOver)running=true;
+  simWorld.clock.paused=!running;
+  updateHUD();
+ },
+ onSpeed:scale=>{
+  $("days-per-second").value=String(scale);
+  $("days-per-second").dispatchEvent(new Event("change"));
+ }
+});
+wristWatch.speed=normalizeTimeScale($("days-per-second").value);
+wristUI=installWristWatchUI({watch:wristWatch,getGameDays:()=>planet?.timeDays??0,notify:log});
 henshinUI=installHenshinUI({runtime:henshin,audio:henshinAudio,getXR:()=>xrUI,notify:log});
 solarUI=installSolarSystemUI({get:()=>({solarSystem,planet,controller}),
  onTravel:startCelestialVoyage,onMine:mineAsteroids,notify:log});
@@ -4410,6 +4471,17 @@ celestialSky=installCelestialSkyViewport({get:()=>({
 solarUI.refresh();voyageUI.render();shipInteractionUI.update(true);surfaceShipUI.update(true);celestialSky.update(true);
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ getWatchState:()=>({style:wristWatch?.style||"smart",gameDays:planet?.timeDays??0,mode:wristWatch?.mode||"universe"}),
+ onWatchAction:action=>{
+  if(action==="tablet"){
+   const shell=document.getElementById("ue-world-tablet");
+   if(shell?.dataset.xrEnabled!=="true")
+    shell?.querySelector(".ue-tablet-head button[aria-label='Quest VRの3Dタブレット表示を切り替える']")?.click();
+   worldTablet?.open("settings");
+   return "立体タブレットを表示";
+  }
+  return wristUI?.action(action)||"";
+ },
  onVRGroundStart:()=>{
   // VR cabin starts at the current crew-test or starship position. Never
   // teleport the ground controller to a settlement while a ship is active.
@@ -4420,7 +4492,8 @@ xrUI=installXRUI({
    const result=visitSettlement(destinationById(activeSettlementId)||destinationById("pioneer"));
    if(!result.ok)return result;
   }
-  running=true;simWorld.clock.paused=false;updateHUD();
+  // Entering VR must not override the wrist terminal time-stop state.
+  running=!wristWatch?.paused;simWorld.clock.paused=!running;updateHUD();
   return {ok:true,message:"🥽 地表の現在地点からVR冒険を始めます"};
  },
  getVRAppearance:()=>appearance,

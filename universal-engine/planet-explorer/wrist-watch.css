@@ -1,0 +1,17 @@
+.ue-wrist-panel{position:absolute;z-index:120;left:10px;top:52px;width:min(390px,calc(100% - 20px));max-height:min(76vh,620px);overflow:auto;background:#09232bea;color:#e3f8fb;border:1px solid #6bb6bf;border-radius:12px;box-shadow:0 12px 32px #0007;font:13px system-ui,sans-serif;padding:12px;box-sizing:border-box}
+.ue-wrist-panel[hidden]{display:none!important}
+.ue-wrist-panel>header,.ue-wrist-time>header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ue-wrist-panel button,.ue-wrist-panel select{background:#17434d;color:#f4fcfc;border:1px solid #407987;border-radius:7px;padding:7px;font:inherit}
+.ue-wrist-panel button:disabled,.ue-wrist-panel select:disabled{opacity:.45}
+.ue-wrist-clocks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.ue-wrist-clocks>div{background:#123640;padding:10px;border-radius:9px;display:flex;flex-direction:column;gap:4px}
+.ue-wrist-clocks strong{font:600 23px ui-monospace,monospace;letter-spacing:.7px;font-variant-numeric:tabular-nums}
+.ue-wrist-clocks small,.ue-wrist-time small{color:#b3d7dd;font-size:11px}
+.ue-wrist-settings{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ue-wrist-settings label,.ue-wrist-controls label{display:flex;flex-direction:column;gap:5px;font-size:12px}
+.ue-wrist-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0}
+.ue-wrist-time{border-top:1px solid #4b7881;padding-top:9px}
+.ue-wrist-controls{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0}
+.ue-wrist-panel footer{padding-top:8px;color:#bce3e7}
+#viewport-wrist-watch{font-size:16px}
+@media(max-width:440px){.ue-wrist-clocks strong{font-size:19px}.ue-wrist-settings{grid-template-columns:1fr}}
