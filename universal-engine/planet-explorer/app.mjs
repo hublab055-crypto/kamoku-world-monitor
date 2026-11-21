@@ -785,12 +785,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,wristWatch?.paused?0:dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,wristWatch?.paused?0:dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -809,7 +809,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    }
    const previousOffset=voyage.planetOffset;
    const wasWarping=voyage.inWarp;
-   const before=voyage.status,advanced=voyage.tick(dt,voyageUI?.translationInput());
+   const before=voyage.status,advanced=voyage.tick(wristWatch?.paused?0:dt,voyageUI?.translationInput());
    if(previousOffset&&!wasWarping&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
@@ -979,7 +979,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   // Lower a spacecraft onto the ground while the player descends with it.
   if(["landing","recall"].includes(surfaceShip?.flight)&&controller.altitudeM<=300){
-   if(surfaceShip.tick(dt)){
+   if(surfaceShip.tick(wristWatch?.paused?0:dt)){
     renderer.patchKey=null;
     log("🛬 副官が宇宙船を着陸させました。船尾に回るとハッチを開けられます。");
     surfaceShipUI?.update(true);
@@ -1017,7 +1017,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
-  for(const event of railwaySecurity?.advance(dt,{
+  for(const event of railwaySecurity?.advance(wristWatch?.paused?0:dt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
    stamina:squad.frontier.person("player").stamina,
    eligible:controller.altitudeM<=12&&!onTrain&&!onFerry&&!inConcourse&&!detained&&!townLife.inside&&!marine?.cabinId&&
@@ -1225,7 +1225,7 @@ function doFrame(t,source="window",xrFrameInput=null){
     }
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
-   life.advance(dt,onTrain?false:onShip?marine.shipboard.player.moving:controller.moving);
+   life.advance(wristWatch?.paused?0:dt,onTrain?false:onShip?marine.shipboard.player.moving:controller.moving);
    if(running){
     for(const actor of squad.agents){
      const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
