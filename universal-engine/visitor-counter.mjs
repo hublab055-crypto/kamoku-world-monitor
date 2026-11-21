@@ -75,8 +75,8 @@ async function register() {
       ? "現在の登録数 " + total.toLocaleString("ja-JP") + " · " + (number <= 100 ? "FIRST 100 EXPLORERS · " : "") + (data.first_visit ? "ようこそ、開拓者！" : "おかえりなさい！")
       : "ようこそ、Universal Engineへ";
   } catch {
-    title.textContent = "訪問者番号を取得できませんでした";
-    caption.textContent = "オンライン時に再読み込みすると再試行できます";
+    title.textContent = "訪問者番号サービスは一時停止中です";
+    caption.textContent = "番号は未発行です。サービス復旧後に再読み込みしてください";
   }
   if (!isLanding) window.setTimeout(() => panel.remove(), 12000);
 }
