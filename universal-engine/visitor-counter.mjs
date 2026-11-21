@@ -72,7 +72,7 @@ async function register() {
     if (!Number.isSafeInteger(number) || number <= 0) throw new Error("invalid ordinal");
     title.textContent = "あなたは " + String(number).padStart(7, "0") + " 人目の訪問者です";
     caption.textContent = Number.isSafeInteger(total) && total >= 1
-      ? "現在の登録数 " + total.toLocaleString("ja-JP") + " · " + (data.first_visit ? "ようこそ、開拓者！" : "おかえりなさい！")
+      ? "現在の登録数 " + total.toLocaleString("ja-JP") + " · " + (number <= 100 ? "FIRST 100 EXPLORERS · " : "") + (data.first_visit ? "ようこそ、開拓者！" : "おかえりなさい！")
       : "ようこそ、Universal Engineへ";
   } catch {
     title.textContent = "訪問者番号を取得できませんでした";
