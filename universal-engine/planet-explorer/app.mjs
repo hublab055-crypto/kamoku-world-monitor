@@ -101,6 +101,8 @@ import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {installWorldTablet} from "./world-tablet.mjs?v=20261119-wall-player";
+import {WristWatchTime} from "./wrist-watch-time.mjs?v=20261122";
+import {installWristWatchUI} from "./wrist-watch-ui.mjs?v=20261122";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
@@ -131,7 +133,7 @@ const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
-let xrUI=null,mediaUI=null,footVoyage=null;
+let xrUI=null,mediaUI=null,footVoyage=null,wristTime=null,wristUI=null;
 const henshinAudio=new HenshinAudio({notify:message=>log(message)});
 const henshin=new HenshinRuntime({notify:message=>log(message),onAction:event=>{
  henshinAudio.play(henshin.project,event.action);
@@ -338,6 +340,7 @@ function init(saved=null){
  try{
   avatarV10=normalizeAvatarRoster(saved?.avatarV10?.roster??loadAvatarV10());
   // A freshly loaded game must not inherit the previous session's paused state.
+  if(wristTime){wristTime.speed=1;wristTime.clearHistory();}
   running=true;
   custodyConversation=false;custodyFacility=null;
   manualHarvest.clear();pendingArrowPickup.clear();resourceByOrigin.clear();cachedResourceArray=null;lastGuardStrike=null;viewportGestures?.cancel();
@@ -757,6 +760,9 @@ function doFrame(t,source="window",xrFrameInput=null){
   return;
  }
  const dt=lastTime?clamp((t-lastTime)/1000,0,.08):0;lastTime=t;
+ const worldDt=running?(wristTime?.worldDelta(dt)??dt):0;
+ const worldActive=worldDt>0;
+ wristUI?.refresh();
  if(familyLife&&planet&&planet.timeDays>familyLife.day){
   const events=familyLife.advanceTo(planet.timeDays);
   for(const item of events)if(item?.message)log("👪 "+item.message);
@@ -780,12 +786,12 @@ function doFrame(t,source="window",xrFrameInput=null){
   const shipMove=source==="xr"?applyShipVRWalk(voyage,dt,xrFrameInput):null;
   if(crewTestState){
    voyageUI?.render(dt);
-   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+   if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,worldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
-  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,dt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+  if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,worldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -804,7 +810,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    }
    const previousOffset=voyage.planetOffset;
    const wasWarping=voyage.inWarp;
-   const before=voyage.status,advanced=voyage.tick(dt,voyageUI?.translationInput());
+   const before=voyage.status,advanced=voyage.tick(worldDt,voyageUI?.translationInput());
    if(previousOffset&&!wasWarping&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
@@ -832,7 +838,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    if(source==="window"){
     renderer.frame(controller,dt);
     voyageUI?.render(dt);shipInteractionUI?.update();
-    shipCombatUI?.update(dt,{vr:false});
+    shipCombatUI?.update(worldDt,{vr:false});
    }
    if(voyage?.kind==="surface-to-surface"&&voyage.canDisembark()&&voyage.interior.z>18.3){
     const leave=shipEgress();if(leave?.message)log(leave.message);
@@ -874,10 +880,10 @@ function doFrame(t,source="window",xrFrameInput=null){
    input.strafe=xrAxes.strafe;
    input.turn=xrAxes.turn;
   }
-  if(onTrain&&!jailCellActive)railway.walk(running?dt:0,input);
-  if(onFerry&&!jailCellActive)ferry.walk(running?dt:0,input);
-  if(inConcourse&&!jailCellActive)railway.walkConcourse(running?dt:0,input);
-  if(townLife.inside&&!jailCellActive)townLife.walk(running?dt:0,input);
+  if(onTrain&&!jailCellActive)railway.walk(worldDt,input);
+  if(onFerry&&!jailCellActive)ferry.walk(worldDt,input);
+  if(inConcourse&&!jailCellActive)railway.walkConcourse(worldDt,input);
+  if(townLife.inside&&!jailCellActive)townLife.walk(worldDt,input);
   // Only the physical on-screen stick is screen-relative. Preserve VR axes,
   // keyboard walking, vehicle steering and scripted/automatic destinations.
   if(source!=="xr"&&acceptsWorldInput&&stickPointer!==null&&controlMode==="stick"&&
@@ -897,7 +903,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   const ship=marine?.boarded;
   const onShip=!detained&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
-   for(const message of marine.shipboard.advance(running?dt:0,
+   for(const message of marine.shipboard.advance(worldDt,
     renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input))log(message);
    if(marine.shipboard.player.moving&&life.activity!=="idle"){
     life.activity="idle";life.activityFurnitureId=null;marine.cabinActivity="idle";
@@ -924,8 +930,8 @@ function doFrame(t,source="window",xrFrameInput=null){
   controller.mountRiding=Boolean(fauna?.mount)&&controller.travelMode==="walk";controller.walkSpeed=fauna?.speed()??5;
   for(const agent of squad?.agents||[])agent.control.placedWalls=constructions.structures;
   // Crew use the local vessel walk map, never inland auto-harvest while afloat.
-  if(!onShip&&!onTrain&&!onFerry&&!inConcourse&&!detained)squad?.advance(running?dt:0,{manualLead});
-  if(running){
+  if(!onShip&&!onTrain&&!onFerry&&!inConcourse&&!detained)squad?.advance(worldDt,{manualLead});
+  if(worldActive){
    for(const a of squad?.agents||[]){
     if(a.id==="player")continue;
     const prior=lastNpcStatus.get(a.id),now=a.status||"";
@@ -974,7 +980,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   }else controller.update(dt,townLife.inside||onTrain||onFerry||inConcourse?{forward:0,strafe:0,turn:0}:travelInput);
   // Lower a spacecraft onto the ground while the player descends with it.
   if(["landing","recall"].includes(surfaceShip?.flight)&&controller.altitudeM<=300){
-   if(surfaceShip.tick(dt)){
+   if(surfaceShip.tick(worldDt)){
     renderer.patchKey=null;
     log("🛬 副官が宇宙船を着陸させました。船尾に回るとハッチを開けられます。");
     surfaceShipUI?.update(true);
@@ -1012,16 +1018,16 @@ function doFrame(t,source="window",xrFrameInput=null){
    restraintReason:vrRestraintReason,indoor:Boolean(townLife.inside||onTrain||onFerry||inConcourse||marine?.cabinId),
    onShip:Boolean(onShip),rts:Boolean(rtsMode)
   };
-  for(const event of railwaySecurity?.advance(dt,{
+  for(const event of railwaySecurity?.advance(worldDt,{
    stationId:activeSettlementId,x:controller.x,z:controller.z,
    stamina:squad.frontier.person("player").stamina,
    eligible:controller.altitudeM<=12&&!onTrain&&!onFerry&&!inConcourse&&!detained&&!townLife.inside&&!marine?.cabinId&&
     !marine?.boarded&&controller.travelMode==="walk"
   })||[])handleRailwaySecurityEvent(event);
   renderer.railwaySecurity=railwaySecurity;
-  if(running&&law&&!law.custody&&!law.pendingDeath&&!law.gameOver){
+  if(worldActive&&law&&!law.custody&&!law.pendingDeath&&!law.gameOver){
     const vitals=squad.frontier.person("player");
-    const events=law.advance(dt,{day:planet.timeDays,settlementId:activeSettlementId,
+    const events=law.advance(worldDt,{day:planet.timeDays,settlementId:activeSettlementId,
       x:controller.x,z:controller.z,stamina:vitals.stamina,hp:battle.playerHp,
       playerEligible:railwaySecurity?.state==="clear",
       armedWeapons:frontierUI?.armedWeapons("player")||[],
@@ -1057,7 +1063,7 @@ function doFrame(t,source="window",xrFrameInput=null){
     }
     if(events.length)saveLawJournal();
   }
-  marine?.update(running?dt:0,controller,terrain);
+  marine?.update(worldDt,controller,terrain);
   if(onShip){
    // Keep the squad's world-space controls co-located with moving ship for RTS,
    // interaction radius and inherited outfit/character identity.
@@ -1072,8 +1078,8 @@ function doFrame(t,source="window",xrFrameInput=null){
     a.control.moveTarget=null;a.control.travelMode="boat";
    }
   }
-  if(running){
-   const fishingEvent=marine?.tickFishing(dt,planet.seed);
+  if(worldActive){
+   const fishingEvent=marine?.tickFishing(worldDt,planet.seed);
    if(fishingEvent)log(fishingEvent.message);
    if(marine?.justCompletedLap){
     log("🌐 惑星一周達成！ 出発地点の海域に戻りました（"+marine.voyage.laps+"周）");
@@ -1081,12 +1087,12 @@ function doFrame(t,source="window",xrFrameInput=null){
     saveMarineJournal();
    }
    if(marine?.boarded?.kind==="sailing_ship"){
-    voyageSaveElapsed+=dt;
+    voyageSaveElapsed+=worldDt;
     if(voyageSaveElapsed>10){voyageSaveElapsed=0;saveMarineJournal();}
    }
   }
-  if(running){
-   fauna?.advance(dt,controller,faunaGroundPassable);
+  if(worldActive){
+   fauna?.advance(worldDt,controller,faunaGroundPassable);
    processHarvestOrders();processArrowPickups();
   }
   const transition=access.guard(previous,controller);
@@ -1104,13 +1110,13 @@ function doFrame(t,source="window",xrFrameInput=null){
    frontierUI?.updateTarget();
    const attackInProgress=actions.active;
    const completed=actions.advance(dt);
-   if(running&&attackInProgress?.kind==="bow"&&!attackInProgress.arrowReleased&&
+   if(worldActive&&attackInProgress?.kind==="bow"&&!attackInProgress.arrowReleased&&
      attackInProgress.time/attackInProgress.duration>=.81){
     attackInProgress.arrowReleased=true;
     launchArrow(squad.get("player"),attackInProgress);
    }
-   if(running&&battle){
-    battle.advance(dt,controller,attackInProgress,squad,{
+   if(worldActive&&battle){
+    battle.advance(worldDt,controller,attackInProgress,squad,{
       guardTargets:law.guardTargets(activeSettlementId),
       onGuardHit:(id,damage)=>{
        const hit=law.damageGuard(activeSettlementId,id,damage,{source:"enemy"});
@@ -1118,7 +1124,7 @@ function doFrame(t,source="window",xrFrameInput=null){
        return hit;
       }
      });
-    battle.advanceAllies(dt,squad,{launchArrow:(soldier,target)=>{
+    battle.advanceAllies(worldDt,squad,{launchArrow:(soldier,target)=>{
      if(!frontierUI?.hasTacticalArrow(soldier.id))return false;
      const shot=launchArrow(soldier,{targetId:target.id});
      if(shot)frontierUI.consumeTacticalArrow(soldier.id);
@@ -1188,8 +1194,8 @@ function doFrame(t,source="window",xrFrameInput=null){
     }
     // Hit-flash visual timer is updated outside the running-only branch.
    }
-   if(running&&projectiles){
-    const events=projectiles.advance(dt,{
+   if(worldActive&&projectiles){
+    const events=projectiles.advance(worldDt,{
      groundHeight:terrainAt,
      trees:renderer.resourceNodes||[],
      buildings:actions.structures,
@@ -1213,7 +1219,7 @@ function doFrame(t,source="window",xrFrameInput=null){
      }else if(event.surface==="target")log("🎯 的に矢が命中しました。タップして回収できます。");
     }
    }
-   if(running){
+   if(worldActive){
     for(const [kind,label] of Object.entries(resourceNames)){
      const delta=(actions.resources[kind]||0)-(priorResources[kind]||0);
      if(delta>0)worldUI?.float({kind:"gain",text:"+"+delta+" "+label,actorId:"player",duration:1.6});
@@ -1221,7 +1227,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    }
    for(const hut of actions.structures.filter(h=>h.progress>=1))life.ensureHut(hut);
    life.advance(dt,onTrain?false:onShip?marine.shipboard.player.moving:controller.moving);
-   if(running){
+   if(worldActive){
     for(const actor of squad.agents){
      const p=squad.frontier.person(actor.id),actualHp=actor.id==="player"?battle.playerHp:actor.hp;
      const damage=Math.max(0,(hpBefore.get(actor.id)??actualHp)-actualHp);
@@ -1238,7 +1244,7 @@ function doFrame(t,source="window",xrFrameInput=null){
       document.getElementById("law-panel").hidden=false;
       log(heirs.length?"🪦 主人公死亡。治安・手配パネルから継承者を選択してください。":"🪦 継承者がいません。ゲームオーバーです。");
     }
-    vitalsSaveElapsed+=dt;
+    vitalsSaveElapsed+=worldDt;
     if(vitalsSaveElapsed>=10){vitalsSaveElapsed=0;saveLifeJournal();saveLawJournal();}
    }
    // Lifestyle uses an inverse hunger gauge: 100 means very hungry.
@@ -1259,8 +1265,8 @@ function doFrame(t,source="window",xrFrameInput=null){
     saveLifeJournal();
    }
   const ferryTimeBefore=planet.timeDays*1440;
-  if(running)universe.advance(dt);
-  if(onFerry&&running){
+  if(worldActive)universe.advance(worldDt);
+  if(onFerry&&worldActive){
    const target=ferry.boarded.destinationId,offset=target==="central"?0:60;
    const nextArrival=offset+120*Math.ceil((ferryTimeBefore+.001-offset)/120);
    if(ferryTimeBefore<nextArrival&&planet.timeDays*1440>=nextArrival){
@@ -1324,6 +1330,7 @@ function doFrame(t,source="window",xrFrameInput=null){
    frameTime=0;frameCount=0;lastHud=t;
   }
  }
+ wristTime?.afterWorldFrame(worldDt);
  if(source==="window")requestAnimationFrame(doFrame);
  return xrMoveResult;
 }
@@ -4306,6 +4313,47 @@ $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveCustodyFacilityJournal();});
 init();
+wristTime=new WristWatchTime({
+ getTimeDays:()=>planet?.timeDays??0,getLongitude:()=>controller?.lon??0,
+ captureWorld:()=>({
+  timeDays:planet?.timeDays??0,
+  actors:(squad?.agents||[]).filter(a=>a.id!=="player").map(a=>({
+   id:a.id,x:a.control?.x,z:a.control?.z,yaw:a.control?.yaw,
+   hp:a.hp,status:a.status
+  })),
+  enemies:(battle?.enemies||[]).map(e=>({id:e.id,x:e.x,z:e.z,yaw:e.y,hp:e.hp}))
+ }),
+ restoreWorld:state=>{
+  if(!planet||!state)return;
+  planet.timeDays=state.timeDays;
+  for(const actor of state.actors||[]){
+   const target=squad?.agents?.find(a=>a.id===actor.id);
+   if(!target?.control)continue;
+   for(const key of ["x","z","yaw"])if(Number.isFinite(actor[key]))target.control[key]=actor[key];
+   if(Number.isFinite(actor.hp))target.hp=actor.hp;
+   target.status=actor.status;
+  }
+  for(const enemy of state.enemies||[]){
+   const target=battle?.enemies?.find(e=>e.id===enemy.id);
+   if(!target)continue;
+   for(const key of ["x","z","yaw","hp"])if(Number.isFinite(enemy[key]))target[key]=enemy[key];
+  }
+  solarSystem?.sync(planet.timeDays);
+  if(renderer)renderer.patchKey=null;
+  updateHUD();
+ }
+});
+wristUI=installWristWatchUI({runtime:wristTime,notify:log,onAction:action=>{
+ if(action==="main-menu")$("viewport-quick-toggle")?.click();
+ if(action==="settings")$("viewport-settings-toggle")?.click();
+ if(action==="camera"){
+  const modes=[...$("camera-mode").options].map(o=>o.value);
+  const i=modes.indexOf(renderer?.cameraController?.mode);
+  if(modes.length)setCameraMode(modes[(i+1)%modes.length]);
+ }
+ if(action==="xr-mode")showXRSettings();
+ if(action==="tablet")$("viewport-tablet")?.click();
+}});
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
 const worldTablet=installWorldTablet({setCameraMode,getCameraMode:()=>renderer?.cameraController?.mode,
@@ -4410,6 +4458,9 @@ celestialSky=installCelestialSkyViewport({get:()=>({
 solarUI.refresh();voyageUI.render();shipInteractionUI.update(true);surfaceShipUI.update(true);celestialSky.update(true);
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ getWristWatch:()=>({hand:wristTime?.hand||"left",
+  display:wristTime?.display(),mode:wristTime?.mode||"universe"}),
+ onWristWatchAction:action=>wristUI?.invoke(action),
  onVRGroundStart:()=>{
   // VR cabin starts at the current crew-test or starship position. Never
   // teleport the ground controller to a settlement while a ship is active.
