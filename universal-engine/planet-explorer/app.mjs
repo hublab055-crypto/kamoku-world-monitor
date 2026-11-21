@@ -880,10 +880,10 @@ function doFrame(t,source="window",xrFrameInput=null){
    input.strafe=xrAxes.strafe;
    input.turn=xrAxes.turn;
   }
-  if(onTrain&&!jailCellActive)railway.walk(worldDt,input);
-  if(onFerry&&!jailCellActive)ferry.walk(worldDt,input);
-  if(inConcourse&&!jailCellActive)railway.walkConcourse(worldDt,input);
-  if(townLife.inside&&!jailCellActive)townLife.walk(worldDt,input);
+  if(onTrain&&!jailCellActive)railway.walk(dt,input);
+  if(onFerry&&!jailCellActive)ferry.walk(dt,input);
+  if(inConcourse&&!jailCellActive)railway.walkConcourse(dt,input);
+  if(townLife.inside&&!jailCellActive)townLife.walk(dt,input);
   // Only the physical on-screen stick is screen-relative. Preserve VR axes,
   // keyboard walking, vehicle steering and scripted/automatic destinations.
   if(source!=="xr"&&acceptsWorldInput&&stickPointer!==null&&controlMode==="stick"&&
@@ -903,8 +903,8 @@ function doFrame(t,source="window",xrFrameInput=null){
   const ship=marine?.boarded;
   const onShip=!detained&&ship?.kind==="sailing_ship"&&marine.shipboard.shipId===marine.boardedId;
   if(onShip){
-   for(const message of marine.shipboard.advance(worldDt,
-    renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input))log(message);
+   for(const message of marine.shipboard.advance(dt,
+    renderer.cameraController.mode==="free"?{forward:0,strafe:0,turn:0}:input,{worldDt}))log(message);
    if(marine.shipboard.player.moving&&life.activity!=="idle"){
     life.activity="idle";life.activityFurnitureId=null;marine.cabinActivity="idle";
    }
