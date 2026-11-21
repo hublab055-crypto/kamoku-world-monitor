@@ -4,7 +4,7 @@ import {XRWristWatch,XR_WATCH_KEYS,xrWristPose,xrWristHit} from "./xr-wrist-watc
 import {xrTranslate} from "./xr-spatial.mjs";
 const head=()=>xrTranslate(0,1.7,0);
 const left=()=>xrTranslate(-.24,1.26,-.45);
-function rayAt(model,x,y,d=.45){
+function rayAt(model,x=0,y=0,d=.45){
  const m=Array.from(model);
  m[12]+=model[0]*x+model[4]*y+model[8]*d;
  m[13]+=model[1]*x+model[5]*y+model[9]*d;
