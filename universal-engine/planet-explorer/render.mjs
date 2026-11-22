@@ -2788,7 +2788,7 @@ export class ExplorerRenderer{
   gl.useProgram(this.program);
   gl.uniform1f(this.uXROcclusionEnabled,0);
   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
-  const light=[.9,1,.98],silver=[.87,.94,1],green=[.48,1,.74],amber=[1,.72,.36];
+  const light=[.9,1,.98],silver=[.87,.94,1],green=watch.awake?[.48,1,.74]:[.26,.46,.38],amber=watch.awake?[1,.72,.36]:[.48,.34,.20];
   const line=(model,x1,y1,x2,y2,tint=silver,width=.008)=>{
    const dx=x2-x1,dy=y2-y1,n=Math.hypot(dx,dy);
    if(n<.0001)return;
@@ -2828,6 +2828,34 @@ export class ExplorerRenderer{
     }
    }
   };
+
+  // Physical wrist band (metres), wrapped around the forearm in grip-local XR axes.
+  if(watch.wristFrame){
+   const wrist=watch.wristFrame,navy=[.13,.20,.28],steel=[.74,.81,.89];
+   const strand=(a,b,width=.008,tint=navy)=>{
+    const v=b.map((n,i)=>n-a[i]),n=Math.hypot(...v);if(n<1e-5)return;
+    const y=v.map(x=>x/n),up=Math.abs(y[1])>.87?[0,0,1]:[0,1,0];
+    const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+    const c=cross(up,y),d=Math.hypot(...c)||1,x=c.map(u=>u/d),z=cross(x,y);
+    const m=[...x.map(u=>u*width),0,...v,0,...z.map(u=>u*.01),0,...a,1];
+    this.drawMesh(this.vrBodySegment,multiply4(vp,multiply4(wrist,m)),light,1,.92,tint);
+   };
+   const n=16,r=.039;
+   for(const h of [-.023,.023])for(let i=0;i<n;i++){
+    const a=i*2*Math.PI/n,b=(i+1)*2*Math.PI/n;
+    strand([r*Math.sin(a),h,r*Math.cos(a)],
+     [r*Math.sin(b),h,r*Math.cos(b)],.009,i%4===0?steel:navy);
+   }
+   for(let i=0;i<n;i+=2){
+    const a=i*2*Math.PI/n,x=r*Math.sin(a),z=r*Math.cos(a);
+    strand([x,-.023,z],[x,.023,z],.010,navy);
+   }
+   // Metal bezel and side crown mounted over the strap.
+   const q=[[-.035,-.034,.045],[.035,-.034,.045],[.035,.034,.045],[-.035,.034,.045]];
+   for(let i=0;i<4;i++)strand(q[i],q[(i+1)%4],.006,steel);
+   strand([.042,0,.045],[.052,0,.045],.013,steel);
+  }
+
   rect(watch.model,0,0,.42,.47,watch.display?.style==="mechanical"?silver:green);
   const d=watch.display||{};
   if(d.style==="mechanical"){
@@ -2848,25 +2876,71 @@ export class ExplorerRenderer{
    digits(watch.model,d.real||"00:00:00",-.115,amber);
    line(watch.model,-.19,0,.19,0,silver,.006);
   }
+
   if(watch.menuModel){
-   const yRows=[.13,-.13],xs=[-.15,0,.15],model=watch.menuModel;
-   for(let i=0;i<6;i++){
-    const x=xs[i%3],y=yRows[Math.floor(i/3)];
-    rect(model,x,y,.132,.19,silver);
-    if(watch.page==="time"){
-     // 1 pause, 2 quarter speed, 3 normal, 4 double, 5 fast, 6 rewind.
-     digits(model,String(i+1),y,i===0?amber:green);
-    }else{
-     if(i===0){for(const dy of [-.04,0,.04])line(model,x-.040,y+dy,x+.040,y+dy,green);}
-     else if(i===1){circle(model,x,y,.025,green);for(let a=0;a<8;a++){
-       const v=a*Math.PI/4;line(model,x+.029*Math.cos(v),y+.029*Math.sin(v),x+.042*Math.cos(v),y+.042*Math.sin(v),green);
-     }}
-     else if(i===2){circle(model,x,y,.032,green);circle(model,x,y,.013,green);}
-     else if(i===3){rect(model,x,y,.083,.038,green);line(model,x,y-.019,x,y+.019,green);}
-     else if(i===4){rect(model,x,y,.075,.092,green);line(model,x-.028,y-.029,x+.028,y-.029,green);}
-     else{circle(model,x,y,.037,amber);line(model,x,y,x,y+.026,amber);line(model,x,y,x+.020,y-.010,amber);}
+   const rows=[.13,-.13],cols=[-.15,0,.15],model=watch.menuModel;
+   const accents={menu:green,main:[.65,.85,1],settings:amber,xr:[.7,.76,1],time:[.8,1,.73]};
+   const accent=accents[watch.page]||green;
+   rect(model,0,0,.44,.48,accent);
+   for(let i=0;i<6;i++)rect(model,cols[i%3],rows[Math.floor(i/3)],.135,.192,i===0?accent:silver);
+   // Page-specific menu labels are a single batched mesh, not an HTML overlay.
+   const font={
+    A:"01110/10001/10001/11111/10001/10001/10001",
+    B:"11110/10001/10001/11110/10001/10001/11110",
+    C:"01111/10000/10000/10000/10000/10000/01111",
+    D:"11110/10001/10001/10001/10001/10001/11110",
+    E:"11111/10000/10000/11110/10000/10000/11111",
+    F:"11111/10000/10000/11110/10000/10000/10000",
+    H:"10001/10001/10001/11111/10001/10001/10001",
+    I:"01110/00100/00100/00100/00100/00100/01110",
+    L:"10000/10000/10000/10000/10000/10000/11111",
+    M:"10001/11011/10101/10101/10001/10001/10001",
+    N:"10001/11001/10101/10011/10001/10001/10001",
+    O:"01110/10001/10001/10001/10001/10001/01110",
+    P:"11110/10001/10001/11110/10000/10000/10000",
+    R:"11110/10001/10001/11110/10100/10010/10001",
+    S:"01111/10000/10000/01110/00001/00001/11110",
+    T:"11111/00100/00100/00100/00100/00100/00100",
+    U:"10001/10001/10001/10001/10001/10001/01110",
+    V:"10001/10001/10001/10001/10001/01010/00100",
+    W:"10001/10001/10001/10101/10101/10101/01010",
+    X:"10001/10001/01010/00100/01010/10001/10001",
+    Y:"10001/10001/01010/00100/00100/00100/00100",
+    0:"01110/10011/10101/10101/11001/10001/01110",
+    1:"00100/01100/00100/00100/00100/00100/01110",
+    2:"01110/10001/00001/00010/00100/01000/11111",
+    3:"11110/00001/00001/01110/00001/00001/11110",
+    4:"00010/00110/01010/10010/11111/00010/00010",
+    5:"11111/10000/10000/11110/00001/00001/11110",
+    6:"01110/10000/10000/11110/10001/10001/01110",
+    7:"11111/00001/00010/00100/01000/01000/01000",
+    8:"01110/10001/10001/01110/10001/10001/01110",
+    9:"01110/10001/10001/01111/00001/00001/01110",
+    ".":"00000/00000/00000/00000/00000/00100/00100"
+   };
+   this.vrWatchLabelMeshes||=new Map();
+   let letters=this.vrWatchLabelMeshes.get(watch.page);
+   if(!letters){
+    const positions=[],normals=[],colors=[],indices=[];
+    const labels=watch.menuLabels();
+    for(let i=0;i<6;i++){
+     const word=labels[i]||"",x0=cols[i%3]-word.length*.018/2+.002,y0=rows[Math.floor(i/3)]+.014;
+     for(let c=0;c<word.length;c++){
+      const bits=font[word[c]]?.split("/")||[];
+      for(let a=0;a<7;a++)for(let b=0;b<5;b++){
+       if(bits[a]?.[b]!=="1")continue;
+       const x=x0+c*.018+b*.0031,y=y0-a*.0034,z=.03,w=.0028;
+       const k=positions.length/3;
+       positions.push(x,y,z,x+w,y,z,x+w,y-w,z,x,y-w,z);
+       for(let v=0;v<4;v++){normals.push(0,0,1);colors.push(1,1,1);}
+       indices.push(k,k+1,k+2,k,k+2,k+3);
+      }
+     }
     }
+    if(indices.length){letters=new Mesh(gl,{positions,normals,colors,indices});
+     this.vrWatchLabelMeshes.set(watch.page,letters);}
    }
+   if(letters)this.drawMesh(letters,multiply4(vp,model),light,1,.96,accent);
   }
  }
  drawVRGuide(xr,anchor){
@@ -3864,6 +3938,8 @@ export class ExplorerRenderer{
  destroy(){
    for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
+   for(const mesh of this.vrWatchLabelMeshes?.values()||[])mesh.destroy();
+   this.vrWatchLabelMeshes?.clear();
    this.henshinMeshes?.destroy();
    this.avatarV10Assets.destroy();
    for(const mesh of this.shipCrewFallbacks.values())mesh.destroy();
