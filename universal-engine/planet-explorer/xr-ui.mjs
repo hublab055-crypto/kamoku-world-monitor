@@ -798,6 +798,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    grip=ref?event.frame.getPose(ref,space)?.transform.matrix||null:null;
   }catch(_){}
   const hit=xrWristWatch.press(ray,{sourceHand:hand,grip});
+  // The wrist panel is modal in VR. An imprecise tap may miss a small
+  // target, but must not fire an arrow, weapon or cockpit control behind it.
+  if(!hit&&xrWristWatch.open){
+   vrWatchTriggerConsumed.add(hand);
+   statusText("⌚ メニューのボタンを指してトリガーを押してください。閉じるには腕時計を押すか、MAINのCLOSEを選びます");
+   return true;
+  }
   if(!hit)return false;
   vrWatchTriggerConsumed.add(hand);
   if(hit.action==="toggle"){
