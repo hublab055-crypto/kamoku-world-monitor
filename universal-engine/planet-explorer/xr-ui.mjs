@@ -1512,7 +1512,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      mrAvatarPlacement(head,{floorY:floor});
     const width=Number($("xr-room-object-width")?.value)||.7,depth=Number($("xr-room-object-depth")?.value)||.7;
     const seatY=["chair","sofa"].includes(type)&&hit?.y>floor+.25&&hit.y<floor+.85?hit.y-floor:.45;
-    const item=mrRoom.add(type,hit,{width,depth,seatY});
+    const yaw=(Number($("xr-room-object-yaw")?.value)||0)*Math.PI/180;
+    const item=mrRoom.add(type,hit,{width,depth,seatY,yaw});
     if(item){saveMRRoom();mrRoomMessage(type+"を登録（計"+mrRoom.objects.length+"件）");}
     else mrRoomMessage("家具位置を取得できません");
    }
