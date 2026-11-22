@@ -17,7 +17,7 @@ import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-moc
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
 import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
-import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal} from "./mr-room-layout.mjs?v=20261122-room8";
+import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261122-room8";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -859,9 +859,29 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   if(activeMode==="mr-avatars"){
    if(event.inputSource?.handedness!=="right")return;
+   let ray=null;
+   try{
+    if(event.frame&&event.inputSource?.targetRaySpace)
+     ray=event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix;
+   }catch(_){}
+   const door=mrRoom.worldPortal();
+   if(door&&mrLastHead&&mrNearPortal(mrLastHead,door,1.55)&&mrPortalRayHit(ray,door)){
+    portalSwitch("vr");return;
+   }
    const result=mrPlaceSelected();
    statusText("🥽 "+result.message);
    return;
+  }
+  if(activeMode==="vr"&&event.inputSource?.handedness==="right"&&mrPortalVR&&event.frame){
+   let ray=null,head=null;
+   try{
+    if(event.inputSource?.targetRaySpace)
+     ray=event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix;
+    head=event.frame.getViewerPose(space)?.transform.matrix;
+   }catch(_){}
+   if(head&&mrNearPortal(head,mrPortalVR,1.55)&&mrPortalRayHit(ray,mrPortalVR)){
+    portalSwitch("mr-avatars");return;
+   }
   }
   if(activeMode==="vr"){
    const hand=event.inputSource?.handedness;
