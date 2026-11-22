@@ -155,6 +155,7 @@
   <button id="xr-mr-rts" type="button" disabled aria-pressed="false">MR・卓上RTS</button>
   <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
   <button id="xr-mr-social" type="button" disabled>MR・対面（試験）</button>
+  <button id="xr-mr-avatars-mode" type="button" disabled>👥 MR・アバター召喚</button>
   <button id="xr-exit" type="button" hidden>✕ XR終了</button>
  </div>
  <div class="xr-action-buttons" aria-label="XR専用操作">
@@ -207,6 +208,39 @@
    <button id="xr-social-view" type="button" hidden aria-pressed="false">第三者視点</button>
   </div>
   <small id="xr-social-status" role="status">未接続</small>
+ </details>
+ <details id="xr-avatar-presence" class="xr-help-panel">
+  <summary>👥 MRアバター召喚・移動・モーション</summary>
+  <p>Quest 3Sの現実空間に、現在保存されているアバターV10の外観で人物を表示します。1台のQuestだけで動作し、他のプレイヤーとの接続は不要です。</p>
+  <label class="xr-size-label" for="xr-avatar-select">呼び出す人物
+   <select id="xr-avatar-select">
+    <option value="navigator">副官（ライラ）</option>
+    <option value="engineer">機関士</option>
+    <option value="companion">同行者</option>
+    <option value="player">自分のアバター</option>
+   </select>
+  </label>
+  <label class="xr-size-label" for="xr-avatar-size">大きさ
+   <select id="xr-avatar-size">
+    <option value="0.4">卓上 40%</option>
+    <option value="1" selected>等身大 100%</option>
+    <option value="1.6">大きく 160%</option>
+   </select>
+  </label>
+  <div class="xr-buttons">
+   <button type="button" id="xr-avatar-spawn">📍 召喚・再配置</button>
+   <button type="button" id="xr-avatar-remove">選択した人物を消す</button>
+   <button type="button" id="xr-avatar-clear">全員消す</button>
+   <button type="button" id="xr-avatar-follow">🚶 ついてくる</button>
+   <button type="button" id="xr-avatar-wait">✋ 待機</button>
+   <button type="button" id="xr-avatar-salute">🫡 敬礼</button>
+   <button type="button" id="xr-avatar-thumbsUp">👍 グッドサイン</button>
+   <button type="button" id="xr-avatar-sit">🪑 座る</button>
+   <button type="button" id="xr-avatar-stand">立つ</button>
+  </div>
+  <p>「MR・アバター召喚」を開始すると最初の1人を正面に表示。右トリガーで床を指定して再配置できます（最大4体）。通常のアバター編集内容を参照し、位置はXRセッション中のみ保持します。</p>
+  <p><small>試験段階：アバターは実体ではありません。物理衝突・安全な障害物回避、手を使った握手・ハグ、現実物によるV10の遮蔽は未対応です。座る動作は椅子との位置合わせを伴いません。</small></p>
+  <small id="xr-avatar-presence-status" role="status">MR開始前</small>
  </details>
  <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
  </div>
