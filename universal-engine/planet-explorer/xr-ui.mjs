@@ -16,7 +16,8 @@ import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
-import {MRAvatarPresence} from "./mr-avatar-presence.mjs?v=20261122";
+import {MRAvatarPresence,MR_AVATAR_IDS} from "./mr-avatar-presence.mjs?v=20261122-room8";
+import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal} from "./mr-room-layout.mjs?v=20261122-room8";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -44,9 +45,23 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
  const xrWristWatch=new XRWristWatch();
- const mrAvatars=new MRAvatarPresence();
+ const mrAvatars=new MRAvatarPresence(8);
  const mrAvatarId=$("xr-avatar-select"),mrAvatarScale=$("xr-avatar-size"),mrAvatarStatus=$("xr-avatar-presence-status");
- let mrLastHead=null,mrAutoSpawn=false;
+ const mrRoomStatus=$("xr-room-status"),mrPortalStatus=$("xr-portal-status");
+ let mrRoom;
+ try{mrRoom=new MRRoomLayout(JSON.parse(localStorage.getItem(MR_ROOM_SAVE_KEY)||"null"));}
+ catch(_){mrRoom=new MRRoomLayout();}
+ const saveMRRoom=()=>{
+  try{localStorage.setItem(MR_ROOM_SAVE_KEY,JSON.stringify(mrRoom.snapshot()));return true;}
+  catch(_){if(mrRoomStatus)mrRoomStatus.textContent="部屋データを保存できません（ストレージを確認）";return false;}
+ };
+ if($("xr-room-width"))$("xr-room-width").value=String(mrRoom.width);
+ if($("xr-room-depth"))$("xr-room-depth").value=String(mrRoom.depth);
+ let mrLastHead=null,mrAutoSpawn=false,mrAnchor=null,mrRestorePending=false,mrRestoreBusy=false,mrOriginPending=false,
+  mrScanPending=false,mrAddPending=null,mrDoorPending=false,mrPortalVR=null,mrPortalNear=false,mrPortalTarget=null;
+ let mrInvited=[]; // Explicit local companion hand-off; never remote player access
+ const mrRoomMessage=message=>{if(mrRoomStatus)mrRoomStatus.textContent=message;statusText("🏠 "+message);};
+ const mrDoorMessage=message=>{if(mrPortalStatus)mrPortalStatus.textContent=message;statusText("🚪 "+message);};
  const vrWatchTriggerConsumed=new Set();
  const vrTabletTriggerConsumed=new Set();
  const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
@@ -300,7 +315,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   getRenderer()?.henshin?.resetXR();henshinTriggerConsumed.clear();henshinGripConsumed.clear();
   if(activeMode==="vr")motionActorUI.onSessionEnd();
   if(activeMode==="mr-social")social.activate(false);
+  if(activeMode==="mr-avatars"){
+   mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
+  }
   mrAvatars.reset();mrLastHead=null;mrAutoSpawn=false;
+  mrAnchor=null;mrRestoreBusy=false;mrRestorePending=false;mrOriginPending=false;
+  mrScanPending=false;mrAddPending=null;mrDoorPending=false;mrPortalVR=null;mrPortalNear=false;
+  mrRoom.forgetTracking();
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();
@@ -332,7 +353,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrRecoveryExhausted=false;vrLastErrorStep="";
   vrStage="未開始";vrSceneFrames=0;vrLastCallbackAt=0;
   update();
-  if(!disposed)statusText("通常の3D画面に戻りました。");
+  if(!disposed)statusText(mrPortalTarget?
+   "境界扉を開きました。「"+(mrPortalTarget==="vr"?"🚪 VRへ渡る":"🚪 MRの自室へ戻る")+"」をもう一度押して入場してください。":
+   "通常の3D画面に戻りました。");
  }
  async function start(mode){return startWithOptions(mode,{ground:false});}
  async function startWithOptions(mode,{ground=false}={}){
@@ -360,7 +383,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // permissions, feature checks, or any asynchronous GL setup.
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
    const wantsLayers=requestedType==="immersive-vr"&&canUseXRProjection();
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?[
+    "hit-test",...(mode==="mr-avatars"?["anchors","plane-detection"]:[]),...(root?["dom-overlay"]:[])
+   ]:wantsLayers?["layers"]:[])]};
    if(root)init.domOverlay={root};
    if(mode==="mr-social"||mode==="mr-henshin"){
     init.requiredFeatures=["local-floor"];
@@ -420,6 +445,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
    mrAvatars.reset();mrLastHead=null;mrAutoSpawn=mode==="mr-avatars";
+   mrRoom.forgetTracking();mrAnchor=null;mrRestoreBusy=false;
+   mrRestorePending=mode==="mr-avatars"&&Boolean(mrRoom.anchorHandle);
+   mrOriginPending=false;mrScanPending=false;mrAddPending=null;mrDoorPending=false;
+   mrPortalVR=null;mrPortalNear=false;mrPortalTarget=null;
    getRenderer()?.henshin?.resetXR();
    if(mode==="vr")motionActorUI.onSessionStart(usingFloor);
    if(mode==="mr-social"){
