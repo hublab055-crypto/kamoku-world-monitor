@@ -29,19 +29,23 @@ export function crewVoiceProfile(id,interior){
 export class ShipSocialVoice {
  constructor({voice=null,doc=globalThis.document,storage=globalThis.localStorage,getRenderer=()=>null,getAvatarModel=id=>({navigator:'lyra',engineer:'elio',companion:'mina'})[id],onError=()=>{}}={}){
   this.doc=doc;this.storage=storage;this.getRenderer=getRenderer;this.getAvatarModel=getAvatarModel;this.onError=onError;
-  this.voiceNames={navigator:'',engineer:'',companion:''};this.voiceRows=[];this.voiceChangeHandler=null;
+  this.voiceNames={navigator:'',engineer:'',companion:''};this.tuning=Object.fromEntries(Object.keys(CREW).map(id=>[id,{rate:1,pitch:1}]));
+  this.voiceRows=[];this.voiceChangeHandler=null;
   this.enabled=false;this.activated=false;this.subtitles=true;this.activeSpeaker=null;
   this.interior=null;this.routineKey='';this.greetId=null;
   this.ui=new Set();this.caption=null;this.lastCaption='';
   try{const saved=JSON.parse(this.storage?.getItem(STORAGE_KEY)||'null');
    this.enabled=Boolean(saved?.enabled);this.subtitles=saved?.subtitles!==false;
-   for(const id of Object.keys(CREW))if(typeof saved?.voiceNames?.[id]==='string')this.voiceNames[id]=saved.voiceNames[id].slice(0,100);}catch(_){}
+   for(const id of Object.keys(CREW)){
+    if(typeof saved?.voiceNames?.[id]==='string')this.voiceNames[id]=saved.voiceNames[id].slice(0,100);
+    for(const key of ['rate','pitch'])if(Number.isFinite(saved?.tuning?.[id]?.[key]))this.tuning[id][key]=cap(saved.tuning[id][key],.82,1.12);
+   }}catch(_){}
   this.voice=voice||new AvatarVoiceDirector({
    onSubtitle:event=>this._subtitle(event),onState:event=>this._speechState(event)
   });
   for(const [id,base] of Object.entries(CREW))this.voice.registerAvatar?.(id,{lang:'ja-JP',rate:base.rate,pitch:base.pitch,volume:1,voiceStyle:this.voiceStyle(id)});
  }
- _save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({enabled:this.enabled,subtitles:this.subtitles,voiceNames:this.voiceNames}));}catch(_){}}
+ _save(){try{this.storage?.setItem(STORAGE_KEY,JSON.stringify({enabled:this.enabled,subtitles:this.subtitles,voiceNames:this.voiceNames,tuning:this.tuning}));}catch(_){}}
  _speaker(id){const renderer=this.getRenderer?.();if(renderer){renderer.shipVoiceSpeakerId=id||null;}}
  _speechState(event){
   if(event?.speaking)this.activeSpeaker=event.avatarId;
@@ -103,7 +107,8 @@ export class ShipSocialVoice {
   if(!viaRadio&&Number.isFinite(distance)&&distance>8&&!interrupt)return false;
   try{const base=CREW[id];
    void this.voice.say(id,safe(text),{interrupt,voiceName:this.voiceNames[id]||null,voiceStyle:this.voiceStyle(id),
-    rate:cap(voice?.rate??base.rate,.86,1.12),pitch:cap(voice?.pitch??base.pitch,.89,1.14),
+    rate:cap((voice?.rate??base.rate)*this.tuning[id].rate,.80,1.22),
+    pitch:cap((voice?.pitch??base.pitch)*this.tuning[id].pitch,.82,1.20),
     volume:voice?.volume??1,emotion:event});return true;
   }catch(e){this.onError(e);return false;}
  }
@@ -123,6 +128,10 @@ export class ShipSocialVoice {
   if(chosen&&!japaneseVoices(this.voice.voices||[]).some(v=>v.name===chosen||v.voiceURI===chosen))return false;
   this.voiceNames[id]=chosen;this._save();this._refreshVoiceRows();return true;
  }
+ setTuning(id,key,value){
+  if(!Object.hasOwn(CREW,id)||!['rate','pitch'].includes(key)||!Number.isFinite(Number(value)))return false;
+  this.tuning[id][key]=cap(Number(value),.82,1.12);this._save();return true;
+ }
  preview(id){
   if(!Object.hasOwn(CREW,id))return false;
   if(!this.enabled||!this.activated)this.setEnabled(true);
@@ -131,7 +140,8 @@ export class ShipSocialVoice {
    companion:'おかえり！今日はどの星を探検する？'};
   const base=CREW[id];
   try{void this.voice.say(id,lines[id],{interrupt:true,voiceName:this.voiceNames[id]||null,
-   voiceStyle:this.voiceStyle(id),rate:base.rate,pitch:base.pitch,volume:1});return true;}
+   voiceStyle:this.voiceStyle(id),rate:cap(base.rate*this.tuning[id].rate,.80,1.22),
+   pitch:cap(base.pitch*this.tuning[id].pitch,.82,1.20),volume:1});return true;}
   catch(e){this.onError(e);return false;}
  }
  _refreshVoiceRows(){
@@ -177,6 +187,15 @@ export class ShipSocialVoice {
    test.addEventListener('click',()=>this.preview(id));body.append(test);
    const status=this.doc.createElement('p');status.style.cssText='font:11px/1.5 system-ui;color:#bedadf;margin:4px 0';
    body.append(status);this.voiceRows.push({id,select,status});
+   for(const [key,title,min,max] of [['rate','話速',.82,1.12],['pitch','高さ',.82,1.12]]){
+    const control=this.doc.createElement('label');control.style.cssText='display:flex;gap:7px;align-items:center;margin:3px 0;color:#d3eef1';
+    control.append(this.doc.createTextNode(title));
+    const slider=this.doc.createElement('input');slider.type='range';slider.min=String(min);slider.max=String(max);slider.step='0.02';
+    slider.value=String(this.tuning[id][key]);slider.style.cssText='width:135px;accent-color:#71c7d0';
+    const output=this.doc.createElement('span');output.textContent=Number(slider.value).toFixed(2)+'×';
+    slider.addEventListener('input',()=>{this.setTuning(id,key,slider.value);output.textContent=Number(slider.value).toFixed(2)+'×';});
+    control.append(slider,output);body.append(control);
+   }
   }
   const note=this.doc.createElement('small');note.textContent='女性系の声が表示されない場合は、ブラウザ・端末側に追加の日本語音声が必要です。高さの調整だけでは女性の声にできません。';
   body.append(note);details.append(body);parent.append(details);
