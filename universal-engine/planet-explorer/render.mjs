@@ -2915,7 +2915,7 @@ export class ExplorerRenderer{
    const model=multiply4(translate(actor.x,actor.y,actor.z),
     multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
    if(this.drawAvatarV10(actor.id,vp,model,light,dt,{
-    motion:actor.motion,time:actor.time}))continue;
+    motion:actor.motion,time:actor.time,talking:this.shipVoiceSpeakerId===actor.id}))continue;
    // Draw a clearly temporary procedural stand-in rather than disappearing.
    const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
    this.drawVRBody({...xr,stage:model},{social:true,head:face,left:null,right:null,
