@@ -1437,6 +1437,90 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
  }
+ // XR room updates run inside requestAnimationFrame; no camera-pixel access.
+ function updateMRRoomFrame(frame,head){
+  const owner=session;
+  if(mrRestorePending&&!mrRestoreBusy){
+   mrRestorePending=false;
+   if(owner?.restorePersistentAnchor&&mrRoom.anchorHandle){
+    mrRestoreBusy=true;
+    owner.restorePersistentAnchor(mrRoom.anchorHandle).then(restored=>{
+     if(session!==owner)return;
+     mrAnchor=restored;mrRoomMessage("保存済み空間アンカーを復元しました");
+    }).catch(error=>{if(session===owner)mrRoomMessage("位置を自動復元できません。部屋の中心で基準点を登録してください: "+(error?.message||error));})
+     .finally(()=>{mrRestoreBusy=false;});
+   }else mrRoomMessage("空間アンカー復元に非対応です。基準点を手動登録してください");
+  }
+  if(mrAnchor)try{
+   const p=frame.getPose(mrAnchor.anchorSpace,space);
+   if(p?.transform?.matrix)mrRoom.setOriginMatrix(p.transform.matrix,{persistent:Boolean(mrRoom.anchorHandle)});
+  }catch(_){mrRoom.forgetTracking();}
+  if(mrOriginPending){
+   mrOriginPending=false;
+   if(mrRoom.objects.length||mrRoom.portal)mrRoomMessage("保存済み家具があるため基準点の変更を保留しました。既存の空間アンカー復元を試してください");
+   else {
+    const floorY=usingFloor?0:head[13]-1.65;
+    mrRoom.setOrigin(head[12],head[14],0);mrRoom.anchorHandle=null;saveMRRoom();
+    if(typeof frame.createAnchor==="function"&&typeof XRRigidTransform==="function"){
+     try{
+      const rigid=new XRRigidTransform({x:head[12],y:floorY,z:head[14]});
+      Promise.resolve(frame.createAnchor(rigid,space)).then(async created=>{
+       if(session!==owner)return;mrAnchor=created;
+       if(typeof created.requestPersistentHandle!=="function"){mrRoomMessage("手動基準点を登録しました。永続保存には非対応です");return;}
+       try{
+        const handle=await created.requestPersistentHandle();
+        if(session!==owner)return;
+        mrRoom.anchorHandle=handle;saveMRRoom();
+        mrRoomMessage("部屋の基準点を永続アンカーに保存しました");
+       }catch(_){mrRoomMessage("今回の基準点は有効です。次回は手動で位置合わせしてください");}
+      }).catch(error=>{if(session===owner)mrRoomMessage("今回の基準点は有効です。空間アンカー作成は失敗: "+(error?.message||error));});
+     }catch(_){mrRoomMessage("手動基準点を登録しました。次回は再登録してください");}
+    }else mrRoomMessage("手動基準点を登録しました。次回は再登録してください");
+   }
+  }
+  if(mrScanPending){
+   mrScanPending=false;
+   if(!mrRoom.ready)mrRoomMessage("先に部屋の基準点を登録してください");
+   else {
+    const planes=mrDetectedSurfaces(frame,space,18);let count=0;
+    for(const p of planes){
+     if(mrRoom.worldObjects().some(o=>o.type===p.type&&Math.hypot(o.x-p.x,o.z-p.z)<.5))continue;
+     if(mrRoom.add(p.type,p,p))count++;
+    }
+    saveMRRoom();
+    mrRoomMessage(planes.length?"検出面"+planes.length+"件中"+count+"件を追加。家具と壁の位置を確認してください":
+     "検出面がありません。Questの部屋設定を確認するか、手動で家具を登録してください");
+   }
+  }
+  if(mrAddPending){
+   const type=mrAddPending;mrAddPending=null;
+   if(!mrRoom.ready)mrRoomMessage("先に部屋の基準点を登録してください");
+   else{
+    const floor=usingFloor?0:head[13]-1.65;
+    const hit=hitPose?.length===16?{x:hitPose[12],z:hitPose[14],y:hitPose[13]}:
+     mrAvatarPlacement(head,{floorY:floor});
+    const width=Number($("xr-room-object-width")?.value)||.7,depth=Number($("xr-room-object-depth")?.value)||.7;
+    const seatY=["chair","sofa"].includes(type)&&hit?.y>floor+.25&&hit.y<floor+.85?hit.y-floor:.45;
+    const item=mrRoom.add(type,hit,{width,depth,seatY});
+    if(item){saveMRRoom();mrRoomMessage(type+"を登録（計"+mrRoom.objects.length+"件）");}
+    else mrRoomMessage("家具位置を取得できません");
+   }
+  }
+  if(mrDoorPending){
+   mrDoorPending=false;
+   if(!mrRoom.ready)mrDoorMessage("部屋の基準点を先に登録してください");
+   else{
+    const p=mrAvatarPlacement(head,{floorY:usingFloor?0:head[13]-1.65,distance:2.1});
+    if(mrRoom.setPortal(p)){saveMRRoom();mrDoorMessage("MRの自室に境界扉を設置しました");}
+   }
+  }
+  const portal=mrRoom.worldPortal();
+  if(portal&&mrRoom.ready){
+   const nearby=mrNearPortal(head,portal);
+   if(nearby&&!mrPortalNear)mrDoorMessage("扉の前です。「VRへ渡る」で移動できます");
+   mrPortalNear=nearby;
+  }
+ }
  function mrPlaceSelected(){
   if(activeMode!=="mr-avatars"||!mrLastHead)return {ok:false,message:"MR開始後に頭部追跡が安定してから配置してください"};
   const result=mrAvatars.place(mrAvatarId?.value||"navigator",mrLastHead,{
