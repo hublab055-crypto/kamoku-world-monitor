@@ -1637,6 +1637,57 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.disable(gl.SCISSOR_TEST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
  }
+ // Quest Browser requires a new gesture to start an AR/VR session after ending.
+ function portalSwitch(mode){
+  if(session){
+   if(activeMode===mode){mrDoorMessage("すでにその世界を表示しています");return;}
+   if(!["vr","mr-avatars"].includes(activeMode)){
+    mrDoorMessage("まずXR終了で今のモードを抜けてください");return;
+   }
+   mrPortalTarget=mode;
+   mrDoorMessage("境界扉の先へ移動します。XR終了後、同じボタンをもう一度押してください");
+   session.end().catch(error=>mrDoorMessage("終了できません: "+(error?.message||error)));
+   return;
+  }
+  start(mode);
+ }
+ const mrModeRequired=()=>activeMode==="mr-avatars"&&Boolean(session);
+ $("xr-room-calibrate")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrRoomMessage("まずMRアバター召喚を開始してください");return;}
+  mrOriginPending=true;mrRoomMessage("部屋の中心で立ち、位置の取得を試みます");
+ });
+ $("xr-room-restore")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrRoomMessage("まずMRアバター召喚を開始してください");return;}
+  if(!mrRoom.anchorHandle){mrRoomMessage("保存済みアンカーがありません。手動で基準点を登録してください");return;}
+  mrRestorePending=true;mrRoomMessage("保存した空間アンカーの復元を試みます");
+ });
+ $("xr-room-save-size")?.addEventListener("click",()=>{
+  mrRoom.setSize(Number($("xr-room-width")?.value),Number($("xr-room-depth")?.value));
+  saveMRRoom();mrRoomMessage("室内サイズを横幅"+mrRoom.width+"m・奥行"+mrRoom.depth+"mで保存");
+ });
+ $("xr-room-scan")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrRoomMessage("MRアバター召喚中に実行してください");return;}
+  mrScanPending=true;mrRoomMessage("WebXRの検出平面を読み取ります");
+ });
+ for(const type of ["chair","sofa","table","wall","obstacle"]){
+  $("xr-room-add-"+type)?.addEventListener("click",()=>{
+   if(!mrModeRequired()){mrRoomMessage("MR開始後に家具を配置してください");return;}
+   mrAddPending=type;mrRoomMessage(type+"の登録位置を取得します");
+  });
+ }
+ $("xr-room-undo")?.addEventListener("click",()=>{
+  const o=mrRoom.removeLast();
+  if(o){saveMRRoom();mrRoomMessage(o.type+"の最後の登録を取り消しました");}
+  else mrRoomMessage("取り消す家具がありません");
+ });
+ $("xr-portal-place")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrDoorMessage("MRアバター召喚中に扉を設置してください");return;}
+  mrDoorPending=true;mrDoorMessage("正面約2mの位置に扉を配置します");
+ });
+ $("xr-portal-to-vr")?.addEventListener("click",()=>portalSwitch("vr"));
+ $("xr-portal-to-mr")?.addEventListener("click",()=>portalSwitch("mr-avatars"));
+ $("xr-room-settings")?.addEventListener("beforexrselect",event=>event.preventDefault());
+ $("xr-portal-settings")?.addEventListener("beforexrselect",event=>event.preventDefault());
  social?.button.addEventListener("click",()=>start("mr-social"));
  buttons.avatars?.addEventListener("click",()=>start("mr-avatars"));
  $("xr-avatar-presence")?.addEventListener("beforexrselect",event=>event.preventDefault());
