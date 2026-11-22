@@ -383,9 +383,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // permissions, feature checks, or any asynchronous GL setup.
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
    const wantsLayers=requestedType==="immersive-vr"&&canUseXRProjection();
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?[
-    "hit-test",...(mode==="mr-avatars"?["anchors","plane-detection"]:[]),...(root?["dom-overlay"]:[])
-   ]:wantsLayers?["layers"]:[])]};
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(mode==="mr-avatars"?["anchors","plane-detection"]:[]),...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
    if(root)init.domOverlay={root};
    if(mode==="mr-social"||mode==="mr-henshin"){
     init.requiredFeatures=["local-floor"];
