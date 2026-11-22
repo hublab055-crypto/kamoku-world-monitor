@@ -2911,17 +2911,58 @@ export class ExplorerRenderer{
    player:{outer:"#537f85",legs:"#333d4a",feet:"#32343a"}
   };
   for(const actor of actors||[]){
-   if(!["navigator","engineer","companion","player"].includes(actor.id))continue;
+   const sourceId=actor.sourceId||actor.id;
+   if(!["navigator","engineer","companion","player"].includes(sourceId))continue;
    const model=multiply4(translate(actor.x,actor.y,actor.z),
     multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
-   if(this.drawAvatarV10(actor.id,vp,model,light,dt,{
-    motion:actor.motion,time:actor.time,talking:this.shipVoiceSpeakerId===actor.id}))continue;
+   if(this.drawAvatarV10(sourceId,vp,model,light,dt,{
+    motion:actor.motion,time:actor.time,moving:actor.motion==="walk",talking:this.shipVoiceSpeakerId===sourceId}))continue;
    // Draw a clearly temporary procedural stand-in rather than disappearing.
    const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
    this.drawVRBody({...xr,stage:model},{social:true,head:face,left:null,right:null,
-    anchors:xrBodyAnchors(face,{floorY:0}),appearance:backup[actor.id]});
+    anchors:xrBodyAnchors(face,{floorY:0}),appearance:backup[sourceId]});
   }
   gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+ }
+ /**
+  * An actual stereo door frame at a calibrated XR-space position. Both MR and
+  * VR paths use the same scene-space gateway; changing immersive session still
+  * requires a deliberate user tap in Quest Browser.
+  */
+ drawXRPortal(xr,gate,guests=[]){
+  if(!gate||!this.vrBodySegment)return;
+  const gl=this.gl,{x,y,width,height}=xr.viewport;
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.useProgram(this.program);gl.colorMask(true,true,true,true);
+  gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const vp=multiply4(xr.projection,xr.view),light=[.6,.9,1];
+  const c=Math.cos(gate.yaw||0),s=Math.sin(gate.yaw||0);
+  const w=gate.width||1.05,y0=Number.isFinite(gate.y)?gate.y:0;
+  const lx=gate.x-c*w/2,lz=gate.z+s*w/2,rx=gate.x+c*w/2,rz=gate.z-s*w/2;
+  const line=(p,q,thickness,tint)=>{
+   const d=sub(q,p),dist=Math.hypot(...d);if(dist<.01)return;
+   const up=d.map(n=>n/dist),right=norm(cross(Math.abs(up[1])>.9?[0,0,1]:[0,1,0],up)),
+    back=norm(cross(right,up));
+   const m=[right[0]*thickness,right[1]*thickness,right[2]*thickness,0,
+    d[0],d[1],d[2],0,back[0]*thickness,back[1]*thickness,back[2]*thickness,0,
+    p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.95,tint);
+  };
+  line([lx,y0,lz],[lx,y0+2.15,lz],.08,[.18,.82,1]);
+  line([rx,y0,rz],[rx,y0+2.15,rz],.08,[.18,.82,1]);
+  line([lx,y0+2.15,lz],[rx,y0+2.15,rz],.11,[.4,.9,1]);
+  line([lx,y0+.03,lz],[rx,y0+.03,rz],.035,[.35,.75,.92]);
+  for(const [i,actor] of guests.slice(0,7).entries()){
+   const sourceId=actor.sourceId||actor.id;
+   if(!["navigator","engineer","companion","player"].includes(sourceId))continue;
+   const at=translate(gate.x+c*(i%3-1)*.55,
+    y0,gate.z-s*(i%3-1)*.55-1.1-Math.floor(i/3)*.68);
+   const m=multiply4(at,multiply4(rotateY(gate.yaw||0),scale3(.87,.87,.87)));
+   this.drawAvatarV10(sourceId,vp,m,light,0,{motion:actor.motion==="Seated"?"idle":actor.motion||"idle"});
+  }
+  gl.useProgram(this.program);
  }
  drawSocialAvatars(xr,scene){
   const gl=this.gl,{x,y,width,height}=xr.viewport;
