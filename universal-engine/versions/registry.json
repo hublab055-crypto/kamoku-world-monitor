@@ -58,10 +58,19 @@
     {
       "id": "v0.10.0-mr",
       "label": "v0.10.0 — MRアバター召喚",
+      "status": "frozen-source",
+      "url": "https://github.com/hublab055-crypto/kamoku-world-monitor/tree/archive/universal-engine-v0.10-mr-before-room/universal-engine/planet-explorer",
+      "saveKey": "universal-engine:explorer:v0.7i",
+      "note": "MR召喚4人・旧仕様のソース固定ブランチ（旧版単独実行URLではありません）",
+      "sourceBranch": "archive/universal-engine-v0.10-mr-before-room"
+    },
+    {
+      "id": "v0.11.0-mr-room",
+      "label": "v0.11.0 — MRルーム・境界扉",
       "status": "active",
       "url": "../../planet-explorer/",
       "saveKey": "universal-engine:explorer:v0.7i",
-      "note": "QuestのMRでV10副官等を最大4人召喚。位置/ジェスチャーはセッション限定。実機・現実遮蔽は追加検証が必要"
+      "note": "最大8表示枠、室内家具登録/平面検出、永続アンカー1個、散歩と着席、MR↔VR境界扉、招待NPCのページ内引継ぎ。MR室内保存は別キー"
     }
   ],
   "policy": {
