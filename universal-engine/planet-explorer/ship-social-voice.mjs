@@ -156,7 +156,7 @@ export class ShipSocialVoice {
    if(keep&&!voices.some(v=>v.name===keep||v.voiceURI===keep)){
     const missing=this.doc.createElement('option');missing.value=keep;missing.textContent='未検出: '+keep;select.append(missing);
    }
-   select.value=keep;
+   select.value=voices.find(v=>v.name===keep||v.voiceURI===keep)?.voiceURI||keep;
    const result=this.voiceStatus(id);
    const styleLabel={feminine:'女性系',masculine:'男性系',neutral:'指定なし'}[this.voiceStyle(id)];
    status.textContent='自動の優先: '+styleLabel+' ／ '+(result.selected||'利用可能な日本語音声なし')+
