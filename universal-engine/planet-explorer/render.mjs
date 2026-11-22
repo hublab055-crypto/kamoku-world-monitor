@@ -1659,10 +1659,11 @@ export class ExplorerRenderer{
     if(this.xrView?.mode==="vr"&&!this.xrView.showAvatar&&this.henshin.transformed)continue;
     if(this.drawHenshinAvatar(vp,transform,{moving:person.greetings.playerMoving}))continue;
    }
+   const voiceSpeaking=!player&&this.shipVoiceSpeakerId===actor.id;
    const asset=this.drawAvatarV10(actor.id,vp,transform,light,dt,{motion:actor.motion,
-    time:actor.time,gesture,lookAt:gaze,
+    talking:Boolean(actor.speaking||voiceSpeaking),time:actor.time,gesture,lookAt:gaze,
     firstPerson:player&&this.xrView?.mode==="vr"&&!this.xrView.showAvatar});
-   if(!player&&actor.speaking){
+   if(!player&&(actor.speaking||this.shipVoiceSpeakerId===actor.id)){
     const floatY=2.18+.055*Math.sin((person.routine?.clock||0)*3);
     const mark=multiply4(vp,translate(actor.x,floatY,actor.z));
     this.drawMesh(this.shipCrewTalkMarker,mark,light,1,.98);
@@ -2914,7 +2915,7 @@ export class ExplorerRenderer{
    const model=multiply4(translate(actor.x,actor.y,actor.z),
     multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
    if(this.drawAvatarV10(actor.id,vp,model,light,dt,{
-    motion:actor.motion,time:actor.time}))continue;
+    motion:actor.motion,time:actor.time,talking:this.shipVoiceSpeakerId===actor.id}))continue;
    // Draw a clearly temporary procedural stand-in rather than disappearing.
    const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
    this.drawVRBody({...xr,stage:model},{social:true,head:face,left:null,right:null,

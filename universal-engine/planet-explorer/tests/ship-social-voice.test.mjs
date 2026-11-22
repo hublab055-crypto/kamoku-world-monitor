@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {ShipSocialVoice,crewVoiceProfile} from '../ship-social-voice.mjs';
+const crew=[{id:'navigator',name:'航法士',x:0,z:1},{id:'engineer',name:'機関士',x:1,z:2},{id:'companion',name:'同行者',x:2,z:3}];
+const calls=[];
+const voice={registerAvatar(){},say(id,text,opts){calls.push({id,text,opts});return Promise.resolve({status:'completed'});},stop(){calls.push({stop:true});}};
+const interior=()=>({crew:crew.map(member=>({...member})),social:{status:()=>({id:'friend',points:100})},distance:m=>Math.hypot(m.x,m.z),greetings:{formal:null},routine:{cycle:0,speech:null}});
+function runtime(){calls.length=0;return new ShipSocialVoice({voice,doc:null,storage:null,getRenderer:()=>null});}
+test('profile reads existing relationship without rewriting it',()=>{const a=interior();const p=crewVoiceProfile('navigator',a);assert.equal(p.relationship.kind,'friend');assert.equal(p.relationship.affinity,20);assert.equal(a.social.status('navigator').points,100);});
+test('invalid actor cannot speak',()=>{const s=runtime();s.setEnabled(true);assert.equal(s.speak('not-an-npc','hi',{interior:interior()}),false);});
+test('user-enabled voice reads exact existing dialogue',()=>{const s=runtime(),i=interior();s.setEnabled(true);assert.equal(s.sayReport(i,'navigator','出航準備完了'),true);assert.equal(calls.at(-1).text,'出航準備完了');});
+test('disabled state remains silent',()=>{const s=runtime();assert.equal(s.sayReport(interior(),'navigator','出航'),false);assert.equal(calls.filter(x=>x.text).length,0);});
+test('routine same line is spoken once',()=>{const s=runtime(),i=interior();s.setEnabled(true);i.routine.speech={speakerId:'engineer',line:1,topic:'整備',text:'点検完了'};s.observe(i);s.observe(i);assert.equal(calls.filter(x=>x.text).length,1);});
+test('routine next line is spoken',()=>{const s=runtime(),i=interior();s.setEnabled(true);i.routine.speech={speakerId:'engineer',line:1,topic:'整備',text:'点検完了'};s.observe(i);i.routine.speech={speakerId:'companion',line:2,topic:'整備',text:'ありがとう'};s.observe(i);assert.equal(calls.filter(x=>x.text).length,2);});
+test('greeting triggers only when formal salute changes',()=>{const s=runtime(),i=interior();s.setEnabled(true);s.observe(i);i.greetings.formal={member:i.crew[0],time:0};s.observe(i);s.observe(i);assert.equal(calls.filter(x=>x.text).length,1);});
+test('far encounter does not trigger greeting',()=>{const s=runtime(),i=interior();s.setEnabled(true);i.crew[0].x=50;i.greetings.formal={member:i.crew[0],time:0};s.observe(i);assert.equal(calls.filter(x=>x.text).length,0);});
+test('turning off cancels voice',()=>{const s=runtime(),i=interior();s.setEnabled(true);s.sayReport(i,'navigator','はい');s.setEnabled(false);assert.ok(calls.some(x=>x.stop));});
+test('scene change clears dedupe keys and stops voice',()=>{const s=runtime(),i=interior();s.setEnabled(true);i.routine.speech={speakerId:'navigator',line:1,topic:'航海',text:'報告'};s.observe(i);s.observe(null);s.observe(i);assert.equal(calls.filter(x=>x.text).length,2);});
+test('voice profile maps crew roles to distinct pitch',()=>{assert.notEqual(crewVoiceProfile('engineer',interior()).voice.pitch,crewVoiceProfile('companion',interior()).voice.pitch);});
+test('social gift uses personality and existing relationship',()=>{const s=runtime(),i=interior();s.setEnabled(true);assert.equal(s.sayInteraction(i,'companion','gift'),true);assert.ok(calls.at(-1).text.length>5);});
+test('stored preference requires explicit audio activation each session',()=>{const s=new ShipSocialVoice({voice,doc:null,storage:{getItem:()=>JSON.stringify({enabled:true,subtitles:true}),setItem:()=>{}},getRenderer:()=>null});const i=interior();assert.equal(s.enabled,true);assert.equal(s.activated,false);assert.equal(s.sayReport(i,'navigator','出航準備完了'),false);s.setEnabled(true);assert.equal(s.sayReport(i,'navigator','出航準備完了'),true);});

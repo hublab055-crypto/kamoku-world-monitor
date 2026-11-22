@@ -1,3 +1,4 @@
+import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v04";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
 import {installHenshinUI} from "./henshin-ui.mjs?v=20261121-native";
@@ -133,7 +134,7 @@ const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
-let xrUI=null,mediaUI=null,footVoyage=null,wristTime=null,wristUI=null;
+let xrUI=null,mediaUI=null,footVoyage=null,wristTime=null,wristUI=null,crewVoice=null;
 const henshinAudio=new HenshinAudio({notify:message=>log(message)});
 const henshin=new HenshinRuntime({notify:message=>log(message),onAction:event=>{
  henshinAudio.play(henshin.project,event.action);
@@ -338,6 +339,7 @@ function guardGroundPassable(fx,fz,tx,tz){
 let scenario=null,familyLife=null,familyLifeUI=null,lastFamilyUIEpoch=-1;
 function init(saved=null){
  try{
+  crewVoice?.stop();
   avatarV10=normalizeAvatarRoster(saved?.avatarV10?.roster??loadAvatarV10());
   // A freshly loaded game must not inherit the previous session's paused state.
   if(wristTime){wristTime.speed=1;wristTime.clearHistory();}
@@ -776,6 +778,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(socialButton){socialButton.style.display=voyage?.active&&!voyage.seated?"block":"none";if(!voyage?.active)document.getElementById("ship-crew-social").style.display="none";}
  pilotPanel?.update(Boolean(voyage?.seated&&!xrUI?.active));
  updateAvatarDaily(dt);
+ if(!voyage?.active)crewVoice?.observe(null);
  if(voyage?.active){
   renderer.shipVoyage=voyage;
   renderer.shipCombat=shipCombatUI?.getCombat(voyage)||null;
@@ -788,11 +791,13 @@ function doFrame(t,source="window",xrFrameInput=null){
   if(crewTestState){
    voyageUI?.render(dt);
    if(!$("avatar-v10-dialog").open)voyage.interior.greetings.advance(voyage.interior,shipWorldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+   crewVoice?.observe(voyage.interior);
    // XR owns its own stereo draw frame. Never start extra window RAF loops.
    if(source==="window"){renderer.frame(controller,dt);requestAnimationFrame(doFrame);}
    return shipMove||{traveledM:0,altitudeM:1.62,blocked:false,indoor:true,onShip:true};
   }
   if(!$("avatar-v10-dialog").open)voyage.interior?.greetings.advance(voyage.interior,shipWorldDt,crewAvatarReady,{status:voyage.status,autopilot:voyage.autopilot});
+  crewVoice?.observe(voyage.interior);
   // Only the ship clock runs during transit. Ground AI, law, tides and
   // terrain streaming remain at their saved planet until actual landing.
   if(source==="window"||source==="xr"){
@@ -4314,6 +4319,7 @@ $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveCustodyFacilityJournal();});
 init();
+crewVoice=new ShipSocialVoice({getRenderer:()=>renderer,onError:error=>console.warn("[CrewVoice]",error)});
 wristTime=new WristWatchTime({
  getTimeDays:()=>planet?.timeDays??0,getLongitude:()=>controller?.lon??0,
  captureWorld:()=>({
@@ -4369,7 +4375,8 @@ voyageUI=installSpaceFlightUI({get:()=>voyage,
  getCompanions:()=>squad?.agents?.slice(1).map(a=>a.name)||[],
  getWorldCanvas:()=>$("world"),getWorldRenderer:()=>renderer,notify:log,
  getCombat:()=>shipCombatUI?.getCombat(),switchWeapon:id=>shipCombatUI?.switchWeapon(id),onHatch:shipCockpitHatch,
- onEditAvatar:id=>avatarEditor?.open(id),onExitCrewTest:exitCrewTest,crewAvatarReady});
+ onEditAvatar:id=>avatarEditor?.open(id),onExitCrewTest:exitCrewTest,crewAvatarReady,
+ onCrewSpeech:(id,text,interior)=>crewVoice?.sayReport(interior,id,text)});
 shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer,
  isVR:()=>xrUI?.mode==="vr",notify:log,onHatch:shipCockpitHatch,
  onLaunch:launchCelestialVoyage,onTransfer:startShipTransfer,onLand:finishCelestialVoyage,
@@ -4402,7 +4409,9 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  const crewAction=(label,run)=>{
   const button=document.createElement("button");button.type="button";button.textContent=label;
   button.style.cssText="padding:6px;border-radius:5px;background:#27546b;color:white;border:1px solid #81b5c2";
-  button.addEventListener("click",()=>{const result=run(crewPerson.value);if(result?.message)log(result.message);refreshCrewSocial();});
+  button.addEventListener("click",()=>{const result=run(crewPerson.value);if(result?.message)log(result.message);
+   if(result?.ok&&["会話","雑談","プレゼント"].includes(label))crewVoice?.sayInteraction(voyage?.interior,crewPerson.value,label==="プレゼント"?"gift":"talk");
+   refreshCrewSocial();});
   crewActions.append(button);
  };
  crewAction("会話",id=>voyage?.interior?.socialAction(id,"talk"));
@@ -4443,6 +4452,7 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  crewSocialOpen.style.cssText="position:fixed;right:12px;bottom:42px;z-index:119;padding:8px;background:#205069;color:#fff;border:1px solid #81b5c2;border-radius:7px;display:none";
  document.body.append(crewSocialOpen);
  crewSocialOpen.addEventListener("click",()=>{crewSocialPanel.style.display=crewSocialPanel.style.display==="none"?"block":"none";refreshCrewSocial();});
+ crewVoice?.installControls({panel:crewSocialPanel,flightHeader:document.querySelector("#space-flight .flight-head")});
 
  shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,

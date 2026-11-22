@@ -17,7 +17,7 @@ function disk(ctx,x,y,r,color){
  ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
  ctx.strokeStyle="#b3c8e08a";ctx.lineWidth=1;ctx.stroke();
 }
-export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getWorldRenderer,notify,onEditAvatar,onExitCrewTest,crewAvatarReady=()=>true,getCombat=()=>null,switchWeapon=()=>{},onHatch=()=>{}}){
+export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,onSave,getCargo,getCompanions,getWorldCanvas,getWorldRenderer,notify,onEditAvatar,onExitCrewTest,crewAvatarReady=()=>true,getCombat=()=>null,switchWeapon=()=>{},onHatch=()=>{},onCrewSpeech=()=>{}}){
  const style=document.createElement("style");
  style.textContent=`
  #space-flight[hidden]{display:none!important}
@@ -377,6 +377,7 @@ export function installSpaceFlightUI({get,onLaunch,onTransfer,onLand,onCancel,on
     const current=get();const reply=current?.interior?.talk(person.id,current);
     if(reply?.message)$("flight-dialogue").textContent=reply.ok?
      (person.title||person.name)+"「"+reply.message+"」":reply.message;
+    if(reply?.ok&&reply.message)onCrewSpeech(person.id,reply.message,current?.interior);
    });
    row.append(talk);
    for(const [id,move] of Object.entries(CREW_GESTURES)){
