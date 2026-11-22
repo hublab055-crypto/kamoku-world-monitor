@@ -2915,8 +2915,11 @@ export class ExplorerRenderer{
    if(!["navigator","engineer","companion","player"].includes(sourceId))continue;
    const model=multiply4(translate(actor.x,actor.y,actor.z),
     multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
+   const gesture=["salute","thumbsUp","doubleThumbs","wave","bow"].includes(actor.motion)?
+    {motion:actor.motion,time:actor.time??0,x:actor.x,z:actor.z,yaw:actor.yaw}:null;
    if(this.drawAvatarV10(sourceId,vp,model,light,dt,{
-    motion:actor.motion,time:actor.time,moving:actor.motion==="walk",talking:this.shipVoiceSpeakerId===sourceId}))continue;
+    motion:actor.motion,time:actor.time,moving:actor.motion==="walk",
+    gesture,talking:this.shipVoiceSpeakerId===sourceId}))continue;
    // Draw a clearly temporary procedural stand-in rather than disappearing.
    const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
    this.drawVRBody({...xr,stage:model},{social:true,head:face,left:null,right:null,
