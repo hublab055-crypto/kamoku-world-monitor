@@ -219,6 +219,10 @@
     <option value="engineer">機関士</option>
     <option value="companion">同行者</option>
     <option value="player">自分のアバター</option>
+    <option value="guest1">招待枠1（副官の外見）</option>
+    <option value="guest2">招待枠2（機関士の外見）</option>
+    <option value="guest3">招待枠3（同行者の外見）</option>
+    <option value="guest4">招待枠4（自分の外見）</option>
    </select>
   </label>
   <label class="xr-size-label" for="xr-avatar-size">大きさ
@@ -233,14 +237,65 @@
    <button type="button" id="xr-avatar-remove">選択した人物を消す</button>
    <button type="button" id="xr-avatar-clear">全員消す</button>
    <button type="button" id="xr-avatar-follow">🚶 ついてくる</button>
+   <button type="button" id="xr-avatar-wander">🚶 室内を散歩</button>
    <button type="button" id="xr-avatar-wait">✋ 待機</button>
    <button type="button" id="xr-avatar-salute">🫡 敬礼</button>
    <button type="button" id="xr-avatar-thumbsUp">👍 グッドサイン</button>
+   <button type="button" id="xr-avatar-doubleThumbs">👍 両手サイン</button>
+   <button type="button" id="xr-avatar-wave">👋 手を振る</button>
+   <button type="button" id="xr-avatar-bow">🙇 お辞儀</button>
    <button type="button" id="xr-avatar-sit">🪑 座る</button>
    <button type="button" id="xr-avatar-stand">立つ</button>
+   <button type="button" id="xr-avatar-invite">🚪 この仲間を招く</button>
   </div>
-  <p>「MR・アバター召喚」を開始すると最初の1人を正面に表示。右トリガーで床を指定して再配置できます（最大4体）。通常のアバター編集内容を参照し、位置はXRセッション中のみ保持します。</p>
-  <p><small>試験段階：アバターは実体ではありません。物理衝突・安全な障害物回避、手を使った握手・ハグ、現実物によるV10の遮蔽は未対応です。座る動作は椅子との位置合わせを伴いません。</small></p>
+  <p>Questで最大8人を表示します。既存のV10外観4人に加え、招待枠4つは既存の外見を複製して利用します。部屋を登録すると散歩・着席が可能になります。</p>
+  <details id="xr-room-settings" class="xr-help-panel">
+   <summary>🏠 部屋・家具の登録と復元</summary>
+   <p>室内の中心で最初に「基準点を登録」を押し、幅・奥行を設定。空間アンカー対応時は次回も同じ位置に復元を試みます。GPS・方位だけの復元は行いません。</p>
+   <div class="xr-buttons">
+    <button type="button" id="xr-room-calibrate">📍 部屋の基準点を登録</button>
+    <button type="button" id="xr-room-restore">🔄 登録済みの位置を復元</button>
+   </div>
+   <label class="xr-size-label">部屋の横幅（m）
+    <input type="number" id="xr-room-width" value="5" min="2" max="15" step=".5" inputmode="decimal">
+   </label>
+   <label class="xr-size-label">部屋の奥行（m）
+    <input type="number" id="xr-room-depth" value="5" min="2" max="15" step=".5" inputmode="decimal">
+   </label>
+   <div class="xr-buttons">
+    <button type="button" id="xr-room-save-size">📐 広さを保存</button>
+    <button type="button" id="xr-room-scan">🔎 検出平面を取り込む</button>
+   </div>
+   <p>右コントローラーを椅子の座面や家具に向け、以下の「登録」を押します。正確な面が取得できなければ正面約1.8mを配置位置に使います。家具の寸法は目安で調整できます。</p>
+   <label class="xr-size-label">家具の幅（m）
+    <input id="xr-room-object-width" type="number" min=".1" max="8" step=".1" value=".7" inputmode="decimal">
+   </label>
+   <label class="xr-size-label">家具の奥行（m）
+    <input id="xr-room-object-depth" type="number" min=".1" max="8" step=".1" value=".7" inputmode="decimal">
+   </label>
+   <div class="xr-buttons">
+    <button type="button" id="xr-room-add-chair">🪑 椅子を登録</button>
+    <button type="button" id="xr-room-add-sofa">🛋 ソファを登録</button>
+    <button type="button" id="xr-room-add-table">机を登録</button>
+    <button type="button" id="xr-room-add-wall">壁を登録</button>
+    <button type="button" id="xr-room-add-obstacle">障害物を登録</button>
+    <button type="button" id="xr-room-undo">↶ 最後の家具登録を取消</button>
+   </div>
+   <p><small>平面検出は対応ブラウザ・Quest側で登録された部屋情報に依存します。壁や机は検出可能ですが、椅子の意味分類や障害物回避は完全ではありません。現実の歩行安全を保証する機能ではありません。</small></p>
+   <small id="xr-room-status" role="status">部屋の登録待ち</small>
+  </details>
+  <details id="xr-portal-settings" class="xr-help-panel">
+   <summary>🚪 MR ↔ VR 境界扉・仲間の招待</summary>
+   <p>MRで扉を設置し、招待したNPCをMR/VR両方で表示。Quest BrowserではVRとMRを1回のXRセッション内で瞬時に切り替えられないため、切替ボタンで一度終了し、もう一度押して入場します。</p>
+   <div class="xr-buttons">
+    <button type="button" id="xr-portal-place">🚪 MRの扉を設置</button>
+    <button type="button" id="xr-portal-to-vr">🚪 VRへ渡る</button>
+    <button type="button" id="xr-portal-to-mr">🚪 MRの自室へ戻る</button>
+   </div>
+   <small id="xr-portal-status" role="status">招待した仲間はXRの切替中も保持します（このページ内）</small>
+  </details>
+  <p><small>表示上の人物に実体はありません。Quest 3SのWebXRでは現実カメラ画素を直接解析せず、対応する平面・空間アンカー情報を使います。椅子の遮蔽、他人の遠隔招待、家具にぶつからない完全自動経路探索は別段階です。</small></p>
+
   <small id="xr-avatar-presence-status" role="status">MR開始前</small>
  </details>
  <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
