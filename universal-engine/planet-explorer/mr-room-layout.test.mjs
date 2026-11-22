@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {MRAvatarPresence,MR_AVATAR_IDS,MR_AVATAR_SOURCE_IDS} from "./mr-avatar-presence.mjs";
-import {MRRoomLayout,mrDetectedSurfaces,mrNearPortal} from "./mr-room-layout.mjs";
+import {MRRoomLayout,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs";
 const head=[1,0,0,0,0,1,0,0,0,0,1,0,0,1.65,0,1];
 test("MR has eight independent slots with four reuse-safe V10 appearances",()=>{
  const world=new MRAvatarPresence();
@@ -78,4 +78,11 @@ test("portal proximity asks for a gesture but does not switch XR itself",()=>{
  w.place("engineer",head);
  assert.equal(w.action("engineer","invite").ok,true);
  assert.equal(w.get("engineer").invited,true);
+});
+
+test("right trigger ray intersects a nearby portal",()=>{
+ const ray=[1,0,0,0,0,1,0,0,0,0,1,0,0,1.12,2,1];
+ assert.equal(mrPortalRayHit(ray,{x:0,y:0,z:0}),true);
+ assert.equal(mrPortalRayHit(ray,{x:2,y:0,z:0}),false);
+ assert.equal(mrPortalRayHit(null,{x:0,y:0,z:0}),false);
 });
