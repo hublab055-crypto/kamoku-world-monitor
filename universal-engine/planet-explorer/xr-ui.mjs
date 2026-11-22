@@ -15,7 +15,7 @@ import {detectShipCrewTouch} from "./ship-crew-vr-contact.mjs?v=1";
 import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
-import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
+import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122-wrist-menu-v2";
 import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
 import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261122-room8";
 
@@ -724,22 +724,93 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrGripConsumed.delete(hand);
   if(result?.handled&&result.ok)statusText("✋ 鉄格子から手を放しました。両手を離すと床に降ります。");
  }
+ function handleWristWatchAction(action){
+  // Only real WebXR 3D actions here. An HTML menu behind the XR compositor
+  // is not a usable VR control surface.
+  if(["main-page","settings-page","xr-page","time-page","back-page","close"].includes(action)){
+   statusText("⌚ "+({
+    "main-page":"VRメニューを開きました。各ボタンをトリガーで選択",
+    "settings-page":"腕時計の設定：STYLE / HAND / CREAT / UNIV",
+    "xr-page":"VR表示設定：3RD / RTS / EXIT",
+    "time-page":"時間操作：PAUSE / .25 / 1X / 2X / 5X / REW",
+    "back-page":"時計のトップメニューに戻りました",
+    close:"時計のメニューを閉じました"
+   }[action]||action));return {ok:true};
+  }
+  if(action==="blocked"){
+   statusText("⌚ この世界では時間操作できません");return {ok:false};
+  }
+  if(action==="camera"||action==="xr-third"){
+   if(vrRTS){statusText("⌚ RTSを終了してから視点を切り替えてください");return {ok:false};}
+   vrThird=!vrThird;
+   statusText("👁 VR視点を"+(vrThird?"第三者視点":"一人称視点")+"へ切り替えました");
+   return {ok:true};
+  }
+  if(action==="xr-rts"){
+   const next=!vrRTS;
+   if(onVRToggleRTS(next)===false){
+    statusText("⌚ この場面ではRTS指揮を使用できません");return {ok:false};
+   }
+   vrRTS=next;vrThird=false;
+   statusText(next?"⌖ VR RTS指揮を開始":"⌖ 通常のVR視点に戻りました");return {ok:true};
+  }
+  if(action==="xr-exit"){
+   statusText("🥽 VRを終了します");
+   session?.end().catch(error=>statusText("VR終了エラー: "+error.message));
+   return {ok:true};
+  }
+  if(action==="tablet"){
+   const shell=document.getElementById("ue-world-tablet");
+   if(shell){
+    if(shell.dataset.xrEnabled!=="true")
+     shell.querySelector('.ue-tablet-head button[aria-label="Quest VRの3Dタブレット表示を切り替える"]')?.click();
+    if(shell.hidden)document.getElementById("viewport-tablet")?.click();
+   }
+   xrWorldTablet.setEnabled(true);
+   xrWristWatch.closeMenu();
+   statusText("▣ VR空間に3Dタブレットを表示。右トリガーでタブレットを操作します");
+   return {ok:true};
+  }
+  const result=onWristWatchAction(action);
+  if(result?.message)statusText("⌚ "+result.message);
+  else statusText("⌚ "+({
+   "watch-style":"時計の外観を切り替えました",
+   "watch-hand":"装着する腕を変更しました",
+   "watch-creative":"クリエイティブ時間モード",
+   "watch-universe":"ユニバース時間モード",
+   "time-pause":"世界の停止／再開",
+   "time-quarter":"時間速度 ×0.25",
+   "time-normal":"時間速度 ×1",
+   "time-double":"時間速度 ×2",
+   "time-fast":"時間速度 ×5",
+   "time-rewind":"世界の一部状態を巻き戻しました"
+  }[action]||action));
+  return result||{ok:true};
+ }
  function tryVRWristWatchPress(event){
   if(activeMode!=="vr"||!event.frame||!space)return false;
   const hand=event.inputSource?.handedness,source=event.inputSource?.targetRaySpace;
-  if(!["left","right"].includes(hand)||!source)return false;
-  let ray=null;
-  try{ray=event.frame.getPose(source,space)?.transform.matrix||null;}catch(_){}
-  if(!ray)return false;
-  const hit=xrWristWatch.press(ray);
+  if(!["left","right"].includes(hand))return false;
+  let ray=null,grip=null;
+  try{
+   ray=source?event.frame.getPose(source,space)?.transform.matrix||null:null;
+   const ref=event.inputSource?.gripSpace;
+   grip=ref?event.frame.getPose(ref,space)?.transform.matrix||null:null;
+  }catch(_){}
+  const hit=xrWristWatch.press(ray,{sourceHand:hand,grip});
+  // The wrist panel is modal in VR. An imprecise tap may miss a small
+  // target, but must not fire an arrow, weapon or cockpit control behind it.
+  if(!hit&&xrWristWatch.open){
+   vrWatchTriggerConsumed.add(hand);
+   statusText("⌚ メニューのボタンを指してトリガーを押してください。閉じるには腕時計を押すか、MAINのCLOSEを選びます");
+   return true;
+  }
   if(!hit)return false;
   vrWatchTriggerConsumed.add(hand);
-  if(hit.action==="toggle")statusText(hit.open?"⌚ 腕時計メニューを表示":"⌚ 腕時計メニューを収納");
-  else{
-   const r=onWristWatchAction(hit.action);
-   if(r?.message)statusText("⌚ "+r.message);
-   else statusText(hit.action==="time-page"?"⌚ 時間操作を選択":"⌚ "+hit.action);
-  }
+  if(hit.action==="toggle"){
+   statusText(hit.open?"⌚ 腕時計メニューをVR空間に表示":"⌚ 時計メニューを閉じました");
+  }else handleWristWatchAction(hit.action);
+  try{event.inputSource?.gamepad?.hapticActuators?.[0]?.pulse(.23,45);}catch(_){}
   return true;
  }
  function tryVRTabletPress(event){
@@ -1305,7 +1376,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    let rightPose=null;
    try{const ref=rightSource?.gripSpace||rightSource?.targetRaySpace;
     rightPose=ref?frame.getPose(ref,space)?.transform.matrix||null:null;}catch(_){}
-   xrWristWatch.update(pose.transform.matrix,leftPose,rightPose,getWristWatch()||{});
+   const wasGazing=xrWristWatch.awake,wasOpen=xrWristWatch.open;
+   xrWristWatch.update(pose.transform.matrix,leftPose,rightPose,getWristWatch()||{},time);
+   if(!wasGazing&&xrWristWatch.awake&&!xrWristWatch.open)
+    statusText("⌚ 手首を見ました：ゲーム時刻と現実時刻を表示。見続けるとVRメニューを開きます");
+   if(!wasOpen&&xrWristWatch.open)
+    statusText("⌚ 視線を検出：VR操作パネルを開きました。反対側のトリガーで選択できます");
   }
    const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;lastTime=time;
    if(mode==="vr"){

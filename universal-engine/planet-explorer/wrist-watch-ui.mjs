@@ -35,7 +35,7 @@ export function installWristWatchUI({runtime,onAction=()=>{},notify=()=>{}}){
  <label>世界モード <select data-mode><option value="universe">ユニバース</option>
  <option value="creative">クリエイティブ</option></select></label>
  <div class="ue-watch-grid" data-actions></div>
- <small data-info>ゲーム時間と現実時間を別々に表示。VRでは腕時計を右手トリガーで押してメニューを開きます。</small>`;
+ <small data-info>ゲーム時間と現実時間を別々に表示。VRでは腕を上げて時計を見ると文字盤が点灯、約1秒見続けるとメニューが開きます。反対の手のトリガーで操作できます。</small>`;
  document.body.append(panel);
  const $=key=>panel.querySelector("[data-"+key+"]");
  const actions=$("actions");
@@ -50,6 +50,19 @@ export function installWristWatchUI({runtime,onAction=()=>{},notify=()=>{}}){
   refresh();return result;
  }
  function invoke(id){
+  if(id==="watch-style"){
+   runtime.setStyle(runtime.style==="smart"?"mechanical":"smart");
+   return report({ok:true,message:"腕時計を"+(runtime.style==="smart"?"スマートウォッチ":"機械式")+"に変更しました"});
+  }
+  if(id==="watch-hand"){
+   runtime.setHand(runtime.hand==="left"?"right":"left");
+   return report({ok:true,message:(runtime.hand==="left"?"左":"右")+"手首に装着しました"});
+  }
+  if(id==="watch-creative"||id==="watch-universe"){
+   const mode=id==="watch-creative"?"creative":"universe";
+   if(!runtime.setMode(mode))return report({ok:false,message:"この世界ではモードを変更できません"});
+   return report({ok:true,message:mode==="creative"?"クリエイティブ時間モード":"ユニバース時間モード"});
+  }
   if(id==="time-page"){report({ok:true,message:"腕時計の時間操作メニューを開きました"});return;}
   if(id==="blocked"){report({ok:false,message:"このモードでは使えません"});return;}
   if(id==="toggle"){return;}
