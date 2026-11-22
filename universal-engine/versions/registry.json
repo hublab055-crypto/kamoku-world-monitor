@@ -44,6 +44,24 @@
       "url": "../../planet-explorer/",
       "saveKey": "universal-engine:explorer:v0.7d",
       "note": "3人物を選択・タップ移動・自動採集。8スロットIF条件"
+    },
+    {
+      "id": "v20261122-pre-mr",
+      "label": "2026-11-22 — MR導入直前版",
+      "status": "frozen",
+      "url": "./v20261122-pre-mr/planet-explorer/",
+      "sourceBranch": "archive/universal-engine-pre-mr-20261122",
+      "frozenCommit": "1ac24287ad89bb7298104a46b2fbf3c96f4a41d7",
+      "saveKey": "ue:archive:20261122:pre-mr:data:universal-engine:explorer:v0.7i",
+      "note": "既存の実行コード・GLBアセットを独立配布。初回起動時に現行セーブを旧版専用の保存域へ複製し、相互に書き込みを分離"
+    },
+    {
+      "id": "v0.10.0-mr",
+      "label": "v0.10.0 — MRアバター召喚",
+      "status": "active",
+      "url": "../../planet-explorer/",
+      "saveKey": "universal-engine:explorer:v0.7i",
+      "note": "QuestのMRでV10副官等を最大4人召喚。位置/ジェスチャーはセッション限定。実機・現実遮蔽は追加検証が必要"
     }
   ],
   "policy": {
