@@ -1468,10 +1468,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     mrRoomMessage("現在の家具位置を守るため基準点変更を保留しました。復元済みの位置を使用してください");
    }else {
     const floorY=usingFloor?0:head[13]-1.65;
-    mrRoom.setOrigin(head[12],head[14],0);mrRoom.anchorHandle=null;saveMRRoom();
+    // Face the same landmark during a manual re-calibration if the anchor
+    // cannot be restored. Keep room X/Z orientation relative to that heading.
+    const roomYaw=Math.atan2(head[8],head[10]);
+    mrRoom.setOrigin(head[12],head[14],roomYaw);mrRoom.anchorHandle=null;saveMRRoom();
     if(typeof frame.createAnchor==="function"&&typeof XRRigidTransform==="function"){
      try{
-      const rigid=new XRRigidTransform({x:head[12],y:floorY,z:head[14]});
+      const rigid=new XRRigidTransform({x:head[12],y:floorY,z:head[14]},{x:0,y:Math.sin(roomYaw/2),z:0,w:Math.cos(roomYaw/2)});
       Promise.resolve(frame.createAnchor(rigid,space)).then(async created=>{
        if(session!==owner)return;mrAnchor=created;
        if(typeof created.requestPersistentHandle!=="function"){mrRoomMessage("手動基準点を登録しました。永続保存には非対応です");return;}
