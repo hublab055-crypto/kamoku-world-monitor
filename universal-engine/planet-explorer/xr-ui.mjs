@@ -1466,8 +1466,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }catch(_){mrRoom.forgetTracking();}
   if(mrOriginPending){
    mrOriginPending=false;
-   if(mrRoom.objects.length||mrRoom.portal)mrRoomMessage("保存済み家具があるため基準点の変更を保留しました。既存の空間アンカー復元を試してください");
-   else {
+   if(mrRoom.ready&&(mrRoom.objects.length||mrRoom.portal)){
+    mrRoomMessage("現在の家具位置を守るため基準点変更を保留しました。復元済みの位置を使用してください");
+   }else {
     const floorY=usingFloor?0:head[13]-1.65;
     mrRoom.setOrigin(head[12],head[14],0);mrRoom.anchorHandle=null;saveMRRoom();
     if(typeof frame.createAnchor==="function"&&typeof XRRigidTransform==="function"){
