@@ -1,4 +1,4 @@
-import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v04";
+import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v05-natural";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
 import {installHenshinUI} from "./henshin-ui.mjs?v=20261121-native";
@@ -4319,7 +4319,7 @@ $("harbor-talk").addEventListener("click",()=>harborAction(()=>
  ferry.talk(["steward","passenger","captain"][ferryDialogue++%3])));
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveCustodyFacilityJournal();});
 init();
-crewVoice=new ShipSocialVoice({getRenderer:()=>renderer,onError:error=>console.warn("[CrewVoice]",error)});
+crewVoice=new ShipSocialVoice({getRenderer:()=>renderer,getAvatarModel:id=>avatarV10?.[id]?.model,onError:error=>console.warn("[CrewVoice]",error)});
 wristTime=new WristWatchTime({
  getTimeDays:()=>planet?.timeDays??0,getLongitude:()=>controller?.lon??0,
  captureWorld:()=>({

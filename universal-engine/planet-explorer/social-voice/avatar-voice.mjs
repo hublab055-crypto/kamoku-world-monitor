@@ -4,6 +4,8 @@
  * with pre-rendered WAV/MP3/OGG clips.
  */
 
+import {chooseJapaneseVoice} from './voice-selection.mjs';
+
 const clamp = (number, min, max) => Math.min(max, Math.max(min, Number(number) || 0));
 const normLang = (lang = 'ja-JP') => String(lang).replace('_', '-').toLowerCase();
 
@@ -129,11 +131,14 @@ export class AvatarVoiceDirector {
 
   _matchVoice(config) {
     const voices = this.voices;
+    const expected = normLang(config.lang);
+    if (expected.split('-')[0] === 'ja') {
+      return chooseJapaneseVoice(voices, {voiceName:config.voiceName,style:config.voiceStyle || 'neutral'});
+    }
     if (config.voiceName) {
       const byName = voices.find((v) => v.name === config.voiceName || v.voiceURI === config.voiceName);
       if (byName) return byName;
     }
-    const expected = normLang(config.lang);
     return voices.find((v) => normLang(v.lang) === expected)
       || voices.find((v) => normLang(v.lang).split('-')[0] === expected.split('-')[0])
       || null;
@@ -172,7 +177,9 @@ export class AvatarVoiceDirector {
       this.onSubtitle({ avatarId: job.id, text: job.text, visible: false });
       return Promise.resolve({ status: 'unsupported' });
     }
-    const utterance = new this.Utterance(job.text);
+    // Keep the original line for subtitles; expand common technical shorthand only for TTS.
+    const spokenText = job.text.replace(/([0-9]+(?:\.[0-9]+)?)\s*%/g, '$1パーセント');
+    const utterance = new this.Utterance(spokenText);
     utterance.lang = config.lang;
     utterance.rate = clamp(config.rate, 0.1, 10);
     utterance.pitch = clamp(config.pitch, 0, 2);
