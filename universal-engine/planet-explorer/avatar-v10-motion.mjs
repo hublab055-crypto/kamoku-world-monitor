@@ -92,7 +92,16 @@ export function poseAvatarV10Gesture(rig,pose,{motion,time,grip,yaw=0,x=0,z=0}) 
  const arm=(side,goal,finger,palm,weight,curl,bend,thumbDirection=null)=>
   poseArm(rig,pose,side,goal,orientation(finger,palm),bend,weight,curl,thumbDirection);
  const envelope=(on,ready,release,end)=>crewPhase(time,on,ready)*(1-crewPhase(time,release,end));
- if(motion==="salute"){
+ if(motion==="wave"){
+  const w=envelope(.05,.40,2.10,2.50),temple=jointWorld(pose,rig.parents,head).p;
+  const sway=Math.sin(time*11)*.13;
+  arm("R",add(temple,[.22+sway,.32,.12]),[.1,1,.2],[0,0,1],w,.08,[-.5,.85,0]);
+  pose[head].rotation=mix(pose[head].rotation,angle(yAxis,-.08),w*.48);
+ }else if(motion==="bow"){
+  const w=envelope(.08,.62,1.55,2.32);
+  pose[chest].rotation=mix(pose[chest].rotation,angle([1,0,0],.32),w);
+  pose[head].rotation=mix(pose[head].rotation,angle([1,0,0],.17),w*.92);
+ }else if(motion==="salute"){
   const formal=envelope(0,.30,1.93,2.20);
   for(const i of [hips,chest,head])pose[i].rotation=mix(pose[i].rotation,identity,formal*.94);
   for(const side of ["L","R"]){

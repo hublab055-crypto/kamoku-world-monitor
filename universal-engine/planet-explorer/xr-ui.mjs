@@ -16,7 +16,8 @@ import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
-import {MRAvatarPresence} from "./mr-avatar-presence.mjs?v=20261122";
+import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
+import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261122-room8";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -44,9 +45,23 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
  const xrWristWatch=new XRWristWatch();
- const mrAvatars=new MRAvatarPresence();
+ const mrAvatars=new MRAvatarPresence(8);
  const mrAvatarId=$("xr-avatar-select"),mrAvatarScale=$("xr-avatar-size"),mrAvatarStatus=$("xr-avatar-presence-status");
- let mrLastHead=null,mrAutoSpawn=false;
+ const mrRoomStatus=$("xr-room-status"),mrPortalStatus=$("xr-portal-status");
+ let mrRoom;
+ try{mrRoom=new MRRoomLayout(JSON.parse(localStorage.getItem(MR_ROOM_SAVE_KEY)||"null"));}
+ catch(_){mrRoom=new MRRoomLayout();}
+ const saveMRRoom=()=>{
+  try{localStorage.setItem(MR_ROOM_SAVE_KEY,JSON.stringify(mrRoom.snapshot()));return true;}
+  catch(_){if(mrRoomStatus)mrRoomStatus.textContent="部屋データを保存できません（ストレージを確認）";return false;}
+ };
+ if($("xr-room-width"))$("xr-room-width").value=String(mrRoom.width);
+ if($("xr-room-depth"))$("xr-room-depth").value=String(mrRoom.depth);
+ let mrLastHead=null,mrAutoSpawn=false,mrAnchor=null,mrRestorePending=false,mrRestoreBusy=false,mrOriginPending=false,
+  mrScanPending=false,mrAddPending=null,mrDoorPending=false,mrPortalVR=null,mrPortalNear=false,mrPortalTarget=null;
+ let mrInvited=[]; // Explicit local companion hand-off; never remote player access
+ const mrRoomMessage=message=>{if(mrRoomStatus)mrRoomStatus.textContent=message;statusText("🏠 "+message);};
+ const mrDoorMessage=message=>{if(mrPortalStatus)mrPortalStatus.textContent=message;statusText("🚪 "+message);};
  const vrWatchTriggerConsumed=new Set();
  const vrTabletTriggerConsumed=new Set();
  const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
@@ -300,7 +315,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   getRenderer()?.henshin?.resetXR();henshinTriggerConsumed.clear();henshinGripConsumed.clear();
   if(activeMode==="vr")motionActorUI.onSessionEnd();
   if(activeMode==="mr-social")social.activate(false);
+  if(activeMode==="mr-avatars"){
+   mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
+  }
   mrAvatars.reset();mrLastHead=null;mrAutoSpawn=false;
+  mrAnchor=null;mrRestoreBusy=false;mrRestorePending=false;mrOriginPending=false;
+  mrScanPending=false;mrAddPending=null;mrDoorPending=false;mrPortalVR=null;mrPortalNear=false;
+  mrRoom.forgetTracking();
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();
@@ -332,7 +353,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrRecoveryExhausted=false;vrLastErrorStep="";
   vrStage="未開始";vrSceneFrames=0;vrLastCallbackAt=0;
   update();
-  if(!disposed)statusText("通常の3D画面に戻りました。");
+  if(!disposed)statusText(mrPortalTarget?
+   "境界扉を開きました。「"+(mrPortalTarget==="vr"?"🚪 VRへ渡る":"🚪 MRの自室へ戻る")+"」をもう一度押して入場してください。":
+   "通常の3D画面に戻りました。");
  }
  async function start(mode){return startWithOptions(mode,{ground:false});}
  async function startWithOptions(mode,{ground=false}={}){
@@ -360,7 +383,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // permissions, feature checks, or any asynchronous GL setup.
    const root=requestedType==="immersive-ar"?$("xr-controls"):null;
    const wantsLayers=requestedType==="immersive-vr"&&canUseXRProjection();
-   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
+   const init={requiredFeatures:["local"],optionalFeatures:["local-floor",...(requestedType==="immersive-ar"?["hit-test",...(mode==="mr-avatars"?["anchors","plane-detection"]:[]),...(root?["dom-overlay"]:[])]:wantsLayers?["layers"]:[])]};
    if(root)init.domOverlay={root};
    if(mode==="mr-social"||mode==="mr-henshin"){
     init.requiredFeatures=["local-floor"];
@@ -420,6 +443,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
    mrAvatars.reset();mrLastHead=null;mrAutoSpawn=mode==="mr-avatars";
+   mrRoom.forgetTracking();mrAnchor=null;mrRestoreBusy=false;
+   mrRestorePending=mode==="mr-avatars"&&Boolean(mrRoom.anchorHandle);
+   mrOriginPending=false;mrScanPending=false;mrAddPending=null;mrDoorPending=false;
+   mrPortalVR=null;mrPortalNear=false;mrPortalTarget=null;
    getRenderer()?.henshin?.resetXR();
    if(mode==="vr")motionActorUI.onSessionStart(usingFloor);
    if(mode==="mr-social"){
@@ -832,9 +859,29 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   if(activeMode==="mr-avatars"){
    if(event.inputSource?.handedness!=="right")return;
+   let ray=null;
+   try{
+    if(event.frame&&event.inputSource?.targetRaySpace)
+     ray=event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix;
+   }catch(_){}
+   const door=mrRoom.worldPortal();
+   if(door&&mrLastHead&&mrNearPortal(mrLastHead,door,1.55)&&mrPortalRayHit(ray,door)){
+    portalSwitch("vr");return;
+   }
    const result=mrPlaceSelected();
    statusText("🥽 "+result.message);
    return;
+  }
+  if(activeMode==="vr"&&event.inputSource?.handedness==="right"&&mrPortalVR&&event.frame){
+   let ray=null,head=null;
+   try{
+    if(event.inputSource?.targetRaySpace)
+     ray=event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix;
+    head=event.frame.getViewerPose(space)?.transform.matrix;
+   }catch(_){}
+   if(head&&mrNearPortal(head,mrPortalVR,1.55)&&mrPortalRayHit(ray,mrPortalVR)){
+    portalSwitch("mr-avatars");return;
+   }
   }
   if(activeMode==="vr"){
    const hand=event.inputSource?.handedness;
@@ -1156,6 +1203,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   if(activeMode==="vr"){
+   if(!mrPortalVR)mrPortalVR=mrAvatarPlacement(pose.transform.matrix,{
+    floorY:usingFloor?0:pose.transform.matrix[13]-1.65,distance:2.0});
+   if(mrPortalVR&&mrNearPortal(pose.transform.matrix,mrPortalVR)&&!mrPortalNear){
+    mrDoorMessage("仮想世界の扉の前です。「MRの自室へ戻る」を押せます");
+    mrPortalNear=true;
+   }else if(mrPortalVR&&!mrNearPortal(pose.transform.matrix,mrPortalVR))mrPortalNear=false;
    vrHasPose=true;
    if(vrDrawError==="追跡姿勢が取得できません")vrDrawError="";
    if(vrFrames===1)vrMark("追跡姿勢取得／"+pose.views.length+"眼",{force:true});
@@ -1370,6 +1423,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
        [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
      });
     renderer.drawHenshinXR?.(renderer.xrView);
+    if(mode==="vr"&&mrPortalVR)
+     renderer.drawXRPortal?.({projection:view.projectionMatrix,
+      view:view.transform.inverse.matrix,viewport:vp},mrPortalVR,mrInvited);
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model);
     if(mode==="vr"&&xrWristWatch.model)renderer.drawVRWatch?.(renderer.xrView,xrWristWatch);
@@ -1408,14 +1464,103 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
  }
+ // XR room updates run inside requestAnimationFrame; no camera-pixel access.
+ function updateMRRoomFrame(frame,head){
+  const owner=session;
+  if(mrRestorePending&&!mrRestoreBusy){
+   mrRestorePending=false;
+   if(owner?.restorePersistentAnchor&&mrRoom.anchorHandle){
+    mrRestoreBusy=true;
+    owner.restorePersistentAnchor(mrRoom.anchorHandle).then(restored=>{
+     if(session!==owner)return;
+     mrAnchor=restored;mrRoomMessage("保存済み空間アンカーを復元しました");
+    }).catch(error=>{if(session===owner)mrRoomMessage("位置を自動復元できません。部屋の中心で基準点を登録してください: "+(error?.message||error));})
+     .finally(()=>{mrRestoreBusy=false;});
+   }else mrRoomMessage("空間アンカー復元に非対応です。基準点を手動登録してください");
+  }
+  if(mrAnchor)try{
+   const p=frame.getPose(mrAnchor.anchorSpace,space);
+   if(p?.transform?.matrix)mrRoom.setOriginMatrix(p.transform.matrix,{persistent:Boolean(mrRoom.anchorHandle)});
+  }catch(_){mrRoom.forgetTracking();}
+  if(mrOriginPending){
+   mrOriginPending=false;
+   if(mrRoom.ready&&(mrRoom.objects.length||mrRoom.portal)){
+    mrRoomMessage("現在の家具位置を守るため基準点変更を保留しました。復元済みの位置を使用してください");
+   }else {
+    const floorY=usingFloor?0:head[13]-1.65;
+    // Face the same landmark during a manual re-calibration if the anchor
+    // cannot be restored. Keep room X/Z orientation relative to that heading.
+    const roomYaw=Math.atan2(head[8],head[10]);
+    mrRoom.setOrigin(head[12],head[14],roomYaw);mrRoom.anchorHandle=null;saveMRRoom();
+    if(typeof frame.createAnchor==="function"&&typeof XRRigidTransform==="function"){
+     try{
+      const rigid=new XRRigidTransform({x:head[12],y:floorY,z:head[14]},{x:0,y:Math.sin(roomYaw/2),z:0,w:Math.cos(roomYaw/2)});
+      Promise.resolve(frame.createAnchor(rigid,space)).then(async created=>{
+       if(session!==owner)return;mrAnchor=created;
+       if(typeof created.requestPersistentHandle!=="function"){mrRoomMessage("手動基準点を登録しました。永続保存には非対応です");return;}
+       try{
+        const handle=await created.requestPersistentHandle();
+        if(session!==owner)return;
+        mrRoom.anchorHandle=handle;saveMRRoom();
+        mrRoomMessage("部屋の基準点を永続アンカーに保存しました");
+       }catch(_){mrRoomMessage("今回の基準点は有効です。次回は手動で位置合わせしてください");}
+      }).catch(error=>{if(session===owner)mrRoomMessage("今回の基準点は有効です。空間アンカー作成は失敗: "+(error?.message||error));});
+     }catch(_){mrRoomMessage("手動基準点を登録しました。次回は再登録してください");}
+    }else mrRoomMessage("手動基準点を登録しました。次回は再登録してください");
+   }
+  }
+  if(mrScanPending){
+   mrScanPending=false;
+   if(!mrRoom.ready)mrRoomMessage("先に部屋の基準点を登録してください");
+   else {
+    const planes=mrDetectedSurfaces(frame,space,18);let count=0;
+    for(const p of planes){
+     if(mrRoom.worldObjects().some(o=>o.type===p.type&&Math.hypot(o.x-p.x,o.z-p.z)<.5))continue;
+     if(mrRoom.add(p.type,p,p))count++;
+    }
+    saveMRRoom();
+    mrRoomMessage(planes.length?"検出面"+planes.length+"件中"+count+"件を追加。家具と壁の位置を確認してください":
+     "検出面がありません。Questの部屋設定を確認するか、手動で家具を登録してください");
+   }
+  }
+  if(mrAddPending){
+   const type=mrAddPending;mrAddPending=null;
+   if(!mrRoom.ready)mrRoomMessage("先に部屋の基準点を登録してください");
+   else{
+    const floor=usingFloor?0:head[13]-1.65;
+    const hit=hitPose?.length===16?{x:hitPose[12],z:hitPose[14],y:hitPose[13]}:
+     mrAvatarPlacement(head,{floorY:floor});
+    const width=Number($("xr-room-object-width")?.value)||.7,depth=Number($("xr-room-object-depth")?.value)||.7;
+    const seatY=["chair","sofa"].includes(type)&&hit?.y>floor+.25&&hit.y<floor+.85?hit.y-floor:.45;
+    const yaw=(Number($("xr-room-object-yaw")?.value)||0)*Math.PI/180;
+    const item=mrRoom.add(type,hit,{width,depth,seatY,yaw});
+    if(item){saveMRRoom();mrRoomMessage(type+"を登録（計"+mrRoom.objects.length+"件）");}
+    else mrRoomMessage("家具位置を取得できません");
+   }
+  }
+  if(mrDoorPending){
+   mrDoorPending=false;
+   if(!mrRoom.ready)mrDoorMessage("部屋の基準点を先に登録してください");
+   else{
+    const p=mrAvatarPlacement(head,{floorY:usingFloor?0:head[13]-1.65,distance:2.1});
+    if(mrRoom.setPortal(p)){saveMRRoom();mrDoorMessage("MRの自室に境界扉を設置しました");}
+   }
+  }
+  const portal=mrRoom.worldPortal();
+  if(portal&&mrRoom.ready){
+   const nearby=mrNearPortal(head,portal);
+   if(nearby&&!mrPortalNear)mrDoorMessage("扉の前です。「VRへ渡る」で移動できます");
+   mrPortalNear=nearby;
+  }
+ }
  function mrPlaceSelected(){
   if(activeMode!=="mr-avatars"||!mrLastHead)return {ok:false,message:"MR開始後に頭部追跡が安定してから配置してください"};
   const result=mrAvatars.place(mrAvatarId?.value||"navigator",mrLastHead,{
    floorY:usingFloor?0:mrLastHead[13]-1.65,hit:hitPose,
-   size:Number(mrAvatarScale?.value||1)
+   size:Number(mrAvatarScale?.value||1),room:mrRoom.ready?mrRoom:null
   });
   if(result.ok){
-   getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.id]?.model);
+   getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.sourceId]?.model);
    if(mrAvatarStatus)mrAvatarStatus.textContent=result.message;
   }
   return result;
@@ -1430,14 +1575,28 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     hitPose=results?.[0]?.getPose(space)?.transform.matrix||null;
    }catch(_){hitPose=null;}
   }
+  updateMRRoomFrame(frame,head);
   if(mrAutoSpawn){
    mrAutoSpawn=false;
    const result=mrPlaceSelected();
    if(!result.ok)statusText("🥽 "+result.message);
+   const guests=mrInvited.filter(a=>MR_AVATAR_IDS.includes(a.id));
+   for(const [i,guest] of guests.entries()){
+    let actor=mrAvatars.get(guest.id);
+    if(!actor){
+     const made=mrAvatars.place(guest.id,head,{floorY:usingFloor?0:head[13]-1.65});
+     actor=made.ok?made.actor:null;
+    }
+    if(!actor)continue;
+    actor.invited=true;
+    const p=mrAvatarPlacement(head,{floorY:usingFloor?0:head[13]-1.65,
+     distance:2.1,lateral:(i-(guests.length-1)/2)*.70});
+    if(p&&(!mrRoom.ready||mrRoom.free(p.x,p.z,.24)))Object.assign(actor,p);
+   }
   }
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;
   lastTime=time;
-  const actors=mrAvatars.tick(head,dt);
+  const actors=mrAvatars.tick(head,dt,mrRoom.ready?mrRoom:null);
   const gl=renderer.gl,layer=activeLegacyXRLayer(session);
   if(!layer)return;
   try{
@@ -1446,8 +1605,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    for(let i=0;i<viewer.views.length;i++){
     const view=viewer.views[i];
     const viewport=layer.getViewport(view);if(!viewport)continue;
-    renderer.drawMRAvatars({viewport,projection:view.projectionMatrix,
-     view:view.transform.inverse.matrix},actors,i===0?dt:0);
+    const eye={viewport,projection:view.projectionMatrix,view:view.transform.inverse.matrix};
+    renderer.drawMRAvatars(eye,actors,i===0?dt:0);
+    if($("xr-room-settings")?.open&&mrRoom.ready)
+     renderer.drawXRRoomGuides?.(eye,mrRoom.worldObjects());
+    const door=mrRoom.worldPortal();
+    if(door)renderer.drawXRPortal?.(eye,door);
    }
   }catch(error){
    statusText("MRアバター描画エラー: "+(error?.message||error));
@@ -1499,6 +1662,57 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.disable(gl.SCISSOR_TEST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
  }
+ // Quest Browser requires a new gesture to start an AR/VR session after ending.
+ function portalSwitch(mode){
+  if(session){
+   if(activeMode===mode){mrDoorMessage("すでにその世界を表示しています");return;}
+   if(!["vr","mr-avatars"].includes(activeMode)){
+    mrDoorMessage("まずXR終了で今のモードを抜けてください");return;
+   }
+   mrPortalTarget=mode;
+   mrDoorMessage("境界扉の先へ移動します。XR終了後、同じボタンをもう一度押してください");
+   session.end().catch(error=>mrDoorMessage("終了できません: "+(error?.message||error)));
+   return;
+  }
+  start(mode);
+ }
+ const mrModeRequired=()=>activeMode==="mr-avatars"&&Boolean(session);
+ $("xr-room-calibrate")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrRoomMessage("まずMRアバター召喚を開始してください");return;}
+  mrOriginPending=true;mrRoomMessage("部屋の中心で立ち、位置の取得を試みます");
+ });
+ $("xr-room-restore")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrRoomMessage("まずMRアバター召喚を開始してください");return;}
+  if(!mrRoom.anchorHandle){mrRoomMessage("保存済みアンカーがありません。手動で基準点を登録してください");return;}
+  mrRestorePending=true;mrRoomMessage("保存した空間アンカーの復元を試みます");
+ });
+ $("xr-room-save-size")?.addEventListener("click",()=>{
+  mrRoom.setSize(Number($("xr-room-width")?.value),Number($("xr-room-depth")?.value));
+  saveMRRoom();mrRoomMessage("室内サイズを横幅"+mrRoom.width+"m・奥行"+mrRoom.depth+"mで保存");
+ });
+ $("xr-room-scan")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrRoomMessage("MRアバター召喚中に実行してください");return;}
+  mrScanPending=true;mrRoomMessage("WebXRの検出平面を読み取ります");
+ });
+ for(const type of ["chair","sofa","table","wall","obstacle"]){
+  $("xr-room-add-"+type)?.addEventListener("click",()=>{
+   if(!mrModeRequired()){mrRoomMessage("MR開始後に家具を配置してください");return;}
+   mrAddPending=type;mrRoomMessage(type+"の登録位置を取得します");
+  });
+ }
+ $("xr-room-undo")?.addEventListener("click",()=>{
+  const o=mrRoom.removeLast();
+  if(o){saveMRRoom();mrRoomMessage(o.type+"の最後の登録を取り消しました");}
+  else mrRoomMessage("取り消す家具がありません");
+ });
+ $("xr-portal-place")?.addEventListener("click",()=>{
+  if(!mrModeRequired()){mrDoorMessage("MRアバター召喚中に扉を設置してください");return;}
+  mrDoorPending=true;mrDoorMessage("正面約2mの位置に扉を配置します");
+ });
+ $("xr-portal-to-vr")?.addEventListener("click",()=>portalSwitch("vr"));
+ $("xr-portal-to-mr")?.addEventListener("click",()=>portalSwitch("mr-avatars"));
+ $("xr-room-settings")?.addEventListener("beforexrselect",event=>event.preventDefault());
+ $("xr-portal-settings")?.addEventListener("beforexrselect",event=>event.preventDefault());
  social?.button.addEventListener("click",()=>start("mr-social"));
  buttons.avatars?.addEventListener("click",()=>start("mr-avatars"));
  $("xr-avatar-presence")?.addEventListener("beforexrselect",event=>event.preventDefault());
@@ -1514,10 +1728,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="mr-avatars")return;
   mrAvatars.reset();statusText("🥽 全アバターを非表示にしました");
  });
- for(const action of ["follow","wait","salute","thumbsUp","sit","stand"]){
+ for(const action of ["follow","wander","wait","salute","thumbsUp","doubleThumbs","wave","bow","sit","stand","invite"]){
   $("xr-avatar-"+action)?.addEventListener("click",()=>{
    if(activeMode!=="mr-avatars")return;
-   const result=mrAvatars.action(mrAvatarId?.value||"navigator",action);
+   const result=mrAvatars.action(mrAvatarId?.value||"navigator",action,{room:mrRoom,head:mrLastHead});
+   if(action==="invite"&&result.ok)
+    mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
    statusText("🥽 "+result.message);
   });
  }

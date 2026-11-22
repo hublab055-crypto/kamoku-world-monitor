@@ -1,7 +1,7 @@
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261122-room-motions";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261117-crew-life";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
@@ -40,7 +40,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261118-mocap-medical";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261122-room-motions";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
@@ -2911,17 +2911,93 @@ export class ExplorerRenderer{
    player:{outer:"#537f85",legs:"#333d4a",feet:"#32343a"}
   };
   for(const actor of actors||[]){
-   if(!["navigator","engineer","companion","player"].includes(actor.id))continue;
+   const sourceId=actor.sourceId||actor.id;
+   if(!["navigator","engineer","companion","player"].includes(sourceId))continue;
    const model=multiply4(translate(actor.x,actor.y,actor.z),
     multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
-   if(this.drawAvatarV10(actor.id,vp,model,light,dt,{
-    motion:actor.motion,time:actor.time,talking:this.shipVoiceSpeakerId===actor.id}))continue;
+   const gesture=["salute","thumbsUp","doubleThumbs","wave","bow"].includes(actor.motion)?
+    {motion:actor.motion,time:actor.time??0,x:actor.x,z:actor.z,yaw:actor.yaw}:null;
+   if(this.drawAvatarV10(sourceId,vp,model,light,dt,{
+    motion:actor.motion,time:actor.time,moving:actor.motion==="walk",
+    gesture,talking:this.shipVoiceSpeakerId===sourceId}))continue;
    // Draw a clearly temporary procedural stand-in rather than disappearing.
    const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
    this.drawVRBody({...xr,stage:model},{social:true,head:face,left:null,right:null,
-    anchors:xrBodyAnchors(face,{floorY:0}),appearance:backup[actor.id]});
+    anchors:xrBodyAnchors(face,{floorY:0}),appearance:backup[sourceId]});
   }
   gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+ }
+ /**
+  * An actual stereo door frame at a calibrated XR-space position. Both MR and
+  * VR paths use the same scene-space gateway; changing immersive session still
+  * requires a deliberate user tap in Quest Browser.
+  */
+ /** Preview outlines only while the MR furniture editor is expanded.
+  * They are virtual guides, not real-world collision geometry. */
+ drawXRRoomGuides(xr,objects=[]){
+  if(!objects.length||!this.vrBodySegment)return;
+  const gl=this.gl,{x,y,width,height}=xr.viewport,vp=multiply4(xr.projection,xr.view),light=[.6,.85,1];
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.disable(gl.BLEND);
+  const line=(p,q,color)=>{
+   const d=sub(q,p),l=Math.hypot(...d);if(l<.002)return;
+   const up=d.map(v=>v/l),right=norm(cross(Math.abs(up[1])>.9?[0,0,1]:[0,1,0],up));
+   const back=norm(cross(right,up)),t=.026;
+   const m=[right[0]*t,right[1]*t,right[2]*t,0,d[0],d[1],d[2],0,
+    back[0]*t,back[1]*t,back[2]*t,0,p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.92,color);
+  };
+  for(const o of objects.slice(0,32)){
+   const c=Math.cos(o.yaw),s=Math.sin(o.yaw);
+   const h=["chair","sofa"].includes(o.type)?o.seatY+.03:
+    o.type==="table"?o.height+.03:.05;
+   const p=(a,b)=>[o.x+c*a+s*b,h,o.z-s*a+c*b];
+   const pts=[p(-o.width/2,-o.depth/2),p(o.width/2,-o.depth/2),
+    p(o.width/2,o.depth/2),p(-o.width/2,o.depth/2)];
+   const tint=o.type==="wall"?[.22,.68,1]:
+    ["chair","sofa"].includes(o.type)?[1,.76,.22]:[.43,1,.58];
+   for(let j=0;j<4;j++)line(pts[j],pts[(j+1)%4],tint);
+   if(o.type==="wall")for(const corner of [pts[0],pts[1]])
+    line(corner,[corner[0],o.height,corner[2]],tint);
+  }
+  gl.useProgram(this.program);
+ }
+ drawXRPortal(xr,gate,guests=[]){
+  if(!gate||!this.vrBodySegment)return;
+  const gl=this.gl,{x,y,width,height}=xr.viewport;
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.useProgram(this.program);gl.colorMask(true,true,true,true);
+  gl.depthMask(true);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const vp=multiply4(xr.projection,xr.view),light=[.6,.9,1];
+  const c=Math.cos(gate.yaw||0),s=Math.sin(gate.yaw||0);
+  const w=gate.width||1.05,y0=Number.isFinite(gate.y)?gate.y:0;
+  const lx=gate.x-c*w/2,lz=gate.z+s*w/2,rx=gate.x+c*w/2,rz=gate.z-s*w/2;
+  const line=(p,q,thickness,tint)=>{
+   const d=sub(q,p),dist=Math.hypot(...d);if(dist<.01)return;
+   const up=d.map(n=>n/dist),right=norm(cross(Math.abs(up[1])>.9?[0,0,1]:[0,1,0],up)),
+    back=norm(cross(right,up));
+   const m=[right[0]*thickness,right[1]*thickness,right[2]*thickness,0,
+    d[0],d[1],d[2],0,back[0]*thickness,back[1]*thickness,back[2]*thickness,0,
+    p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.95,tint);
+  };
+  line([lx,y0,lz],[lx,y0+2.15,lz],.08,[.18,.82,1]);
+  line([rx,y0,rz],[rx,y0+2.15,rz],.08,[.18,.82,1]);
+  line([lx,y0+2.15,lz],[rx,y0+2.15,rz],.11,[.4,.9,1]);
+  line([lx,y0+.03,lz],[rx,y0+.03,rz],.035,[.35,.75,.92]);
+  for(const [i,actor] of guests.slice(0,7).entries()){
+   const sourceId=actor.sourceId||actor.id;
+   if(!["navigator","engineer","companion","player"].includes(sourceId))continue;
+   const at=translate(gate.x+c*(i%3-1)*.55,
+    y0,gate.z-s*(i%3-1)*.55-1.1-Math.floor(i/3)*.68);
+   const m=multiply4(at,multiply4(rotateY(gate.yaw||0),scale3(.87,.87,.87)));
+   this.drawAvatarV10(sourceId,vp,m,light,0,{motion:actor.motion==="Seated"?"idle":actor.motion||"idle"});
+  }
+  gl.useProgram(this.program);
  }
  drawSocialAvatars(xr,scene){
   const gl=this.gl,{x,y,width,height}=xr.viewport;
