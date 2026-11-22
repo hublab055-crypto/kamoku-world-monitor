@@ -1587,6 +1587,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     const viewport=layer.getViewport(view);if(!viewport)continue;
     const eye={viewport,projection:view.projectionMatrix,view:view.transform.inverse.matrix};
     renderer.drawMRAvatars(eye,actors,i===0?dt:0);
+    if($("xr-room-settings")?.open&&mrRoom.ready)
+     renderer.drawXRRoomGuides?.(eye,mrRoom.worldObjects());
     const door=mrRoom.worldPortal();
     if(door)renderer.drawXRPortal?.(eye,door);
    }
