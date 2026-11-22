@@ -1185,6 +1185,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   if(activeMode==="vr"){
+   if(!mrPortalVR)mrPortalVR=mrAvatarPlacement(pose.transform.matrix,{
+    floorY:usingFloor?0:pose.transform.matrix[13]-1.65,distance:2.0});
+   if(mrPortalVR&&mrNearPortal(pose.transform.matrix,mrPortalVR)&&!mrPortalNear){
+    mrDoorMessage("仮想世界の扉の前です。「MRの自室へ戻る」を押せます");
+    mrPortalNear=true;
+   }else if(mrPortalVR&&!mrNearPortal(pose.transform.matrix,mrPortalVR))mrPortalNear=false;
    vrHasPose=true;
    if(vrDrawError==="追跡姿勢が取得できません")vrDrawError="";
    if(vrFrames===1)vrMark("追跡姿勢取得／"+pose.views.length+"眼",{force:true});
@@ -1399,6 +1405,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
        [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
      });
     renderer.drawHenshinXR?.(renderer.xrView);
+    if(mode==="vr"&&mrPortalVR)
+     renderer.drawXRPortal?.({projection:view.projectionMatrix,
+      view:view.transform.inverse.matrix,viewport:vp},mrPortalVR,mrInvited);
     if(mode==="vr"&&vrFrames<240)renderer.drawVRGuide(renderer.xrView,anchor);
     if(mode==="vr"&&xrWorldTablet.model)renderer.drawVRWorldTablet(renderer.xrView,xrWorldTablet.model);
     if(mode==="vr"&&xrWristWatch.model)renderer.drawVRWatch?.(renderer.xrView,xrWristWatch);
@@ -1643,7 +1652,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="mr-avatars")return;
   mrAvatars.reset();statusText("🥽 全アバターを非表示にしました");
  });
- for(const action of ["follow","wait","salute","thumbsUp","sit","stand"]){
+ for(const action of ["follow","wander","wait","salute","thumbsUp","doubleThumbs","wave","bow","sit","stand","invite"]){
   $("xr-avatar-"+action)?.addEventListener("click",()=>{
    if(activeMode!=="mr-avatars")return;
    const result=mrAvatars.action(mrAvatarId?.value||"navigator",action,{room:mrRoom,head:mrLastHead});
