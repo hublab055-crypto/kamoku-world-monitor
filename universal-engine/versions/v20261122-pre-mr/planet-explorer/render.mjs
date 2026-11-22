@@ -1,0 +1,3760 @@
+import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
+import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
+import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
+import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261117-crew-life";
+import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
+import {buildRiverWaterPatch} from "./landscape-relief.mjs";
+import {regionalLakeMesh} from "./regional-landforms.mjs";
+import {buildDistantLandscape} from "./distant-landscape.mjs";
+import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-drift";
+import {BUILD_KINDS} from "./construction-system.mjs?v=0.8h-church";
+import {OWNER_BUILDING_KINDS} from "./owner-world.mjs?v=0.9c-asset-v2";
+import {ownerRoadGeometry} from "./owner-road-geometry.mjs";
+import {ownerPrimitiveGeometry} from "./owner-primitive-geometry.mjs?v=0.8y-solids";
+import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs?v=0.8h-church";
+import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
+import {noise3} from "../planet/planet-core.mjs";
+import {faunaGeometry} from "./fauna-geometry.mjs?v=0.8g-grazing";
+import {agricultureGeometry} from "./agriculture-geometry.mjs?v=0.8g-crops";
+import {RIG_SEGMENTS,samplePose,jointTransforms,matrixMultiply,translate,rotX,bowDrawState} from "./rig.mjs?v=0.8p-fishing-motion";
+import {pickSurface} from "./picking.mjs";
+import {pickOrbitalGeo} from "./orbit-landing.mjs";
+import {projectOrbitalCities} from "./orbital-city-markers.mjs?v=0.8u-city-globe";
+import {ORBIT_GROUND_CUTOFF_M} from "./descent-visuals.mjs";
+import {oceanWavePatch,fishAt} from "./marine.mjs?v=0.8k-sailing-ship";
+import {sailingShipGeometry} from "./sailing-ship-geometry.mjs?v=0.8k-ship-deck";
+import {shipCabinGeometry,CABIN_FURNITURE} from "./ship-cabin-geometry.mjs?v=0.8m-living-cabin-r2";
+import {shipLocalToWorld,shipWorldToLocal,isShipWalkable,SHIP_HELM,SHIP_DOOR} from "./shipboard.mjs?v=0.8n-crew-walking";
+import {isAquaticAction,swimmingPresentation} from "./swim-motion.mjs?v=0.8q-splash";
+import {SEA_SITE_TYPES,seabedPatch} from "./ocean-exploration.mjs?v=0.8o-seabed";
+import {orbitalTerrainTier,buildOrbitalTerrainTile} from "./orbit-terrain-lod.mjs?v=0.8v-alpine-horizon";
+import {globeIslandGeometry} from "./island-visuals.mjs?v=0.8p-island-globe";
+import {buildOriginalModel} from "../original-assets/original-models.mjs";
+import {jointTransformsV2} from "./rig-v2.mjs";
+import {SmoothAnimator} from "./animator.mjs?v=20261118-extended-motion";
+import {makeJointCovers} from "./joint-covers.mjs";
+import {createAppearance,restoreAppearance,buildAppearanceParts} from "./wardrobe.mjs";
+import {ExpressionController,makeFaceParts,expressionPoseValues} from "./expression.mjs";
+import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
+import {CameraController} from "./camera-controller.mjs";
+import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261118-mocap-medical";
+import {CATALOG} from "./lifestyle.mjs";
+import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
+import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
+import {planWorldScenery,patchSceneryHeight} from "./world-scenery.mjs?v=0.8x-rail-safety";
+import {buildSceneryMeshes,buildSceneryInstances,sceneryPrototype} from "./scenery-geometry.mjs?v=0.8e-sized-models";
+import {observationTowerGeometry,settlementResidentsGeometry,townInteriorGeometry} from "./settlement-geometry.mjs?v=0.8s-rooms";
+import {serenoteHarborGeometry,passengerSteamerGeometry,passengerSteamerInteriorGeometry} from "./harbor-geometry.mjs?v=0.8y-harbor";
+import {ferryLocation} from "./passenger-ferry.mjs?v=0.8y-ferry";
+import {railwayStationGeometry,railwayConcourseGeometry,steamTrainGeometry,trainInteriorGeometry,railwayJailGeometry} from "./railway-geometry.mjs?v=0.8y-station";
+import {custodyFacilityGeometry,custodyFacilityDoorGeometry,custodyAtriumGuardrailGeometry} from "./custody-facility-geometry.mjs?v=0.9z-twofloor-jail-foothold-ledge-v09zb";
+import {railwayJourneyPose,railwayTrackSamples,railwayStationCoordinates} from "./railway-world.mjs?v=0.8x-rail-safety";
+import {trackGeometry,trackFenceGeometry,trackCrossingGeometry,wheelSpokesGeometry,connectingRodGeometry,steamPuffGeometry,locomotiveMotion} from "./railway-animated-geometry.mjs?v=0.8z-crossing";
+import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard";
+import {spacecraftGroundGeometry,spacecraftCockpitCrewWindowGeometry} from "./spacecraft-ground-geometry.mjs?v=20261116-crew-glazing";
+import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
+import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261118-clear-view";
+import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
+import {windshieldTelemetry,windshieldBodyId,compassLabel,pitchLadderOffset} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
+import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
+import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261117-crew-life";
+import {shipCameraPose} from "./ship-view-controls.mjs?v=20261107-wide-fov";
+import {starfieldGeometry,exhaustGeometry,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
+import {shipContactPosition,combatEligible,missileTrailPoint,encounterPointToShip,shipEncounterPosition} from "./space-combat.mjs?v=20261117-mining";
+import {bodyById} from "./solar-system.mjs?v=20261112-warp";
+import {CAPTURE_DURATION_SECONDS,capturePose,captureStars,captureStarGeometry} from "./custody-effects.mjs?v=0.9i-capture";
+import {GUARD_POSTS} from "./law-system.mjs?v=0.9e-guard";
+const sub=(a,b)=>a.map((v,i)=>v-b[i]);
+const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l)};
+const CONTACT_HULL_SCALE={fighter:[.55,.6,.6],carrier:[3.4,1.5,3.6],battleship:[2.0,1.5,2.8],cargo:[1.65,1.7,2.5]};
+export function projectScreen(vp,p){
+ const x=vp[0]*p[0]+vp[4]*p[1]+vp[8]*p[2]+vp[12];
+ const y=vp[1]*p[0]+vp[5]*p[1]+vp[9]*p[2]+vp[13];
+ const w=vp[3]*p[0]+vp[7]*p[1]+vp[11]*p[2]+vp[15];
+ if(!(w>.00001)||!Number.isFinite(w))return null;
+ const u=.5+x/w*.5,v=.5-y/w*.5;
+ if(!Number.isFinite(u)||!Number.isFinite(v))return null;
+ return {u,v,onScreen:u>=0&&u<=1&&v>=0&&v<=1};
+}
+export function perspective(fov,aspect,near,far){
+ const f=1/Math.tan(fov/2),q=1/(near-far);
+ return [f/aspect,0,0,0,0,f,0,0,0,0,(far+near)*q,-1,0,0,2*far*near*q,0];
+}
+export function lookAt(eye,target,up=[0,1,0]){
+ const f=norm(sub(target,eye)),s=norm(cross(f,up)),u=cross(s,f);
+ return [s[0],u[0],-f[0],0,s[1],u[1],-f[1],0,s[2],u[2],-f[2],0,-dot(s,eye),-dot(u,eye),dot(f,eye),1];
+}
+export function multiply4(a,b){
+ const out=new Array(16).fill(0);
+ for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];
+ return out;
+}
+const VERT=["#version 300 es","precision highp float;","layout(location=0) in vec3 aPos;","layout(location=1) in vec3 aNorm;","layout(location=2) in vec3 aColor;","layout(location=3) in vec4 aInstance;","layout(location=4) in vec2 aFacing;","uniform mat4 uMvp;uniform float uInstanced;","out vec3 vN;out vec3 vC;out float vDepth;","void main(){"," vec3 p=aPos,n=aNorm;"," if(uInstanced>0.5){","  float c=aFacing.x,s=aFacing.y;","  p=vec3((aPos.x*c+aPos.z*s)*aInstance.w,aPos.y*aInstance.w,(-aPos.x*s+aPos.z*c)*aInstance.w)+aInstance.xyz;","  n=vec3(aNorm.x*c+aNorm.z*s,aNorm.y,-aNorm.x*s+aNorm.z*c);"," }"," vN=n;vC=aColor;gl_Position=uMvp*vec4(p,1.0);vDepth=gl_Position.w;","}"].join("\n");
+const FRAG=["#version 300 es","precision highp float;",
+"in vec3 vN;in vec3 vC;in float vDepth;",
+"uniform vec3 uLight;uniform float uAlpha;uniform vec3 uTint;",
+"uniform float uAmbient;",
+"uniform vec3 uFogParams;uniform vec3 uFogColor;",
+"uniform float uXROcclusionEnabled;uniform vec4 uXROcclusionViewport;",
+"uniform sampler2D uXROcclusionDepth;",
+"out vec4 fragColor;",
+"void main(){",
+" if(uXROcclusionEnabled>0.5){",
+"  vec2 uv=(gl_FragCoord.xy-uXROcclusionViewport.xy)/uXROcclusionViewport.zw;",
+"  float realMeters=texture(uXROcclusionDepth,clamp(uv,0.001,0.999)).r;",
+"  if(realMeters>0.02&&vDepth>realMeters+0.08)discard;",
+" }",
+" float b=max(dot(normalize(vN),normalize(uLight)),0.0);",
+" vec3 lit=vC*uTint*(uAmbient+(1.0-uAmbient)*b);",
+" float f=clamp((vDepth-uFogParams.x)/max(1.0,uFogParams.y-uFogParams.x),0.0,1.0);",
+" float haze=f*f*(3.0-2.0*f)*uFogParams.z;",
+" fragColor=vec4(mix(lit,uFogColor,haze),uAlpha);",
+"}"].join("\n");
+function shader(gl,mode,src){
+ const sh=gl.createShader(mode);gl.shaderSource(sh,src);gl.compileShader(sh);
+ if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error("Shader compile: "+gl.getShaderInfoLog(sh));
+ return sh;
+}
+class Mesh{
+ constructor(gl,b){
+  this.gl=gl;this.vao=gl.createVertexArray();this.buffers=[];
+  gl.bindVertexArray(this.vao);
+  for(const [i,values]of [[0,b.positions],[1,b.normals],[2,b.colors]]){
+   const buffer=gl.createBuffer();this.buffers.push(buffer);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(values ?? b.vertices),gl.STATIC_DRAW);
+   gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,3,gl.FLOAT,false,0,0);
+  }
+  this.indices=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indices);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(b.indices),gl.STATIC_DRAW);
+  this.count=b.indices.length;gl.bindVertexArray(null);
+ }
+ draw(){const gl=this.gl;gl.bindVertexArray(this.vao);gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0)}
+ destroy(){const gl=this.gl;for(const v of this.buffers)gl.deleteBuffer(v);gl.deleteBuffer(this.indices);gl.deleteVertexArray(this.vao)}
+}
+class InstancedMesh extends Mesh{
+ constructor(gl,geometry,transforms){
+  super(gl,geometry);
+  if(transforms.length%6)throw new RangeError("Invalid scenery instance transforms");
+  this.instanceCount=transforms.length/6;
+  // Older GL mocks lack WebGL2 instancing APIs; keep nonvisual unit tests
+  // compatible. Production WebGL2 browsers use the fast instanced path.
+  this.supported=typeof gl.vertexAttribDivisor==="function"&&
+    typeof gl.drawElementsInstanced==="function";
+  if(!this.supported)return;
+  gl.bindVertexArray(this.vao);
+  const buffer=gl.createBuffer();this.buffers.push(buffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,transforms,gl.DYNAMIC_DRAW);
+  this.instanceBuffer=buffer;
+  gl.enableVertexAttribArray(3);gl.vertexAttribPointer(3,4,gl.FLOAT,false,24,0);
+  gl.vertexAttribDivisor(3,1);
+  gl.enableVertexAttribArray(4);gl.vertexAttribPointer(4,2,gl.FLOAT,false,24,16);
+  gl.vertexAttribDivisor(4,1);
+  gl.bindVertexArray(null);
+ }
+ draw(){
+  if(!this.instanceCount)return;
+  if(!this.supported){super.draw();return;}
+  const gl=this.gl;gl.bindVertexArray(this.vao);
+  gl.drawElementsInstanced(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0,this.instanceCount);
+ }
+ updateTransforms(transforms){
+  if(transforms.length!==this.instanceCount*6)throw new RangeError("Instance count mismatch");
+  if(!this.supported||!this.instanceBuffer||typeof this.gl.bufferSubData!=="function")return;
+  this.gl.bindBuffer(this.gl.ARRAY_BUFFER,this.instanceBuffer);
+  this.gl.bufferSubData(this.gl.ARRAY_BUFFER,0,transforms);
+ }
+}
+
+const builder=()=>({positions:[],normals:[],colors:[],indices:[]});
+const rotateY=a=>{const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]};
+const scale3=(x,y,z)=>[x,0,0,0,0,y,0,0,0,0,z,0,0,0,0,1];
+function triangle(b,a,c,d,col){
+ const n=norm(cross(sub(c,a),sub(d,a))),k=b.positions.length/3;
+ b.positions.push(...a,...c,...d);b.normals.push(...n,...n,...n);b.colors.push(...col,...col,...col);b.indices.push(k,k+1,k+2);
+}
+function quad(b,a,c,d,e,col){triangle(b,a,c,d,col);triangle(b,a,d,e,col)}
+function box(b,x,y,z,rx,hh,rz,col){
+ const a=[[x-rx,y,z-rz],[x+rx,y,z-rz],[x+rx,y+hh,z-rz],[x-rx,y+hh,z-rz],
+ [x-rx,y,z+rz],[x+rx,y,z+rz],[x+rx,y+hh,z+rz],[x-rx,y+hh,z+rz]];
+ for(const [i,j,k,l]of [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[1,5,6,2],[4,0,3,7]])quad(b,a[i],a[j],a[k],a[l],col);
+}
+
+/** Mesh-native 3×5 monospaced glyphs appear in WebXR without relying on DOM overlays. */
+const HOLO_FONT=Object.freeze({
+ A:["010","101","111","101","101"],B:["110","101","110","101","110"],C:["011","100","100","100","011"],
+ D:["110","101","101","101","110"],E:["111","100","110","100","111"],F:["111","100","110","100","100"],
+ G:["011","100","101","101","011"],H:["101","101","111","101","101"],I:["111","010","010","010","111"],
+ K:["101","101","110","101","101"],L:["100","100","100","100","111"],M:["101","111","111","101","101"],
+ N:["101","111","111","111","101"],O:["111","101","101","101","111"],P:["110","101","110","100","100"],
+ R:["110","101","110","101","101"],S:["011","100","010","001","110"],T:["111","010","010","010","010"],
+ U:["101","101","101","101","111"],V:["101","101","101","101","010"],W:["101","101","111","111","101"],
+ Y:["101","101","010","010","010"],"0":["111","101","101","101","111"],"1":["010","110","010","010","111"],
+ "2":["110","001","111","100","111"],"3":["110","001","110","001","110"],"4":["101","101","111","001","001"],
+ "5":["111","100","110","001","110"],"6":["011","100","111","101","111"],"7":["111","001","010","010","010"],
+ "8":["111","101","111","101","111"],"9":["111","101","111","001","110"],
+ ".":["000","000","000","000","010"],"-":["000","000","111","000","000"],"%":["101","001","010","100","101"]
+});
+function holoLetters(mesh,text,x,y,z,{size=.009,color=[.68,.95,1]}={}){
+ const word=String(text).toUpperCase().slice(0,10),cell=4*size;
+ const start=x-(word.length*cell-size)*.5;
+ for(let i=0;i<word.length;i++){
+  const glyph=HOLO_FONT[word[i]];
+  if(!glyph)continue;
+  for(let r=0;r<5;r++)for(let col=0;col<3;col++)if(glyph[r][col]==="1")
+   box(mesh,start+i*cell+col*size+size*.5,y-r*size,z,size*.44,size*.9,size*.1,color);
+ }
+}
+/** Quest tablet: original 3D button geometry (no remote video textures). */
+function vrWorldTabletGeometry(){
+ const b=builder();
+ box(b,0,-.255,-.030,.242,.510,.024,[.10,.16,.21]);
+ box(b,0,-.241,-.004,.226,.482,.004,[.014,.065,.092]);
+ box(b,0,.207,.006,.214,.044,.003,[.10,.34,.43]);
+ holoLetters(b,"WORLD",0,.218,.018,{size:.007,color:[.66,.96,1]});
+ const groups=[
+  ["VIDEO",-.15,.14],["WEB",0,.14],["CHAT",.15,.14],
+  ["SET",-.15,0],["MOTION",0,0],["RTS",.15,0],
+  ["WALL",-.15,-.14],["HAND",0,-.14],["OFF",.15,-.14]
+ ];
+ for(const [label,x,y]of groups){
+  const col=label==="OFF"?[.43,.13,.19]:
+   label==="WALL"?[.19,.39,.30]:[.11,.31,.42];
+  box(b,x,y-.054,.010,.064,.108,.006,col);
+  holoLetters(b,label,x,y+.012,.021,{size:.0057,color:[.78,.98,1]});
+ }
+ box(b,0,-.247,.004,.21,.006,.003,[.27,.67,.71]);
+ return b;
+}
+
+function shipHoloPlateGeometry(){
+ const mesh=builder();
+ for(const p of XR_HOLO_PANELS){
+  const left=p.x-p.width*.5,right=p.x+p.width*.5;
+  // Remove the filled slab; panel controls and slim frame remain visible.
+  for(const x of [left,right])box(mesh,x,p.y,p.z+.014,.008,p.height,.015,[.18,.85,.95]);
+  for(const yy of [p.y-p.height*.5,p.y+p.height*.5])
+   box(mesh,p.x,yy,p.z+.014,p.width,.013,.015,[.18,.85,.95]);
+ }
+ for(const s of XR_HOLO_SLIDERS){
+  box(mesh,s.x,s.minY,s.z+.028,.026,s.maxY-s.minY,.012,[.15,.65,.80]);
+  holoLetters(mesh,s.id==="main"?"MAIN":"VOL",s.x,.87,s.z+.04,{size:.009});
+ }
+ for(const b of XR_HOLO_BUTTONS){
+  box(mesh,b.x,b.y-.065,b.z+.023,.135,.13,.015,[.09,.49,.58]);
+  holoLetters(mesh,b.label,b.x,b.y-.13,b.z+.045,{size:.010});
+ }
+ const xs=XR_HOLO_READOUT_X;
+ for(let i=0;i<xs.length;i++){
+  holoLetters(mesh,["SPD","ALT","GRV","FUEL"][i],xs[i],XR_HOLO_READOUT_Y,XR_HOLO_Z+.04,{size:.006});
+  box(mesh,xs[i],XR_HOLO_READOUT_Y-.07,XR_HOLO_Z+.024,.067,.012,.008,[.24,.74,.84]);
+ }
+ return mesh;
+}
+
+/** Mesh-native windscreen symbology: visible in stereoscopic Quest 3S WebXR.
+ * Transparent boxes sit just in front of the physical front canopy.
+ */
+function shipWindshieldMesh(t){
+ const mesh=builder(),z=-12.945,cy=1.55,green=[.40,.96,.80],white=[.82,1,.93];
+ const bar=(x,y,half,thickness=.013,col=green)=>
+  box(mesh,x,y-thickness*.5,z,half,thickness,.003,col);
+ const ladderBar=(x,y,half,thickness,col)=>{
+  const bank=-Math.max(-30,Math.min(30,t.rollDeg||0))*DEG;
+  const tilt=Math.tan(bank),left=x-half,right=x+half;
+  quad(mesh,[left,y+left*tilt-thickness/2,z],
+   [right,y+right*tilt-thickness/2,z],
+   [right,y+right*tilt+thickness/2,z],
+   [left,y+left*tilt+thickness/2,z],col);
+ };
+ // 0-degree horizon runs nearly the entire front pane; the other pitch ticks
+ // climb / fall relative to the fixed boresight when pitch changes.
+ for(let deg=-90;deg<=90;deg+=5){
+  const y=cy-pitchLadderOffset(t.pitchDeg,deg,.043);
+  if(y<.68||y>2.57)continue;
+  const horizon=deg===0,major=deg%10===0;
+  const half=horizon?1.28:major?.52:.31,inner=horizon?.16:.13;
+  ladderBar(-half-inner,y,half,horizon?.018:.011,horizon?white:green);
+  ladderBar(half+inner,y,half,horizon?.018:.011,horizon?white:green);
+  if(major)holoLetters(mesh,String(deg),half*2+inner+.25,y+.02,z+.013,{size:.014});
+ }
+ // Unique W-shaped aircraft reference at the middle of the glass.
+ holoLetters(mesh,"W",0,cy+.065,z+.018,{size:.037,color:white});
+ holoLetters(mesh,t.pitchDeg.toFixed(1),0,cy+.24,z+.018,{size:.013,color:white});
+ // Top compass ruler with 8-point direction labels and tick marks.
+ for(let a=-2;a<=2;a++){
+  const compassDeg=Math.round(t.headingDeg/45)*45+a*45;
+  const relative=((compassDeg-t.headingDeg+540)%360)-180;
+  const x=relative*.033;
+  if(Math.abs(x)>2.75)continue;
+  bar(x,2.63,.018,.075,green);
+  holoLetters(mesh,compassLabel(compassDeg),x,2.81,z+.015,{size:.018,color:white});
+ }
+ bar(0,2.57,.028,.060,white);
+ holoLetters(mesh,String(Math.round(t.headingDeg)),0,2.95,z+.015,{size:.015,color:white});
+ // Port SPD, starboard ALT: no central panel to block the world.
+ holoLetters(mesh,"SPD",-2.50,1.94,z+.018,{size:.027,color:white});
+ holoLetters(mesh,t.speedMps===null?"----":String(Math.round(t.speedMps)),-2.50,1.72,z+.018,{size:.033});
+ holoLetters(mesh,"ALT",2.50,1.94,z+.018,{size:.027,color:white});
+ holoLetters(mesh,t.altitudeM===null?"----":String(Math.round(t.altitudeM)),2.50,1.72,z+.018,{size:.033});
+ // Latitude/longitude remain attached to the lower portion of the canopy.
+ holoLetters(mesh,"LAT",-1.92,.56,z+.015,{size:.022,color:white});
+ holoLetters(mesh,t.lat===null?"----":t.lat.toFixed(3),-.85,.56,z+.015,{size:.020});
+ holoLetters(mesh,"LON",.33,.56,z+.015,{size:.022,color:white});
+ holoLetters(mesh,t.lon===null?"----":t.lon.toFixed(3),1.42,.56,z+.015,{size:.020});
+ return mesh;
+}
+function cone(b,x,y,z,h,r,col,sides=7){
+ for(let i=0;i<sides;i++){
+  const a=i*2*Math.PI/sides,c=(i+1)*2*Math.PI/sides;
+  triangle(b,[x+r*Math.cos(a),y,z+r*Math.sin(a)],[x+r*Math.cos(c),y,z+r*Math.sin(c)],[x,y+h,z],col);
+ }
+}
+
+// Light, procedural marine assets: no external models required.
+export function boatGeometry(kind="raft"){
+ const b=builder(),wood=[.49,.29,.13],dark=[.28,.19,.12],sail=[.81,.78,.64];
+ if(kind==="canoe"){
+  box(b,0,-.27,0,.69,.37,2.35,dark);
+  box(b,0,.06,0,.47,.13,1.9,wood);
+  box(b,0,.2,-.53,.50,.10,.18,sail);
+  box(b,0,.2,.58,.50,.10,.18,sail);
+  for(const sign of [-1,1])box(b,sign*.59,.05,0,.08,.24,2.25,wood);
+ }else{
+  for(let x=-2;x<=2;x++)box(b,x*.37,-.14,0,.175,.25,2.12,wood);
+  for(const z of [-1.3,1.3])box(b,0,.13,z,1.05,.12,.17,dark);
+  box(b,0,.18,0,.1,.2,.7,dark);
+ }
+ return b;
+}
+export function fishGeometry(){
+ const b=builder(),body=[.27,.66,.72],back=[.12,.42,.52],fin=[.84,.69,.24];
+ triangle(b,[-.30,0,0],[.10,.18,.12],[.46,0,0],body);
+ triangle(b,[-.30,0,0],[.46,0,0],[.10,-.18,-.12],back);
+ triangle(b,[-.26,0,0],[-.56,.22,0],[-.56,-.22,0],fin);
+ triangle(b,[-.03,.05,.03],[.16,.31,.02],[.23,.05,.03],fin);
+ return b;
+}
+export function divingEquipmentGeometry(kind){
+ const b=builder(),steel=[.46,.58,.62],cloth=[.21,.32,.42],gold=[.78,.68,.22];
+ if(kind==="snorkel"){
+  for(const x of [-.2,.2])box(b,x,.08,-.18,.19,.08,.42,[.21,.56,.74]);
+  box(b,.30,1.45,-.01,.038,.44,.038,[.75,.81,.89]);
+ }else if(kind==="scuba"){
+  for(const x of [-.17,.17])box(b,x,.68,-.26,.14,.90,.15,steel);
+  box(b,0,.68,-.38,.38,.11,.06,cloth);
+  box(b,0,1.6,.11,.26,.12,.12,[.45,.78,.92]);
+  for(const x of [-.19,.19])box(b,x,.03,-.18,.20,.08,.44,[.20,.52,.65]);
+ }else if(kind==="suit"){
+  box(b,0,.72,0,.47,.68,.35,[.30,.38,.42]);
+  box(b,0,1.40,0,.35,.43,.36,[.41,.50,.54]);
+  box(b,0,1.50,.32,.24,.19,.025,gold);
+  for(const x of [-.62,.62])box(b,x,.89,0,.13,.55,.18,steel);
+  for(const x of [-.22,.22])box(b,x,.14,0,.17,.55,.25,[.40,.49,.52]);
+  box(b,0,.82,-.43,.34,.87,.23,steel);
+ }
+ return b;
+}
+export function submergedSiteGeometry(kind){
+ const b=builder(),wood=[.38,.22,.10],stone=[.38,.51,.49],gold=[.93,.73,.20];
+ if(kind==="wreck"){
+  box(b,0,0,0,3,.40,6,wood);
+  for(const side of [-1,1])box(b,side*2.5,.2,0,.18,1.1,5.6,wood);
+  box(b,0,.2,-2.4,2.5,.45,.21,wood);box(b,0,.2,2.2,2.5,.45,.21,wood);
+  box(b,.9,.3,-.8,.13,4.1,.13,wood);
+ }else if(kind==="treasure"){
+  box(b,0,0,0,.95,.65,.57,wood);box(b,0,.65,0,1.02,.21,.61,gold);
+  for(const x of [-.74,.74])box(b,x,.14,0,.09,.43,.63,gold);
+ }else if(kind==="ruins"){
+  box(b,0,0,0,4,.35,3.2,stone);
+  for(const x of [-2.6,2.6])for(const z of [-1.7,1.7]){
+   box(b,x,.35,z,.35,3.7,.35,stone);box(b,x,4.05,z,.52,.20,.52,[.57,.61,.55]);
+  }
+  box(b,0,0,-2.4,3.7,1.1,.22,[.42,.47,.43]);
+ }else{
+  box(b,0,0,0,3.2,.55,3.2,[.18,.39,.48]);
+  for(const x of [-2.1,2.1])for(const z of [-2.1,2.1]){
+   box(b,x,.6,z,.42,3,.42,[.18,.48,.54]);
+   cone(b,x,3.5,z,1.5,.63,[.39,.85,.90],8);
+  }
+  cone(b,0,.7,0,4.3,1.25,[.25,.80,.83],8);
+ }
+ return b;
+}
+export function deepWaterFishGeometry(){
+ const b=builder(),glow=[.37,.94,.75],fin=[.18,.55,.72];
+ triangle(b,[-.45,0,0],[.22,.28,0],[.68,0,0],glow);
+ triangle(b,[-.45,0,0],[.68,0,0],[.22,-.28,0],fin);
+ triangle(b,[-.45,0,0],[-.79,.40,0],[-.79,-.40,0],glow);
+ box(b,.40,.10,.09,.06,.06,.06,[.96,.89,.24]);
+ return b;
+}
+// Local equipment geometries are in metres; character forward is +Z.
+export const EQUIPMENT_SCALE=Object.freeze({sword:.42,axe:.40,pickaxe:.32,hammer:.38});
+function spearGeometry(){
+ const b=builder(),wood=[.43,.27,.13],leather=[.22,.17,.12],steel=[.78,.84,.87];
+ box(b,0,-.38,0,.027,1.97,.027,wood);
+ box(b,0,-.28,0,.039,.38,.036,leather);
+ box(b,0,1.55,0,.052,.14,.044,steel);
+ cone(b,0,1.67,0,.48,.083,steel,8);
+ for(const x of [-.08,.08])cone(b,x,1.61,0,.18,.038,steel,6);
+ return b;
+}
+function greatswordGeometry(){
+ const b=builder(),leather=[.28,.17,.11],iron=[.49,.52,.56],steel=[.80,.85,.92],edge=[.91,.93,.96];
+ box(b,0,-.52,0,.040,.77,.041,leather);
+ box(b,0,-.57,0,.087,.085,.073,iron);
+ box(b,0,.21,0,.33,.070,.060,iron);
+ for(const x of [-.31,.31])cone(b,x,.22,0,.12,.035,iron,6);
+ box(b,0,.30,0,.128,1.10,.030,steel);
+ for(const x of [-.125,.125])box(b,x,.33,0,.018,1.03,.032,edge);
+ box(b,0,.32,.032,.016,1.10,.008,iron);
+ cone(b,0,1.39,0,.34,.128,edge,6);
+ return b;
+}
+function shieldGeometry(){
+ const b=builder(),face=[.36,.43,.49],rim=[.79,.68,.43],center=[.64,.67,.72];
+ box(b,0,-.10,.06,.23,.55,.035,face);
+ box(b,0,-.10,.10,.025,.55,.05,rim);
+ for(const x of [-.22,.22])box(b,x,-.10,.09,.025,.55,.045,rim);
+ box(b,0,.38,.09,.24,.035,.05,rim);
+ box(b,0,-.08,.14,.10,.18,.065,center);
+ return b;
+}
+function bowGeometry(){
+ const b=builder(),wood=[.51,.29,.15],wrapping=[.27,.18,.11];
+ // Curved upper and lower limbs with a taut string and central wrapped grip.
+ for(let i=0;i<16;i++){
+  const y=-.64+i*.08,mid=y+.04;
+  const z=.17*(1-(mid/.64)**2);
+  box(b,0,y,z,.023,.082,.025,wood);
+ }
+ box(b,0,-.105,.16,.041,.21,.047,wrapping);
+ return b;
+}
+function bowStringGeometry(draw=0){
+ const b=builder(),thread=[.88,.82,.70];
+ const nock=[0,0,-.018-Math.max(0,Math.min(1,draw))*.30];
+ const beam=(a,c)=>{
+  const w=.006;
+  quad(b,[-w,a[1],a[2]],[w,a[1],a[2]],[w,c[1],c[2]],[-w,c[1],c[2]],thread);
+  quad(b,[0,a[1],a[2]-w],[0,a[1],a[2]+w],[0,c[1],c[2]+w],[0,c[1],c[2]-w],thread);
+ };
+ beam([0,.64,-.018],nock);
+ beam(nock,[0,-.64,-.018]);
+ return b;
+}
+function trainingTargetGeometry(){
+ const b=builder();
+ box(b,0,.05,0,.09,1.55,.10,[.45,.29,.13]);
+ box(b,0,1.11,.12,.86,1.05,.08,[.85,.81,.65]);
+ box(b,0,1.26,.213,.66,.74,.025,[.63,.20,.18]);
+ box(b,0,1.40,.245,.42,.46,.025,[.91,.89,.78]);
+ box(b,0,1.51,.278,.20,.24,.025,[.65,.21,.16]);
+ return b;
+}
+function arrowGeometry(type="wood"){
+ const b=builder(),wood=type==="iron"?[.46,.50,.58]:[.65,.46,.25],
+  steel=type==="fire"?[.95,.44,.1]:[.81,.88,.91],
+  fletch=type==="fire"?[.98,.43,.12]:type==="iron"?[.39,.55,.72]:[.84,.25,.16];
+ // Shaft and nock run along +Z: the arrowhead is pointed away from the avatar.
+ box(b,0,-.008,0,.011,.016,.47,wood);
+ for(const sign of [-1,1]){
+  triangle(b,[0,-.008,.56],[sign*.050,-.010,.43],[0,.034,.43],steel);
+  triangle(b,[0,-.008,.56],[0,-.050,.43],[sign*.050,-.010,.43],steel);
+  triangle(b,[sign*.008,0,-.33],[sign*.10,.002,-.47],[sign*.008,.012,-.45],fletch);
+ }
+ if(type==="fire"){
+  cone(b,0,-.005,.51,.23,.065,[1,.43,.10],7);
+  cone(b,0,.08,.51,.17,.041,[1,.77,.13],6);
+ }
+ return b;
+}
+/** Arrow orientation is defined by the actor facing (+Z), NEVER the wrist.
+ * Both nocked and launched arrows share this world-space forward frame.
+ */
+export function projectileTransform(actorFacing,progress=0,hand="right"){
+ const state=bowDrawState(progress);
+ const side=hand==="right"?-1:1;
+ const x=side*.37*(1-state.nocked);
+ const y=1.42-.21*(1-state.nocked)+.11*state.raised;
+ const z=.51+.19*(1-state.nocked)-.31*state.tension+state.flight;
+ return matrixMultiply(actorFacing,translate(x,y,z));
+}
+/** Keep the stave vertical in actor space even when the wrist pitches up
+ * during the draw. Wrist position supplies the hand anchor; actor yaw supplies
+ * orientation. The arrow continues to use that same actor-facing frame.
+ */
+export function uprightBowTransform(wristWorld,actorFacing){
+ const yaw=Math.atan2(actorFacing[8],actorFacing[10]);
+ return matrixMultiply(
+  translate(wristWorld[12],wristWorld[13],wristWorld[14]),
+  matrixMultiply(rotateY(yaw),heldItemTransform("bow"))
+ );
+}
+function enemyGeometry(kind){
+ const b=builder(),eye=[.11,.13,.12],steel=[.64,.68,.72];
+ if(["skeleton","orc","lizardman","demon"].includes(kind))return humanoidMonsterGeometry(kind);
+ if(kind==="slime"){
+  const blue=[.34,.80,.68],dark=[.13,.48,.45];
+  cone(b,0,.09,0,.95,.73,blue,12);
+  box(b,0,.07,0,.55,.18,.50,dark);
+  for(const side of [-1,1])box(b,side*.24,.48,.52,.065,.13,.025,eye);
+ }else if(kind==="goblin"){
+  const green=[.31,.58,.28],cloth=[.38,.27,.18];
+  box(b,0,.48,0,.31,.79,.22,cloth);
+  box(b,0,1.19,.025,.32,.39,.29,green);
+  for(const side of [-1,1]){
+   box(b,side*.35,.30,0,.12,.55,.14,green);
+   box(b,side*.47,.87,0,.11,.55,.13,green);
+   cone(b,side*.43,1.35,0,.21,.16,green,5);
+   box(b,side*.13,1.39,.31,.052,.065,.025,eye);
+  }
+ }else{
+  const coat=[.46,.20,.14],hood=[.24,.23,.24],skin=[.73,.51,.33];
+  box(b,0,.54,0,.35,.90,.25,coat);
+  box(b,0,1.38,0,.27,.34,.27,skin);
+  box(b,0,1.64,-.05,.34,.15,.31,hood);
+  for(const side of [-1,1]){
+   box(b,side*.23,0,0,.13,.57,.15,hood);
+   box(b,side*.46,.69,0,.13,.73,.17,coat);
+  }
+  box(b,0,1.46,.27,.22,.07,.08,hood);
+ }
+ return b;
+}
+/** Unique low-poly silhouettes for four upright fantasy adversaries.
+ * Geometry is original and shares the small coloured vertex-buffer format.
+ * Every creature has a recognisable head, torso, arms, legs and equipment.
+ */
+export function humanoidMonsterGeometry(kind){
+ const b=builder();
+ if(kind==="skeleton"){
+  const bone=[.87,.83,.70],shade=[.60,.61,.56],voidColor=[.09,.13,.16],glow=[.36,.95,.94];
+  // Separate bones / rib cage for an unmistakably skeletal silhouette.
+  box(b,0,.88,0,.16,.48,.12,bone);
+  for(let y=.97;y<1.52;y+=.14){
+   box(b,0,y,.02,.32,.052,.14,bone);
+   box(b,0,y,-.10,.23,.045,.07,shade);
+  }
+  box(b,0,.70,0,.26,.17,.17,shade);
+  for(const side of [-1,1]){
+   box(b,side*.22,0,0,.075,.48,.088,bone);
+   box(b,side*.22,.52,0,.09,.25,.09,bone);
+   box(b,side*.42,1.01,0,.065,.42,.075,bone);
+   box(b,side*.42,1.47,0,.073,.34,.083,shade);
+   box(b,side*.16,1.82,.28,.075,.075,.025,voidColor);
+   box(b,side*.16,1.84,.307,.04,.035,.013,glow);
+  }
+  box(b,0,1.70,0,.26,.39,.25,bone);
+  box(b,0,1.73,.20,.19,.12,.055,shade);
+  box(b,0,1.71,.268,.13,.065,.019,voidColor);
+  // Rusty one-handed sword + dark round shield.
+  box(b,.44,.95,.17,.032,.85,.035,shade);
+  box(b,.44,1.77,.17,.11,.17,.055,bone);
+  box(b,.44,1.19,.17,.16,.055,.065,voidColor);
+  cone(b,-.49,.85,.18,.66,.26,voidColor,9);
+  box(b,-.49,1.05,.43,.23,.13,.035,shade);
+ }else if(kind==="orc"){
+  const skin=[.34,.52,.22],darkSkin=[.21,.35,.19],armor=[.38,.37,.34],
+   iron=[.65,.65,.60],tusk=[.93,.88,.67],eye=[.87,.23,.12];
+  // Wide heavy-set body, thick arms and broad jaw.
+  box(b,0,.73,0,.53,1.00,.39,armor);
+  box(b,0,.64,.39,.48,.20,.078,iron);
+  box(b,0,1.73,0,.29,.16,.25,darkSkin);
+  box(b,0,1.87,.05,.42,.48,.38,skin);
+  box(b,0,1.89,.38,.31,.16,.21,darkSkin);
+  for(const side of [-1,1]){
+   box(b,side*.35,0,0,.22,.72,.22,darkSkin);
+   box(b,side*.70,1.05,0,.22,.64,.24,skin);
+   box(b,side*.72,1.68,0,.30,.28,.30,iron);
+   box(b,side*.73,.88,.04,.23,.18,.22,darkSkin);
+   cone(b,side*.24,1.97,.39,.29,.10,tusk,6);
+   box(b,side*.17,2.12,.41,.064,.075,.026,eye);
+  }
+  // Broad iron-headed war club in one hand.
+  box(b,.73,.38,.16,.070,1.21,.072,[.40,.26,.16]);
+  box(b,.73,1.56,.16,.22,.42,.24,iron);
+  for(let i=0;i<3;i++)cone(b,.60+i*.15,1.91,.16,.16,.055,iron,5);
+ }else if(kind==="lizardman"){
+  const scale=[.19,.55,.47],belly=[.65,.68,.36],dark=[.08,.30,.30],
+   claw=[.91,.86,.65],eye=[.89,.71,.16],steel=[.62,.74,.73];
+  box(b,0,.78,0,.34,.91,.23,scale);
+  box(b,0,.80,.23,.22,.80,.035,belly);
+  for(const side of [-1,1]){
+   box(b,side*.22,0,0,.145,.74,.18,dark);
+   box(b,side*.45,1.08,0,.14,.55,.17,scale);
+   box(b,side*.44,1.59,0,.16,.16,.16,dark);
+   box(b,side*.13,1.99,.37,.050,.07,.025,eye);
+   cone(b,side*.25,2.14,-.04,.19,.13,scale,6);
+  }
+  box(b,0,1.69,0,.20,.18,.19,dark);
+  box(b,0,1.82,.05,.28,.40,.29,scale);
+  box(b,0,1.87,.33,.25,.14,.25,scale);
+  box(b,0,1.80,.37,.23,.07,.21,belly);
+  // The long counterbalancing tail extends behind the legs.
+  triangle(b,[-.23,.76,-.19],[.23,.76,-.19],[0,.28,-1.37],scale);
+  triangle(b,[0,.98,-.18],[-.23,.76,-.19],[0,.28,-1.37],dark);
+  triangle(b,[.23,.76,-.19],[0,.98,-.18],[0,.28,-1.37],scale);
+  // Trident carried by the right hand.
+  box(b,.47,.27,.15,.036,2.04,.038,[.43,.31,.20]);
+  for(const offset of [-.15,0,.15])
+   cone(b,.47+offset,2.28,.15,.32,.072,steel,6);
+  box(b,.47,2.18,.15,.22,.06,.055,steel);
+  for(const sign of [-1,1])cone(b,sign*.19,2.18,.04,.14,.06,claw,5);
+ }else if(kind==="demon"){
+  const skin=[.39,.19,.29],armor=[.22,.17,.32],trim=[.67,.34,.50],
+   horn=[.21,.14,.18],eye=[1,.25,.32],blade=[.78,.47,.64];
+  // Armoured humanoid with horns, imposing pauldrons, cape and sword.
+  box(b,0,.73,0,.42,1.02,.31,armor);
+  box(b,0,1.17,.31,.35,.11,.04,trim);
+  box(b,0,.74,.33,.44,.13,.065,trim);
+  for(const side of [-1,1]){
+   box(b,side*.27,0,0,.18,.73,.20,armor);
+   box(b,side*.28,.67,.10,.21,.13,.23,trim);
+   box(b,side*.54,1.06,0,.16,.63,.18,skin);
+   box(b,side*.55,1.68,0,.32,.27,.28,armor);
+   cone(b,side*.65,1.82,-.03,.32,.16,trim,7);
+   cone(b,side*.29,2.08,-.07,.58,.125,horn,7);
+   box(b,side*.14,2.12,.31,.067,.09,.027,eye);
+  }
+  box(b,0,1.74,0,.22,.16,.21,trim);
+  box(b,0,1.86,.02,.28,.42,.27,skin);
+  box(b,0,2.17,.02,.31,.15,.33,armor);
+  // Large cape: visible dark wings behind the body.
+  triangle(b,[-.44,1.68,-.25],[-.66,.20,-.49],[0,1.01,-.29],armor);
+  triangle(b,[.44,1.68,-.25],[0,1.01,-.29],[.66,.20,-.49],armor);
+  box(b,.55,.77,.23,.07,1.20,.055,horn);
+  box(b,.55,1.95,.23,.17,.22,.075,blade);
+  box(b,.55,.94,.23,.24,.07,.10,trim);
+ }
+ return b;
+}
+/** Each part is its own vertex mesh with a named local pivot.
+ * Root/hip/shoulder/elbow/knee transforms can be animated separately.
+ * Colors and face/weapon accents keep the species visually distinguishable.
+ */
+export function articulatedMonsterGeometry(kind){
+ const palette={
+  goblin:{skin:[.30,.58,.24],armor:[.46,.32,.16],metal:[.64,.62,.49],eye:[.80,.19,.12],w:.29},
+  bandit:{skin:[.75,.57,.41],armor:[.39,.21,.17],metal:[.66,.68,.71],eye:[.12,.17,.17],w:.34},
+  skeleton:{skin:[.88,.83,.72],armor:[.36,.36,.38],metal:[.73,.74,.72],eye:[.07,.10,.12],w:.24},
+  orc:{skin:[.35,.56,.27],armor:[.38,.37,.31],metal:[.70,.68,.60],eye:[.82,.23,.14],w:.49},
+  lizardman:{skin:[.20,.57,.47],armor:[.25,.42,.36],metal:[.67,.78,.75],eye:[.95,.70,.15],w:.34},
+  demon:{skin:[.43,.23,.35],armor:[.23,.17,.32],metal:[.77,.42,.56],eye:[.98,.25,.30],w:.40}
+ };
+ const p=palette[kind];if(!p)throw RangeError("Unknown humanoid monster: "+kind);
+ const out=Object.fromEntries(["torso","head","leftUpper","leftLower","rightUpper","rightLower",
+  "leftThigh","leftShin","rightThigh","rightShin","weapon","shield"].map(n=>[n,builder()]));
+ const isBone=kind==="skeleton";
+ const W=p.w;
+ // Main body is local to a pelvis joint at 1.18m.
+ box(out.torso,0,-.24,0,W,.68,.23,p.armor);
+ box(out.torso,0,-.23,.24,W*.77,.09,.035,p.metal);
+ if(isBone){
+  box(out.torso,0,-.20,.26,.06,.43,.045,p.skin);
+  for(let y=-.14;y<.28;y+=.125){
+   box(out.torso,0,y,.28,.21,.04,.055,p.skin);
+  }
+ }else{
+  box(out.torso,0,.18,.24,W*.8,.065,.045,p.metal);
+  if(kind==="orc")box(out.torso,0,-.12,.28,W*.85,.25,.10,p.skin);
+ }
+ if(kind==="demon"){
+  triangle(out.torso,[-W,.28,-.18],[-W*1.5,-.65,-.32],[0,-.47,-.34],p.armor);
+  triangle(out.torso,[W,.28,-.18],[0,-.47,-.34],[W*1.5,-.65,-.32],p.armor);
+ }
+ if(kind==="lizardman"){
+  triangle(out.torso,[-.15,-.37,-.17],[.15,-.37,-.17],[0,-.72,-1.25],p.skin);
+  triangle(out.torso,[0,-.18,-.12],[-.15,-.37,-.17],[0,-.72,-1.25],p.armor);
+ }
+ // Head mesh lives in neck-relative coordinates.
+ box(out.head,0,0,.02,W*.74,.37,.25,p.skin);
+ box(out.head,-W*.31,.20,.28,.052,.073,.023,p.eye);
+ box(out.head,W*.31,.20,.28,.052,.073,.023,p.eye);
+ if(isBone){
+  box(out.head,0,-.09,.27,W*.56,.095,.052,p.armor);
+  box(out.head,0,-.20,.20,W*.48,.06,.08,p.skin);
+ }else if(kind==="orc"){
+  box(out.head,0,-.10,.29,W*.67,.17,.19,p.skin);
+  for(const sign of [-1,1])cone(out.head,sign*W*.44,-.03,.46,.21,.072,[.92,.85,.65],6);
+ }else if(kind==="lizardman"){
+  box(out.head,0,-.02,.28,W*.65,.125,.25,p.skin);
+  for(const sign of [-1,1])cone(out.head,sign*W*.5,.27,-.05,.18,.1,p.skin,6);
+ }else if(kind==="demon"){
+  for(const sign of [-1,1])cone(out.head,sign*W*.53,.29,-.04,.43,.12,p.metal,7);
+ }else if(kind==="bandit"){
+  box(out.head,0,.28,-.06,W*.92,.15,.33,p.armor);
+ }else{
+  for(const sign of [-1,1])cone(out.head,sign*W*.65,.15,-.08,.17,.085,p.skin,6);
+ }
+ // Joint-local arm segments; negative Y extends toward the next hinge.
+ for(const side of ["left","right"]){
+  const upper=out[side+"Upper"],lower=out[side+"Lower"];
+  box(upper,0,-.36,-.01,W*.40,.38,.17,p.skin);
+  box(upper,0,-.08,0,W*.54,.18,.20,p.armor);
+  box(lower,0,-.33,0,W*.36,.34,.15,p.skin);
+  box(lower,0,-.31,.01,W*.43,.12,.16,p.armor);
+  const thigh=out[side+"Thigh"],shin=out[side+"Shin"];
+  box(thigh,0,-.41,0,W*.46,.43,.19,p.armor);
+  box(shin,0,-.35,0,W*.38,.36,.16,p.skin);
+  box(shin,0,-.39,.12,W*.49,.085,.23,p.armor);
+  if(isBone){
+   box(thigh,0,-.34,.205,W*.16,.32,.045,p.skin);
+   box(shin,0,-.28,.17,W*.13,.31,.05,p.skin);
+  }
+ }
+ // Right-hand weapon follows wrist/elbow movement, with a defined blade axis.
+ if(kind==="lizardman"){
+  box(out.weapon,0,-.13,.03,.033,1.56,.035,[.47,.31,.17]);
+  for(const o of [-.12,0,.12])cone(out.weapon,o,1.41,.03,.31,.055,p.metal,6);
+  box(out.weapon,0,1.36,.03,.20,.06,.07,p.metal);
+ }else if(kind==="orc"){
+  box(out.weapon,0,-.12,0,.055,1.09,.06,[.46,.33,.18]);
+  box(out.weapon,0,.86,0,.20,.33,.24,p.metal);
+  for(const x of [-.13,.13])cone(out.weapon,x,1.14,0,.17,.070,p.metal,5);
+ }else{
+  box(out.weapon,0,-.20,0,.05,.44,.06,[.39,.27,.19]);
+  box(out.weapon,0,.12,0,.22,.075,.09,p.metal);
+  box(out.weapon,0,.19,0,.095,.72,.052,p.metal);
+  cone(out.weapon,0,.87,0,.19,.095,p.metal,5);
+ }
+ // Left arm can raise a shield to block the player's swing.
+ const shield=p.armor,iron=p.metal;
+ box(out.shield,0,-.14,.20,W*.73,.43,.075,shield);
+ box(out.shield,0,-.06,.283,W*.58,.09,.018,iron);
+ if(kind==="skeleton")cone(out.shield,0,-.26,.24,.52,W*.67,iron,8);
+ return out;
+}
+function enemyHealthMesh(fill){
+ const b=builder();box(b,0,0,0,.49,.085,.042,fill?[.27,.91,.43]:[.11,.16,.20]);return b;
+}
+export function heldItemTransform(kind){
+ const grip=translate(0,-.155,.05);
+ // Blades point ahead at rest, instead of hanging downward from the wrist.
+ // A bow retains its vertical shape while the arrow points ahead.
+ return ["bow","shield","fishingRod"].includes(kind)?grip:multiply4(grip,rotX(Math.PI/2));
+}
+function sphereGeometry(terrain,planet){
+ const ground=builder(),clouds=builder(),R=600,resLat=64,resLon=128;
+ for(let j=0;j<resLat;j++)for(let i=0;i<resLon;i++){
+  const la=-90+j*180/resLat,lb=-90+(j+1)*180/resLat,lo=-180+i*360/resLon,lp=-180+(i+1)*360/resLon;
+  const coords=[[la,lo],[la,lp],[lb,lp],[lb,lo]],ss=coords.map(([a,b])=>terrainSurface(terrain,a,b));
+  const mean=ss.reduce((a,b)=>a+b.elevationM,0)/4,lat=(la+lb)/2,lon=(lo+lp)/2;
+  const temp=28-Math.abs(lat)*.61-Math.max(0,mean)*.006;
+  const sea=ss.filter(s=>s.water).length>=2;
+  const col=sea?[.07,.26,.51]:temp<-3||mean>3200?[.86,.90,.91]:mean>1900?[.51,.49,.42]:
+   temp>29?[.60,.56,.35]:mean>1200?[.34,.49,.24]:[.15,.43,.24];
+  const points=coords.map(([a,b],k)=>geoNormal(a,b).map(v=>v*(R+Math.max(0,ss[k].elevationM)*3/planet.radiusM*R)));
+  quad(ground,points[0],points[3],points[2],points[1],col);
+  const n=geoNormal(lat,lon);
+  if(noise3(n[0]*8+3,n[1]*8,n[2]*8-1,planet.seed+91)>.20){
+   // Cloud deck near 13 km, rather than the old 85 km shell.
+   const pp=coords.map(c=>geoNormal(...c).map(v=>v*(R+1.2)));
+   quad(clouds,pp[0],pp[3],pp[2],pp[1],[.91,.95,1]);
+  }
+ }
+ return {ground,clouds,R};
+}
+// Original world meshes share the same vertex-color format as the WebGL adapter.
+// Each tree is a compact triangle hierarchy; no third-party model imports.
+const natureModelCache=new Map();
+function original(id){
+ if(!natureModelCache.has(id))natureModelCache.set(id,buildOriginalModel(id));
+ return natureModelCache.get(id);
+}
+function appendModel(b,model,x,y,z,scale=1,angle=0){
+ const c=Math.cos(angle),s=Math.sin(angle);
+ for(const part of model.parts){
+   const mesh=part.geometry, offset=b.positions.length/3;
+   for(let k=0;k<mesh.positions.length;k+=3){
+     const px=mesh.positions[k]*scale,pz=mesh.positions[k+2]*scale;
+     b.positions.push(x+c*px-s*pz,y+mesh.positions[k+1]*scale,z+s*px+c*pz);
+     const nx=mesh.normals[k],ny=mesh.normals[k+1],nz=mesh.normals[k+2];
+     b.normals.push(c*nx-s*nz,ny,s*nx+c*nz);
+   }
+   b.colors.push(...mesh.colors);
+   for(const idx of mesh.indices)b.indices.push(idx+offset);
+ }
+}
+
+export class ExplorerRenderer{
+ constructor(canvas,planet,terrain){
+  const gl=canvas.getContext("webgl2",{antialias:true,alpha:true,powerPreference:"high-performance"});
+  if(!gl)throw Error("WebGL2が利用できません。対応ブラウザを利用してください。");
+  this.gl=gl;this.canvas=canvas;this.planet=planet;this.terrain=terrain;
+  this.xrView=null; // ephemeral per-eye WebXR pass, never serialized
+  const vrBox=builder();box(vrBox,0,0,0,.5,1,.5,[1,1,1]);
+  this.vrBodySegment=new Mesh(gl,vrBox);
+  this.vrTabletMesh=new Mesh(gl,vrWorldTabletGeometry());
+
+  this.cameraController=new CameraController();
+  this.fogMode="auto";this.adaptiveTerrainLOD=new AdaptiveTerrainLOD();this.lastFog=null;
+  this.actorMarker=null;
+  this.screenActors=[];this.screenResources=[];this.resourceNodes=[];this.selectedResource=null;this.mapFocus=null;
+  this.screenAnimals=[];this.fauna=null;this.farm=null;this.screenFarms=[];this.farmMeshes=new Map();this.animalGrazeMeshes=new Map();
+  this.animalMeshes=Object.fromEntries(["horse","cattle","sheep","goat","chicken","dog","cat"].map(k=>
+   [k,new Mesh(gl,faunaGeometry(k))]));this.horseTackMeshes=new Map();
+   this.fallingTrees=new Map();this.cloudEast=0;this.cloudNorth=0;this.cloudOriginEast=0;this.cloudOriginNorth=0;this.cloudCoverBand=null;
+  this.squad=null;
+  this.npcAnimators=new Map();
+  const ring=builder();
+  for(let i=0;i<24;i++){
+   const a=i*Math.PI/12,b=(i+1)*Math.PI/12;
+   quad(ring,[Math.cos(a)*1.15,.06,Math.sin(a)*1.15],
+     [Math.cos(b)*1.15,.06,Math.sin(b)*1.15],
+     [Math.cos(b)*1.40,.06,Math.sin(b)*1.40],
+     [Math.cos(a)*1.40,.06,Math.sin(a)*1.40],[.15,.96,1]);
+  }
+  this.selectionRing=new Mesh(gl,ring);
+   this.custodyStarMesh=new Mesh(gl,captureStarGeometry());
+   this.captureFX=null;
+   this.custodyCell=null;this.custodyKind=null;this.custodyFacility=null;
+  const pg=gl.createProgram();gl.attachShader(pg,shader(gl,gl.VERTEX_SHADER,VERT));
+  gl.attachShader(pg,shader(gl,gl.FRAGMENT_SHADER,FRAG));gl.linkProgram(pg);
+  if(!gl.getProgramParameter(pg,gl.LINK_STATUS))throw Error("Shader link: "+gl.getProgramInfoLog(pg));
+  this.program=pg;this.uMvp=gl.getUniformLocation(pg,"uMvp");this.uLight=gl.getUniformLocation(pg,"uLight");
+  this.uAlpha=gl.getUniformLocation(pg,"uAlpha");this.uAmbient=gl.getUniformLocation(pg,"uAmbient");this.uTint=gl.getUniformLocation(pg,"uTint");this.uInstanced=gl.getUniformLocation(pg,"uInstanced");
+  this.uFogParams=gl.getUniformLocation(pg,"uFogParams");this.uFogColor=gl.getUniformLocation(pg,"uFogColor");
+  this.uXROcclusionEnabled=gl.getUniformLocation(pg,"uXROcclusionEnabled");
+  this.uXROcclusionViewport=gl.getUniformLocation(pg,"uXROcclusionViewport");
+  this.uXROcclusionDepth=gl.getUniformLocation(pg,"uXROcclusionDepth");
+  const earth=sphereGeometry(terrain,planet);this.R=earth.R;
+  this.globeIslands=new Mesh(gl,globeIslandGeometry(terrain,this.R));
+  this.globe=new Mesh(gl,earth.ground);this.cloud=new Mesh(gl,earth.clouds);
+  this.orbitDetail=null;this.orbitDetailCenter=null;this.orbitDetailRadius=0;
+  this.patch=null;this.distantLandscape=null;this.distantCenter=null;this.distantKey=null;this.lakeWater=null;this.riverWater=null;this.oceanWave=null;this.lastWaveAt=-1;this.marineClock=0;this.marine=null;this.groundClouds=null;this.trees=[];this.meadow=[];this.settlement=[];this.settlementDecor=[];this.residentMeshes=[];this.settlementId="pioneer";this.townInterior=null;this.townRoomMeshes=new Map();this.townIndoorAvatarMesh=null;this.screenTownResidents=[];this.screenTownBuildings=[];this.townSites=[];this.sceneryStats=null;this.patchKey=null;
+   this.railway=null;this.railwaySecurity=null;this.trainInterior=null;this.trainClock=0;
+  this.ferry=null;this.harborMesh=new Mesh(gl,serenoteHarborGeometry());
+  this.passengerSteamerMesh=new Mesh(gl,passengerSteamerGeometry());
+  this.ferryCabinMesh=new Mesh(gl,passengerSteamerInteriorGeometry());
+   this.railwayStationMesh=new Mesh(gl,railwayStationGeometry());
+   this.railwayConcourseMesh=new Mesh(gl,railwayConcourseGeometry());
+   this.railwayJailMesh=new Mesh(gl,railwayJailGeometry());
+   this.custodyFacilityMesh=new Mesh(gl,custodyFacilityGeometry());
+   this.custodyRailMesh=new Mesh(gl,custodyAtriumGuardrailGeometry());
+   this.custodyDoorMesh=new Mesh(gl,custodyFacilityDoorGeometry());
+   this.railGuardMesh=new Mesh(gl,settlementResidentsGeometry([{id:"rail-guard",x:0,z:0,clothing:5}],()=>0));
+   this.law=null;this.screenGuards=[];
+   this.lawGuardMeshes=Object.fromEntries(["guard","knight"].map(kind=>[kind,
+    {calm:Array.from({length:4},(_,phase)=>new Mesh(gl,guardGeometry(kind,phase))),
+     fighting:Array.from({length:4},(_,phase)=>new Mesh(gl,guardGeometry(kind,phase,{hostile:true})))}]));
+   this.lawPostMeshes={crown:new Mesh(gl,guardPostGeometry()),
+    player:new Mesh(gl,guardPostGeometry({occupied:true}))};
+   this.railWheelSpokes=new Mesh(gl,wheelSpokesGeometry());
+   this.railConnectingRod=new Mesh(gl,connectingRodGeometry());
+   this.railSmokePuff=new Mesh(gl,steamPuffGeometry());
+   this.railCrossingMesh=new Mesh(gl,trackCrossingGeometry());
+   this.railJourneyPatch=null;this.railJourneyTrack=null;this.railJourneyTrees=[];
+   this.railJourneyGrass=[];this.railJourneyOrigin=null;this.railJourneyGeo=null;
+   this.railJourneyData=null;this.railJourney=null;this.railCameraFixed=null;
+   this.railJourneyHorizon=null;this.railJourneyHorizonGeo=null;
+   this.trainWindowHorizon=null;this.trainWindowHorizonGeo=null;this.railwayLocations=null;this.stationTrackMesh=null;this.stationFenceMesh=null;this.stationTrackId=null;
+   this.trainWindowPatch=null;this.trainWindowGeo=null;this.trainPersonMesh=null;this.trainPersonKey=null;
+   this.railwayTrainMesh=new Mesh(gl,steamTrainGeometry());this.trainRoomMeshes=new Map();
+   this.resourceHarvest=null;
+  // Original segmented humanoid; each mesh is parented to a semantic joint.
+  this.avatarStyle="pioneer";
+  this.rigParts=[];
+  this.animator=new SmoothAnimator();
+   this.avatarDailyMotion=null;
+   const avatarProp=builder();box(avatarProp,0,-.11,0,.19,.22,.17,[.68,.47,.26]);
+   this.avatarActionProp=new Mesh(gl,avatarProp);
+  this.expression=new ExpressionController();
+  this.appearance=createAppearance("pioneer","pioneer");
+  this.setAppearance(this.appearance);
+  this.tools={};
+  for(const [tool,scale] of Object.entries(EQUIPMENT_SCALE)){
+    const src=original(tool).parts[0].geometry;
+    // Reduce oversized display meshes; retain the original tool geometry for exports.
+    const b={positions:[],normals:[...src.normals],colors:[...src.colors],indices:[...src.indices]};
+    for(let k=0;k<src.positions.length;k+=3){
+      b.positions.push(src.positions[k]*scale,src.positions[k+1]*scale,src.positions[k+2]*scale);
+    }
+    this.tools[tool]=new Mesh(gl,b);
+  }
+  this.tools.spear=new Mesh(gl,spearGeometry());
+   this.tools.greatsword=new Mesh(gl,greatswordGeometry());
+   this.tools.bow=new Mesh(gl,bowGeometry());
+  this.tools.shield=new Mesh(gl,shieldGeometry());
+  this.bowStrings=Array.from({length:9},(_,i)=>new Mesh(gl,bowStringGeometry(i/8)));
+  this.tools.arrow=new Mesh(gl,arrowGeometry());
+   this.typedArrows={wood:this.tools.arrow,iron:new Mesh(gl,arrowGeometry("iron")),
+    fire:new Mesh(gl,arrowGeometry("fire"))};
+  this.practiceTargetMesh=new Mesh(gl,trainingTargetGeometry());
+  this.arrowWorld=null;this.screenArrows=[];this.screenTargets=[];
+  this.battle=null;
+  // Humanoids now use 12 articulated meshes each; only slime needs a static mesh.
+  this.enemyMeshes={slime:new Mesh(gl,enemyGeometry("slime"))};
+  this.animatedEnemies=Object.fromEntries(HUMANOID_MONSTERS.map(kind=>
+   [kind,Object.fromEntries(Object.entries(articulatedMonsterGeometry(kind))
+    .map(([name,g])=>[name,new Mesh(gl,g)]))]));
+  this.enemyHealthTrack=new Mesh(gl,enemyHealthMesh(false));
+  this.enemyHealthFill=new Mesh(gl,enemyHealthMesh(true));
+  this.buildingMeshes=this.makeBuildingMeshes(gl);
+  this.roomMeshes=this.makeRoomMeshes(gl);this.doorAngles=new Map();this.screenDoors=[];this.screenShelves=[];this.interiorBuildingId=null;
+  this.lifeMeshes={};
+  for(const kind of Object.keys(CATALOG).filter(k=>CATALOG[k].inside))this.lifeMeshes[kind]=new Mesh(gl,furnitureGeometry(kind));
+  this.campMeshes={tent:new Mesh(gl,campGeometry("tent")),tentCutaway:new Mesh(gl,campGeometry("tent",true)),
+   bedroll:new Mesh(gl,campGeometry("bedroll")),fire:new Mesh(gl,flameGeometry())};
+  this.dishMeshes={};
+  for(const kind of ["plate","bowl","cup","pot"])this.dishMeshes[kind]=new Mesh(gl,dishGeometry(kind));
+  this.sceneLife=null;this.screenFurniture=[];this.screenCamps=[];
+  this.boatMeshes={raft:new Mesh(gl,boatGeometry("raft")),canoe:new Mesh(gl,boatGeometry("canoe"))};
+   this.sailingShipMeshes=[0,.5,1].map(trim=>new Mesh(gl,sailingShipGeometry(trim)));
+   this.shipCabinShell=new Mesh(gl,shipCabinGeometry());
+   const shipDoor=builder();
+   box(shipDoor,0,0,0,.53,1.69,.07,[.40,.24,.12]);
+   box(shipDoor,.37,.81,.085,.052,.14,.035,[.91,.72,.38]);
+   this.shipDoorMesh=new Mesh(gl,shipDoor);
+   this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
+   this.surfaceStarship=null;
+   this.shipVoyage=null;this.shipArrivalPreview=null;this.shipCombat=null;this.shipTargets=[];
+   this.shipCameraMode="cockpit";this.shipHUDMode="glass";this.shipRemotePilot=false;this.shipWideView=true;this.shipCockpitFov=108;this.shipChaseDistance=52;
+   this.shipOrbitYaw=0;this.shipOrbitPitch=.31;
+   this.avatarV10=normalizeAvatarRoster();
+   this.avatarV10Assets=new AvatarV10Assets(gl);
+   this.shipCrewFallbacks=new Map();
+   this.shipCrewView=false;
+   this.shipCrewHitPoints=[];
+   this.shipCrewCamera=null;
+   this.shipUnifiedMeshes=[
+    new Mesh(gl,sharedShipInteriorGeometry(false)),
+    new Mesh(gl,sharedShipInteriorGeometry(true))
+   ];
+   this.shipPlanetSphere=new Mesh(gl,celestialBallGeometry([1,1,1]));
+   this.shipCrewWindow=new Mesh(gl,spacecraftCockpitCrewWindowGeometry());
+   this.shipCrewWindowFrame=new Mesh(gl,spacecraftCockpitCrewWindowGeometry({standIns:false}));
+   // Small luminous three-dot radio bubbles stay in the same world-space
+   // coordinate frame as each speaker (including stereoscopic Quest VR).
+   const crewChatGlyph=builder();
+   for(const x of [-.16,0,.16])box(crewChatGlyph,x,0,0,.035,.035,.012,[.56,.96,.87]);
+   box(crewChatGlyph,0,-.065,0,.28,.009,.008,[.20,.65,.68]);
+   this.shipCrewTalkMarker=new Mesh(gl,crewChatGlyph);
+   this.shipCockpitButtons=new Mesh(gl,celestialBallGeometry([1,1,1],10,16));
+   this.shipHoloPlate=new Mesh(gl,shipHoloPlateGeometry());
+   this.shipWindshieldHUD=null;this.shipWindshieldHUDKey="";
+    this.shipHoloReadout=null;this.shipHoloReadoutKey="";
+    // Premium compact HOTAS. Model grip centres coincide with XR_HOTAS targets.
+    const hotasPedestal=builder(),throttleGrip=builder(),flightStick=builder();
+    box(hotasPedestal,0,0,0,.135,.09,.135,[.11,.17,.22]);
+    box(hotasPedestal,0,.073,0,.105,.028,.110,[.48,.60,.67]);
+    for(const x of [-.092,.092])box(hotasPedestal,x,.093,-.06,.010,.009,.013,[.11,.90,.82]);
+    // Port: compact sliding power lever with machined detent rail and rubber grip.
+    box(throttleGrip,0,.06,0,.022,.175,.024,[.52,.62,.68]);
+    box(throttleGrip,0,.166,0,.074,.075,.076,[.14,.25,.31]);
+    box(throttleGrip,0,.226,-.012,.070,.025,.070,[.35,.48,.53]);
+    for(const x of [-.053,.053])box(throttleGrip,x,.176,.004,.006,.036,.034,[.32,.62,.67]);
+    // Starboard: tapered fly-by-wire stick, thumb hat and index trigger.
+    box(flightStick,0,.035,0,.026,.150,.028,[.48,.61,.68]);
+    box(flightStick,0,.137,.003,.057,.105,.055,[.12,.24,.33]);
+    box(flightStick,0,.216,-.018,.050,.034,.050,[.31,.46,.55]);
+    box(flightStick,.012,.194,-.067,.023,.022,.026,[.95,.68,.25]);
+    box(flightStick,-.052,.139,-.026,.012,.046,.015,[.33,.73,.77]);
+    this.shipHotasBase=new Mesh(gl,hotasPedestal);
+    this.shipHotasLevers={left:new Mesh(gl,throttleGrip),right:new Mesh(gl,flightStick)};
+    this.shipVRHotas=null;
+   const contactGem=builder();
+   cone(contactGem,0,0,0,.78,.41,[1,1,1],4);
+   cone(contactGem,0,0,0,-.78,.41,[1,1,1],4);
+   this.shipContactGem=new Mesh(gl,contactGem);
+   this.shipScannedIds=new Set();
+   this.shipCockpitControls=[];this.shipControlLayout=["scan","weapon","fire","hatch"];
+   this.shipShieldSphere=new Mesh(gl,celestialBallGeometry([.30,.68,1]));
+   this.shipStars=new Mesh(gl,starfieldGeometry());
+   this.shipExhaustMeshes={
+    cruise:new Mesh(gl,exhaustGeometry("cruise")),
+    boost:new Mesh(gl,exhaustGeometry("boost")),
+    reverse:new Mesh(gl,exhaustGeometry("reverse"))
+   };
+   this.shipTerrainPatch=null;this.shipTerrainKey="";
+   this.shipGearUpMesh=new Mesh(gl,spacecraftGroundGeometry(false,false));
+   this.surfaceShipMeshes=[new Mesh(gl,spacecraftGroundGeometry(false)),new Mesh(gl,spacecraftGroundGeometry(true))];
+   this.screenMarineFurniture=[];
+   const rod=builder();
+   box(rod,0,.05,0,.019,2.8,.019,[.53,.35,.16]);
+   box(rod,0,2.63,0,.009,.38,.009,[.82,.80,.71]);
+   this.fishingRod=new Mesh(gl,rod);
+   this.tools.fishingRod=new Mesh(gl,rod);
+   const float=builder();
+   cone(float,0,0,0,.23,.13,[.90,.22,.15],8);
+   box(float,0,-.13,0,.08,.13,.08,[.96,.94,.74]);
+   this.fishingFloat=new Mesh(gl,float);
+  this.fishMesh=new Mesh(gl,fishGeometry());
+  this.seabedMesh=null;this.seabedAnchor=null;this.screenUnderseaSites=[];
+  this.divingEquipmentModels=Object.fromEntries(["snorkel","scuba","suit"]
+   .map(kind=>[kind,new Mesh(gl,divingEquipmentGeometry(kind))]));
+  this.deepFishMesh=new Mesh(gl,deepWaterFishGeometry());
+  this.underseaModels=Object.fromEntries(Object.keys(SEA_SITE_TYPES)
+   .map(kind=>[kind,new Mesh(gl,submergedSiteGeometry(kind))]));
+  this.placedMeshes=Object.fromEntries([...new Set([...BUILD_KINDS,...OWNER_BUILDING_KINDS])].map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
+   this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;
+   this.ownerPrimitiveMeshes=Object.fromEntries(["cube","cylinder","sphere","cone"].map(kind=>[kind,new Mesh(gl,ownerPrimitiveGeometry(kind))]));
+  this.constructionSystem=null;
+  this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
+   this.fwResourceMeshes={};
+   const colors={wood:[.40,.24,.15],stone:[.54,.59,.62],fiber:[.27,.64,.35],food:[.80,.31,.23],water:[.22,.59,.84]};
+   for(const [kind,color] of Object.entries(colors)){
+    const geo=builder();box(geo,0,0,0,.48,.85,.48,color);
+    if(kind==='wood'||kind==='fiber')cone(geo,0,.86,0,.6,.55,color);
+    this.fwResourceMeshes[kind]=new Mesh(gl,geo);
+   }
+  this.pickVP=null;this.groundPatchData=null;
+  this.orbitVP=null;this.orbitOffsetDeg=0;this.selectedLanding=null;this.screenLanding=null;
+  this.orbitPan=null;this.lastOrbitCenter=null;this.orbitFocus=null;
+  gl.enable(gl.DEPTH_TEST);
+ }
+ setFogMode(mode){this.fogMode=normalizeFogMode(mode);return this.fogMode;}
+ reportFPS(fps,elapsedSeconds){return this.adaptiveTerrainLOD.observe(fps,elapsedSeconds);}
+ setAvatarStyle(id){
+   if(!["pioneer","scout","artisan"].includes(id))throw new RangeError("Unknown avatar style");
+   this.setAppearance(createAppearance(id,id));
+   return id;
+ }
+ setAppearance(input){
+   const appearance=restoreAppearance(input);
+   const parts=[...buildAppearanceParts(appearance),...makeFaceParts()];
+   const meshes=[];
+   try{for(const part of parts)meshes.push({mesh:new Mesh(this.gl,part.geometry),part});}
+   catch(e){for(const entry of meshes)entry.mesh.destroy();throw e;}
+   for(const entry of this.rigParts||[])entry.mesh.destroy();
+   this.rigParts=meshes;
+   this.appearance=appearance;
+   this.avatarStyle=appearance.baseModelId;
+   return {...appearance};
+ }
+ makeBuildingMeshes(gl){
+   const parts=original("hut").parts;
+   return {
+     base:new Mesh(gl,parts[0].geometry),
+     walls:new Mesh(gl,parts[1].geometry),
+     roof:new Mesh(gl,parts[2].geometry),
+     details:new Mesh(gl,parts[3].geometry)
+   };
+ }
+ makeRoomMeshes(gl){
+   const door=builder(),floor=builder(),furniture=builder(),bookshelf=builder();
+   box(door,.64,.29,0,.64,2.03,.065,[.37,.23,.16]);
+   box(door,1.04,1.36,.095,.065,.105,.045,[.86,.68,.35]);
+   box(floor,0,.27,0,2.58,.12,2.22,[.50,.34,.22]);
+   box(floor,0,.395,0,1.55,.015,1.25,[.36,.48,.42]);
+   const items=[
+    [-1.72,.42,-.88,.58,.29,1.05,[.40,.25,.17]],
+    [-1.72,.72,-1.1,.54,.16,.58,[.81,.78,.62]],
+    [-1.72,.61,-.48,.54,.08,.48,[.65,.24,.18]],
+    [1.67,.40,-1.2,.60,.70,.43,[.37,.23,.12]],
+    [1.67,1.07,-1.2,.62,.08,.46,[.68,.51,.28]],
+    [1.67,1.18,-.89,.13,.055,.05,[.90,.72,.37]],
+    [.62,.54,0,.78,.76,.53,[.40,.27,.16]],
+    [.62,1.28,0,.90,.10,.62,[.69,.48,.28]],
+    [.62,.43,-1.05,.38,.48,.38,[.36,.25,.16]],
+    [.62,.84,-1.28,.38,.47,.10,[.43,.29,.17]],
+    [.62,.43,1.03,.38,.48,.38,[.36,.25,.16]],
+    [.62,.84,1.26,.38,.47,.10,[.43,.29,.17]],
+    [-.7,.41,-1.78,.32,.75,.25,[.42,.29,.15]],
+    [-.7,1.17,-1.78,.12,.35,.12,[.96,.82,.42]]];
+   for(const item of items)box(furniture,...item);
+   // Shelf built from separate planks and rows of upright colored books.
+   const wood=[.43,.29,.18],edge=[.27,.18,.12];
+   box(bookshelf,.28,.40,-1.98,.94,2.12,.33,wood);
+   box(bookshelf,.28,.46,-1.60,.86,.13,.06,edge);
+   for(const y of [.61,1.26,1.91]){
+    box(bookshelf,.28,y,-1.62,.88,.10,.30,[.61,.39,.22]);
+    for(let i=0;i<7;i++){
+     const colors=[[.23,.45,.51],[.62,.30,.22],[.66,.56,.28],[.25,.44,.32],[.58,.34,.48]];
+     const color=colors[(i+Math.round(y*5))%colors.length];
+     box(bookshelf,-.39+i*.22,y+.11,-1.62,.085,.45+(i%3)*.035,.15,color);
+     box(bookshelf,-.39+i*.22,y+.25,-1.46,.05,.012,.018,[.9,.78,.54]);
+    }
+   }
+   return {door:new Mesh(gl,door),floor:new Mesh(gl,floor),furniture:new Mesh(gl,furniture),
+    bookshelf:new Mesh(gl,bookshelf)};
+  }
+  pickTownTarget(clientX,clientY){
+   const rect=this.canvas.getBoundingClientRect();
+   if(!rect.width||!rect.height||this.townInterior||this.trainInterior)return null;
+   let nearest=null,best=36;
+   for(const target of [...this.screenTownResidents,...this.screenTownBuildings]){
+    if(!target.onScreen)continue;
+    const distance=Math.hypot(target.u*rect.width-(clientX-rect.left),
+     target.v*rect.height-(clientY-rect.top));
+    if(distance<best){nearest=target;best=distance;}
+   }
+   return nearest;
+  }
+  orbitCityMarkers(locations=[]){
+   return this.orbitVP&&this.orbitCamera?
+    projectOrbitalCities(locations,{viewProjection:this.orbitVP,
+     camera:this.orbitCamera,radius:this.R,
+     // The orbit camera already moves with planet rotation while globe vertices
+     // remain in body coordinates. Native longitudes therefore follow the same
+     // visible streets and coastlines instead of hovering over the screen.
+     spinOffsetDeg:0}):[];
+  }
+  pickArrow(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   let nearest=null,dist=35;
+   for(const arrow of this.screenArrows||[]){
+    if(!arrow.onScreen)continue;
+    const d=Math.hypot(arrow.u*r.width-(clientX-r.left),arrow.v*r.height-(clientY-r.top));
+    if(d<dist){nearest=arrow;dist=d;}
+   }
+   return nearest;
+  }
+  pickTarget(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   let nearest=null,dist=52;
+   for(const target of this.screenTargets||[]){
+    if(!target.onScreen)continue;
+    const d=Math.hypot(target.u*r.width-(clientX-r.left),target.v*r.height-(clientY-r.top));
+    if(d<dist){nearest=target;dist=d;}
+   }
+   return nearest;
+  }
+  pickAnimal(clientX,clientY){
+   const rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+   const u=(clientX-rect.left)/rect.width,v=(clientY-rect.top)/rect.height;
+   let nearest=null,range=56;
+   for(const a of this.screenAnimals||[]){
+    if(!a.onScreen)continue;
+    const d=Math.hypot((a.u-u)*rect.width,(a.v-v)*rect.height);
+    if(d<range){range=d;nearest=a;}
+   }
+   return nearest;
+  }
+  drawAgriculture(vp,light,actor,radius){
+   this.screenFarms=[];
+   if(!this.farm)return;
+   for(const p of this.farm.plots){
+    const x=p.x-this.cx,z=p.z-this.cz;
+    if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
+    const coord=geoOffset(actor.origin.lat,actor.origin.lon,p.x,p.z,this.planet.radiusM);
+    const ground=terrainSurface(this.terrain,coord.lat,coord.lon);
+    if(ground.water||ground.river)continue;
+    const stage=Math.round(this.farm.growth(p,this.planet.timeDays)*10);
+    const kind=p.crop||"field",key=kind+":"+stage;
+    if(!this.farmMeshes.has(key))this.farmMeshes.set(key,
+     new Mesh(this.gl,agricultureGeometry(kind,stage/10)));
+    const y=Math.max(0,ground.elevationM);
+    this.drawMesh(this.farmMeshes.get(key),multiply4(vp,translate(x,y+.04,z)),light,1,.86);
+    const screen=projectScreen(vp,[x,y+(kind==="apple"?1.4:.38),z]);
+    if(screen?.onScreen)this.screenFarms.push({...screen,id:p.id});
+   }
+  }
+  pickFarm(clientX,clientY){
+   const rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return null;
+   let best=null,range=44;
+   for(const p of this.screenFarms){
+    const d=Math.hypot(p.u*rect.width-(clientX-rect.left),p.v*rect.height-(clientY-rect.top));
+    if(d<range){best=p;range=d;}
+   }
+   return best;
+  }
+  drawFauna(vp,light,actor,radius){
+   this.screenAnimals=[];
+   if(!this.fauna)return;
+   for(const a of this.fauna.animals){
+    const x=a.x-this.cx,z=a.z-this.cz;
+    if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
+    const geo=geoOffset(actor.origin.lat,actor.origin.lon,a.x,a.z,this.planet.radiusM);
+    const surf=terrainSurface(this.terrain,geo.lat,geo.lon);
+    if(surf.water||surf.river)continue;
+    const y=Math.max(0,surf.elevationM),height=a.kind==="horse"||a.kind==="cattle"?2.0:a.kind==="chicken"?.8:1.4;
+    const projected=projectScreen(vp,[x,y+height,z]);
+    if(projected?.onScreen)this.screenAnimals.push({...projected,id:a.id,kind:a.kind});
+    const mounted=this.fauna.mountId===a.id;
+    const active=mounted?Boolean(actor.moving):Boolean(a.following);
+    const gait=mounted?this.fauna.gait:"walk";
+    const frequency=gait==="gallop"?12:gait==="trot"?8:4;
+    const phase=this.fauna.elapsed*frequency;
+    const bounce=active?(gait==="gallop"?.085:.035)*Math.abs(Math.sin(phase)):0;
+    const pitch=active?(gait==="gallop"?.065:.022)*Math.sin(phase):0;
+    const model=multiply4(translate(x,y+bounce,z),multiply4(rotateY(a.yaw),rotX(pitch)));
+    let mesh=this.animalMeshes[a.kind];
+    if(a.kind==="horse"){
+     const frame=active?Math.floor((phase%(Math.PI*2)+Math.PI*2)%(Math.PI*2)/(Math.PI*2)*12):0;
+     const key=a.id+":"+Object.values(a.gear).map(Boolean).join("/")+":"+gait+":"+frame+":"+Number(active)+":"+Number(a.grazing);
+     if(!this.horseTackMeshes.has(key)){
+      const gaitPhase=frame/12*Math.PI*2;
+      this.horseTackMeshes.set(key,new Mesh(this.gl,faunaGeometry("horse",a.gear,{gait,phase:gaitPhase,moving:active,grazing:a.grazing})));
+     }
+     mesh=this.horseTackMeshes.get(key);
+    }
+    this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
+    if(this.fauna.selectedId===a.id)this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,y+.05,z)),light,1,.90,[.78,.92,.42]);
+   }
+  }
+  pickResource(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let best=null,distance=44;
+   for(const resource of this.screenResources||[]){
+    if(!resource.onScreen)continue;
+    const d=Math.hypot((resource.u-u)*r.width,(resource.v-v)*r.height);
+    if(d<distance){best=resource;distance=d;}
+   }
+   return best;
+  }
+  pickLife(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let found=null,nearest=48;
+   for(const item of [...this.screenFurniture,...this.screenCamps]){
+    if(!item.onScreen)continue;
+    const d=Math.hypot((item.u-u)*r.width,(item.v-v)*r.height);
+    if(d<nearest){nearest=d;found=item;}
+   }
+   return found;
+  }
+  pickBookshelf(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let hit=null,distance=58;
+   for(const shelf of this.screenShelves){
+    if(!shelf.onScreen)continue;
+    const d=Math.hypot((shelf.u-u)*r.width,(shelf.v-v)*r.height);
+    if(d<distance){distance=d;hit=shelf;}
+   }
+   return hit;
+  }
+  /** Guard tap selection uses the same view projection as enemy/resource picking. */
+ pickGuard(clientX,clientY){
+  const rect=this.canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return null;
+  const u=(clientX-rect.left)/rect.width,v=(clientY-rect.top)/rect.height;
+  let selected=null,best=37;
+  for(const guard of this.screenGuards||[]){
+   if(!guard.onScreen)continue;
+   const d=Math.hypot((guard.u-u)*rect.width,(guard.v-v)*rect.height);
+   if(d<best){selected=guard;best=d;}
+  }
+  return selected;
+ }
+ pickDoor(clientX,clientY){
+   const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+   const u=(clientX-r.left)/r.width,v=(clientY-r.top)/r.height;
+   let best=null,distance=42;
+   for(const d of this.screenDoors){
+    if(!d.onScreen)continue;
+    const gap=Math.hypot((d.u-u)*r.width,(d.v-v)*r.height);
+    if(gap<distance){distance=gap;best=d;}
+   }
+   return best;
+  }
+  /** Pick any visible point on the orbital globe. Doesn't affect the actor. */
+  /** Planet drag rotates the *view* across all latitudes and longitudes. */
+  setOrbitLandingFocus(lat,lon){
+   if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90)return;
+   const here=this.lastOrbitCenter||{lat,lon};
+   this.orbitPan={lat:here.lat,lon:here.lon};
+   this.orbitFocus={lat,lon:wrapLon(lon)};
+  }
+  panOrbit(dx,dy){
+   if(![dx,dy].every(Number.isFinite))return;
+   this.orbitFocus=null;
+   if(!this.orbitPan)this.orbitPan={...(this.lastOrbitCenter||{lat:0,lon:0})};
+   this.orbitPan.lat=clamp(this.orbitPan.lat+dy*.23,-89.5,89.5);
+   this.orbitPan.lon=wrapLon(this.orbitPan.lon-dx*.25);
+  }
+  pickOrbit(clientX,clientY){
+   if(!this.orbitVP)return null;
+   const r=this.canvas.getBoundingClientRect();
+   if(!r.width||!r.height)return null;
+   const nx=((clientX-r.left)/r.width)*2-1;
+   const ny=1-((clientY-r.top)/r.height)*2;
+   return pickOrbitalGeo(this.orbitVP,nx,ny,this.R,this.orbitOffsetDeg);
+  }
+  pickGround(clientX,clientY){
+   if(!this.pickVP||!this.groundPatchData)return null;
+   const r=this.canvas.getBoundingClientRect();
+   if(!r.width||!r.height)return null;
+   const nx=((clientX-r.left)/r.width)*2-1,ny=1-((clientY-r.top)/r.height)*2;
+   const hit=pickSurface(this.groundPatchData.vertices,this.groundPatchData.indices,this.pickVP,nx,ny);
+   return hit?{x:hit[0]+this.cx,z:hit[2]+this.cz,elevationM:hit[1]}:null;
+ }
+ drawArticulated(vp,avatarTransform,s,light,dt=1/60,animator=this.animator,expression=this.expression,motion=this.sceneActions?.getAnimation()||{action:"idle",progress:0},tint=[1,1,1],actorId="player"){
+   const face=expression.update(dt);
+   const pose=animator.update(dt,{
+      moving:s.moving,phase:s.totalDistanceM*2.7,
+      speedMps:s.moving?(s.movementSpeed?.()||s.walkSpeed):0,
+      jumpHeight:s.jumpY||0,action:motion.action,progress:motion.progress,variant:motion.variant||"overhead",
+      emotion:expression.preset,faceDirection:face.gazeX*.27,hand:motion?.hand||this.actionHand?.[actorId]||"right",
+      equipped:this.handEquipment?.[actorId]||{}
+   });
+   Object.assign(pose,expressionPoseValues(face));
+   const wet=isAquaticAction(motion?.action);
+   const splash=motion.action==="splash"&&this.marine?.entrySeconds>0;
+   const pitch=splash ? .50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8 :
+    wet?swimmingPresentation(s.travelMode,s.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
+   const rigRoot=wet?matrixMultiply(avatarTransform,matrixMultiply(rotateY(s.yaw||0),rotX(pitch))):avatarTransform;
+   const joints=jointTransformsV2(pose,wet?0:s.yaw);
+   for(const {mesh,part} of this.rigParts){
+     let m=matrixMultiply(rigRoot,joints[part.pivot]);
+     if(part.faceKind==="lid"){
+       const openScale=Math.max(.015,Math.min(1,face.blink));
+       m=matrixMultiply(m,[1,0,0,0,0,openScale,0,0,0,0,1,0,0,0,0,1]);
+     }else if(part.faceKind==="leftBrow"||part.faceKind==="rightBrow"){
+       const angle=face.brow*(part.faceKind==="leftBrow"?1:-1);
+       m=matrixMultiply(m,rotZ(angle));
+     }else if(part.faceKind==="mouth"){
+       const x=Math.max(.5,Math.min(1.4,face.mouthWidth));
+       m=matrixMultiply(m,[x,0,0,0,0,1,0,0,0,0,1,0,0,face.mouthHeight,0,1]);
+     }
+     this.drawMesh(mesh,multiply4(vp,m),light,1,.72,tint);
+   }
+   if(wet)return; // Hands are paddling, not swinging handheld weapons underwater.
+   const equipment=this.handEquipment?.[actorId]||{};
+   const activeHand=motion?.hand||this.actionHand?.[actorId]||"right";
+    const paired=["spear","greatsword"].includes(equipment.right)&&equipment.left===equipment.right;
+   for(const hand of ["right","left"]){
+    // The other hand must be free to place the arrow and draw the bowstring.
+    if(paired&&hand==="left")continue;
+     if(motion?.action==="bow"&&hand!==activeHand)continue;
+    const kind=hand===activeHand&&pose.tool?pose.tool:equipment[hand];
+    if(!this.tools[kind])continue;
+    const wrist=joints[hand+"Wrist"];if(!wrist)continue;
+    const attached=matrixMultiply(avatarTransform,wrist);
+    // Hand position follows the animation, but the bow stays upright.
+    const held=kind==="bow"?
+      uprightBowTransform(attached,matrixMultiply(avatarTransform,rotateY(s.yaw||0))):
+      matrixMultiply(attached,heldItemTransform(kind));
+    if(kind==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null,tint);
+    else this.drawMesh(this.tools[kind],multiply4(vp,held),light,1,.68,tint);
+    if(kind==="bow"&&hand===activeHand&&motion?.action==="bow")
+      this.drawFlyingArrow(vp,matrixMultiply(avatarTransform,rotateY(s.yaw||0)),light,motion.progress,tint,hand);
+   }
+ }
+ drawBow(vp,held,light,motion=null,tint=[1,1,1]){
+   const tension=motion?.action==="bow"?bowDrawState(motion.progress).tension:0;
+   this.drawMesh(this.tools.bow,multiply4(vp,held),light,1,.68,tint);
+   this.drawMesh(this.bowStrings[Math.round(tension*8)],multiply4(vp,held),light,1,.80,tint);
+ }
+ drawFlyingArrow(vp,actorFacing,light,progress=0,tint=[1,1,1],hand="right"){
+   // Wrist rotations may point vertically when aiming; launch along the actor's +Z.
+   // The real flight mesh takes over at release; avoid showing two arrows.
+  if(progress>=.81||!bowDrawState(progress).visible)return;
+   this.drawMesh(this.tools.arrow,multiply4(vp,projectileTransform(actorFacing,progress,hand)),light,1,.88,tint);
+ }
+ drawArticulatedEnemy(vp,light,base,enemy){
+  const meshes=this.animatedEnemies[enemy.type];
+  if(!meshes)return;
+  const pose=enemyMotion(enemy),scale=Math.max(.75,(enemy.height||2.10)/2.15);
+  const tint=pose.state==="hit"?[1,.48,.48]:pose.state==="death"?[.56,.53,.50]:[1,1,1];
+  const scaled=[scale,0,0,0,0,scale,0,0,0,0,scale,0,0,0,0,1];
+  // Fall forward around the feet, then leave a prone body on the ground.
+  const root=multiply4(multiply4(multiply4(base,rotateY(enemy.yaw)),rotX(pose.rootFall)),scaled);
+  const hip=multiply4(root,translate(0,.84+pose.rootBob,0));
+  const torso=multiply4(hip,multiply4(translate(0,.36,0),
+   multiply4(rotX(pose.bodyX),multiply4(rotateY(pose.bodyY),rotZ(pose.bodyZ)))));
+  const draw=(name,transform)=>{
+   const mesh=meshes[name];if(mesh)this.drawMesh(mesh,multiply4(vp,transform),light,pose.opacity,.77,tint);
+  };
+  draw("torso",torso);
+  const head=multiply4(torso,multiply4(translate(0,.48,0),rotX(pose.headX)));
+  draw("head",head);
+  const width=enemy.type==="orc"?.56:enemy.type==="skeleton"?.32:.43;
+  for(const side of ["left","right"]){
+   const sign=side==="left"?-1:1;
+   const shoulder=multiply4(torso,multiply4(translate(sign*width,.25,0),
+    multiply4(rotZ(pose[side+"ArmZ"]),rotX(pose[side+"ArmX"]))));
+   draw(side+"Upper",shoulder);
+   const elbow=multiply4(shoulder,multiply4(translate(0,-.34,0),rotX(pose[side+"ElbowX"])));
+   draw(side+"Lower",elbow);
+   const wrist=multiply4(elbow,translate(0,-.30,0));
+   draw(side==="right"?"weapon":"shield",wrist);
+   const thigh=multiply4(hip,multiply4(translate(sign*.22,-.04,0),rotX(pose[side+"LegX"])));
+   draw(side+"Thigh",thigh);
+   const shin=multiply4(thigh,multiply4(translate(0,-.40,0),rotX(pose[side+"KneeX"])));
+   draw(side+"Shin",shin);
+  }
+ }
+ drawPhysicalArrows(vp,light){
+  this.screenArrows=[];this.screenTargets=[];
+  if(!this.arrowWorld)return;
+  for(const target of this.arrowWorld.targets){
+   const model=multiply4(translate(target.x-this.cx,target.y,target.z-this.cz),rotateY(target.yaw));
+   this.drawMesh(this.practiceTargetMesh,multiply4(vp,model),light,1,.86);
+   const p=projectScreen(vp,[target.x-this.cx,target.y+1.6,target.z-this.cz]);
+   if(p)this.screenTargets.push({...p,...target});
+  }
+  for(const shot of [...this.arrowWorld.flying,...this.arrowWorld.embedded]){
+   const moving=Object.hasOwn(shot,"vx"),dir=moving?{x:shot.vx,y:shot.vy,z:shot.vz}:
+    {x:shot.dx,y:shot.dy,z:shot.dz};
+   const len=Math.hypot(dir.x,dir.y,dir.z)||1;
+   const yaw=Math.atan2(dir.x,dir.z),pitch=Math.atan2(dir.y,Math.hypot(dir.x,dir.z));
+   const x=shot.x-this.cx-dir.x/len*.54;
+   const y=shot.y-dir.y/len*.54;
+   const z=shot.z-this.cz-dir.z/len*.54;
+   const model=multiply4(translate(x,y,z),multiply4(rotateY(yaw),rotX(-pitch)));
+   this.drawMesh(this.typedArrows[shot.arrowType]||this.tools.arrow,multiply4(vp,model),light,1,.96);
+   if(!moving){
+    const p=projectScreen(vp,[shot.x-this.cx,shot.y,shot.z-this.cz]);
+    if(p)this.screenArrows.push({...p,...shot});
+   }
+  }
+ }
+ /** Render patrols and the physical spawn/return post in the active jurisdiction.
+  * Shared meshes are built once, not created per guard or per animation frame. */
+ drawLawGuards(vp,light,s,radius){
+  this.screenGuards=[];
+  const post=GUARD_POSTS[this.settlementId],garrison=this.law?.district(this.settlementId);
+  if(!post||!garrison)return;
+  const gx=post.x-this.cx,gz=post.z-this.cz;
+  const getY=(x,z)=>{
+   if(this.groundPatchData&&Math.abs(x-this.cx)<radius&&Math.abs(z-this.cz)<radius)
+    return patchSceneryHeight(this.groundPatchData,x-this.cx,z-this.cz);
+   const at=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
+   return Math.max(0,terrainSurface(this.terrain,at.lat,at.lon).elevationM);
+  };
+  // A visible station sentry speaks warnings even before any arrest warrant.
+  // Keep them on-screen for the "それでいい" acknowledgement after leaving the rails.
+  const security=this.railwaySecurity;
+  const showSentry=security?.state==="warned"||
+   (security?.sentryUntil>security?.elapsed);
+  const officer=security?.guard||(showSentry?security?.sentry:null);
+  if(officer&&officer.stationId===this.settlementId&&
+     Math.hypot(officer.x-s.x,officer.z-s.z)<135){
+   const y=getY(officer.x,officer.z);
+   if(!security.guard){
+    const mesh=this.lawGuardMeshes.guard.calm[0];
+    this.drawMesh(mesh,multiply4(vp,multiply4(
+     translate(officer.x-this.cx,y,officer.z-this.cz),rotateY(Math.PI))),light,1,.85);
+   }
+   const screen=projectScreen(vp,[officer.x-this.cx,y+1.85,officer.z-this.cz]);
+   if(screen?.onScreen)this.screenGuards.push({...screen,id:"railway-security:"+this.settlementId,
+    x:officer.x,z:officer.z,hp:officer.hp??100,name:"鉄道保安員",kind:"railsecurity"});
+  }
+  if(Math.abs(gx)<radius&&Math.abs(gz)<radius){
+   const mesh=this.lawPostMeshes[garrison.owner==="player"?"player":"crown"];
+   this.drawMesh(mesh,multiply4(vp,translate(gx,getY(post.x,post.z),gz)),light,1,.74);
+  }
+  for(const guard of garrison.deployed){
+   if(guard.hp<=0||Math.hypot(guard.x-s.x,guard.z-s.z)>radius)continue;
+   const groundY=getY(guard.x,guard.z);
+   const hostile=guard.mode==="defend"||(garrison.hostile&&(guard.mode==="attack"||guard.mode==="chase"));
+   const phases=this.lawGuardMeshes[guard.kind]||this.lawGuardMeshes.guard;
+   const frame=((Math.floor(guard.walkPhase||0)%4)+4)%4;
+   const mesh=(hostile?phases.fighting:phases.calm)[frame];
+   const model=multiply4(translate(guard.x-this.cx,groundY,guard.z-this.cz),rotateY(guard.yaw||0));
+   this.drawMesh(mesh,multiply4(vp,model),light,1,.82);
+   if(Math.hypot(guard.x-s.x,guard.z-s.z)>135)continue;
+   const screen=projectScreen(vp,[guard.x-this.cx,groundY+1.8,guard.z-this.cz]);
+   if(screen?.onScreen)this.screenGuards.push({...screen,id:guard.id,x:guard.x,z:guard.z,
+     name:guard.kind==="knight"?"騎士":"衛兵",kind:guard.kind,
+     hp:guard.hp,factionId:this.settlementId});
+  }
+ }
+ drawTestEnemies(vp,light,s,radius){
+  this.screenEnemies=[];
+  if(!this.battle)return;
+  for(const enemy of this.battle.enemies){
+   if(enemy.hp<=0&&(enemy.deathTime||0)>5)continue;
+   if(Math.abs(enemy.x-s.x)>radius||Math.abs(enemy.z-s.z)>radius)continue;
+   const geo=geoOffset(s.origin.lat,s.origin.lon,enemy.x,enemy.z,this.planet.radiusM);
+   const height=Math.max(0,terrainSurface(this.terrain,geo.lat,geo.lon).elevationM);
+   const bob=enemy.type==="slime"&&enemy.hp>0?Math.abs(Math.sin(enemy.walkPhase||0))*.025:0;
+   const base=translate(enemy.x-this.cx,height+bob,enemy.z-this.cz);
+   if(enemy.hp>0){
+    const screen=projectScreen(vp,[enemy.x-this.cx,height+(enemy.height||1.8)*.67,enemy.z-this.cz]);
+    if(screen)this.screenEnemies.push({...screen,id:enemy.id,name:enemy.name,hp:enemy.hp});
+    if(enemy.id===this.combatTargetId){
+     this.drawMesh(this.selectionRing,multiply4(vp,translate(enemy.x-this.cx,height+.04,enemy.z-this.cz)),light,1,.96,[1,.68,.25]);
+    }
+   }
+   if(this.animatedEnemies[enemy.type])
+    this.drawArticulatedEnemy(vp,light,base,enemy);
+   else if(enemy.hp>0)
+    this.drawMesh(this.enemyMeshes[enemy.type],multiply4(vp,multiply4(base,rotateY(enemy.yaw))),light,1,.75,
+     enemy.anim==="hit"?[1,.52,.52]:[1,1,1]);
+   if(enemy.hp<=0)continue;
+   const ratio=enemy.hp/enemy.maxHp,head=enemy.height||2.1;
+   const hpAt=multiply4(base,translate(0,head,0));
+   this.drawMesh(this.enemyHealthTrack,multiply4(vp,hpAt),light,1,1);
+   const scale=[ratio,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+   const fill=multiply4(hpAt,multiply4(translate(-.49*(1-ratio),0,.013),scale));
+   this.drawMesh(this.enemyHealthFill,multiply4(vp,fill),light,1,1);
+  }
+ }
+ drawBuildings(vp,light,s,radius,dt=1/60){
+   if(!this.sceneActions)return;
+   this.screenDoors=[];this.screenShelves=[];
+   for(const hut of this.sceneActions.structures){
+     const offset=geoLocal(s.origin.lat,s.origin.lon,hut.lat,hut.lon,this.planet.radiusM);
+     const bx=offset.eastM,bz=offset.northM;
+     if(Math.abs(bx-s.x)>radius||Math.abs(bz-s.z)>radius)continue;
+     const model=translate(bx-this.cx,hut.height,bz-this.cz);
+     const mvp=multiply4(vp,model);
+     this.drawMesh(this.buildingMeshes.base,mvp,light,1,.64);
+     if(hut.progress>=.3)this.drawMesh(this.buildingMeshes.walls,mvp,light,1,.64);
+     if(hut.progress>=.75&&hut.id!==this.interiorBuildingId)this.drawMesh(this.buildingMeshes.roof,mvp,light,1,.64);
+     if(hut.progress>=.92)this.drawMesh(this.buildingMeshes.details,mvp,light,1,.64);
+     if(hut.progress>=1){
+      this.drawMesh(this.roomMeshes.floor,mvp,light,1,.72);
+      if(!this.sceneLife&&(hut.doorOpen||hut.id===this.interiorBuildingId)){
+        this.drawMesh(this.roomMeshes.furniture,mvp,light,1,.73);
+        this.drawMesh(this.roomMeshes.bookshelf,mvp,light,1,.78);
+        if(hut.id===this.interiorBuildingId){
+         const target=projectScreen(vp,[bx-this.cx+.28,hut.height+1.6,bz-this.cz-1.61]);
+         if(target)this.screenShelves.push({...target,id:hut.id});
+        }
+       }
+      const target=hut.doorOpen?1.4:0,prev=this.doorAngles.get(hut.id)??0;
+      const angle=prev+(target-prev)*Math.min(1,Math.max(0,dt)*5.5);
+      this.doorAngles.set(hut.id,angle);
+      const hinge=translate(bx-this.cx-.69,hut.height,bz-this.cz+2.59);
+      this.drawMesh(this.roomMeshes.door,multiply4(vp,multiply4(hinge,rotateY(-angle))),light,1,.68);
+      const point=projectScreen(vp,[bx-this.cx,hut.height+1.48,bz-this.cz+2.68]);
+      if(point)this.screenDoors.push({...point,id:hut.id});
+     }
+   }
+ }
+ clearFrontierGlb(sex){
+  this.animatedGlb[sex]?.destroy();
+  for(const mesh of this.glbMeshes[sex]||[])mesh.destroy();
+  delete this.animatedGlb[sex];delete this.glbMeshes[sex];delete this.glbStatuses[sex];
+ }
+ setFrontierGlb(sex,data,source=null){
+  if(!["male","female"].includes(sex)||!data?.chunks?.length)throw Error("Invalid GLB avatar");
+  let animated=null,reason="";
+  if(source){
+   try{animated=new SkinnedFrontierAsset(this.gl,source);}
+   catch(error){reason=String(error.message||error);console.warn("Animated GLB fallback:",error);}
+  }
+  const list=[];
+  if(!animated){
+   try{for(const chunk of data.chunks)list.push(new Mesh(this.gl,chunk));}
+   catch(error){for(const mesh of list)mesh.destroy();throw error;}
+  }
+  this.animatedGlb[sex]?.destroy();
+  for(const mesh of this.glbMeshes[sex]||[])mesh.destroy();
+  this.animatedGlb[sex]=animated;
+  this.glbMeshes[sex]=list;
+  this.glbStatuses[sex]=animated?{animated:true,triangles:animated.triangles,clips:animated.rig.clips.map(c=>c.name)}:
+   {animated:false,triangles:data.triangles,reason};
+  return animated?.meshes.length||list.length;
+ }
+ triggerSocial(from,to,kind="talk"){
+  const action=kind==="gift"?"gift":"talk";
+  for(const id of [from,to])if(["player","scout","artisan"].includes(id))this.socialAnimations.set(id,{kind:action,remaining:2.1});
+ }
+ drawSkinnedHandEquipment(rig,id,vp,characterTransform,light,motion={}){
+   const pose=rig.instances.get(id)?.previous;
+   if(!pose||!rig.rig?.nodes?.length)return;
+   const info=rig.rig,gear=this.handEquipment?.[id]||{};
+   const x=info.scale,c=info.center;
+   const normalize=[
+    x,0,0,0,0,x,0,0,0,0,x,0,
+    -c[0]*x,-c[1]*x,-c[2]*x,1
+   ];
+   const activeHand=motion?.hand||this.actionHand?.[id]||"right";
+    const paired=["spear","greatsword"].includes(gear.right)&&gear.left===gear.right;
+   for(const hand of ["right","left"]){
+    if(paired&&hand==="left")continue;
+     if(motion?.action==="bow"&&hand!==activeHand)continue;
+    const item=gear[hand],mesh=this.tools[item];
+    if(!mesh)continue;
+    const right=hand==="right";
+    const joint=info.nodes.findIndex(n=>{
+     const name=(n.name||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+     return right?/(righthand|rightwrist|handright|bip.*rhand|handr$)/.test(name):
+       /(lefthand|leftwrist|handleft|bip.*lhand|handl$)/.test(name);
+    });
+    if(joint<0||!pose.world[joint])continue;
+    const attach=multiply4(characterTransform,multiply4(normalize,pose.world[joint]));
+    const held=item==="bow"?uprightBowTransform(attach,characterTransform):
+      multiply4(attach,heldItemTransform(item));
+    if(item==="bow")this.drawBow(vp,held,light,hand===activeHand?motion:null);
+    else this.drawMesh(mesh,multiply4(vp,held),light,1,.68);
+    if(item==="bow"&&hand===activeHand&&motion?.action==="bow")
+      this.drawFlyingArrow(vp,characterTransform,light,motion.progress,[1,1,1],hand);
+   }
+ }
+ henshinScene(){
+  this.henshinMeshes??=new HenshinSceneRenderer(this,geometry=>new Mesh(this.gl,geometry));
+  return this.henshinMeshes;
+ }
+ drawHenshinAvatar(vp,transform,unit={}){
+  if(!this.henshin?.enabled)return false;
+  this.henshinScene().avatar(vp,transform,this.henshin,{moving:Boolean(unit.moving),phase:(unit.totalDistanceM||0)*2.7});
+  return this.henshin.transformed;
+ }
+ drawHenshinXR(xr){
+  if(!this.henshin?.enabled||!["vr","mr-henshin"].includes(xr?.mode))return;
+  const gl=this.gl;gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.henshinScene().room(xr,this.henshin);
+ }
+ drawAvatarV10(id,vp,transform,light,dt,options={}) {
+  const fit=this.avatarV10[id];
+  if(!fit||fit.model==="classic")return null;
+  const asset=this.avatarV10Assets.get(fit.model);
+  if(!asset){this.avatarV10Assets.prefetch(fit.model);return null;}
+  try{
+   asset.draw(vp,transform,light,id,dt,{...options,fit});
+   return asset;
+  }catch(error){
+   // A model/shader failure must not make the navigator or other crew vanish.
+   this.avatarDrawWarnings??=new Set();
+   if(!this.avatarDrawWarnings.has(fit.model)){
+    this.avatarDrawWarnings.add(fit.model);
+    console.warn("Ship avatar draw failed, using crew stand-in:",fit.model,error);
+   }
+   return null;
+  }finally{this.gl.useProgram(this.program);}
+ }
+ /** Render the same edited V10 crew models in the exterior cockpit panes.
+  * When models cannot load, the external window retains its seated stand-ins.
+  */
+ drawShipWindowCrew(vp,hull,light,dt){
+  const occupants=[["navigator",-1],["companion",1]];
+  const ready=occupants.every(([id])=>{
+   const fit=this.avatarV10[id];
+   return fit?.model&&this.avatarV10Assets.get(fit.model);
+  });
+  this.drawMesh(ready?this.shipCrewWindowFrame:this.shipCrewWindow,
+   multiply4(vp,hull),light,1,.96);
+  if(!ready){
+   for(const [id]of occupants){
+    const fit=this.avatarV10[id];
+    if(fit?.model)this.avatarV10Assets.prefetch(fit.model);
+   }
+   return;
+  }
+  for(const [id,x]of occupants){
+   // Upper-body seated portrait is aligned with the physical forward glass,
+   // using the persistent crew's selected character/model and uniform.
+   const pose=multiply4(hull,multiply4(translate(x,4.28,-14.35),
+    multiply4(rotateY(Math.PI),scale3(.53,.47,.13))));
+   this.drawAvatarV10(id,vp,pose,light,dt,{motion:"Seated"});
+  }
+ }
+ drawShipAvatars(vp,person,dt,showPlayer){
+  const light=[-.30,.9,.52];
+  const actors=person.greetings.actors(person);
+  for(const actor of actors){
+   const player=actor.id==="player";
+   if(player&&!showPlayer)continue;
+   const distance=Math.hypot(actor.x-person.x,actor.z-person.z);
+   const sameRoom=person.canReachCrew(actor);
+   if(!player&&!sameRoom&&distance>6&&!this.shipRemotePilot)continue;
+   if(!player){
+    const screen=projectScreen(vp,[actor.x,1.33,actor.z]);
+    if(screen?.onScreen&&sameRoom)this.shipCrewHitPoints.push({...screen,id:actor.id});
+   }
+   const y=player&&person.z>13&&person.hatchPassable?-.25*(person.z-13):0;
+   const transform=multiply4(translate(actor.x,y,actor.z),rotateY(actor.yaw));
+   const gesture=actor.time===null?null:actor;
+   const gaze=!player&&actor.talking?{yaw:0,pitch:.04+.035*Math.sin((person.routine?.clock||0)*2)}:
+    !player&&distance<3.4?{
+    yaw:Math.max(-.45,Math.min(.45,Math.atan2(person.x-actor.x,person.z-actor.z)-actor.yaw)),
+    pitch:Math.max(-.30,Math.min(.22,Math.atan2((person.seated?1.19:1.59)-1.59,Math.max(.35,distance))))
+   }:null;
+   if(player&&this.henshin?.enabled){
+    if(this.xrView?.mode==="vr"&&!this.xrView.showAvatar&&this.henshin.transformed)continue;
+    if(this.drawHenshinAvatar(vp,transform,{moving:person.greetings.playerMoving}))continue;
+   }
+   const asset=this.drawAvatarV10(actor.id,vp,transform,light,dt,{motion:actor.motion,
+    time:actor.time,gesture,lookAt:gaze,
+    firstPerson:player&&this.xrView?.mode==="vr"&&!this.xrView.showAvatar});
+   if(!player&&actor.speaking){
+    const floatY=2.18+.055*Math.sin((person.routine?.clock||0)*3);
+    const mark=multiply4(vp,translate(actor.x,floatY,actor.z));
+    this.drawMesh(this.shipCrewTalkMarker,mark,light,1,.98);
+   }
+   if(asset)continue;
+   if(player){
+     // XR renders one authored player plus tracked hands, never the old rig.
+     if(this.xrView?.mode==="vr")continue;
+     this.drawArticulated(vp,translate(actor.x,y,actor.z),{yaw:actor.yaw,moving:person.greetings.playerMoving,totalDistanceM:0,walkSpeed:2.6},
+     light,dt,this.animator,this.expression,{action:person.seated?"sit":"idle",progress:0});
+    continue;
+   }
+   if(!this.shipCrewFallbacks.has(actor.id)){
+    const member=SHIP_CREW.find(item=>item.id===actor.id);
+    this.shipCrewFallbacks.set(actor.id,new Mesh(this.gl,triangleSoupToIndexed(createShipCrewStandIn(member))));
+   }
+   this.drawMesh(this.shipCrewFallbacks.get(actor.id),multiply4(vp,transform),light,1,.83);
+  }
+ }
+ drawGroundAvatarV10(vp,transform,unit,light,dt,motion){
+  if(this.drawHenshinAvatar(vp,multiply4(transform,rotateY(unit.yaw||0)),unit))return true;
+  // On the ground the original combat, swimming, capture and mounted rigs still
+  // own their specialized poses and equipment; V10 uses its authored daily clips.
+  if(this.xrView||this.captureFX||this.fauna?.mount||this.marine?.boardedId||
+   (unit.moving&&!["idle","run","crouch"].includes(motion.action))||
+   !["idle","sit","eat","sleep","run","crouch","pickup","lift","holdBaby",
+    "wave","stretch","kneel","pelvicTilt","supportedSquat","laborBreathing","sideRest","rockBaby"].includes(motion.action))return false;
+  const animation=this.socialAnimations.get("player");
+  if(animation)return false;
+  const action={sit:"Seated"}[motion.action]||motion.action;
+  const character=multiply4(transform,rotateY(unit.yaw||0));
+  const asset=this.drawAvatarV10("player",vp,character,light,dt,{motion:action,moving:Boolean(unit.moving),
+   motionProgress:Number.isFinite(motion.progress)?motion.progress:null,hand:motion.hand||"right"});
+  if(asset)this.drawSkinnedHandEquipment(asset,"player",vp,character,light,motion);
+  return Boolean(asset);
+ }
+ drawFrontierAvatar(sex,vp,transform,unit,light,dt=1/60,motion={action:"idle"},id="player"){
+  const animation=this.socialAnimations.get(id);
+  if(animation){
+   animation.remaining-=Math.max(0,dt);
+   if(animation.remaining<=0)this.socialAnimations.delete(id);
+  }
+  const aquatic=isAquaticAction(motion?.action);
+  const rig=this.animatedGlb[sex];
+  // Imported rigs without semantic limb joints cannot execute swim strokes.
+  // Show the procedural swimmer instead of an upright, motionless GLB.
+  if(aquatic&&(!rig||!["leftshoulder","rightshoulder","lefthip","righthip"]
+    .every(name=>rig.rig?.nodes?.some(node=>node.name?.toLowerCase()===name))))return false;
+  if(rig){
+   const splash=motion.action==="splash"&&this.marine?.entrySeconds>0;
+   const pitch=splash ? .50+(1-this.marine.entrySeconds/this.marine.entryDuration)*.8 :
+    aquatic?swimmingPresentation(unit.travelMode,unit.moving,0,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking).pitch:0;
+   const characterTransform=multiply4(transform,multiply4(rotateY(unit.yaw||0),rotX(pitch)));
+   let drawn=true;
+   try{rig.draw(vp,characterTransform,light,id,dt,{
+    moving:Boolean(unit.moving),motion:motion?.action||"idle",
+    motionProgress:Number.isFinite(motion?.progress)?motion.progress:null,
+    variant:motion?.variant||"overhead",
+    hand:motion?.hand||this.actionHand?.[id]||"right",
+    talking:animation?.kind==="talk"&&animation.remaining>0,
+    giving:animation?.kind==="gift"&&animation.remaining>0
+   });}
+   catch(error){
+    console.warn("GLB runtime animation failed; restoring procedural avatar:",error);
+    rig.destroy();this.animatedGlb[sex]=null;
+    this.glbStatuses[sex]={animated:false,reason:String(error.message||error)};
+    drawn=false;
+   }finally{this.gl.useProgram(this.program);}
+   if(drawn&&!aquatic)this.drawSkinnedHandEquipment(rig,id,vp,characterTransform,light,motion);
+   return drawn;
+  }
+  const meshes=this.glbMeshes[sex];if(!meshes?.length||aquatic)return false;
+  const mvp=multiply4(vp,multiply4(transform,rotateY(unit.yaw||0)));
+  for(const mesh of meshes)this.drawMesh(mesh,mvp,light,1,.83);
+  return true;
+ }
+ drawPlacedStructures(vp,light,s,radius){
+   if(!this.constructionSystem)return;
+   for(const site of this.constructionSystem.structures){
+    if(Math.abs(site.x-s.x)>radius||Math.abs(site.z-s.z)>radius)continue;
+    const mesh=this.placedMeshes[site.kind];if(!mesh)continue;
+    const model=multiply4(translate(site.x-this.cx,site.height,site.z-this.cz),
+      rotateY(site.rotation||0));
+    this.drawMesh(mesh,multiply4(vp,model),light,1,.72);
+   }
+ }
+ renderRailwayConcourse(asp){
+  const gl=this.gl,pose=this.railway?.concoursePose||{x:0,z:8};
+  gl.clearColor(.07,.09,.08,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const vp=this.xrInteriorVP(pose)||
+   multiply4(perspective(57*DEG,asp,.25,1000),lookAt([pose.x+14,11,pose.z+14],[pose.x,1.3,pose.z]));
+  this.pickVP=null;
+  this.drawMesh(this.railwayConcourseMesh,vp,[.43,.86,.73],1,.87);
+  // Stationmaster and arriving passengers are anchored to the ticket window.
+  for(const [x,z] of [[-4.0,-6.9],[1.3,4.4],[-4.2,4.0]]){
+   this.drawMesh(this.railGuardMesh,multiply4(vp,translate(x,0,z)),[.43,.86,.73],1,.84);
+  }
+  this.drawMesh(this.railGuardMesh,multiply4(vp,translate(pose.x,0,pose.z)),
+   [.43,.86,.73],1,.88,[.86,.92,1]);
+  this.drawMesh(this.selectionRing,multiply4(vp,translate(pose.x,.12,pose.z)),
+   [.43,.86,.73],1,.94,[.15,.95,.85]);
+  return "railway-concourse";
+ }
+ renderFerryInterior(asp,dt){
+  const gl=this.gl,p=this.ferry?.pose||{x:0,z:0};
+  this.trainClock+=Math.max(0,Math.min(.10,dt));
+  gl.clearColor(.06,.11,.14,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const sway=Math.sin(this.trainClock*1.3)*.08;
+  const vp=this.xrInteriorVP(p)||
+   multiply4(perspective(58*DEG,asp,.2,1000),
+    lookAt([11+sway,9.0,14],[p.x,1.2,p.z]));
+  this.pickVP=null;
+  this.drawMesh(this.ferryCabinMesh,vp,[.38,.84,.72],1,.82);
+  for(const [x,z] of [[-2.2,-7],[2.1,4],[-2.3,3]]){
+   this.drawMesh(this.railGuardMesh,multiply4(vp,translate(x,0,z)),[.38,.84,.72],1,.89);
+  }
+  this.drawMesh(this.selectionRing,multiply4(vp,translate(p.x,.08,p.z)),
+   [.38,.84,.72],1,.94,[.22,.9,.92]);
+  return "ferry-interior";
+ }
+ drawHarbor(vp,light,s,radius){
+  const anchor=this.terrain.harborAnchor;
+  if(!anchor||this.settlementId!=="port")return;
+  const at=geoLocal(s.origin.lat,s.origin.lon,anchor.lat,anchor.lon,this.planet.radiusM);
+  if(Math.hypot(at.eastM-s.x,at.northM-s.z)>1800)return;
+  const land=multiply4(vp,translate(at.eastM-this.cx,0,at.northM-this.cz));
+  this.drawMesh(this.harborMesh,land,light,1,.77);
+  const p=ferryLocation(this.planet.timeDays);
+  const ship=multiply4(translate(at.eastM+p.x-this.cx,.15,at.northM+p.z-this.cz),rotateY(p.yaw));
+  this.drawMesh(this.passengerSteamerMesh,multiply4(vp,ship),light,1,.86);
+ }
+ drawOwnerWorld(vp,light,s,radius){
+   if(!this.ownerWorld)return;
+   if(this.ownerRoadMesh)this.drawMesh(this.ownerRoadMesh,multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.9);
+   for(const building of this.ownerWorld.buildings){
+    const p=geoLocal(s.origin.lat,s.origin.lon,building.lat,building.lon,this.planet.radiusM);
+    if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)continue;
+    const site=terrainSurface(this.terrain,building.lat,building.lon);
+    if(site.water||site.river)continue;
+    const x=p.eastM-this.cx,z=p.northM-this.cz,height=site.elevationM;
+    const model=multiply4(translate(x,height,z),rotateY(building.rotation||0));
+    const mesh=this.placedMeshes[building.kind];
+    if(mesh)this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
+    if(this.ownerSelectedId===building.id)this.drawMesh(this.selectionRing,multiply4(vp,translate(x,height+.15,z)),light,1,.98,[.95,.77,.18]);
+   }
+   for(const part of this.ownerWorld.primitives||[]){
+    const p=geoLocal(s.origin.lat,s.origin.lon,part.lat,part.lon,this.planet.radiusM);
+    if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)continue;
+    const site=terrainSurface(this.terrain,part.lat,part.lon);
+    if(site.water||site.river)continue;
+    const x=p.eastM-this.cx,z=p.northM-this.cz;
+    const rotation=multiply4(rotateY(part.rz??part.rotation??0),
+     multiply4(rotZ(part.ry||0),rotX(part.rx||0)));
+    const transform=multiply4(translate(x,site.elevationM+part.offsetY,z),
+     multiply4(rotation,scale3(part.width,part.height,part.depth)));
+    const mesh=this.ownerPrimitiveMeshes[part.shape];
+    if(mesh)this.drawMesh(mesh,multiply4(vp,transform),light,1,.82,part.color);
+    if(this.ownerSelectedId===part.id)this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,site.elevationM+.13,z)),light,1,.98,[.95,.77,.18]);
+   }
+ }
+ drawFrontier(vp,light,s,radius){
+   if(!this.sceneFrontier)return;
+   for(const n of this.sceneFrontier.nodes){
+    if(n.quantity<=0||Math.abs(n.x-s.x)>radius||Math.abs(n.z-s.z)>radius)continue;
+    const geo=geoOffset(s.origin.lat,s.origin.lon,n.x,n.z,this.planet.radiusM);
+    const elevation=terrainSurface(this.terrain,geo.lat,geo.lon).elevationM;
+    const mesh=this.fwResourceMeshes[n.kind];if(!mesh)continue;
+    this.drawMesh(mesh,multiply4(vp,translate(n.x-this.cx,Math.max(0,elevation),n.z-this.cz)),light,1,.75);
+   }
+  }
+  drawLifestyle(vp,light,s,radius){
+   this.screenFurniture=[];this.screenCamps=[];
+   if(!this.sceneLife||!this.sceneActions)return;
+   for(const hut of this.sceneActions.structures){
+    if(hut.progress<1)continue;
+    const at=geoLocal(s.origin.lat,s.origin.lon,hut.lat,hut.lon,this.planet.radiusM);
+    if(Math.abs(at.eastM-s.x)>radius||Math.abs(at.northM-s.z)>radius)continue;
+    for(const f of this.sceneLife.atHut(hut)){
+     const mesh=this.lifeMeshes[f.kind];if(!mesh)continue;
+     const x=at.eastM+f.x-this.cx,z=at.northM+f.z-this.cz;
+     const model=multiply4(translate(x,hut.height,z),rotateY((f.rotation||0)*DEG));
+     this.drawMesh(mesh,multiply4(vp,model),light,1,f.kind==="lamp"?(f.lit?.98:.40):.76);
+     if(f.kind==="table"){
+      if(this.sceneLife.count("served")>0)this.drawMesh(this.dishMeshes.plate,multiply4(vp,model),light,1,.89);
+      if(this.sceneLife.count("servedBowl")>0)this.drawMesh(this.dishMeshes.bowl,multiply4(vp,model),light,1,.89);
+      if(this.sceneLife.count("cup")>0)this.drawMesh(this.dishMeshes.cup,multiply4(vp,model),light,1,.89);
+     }else if(f.kind==="kitchen"&&this.sceneLife.count("pot")>0)
+      this.drawMesh(this.dishMeshes.pot,multiply4(vp,model),light,1,.84);
+     if(f.lit&&f.kind==="fireplace")this.drawMesh(this.campMeshes.fire,multiply4(vp,model),[.7,.6,.2],1,.92);
+     if(hut.id===this.interiorBuildingId){
+      const point=projectScreen(vp,[x,hut.height+(f.kind==="bookshelf"?1.55:1.05),z]);
+      if(point)this.screenFurniture.push({...point,id:f.id,kind:f.kind,type:"furniture"});
+     }
+    }
+   }
+   for(const camp of this.sceneLife.deployments){
+    const at=geoLocal(s.origin.lat,s.origin.lon,camp.lat,camp.lon,this.planet.radiusM);
+    if(Math.abs(at.eastM-s.x)>radius||Math.abs(at.northM-s.z)>radius)continue;
+    const x=at.eastM-this.cx,z=at.northM-this.cz;
+    const cut=camp.kind==="tent"&&this.sceneLife.insideTentId===camp.id;
+    const mesh=this.campMeshes[cut?"tentCutaway":camp.kind];
+    if(!mesh)continue;
+    const model=multiply4(translate(x,camp.height,z),rotateY(camp.rotation||0));
+    this.drawMesh(mesh,multiply4(vp,model),light,1,.72);
+    const point=projectScreen(vp,[x,camp.height+(camp.kind==="tent"?1.20:.35),z]);
+    if(point)this.screenCamps.push({...point,id:camp.id,kind:camp.kind,type:"camp"});
+   }
+  }
+  drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
+  const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
+  gl.uniform3fv(this.uLight,new Float32Array(light));gl.uniform3fv(this.uTint,new Float32Array(tint));
+  gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);gl.uniform1f(this.uInstanced,0);mesh.draw();
+ }
+
+ beginTreeFall(node){
+   if(!node||node.kind==="stone"||node.type==="fallen-log"||
+      node.type==="rubble"||this.fallingTrees.has(node.id))return false;
+   if(this.fallingTrees.size>=8)return false;
+   const mesh=new Mesh(this.gl,sceneryPrototype(node.type));
+   this.fallingTrees.set(node.id,{node:{...node},mesh,age:0,yaw:fallingTreeYaw(node.id)});
+   this.patchKey=null;return true;
+  }
+ drawFallingTrees(vp,light,dt){
+   let rebuild=false;
+   for(const [id,fall] of this.fallingTrees){
+    fall.age+=Math.max(0,Math.min(.1,dt));
+    if(fall.age>=TREE_FALL_SECONDS){
+     fall.mesh.destroy();this.fallingTrees.delete(id);rebuild=true;continue;
+    }
+    const node=fall.node;
+    const model=multiply4(translate(node.x-this.cx,node.elevationM,node.z-this.cz),
+      multiply4(rotateY(fall.yaw),
+       multiply4(rotZ(-fallingTreeAngle(fall.age)),scaledMatrix(node.scale||1))));
+    this.drawMesh(fall.mesh,multiply4(vp,model),light,1,.62);
+   }
+   if(rebuild)this.patchKey=null;
+  }
+ renderWeatherClouds(s,geo,radius,vp,light,dt){
+   if(!this.sceneWeather)return;
+   const climate=this.sceneWeather.sample(s.lat,s.lon,
+    Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
+   const wind=cloudWind(climate,s.lat,this.planet.timeDays);
+   const ds=Math.max(0,Math.min(dt,.1));
+   this.cloudEast+=wind.eastMps*ds;this.cloudNorth+=wind.northMps*ds;
+   const band=Math.floor(wind.coverage*6);
+   const moved=Math.hypot(this.cloudEast-this.cloudOriginEast,
+     this.cloudNorth-this.cloudOriginNorth)>185;
+   if((!this.groundClouds||band!==this.cloudCoverBand||moved)&&radius<=9000){
+    const clouds=groundCloudGeometry({seed:this.planet.seed,cx:this.cx,cz:this.cz,radius,
+      baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM,
+      driftEast:this.cloudEast,driftNorth:this.cloudNorth,
+      cloudCover:climate.cloudCover,precipitation:climate.precipitation});
+    this.groundClouds?.destroy();
+    this.groundClouds=clouds.indices.length?new Mesh(this.gl,clouds):null;
+    this.cloudOriginEast=this.cloudEast;this.cloudOriginNorth=this.cloudNorth;
+    this.cloudCoverBand=band;
+   }
+   if(!this.groundClouds)return;
+   const offset=translate(this.cloudEast-this.cloudOriginEast,0,
+     this.cloudNorth-this.cloudOriginNorth);
+   const gl=this.gl;
+   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+   this.drawMesh(this.groundClouds,multiply4(vp,offset),light,wind.opacity,.87);
+   gl.depthMask(true);gl.disable(gl.BLEND);
+  }
+ drawInstancedMesh(mesh,vp,light,alpha=1,ambient=.25){
+   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(vp));
+   gl.uniform3fv(this.uLight,new Float32Array(light));
+   gl.uniform3fv(this.uTint,new Float32Array([1,1,1]));
+   gl.uniform1f(this.uAlpha,alpha);gl.uniform1f(this.uAmbient,ambient);
+   gl.uniform1f(this.uInstanced,1);mesh.draw();
+ }
+ beginCapture(kind="law"){
+  this.captureFX={kind,elapsed:0,duration:CAPTURE_DURATION_SECONDS};
+ }
+ clearCapture(){this.captureFX=null;}
+ frame(state,dt=1/60){
+  // Visual-only frame time continues while law simulation is paused in custody.
+  if(this.captureFX)this.captureFX.elapsed=Math.min(CAPTURE_DURATION_SECONDS,
+    this.captureFX.elapsed+Math.max(0,Math.min(dt,.10)));
+  const gl=this.gl,xr=this.xrView,dpr=Math.min(2,globalThis.devicePixelRatio||1);
+  const w=xr?xr.viewport.width:Math.max(1,Math.floor(this.canvas.clientWidth*dpr));
+  const h=xr?xr.viewport.height:Math.max(1,Math.floor(this.canvas.clientHeight*dpr));
+  // WebXR owns the framebuffer size; resizing the canvas inside a headset
+  // pass may detach its XRWebGLLayer and corrupt stereo presentation.
+  if(!xr&&(this.canvas.width!==w||this.canvas.height!==h)){
+   this.canvas.width=w;this.canvas.height=h;
+  }
+  const inOrbit=xr?.planetMode??(state.altitudeM>ORBIT_GROUND_CUTOFF_M);
+  if(xr){
+   gl.viewport(xr.viewport.x,xr.viewport.y,w,h);
+   gl.scissor(xr.viewport.x,xr.viewport.y,w,h);
+  }else gl.viewport(0,0,w,h);
+  // Passthrough MR requires an alpha-zero background; meshes remain opaque.
+  if(xr?.mode==="vr"&&!inOrbit)gl.clearColor(.40,.64,.78,1);
+  else gl.clearColor(.011,.032,.071,xr?.mode.startsWith("mr-")?0:inOrbit||xr?1:0);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.program);
+  // Sensor depth is per-eye, ephemeral, and only ever used in passthrough MR.
+  const mask=Boolean(xr?.mode.startsWith("mr-")&&xr?.depthTexture);
+  gl.uniform1f(this.uXROcclusionEnabled,mask?1:0);
+  if(mask){
+   gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,xr.depthTexture);
+   gl.uniform1i(this.uXROcclusionDepth,7);
+   gl.uniform4f(this.uXROcclusionViewport,xr.viewport.x,xr.viewport.y,w,h);
+   gl.activeTexture(gl.TEXTURE0);
+  }
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0])); // orbit/interior never fog
+  const asp=w/h;
+  this.actorMarker=null;
+  if(!inOrbit){
+   this.orbitVP=null;this.orbitCamera=null;this.screenLanding=null;
+   this.orbitFocus=null;this.orbitPan=null;this.lastOrbitCenter=null;
+   if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
+   this.orbitDetailCenter=null;this.orbitDetailRadius=0;
+  }
+  this.screenActors=[];this.screenEnemies=[];this.screenGuards=[];this.screenResources=[];this.screenAnimals=[];this.screenArrows=[];this.screenTargets=[];this.screenDoors=[];this.screenShelves=[];this.screenFurniture=[];this.screenCamps=[];this.screenTownResidents=[];this.screenTownBuildings=[];
+  if(xr?.mode==="vr"&&!inOrbit){
+   if((this.custodyCell||this.railwaySecurity?.jailed)&&
+     (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
+   if(this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
+    return this.renderRailwayConcourse(asp);
+   if(this.trainInterior)return this.renderTrainInterior(asp,dt);
+   if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
+   if(this.townInterior)return this.renderTownInterior(asp);
+  }
+  if(xr?.mode==="vr"&&this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
+  if(!xr){
+   if(this.shipVoyage?.active)return this.renderUnifiedShip(asp,dt);
+  if((this.custodyCell||this.railwaySecurity?.jailed)&&
+     (!this.captureFX||this.captureFX.elapsed>=CAPTURE_DURATION_SECONDS))return this.renderRailwayJail(asp);
+  if(!inOrbit&&this.railway?.concourse===this.settlementId&&!this.railway?.platform&&!this.railway?.boarded)
+   return this.renderRailwayConcourse(asp);
+  if(this.trainInterior?.camera==="interior"||this.trainInterior&&!this.trainInterior.camera)return this.renderTrainInterior(asp,dt);
+  if(this.trainInterior&&this.railJourney)return this.renderRailJourney(asp,dt);
+  if(this.ferry?.boarded)return this.renderFerryInterior(asp,dt);
+  if(this.townInterior)return this.renderTownInterior(asp);
+  }
+  return inOrbit?this.orbit(state,asp,dt):this.ground(state,asp,dt);
+ }
+  /** Cabin, exterior ground and celestial sphere share the WORLD WebGL2 framebuffer. */
+  renderUnifiedShip(asp,dt=1/60){
+   const gl=this.gl,v=this.shipVoyage;
+   this.shipCrewHitPoints=[];
+   if(!v?.interior)return "ground";
+   const phase=groundScenePhase(v),person=v.interior,sky=phase.sky;
+   gl.clearColor(.012+sky*.39,.023+sky*.58,.051+sky*.71,1);
+   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+   gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
+   gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+   gl.uniform1f(this.uXROcclusionEnabled,0);
+   // Exterior follow camera is allowed only from the pilot seat. Neither
+   // the camera nor the exterior hull is a second spacecraft simulation.
+   const remote=this.shipRemotePilot&&!v.seated;
+   const chase=this.xrView?.mode!=="vr"&&this.shipCameraMode==="chase"&&Boolean(v.seated||remote||person.mode==="cockpit");
+   const landingAttitude=v.status==="entry"&&v.seated?
+    -.30*Math.sin(Math.PI*Math.min(1,Math.max(0,v.stageProgress||0))*.92):
+    v.status==="touchdown"&&v.seated?-.08*(1-(v.touchdownElapsed||0)/1.7):0;
+   const camera=shipCameraPose({mode:chase?"chase":"cockpit",
+    wide:this.shipWideView,fovDeg:this.shipCockpitFov,distance:this.shipChaseDistance,
+    orbitYaw:this.shipOrbitYaw,orbitPitch:this.shipOrbitPitch,
+    interior:{...person,hatchPassable:v.hatchOpen,
+     x:remote?0:person.x,z:remote?PILOT_SEAT_Z:person.z,
+     seated:remote?true:person.seated},landingAttitude});
+   const xr=this.xrView;
+   const interaction=person.greetings.pair;
+   const crewCamera=!xr&&!chase&&!remote&&!person.seated&&Boolean(this.shipCrewView||interaction);
+   if(!crewCamera)this.shipCrewCamera=null;
+   if(crewCamera){
+    const yaw=person.greetings.playerYaw??(Math.PI-person.yaw);
+    const focus=interaction?{
+     x:(person.x+interaction.member.x)*.5,z:(person.z+interaction.member.z)*.5
+    }:person;
+    const pairGap=interaction?person.distance(interaction.member):0;
+    const cameraDistance=pairGap>1.55?2.65:2.30;
+    const offsets=interaction?[[cameraDistance,0],[-cameraDistance,0],[0,-2.8]]:[[1.15,-2.1],[-1.15,-2.1],[0,2.3]];
+    const candidates=offsets.map(([side,behind])=>[
+     focus.x+Math.cos(yaw)*side+Math.sin(yaw)*behind,1.55,
+     focus.z-Math.sin(yaw)*side+Math.cos(yaw)*behind
+    ]);
+    camera.eye=candidates.find(([x,,z])=>person.canOccupy(x,z,{ignoreCrew:true})&&
+     [-4.8,4.5].every(wall=>(focus.z-wall)*(z-wall)>=0||Math.abs(x)<1.1))||
+     [Math.max(-3.4,Math.min(3.4,focus.x+1.95)),2.05,Math.max(-12.6,Math.min(12.5,focus.z+.65))];
+    camera.target=[focus.x,.97,focus.z];
+    camera.fovDeg=76;
+    const previous=this.shipCrewCamera;
+    if(previous&&previous.interaction===interaction&&
+       Math.hypot(previous.eye[0]-camera.eye[0],previous.eye[2]-camera.eye[2])<1.6){
+     const blend=Math.min(1,Math.max(0,dt)*12);
+     camera.eye=previous.eye.map((value,index)=>value+(camera.eye[index]-value)*blend);
+     camera.target=previous.target.map((value,index)=>value+(camera.target[index]-value)*blend);
+    }
+    this.shipCrewCamera={eye:camera.eye,target:camera.target,interaction};
+   }
+   const vp=xr?.mode==="vr"?multiply4(xr.projection,multiply4(xr.view,xr.stage)):
+    multiply4(perspective(camera.fovDeg*DEG,asp,.12,42000),
+     lookAt(camera.eye,camera.target));
+   this.pickVP=null;this.orbitVP=null;this.actorMarker=null;
+   // Inertial sky moves in the opposite direction to the ship's manual
+   // yaw/pitch. This same frame is used by the contact-marker overlay.
+   const yaw=(Number.isFinite(v.attitudeYawDeg)?v.attitudeYawDeg:0)*DEG;
+   const nose=(Number.isFinite(v.pitchDeg)?v.pitchDeg:0)*DEG;
+   const bank=(v.status==="atmosphere"?(v.rollDeg||0):0)*DEG;
+   const inertialModel=multiply4(rotZ(-bank),multiply4(rotX(-nose),rotateY(yaw)));
+   if(sky<.91)
+    this.drawMesh(this.shipStars,multiply4(vp,inertialModel),[1,1,1],1,1);
+   const contacts=shipSensorContacts(v,this.shipCombat);
+   // Entry needs the *destination's* terrain before the player reaches it.
+   // Exactly the same geodetic pad is later used to place the visible hull.
+   const arrival=["entry","atmosphere","vtol","touchdown"].includes(v.status)&&
+    this.shipArrivalPreview?.bodyId===v.flightBodyId?this.shipArrivalPreview:null;
+   const groundTerrain=arrival?.terrain||this.terrain;
+   let site=arrival?.site||(this.surfaceStarship?.present(this.planet.id)?this.surfaceStarship:
+    v.launchSite?.bodyId===this.planet.id?v.launchSite:null);
+   let residualEast=v.airEast||0,residualNorth=v.airNorth||0;
+   if(arrival&&["atmosphere","vtol"].includes(v.status)){
+    const east=Math.round(residualEast/500)*500,north=Math.round(residualNorth/500)*500;
+    const r=groundTerrain.planet.radiusM;
+    site={...site,lat:site.lat+north/r*180/Math.PI,
+     lon:site.lon+east/(r*Math.max(.05,Math.cos(site.lat*Math.PI/180)))*180/Math.PI};
+    residualEast-=east;residualNorth-=north;
+   }
+   if(phase.showGround&&site&&groundTerrain){
+    const radius=phase.lift>1800?18000:phase.lift>350?6200:phase.lift>80?1850:650;
+    const key=[groundTerrain.planet.id,site.lat.toFixed(5),site.lon.toFixed(5),
+     radius,site.yaw?.toFixed(3)||0].join(":");
+    if(key!==this.shipTerrainKey){
+     this.shipTerrainPatch?.destroy();this.shipTerrainPatch=null;
+     this.shipTerrainPatch=new Mesh(gl,samplePatch(groundTerrain,site.lat,site.lon,radius,
+      radius>650?40:52));
+     this.shipTerrainKey=key;
+    }
+    const pad=Number.isFinite(site.padElevationM)?site.padElevationM:
+     terrainSurface(groundTerrain,site.lat,site.lon).elevationM;
+    const groundMatrix=multiply4(multiply4(rotX(v.status==="atmosphere"?-nose:0),rotateY(["atmosphere","vtol"].includes(v.status)?yaw:-(site.yaw||0))),
+     translate(-residualEast,-pad-2.0-phase.lift,residualNorth));
+    this.drawMesh(this.shipTerrainPatch,multiply4(vp,groundMatrix),
+     [.64,.89,.42],1,.68);
+    // Existing nearby settlements belong only to the origin planetary terrain;
+    // never show an old planet's village in the destination landing window.
+    if(!arrival&&phase.lift<390&&this.shipGroundState?.origin&&Number.isFinite(this.cx)){
+     const origin=this.shipGroundState.origin;
+     const offset=geoLocal(origin.lat,origin.lon,site.lat,site.lon,this.planet.radiusM);
+     const toShip=multiply4(rotateY(-(site.yaw||0)),translate(
+      this.cx-offset.eastM,-pad-2.0-phase.lift,this.cz-offset.northM));
+     const groundVP=multiply4(vp,toShip);
+     for(const mesh of this.settlement.slice(0,48))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.64);
+     for(const mesh of this.settlementDecor.slice(0,20))this.drawMesh(mesh,groundVP,[.64,.89,.42],1,.69);
+     for(const mesh of this.trees.slice(0,20))this.drawInstancedMesh(mesh,groundVP,[.65,.88,.46],1,.63);
+    }
+   }
+   this.shipTargets=[];
+   if(phase.showGlobe){
+    const progress=v.progress||0;
+    const target=v.destinationId&&bodyById(v.destinationId);
+    const origin=bodyById(v.originId);
+    let hex=(target?.color||origin?.color||"#95bee5");
+    if(v.status==="ascent"||v.status==="origin-orbit")hex=origin?.color||hex;
+    hex=hex.replace("#","");
+    const rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+    const remaining=Math.hypot(1-(v.routeAlong??progress),v.crossTrack||0);
+    const proximity=Math.max(0,1-Math.min(1,remaining));
+    const radius=contacts.find(c=>c.id==="planet")?.routeView?(v.status==="orbit"&&v.autopilot?80:300):v.status==="ascent"?100+phase.lift*.020:
+     v.status==="entry"?120+Math.max(0,v.stageProgress||0)*300:
+     ["cruise","approach","flyby","orbit"].includes(v.status)?
+      10+Math.pow(proximity,2.5)*210:120;
+    const celestial=contacts.find(c=>c.id==="planet")?.position||[0,-50,-420];
+    const planetProjection=projectScreen(vp,celestial);
+    if(planetProjection)this.shipTargets.push({...planetProjection,id:"planet",name:"目的惑星"});
+    const globe=multiply4(translate(...celestial),scale3(radius,radius,radius));
+    this.drawMesh(this.shipPlanetSphere,multiply4(vp,globe),[.86,.91,.55],1,.88,rgb);
+   }
+   for(const star of contacts.filter(contact=>contact.type==="star")){
+    const projection=projectScreen(vp,star.position);
+    if(projection)this.shipTargets.push({...projection,id:star.id,name:star.name});
+    const point=multiply4(translate(...star.position),scale3(5,5,5));
+    this.drawMesh(this.shipPlanetSphere,multiply4(vp,point),[.8,.9,1],1,1);
+   }
+   // Every hologram/sensor glyph shares the corresponding 3D target position.
+   // Non-hostiles have no weapon locks and are drawn once, never as duplicate ships.
+   for(const c of contacts.filter(c=>c.visual&&c.faction!=="hostile")){
+    const model=multiply4(translate(...c.position),
+     scale3(...(c.type==="resource"?[2.5,2.1,2.4]:CONTACT_HULL_SCALE[c.hull]||[.8,.8,.8])));
+    const mesh=c.type==="resource"?this.shipPlanetSphere:this.surfaceShipMeshes[0];
+    const color=c.faction==="friendly"?[.45,.77,1]:
+     c.faction==="neutral"?[.45,.93,.65]:[.88,.75,.42];
+    this.drawMesh(mesh,multiply4(vp,model),[.7,.9,.8],1,.88,color);
+    // Asteroid mining impacts are visible in chase/cockpit/Quest stereo views.
+    const impact=this.shipCombat?.flashes?.find(f=>f.id===c.id&&f.seconds>0);
+    if(impact&&c.type==="resource"){
+     const pulse=multiply4(translate(...c.position),scale3(3.3+impact.seconds*4,3.3+impact.seconds*4,3.3+impact.seconds*4));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,pulse),[1,.84,.51],
+      Math.min(.52,impact.seconds*1.4),1,[1,.77,.33]);
+    }
+   }
+   if(this.shipCombat){
+    // Independent hardpoint bases and barrels share the same aim as fire control.
+    for(const mount of this.shipCombat.turrets.filter(m=>m.enabled)){
+     const base=multiply4(translate(mount.x,mount.y,mount.z),scale3(1.1,.5,1.1));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,base),[.8,.9,1],1,.9,[.4,.55,.65]);
+     const aim=multiply4(translate(mount.x,mount.y,mount.z),multiply4(rotateY(mount.yaw||0),rotX(mount.pitch||0)));
+     const barrel=multiply4(aim,multiply4(translate(0,0,-1.8),scale3(.35,.35,2.2)));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,barrel),[.8,.9,1],1,.9,mount.aligned?[.3,.9,1]:[.7,.7,.75]);
+    }
+    for(const contact of combatEligible(v)?this.shipCombat.allContacts:[]){
+     const pos=shipContactPosition(contact,v);
+     const category=contact.faction||"hostile";
+     const projected=projectScreen(vp,pos);
+     if(projected)this.shipTargets.push({...projected,id:contact.id,name:contact.name,
+      faction:category,type:contact.type||"ship",distance:Math.hypot(
+       pos[0],pos[1]-2,pos[2])});
+     if(category==="hostile"){
+      const direction=encounterPointToShip(contact.velocity,v);
+      const yaw=Math.atan2(-direction[0],-direction[2]);
+      const pitch=Math.atan2(direction[1]-2,Math.hypot(direction[0],direction[2]));
+      const model=multiply4(translate(...pos),multiply4(rotateY(yaw),
+       multiply4(rotX(pitch),scale3(...(CONTACT_HULL_SCALE[contact.hull]||[.9,.9,.9])))));
+      const locked=this.shipCombat.locked.includes(contact.id);
+      const hit=this.shipCombat.flashes.some(f=>f.id===contact.id);
+      const tint=contact.surrendered?[.72,.88,.95]:hit?[1,.95,.56]:
+       locked?[1,.85,.42]:[1,.50,.37];
+      this.drawMesh(this.surfaceShipMeshes[0],multiply4(vp,model),[.8,.76,.65],1,.87,tint);
+      if(contact.shieldFlash>0){
+       const bubble=multiply4(translate(...pos),scale3(2.2,2.2,2.2));
+       this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.6,.9,1],
+        Math.min(.38,contact.shieldFlash*1.1),.96,[.55,.85,1]);
+      }
+      for(const flash of this.shipCombat.flashes.filter(f=>f.id===contact.id&&!f.shield)){
+       const blast=multiply4(translate(...pos),scale3(1.1+flash.seconds*3,1.1+flash.seconds*3,1.1+flash.seconds*3));
+       this.drawMesh(this.shipPlanetSphere,multiply4(vp,blast),[1,.65,.2],
+        Math.min(.85,flash.seconds*2),1,[1,.55,.12]);
+      }
+     }
+     // The diamond is a true 3D marker visible in both Quest stereo eyes.
+     if(this.shipScannedIds?.has(contact.id)){
+      const tint=(this.shipCombat.locked.includes(contact.id)||category==="resource"&&v.navigationTarget?.id===contact.id)?[1,.19,.17]:
+       category==="hostile"?[1,.53,.21]:category==="friendly"?[.27,.70,1]:
+       category==="neutral"?[.27,.95,.42]:[.95,.8,.38];
+      const markerPos=[pos[0],pos[1]+Math.max(5,Math.min(11,Math.abs(pos[2])*.012)),pos[2]];
+      const markerModel=multiply4(translate(...markerPos),
+       scale3(3.2,3.2,3.2));
+      this.drawMesh(this.shipContactGem,multiply4(vp,markerModel),[1,1,1],1,.99,tint);
+     }
+    }
+    // Ship destroyed: explosion persists even after hp reaches zero and the
+    // destroyed ship has disappeared from the live target list.
+    for(const effect of combatEligible(v)?this.shipCombat.explosions:[]){
+     const target=this.shipCombat.targets.find(t=>t.id===effect.id);
+     if(!target)continue;
+     const pos=shipContactPosition(target,v);
+     const age=effect.total-effect.seconds,fade=Math.max(0,effect.seconds/effect.total);
+     const outer=multiply4(translate(...pos),scale3(3+age*12,2.8+age*11,3+age*12));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,outer),[1,.68,.27],
+      fade*.68,1,[1,.48,.09]);
+     const core=multiply4(translate(...pos),scale3(1.8+age*3,1.8+age*3,1.8+age*3));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,core),[1,.92,.62],
+      fade*.82,1,[1,.83,.45]);
+     for(let k=0;k<9;k++){
+      const angle=k*2.39996+effect.id.length*.37;
+      const travel=(age*17)*(1+(k%3)*.27);
+      const spark=[pos[0]+Math.cos(angle)*travel,
+       pos[1]+Math.sin(angle*.69)*travel*.68,
+       pos[2]+Math.sin(angle)*travel];
+      const size=(.40+(k%3)*.22)*fade;
+      const p=multiply4(translate(...spark),scale3(size,size,size*2));
+      this.drawMesh(this.shipPlanetSphere,multiply4(vp,p),[1,.61,.20],fade,1,
+       k%2?[1,.53,.13]:[1,.91,.50]);
+     }
+    }
+    const defensePoint=point=>encounterPointToShip(point.map((n,i)=>n-shipEncounterPosition(v)[i]),v);
+    const defenseDot=(point,size,color,alpha=1)=>{
+     const model=multiply4(translate(...point),scale3(size,size,size));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),[1,1,1],alpha,1,color);
+    };
+    // Roof-mounted close-in defense gun tracks its latest incoming threat.
+    const trace=this.shipCombat.defenseTraces.at(-1);
+    const end=trace?defensePoint(trace.end):[0,5.6,-20];
+    const dx=end[0],dy=end[1]-5.6,dz=end[2]+2;
+    const gun=multiply4(translate(0,5.6,-2),multiply4(rotateY(Math.atan2(-dx,-dz)),rotX(Math.atan2(dy,Math.hypot(dx,dz)))));
+    this.drawMesh(this.shipPlanetSphere,multiply4(vp,multiply4(gun,multiply4(translate(0,0,-1.2),scale3(.3,.3,1.8)))),[1,1,1],1,.9,[.55,.65,.7]);
+    for(const burst of this.shipCombat.defenseBursts){
+     const age=1-burst.seconds/burst.total;
+     defenseDot(defensePoint(burst.position),1+age*6,[1,.55,.15],1-age);
+    }
+    for(const tracer of this.shipCombat.defenseTraces){
+     const a=defensePoint(tracer.start),b=defensePoint(tracer.end);
+     for(let k=0;k<12;k++)defenseDot(a.map((n,i)=>n+(b[i]-n)*k/12),.16,[1,.95,.55]);
+    }
+    for(const flare of this.shipCombat.flares)defenseDot(defensePoint(flare.position),.6,[1,.62,.16],Math.min(1,flare.seconds));
+    for(const shot of combatEligible(v)?this.shipCombat.projectiles:[]){
+     if(shot.weapon==="enemy-missile"){
+      defenseDot(defensePoint(shot.position),.8,[1,.2,.12]);
+      for(const point of shot.trail||[])defenseDot(defensePoint(point),.4,[1,.65,.2],.6);
+      continue;
+     }
+     const target=this.shipCombat.targets.find(t=>t.id===shot.id)||this.shipCombat.nonHostiles.find(t=>t.id===shot.id);
+     if(!target)continue;
+     const destination=shipContactPosition(target,v);
+     const progress=1-Math.max(0,shot.seconds)/Math.max(.01,shot.total);
+     const relativePoint=point=>encounterPointToShip(point.map((n,i)=>n-shipEncounterPosition(v)[i]),v);
+     const start=shot.origin?relativePoint(shot.origin):shot.enemy?destination:(shot.muzzle||[0,2,-7]);
+     const end=shot.decoy?relativePoint(shot.decoy):shot.impact?relativePoint(shot.impact):shot.enemy?[0,2,-7]:destination;
+     const seed=shot.id.length*.7;
+     const point=shot.weapon==="missile"?missileTrailPoint(start,end,progress,seed):
+      start.map((n,i)=>n+(end[i]-n)*progress);
+     const radius=shot.weapon==="missile"?.80:.21;
+     const model=multiply4(translate(...point),scale3(radius,radius,radius*2.8));
+     this.drawMesh(this.shipPlanetSphere,multiply4(vp,model),
+      shot.enemy?[1,.28,.15]:[1,.84,.35],1,1,
+      shot.enemy?[1,.35,.18]:[1,.95,.55]);
+     if(shot.weapon==="missile"){
+      // A visible tapering exhaust trail follows the curved guided body.
+      for(let k=1;k<=15;k++){
+       const f=Math.max(0,progress-k*.018);
+       if(f<=0)continue;
+       const q=missileTrailPoint(start,end,f,seed);
+       const smokeSize=(.22+k*.14);
+       const trail=multiply4(translate(...q),scale3(smokeSize,smokeSize,smokeSize));
+       const flame=k<=4;
+       this.drawMesh(this.shipPlanetSphere,multiply4(vp,trail),
+        flame?[1,.76,.43]:[.58,.68,.79],
+        (flame?.85:.23)*(1-k/17),.94,
+        flame?[1,.69,.21]:[.55,.62,.68]);
+      }
+     }
+    }
+    if(chase&&this.shipCombat.player.shieldFlash>0){
+     const bubble=multiply4(translate(0,0,0),scale3(19,10,25));
+     this.drawMesh(this.shipShieldSphere,multiply4(vp,bubble),[.55,.85,1],
+      Math.min(.28,this.shipCombat.player.shieldFlash),.97,[.6,.85,1]);
+    }
+   }
+   if(chase&&v.status==="vtol"){
+    for(const x of [-2.7,2.7]){
+     const jet=multiply4(translate(x,1.8,2),multiply4(rotX(Math.PI/2),scale3(.7,.7,5)));
+     this.drawMesh(this.shipExhaustMeshes.cruise,multiply4(vp,jet),[1,1,1],1,.98);
+    }
+   }
+   if(chase){
+    // Chase camera is ship-local: swiping orbits the camera; ship heading
+    // rotates the inertial sky, not the camera's stored orbit offset.
+    const bank=(v.status==="atmosphere"?(v.rollDeg||0):0)*DEG;
+    const bankedVP=multiply4(vp,rotZ(bank));
+    this.drawMesh(v.gearDown===false?this.shipGearUpMesh:this.surfaceShipMeshes[v.hatchOpen?1:0],
+     bankedVP,[.57,.89,.49],1,.83);
+    this.drawShipWindowCrew(vp,rotZ(bank),[1,1,1],dt);
+    if(Math.abs(v.volThrottle)>.01&&v.fuel>0&&!v.isGrounded?.()){
+     for(const x of [-2.7,2.7]){
+      const plume=multiply4(translate(x,1.8,2),multiply4(rotX(Math.sign(v.volThrottle)*Math.PI/2),
+       scale3(.55,.55,2+Math.abs(v.volThrottle)*7)));
+      this.drawMesh(this.shipExhaustMeshes.cruise,multiply4(vp,plume),[1,1,1],1,.98);
+     }
+    }
+    const amount=v.inWarp?1:Math.abs(Number.isFinite(v.throttle)?v.throttle:0);
+    if(amount>.01&&!["docked","landed","touchdown","preflight"].includes(v.status)&&v.fuel>0){
+     const backwards=!v.inWarp&&v.throttle<0;
+     const color=backwards?"reverse":amount>.65?"boost":"cruise";
+     const mesh=this.shipExhaustMeshes[color];
+     const pulse=.92+.08*Math.sin((v.elapsedSeconds||0)*28);
+     const length=(2+amount*14+120*(v.warpSpeed||0))*pulse;
+     const radius=.48+amount*.38;
+     for(const x of [-2.15,0,2.15]){
+      const local=backwards?multiply4(translate(x,3.2,-14),
+       rotateY(Math.PI)):translate(x,3.28,13.5);
+      this.drawMesh(mesh,multiply4(vp,multiply4(local,scale3(radius,radius,length))),
+       [1,1,1],1,.98);
+     }
+    }
+   }else{
+    this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+    const xrBody=xr?.mode==="vr",playerV10Ready=this.avatarV10Assets.get(this.avatarV10.player.model);
+   this.drawShipAvatars(vp,person,dt,xrBody?Boolean(xr.showAvatar||playerV10Ready):Boolean(crewCamera));
+    // Quest stereoscopic holograms share the same ship-local space and cockpit
+    // state as physical controls. The 2D overlays remain desktop-only.
+    if(xr?.mode==="vr"&&v.seated){
+     this.drawMesh(this.shipHoloPlate,vp,[.72,.92,1],.75,1);
+     const gravBody=bodyById(v.flightBodyId||v.originId);
+     const height=phase.lift;
+     const gravity=gravBody?gravBody.gravity*Math.pow(gravBody.radiusM/(gravBody.radiusM+height),2):null;
+     const readouts=xrHologramReadouts(v,{height,gravity});
+     const key=readouts.map(r=>r.text).join("/");
+     if(this.shipHoloReadoutKey!==key){
+      this.shipHoloReadout?.destroy();
+      const digits=builder(),centers=XR_HOLO_READOUT_X;
+       readouts.forEach((r,i)=>holoLetters(digits,r.text,centers[i],XR_HOLO_READOUT_Y-.042,XR_HOLO_Z+.05,
+        {size:.0055,color:[.91,1,.94]}));
+      this.shipHoloReadout=new Mesh(gl,digits);this.shipHoloReadoutKey=key;
+     }
+     if(this.shipHoloReadout)this.drawMesh(this.shipHoloReadout,vp,[1,1,1],1,1);
+     for(const lever of XR_HOLO_SLIDERS){
+      const raw=lever.vol?(v.volThrottle||0)*100:v.warpEngaged?125:(v.throttle||0)*100;
+      const frac=Math.max(0,Math.min(1,(raw+100)/(lever.vol?200:225)));
+      const transform=multiply4(translate(lever.x,lever.minY+frac*(lever.maxY-lever.minY),lever.z+.057),
+       scale3(.086,.055,.04));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.95,.95,1],.96,1,
+       lever.vol?[.52,.66,1]:[.43,1,.81]);
+     }
+     for(const button of XR_HOLO_BUTTONS){
+      const model=this.shipCombat;
+      const active=button.id==="autopilot"?v.autopilot:
+       button.id==="lock"?model?.fireControl:button.id==="autoFire"?model?.autoFire:
+       button.id==="ciws"?model?.ciwsEnabled:button.id==="gear"?v.gearDown:
+       button.id==="hatch"?v.hatchOpen:false;
+      const color=active?[.19,1,.54]:
+       button.id==="primary"?[1,.83,.29]:
+       button.id.startsWith("repair")?[.31,.77,1]:
+       button.id==="autoFire"?[1,.30,.31]:[.27,.80,.98];
+      const tr=multiply4(translate(button.x,button.y,button.z+.08),scale3(.085,.047,.04));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,tr),[1,1,1],.95,1,color);
+     }
+    }
+    // Pitch ladder and navigation tape live on the transparent forward glass,
+    // not on a screen-space DOM overlay (WebXR cannot see those overlays).
+    const glass=v.seated&&(xr?.mode==="vr"||this.shipHUDMode==="glass")?windshieldTelemetry(v,{
+     body:bodyById(windshieldBodyId(v)),height:phase.lift}):null;
+    if(glass){
+     const key=[glass.pitchDeg.toFixed(1),Math.round(glass.rollDeg||0),Math.round(glass.headingDeg),
+      glass.speedMps===null?"—":Math.round(glass.speedMps/3),
+      glass.altitudeM===null?"—":Math.round(glass.altitudeM/10),
+      glass.lat===null?"—":glass.lat.toFixed(3),glass.lon===null?"—":glass.lon.toFixed(3)].join("/");
+     if(key!==this.shipWindshieldHUDKey){
+      this.shipWindshieldHUD?.destroy();
+      this.shipWindshieldHUD=new Mesh(gl,shipWindshieldMesh(glass));
+      this.shipWindshieldHUDKey=key;
+     }
+     this.drawMesh(this.shipWindshieldHUD,vp,[.75,1,.94],.91,1);
+    }
+    // Reachable physical HOTAS in the existing ship-local coordinate system.
+     if(v.seated){
+      const commands=this.shipVRHotas||{};
+      for(const side of ["left","right"]){
+       const base=XR_HOTAS[side];
+       const value=side==="left"?(v.throttle||0):(commands.pitch||0);
+       const yaw=side==="right"?(commands.yaw||0):0;
+       this.drawMesh(this.shipHotasBase,multiply4(vp,translate(base.x,.79,base.z)),[.8,.89,1],1,.93);
+       const lever=multiply4(translate(base.x,.88,base.z),multiply4(rotZ(-yaw*.29),rotX(value*.32)));
+       this.drawMesh(this.shipHotasLevers[side],multiply4(vp,lever),[.9,.92,1],1,.96);
+      }
+     }
+     // Physical switch caps share one set of positions with Quest ray picking.
+    this.shipCockpitControls=[];
+    if(!v.seated&&v.isNearSeat?.()){
+     const seat=projectScreen(vp,[0,1.1,PILOT_SEAT_Z+.55]);
+     if(seat)this.shipCockpitControls.push({...seat,id:"seat"});
+    }
+    if(v.seated||person.mode==="cockpit"){
+     const leverProjection=projectScreen(vp,COCKPIT_LEVER);
+     if(leverProjection)this.shipCockpitControls.push({...leverProjection,id:"throttle"});
+     // Windshield combiner bars replace the large central instrument panel.
+     for(const [y,amount,color] of [[1.8,this.shipCombat?.player.shield??100,[.2,.8,1]],[1.65,this.shipCombat?.player.hp??100,[.3,1,.4]]]){
+      const bar=multiply4(translate(-.9+amount*.009,y,-13.04),scale3(Math.max(.001,amount*.009),.025,.006));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,bar),[1,1,1],.8,1,color);
+     }
+     for(const {id,position} of COCKPIT_SWITCHES){
+      const mapped=this.shipControlLayout?.[COCKPIT_SWITCHES.findIndex(s=>s.id===id)]||"none";
+      const color=mapped==="scan"?[.18,.86,1]:mapped==="weapon"?[1,.8,.2]:
+       mapped==="fire"?[1,.22,.15]:mapped==="hatch"?[.27,.92,.55]:
+       mapped==="auto"?[.65,.75,1]:mapped==="camera"?[.70,.70,1]:
+       mapped==="wide"?[.85,.95,1]:[.20,.23,.27];
+      const transform=multiply4(translate(...position),scale3(.085,.04,.085));
+      this.drawMesh(this.shipCockpitButtons,multiply4(vp,transform),[.9,.9,1],1,.98,color);
+      const projected=projectScreen(vp,position);
+      if(projected)this.shipCockpitControls.push({...projected,id});
+     }
+    }
+   }
+   return chase?"ship-exterior":"ship-interior";
+  }
+
+ /** A train follows its actual geodesic rail path, never a free-flight camera proxy. */
+ renderRailJourney(asp,dt=1/60){
+  const pose=this.railJourney?.pose,locations=this.railJourney?.locations||[];
+  if(!pose)return this.renderTrainInterior(asp,dt);
+  const R=this.planet.radiusM,gl=this.gl;
+  this.trainClock+=Math.max(0,Math.min(.1,dt));
+  const start=this.railJourneyOrigin;
+  const moved=start?geoLocal(start.lat,start.lon,pose.lat,pose.lon,R):null;
+  if(!start||!moved||Math.hypot(moved.eastM,moved.northM)>270){
+   const station=pose.state.mode==="stopped"?pose.state.station:
+    pose.progress>.996?pose.state.nextStation:pose.progress<.004?pose.state.fromStation:null;
+   const home=station?locations.find(p=>p.id===station.id):null;
+   const anchor=home&&Math.hypot(...Object.values(geoLocal(home.lat,home.lon,pose.lat,pose.lon,R)).slice(0,2))<600?
+    {lat:home.lat,lon:home.lon}: {lat:pose.lat,lon:pose.lon};
+   this.railJourneyOrigin=anchor;
+   this.railJourneyGeo={lat:pose.lat,lon:pose.lon};
+   this.railJourneyPatch?.destroy();this.railJourneyTrack?.destroy();
+   for(const mesh of [...this.railJourneyTrees,...this.railJourneyGrass])mesh.destroy();
+   this.railJourneyTrees=[];this.railJourneyGrass=[];
+   this.railJourneyData=samplePatch(this.terrain,anchor.lat,anchor.lon,880,58);
+   this.railJourneyPatch=new Mesh(gl,this.railJourneyData);
+   const center=geoLocal(anchor.lat,anchor.lon,pose.lat,pose.lon,R);
+   const railRows=railwayTrackSamples(this.terrain,locations,pose,{spanM:1550,steps:60}).map(p=>
+    ({...p,x:p.x+center.eastM,z:p.z+center.northM}));
+   const geom=trackGeometry(railRows);
+   this.railJourneyTrack=geom.indices.length?new Mesh(gl,geom):null;
+   // LOD: native grass/trees from the same planetary seed as free exploration.
+   const groundAt=(x,z)=>patchSceneryHeight(this.railJourneyData,x,z);
+   const plan=planWorldScenery({seed:this.planet.seed,cx:0,cz:0,radius:880,barren:this.planet.id!=="terra",
+    groundAt,settlementId:"wilderness",
+    biomeAt:(x,z)=>{
+     const p=geoOffset(anchor.lat,anchor.lon,x,z,R);
+     return terrainSurface(this.terrain,p.lat,p.lon);
+    }});
+   const scenery=buildSceneryInstances({...plan,trees:plan.trees.slice(0,850),
+    grass:plan.grass.slice(0,2000)});
+   this.railJourneyTrees=scenery.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+   this.railJourneyGrass=scenery.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+  }
+  const pos=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,pose.lat,pose.lon,R);
+  const tx=pos.eastM,tz=pos.northM,ty=pose.elevationM,heading=pose.yaw;
+  const mode=this.trainInterior.camera||"follow";
+  let eye,target=[tx,ty+2.7,tz+3];
+  if(mode==="rts")eye=[tx+90,ty+205,tz-80];
+  else if(mode==="fixed"){
+   const fixed=this.railCameraFixed;
+   const far=fixed?geoLocal(fixed.at.lat,fixed.at.lon,pose.lat,pose.lon,R):null;
+   if(!fixed||fixed.fromId!==pose.fromId||fixed.toId!==pose.toId||
+     Math.hypot(far.eastM,far.northM)>470){
+    const at=geoOffset(pose.lat,pose.lon,
+     Math.cos(heading)*62+Math.sin(heading)*100,
+     -Math.sin(heading)*62+Math.cos(heading)*100,R);
+    this.railCameraFixed={at,fromId:pose.fromId,toId:pose.toId,
+     elevationM:pose.elevationM};
+   }
+   const near=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,
+    this.railCameraFixed.at.lat,this.railCameraFixed.at.lon,R);
+   eye=[near.eastM,this.railCameraFixed.elevationM+32,near.northM];
+  }else eye=[tx-Math.sin(heading)*58+Math.cos(heading)*26,ty+23,
+    tz-Math.cos(heading)*58-Math.sin(heading)*26];
+  const vp=multiply4(perspective((mode==="rts"?60:57)*DEG,asp,.65,55000),
+   lookAt(eye,target,mode==="rts"?[0,1,0]:undefined));
+  this.pickVP=null;this.actorMarker=null;
+  const light=[.40,Math.max(.4,this.planet.illumination(pose.lat,pose.lon)),.24];
+  const far=this.railJourneyHorizonGeo?geoLocal(this.railJourneyHorizonGeo.lat,
+   this.railJourneyHorizonGeo.lon,pose.lat,pose.lon,R):null;
+  if(!this.railJourneyHorizon||!far||Math.hypot(far.eastM,far.northM)>6200){
+   this.railJourneyHorizon?.destroy();
+   this.railJourneyHorizon=new Mesh(gl,buildDistantLandscape(this.terrain,pose.lat,pose.lon));
+   this.railJourneyHorizonGeo={lat:pose.lat,lon:pose.lon};
+  }
+  const offset=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,
+   this.railJourneyHorizonGeo.lat,this.railJourneyHorizonGeo.lon,R);
+  this.drawMesh(this.railJourneyHorizon,multiply4(vp,translate(offset.eastM,0,offset.northM)),light,1,.52);
+  this.drawMesh(this.railJourneyPatch,vp,light,1,.57);
+  if(this.railJourneyTrack)this.drawMesh(this.railJourneyTrack,vp,light,1,.86);
+  for(const mesh of this.railJourneyGrass)this.drawInstancedMesh(mesh,vp,light,1,.65);
+  for(const mesh of this.railJourneyTrees)this.drawInstancedMesh(mesh,vp,light,1,.62);
+  // On the last kilometre, station buildings are drawn on the same terrain tile.
+  for(const station of this.railway?.live(this.planet.timeDays)?.map(s=>
+    s.mode==="stopped"?s.station:s.nextStation)||[]){
+   if(!station)continue;
+   const at=railwayStationCoordinates(this.terrain,locations,station.id);
+   if(!at)continue;
+   const local=geoLocal(this.railJourneyOrigin.lat,this.railJourneyOrigin.lon,at.lat,at.lon,R);
+   if(Math.hypot(local.eastM-tx,local.northM-tz)>800)continue;
+   const g=terrainSurface(this.terrain,at.lat,at.lon);
+   const world=multiply4(translate(local.eastM,Math.max(0,g.elevationM),local.northM),rotateY(heading));
+   this.drawMesh(this.railwayStationMesh,multiply4(vp,world),light,1,.77);
+  }
+  this.drawRailwayVehicle(vp,light,tx,ty,tz,heading,pose);
+  return "train-exterior";
+ }
+ drawRailwayVehicle(vp,light,x,y,z,yaw,pose){
+  const world=multiply4(translate(x,y,z),rotateY(yaw));
+  const frame=multiply4(vp,world);
+  this.drawMesh(this.railwayTrainMesh,frame,light,1,.80);
+  const ease=.5-.5*Math.cos(Math.PI*(pose.progress||0));
+  const motion=locomotiveMotion((pose.totalM||0)*ease,this.trainClock,pose.speedMps||0);
+  for(const side of [-1.83,1.83]){
+   for(const z0 of [14.2,17.1,20.1]){
+    const gear=multiply4(translate(side,1.02,z0),rotX(motion.phase));
+    this.drawMesh(this.railWheelSpokes,multiply4(frame,gear),light,1,.93);
+   }
+  }
+  for(const rod of motion.rod){
+   const long=[1,0,0,0,0,1,0,0,0,0,rod.length,0,0,0,0,1];
+   const model=multiply4(translate(rod.x,rod.y,rod.z),multiply4(rotX(rod.angle),long));
+   this.drawMesh(this.railConnectingRod,multiply4(frame,model),light,1,.87);
+  }
+  const smokeLife=pose.state?.mode==="stopped"?.38:1;
+  this.gl.enable(this.gl.BLEND);
+  this.gl.blendFunc(this.gl.SRC_ALPHA,this.gl.ONE_MINUS_SRC_ALPHA);
+  this.gl.depthMask(false);
+  for(const puff of motion.smoke){
+   const sc=puff.scale*smokeLife;
+   const scale=[sc,0,0,0,0,sc,0,0,0,0,sc,0,0,0,0,1];
+   const model=multiply4(translate(puff.x,puff.y,puff.z),scale);
+   this.drawMesh(this.railSmokePuff,multiply4(frame,model),light,.40,.92);
+  }
+  this.gl.depthMask(true);this.gl.disable(this.gl.BLEND);
+ }
+ renderTrainInterior(asp,dt=1/60){
+  const gl=this.gl,kind=this.trainInterior.carriage||"passenger";
+  const actorPose=this.trainInterior.pose||{x:0,z:1.4,yaw:0};
+  const roomKey=kind+":"+(this.trainInterior.hideWalls?"open":"closed");
+  if(!this.trainRoomMeshes.has(roomKey))
+   this.trainRoomMeshes.set(roomKey,new Mesh(gl,
+    trainInteriorGeometry(kind,{hideWalls:this.trainInterior.hideWalls})));
+  this.trainClock+=Math.min(.1,Math.max(0,dt));
+  const moving=this.trainInterior.mode==="travel",sway=moving?Math.sin(this.trainClock*3.4)*.11:0;
+  gl.clearColor(.055,.075,.073,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const vp=this.xrInteriorVP(actorPose)||
+   multiply4(perspective(55*DEG,asp,.25,55000),
+    lookAt([9+sway,7.1,11],[0,1.25,-.1]));
+  this.pickVP=null;
+  // The window background is a real, updated local planetary terrain mesh,
+  // not a static illustration. It moves as the train progresses along the track.
+  const pose=this.railJourney?.pose;
+  if(pose){
+   const moved=this.trainWindowGeo?geoLocal(this.trainWindowGeo.lat,this.trainWindowGeo.lon,
+    pose.lat,pose.lon,this.planet.radiusM):null;
+   if(!this.trainWindowPatch||!moved||Math.hypot(moved.eastM,moved.northM)>90){
+    this.trainWindowPatch?.destroy();
+    this.trainWindowPatch=new Mesh(gl,samplePatch(this.terrain,pose.lat,pose.lon,300,42));
+    this.trainWindowGeo={lat:pose.lat,lon:pose.lon,elevationM:pose.elevationM};
+   }
+   const offset=geoLocal(this.trainWindowGeo.lat,this.trainWindowGeo.lon,pose.lat,pose.lon,this.planet.radiusM);
+   const transform=translate(-offset.eastM,-this.trainWindowGeo.elevationM-.85,-offset.northM);
+   const toFar=this.trainWindowHorizonGeo?geoLocal(this.trainWindowHorizonGeo.lat,
+    this.trainWindowHorizonGeo.lon,pose.lat,pose.lon,this.planet.radiusM):null;
+   if(!this.trainWindowHorizon||!toFar||Math.hypot(toFar.eastM,toFar.northM)>5800){
+    this.trainWindowHorizon?.destroy();
+    this.trainWindowHorizon=new Mesh(gl,buildDistantLandscape(this.terrain,pose.lat,pose.lon));
+    this.trainWindowHorizonGeo={lat:pose.lat,lon:pose.lon,elevationM:pose.elevationM};
+   }
+   const backdrop=geoLocal(pose.lat,pose.lon,this.trainWindowHorizonGeo.lat,
+    this.trainWindowHorizonGeo.lon,this.planet.radiusM);
+   this.drawMesh(this.trainWindowHorizon,multiply4(vp,translate(backdrop.eastM,
+    -this.trainWindowHorizonGeo.elevationM-.85,backdrop.northM)),[.55,.9,.4],1,.57);
+   this.drawMesh(this.trainWindowPatch,multiply4(vp,transform),[.55,.9,.4],1,.65);
+  }
+  this.drawMesh(this.trainRoomMeshes.get(roomKey),vp,[.55,.88,.42],1,.84);
+  const people=this.railway?.people(this.squad?.agents?.slice(1).map(a=>a.name)||[])||[];
+  const peopleKey=kind+":"+people.map(p=>p.id+":"+p.name).join("|");
+  if(peopleKey!==this.trainPersonKey){
+   this.trainPersonMesh?.destroy();
+   this.trainPersonMesh=people.length?new Mesh(gl,settlementResidentsGeometry(
+    people.map((p,i)=>({id:p.id,x:p.x,z:p.z,clothing:i%6})),()=>0)):null;
+   this.trainPersonKey=peopleKey;
+  }
+  if(this.trainPersonMesh)this.drawMesh(this.trainPersonMesh,vp,[.58,.86,.42],1,.83);
+  if(!this.townIndoorAvatarMesh){
+   const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
+   this.townIndoorAvatarMesh=new Mesh(gl,g);
+  }
+
+  const person=actorPose;
+  const model=multiply4(translate(person.x,moving?.025*Math.sin(this.trainClock*6):0,person.z),rotateY(person.yaw||0));
+  if(this.xrView?.mode!=="vr")
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
+  return "train-interior";
+ }
+ renderRailwayJail(asp){
+  const gl=this.gl,facility=this.custodyFacility,
+   person=facility?.player||this.custodyCell||{x:.3,z:-.4,yaw:0};
+  gl.clearColor(.15,.22,.29,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  // Both city/rail arrests share one walkable facility. The world coordinates
+  // and the planetary camera are never changed during custody.
+  const xr=this.xrView;
+  const vp=facility?
+   (xr?.mode==="vr"?multiply4(xr.projection,multiply4(xr.view,
+    multiply4(xr.stage,translate(-person.x,-(person.y||0),-person.z)))):
+    multiply4(perspective(62*DEG,asp,.15,130),
+     lookAt([person.x+6,person.y+4.9,person.z+8],
+      [person.x,person.y+1.25,person.z]))):
+   this.xrInteriorVP(person)||multiply4(perspective(55*DEG,asp,.22,120),
+    lookAt([8,5.8,9],[person.x,1.35,person.z]));
+  this.pickVP=null;this.actorMarker=null;
+  this.drawMesh(facility?this.custodyFacilityMesh:this.railwayJailMesh,vp,[.64,.83,.52],1,.95);
+  if(facility){
+   // Four solid inner safety rails around the entire upper-floor drop.
+   this.drawMesh(this.custodyRailMesh,vp,[.68,.84,.68],1,.95);
+   const openAngle=facility.door*Math.PI*.48;
+   for(const x of [-8,-4,0,4,8]){
+    // Each cell is visibly opened by the scheduled guard shift.
+    const model=multiply4(translate(x-.58,3.8,-6.15),rotateY(openAngle));
+    this.drawMesh(this.custodyDoorMesh,multiply4(vp,model),[.63,.83,.58],1,.94);
+   }
+   const g=facility.guard;
+   this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(
+    translate(g.x,g.y,g.z),rotateY(g.yaw||0))),[.74,.88,.66],1,.94);
+   for(const n of facility.inmates){
+    this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(
+     translate(n.x,n.y,n.z),rotateY(n.yaw||0))),[.72,.78,.90],1,.94);
+   }
+  }else{
+   this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(translate(-1.1,0,6),rotateY(Math.PI))),
+    [.58,.78,.34],1,.86);
+  }
+  if(!this.townIndoorAvatarMesh){
+   this.townIndoorAvatarMesh=new Mesh(gl,settlementResidentsGeometry(
+    [{id:"player",x:0,z:0,clothing:0}],()=>0));
+  }
+  if(xr?.mode!=="vr"){
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,multiply4(
+    translate(person.x,person.y||0,person.z),rotateY(person.yaw||0))),
+    [.58,.84,.46],1,.91);
+  }
+  return this.custodyKind==="law"?"guard-cell":"railway-jail";
+ }
+ renderTownInterior(asp){
+  const gl=this.gl,kind=this.townInterior.type||"cabin";
+  if(!this.townRoomMeshes.has(kind))
+   this.townRoomMeshes.set(kind,new Mesh(gl,townInteriorGeometry(kind)));
+  gl.clearColor(.08,.13,.15,1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const vp=this.xrInteriorVP(this.townInterior.pose||{x:0,z:2.4})||
+   multiply4(perspective(55*DEG,asp,.1,90),
+    lookAt([8,6.6,10],[0,1.0,-.2]));
+  this.pickVP=null;
+  this.drawMesh(this.townRoomMeshes.get(kind),vp,[.5,.9,.45],1,.86);
+  if(!this.townIndoorAvatarMesh){
+   const g=settlementResidentsGeometry([{id:"player",x:0,z:0,clothing:0}],()=>0);
+   this.townIndoorAvatarMesh=new Mesh(gl,g);
+  }
+  const person=this.townInterior.pose||{x:0,z:2.4,yaw:0};
+  const model=multiply4(translate(person.x,0,person.z),rotateY(person.yaw||0));
+  if(this.xrView?.mode!=="vr")
+   this.drawMesh(this.townIndoorAvatarMesh,multiply4(vp,model),[.6,.9,.35],1,.88);
+  return "town-interior";
+ }
+ orbit(s,asp,dt=1/60){
+  this.pickVP=null;
+  if(this.orbitFocus&&this.orbitPan){
+   const a=1-Math.exp(-Math.min(Math.max(dt,0),.1)*5.5);
+   const deltaLon=wrapLon(this.orbitFocus.lon-this.orbitPan.lon);
+   this.orbitPan.lat+=(this.orbitFocus.lat-this.orbitPan.lat)*a;
+   this.orbitPan.lon=wrapLon(this.orbitPan.lon+deltaLon*a);
+   if(Math.abs(this.orbitFocus.lat-this.orbitPan.lat)<.01&&
+      Math.abs(wrapLon(this.orbitFocus.lon-this.orbitPan.lon))<.01){
+    this.orbitPan={...this.orbitFocus};
+    this.orbitFocus=null;
+   }
+  }
+  const gl=this.gl,R=this.R,distance=R*(1+s.altitudeM/this.planet.radiusM);
+  const c=this.cameraController.config;
+  const offset=this.planet.rotationAngle*180/Math.PI*(s.altitudeM>400000?1:0);
+  // Orbiting the view never changes the avatar's real lat/lon.
+  const freeGeo=c.mode==="free"?
+    geoOffset(s.origin.lat,s.origin.lon,c.freeX,c.freeZ,this.planet.radiusM):null;
+  const centerLat=freeGeo?.lat??s.lat,centerLon=freeGeo?.lon??s.lon;
+  const pitch=c.mode==="free"?c.freePitch:c.pitchRad;
+  const yaw=c.mode==="free"?c.freeYaw:c.yawOffset;
+  const orbitalLat=this.orbitPan?.lat??clamp(centerLat+(c.mode==="legacy"?0:pitch*30),-89.5,89.5);
+  const orbitalLon=this.orbitPan?this.orbitPan.lon+offset:
+   centerLon+offset+(c.mode==="legacy"?0:yaw*35);
+  this.lastOrbitCenter={lat:orbitalLat,lon:wrapLon(orbitalLon-offset)};
+  const n=geoNormal(orbitalLat,orbitalLon),camera=n.map(v=>v*distance);
+  const view=lookAt(camera,[0,0,0],Math.abs(n[1])>.95?[0,0,1]:[0,1,0]);
+  const vp=this.xrView?.planetMode?
+   multiply4(this.xrView.projection,multiply4(this.xrView.view,this.xrView.stage)):
+   multiply4(perspective((c.mode==="legacy"?53:c.fieldOfViewDeg)*DEG,asp,
+    Math.max(.01,(distance-R-110)*.3),distance+R*5),view);
+  this.orbitVP=this.xrView?null:vp;
+  this.orbitCamera=camera;this.orbitOffsetDeg=offset;
+  const landingPoint=this.selectedLanding?
+   geoNormal(this.selectedLanding.lat,this.selectedLanding.lon+offset).map(v=>v*(R+.7)):null;
+  // A marker on the far side of the planet must not shine through the globe.
+  this.screenLanding=landingPoint&&dot(camera,landingPoint)>R*R?
+   projectScreen(vp,landingPoint):null;
+  const spin=-this.planet.rotationAngle,tilt=-this.planet.axialTiltDeg*DEG,sun=this.planet.solarDirection;
+  const cs=Math.cos(spin),ss=Math.sin(spin),x=cs*sun.x+ss*sun.z,z=-ss*sun.x+cs*sun.z;
+  const ct=Math.cos(tilt),st=Math.sin(tilt),light=[x,ct*sun.y-st*z,st*sun.y+ct*z];
+  this.drawMesh(this.globe,vp,light,1,.14);
+  this.drawMesh(this.globeIslands,vp,light,1,.56);
+  // The global globe is coarse (degrees per triangle). Refine only the
+  // visible landing neighbourhood as we move toward the cloud deck.
+  const tier=orbitalTerrainTier(s.altitudeM);
+  if(!tier){
+   if(this.orbitDetail){this.orbitDetail.destroy();this.orbitDetail=null;}
+   this.orbitDetailCenter=null;this.orbitDetailRadius=0;
+  }else{
+   const geo={lat:orbitalLat,lon:wrapLon(orbitalLon-offset)};
+   const previous=this.orbitDetailCenter;
+   const moved=previous?geoLocal(previous.lat,previous.lon,geo.lat,geo.lon,this.planet.radiusM):null;
+   const farFromCenter=!moved||Math.hypot(moved.eastM,moved.northM)>tier.radiusM*.14;
+   if(!this.orbitDetail||this.orbitDetailRadius!==tier.radiusM||farFromCenter){
+    // Do not discard a valid mesh if a new tile cannot be allocated.
+    const mesh=new Mesh(gl,buildOrbitalTerrainTile(this.terrain,{
+     lat:geo.lat,lon:geo.lon,renderRadius:R,radiusM:tier.radiusM,resolution:tier.resolution
+    }));
+    this.orbitDetail?.destroy();this.orbitDetail=mesh;
+    this.orbitDetailCenter=geo;this.orbitDetailRadius=tier.radiusM;
+   }
+   this.drawMesh(this.orbitDetail,vp,light,1,.22);
+  }
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+  this.drawMesh(this.cloud,vp,light,.33,.32);gl.depthMask(true);gl.disable(gl.BLEND);
+  if(c.indicator){
+   const actor=geoNormal(s.lat,s.lon+offset).map(v=>v*(R+.15));
+   const screen=projectScreen(vp,actor);
+   this.actorMarker=screen?{...screen,altitudeM:s.altitudeM,label:"アバターの地表位置"}:null;
+  }
+  return "orbit";
+ }
+ /**
+  * A small high-contrast calibration globe at start of VR. Drawn directly in
+  * XR world meters, independent of planet altitude or terrain LOD. If this is
+  * visible while the scene is black, headset projection and framebuffer work
+  * and the missing imagery is in the scene renderer instead.
+  */
+ /**
+  * Draw room-space XR geometry (metres), independently of planet/ship stage.
+  * No iframe pixels or protected video are sampled.
+  */
+ drawVRWorldTablet(xr,model){
+  if(!xr||!model||!this.vrTabletMesh)return;
+  const vp=multiply4(xr.projection,multiply4(xr.view,model));
+  const gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawMesh(this.vrTabletMesh,vp,[.66,1,.78],1,.89);
+ }
+
+ /** Dual-world/real-time 3D watch. Independent of planet stage and headset pause. */
+ drawVRWatch(xr,watch){
+  if(!xr||!watch?.model||!this.vrBodySegment)return;
+  this.drawVRWorldTablet(xr,watch.model);
+  if(watch.menuModel)this.drawVRWorldTablet(xr,watch.menuModel);
+  const gl=this.gl,vp=multiply4(xr.projection,xr.view);
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const light=[.9,1,.98],silver=[.87,.94,1],green=[.48,1,.74],amber=[1,.72,.36];
+  const line=(model,x1,y1,x2,y2,tint=silver,width=.008)=>{
+   const dx=x2-x1,dy=y2-y1,n=Math.hypot(dx,dy);
+   if(n<.0001)return;
+   // The VR body segment mesh grows along +Y from its first endpoint.
+   const m=[dy/n*width,-dx/n*width,0,0,dx,dy,0,0,
+    0,0,.012,0,x1,y1,.024,1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,multiply4(model,m)),light,1,.89,tint);
+  };
+  const rect=(model,x,y,w,h,tint=silver)=>{
+   line(model,x-w/2,y-h/2,x+w/2,y-h/2,tint);
+   line(model,x+w/2,y-h/2,x+w/2,y+h/2,tint);
+   line(model,x+w/2,y+h/2,x-w/2,y+h/2,tint);
+   line(model,x-w/2,y+h/2,x-w/2,y-h/2,tint);
+  };
+  const circle=(model,x,y,r,tint=silver)=>{
+   for(let j=0;j<16;j++){
+    const a=j*2*Math.PI/16,b=(j+1)*2*Math.PI/16;
+    line(model,x+r*Math.cos(a),y+r*Math.sin(a),x+r*Math.cos(b),y+r*Math.sin(b),tint,.006);
+   }
+  };
+  const digits=(model,txt,y,tint=green)=>{
+   const masks={0:63,1:6,2:91,3:79,4:102,5:109,6:125,7:7,8:127,9:111};
+   const parts=[[-.016,.029,.016,.029],[.016,.029,.016,0],[.016,0,.016,-.029],
+    [-.016,-.029,.016,-.029],[-.016,0,-.016,-.029],[-.016,.029,-.016,0],[-.016,0,.016,0]];
+   const start=-(txt.length-1)*.026;
+   for(let k=0;k<txt.length;k++){
+    const chr=txt[k],x=start+k*.052;
+    if(chr===":"){
+     line(model,x,y+.015,x,y+.017,tint,.012);
+     line(model,x,y-.016,x,y-.014,tint,.012);continue;
+    }
+    if(chr==="."){line(model,x,y-.028,x,y-.026,tint,.012);continue;}
+    const mask=masks[chr];
+    if(mask===undefined)continue;
+    for(let j=0;j<7;j++)if((mask>>j)&1){
+     const p=parts[j];line(model,x+p[0],y+p[1],x+p[2],y+p[3],tint,.006);
+    }
+   }
+  };
+  rect(watch.model,0,0,.42,.47,watch.display?.style==="mechanical"?silver:green);
+  const d=watch.display||{};
+  if(d.style==="mechanical"){
+   for(const [y,hands,color] of [[.112,d.gameHands,green],[-.112,d.realHands,amber]]){
+    circle(watch.model,0,y,.092,color);
+    for(let i=0;i<12;i++){
+     const a=i*Math.PI/6;
+     line(watch.model,Math.sin(a)*.078,y+Math.cos(a)*.078,
+      Math.sin(a)*.087,y+Math.cos(a)*.087,color,.007);
+    }
+    for(const [key,size,thick] of [["hour",.052,.013],["minute",.071,.009],["second",.081,.004]]){
+     const a=((hands?.[key]||0)*Math.PI/180);
+     line(watch.model,0,y,Math.sin(a)*size,y+Math.cos(a)*size,color,thick);
+    }
+   }
+  }else{
+   digits(watch.model,d.local||"00:00:00",.115,green);
+   digits(watch.model,d.real||"00:00:00",-.115,amber);
+   line(watch.model,-.19,0,.19,0,silver,.006);
+  }
+  if(watch.menuModel){
+   const yRows=[.13,-.13],xs=[-.15,0,.15],model=watch.menuModel;
+   for(let i=0;i<6;i++){
+    const x=xs[i%3],y=yRows[Math.floor(i/3)];
+    rect(model,x,y,.132,.19,silver);
+    if(watch.page==="time"){
+     // 1 pause, 2 quarter speed, 3 normal, 4 double, 5 fast, 6 rewind.
+     digits(model,String(i+1),y,i===0?amber:green);
+    }else{
+     if(i===0){for(const dy of [-.04,0,.04])line(model,x-.040,y+dy,x+.040,y+dy,green);}
+     else if(i===1){circle(model,x,y,.025,green);for(let a=0;a<8;a++){
+       const v=a*Math.PI/4;line(model,x+.029*Math.cos(v),y+.029*Math.sin(v),x+.042*Math.cos(v),y+.042*Math.sin(v),green);
+     }}
+     else if(i===2){circle(model,x,y,.032,green);circle(model,x,y,.013,green);}
+     else if(i===3){rect(model,x,y,.083,.038,green);line(model,x,y-.019,x,y+.019,green);}
+     else if(i===4){rect(model,x,y,.075,.092,green);line(model,x-.028,y-.029,x+.028,y-.029,green);}
+     else{circle(model,x,y,.037,amber);line(model,x,y,x,y+.026,amber);line(model,x,y,x+.020,y-.010,amber);}
+    }
+   }
+  }
+ }
+ drawVRGuide(xr,anchor){
+  if(!xr||!anchor||!this.globe)return;
+  const p=anchor.position;
+  const y=anchor.vrFloor[1]+1.35;
+  const model=multiply4(translate(p[0],y,p[2]),
+   scale3(.11/this.R,.11/this.R,.11/this.R));
+  const vp=multiply4(xr.projection,multiply4(xr.view,model));
+  const gl=this.gl;
+  gl.useProgram(this.program);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  this.drawMesh(this.globe,vp,[.64,.93,.49],1,.92,[.38,1,.64]);
+ }
+ /**
+  * Headset-space first-person body: the head is deliberately hidden so it
+  * cannot cover the viewer's eyes. Every stereo eye uses its XR projection.
+  * The procedural meshes are created once and reused without GPU allocations.
+  */
+ drawSocialAvatars(xr,scene){
+  const gl=this.gl,{x,y,width,height}=xr.viewport;
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.colorMask(true,true,true,true);gl.depthMask(true);gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);gl.disable(gl.BLEND);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  if(!scene)return;
+  gl.useProgram(this.program);
+  const mask=Boolean(xr.depth?.available&&xr.depthTexture);
+  if(mask){
+   gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,xr.depthTexture);
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,xr.depth.width,xr.depth.height,0,gl.RED,gl.FLOAT,xr.depth.pixels);
+   gl.uniform1i(this.uXROcclusionDepth,7);gl.uniform4f(this.uXROcclusionViewport,x,y,width,height);
+   gl.activeTexture(gl.TEXTURE0);
+  }
+  gl.uniform1f(this.uXROcclusionEnabled,mask?1:0);
+  for(const actor of scene.actors)this.drawVRBody({...xr,stage:scene.stage},actor);
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+ }
+ drawVRBody(xr,rig){
+  if(this.henshin?.enabled&&this.henshin.transformed&&!rig?.social)return;
+  if(!xr||!rig?.anchors||!this.vrBodySegment)return;
+  const a=rig.anchors,gl=this.gl;
+  gl.useProgram(this.program);
+  if(!rig.social)gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const view=rig.social?multiply4(xr.view,xr.stage):xr.view;
+  const vp=multiply4(xr.projection,view),light=[.55,.9,.45];
+  const add=(a,b)=>a.map((x,i)=>x+b[i]),sub=(a,b)=>a.map((x,i)=>x-b[i]);
+  const scale=(a,n)=>a.map(x=>x*n),length=a=>Math.hypot(...a);
+  const unit=a=>scale(a,1/(length(a)||1));
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  const segment=(p,q,width,depth,tint)=>{
+   if(!p||!q)return;
+   const d=sub(q,p),n=length(d);if(n<.001)return;
+   const y=unit(d),x=unit(cross(Math.abs(y[1])>.92?[0,0,1]:[0,1,0],y)),z=unit(cross(x,y));
+   const m=[x[0]*width,x[1]*width,x[2]*width,0,y[0]*n,y[1]*n,y[2]*n,0,
+    z[0]*depth,z[1]*depth,z[2]*depth,0,p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.89,tint);
+  };
+  const rgb=(hex,fallback)=>typeof hex==="string"&&/^#[0-9a-fA-F]{6}$/.test(hex)?
+   [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255):fallback;
+  const clothing=rgb(rig.appearance?.outer,[.32,.45,.60]);
+  const sleeve=clothing.map(c=>Math.min(1,c*1.15)),skin=[.89,.70,.55];
+  const pants=rgb(rig.appearance?.legs,[.29,.34,.42]);
+  const boot=rgb(rig.appearance?.feet,[.26,.22,.19]);
+  const steel=[.83,.88,.92],leather=[.45,.30,.20],
+   bowWood=[.59,.39,.22],string=[.95,.91,.78];
+  const hand=side=>{
+   const p=rig[side];
+   return p?[p[12],p[13],p[14]]:add(a[side+"Elbow"],[0,-.2,-.15]);
+  };
+  const left=hand("left"),right=hand("right");
+   // Draw tracked hands only when V10 already supplies the body mesh.
+   if(rig.handsOnly){
+    for(const side of ["left","right"]){
+     const wrist=side==="left"?left:right;
+     const aim=rig[side+"Ray"]?[-rig[side+"Ray"][8],-rig[side+"Ray"][9],-rig[side+"Ray"][10]]:a.forward;
+     segment(wrist,add(wrist,scale(unit(aim),.10)),.11,.115,skin);
+    }
+    return;
+   }
+   segment(a.pelvis,a.chest,.43,.26,clothing);
+  if(rig.backpack){
+   const toolBag=rig.appearance?.bag==="toolbag";
+   const carry=add(add(a.chest,scale(a.right,toolBag ? .28 : -.26)),[0,-.28,0]);
+   const top=add(carry,[0,.11,0]),base=add(carry,[0,-.20,0]);
+   segment(top,base,toolBag ? .30 : .25,toolBag ? .19 : .15,leather);
+   const shoulder=toolBag?a.shoulderRight:a.shoulderLeft;
+   segment(shoulder,top,.043,.035,[.30,.23,.17]);
+   if(rig.bagOpen){
+    segment(top,add(top,scale(a.forward,.19)),.24,.027,[.70,.52,.30]);
+   }else{
+    segment(top,add(top,[0,-.08,0]),.25,.032,[.33,.22,.13]);
+   }
+  }
+  // Pocket flap and visible field note only when the object is stored.
+  const pocket=rig.pocketSocket==="rightCoat"?a.rightCoat:a.rightPocket;
+  if(!rig.social&&pocket){
+   segment(add(pocket,[0,.035,0]),add(pocket,[0,-.075,0]),
+    .135,.045,clothing);
+   if(rig.pocketContainsNote)
+    segment(add(pocket,[0,.05,0]),add(pocket,[0,.115,0]),
+     .082,.012,[.90,.83,.64]);
+  }
+  for(const side of ["left","right"]){
+   const sign=side==="left"?-1:1,
+    restingKnee=a[side+"Knee"],restingFoot=a[side+"Foot"],
+    // Quest lacks tracked feet. Only the left virtual leg is positioned
+    // on the visible cell-door rung when a grip+left-trigger supports weight.
+    foot=rig.custodyFootBraced&&side==="left"?
+     add(restingFoot,add(scale(a.forward,.28),[0,.35,0])):restingFoot,
+    knee=rig.custodyFootBraced&&side==="left"?
+     add(restingKnee,add(scale(a.forward,.15),[0,.19,0])):restingKnee,
+    shoulder=a["shoulder"+(side==="left"?"Left":"Right")],wrist=side==="left"?left:right;
+   segment(add(a.pelvis,scale(a.right,sign*.13)),knee,.20,.21,pants);
+   segment(knee,foot,.16,.18,pants);
+   segment(foot,add(foot,scale(a.forward,.22)),.18,.19,boot);
+   const mid=add(scale(add(shoulder,wrist),.5),add(scale(a.right,sign*.09),[0,-.08,0]));
+   if(rig.social&&!rig[side]){
+    segment(shoulder,a[side+"Elbow"],.17,.18,sleeve);
+    continue;
+   }
+   segment(shoulder,mid,.17,.18,sleeve);
+   segment(mid,wrist,.125,.14,skin);
+   const aim=rig[side+"Ray"]?
+    [-rig[side+"Ray"][8],-rig[side+"Ray"][9],-rig[side+"Ray"][10]]:a.forward;
+   segment(wrist,add(wrist,scale(unit(aim),.105)),.11,.12,skin);
+  }
+  if(rig.social){
+   segment(a.chest,a.head,.115,.12,skin);
+   const headModel=multiply4(rig.head,[.24,0,0,0, 0,.27,0,0, 0,0,.22,0, 0,-.13,0,1]);
+   this.drawMesh(this.vrBodySegment,multiply4(vp,headModel),light,1,.89,skin);
+   for(const x of [-.046,.046]){
+    const eye=multiply4(headModel,[.10,0,0,0, 0,.08,0,0, 0,0,.04,0, x/.24,.54,-.51,1]);
+    this.drawMesh(this.vrBodySegment,multiply4(vp,eye),light,1,.89,[.15,.18,.22]);
+   }
+   return;
+  }
+  // Belt attachments and shoulder gear stay visible.
+  const axePeg=a.toolBeltRight||a.rightHip;
+  segment(axePeg,add(axePeg,[0,-.34,0]),.055,.06,leather);
+  const pickPeg=a.pickShoulder||a.shoulderRight;
+  segment(pickPeg,add(pickPeg,[0,-.40,0]),.056,.06,leather);
+  const rodPeg=a.rodCarry||a.shoulderLeft;
+  segment(rodPeg,add(rodPeg,[0,.60,0]),.023,.024,bowWood);
+  if(!rig.bowHeld){
+   const b=add(a.shoulderLeft,scale(a.forward,-.12));
+   segment(add(b,[0,-.28,0]),add(b,[0,.35,0]),.03,.04,bowWood);
+  }
+  // Shoulder quiver and sword sheath remain visible when empty.
+  const quiver=add(a.shoulderRight,scale(a.forward,-.10));
+  segment(quiver,add(quiver,[0,.28,0]),.11,.11,leather);
+  // Quiver shafts use the real Frontier World ammunition, never demo items.
+  const shafts=Math.min(4,Math.max(0,Math.floor(rig.arrowCount||0)));
+  for(let i=0;i<shafts;i++){
+   const offset=scale(a.right,(i-1.5)*.038);
+   const bottom=add(add(quiver,offset),[0,.18,0]);
+   segment(bottom,add(bottom,[0,.27,0]),.014,.014,bowWood);
+  }
+  if(!rig.swordHeld){
+   segment(a.leftHip,add(a.leftHip,[0,-.57,0]),.085,.085,leather);
+   segment(a.leftHip,add(a.leftHip,[0,.10,0]),.12,.09,steel);
+  }else{
+   const aim=unit(rig.rightRay?[-rig.rightRay[8],-rig.rightRay[9],-rig.rightRay[10]]:a.forward);
+   segment(add(right,scale(aim,-.12)),add(right,scale(aim,.10)),.065,.07,leather);
+   segment(add(right,scale(aim,.10)),add(right,scale(aim,.88)),.054,.035,steel);
+   segment(add(right,scale(a.right,-.16)),add(right,scale(a.right,.16)),.037,.05,steel);
+  }
+  // Tools follow the real Touch controller's tracked grip.
+  for(const side of ["left","right"]){
+   const item=rig.toolHeld?.[side];
+   if(!item)continue;
+   const wrist=side==="left"?left:right,ray=rig[side+"Ray"];
+   const aim=unit(ray?[-ray[8],-ray[9],-ray[10]]:a.forward);
+   const head=add(wrist,scale(aim,item==="fishingRod"?1.5:.52));
+   segment(wrist,head,item==="fishingRod"?.022:.047,.045,
+    item==="fishingRod"?bowWood:leather);
+   if(["axe","pickaxe","hammer"].includes(item)){
+    const crossbar=add(head,scale(a.right,.19));
+    const opposite=add(head,scale(a.right,-.19));
+    segment(opposite,crossbar,item==="hammer"?.13:.068,.09,steel);
+   }
+  }
+  // First-person carried objects follow the tracked Touch grip in metres.
+  for(const side of ["left","right"]){
+   const item=rig.heldWearables?.[side];
+   if(!item)continue;
+   const wrist=side==="left"?left:right;
+   const ray=rig[side+"Ray"];
+   const aim=unit(ray?[-ray[8],-ray[9],-ray[10]]:a.forward);
+   if(item.tag==="paper"){
+    const start=add(wrist,scale(aim,.055)),end=add(start,scale(aim,.20));
+    segment(start,end,.14,.018,[.89,.82,.65]);
+    segment(add(start,[0,.015,0]),add(end,[0,.015,0]),.012,.024,[.41,.30,.18]);
+   }else{
+    segment(wrist,add(wrist,scale(aim,.16)),.10,.09,[.72,.52,.28]);
+   }
+  }
+  if(rig.heldDrop){
+   const wrist=rig.heldDrop.hand==="left"?left:right;
+   const isArrow=rig.heldDrop.item?.kind==="arrow";
+   const tint=isArrow?steel:rig.heldDrop.item?.kind==="stone"?[.59,.63,.67]:[.72,.52,.28];
+   segment(add(wrist,[0,-.03,0]),add(wrist,[0,isArrow?.31:.14,0]),
+    isArrow?.025:.14,isArrow?.028:.13,tint);
+  }
+  if(rig.bowHeld){
+   const aim=unit(rig.leftRay?[-rig.leftRay[8],-rig.leftRay[9],-rig.leftRay[10]]:a.forward);
+   const hi=add(add(left,[0,.39,0]),scale(aim,.08));
+   const lo=add(add(left,[0,-.39,0]),scale(aim,.08));
+   const up=add(left,[0,.19,0]),down=add(left,[0,-.19,0]);
+   for(const [u,v] of [[left,up],[left,down],[up,hi],[down,lo]])
+    segment(u,v,.04,.05,bowWood);
+   const nock=rig.nocked?right:left;
+   segment(hi,nock,.012,.012,string);segment(nock,lo,.012,.012,string);
+   if(rig.arrowHeld){
+    const tip=add(nock,scale(aim,.82));
+    segment(nock,tip,.015,.015,bowWood);
+    segment(add(tip,scale(aim,-.11)),tip,.035,.028,steel);
+   }
+   if(rig.drawing&&rig.nocked){
+    const target=add(left,scale(aim,2.1));
+    segment(add(target,scale(a.right,-.065)),add(target,scale(a.right,.065)),.012,.012,[1,.91,.29]);
+    segment(add(target,[0,-.065,0]),add(target,[0,.065,0]),.012,.012,[1,.91,.29]);
+   }
+  }
+ }
+ xrInteriorVP(person={x:0,z:0}){
+  const xr=this.xrView;
+  if(!xr||xr.mode!=="vr")return null;
+  // Keep the local actor at the headset's standing floor anchor. This does
+  // not write to the gameplay camera, movement state, or any persisted data.
+  return multiply4(xr.projection,multiply4(xr.view,
+   multiply4(xr.stage,translate(-(person.x||0),0,-(person.z||0)))));
+ }
+ drawMarineSurface(vp,light,s,dt){
+  const wet=s.travelMode==="swim"||s.travelMode==="dive"||s.travelMode==="boat";
+  this.marineClock+=Math.min(.1,Math.max(0,dt));
+  const now=this.marineClock;
+  // Rebuild a small wave mesh only 3 times/s; do not regenerate whole continents.
+  const nearWater=wet||[[0,0],[45,0],[-45,0],[0,45],[0,-45]].some(([x,z])=>{
+    const point=geoOffset(s.origin.lat,s.origin.lon,s.x+x,s.z+z,this.planet.radiusM);
+    return terrainSurface(this.terrain,point.lat,point.lon).water;
+  });
+  if(nearWater&&
+      (this.lastWaveAt<0||now-this.lastWaveAt>.34)){
+   const patch=oceanWavePatch(this.terrain,s.origin,s.x,s.z,now,
+    {radius:105,cells:24});
+   this.oceanWave?.destroy();
+   this.oceanWave=patch.indices.length?new Mesh(this.gl,patch):null;
+   this.lastWaveAt=now;
+  }
+  if(!this.oceanWave)return;
+  const gl=this.gl;
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+  this.drawMesh(this.oceanWave,multiply4(vp,translate(-this.cx,0,-this.cz)),light,.52,.87);
+  gl.depthMask(true);gl.disable(gl.BLEND);
+ }
+ drawShipCabin(vp,light,s,waterY){
+  this.screenMarineFurniture=[];
+  if(!this.marine?.cabinId||!this.marine.boarded||this.marine.boarded.id!==this.marine.cabinId)return;
+  const cx=s.x-this.cx,cz=s.z-this.cz,yaw=this.marine.boarded.yaw;
+  const base=multiply4(translate(cx,waterY+.23,cz),rotateY(yaw));
+  this.drawMesh(this.shipCabinShell,multiply4(vp,base),light,1,.82);
+  for(const f of CABIN_FURNITURE){
+   const mesh=this.lifeMeshes[f.kind];
+   if(!mesh)continue;
+   const furniture=multiply4(base,multiply4(translate(f.x,.22,f.z),rotateY(f.yaw)));
+   this.drawMesh(mesh,multiply4(vp,furniture),light,1,f.kind==="lamp"?.93:.86);
+   const x=cx+Math.cos(yaw)*f.x+Math.sin(yaw)*f.z,
+    z=cz-Math.sin(yaw)*f.x+Math.cos(yaw)*f.z;
+   const screen=projectScreen(vp,[x,waterY+(f.kind==="bookshelf"?1.7:1.20),z]);
+   if(f.kind!=="lamp"&&screen?.onScreen)this.screenMarineFurniture.push({...screen,kind:f.kind});
+  }
+ }
+ pickMarineFurniture(clientX,clientY){
+  const rect=this.canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return null;
+  let nearest=null,best=52;
+  for(const f of this.screenMarineFurniture){
+   const d=Math.hypot(f.u*rect.width-(clientX-rect.left),
+    f.v*rect.height-(clientY-rect.top));
+   if(d<best){best=d;nearest=f;}
+  }
+  return nearest;
+ }
+ drawFishingActivity(vp,light,s,waterY){
+  if(!this.marine?.fishing?.casting||this.marine.cabinId||s.altitudeM>12)return;
+  const p=this.marine.shipboard?.shipId===this.marine.boardedId?this.marine.shipboard.player:null;
+  const position=p?shipLocalToWorld(s.x,s.z,s.yaw,p.x,p.z):{x:s.x,z:s.z};
+  const heading=s.yaw+(p?.yaw||0);
+  const rodX=position.x-this.cx+Math.cos(heading)*.50,rodZ=position.z-this.cz+Math.sin(heading)*.50;
+  const cast=this.marine.fishing.castMotion||0,reel=this.marine.fishing.reelTurns||0;
+  const pitch=-.35-.55*Math.sin(Math.PI*cast)+.20*Math.sin(reel*Math.PI*2);
+  const rodBase=multiply4(translate(rodX,waterY+(this.marine.boarded?1.65:.25),rodZ),rotX(pitch));
+  if(!Object.values(this.handEquipment?.player||{}).includes("fishingRod"))
+   this.drawMesh(this.fishingRod,multiply4(vp,rodBase),light,1,.82);
+  const distance=this.marine.fishing.lineOutM||5.2,fx=position.x-this.cx+Math.sin(heading)*distance,
+   fz=position.z-this.cz+Math.cos(heading)*distance;
+  const bounce=.07*Math.sin(this.marineClock*2.3);
+  this.drawMesh(this.fishingFloat,multiply4(vp,translate(fx,waterY+.10+bounce,fz)),light,1,.88);
+  // Fish approaches the float before the hit, then stays near the lure.
+  const seek=this.marine.fishing.approach||0;
+  const fishX=fx+Math.cos(heading)*Math.max(.6,9*(1-seek)),fishZ=fz+Math.sin(heading)*Math.max(.6,9*(1-seek));
+  const fishY=waterY-1.1-.2*Math.sin(this.marineClock*2);
+  const fishTransform=multiply4(translate(fishX,fishY,fishZ),rotateY(heading+this.marineClock*.12));
+  this.drawMesh(this.fishMesh,multiply4(vp,fishTransform),light,1,.87);
+ }
+ drawShipboardObjects(vp,light,s,waterY){
+  this.screenShipCrew=[];this.screenShipDoor=null;this.screenShipHelm=null;
+  const board=this.marine?.shipboard,boat=this.marine?.boarded;
+  if(boat?.kind!=="sailing_ship"||board?.shipId!==boat.id){this.shipFloorCenter=null;return;}
+  this.shipFloorCenter={x:s.x,z:s.z,yaw:boat.yaw};
+  const zone=board.player.zone;
+  const d=SHIP_DOOR[zone],pos=shipLocalToWorld(s.x,s.z,boat.yaw,d.x,d.z);
+  const y=waterY+(zone==="cabin"?.47:1.45);
+  const hinge=multiply4(translate(pos.x-this.cx,y,pos.z-this.cz),rotateY(boat.yaw));
+  const model=multiply4(hinge,multiply4(translate(-.53,0,0),
+   multiply4(rotateY(-board.doorProgress*1.3),translate(.53,0,0))));
+  this.drawMesh(this.shipDoorMesh,multiply4(vp,model),light,1,.88);
+  const point=projectScreen(vp,[pos.x-this.cx,y+1.05,pos.z-this.cz]);
+  if(point?.onScreen)this.screenShipDoor={...point,type:"door"};
+  if(zone==="deck"){
+   const wheel=shipLocalToWorld(s.x,s.z,boat.yaw,SHIP_HELM.x,SHIP_HELM.z);
+   const screen=projectScreen(vp,[wheel.x-this.cx,waterY+2.47,wheel.z-this.cz]);
+   if(screen?.onScreen)this.screenShipHelm={...screen,type:"helm"};
+  }
+ }
+ pickShipboard(clientX,clientY){
+  const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+  let best=null,range=44;
+  for(const p of [...this.screenShipCrew,this.screenShipDoor,this.screenShipHelm]){
+   if(!p)continue;
+   const d=Math.hypot(p.u*r.width-(clientX-r.left),p.v*r.height-(clientY-r.top));
+   if(d<range){best=p;range=d;}
+  }
+  return best;
+ }
+ pickShipboardFloor(clientX,clientY){
+  if(!this.pickVP||this.marine?.boarded?.kind!=="sailing_ship")return null;
+  const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return null;
+  const boat=this.marine.boarded,board=this.marine.shipboard;
+  if(board?.shipId!==boat.id)return null;
+  const cabin=board.player.zone==="cabin";
+  const xMax=cabin?1.64:2.28,zMax=cabin?2.08:7.45,y=cabin?.46:1.65;
+  const here=this.shipFloorCenter;
+  if(!here)return null;
+  const corners=[[-xMax,-zMax],[xMax,-zMax],[xMax,zMax],[-xMax,zMax]];
+  const vertices=corners.flatMap(([x,z])=>{
+   const v=shipLocalToWorld(here.x,here.z,boat.yaw,x,z);
+   return [v.x-this.cx,y,v.z-this.cz];
+  });
+  const nx=((clientX-r.left)/r.width)*2-1,ny=1-((clientY-r.top)/r.height)*2;
+  const hit=pickSurface(vertices,[0,1,2,0,2,3],this.pickVP,nx,ny);
+  if(!hit)return null;
+  const p=shipWorldToLocal(here.x-this.cx,here.z-this.cz,boat.yaw,hit[0],hit[2]);
+  return isShipWalkable(p.x,p.z,cabin?"cabin":"deck")?p:null;
+ }
+ drawSeabed(vp,light,s){
+  this.screenUnderseaSites=[];
+  if(s.travelMode!=="dive"||!this.marine)return;
+  const key=this.seabedAnchor;
+  if(!key||Math.hypot(s.x-key.x,s.z-key.z)>35||
+    key.lat!==s.origin.lat||key.lon!==s.origin.lon){
+   const patch=seabedPatch(this.terrain,s.origin,s.x,s.z,{radius:112,cells:16});
+   this.seabedMesh?.destroy();
+   this.seabedMesh=patch.indices.length?new Mesh(this.gl,patch):null;
+   this.seabedAnchor={x:s.x,z:s.z,lat:s.origin.lat,lon:s.origin.lon};
+  }
+  if(this.seabedMesh)this.drawMesh(this.seabedMesh,
+   multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.65);
+  for(const site of this.marine.sitesNear(s,this.terrain,140)){
+   if(this.marine.salvagedSites.has(site.id))continue;
+   const mesh=this.underseaModels[site.kind];if(!mesh)continue;
+   const x=s.x+site.eastM-this.cx,z=s.z+site.northM-this.cz;
+   this.drawMesh(mesh,multiply4(vp,translate(x,-site.depthM+.25,z)),light,1,.72);
+   const screen=projectScreen(vp,[x,-site.depthM+2,z]);
+   if(screen?.onScreen)this.screenUnderseaSites.push({...screen,id:site.id,kind:site.kind,name:site.name});
+  }
+ }
+ drawMarineWildlife(vp,light,s,radius){
+  if(!this.marine)return;
+  for(const boat of this.marine.nearby(s,Math.min(radius,1300))){
+   const trim=boat.sailTrim||0;
+   const mesh=boat.kind==="sailing_ship"?this.sailingShipMeshes[trim<.05?0:trim<.72?1:2]:this.boatMeshes[boat.kind];if(!mesh)continue;
+   if(boat.id===this.marine.cabinId)continue;
+   const location=terrainSurface(this.terrain,boat.lat,boat.lon);
+   const waterY=Number.isFinite(location.waterLevelM)?location.waterLevelM:0;
+   const transform=multiply4(translate(boat.x-this.cx,waterY+.06,boat.z-this.cz),rotateY(boat.yaw));
+   this.drawMesh(mesh,multiply4(vp,transform),light,1,.73);
+  }
+  if(!["swim","dive","boat"].includes(s.travelMode))return;
+  const deep=s.travelMode==="dive"&&(this.marine?.depthM||0)>7;
+  const fish=fishAt(this.planet.seed,s.x,s.z,this.marineClock,deep?17:11);
+  for(const f of fish){
+   const geo=geoOffset(s.origin.lat,s.origin.lon,f.x,f.z,this.planet.radiusM);
+   if(!terrainSurface(this.terrain,geo.lat,geo.lon).water)continue;
+   const fishY=s.travelMode==="dive"?-(this.marine?.depthM||0)+Math.sin(this.marineClock*.7+f.kind)*2+.3:.14;
+   const transform=multiply4(translate(f.x-this.cx,fishY,f.z-this.cz),rotateY(f.yaw));
+   this.drawMesh(deep?this.deepFishMesh:this.fishMesh,multiply4(vp,transform),light,1,.86);
+  }
+ }
+ ground(s,asp,dt=1/60){
+  const gl=this.gl,alt=s.altitudeM,cameraMode=this.cameraController.mode;
+  const cfg=this.cameraController.config;
+  const cameraAltitude=cameraMode==="tactical"?cfg.tacticalHeightM:
+    cameraMode==="free"?Math.max(2.5,cfg.freeHeightM):cameraMode==="legacy"?alt:
+    Math.max(2.5,cfg.distanceM);
+  const requestedRadius=Math.max(alt,cameraAltitude)*4+350;
+  const radius=clamp(450*Math.pow(2,Math.ceil(Math.log2(requestedRadius/450))),450,55000);
+  const snap=radius<2200?110:radius<6500?600:3000;
+  const focusX=cameraMode==="free"?cfg.freeX:s.x,focusZ=cameraMode==="free"?cfg.freeZ:s.z;
+  const cx=Math.round(focusX/snap)*snap,cz=Math.round(focusZ/snap)*snap;
+  const baseResolution=radius<=500?112:radius<=1000?96:radius<=2100?72:radius>8000?64:56;
+  const detail=this.adaptiveTerrainLOD.level;
+  const resolution=Math.max(28,Math.round(baseResolution*(detail===2?.6:detail===1?.8:1)));
+  const key=[cx,cz,Math.round(radius/90),resolution,detail,this.settlementId].join("/");
+  if(key!==this.patchKey){
+   const geo=geoOffset(s.origin.lat,s.origin.lon,cx,cz,this.planet.radiusM);
+   this.patch?.destroy();this.riverWater?.destroy();this.lakeWater?.destroy();this.oceanWave?.destroy();this.oceanWave=null;this.lastWaveAt=-1;this.groundClouds?.destroy();for(const mesh of [...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes])mesh.destroy();
+   this.groundPatchData=samplePatch(this.terrain,geo.lat,geo.lon,radius,resolution);
+   this.ownerRoadMesh?.destroy();
+   const ownerRoads=ownerRoadGeometry(this.ownerWorld,this.terrain,s.origin);
+   this.ownerRoadMesh=ownerRoads.indices.length?new Mesh(gl,ownerRoads):null;
+   this.patch=new Mesh(gl,this.groundPatchData);
+   const channel=buildRiverWaterPatch(this.terrain,geo,radius);
+   this.riverWater=channel.indices.length?new Mesh(gl,channel):null;
+   const lake=regionalLakeMesh(this.terrain,geo,radius);
+   this.lakeWater=lake.indices.length?new Mesh(gl,lake):null;
+    const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,terrainSurface(this.terrain,s.lat,s.lon).elevationM));
+    const clouds=groundCloudGeometry({seed:this.planet.seed,cx,cz,radius,
+     baseElevation:terrainSurface(this.terrain,geo.lat,geo.lon).elevationM,
+     cloudCover:climate?.cloudCover??.55,precipitation:climate?.precipitation??"none",
+     driftEast:this.cloudEast,driftNorth:this.cloudNorth});
+    this.cloudOriginEast=this.cloudEast;this.cloudOriginNorth=this.cloudNorth;
+    this.cloudCoverBand=Math.floor((climate?.cloudCover??.55)*6);
+    this.groundClouds=clouds.indices.length?new Mesh(gl,clouds):null;
+   const heightAt=(x,z)=>patchSceneryHeight(this.groundPatchData,x,z);
+   const plan=planWorldScenery({
+    seed:this.planet.seed,cx,cz,radius:sceneryRadiusForQuality(radius,detail),groundAt:heightAt,settlementId:this.settlementId,barren:this.planet.id!=="terra",
+    biomeAt:(wx,wz)=>{
+     const pos=geoOffset(s.origin.lat,s.origin.lon,wx,wz,this.planet.radiusM);
+     return terrainSurface(this.terrain,pos.lat,pos.lon);
+    }
+   });
+   // Keep roads and owner building plots visibly free of generated plants.
+   const ownerPlots=(this.ownerWorld?.buildings||[]).map(b=>{
+    const p=geoLocal(s.origin.lat,s.origin.lon,b.lat,b.lon,this.planet.radiusM);
+    return {x:p.eastM,z:p.northM,r:11};
+   }).filter(p=>Math.abs(p.x-cx)<radius+30&&Math.abs(p.z-cz)<radius+30);
+   const ownerLanes=(this.ownerWorld?.roads||[]).flatMap(r=>r.points.slice(1).map((b,i)=>{
+    const a=r.points[i],u=geoLocal(s.origin.lat,s.origin.lon,a.lat,a.lon,this.planet.radiusM),
+     v=geoLocal(s.origin.lat,s.origin.lon,b.lat,b.lon,this.planet.radiusM);
+    return {ax:u.eastM,az:u.northM,bx:v.eastM,bz:v.northM,r:r.width/2+2};
+   })).filter(p=>Math.max(Math.abs(p.ax-cx),Math.abs(p.bx-cx))<radius+2100&&
+    Math.max(Math.abs(p.az-cz),Math.abs(p.bz-cz))<radius+2100);
+   const blockedByOwner=(x,z)=>{
+    for(const p of ownerPlots)if((x-p.x)**2+(z-p.z)**2<p.r*p.r)return true;
+    for(const r of ownerLanes){
+     if(x<Math.min(r.ax,r.bx)-r.r||x>Math.max(r.ax,r.bx)+r.r||
+        z<Math.min(r.az,r.bz)-r.r||z>Math.max(r.az,r.bz)+r.r)continue;
+     const dx=r.bx-r.ax,dz=r.bz-r.az,t=clamp(((x-r.ax)*dx+(z-r.az)*dz)/(dx*dx+dz*dz||1),0,1);
+     if(Math.hypot(x-r.ax-t*dx,z-r.az-t*dz)<r.r)return true;
+    }
+    return false;
+   };
+   const visible=(this.resourceHarvest?this.resourceHarvest.visible(plan.trees):plan.trees)
+    .filter(n=>!this.fallingTrees.has(n.id)&&!blockedByOwner(n.x,n.z));
+   const ownerGrass=ownerPlots.length||ownerLanes.length?
+    plan.grass.filter(g=>!blockedByOwner(g.x+cx,g.z+cz)):plan.grass;
+   const instanced=buildSceneryInstances({...plan,grass:ownerGrass,trees:visible});
+   // Vegetation repeats tiny GPU prototypes; background settlement remains baked.
+   const scenery=buildSceneryMeshes({trees:[],grass:[],buildings:plan.buildings});
+   this.resourceNodes=visible;
+   this.townSites=plan.buildings;
+   this.sceneryStats={trees:visible.filter(n=>n.kind==="wood").length,
+    rocks:visible.filter(n=>n.kind==="stone").length,
+    grass:plan.grass.length,buildings:plan.buildings.length};
+   this.trees=instanced.woods.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+   this.meadow=instanced.meadow.map(g=>new InstancedMesh(gl,sceneryPrototype(g.kind),g.transforms));
+   this.settlement=scenery.settlement.map(g=>new Mesh(gl,g));
+   this.settlementDecor=[];
+   this.residentMeshes=[];
+   // One moving crowd draw call per clothing variant rather than per person.
+   for(let clothing=0;clothing<6;clothing++){
+    const residents=plan.people.filter(p=>p.clothing===clothing);
+    if(!residents.length)continue;
+    const prototype=settlementResidentsGeometry([{id:"prototype",x:0,z:0,clothing}],()=>0);
+    const transforms=new Float32Array(residents.length*6);
+    for(let i=0;i<residents.length;i++){
+     const p=residents[i],k=i*6;
+     transforms.set([p.localX,p.elevationM,p.localZ,1,
+      Math.cos(p.facing),Math.sin(p.facing)],k);
+    }
+    const mesh=new InstancedMesh(gl,prototype,transforms);
+    mesh.residents=residents;mesh.dynamicTransforms=transforms;
+    this.residentMeshes.push(mesh);
+   }
+   if(plan.landmark)this.settlementDecor.push(new Mesh(gl,observationTowerGeometry({
+    x:plan.landmark.localX,z:plan.landmark.localZ,y:plan.landmark.elevationM
+   })));
+   this.patchKey=key;this.cx=cx;this.cz=cz;
+   this.cameraController.smoothEye=null;this.cameraController.smoothTarget=null;
+  }
+  // Cache the low-poly 47 km panorama independently of the 110 m ground
+  // patch snaps, minimizing rebuild cost on mobile WebGL2.
+  const panoramaAllowed=radius<=6500;
+  const farCx=Math.round(focusX/900)*900,farCz=Math.round(focusZ/900)*900;
+  const farKey=[farCx,farCz,this.planet.seed].join("/");
+  if(panoramaAllowed&&farKey!==this.distantKey){
+   this.distantLandscape?.destroy();
+   const farGeo=geoOffset(s.origin.lat,s.origin.lon,farCx,farCz,this.planet.radiusM);
+   this.distantLandscape=new Mesh(gl,buildDistantLandscape(this.terrain,farGeo.lat,farGeo.lon));
+   this.distantCenter={cx:farCx,cz:farCz};
+   this.distantKey=farKey;
+  }else if(!panoramaAllowed&&this.distantLandscape){
+   this.distantLandscape.destroy();this.distantLandscape=null;this.distantCenter=null;this.distantKey=null;
+  }
+  const shipboard=this.marine?.shipboard;
+  const onboard=Boolean(this.marine?.boarded?.kind==="sailing_ship"&&
+   shipboard?.shipId===this.marine.boardedId);
+  const person=onboard?shipboard.player:null;
+  const worldPerson=person?shipLocalToWorld(s.x,s.z,s.yaw,person.x,person.z):{x:s.x,z:s.z};
+  const viewS=person?{...s,x:worldPerson.x,z:worldPerson.z,
+   yaw:s.yaw+person.yaw,moving:person.moving,
+   totalDistanceM:shipboard.elapsed*2.6,movementSpeed:()=>2.65}:s;
+  const px=viewS.x-this.cx,pz=viewS.z-this.cz;
+  const currentSurface=terrainSurface(this.terrain,s.lat,s.lon);
+  const ground=currentSurface.elevationM;
+  const waterY=Number.isFinite(currentSurface.waterLevelM)?currentSurface.waterLevelM:0;
+  let marinePose=["swim","dive"].includes(s.travelMode)?
+    swimmingPresentation(s.travelMode,s.moving,waterY,this.marine?.depthM||0,this.marineClock,this.marine?.swimStyle,this.marine?.seabedWalking):null;
+  if(s.travelMode==="swim"&&this.marine?.entrySeconds>0){
+   const p=1-this.marine.entrySeconds/this.marine.entryDuration;
+   marinePose={action:"splash",pitch:.50+.8*p,baseY:waterY-1.12+1.8*Math.sin(Math.PI*p)};
+  }
+  const feet=marinePose?.baseY??(s.travelMode==="boat"?waterY+(this.marine?.cabinId ? .46 : this.marine?.boarded?.kind==="sailing_ship"?1.65:.38):Math.max(ground,0));
+  const focusGeo=cameraMode==="free"?
+    geoOffset(s.origin.lat,s.origin.lon,focusX,focusZ,this.planet.radiusM):{lat:s.lat,lon:s.lon};
+  const focusGround=Math.max(0,terrainSurface(this.terrain,focusGeo.lat,focusGeo.lon).elevationM);
+  const room=this.sceneActions?.structures.find(b=>b.id===this.interiorBuildingId&&b.progress>=1);
+  const cabinActive=Boolean(this.marine?.cabinId&&this.marine.boarded?.id===this.marine.cabinId);
+  const camYaw=viewS.yaw||0;
+  const camera=room?{
+   eye:[room.x-this.cx+1.5,room.height+8.1,room.z-this.cz+4.4],
+   target:[s.x-this.cx,room.height+1,s.z-this.cz-.55],
+   fovDeg:64,heightM:8,marker:false
+  }:cabinActive?{
+   eye:[px+Math.cos(camYaw)*4.4+Math.sin(camYaw)*5.8,waterY+6.9,
+    pz-Math.sin(camYaw)*4.4+Math.cos(camYaw)*5.8],
+   target:[px,waterY+1.55,pz],fovDeg:58,heightM:6,marker:false
+  }:this.cameraController.groundView(viewS,{
+    cx:this.cx,cz:this.cz,groundM:marinePose?.action==="swim"||marinePose?.action==="tread"?waterY-1:feet,focusGroundM:focusGround,dt
+  });
+  if(s.travelMode==="dive"&&!room&&!cabinActive&&cameraMode!=="free"&&cameraMode!=="tactical"){
+   camera.eye[1]=Math.min(waterY-.35,feet+2.35);camera.target[1]=feet+.65;
+  }
+  // Headset pose supplies the per-eye perspective and view. The virtual
+  // terrain is translated around the real actor and optionally miniaturized.
+  const xrModel=this.xrView?multiply4(this.xrView.stage,
+   translate(-px,-feet,-pz)):null;
+  const vp=this.xrView?multiply4(this.xrView.projection,
+   multiply4(this.xrView.view,xrModel)):
+   multiply4(perspective(camera.fovDeg*DEG,asp,.12,Math.max(radius*8,65000)),
+    lookAt(camera.eye,camera.target,this.rtsHeadingUp&&cameraMode==='tactical'?[Math.sin(this.rtsHeadingYaw),0,Math.cos(this.rtsHeadingYaw)]:undefined));
+  this.pickVP=this.xrView?null:vp;
+  // DOM-composited wall player projects with the identical camera as walls.
+  this.wallScreenCamera=this.xrView?null:{
+   x:camera.eye[0]+this.cx,z:camera.eye[2]+this.cz
+  };
+  const sunlight=this.planet.illumination(s.lat,s.lon);
+  const light=[.4,Math.max(.3,sunlight),.2];
+  const climate=this.sceneWeather?.sample(s.lat,s.lon,Math.max(0,ground));
+  const fog=fogForGround({mode:this.fogMode,weather:climate,illumination:sunlight,
+   cameraHeightM:Math.max(0,camera.eye[1]-focusGround),underwater:s.travelMode==="dive"});
+  this.lastFog=fog;
+  gl.uniform3fv(this.uFogParams,new Float32Array([fog.startM,fog.endM,fog.opacity]));
+  gl.uniform3fv(this.uFogColor,new Float32Array(fog.color));
+  // Draw kilometer-scale mountains before the collision mesh, without writing
+  // depth. The full-detail foreground always wins even where LODs overlap.
+  if(this.distantLandscape&&s.travelMode!=="dive"){
+   gl.depthMask(false);
+   this.drawMesh(this.distantLandscape,multiply4(vp,translate(
+     this.distantCenter.cx-this.cx,0,this.distantCenter.cz-this.cz)),light,1,.83);
+   gl.depthMask(true);
+  }
+  if(s.travelMode==="dive"){
+   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+   this.drawMesh(this.patch,vp,light,.5,.66);
+   gl.depthMask(true);gl.disable(gl.BLEND);
+  }else this.drawMesh(this.patch,vp,light,1,.58);
+  if(this.riverWater)this.drawMesh(this.riverWater,vp,light,1,.86);
+  if(this.lakeWater)this.drawMesh(this.lakeWater,vp,light,1,.88);
+  this.drawMarineSurface(vp,light,s,dt);
+  if(s.travelMode==="swim"&&this.marine?.entrySeconds>0){
+   const p=1-this.marine.entrySeconds/this.marine.entryDuration,spread=.55+2.1*p;
+   const size=[spread,0,0,0,0,1,0,0,0,0,spread,0,0,0,0,1];
+   const ripple=multiply4(translate(s.x-this.cx,waterY+.07,s.z-this.cz),size);
+   this.drawMesh(this.selectionRing,multiply4(vp,ripple),light,1,.94,[.60,.91,1]);
+  }
+  this.drawSeabed(vp,light,s);
+  for(const mesh of this.meadow)this.drawInstancedMesh(mesh,vp,light,1,.72);
+   for(const mesh of this.trees)this.drawInstancedMesh(mesh,vp,light,1,.58);
+   this.drawFallingTrees(vp,light,dt);
+   for(const mesh of this.settlement)this.drawMesh(mesh,vp,light,1,.64);
+   for(const mesh of this.settlementDecor)this.drawMesh(mesh,vp,light,1,.72);
+   this.drawHarbor(vp,light,s,radius);
+   const starship=this.surfaceStarship;
+   if(starship?.visible(this.planet.id)){
+    const flightPose=starship.renderPose?.()||{lat:starship.lat,lon:starship.lon,yaw:starship.yaw,altitudeM:0,bankDeg:0};
+    const land=geoLocal(s.origin.lat,s.origin.lon,flightPose.lat,flightPose.lon,this.planet.radiusM);
+    if(Math.hypot(land.eastM-s.x,land.northM-s.z)<radius+125){
+     const gx=land.eastM-this.cx,gz=land.northM-this.cz;
+     const height=starship.flight==="recall"?
+     Math.max(0,terrainSurface(this.terrain,flightPose.lat,flightPose.lon).elevationM)+.12:
+     Number.isFinite(starship.padElevationM)?starship.padElevationM:
+      Math.max(0,terrainSurface(this.terrain,starship.lat,starship.lon).elevationM);
+     const descent=starship.flight==="recall"?flightPose.altitudeM:
+      starship.flight==="landing"?starshipDescentHeight(starship.landingProgress):0;
+     const matrix=multiply4(translate(gx,height+descent,gz),
+      multiply4(rotateY(flightPose.yaw||0),rotZ((flightPose.bankDeg||0)*DEG)));
+     if(["landing","recall"].includes(starship.flight)){
+      // A glowing elliptical pad marks where the engines are lowering the ship.
+      const ring=multiply4(translate(gx,height+.07,gz),
+       multiply4(rotateY(starship.yaw||0),scale3(6.4,1,11.0)));
+      this.drawMesh(this.selectionRing,multiply4(vp,ring),light,1,.95,[.52,.96,1]);
+      // Three exhaust rings move with the hull; they shrink as the ship touches down.
+      if(descent>.3)for(const ex of [-2.15,0,2.15]){
+       const jet=multiply4(translate(gx+Math.cos(starship.yaw||0)*ex,
+        height+descent*.50, gz-Math.sin(starship.yaw||0)*ex+12),
+        scale3(.45,1,.45));
+       this.drawMesh(this.selectionRing,multiply4(vp,jet),light,1,.98,[.35,.85,1]);
+      }
+     }
+     this.drawMesh(this.surfaceShipMeshes[starship.hatchOpen?1:0],multiply4(vp,matrix),light,1,.88);
+     this.drawShipWindowCrew(vp,matrix,light,dt);
+    }
+   }
+   const railStation=this.railway?.station(this.settlementId);
+   if(railStation){
+    // The rails extend beyond the platform along the actual local ground.
+    if(this.stationTrackId!==this.settlementId){
+     this.stationTrackMesh?.destroy();this.stationFenceMesh?.destroy();
+     const sleepers=[];
+     for(let i=0;i<=110;i++){
+      const z=railStation.site.z-380+i*7.0,x=railStation.site.x;
+      const point=geoOffset(s.origin.lat,s.origin.lon,x,z,this.planet.radiusM);
+      const y=Math.max(0,terrainSurface(this.terrain,point.lat,point.lon).elevationM);
+      sleepers.push({x,z,y});
+     }
+     const track=trackGeometry(sleepers);
+     const fence=trackFenceGeometry(sleepers,{gateZ:railStation.site.z,crossings:[railStation.crossing.z]});
+     this.stationTrackMesh=track.indices.length?new Mesh(gl,track):null;
+     this.stationFenceMesh=fence.indices.length?new Mesh(gl,fence):null;
+     this.stationTrackId=this.settlementId;
+    }
+    if(this.stationTrackMesh)this.drawMesh(this.stationTrackMesh,
+     multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.82);
+    if(this.stationFenceMesh)this.drawMesh(this.stationFenceMesh,
+     multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.84);
+    if(railStation.crossing){
+     const crossingGeo=geoOffset(s.origin.lat,s.origin.lon,railStation.crossing.x,railStation.crossing.z,this.planet.radiusM);
+     const crossingY=Math.max(0,terrainSurface(this.terrain,crossingGeo.lat,crossingGeo.lon).elevationM)+.04;
+     const crossingModel=multiply4(translate(railStation.crossing.x-this.cx,crossingY,
+      railStation.crossing.z-this.cz),rotateY(railStation.crossing.yaw||0));
+     this.drawMesh(this.railCrossingMesh,multiply4(vp,crossingModel),light,1,.91);
+    }
+    const x=railStation.site.x-this.cx,z=railStation.site.z-this.cz;
+    const y=patchSceneryHeight(this.groundPatchData,x,z);
+    const stationModel=multiply4(translate(x,y,z),rotateY(railStation.site.yaw||0));
+    this.drawMesh(this.railwayStationMesh,multiply4(vp,stationModel),light,1,.72);
+    const locations=this.railwayLocations||[];
+    this.trainClock+=Math.max(0,Math.min(dt,.1));
+    for(const state of this.railway.live(this.planet.timeDays)){
+     const pose=railwayJourneyPose(this.terrain,locations,state,this.planet.timeDays);
+     if(!pose)continue;
+     const place=geoLocal(s.origin.lat,s.origin.lon,pose.lat,pose.lon,this.planet.radiusM);
+     // Keep the consist alive beyond the fog edge so it enters/leaves through
+     // atmospheric haze instead of popping at the streamed-tile boundary.
+     if(Math.hypot(place.eastM-s.x,place.northM-s.z)>radius*1.35)continue;
+     this.drawRailwayVehicle(vp,light,place.eastM-this.cx,pose.elevationM,
+      place.northM-this.cz,pose.yaw,pose);
+    }
+   }
+   if(this.settlementId!=="pioneer"&&this.settlementId!=="wilderness"){
+    const range=cameraMode==="tactical"?120:42;
+    for(const site of this.townSites){
+     if(Math.hypot(site.x-s.x,site.z-s.z)>range)continue;
+     const spot=projectScreen(vp,[site.localX,site.elevationM+2.4,site.localZ]);
+     if(spot?.onScreen)this.screenTownBuildings.push({...spot,x:site.x,z:site.z,
+       source:"village",id:site.id});
+    }
+   }
+   // Residents stroll gently along lanes; movement is local and deterministic.
+   for(const mesh of this.residentMeshes){
+    for(let i=0;i<mesh.residents.length;i++){
+     const resident=mesh.residents[i],a=this.marineClock*.55+i*1.4+resident.clothing;
+     const dx=Math.sin(a)*.65,dz=Math.cos(a)*.55,k=i*6;
+     mesh.dynamicTransforms[k]=resident.localX+dx;
+     mesh.dynamicTransforms[k+1]=resident.elevationM+Math.max(0,Math.sin(a*4))*.035;
+     mesh.dynamicTransforms[k+2]=resident.localZ+dz;
+     mesh.dynamicTransforms[k+3]=1;
+     mesh.dynamicTransforms[k+4]=Math.cos(a+Math.PI*.5);
+     mesh.dynamicTransforms[k+5]=Math.sin(a+Math.PI*.5);
+    }
+    mesh.updateTransforms(mesh.dynamicTransforms);
+    this.drawInstancedMesh(mesh,vp,light,1,.72);
+    for(const person of mesh.residents){
+     if(Math.hypot(person.x-s.x,person.z-s.z)>25)continue;
+     const p=projectScreen(vp,[person.localX,person.elevationM+2.0,person.localZ]);
+     if(p?.onScreen)this.screenTownResidents.push({...p,id:person.id,
+      source:"resident",x:person.x,z:person.z});
+    }
+   }
+   const guard=this.railwaySecurity?.guard;
+   if(guard&&guard.stationId===this.settlementId){
+    const gx=guard.x-this.cx,gz=guard.z-this.cz;
+    if(Math.abs(gx)<radius*1.1&&Math.abs(gz)<radius*1.1){
+     const gy=patchSceneryHeight(this.groundPatchData,gx,gz);
+     const yaw=Math.atan2(s.x-guard.x,s.z-guard.z);
+     this.drawMesh(this.railGuardMesh,multiply4(vp,multiply4(translate(gx,gy,gz),rotateY(yaw))),
+      light,1,.90);
+    }
+   }
+   this.drawPlacedStructures(vp,light,s,radius);
+   this.drawOwnerWorld(vp,light,s,radius);
+  // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
+  this.screenResources=[];
+  const farPick=cameraMode==="tactical"&&camera.heightM>70;
+  const pickRadius=farPick?Math.min(480,camera.heightM*2.4):140;
+  const thinning=farPick?Math.max(1,Math.floor(this.resourceNodes.length/1400)):1;
+  for(let i=0;i<this.resourceNodes.length;i++){
+   if(i%thinning!==0)continue;
+   const node=this.resourceNodes[i],dx=node.x-s.x,dz=node.z-s.z;
+   if(dx*dx+dz*dz>pickRadius*pickRadius)continue;
+   const screen=projectScreen(vp,[node.x-this.cx,node.elevationM+(node.kind==="wood"?2.0:.85),node.z-this.cz]);
+   if(screen?.onScreen)this.screenResources.push({...node,...screen});
+   if(this.screenResources.length>=1800)break;
+  }
+  if(this.selectedResource){
+   const node=this.resourceNodes?.find(n=>n.id===this.selectedResource.id);
+   if(node)this.drawMesh(this.selectionRing,
+    multiply4(vp,translate(node.x-this.cx,node.elevationM+.06,node.z-this.cz)),light,1,.95,[.45,1,.55]);
+  }
+  if(this.mapFocus&&Number.isFinite(this.mapFocus.x)&&Number.isFinite(this.mapFocus.z)){
+   const focus=this.mapFocus,x=focus.x-this.cx,z=focus.z-this.cz;
+   if(Math.abs(x)<=radius&&Math.abs(z)<=radius){
+    const geo=geoOffset(s.origin.lat,s.origin.lon,focus.x,focus.z,this.planet.radiusM);
+    const ground=terrainSurface(this.terrain,geo.lat,geo.lon);
+    this.drawMesh(this.selectionRing,
+     multiply4(vp,translate(x,ground.water||ground.river?.1:ground.elevationM+.07,z)),light,1,.97,[.28,.98,1]);
+   }
+  }
+  this.drawBuildings(vp,light,s,radius,dt);
+  this.drawAgriculture(vp,light,s,radius);
+  this.drawFauna(vp,light,s,radius);
+  this.drawMarineWildlife(vp,light,s,radius);
+  this.drawShipCabin(vp,light,s,waterY);
+  this.drawShipboardObjects(vp,light,s,waterY);
+  this.drawFishingActivity(vp,light,s,waterY);
+  this.drawFrontier(vp,light,s,radius);
+  this.drawTestEnemies(vp,light,s,radius);
+  this.drawLawGuards(vp,light,s,radius);
+  this.drawPhysicalArrows(vp,light);
+  this.drawLifestyle(vp,light,s,radius);
+  // The grounded avatar remains at real scale even when the observer ascends.
+  const capture=this.captureFX?capturePose(this.captureFX.elapsed):null;
+  const y0=feet+(capture ? .08 : (s.jumpY||0)+(this.fauna?.mount?1.15:0));
+  const upright=translate(px,y0,pz);
+  // Face-local tipping motion from feet to ground.
+  const face=viewS.yaw||0;
+  const transform=capture?multiply4(upright,multiply4(rotateY(face),
+   multiply4(rotX(capture.angle),rotateY(-face)))):upright;
+  const lifeAction=this.sceneLife?.activity;
+  const baseMotion=marinePose?
+   {action:marinePose.action,progress:0}:
+   this.marine?.fishing?.casting?
+   {action:"fish",progress:(this.marine.fishing.castMotion<1?this.marine.fishing.castMotion:
+    1+this.marine.fishing.reelTurns*2*Math.PI)}:
+   lifeAction&&lifeAction!=="idle"?
+   {action:lifeAction,progress:0}:this.sceneActions?.getAnimation()||{action:"idle",progress:0};
+  const hitActive=(this.playerHitSeconds||0)>0;
+  const hitMotion=!marinePose&&hitActive&&!["sword","spear","greatsword","axe","bow","guard"].includes(baseMotion.action);
+  const activeDaily=this.avatarDailyMotion;
+  const playerMotion=capture?{action:"idle",progress:0}:hitMotion?
+   {action:"hit",progress:Math.max(0,Math.min(1,1-(this.playerHitSeconds||0)/.48))}:
+   activeDaily?.action&&!marinePose&&!this.marine?.fishing?.casting&&!this.sceneActions?.active?
+   activeDaily:baseMotion;
+  const playerTint=hitActive?[1,.56,.56]:[1,1,1];
+  // In standing VR, the avatar's head would overlap the real user's eyes.
+  if((this.xrView?.mode!=="vr"||this.xrView.showAvatar)&&
+    !this.drawGroundAvatarV10(vp,transform,viewS,light,dt,playerMotion)&&
+    !this.drawFrontierAvatar(this.glbFor.player,vp,transform,viewS,light,dt,playerMotion,'player'))
+   this.drawArticulated(vp,transform,viewS,light,dt,this.animator,this.expression,playerMotion,playerTint,"player");
+  // A temporary visual pickup prop follows the demonstrated hand/lifting pose.
+  // It is never added to inventory until a real resource interaction succeeds.
+  if(["pickup","lift"].includes(playerMotion.action)&&!capture&&this.avatarActionProp){
+   const t=Math.max(0,Math.min(1,playerMotion.progress||0));
+   const two=playerMotion.action==="lift",left=playerMotion.hand==="left";
+   const x=two?0:left?-.48:.48;
+   const y=two?(t<.48?.17:.17+Math.min(1,(t-.48)/.43)*.86):
+    t<.50?.16:.16+Math.min(1,(t-.50)/.47)*.78;
+   const local=multiply4(rotateY(viewS.yaw||0),translate(x,y,two?.52:.40));
+   this.drawMesh(this.avatarActionProp,multiply4(vp,multiply4(transform,local)),light,.97,.86);
+  }
+  if(capture?.stars){
+   for(const star of captureStars(this.captureFX.elapsed,{yaw:face})){
+    const model=multiply4(translate(px+star.x,feet+star.y,pz+star.z),
+     multiply4(rotateY(face),scale3(star.scale,star.scale,star.scale)));
+    this.drawMesh(this.custodyStarMesh,multiply4(vp,model),light,1,.96);
+   }
+  }
+  const gearModel=this.divingEquipmentModels[this.marine?.diveGear];
+  if(gearModel&&s.travelMode!=="boat"){
+   const gearTransform=multiply4(transform,multiply4(rotateY(viewS.yaw||0),rotX(marinePose?.pitch||0)));
+   this.drawMesh(gearModel,multiply4(vp,gearTransform),light,1,.84);
+  }
+  // Each companion has a separate controller and animator. Screen-space
+  // projections are used for tap selection in the overhead RTS view.
+  const actors=this.squad?.agents||[];
+  this.screenActors=[];
+  for(const agent of actors){
+   const base=agent.control,crewPose=onboard?shipboard.member(agent.id):null;
+   if(onboard&&agent.id!=="player"&&(!crewPose||crewPose.zone!==person.zone))continue;
+   const world=crewPose?shipLocalToWorld(s.x,s.z,s.yaw,crewPose.x,crewPose.z):null;
+   const unit=crewPose?{...base,x:world.x,z:world.z,yaw:s.yaw+crewPose.yaw,
+    moving:crewPose.moving,totalDistanceM:shipboard.elapsed*1.2,movementSpeed:()=>1.15}:base;
+   const elevation=crewPose?waterY+(crewPose.zone==="cabin"?.46:1.65):
+    Math.max(0,terrainSurface(this.terrain,unit.lat,unit.lon).elevationM);
+   const x=unit.x-this.cx,z=unit.z-this.cz;
+   if(Math.abs(x)>radius||Math.abs(z)>radius)continue;
+   const projected=projectScreen(vp,[x,elevation+(unit.jumpY||0)+1.6,z]);
+   if(projected?.onScreen){
+    this.screenActors.push({...projected,id:agent.id,name:agent.name});
+    if(crewPose&&agent.id!=="player")
+     this.screenShipCrew.push({...projected,id:agent.id,name:agent.name,type:"crew"});
+   }
+   if(this.squad.selected.has(agent.id))
+    this.drawMesh(this.selectionRing,multiply4(vp,translate(x,elevation+(unit.jumpY||0),z)),light,1,.85);
+   if(agent.id==="player")continue;
+   if(!this.npcAnimators.has(agent.id))
+    this.npcAnimators.set(agent.id,{animator:new SmoothAnimator(),expression:new ExpressionController()});
+   const ctx=this.npcAnimators.get(agent.id);
+   const model=translate(x,elevation+(unit.jumpY||0),z);
+   const motion=crewPose?{action:crewPose.task==="rest"?"sit":"idle",progress:0}:
+    this.squad.getMotion(agent);
+   const highDetail=actors.length<=16||actors.indexOf(agent)<10||
+    (this.squad.selected.size<=6&&this.squad.selected.has(agent.id));
+   if(!highDetail||!this.drawFrontierAvatar(this.glbFor[agent.id],vp,model,unit,light,dt,motion,agent.id))
+    this.drawArticulated(vp,model,unit,light,dt,ctx.animator,ctx.expression,
+     motion,agent.id==="scout"?[.65,.86,1]:[1,.78,.65],agent.id);
+  }
+  if((this.xrView?.mode==="mr-rts"||this.xrView?.rtsTabletop)){
+   // Readable 3-5 cm selection rings even at 1:700 tabletop scale.
+   const bigRing=[12,0,0,0,0,1,0,0,0,0,12,0,0,0,0,1];
+   const candidates=[{id:"player",control:s},...(this.squad?.agents||[]).filter(a=>a.id!=="player")];
+   for(const a of candidates){
+    const u=a.control||a;
+    const here=geoOffset(s.origin.lat,s.origin.lon,u.x,u.z,this.planet.radiusM);
+    const y=Math.max(0,terrainSurface(this.terrain,here.lat,here.lon).elevationM);
+    this.drawMesh(this.selectionRing,multiply4(vp,multiply4(
+     translate(u.x-this.cx,y+.15,u.z-this.cz),bigRing)),light,1,.98,
+     this.squad?.selected.has(a.id)?[1,.86,.3]:[.3,.87,1]);
+   }
+  }
+  if((this.xrView?.mode==="mr-rts"||this.xrView?.rtsTabletop)&&this.xrView.cursor){
+   const p=this.xrView.cursor;
+   const loc=geoOffset(s.origin.lat,s.origin.lon,p.x,p.z,this.planet.radiusM);
+   const y=Math.max(0,terrainSurface(this.terrain,loc.lat,loc.lon).elevationM);
+   const cursorScale=[17,0,0,0,0,1,0,0,0,0,17,0,0,0,0,1];
+   this.drawMesh(this.selectionRing,multiply4(vp,multiply4(
+    translate(p.x-this.cx,y+.22,p.z-this.cz),cursorScale)),
+    light,1,.99,[1,.58,.18]);
+  }
+  if(camera.marker&&!this.xrView){
+   const screen=projectScreen(vp,camera.actorPos);
+   this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
+  }
+  // Wind-driven sky volumes, behind intervening mountain peaks.
+  this.renderWeatherClouds(s,geoOffset(s.origin.lat,s.origin.lon,this.cx,this.cz,this.planet.radiusM),radius,vp,light,dt);
+  return "ground";
+ }
+ destroy(){
+   for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+    for(const asset of Object.values(this.animatedGlb))asset?.destroy();
+   this.henshinMeshes?.destroy();
+   this.avatarV10Assets.destroy();
+   for(const mesh of this.shipCrewFallbacks.values())mesh.destroy();
+   this.shipCrewTalkMarker?.destroy();
+   for(const fall of this.fallingTrees.values())fall.mesh.destroy();this.fallingTrees.clear();
+   this.gl.deleteProgram(this.program);
+ }
+}

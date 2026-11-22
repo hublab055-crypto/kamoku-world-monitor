@@ -1,0 +1,278 @@
+import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261117-crew-life";
+import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-compact-hotas";
+import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
+import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
+import {bodyById} from "./solar-system.mjs?v=20261112-warp";
+const rad=Math.PI/180;
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+function color(hex){const h=hex.replace("#","");return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255];}
+const palette={
+ wall:[.15,.25,.33],dark:[.045,.085,.12],floor:[.17,.25,.29],
+ roof:[.11,.16,.23],line:[.15,.58,.68],seat:[.16,.28,.38],
+ crate:[.31,.32,.27],screen:[.13,.69,.67],frame:[.35,.47,.51],
+ skin:[.83,.61,.43],uniform:[.18,.4,.56],uniform2:[.43,.29,.42],light:[.72,.91,.88]
+};
+const cubeFaces=[
+ // corners given clockwise as observed from outside: normal
+ {n:[0,0,1],p:[[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]]},
+ {n:[0,0,-1],p:[[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]]},
+ {n:[1,0,0],p:[[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]]},
+ {n:[-1,0,0],p:[[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]]},
+ {n:[0,1,0],p:[[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]]},
+ {n:[0,-1,0],p:[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]]}
+];
+function box(data,x,y,z,w,h,d,c){
+ const col=Array.isArray(c)?c:palette[c]||palette.wall;
+ for(const f of cubeFaces){
+  const order=[0,1,2,0,2,3];
+  for(const i of order){
+   const p=f.p[i];
+   data.push(x+p[0]*w/2,y+p[1]*h/2,z+p[2]*d/2,...f.n,...col);
+  }
+ }
+}
+function sphere(data,x,y,z,r,c){
+ const col=Array.isArray(c)?c:palette[c]||palette.wall;
+ const rings=17,sectors=26;
+ function v(a,b){
+  const phi=Math.PI*a/rings,theta=Math.PI*2*b/sectors;
+  const nx=Math.sin(phi)*Math.cos(theta),ny=Math.cos(phi),nz=Math.sin(phi)*Math.sin(theta);
+  return [x+nx*r,y+ny*r,z+nz*r,nx,ny,nz,...col];
+ }
+ for(let a=0;a<rings;a++)for(let b=0;b<sectors;b++){
+  for(const vtx of [v(a,b),v(a+1,b+1),v(a+1,b),v(a,b),v(a,b+1),v(a+1,b+1)])data.push(...vtx);
+ }
+}
+export function createShipCrewStandIn(crew){
+ const a=[];
+ const c=crew.id==="engineer"?"uniform2":"uniform";
+ box(a,0,.93,0,.49,.98,.32,c);
+ sphere(a,0,1.65,0,.21,"skin");
+ for(const side of [-1,1]){
+  box(a,side*.14,.29,0,.18,.56,.19,"dark");
+  box(a,side*.32,1.08,0,.15,.68,.17,c);
+ }
+ return new Float32Array(a);
+}
+export function createShipGeometry(open=false,standIns=true){
+ const a=[];
+ // Main pressure hull: 26m long, 8m wide, 3.5m ceiling
+ box(a,0,-.17,0,8,.36,26.2,"floor");
+ // Panoramic flight deck: side glazing and two skylights are genuinely open.
+ // Keeping solid pressure-hull sections aft avoids fake painted-on windows.
+ box(a,0,3.67,3.15,8,.26,19.9,"roof");
+ for(const side of [-1,1]){
+  box(a,side*3.18,3.67,-10,1.7,.26,6.15,"roof");
+  box(a,side*4.08,1.71,3.15,.23,3.5,19.9,"wall");
+  box(a,side*4.08,.045,-10,.23,.09,6.15,"frame");
+  box(a,side*4.08,3.24,-10,.23,.91,6.15,"wall");
+  for(const z of [-12.90,-10.15,-7.18])
+   box(a,side*4.08,1.49,z,.27,2.98,.20,"frame");
+  for(const z of [-12.8,-10,-7.2])box(a,side*2.35,3.58,z,1.8,.12,.12,"frame");
+ }
+ box(a,0,3.66,-12.95,8,.27,.38,"roof");
+ box(a,0,3.66,-7.08,8,.27,.38,"roof");
+ box(a,0,3.63,-10,.09,.13,5.9,"frame");
+ // Genuine rear opening and airlock ramp in the same cabin mesh.
+ for(const side of [-1,1])box(a,side*2.65,1.7,13.08,2.68,3.5,.27,"wall");
+ box(a,0,3.13,13.08,2.65,.62,.28,"wall");
+ for(const side of [-1,1])box(a,side*1.31,1.71,13.1,.08,2.78,.24,"frame");
+ if(open){
+  for(let j=0;j<7;j++)box(a,0,-.15-j*.25,13.1+j*.85,2.46,.12,.87,"frame");
+  for(const side of [-1,1])box(a,side*1.24,-.65,15.9,.09,.15,5.6,"line");
+ }else box(a,0,1.47,13.17,2.42,2.83,.28,"dark");
+ // Front observation glazing is open to the view of the approaching world.
+ box(a,-3.6,1.7,-13.08,.85,3.5,.32,"wall");
+ box(a,3.6,1.7,-13.08,.85,3.5,.32,"wall");
+ box(a,0,.045,-13.08,6.4,.09,.32,"frame");
+ box(a,0,3.30,-13.08,6.4,.70,.32,"wall");
+ // Cockpit/corridor and cargo partitions have a central 2.6m doorway.
+ for(const z of [-4.8,4.5]){
+  box(a,-2.7,1.72,z,2.55,3.48,.26,"wall");
+  box(a,2.7,1.72,z,2.55,3.48,.26,"wall");
+  box(a,0,3.23,z,2.85,.50,.32,"frame");
+  box(a,-1.37,1.75,z,.13,2.75,.20,"frame");
+  box(a,1.37,1.75,z,.13,2.75,.20,"frame");
+ }
+ // Corridor strips guide player to the sections.
+ for(const x of [-1.52,1.52]){
+  box(a,x,.025,0,.055,.05,25.5,"line");
+  box(a,x,3.48,0,.075,.09,25.5,"line");
+ }
+ // Captain chair: unobstructed front glazing and controls on the armrests.
+ box(a,0,.53,PILOT_SEAT_Z,.95,.26,1.05,"seat");
+ box(a,0,1.12,PILOT_SEAT_Z+.55,1.0,1.35,.20,"seat");
+ box(a,0,.29,PILOT_SEAT_Z,.28,.75,.28,"frame");
+ for(const x of [-.65,.65]){
+  box(a,x,.82,PILOT_SEAT_Z+.10,.24,.18,1.05,"seat");
+  box(a,x,.72,PILOT_SEAT_Z+.40,.12,.62,.16,"frame");
+  box(a,x,.96,PILOT_SEAT_Z-.25,.14,.09,.20,"screen");
+ }
+ for(const [x,z] of [[-.65,PILOT_SEAT_Z-.25],[-.65,PILOT_SEAT_Z+.15],[.65,PILOT_SEAT_Z-.25],[.65,PILOT_SEAT_Z+.15]]){
+  box(a,x,.97,z,.13,.08,.13,"light");
+ }
+ // Small matching HOTAS mounting plates at the exact Quest grip targets.
+ // The moving throttle/stick assemblies are rendered on these plates in render.mjs.
+ for(const grip of Object.values(XR_HOTAS)){
+  box(a,grip.x,.79,grip.z,.29,.06,.29,"dark");
+  box(a,grip.x,.85,grip.z,.21,.026,.22,"frame");
+ }
+ // Thin cyan combiner marks on the front window; target HUD is drawn through it.
+ for(const x of [-1.4,1.4])box(a,x,1.75,-13.05,.035,.30,.025,"line");
+ // Crew bunks in the corridor and separate utilities.
+ for(const x of [-3.2,3.2]){
+  box(a,x,.36,-.5,1.33,.45,2.25,"seat");
+  box(a,x,1.02,-.5,1.33,.08,2.25,"frame");
+  box(a,x,1.9,1.85,.95,1.75,.50,"dark");
+  box(a,x,1.9,1.56,.80,1.05,.08,"screen");
+ }
+ // Cargo bay: crate rows and manifest station.
+ for(const x of [-3.06,3.06])for(const z of [6.0,8.45,10.7]){
+  box(a,x,.45,z,1.45,.9,1.55,"crate");
+  box(a,x,.92,z,1.48,.09,1.60,"frame");
+  box(a,x,.46,z,.11,.87,1.61,"line");
+ }
+ box(a,1.62,.62,11.55,1.5,1.2,.75,"dark");
+ box(a,1.62,1.4,11.48,1.3,.13,.54,"screen");
+ // Crew duty seats: navigator on the bridge, engineer at engines,
+ // companion in the common area. The captain's helm stays independent.
+ for(const crew of SHIP_CREW){
+  const cx=crew.x,cz=crew.z;
+  box(a,cx,.51,cz,.72,.22,.70,"seat");
+  box(a,cx,1.04,cz+.31,.75,.98,.15,"seat");
+  box(a,cx,.27,cz,.17,.48,.17,"frame");
+  for(const side of [-1,1])box(a,cx+side*.42,.76,cz,.105,.13,.62,"frame");
+ }
+ // Engine room panels and reactor housing at aft wall.
+ box(a,2.9,1.26,12.2,1.45,2.5,.65,"dark");
+ for(let j=0;j<4;j++)box(a,2.75,1.0+j*.35,11.83,.65,.09,.08,j%2?"line":"light");
+ for(let j=0;j<9;j++){
+  const z=-11.1+j*2.7;
+  box(a,-3.98,3.05,z,.1,.18,1.5,"line");
+  box(a,3.98,3.05,z,.1,.18,1.5,"line");
+ }
+ // Starfield is rendered in the external inertial layer, never welded to
+ // the cabin mesh: changing the ship's yaw/pitch rotates the visible stars.
+ if(standIns)for(const crew of SHIP_CREW){
+  const geometry=createShipCrewStandIn(crew);
+  for(let i=0;i<geometry.length;i+=9){
+   geometry[i]+=crew.x;geometry[i+2]+=crew.z;
+   for(let j=0;j<9;j++)a.push(geometry[i+j]);
+  }
+ }
+ return new Float32Array(a);
+}
+const vs=`attribute vec3 aPos;attribute vec3 aNormal;attribute vec3 aColor;
+uniform mat4 uVP;varying vec3 vColor;varying vec3 vNormal;varying float vDist;
+void main(){gl_Position=uVP*vec4(aPos,1.);vColor=aColor;vNormal=aNormal;vDist=gl_Position.w;}`;
+const fs=`precision mediump float;varying vec3 vColor,vNormal;varying float vDist;
+void main(){vec3 n=normalize(vNormal);float light=.60+.35*max(0.,dot(n,normalize(vec3(-.4,.8,-.3))));
+vec3 c=vColor*light;float fog=clamp((vDist-22.)/55.,0.,.76);gl_FragColor=vec4(mix(c,vec3(.025,.05,.085),fog),1.);}`;
+function compile(gl,type,source){
+ const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);
+ if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader)||"Shader compile failed");
+ return shader;
+}
+function program(gl){
+ const p=gl.createProgram();
+ const a=compile(gl,gl.VERTEX_SHADER,vs),b=compile(gl,gl.FRAGMENT_SHADER,fs);
+ gl.attachShader(p,a);gl.attachShader(p,b);gl.linkProgram(p);
+ if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p)||"Shader link failed");
+ gl.deleteShader(a);gl.deleteShader(b);return p;
+}
+function perspective(fov,aspect,near,far){
+ const f=1/Math.tan(fov/2),nf=1/(near-far);
+ return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+}
+function view(x,y,z,yaw,pitch){
+ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ const f=[sy*cp,sp,-cy*cp],right=[cy,0,sy],up=[-sy*sp,cp,cy*sp];
+ return new Float32Array([
+ right[0],up[0],-f[0],0, right[1],up[1],-f[1],0,
+ right[2],up[2],-f[2],0,
+ -right[0]*x-right[1]*y-right[2]*z,
+ -up[0]*x-up[1]*y-up[2]*z,f[0]*x+f[1]*y+f[2]*z,1
+ ]);
+}
+function multiply(a,b){
+ const o=new Float32Array(16);
+ for(let col=0;col<4;col++)for(let row=0;row<4;row++){
+  let n=0;for(let k=0;k<4;k++)n+=a[k*4+row]*b[col*4+k];o[col*4+row]=n;
+ }return o;
+}
+export function installShipInterior3D(canvas,{get}){
+ if(!canvas)return {render:()=>false,destroy:()=>{}};
+ let gl=null,p=null,buf=null,sceneCount=0,loc=null,planetBuffer=null,openBuffer=null,openSceneCount=0;
+ try{
+  gl=canvas.getContext("webgl",{alpha:false,antialias:true,depth:true});
+  if(!gl)throw Error("WebGL not available");
+  p=program(gl);
+  const geometry=createShipGeometry();
+  buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,geometry,gl.STATIC_DRAW);
+  sceneCount=geometry.length/9;
+  const openGeometry=createShipGeometry(true);
+  openBuffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,openBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,openGeometry,gl.STATIC_DRAW);
+  openSceneCount=openGeometry.length/9;
+  planetBuffer=gl.createBuffer();
+  loc={pos:gl.getAttribLocation(p,"aPos"),normal:gl.getAttribLocation(p,"aNormal"),
+   color:gl.getAttribLocation(p,"aColor"),vp:gl.getUniformLocation(p,"uVP")};
+  gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);
+ }catch(e){console.warn("Ship 3D display unavailable:",e);gl=null;}
+ function bind(buffer){gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  for(const [attr,offset] of [[loc.pos,0],[loc.normal,12],[loc.color,24]]){
+   if(attr<0)continue;
+   gl.enableVertexAttribArray(attr);gl.vertexAttribPointer(attr,3,gl.FLOAT,false,36,offset);
+  }
+ }
+ function render(){
+  const state=get();if(!gl||!state?.voyage||!state?.interior)return false;
+  const {voyage,interior}=state;
+  const dpr=Math.min(1.5,window.devicePixelRatio||1);
+  const width=Math.max(1,Math.floor(canvas.clientWidth*dpr));
+  const height=Math.max(1,Math.floor(canvas.clientHeight*dpr));
+  if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+  // Atmosphere visibly thins during liftoff and reappears during reentry.
+  const skyIntensity=["docked","landed"].includes(voyage.status)?1:
+   voyage.status==="ascent"?1-(voyage.stageProgress||0):
+   voyage.status==="entry"?(voyage.stageProgress||0):0;
+  gl.viewport(0,0,width,height);
+  gl.clearColor(.018+.29*skyIntensity,.04+.49*skyIntensity,.071+.60*skyIntensity,1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(p);
+  const vp=multiply(perspective(88*rad,width/height,.08,180),view(interior.x,1.62,interior.z,interior.yaw,interior.pitch));
+  gl.uniformMatrix4fv(loc.vp,false,vp);
+  // The target and origin are actual perspective spheres behind the forward observation pane.
+  // Their visible angular size changes as the voyage progresses.
+  const target=bodyById(voyage.destinationId),origin=bodyById(voyage.originId);
+  const planetData=[];
+  const yaw=voyage.attitudeYawDeg||0,pitch=voyage.pitchDeg||0;
+  const airborne=!["docked","landed","touchdown"].includes(voyage.status);
+  if(airborne)for(const {xyz,brightness} of starDirections(115)){
+   const pos=inertialToShip(xyz.map(v=>v*115),yaw,pitch);
+   box(planetData,...pos,.12+brightness*.13,.12+brightness*.13,.12,
+    [brightness*.85,brightness*.95,brightness]);
+  }
+  if(target){
+   const approaching=voyage.status==="entry"?Math.max(voyage.progress,voyage.stageProgress||0):voyage.progress;
+   const targetMark=shipSensorContacts(voyage).find(c=>c.id==="planet");
+   const direction=targetMark?.position||shipCelestialPosition({yawDeg:yaw,pitchDeg:pitch,distance:43,baseY:2});
+   const magnitude=Math.hypot(...direction)||1;
+   const pos=direction.map(v=>v*43/magnitude);
+   sphere(planetData,...pos,1.8+Math.pow(approaching,2.5)*15,color(target.color));
+  }else if(origin){
+   const pos=shipCelestialPosition({yawDeg:voyage.attitudeYawDeg,pitchDeg:voyage.pitchDeg,distance:50,baseY:-2});
+   sphere(planetData,...pos,["docked","landed"].includes(voyage.status)?11:4,color(origin.color));
+  }
+  if(target&&origin&&voyage.progress<.78){
+   const pos=shipCelestialPosition({yawDeg:(voyage.attitudeYawDeg||0)+18,pitchDeg:voyage.pitchDeg,distance:70,baseY:4});
+   sphere(planetData,...pos,5*Math.pow(1-voyage.progress,2),color(origin.color));
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER,planetBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(planetData),gl.DYNAMIC_DRAW);
+  bind(planetBuffer);gl.drawArrays(gl.TRIANGLES,0,planetData.length/9);
+  if(voyage.hatchOpen){bind(openBuffer);gl.drawArrays(gl.TRIANGLES,0,openSceneCount);}
+  else{bind(buf);gl.drawArrays(gl.TRIANGLES,0,sceneCount);}
+  return true;
+ }
+ function destroy(){if(!gl)return;if(buf)gl.deleteBuffer(buf);if(openBuffer)gl.deleteBuffer(openBuffer);if(planetBuffer)gl.deleteBuffer(planetBuffer);if(p)gl.deleteProgram(p);}
+ return {render,destroy,supported:Boolean(gl)};
+}

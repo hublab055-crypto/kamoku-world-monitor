@@ -1,0 +1,491 @@
+import {deformAvatarV10Face} from "./avatar-v10-face.mjs?v=1";
+import {deformAvatarReviewFace} from "./avatar-review-face.mjs?v=20261114-original";
+import {reviewShaderParams,reviewHairPreset} from "./avatar-review-adapter.mjs?v=20261114-original";
+import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body.mjs?v=20261114-body";
+import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
+import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117-hip-articulation";
+import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261118-obstetric";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261118-mocap-ik";
+import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261118-obstetric";
+import {currentXRMotionActorPose} from "./xr-motion-actor.mjs?v=20261118-vr-mocap";
+import {isAvatarHandDetail,preserveAvatarSkinDetail} from "./avatar-v10-skin-detail.mjs?v=20261117-proportions-fix";
+const VS=`#version 300 es\nprecision highp float;\nprecision highp int;\nlayout(location=0) in vec3 aPos;\nlayout(location=1) in vec3 aNormal;\nlayout(location=2) in vec3 aColor;\nlayout(location=3) in vec2 aUv;\nlayout(location=4) in vec4 aJoints;\nlayout(location=5) in vec4 aWeights;\nlayout(location=6) in vec3 aMorph0;\nlayout(location=7) in vec3 aMorph1;\nuniform mat4 uVP,uAvatar,uNode;\nuniform sampler2D uBones;\nuniform bool uSkin;\nuniform vec2 uMorph;\nuniform vec3 uCenter;\nuniform float uScale;\nuniform vec3 uBodyTop,uBodyMid,uBodyLow;
+uniform vec3 uReviewA,uReviewB,uReviewC,uReviewD;
+uniform vec3 uReviewVol,uReviewShape,uReviewFirm;
+uniform vec2 uReviewHair;
+uniform float uReviewMotion,uReviewHairMesh;
+uniform vec4 uStudySculpt,uStudyLandmarks;
+uniform vec3 uStudyLimbs,uStudyMotion;
+uniform bool uAnatomy;
+out vec3 vColor,vNormal;\nout vec2 vUv;\nout vec3 vBodyCoord;
+out vec3 vRestBodyCoord;\nmat4 bone(int j){\n return mat4(texelFetch(uBones,ivec2(0,j),0),texelFetch(uBones,ivec2(1,j),0),texelFetch(uBones,ivec2(2,j),0),texelFetch(uBones,ivec2(3,j),0));\n}\nvoid main(){\n vec4 p=vec4(aPos+aMorph0*uMorph.x+aMorph1*uMorph.y,1.0);\n mat4 m=uNode;\n if(uSkin){\n  float w=aWeights.x+aWeights.y+aWeights.z+aWeights.w;\n  m=w>.001?bone(int(aJoints.x))*aWeights.x+\n             bone(int(aJoints.y))*aWeights.y+\n             bone(int(aJoints.z))*aWeights.z+\n             bone(int(aJoints.w))*aWeights.w:mat4(1.0);\n }\n vec4 posed=m*p;\n vec3 v=(posed.xyz-uCenter)*uScale;
+ float y=v.y;
+ float shoulders=exp(-pow((y-1.42)/.20,2.));
+ float chest=exp(-pow((y-1.22)/.20,2.));
+ float waist=exp(-pow((y-.99)/.20,2.));
+ float hips=exp(-pow((y-.83)/.18,2.));
+ float arms=smoothstep(.27,.49,abs(v.x))*smoothstep(.67,.91,y)*(1.0-smoothstep(1.57,1.72,y));
+ float hands=smoothstep(.52,.75,abs(v.x))*smoothstep(.65,.81,y)*(1.0-smoothstep(1.24,1.44,y));
+ float legs=1.0-smoothstep(.65,.89,y);
+ float feet=1.0-smoothstep(.07,.22,y);
+ float xWidth=1.0+uBodyTop.y*.19*shoulders+uBodyTop.z*.12*chest+
+   uBodyMid.x*.16*waist+uBodyMid.y*.17*hips+uBodyMid.z*.13*arms+
+   uBodyLow.x*.14*hands+uBodyLow.y*.14*legs+uBodyLow.z*.15*feet;
+ float zWidth=1.0+uBodyTop.z*.14*chest+uBodyMid.x*.10*waist+
+   uBodyMid.y*.12*hips+uBodyMid.z*.10*arms+uBodyLow.y*.10*legs;
+ vBodyCoord=v;
+ vRestBodyCoord=(aPos-uCenter)*uScale;
+ v.x*=xWidth;v.z*=zWidth;v.y*=1.0+uBodyTop.x*.16;
+ // Original Avatar Review percent scales: head, torso, arms, legs, hands, feet.
+ float ay=abs(v.x);
+ float head=smoothstep(1.45,1.62,y);
+ float torso=smoothstep(.69,.89,y)*(1.0-smoothstep(1.43,1.58,y))*(1.0-smoothstep(.29,.52,ay));
+ float arm=smoothstep(.24,.45,ay)*smoothstep(.66,.93,y)*(1.0-smoothstep(1.47,1.62,y));
+ float hand=smoothstep(.53,.73,ay)*smoothstep(.65,.81,y)*(1.0-smoothstep(1.16,1.39,y));
+ float leg=(1.0-smoothstep(.70,.94,y))*(1.0-smoothstep(.15,.28,y));
+ float foot=(1.0-smoothstep(.07,.25,y));
+ arm*=1.0-hand;
+ leg*=1.0-foot;
+ float wX=1.0+uReviewA.y*head+uReviewB.x*torso+
+  uReviewB.z*arm+uReviewC.y*leg+uReviewD.x*hand+uReviewD.z*foot;
+ float wZ=1.0+uReviewA.y*head+uReviewB.x*torso+
+  uReviewB.z*arm+uReviewC.y*leg+uReviewD.x*hand+uReviewD.z*foot;
+ v.x*=wX;v.z*=wZ;
+ v.y+=uReviewC.x*clamp(y-.13,0.0,.67)+
+  uReviewA.z*clamp(y-.80,0.0,.68)+uReviewA.x*clamp(y-1.48,0.0,.26);
+ v.x+=sign(v.x)*(uReviewB.y*.13*arm+uReviewC.z*.11*hand);
+ v.y+=uReviewB.y*.075*arm+uReviewC.z*.045*hand+uReviewD.y*.028*foot;
+ // Original localized volume sculpt (avatar-deformation.js), adapted from
+ // head-relative metres to the 1.8m compact avatar.
+ float h=y-.84,ax=ay;
+ float front=smoothstep(.018,.089,vBodyCoord.z);
+ float back=smoothstep(.021,.084,-vBodyCoord.z);
+ float lateral=1.0-smoothstep(.181,.247,ax);
+ float reviewChest=exp(-pow((ax-.085)/.092,2.)-pow((h-.326)/.078,2.));
+ float abdomen=exp(-pow(ax/.116,2.)-pow((h-.141)/.106,2.));
+ float glutes=exp(-pow((ax-.076)/.093,2.)-pow((h+.035)/.108,2.));
+ float breastBias=clamp((.326-h)/.083,-1.,1.);
+ float bellyBias=clamp((.170-h)/.11,-1.,1.);
+ float seatBias=clamp((h+.051)/.102,-1.,1.);
+ float bumpX=v.x*lateral*(.14*uReviewVol.x*reviewChest*front+
+  .19*uReviewVol.y*abdomen*front+
+  glutes*back*(.22*uReviewVol.z+.073*uReviewShape.z));
+ float bumpY=lateral*(-.018*reviewChest*front*uReviewShape.x-
+  .014*abdomen*front*uReviewShape.y+.017*glutes*back*uReviewShape.z);
+ float bumpZ=lateral*(front*(reviewChest*(.057*uReviewVol.x+
+  .029*uReviewShape.x*(.40+.77*breastBias))+
+  abdomen*(.073*uReviewVol.y+.032*uReviewShape.y*(.50+.64*bellyBias)))-
+  back*glutes*(.068*uReviewVol.z+.038*uReviewShape.z*(.48+.62*seatBias)));
+ v+=vec3(bumpX,bumpY,bumpZ);
+ // Subtle adult torso surface relief follows the same normalized rest coordinates
+ // as the color detail, and only affects the unlocked base study surface.
+ if(uAnatomy){
+  float axSkin=abs(vBodyCoord.x);
+  float frontSkin=smoothstep(.055,.14,vBodyCoord.z);
+  float pecRelief=exp(-pow((axSkin-uStudyLandmarks.z)/.081,2.)-pow((y-uStudyLandmarks.x)/.069,2.));
+  float rectusRelief=exp(-pow((axSkin-.064)/.055,2.))*
+   (exp(-pow((y-uStudyLandmarks.y-.075)/.028,2.))+
+    exp(-pow((y-uStudyLandmarks.y-.016)/.028,2.))+
+    exp(-pow((y-uStudyLandmarks.y+.047)/.028,2.)));
+  float navelDimple=exp(-pow(axSkin/.016,2.)-pow((y-uStudyLandmarks.y)/.019,2.));
+  v.z+=frontSkin*(.012*pecRelief+.0055*rectusRelief-.006*navelDimple+
+   .009*uStudySculpt.x*pecRelief+.007*uStudySculpt.y*rectusRelief-
+   .008*uStudySculpt.z*navelDimple);
+  float backSkin=smoothstep(.04,.13,-vBodyCoord.z);
+  float buttockRelief=exp(-pow((axSkin-.094)/.10,2.)-pow((y-.79)/.14,2.));
+  v.z-=backSkin*.012*uStudySculpt.w*buttockRelief;
+  float upperArmRelief=exp(-pow((axSkin-.36)/.125,2.)-pow((y-1.22)/.21,2.));
+  float thighRelief=exp(-pow((axSkin-.145)/.12,2.)-pow((y-.53)/.26,2.));
+  v.x+=sign(v.x)*(.012*uStudyLimbs.x*upperArmRelief+
+    .014*uStudyLimbs.y*thighRelief);
+ }
+ // Three.js editor uses additional skinned soft-bones. The WebGL renderer
+ // approximates their motion without changing the shared rig topology.
+ float motion=sin(uReviewMotion*13.0)*smoothstep(.01,.16,uReviewMotion);
+ float softness=dot(vec3(reviewChest*front,abdomen*front,glutes*back),
+  (1.0-uReviewFirm)*.0035)*lateral*motion;
+ // Optional inertia lag for soft tissue, conservative to prevent clothing clipping.
+ float studyLag=sin(uReviewMotion*9.2-.52)*smoothstep(.01,.18,uReviewMotion);
+ float studySoft=lateral*studyLag*.010*(uStudyMotion.x*reviewChest*front+
+   uStudyMotion.y*abdomen*front+uStudyMotion.z*glutes*back);
+ v.z+=(softness+(uAnatomy?studySoft:0.0))*sign(v.z);
+ if(uReviewHairMesh>.5){
+  float ends=1.0-smoothstep(1.48,1.66,y);
+  v.x*=1.0+uReviewHair.y*(.32+.44*ends);
+  v.z*=1.0+uReviewHair.y*(.32+.44*ends);
+  v.y+=uReviewHair.x*ends*.22;
+ }
+ gl_Position=uVP*uAvatar*vec4(v,1.0);\n vNormal=normalize(mat3(uAvatar)*mat3(m)*aNormal);\n vColor=aColor;\n vUv=aUv;\n}`;
+const FS=`#version 300 es\nprecision highp float;\nin vec3 vColor,vNormal;\nin vec2 vUv;\nin vec3 vBodyCoord;
+in vec3 vRestBodyCoord;\nuniform vec3 uLight;\nuniform sampler2D uColorTexture;\nuniform bool uTextured,uLinearColor,uGloves;\nuniform vec3 uGloveColor;\nuniform bool uSwimBody,uSwimFabric;\nuniform int uSwimStyle;\nuniform vec3 uSwimColor;
+uniform bool uAnatomy;\nuniform vec3 uStudyLimbs;\nuniform vec4 uStudyLandmarks;\nuniform float uOpacity;\nout vec4 fragColor;\nvoid main(){\n vec4 texel=uTextured?texture(uColorTexture,vUv):vec4(1.0);\n if(texel.a<.1)discard;\n float sun=max(dot(normalize(vNormal),normalize(uLight)),0.0);\n vec3 color=(uGloves?uGloveColor:vColor)*texel.rgb*(.6+.4*sun);
+ // Procedural skin-fitting swimwear: works for every V10 body without
+ // hiding the body mesh or showing the unrelated casual outfit.
+ if(uSwimFabric)color=mix(color,uSwimColor*(.7+.3*sun),.92);\n if(uSwimBody){
+  float y=vBodyCoord.y,x=abs(vBodyCoord.x);
+  float torso=1.0-smoothstep(.30,.45,x);
+  float hip=1.0-smoothstep(.30,.49,x);
+  float upper=smoothstep(1.07,1.15,y)*(1.0-smoothstep(1.34,1.43,y))*torso;
+  float lower=smoothstep(.68,.74,y)*(1.0-smoothstep(.90,.97,y))*hip;
+  float onepiece=smoothstep(.72,.82,y)*(1.0-smoothstep(1.35,1.44,y))*torso;
+  float coverage=uSwimStyle==1?max(onepiece,lower):(uSwimStyle==2?max(upper,lower):lower);
+  color=mix(color,uSwimColor*(.7+.3*sun),clamp(coverage,0.0,1.0));
+ }
+ // Soft anatomical landmarks in rest-pose coordinates: pectorals, linea alba,
+ // three paired rectus abdominis segments and a recessed umbilicus.
+ // They respond to the body's pose, remain subtle and never appear on clothing.
+ if(uAnatomy){
+  float anatomyY=vRestBodyCoord.y,anatomyX=abs(vRestBodyCoord.x);
+  float chestY=uStudyLandmarks.x,navelY=uStudyLandmarks.y;
+  float anatomyFront=smoothstep(.065,.17,vRestBodyCoord.z)*
+   smoothstep(.02,.60,normalize(vNormal).z);
+  float pec=exp(-pow((anatomyX-uStudyLandmarks.z)/.082,2.)-pow((anatomyY-chestY)/.070,2.));
+  float pecUnderline=exp(-pow((anatomyY-chestY+.070)/.016,2.))*
+   (1.0-smoothstep(.125,.20,anatomyX));
+  float sternum=exp(-pow(anatomyX/.022,2.))*
+   smoothstep(chestY-.12,chestY-.06,anatomyY)*(1.0-smoothstep(chestY+.07,chestY+.11,anatomyY));
+  float absColumn=exp(-pow((anatomyX-.066)/.057,2.));
+  float absTop=exp(-pow((anatomyY-navelY-.081)/.031,2.));
+  float absMid=exp(-pow((anatomyY-navelY-.021)/.030,2.));
+  float absLow=exp(-pow((anatomyY-navelY+.046)/.032,2.));
+  float abLines=exp(-pow((anatomyY-navelY-.055)/.011,2.))+
+   exp(-pow((anatomyY-navelY+.012)/.011,2.));
+  float alba=exp(-pow(anatomyX/.013,2.))*
+   smoothstep(navelY-.055,navelY-.012,anatomyY)*(1.0-smoothstep(chestY-.105,chestY-.075,anatomyY));
+  float navel=exp(-pow(anatomyX/.012,2.)-pow((anatomyY-navelY)/.015,2.));
+  float navelRim=exp(-pow(anatomyX/.024,2.)-pow((anatomyY-navelY-.003)/.023,2.));
+  float sculpt=.036*pec-.055*pecUnderline-.028*sternum+
+   .029*absColumn*(absTop+absMid+absLow)-.038*absColumn*abLines-
+   .045*alba+.023*navelRim-.11*navel;
+  color*=1.0+anatomyFront*sculpt;
+  if(uStudyLimbs.z>.5){
+   // Simple muscle location shading, NOT a clinical dissection model.
+   float groupShape=exp(-pow((anatomyX-.1)/.095,2.)-pow((anatomyY-1.24)/.11,2.))+
+    exp(-pow((anatomyX-.07)/.06,2.)-pow((anatomyY-1.00)/.17,2.));
+   color=mix(color,color*vec3(1.07,.90,.88),clamp(anatomyFront*groupShape*.18,0.0,.18));
+  }
+ }
+ // Nonsexual adult body landmarks for future infant-feeding positioning.
+ // Rest-pose coordinates keep the areola fixed to the chest during movement.
+ // Only the unlocked base study body enables this, never clothing or swimwear.
+ if(uAnatomy){
+  float ax=abs(vRestBodyCoord.x);
+  float d=length(vec2((ax-uStudyLandmarks.z)/.031,(vRestBodyCoord.y-uStudyLandmarks.x)/.032));
+  float front=smoothstep(.08,.15,vRestBodyCoord.z)*
+   smoothstep(.06,.42,normalize(vNormal).z);
+  float areola=1.0-smoothstep(.75,.94,d);
+  float tip=1.0-smoothstep(.12,.26,d);
+  color=mix(color,color*vec3(.81,.63,.62),.56*front*areola);
+  color=mix(color,color*vec3(.78,.59,.60),.37*front*tip);
+  float navelMark=length(vec2(vRestBodyCoord.x/.014,(vRestBodyCoord.y-uStudyLandmarks.y)/.016));
+  color=mix(color,color*vec3(.61,.52,.49),.63*front*(1.0-smoothstep(.65,.84,navelMark)));
+ }
+ if(uLinearColor)color=mix(color*12.92,1.055*pow(color,vec3(1.0/2.4))-.055,step(vec3(.0031308),color));
+ fragColor=vec4(color,clamp(uOpacity,0.0,1.0));\n}`;
+function compile(gl,type,src){
+ const shader=gl.createShader(type);gl.shaderSource(shader,src);gl.compileShader(shader);
+ if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){
+  const reason=gl.getShaderInfoLog(shader);gl.deleteShader(shader);throw Error("GLB shader: "+reason);
+ }
+ return shader;
+}
+function createProgram(gl){
+ const vert=compile(gl,gl.VERTEX_SHADER,VS),frag=compile(gl,gl.FRAGMENT_SHADER,FS);
+ const program=gl.createProgram();gl.attachShader(program,vert);gl.attachShader(program,frag);
+ gl.linkProgram(program);gl.deleteShader(vert);gl.deleteShader(frag);
+ if(!gl.getProgramParameter(program,gl.LINK_STATUS)){
+  const reason=gl.getProgramInfoLog(program);gl.deleteProgram(program);throw Error("GLB program: "+reason);
+ }
+ return program;
+}
+function mesh(gl,prim){
+ const vao=gl.createVertexArray(),buffers=[];
+ gl.bindVertexArray(vao);
+ for(const [name,at,size] of [["positions",0,3],["normals",1,3],["colors",2,3],["uv",3,2],
+  ["joints",4,4],["weights",5,4],["morph0",6,3],["morph1",7,3]]){
+  const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,prim.arrays[name],gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(at);gl.vertexAttribPointer(at,size,gl.FLOAT,false,0,0);
+  buffers.push(b);
+ }
+ const indices=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indices);
+ gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,prim.indices,gl.STATIC_DRAW);
+ gl.bindVertexArray(null);
+ return {vao,buffers,indices,count:prim.indices.length,source:prim};
+}
+function loadTexture(gl,image,owner){
+ if(!image?.bytes)return null;
+ const tex=gl.createTexture();gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,tex);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
+ const result={tex,ready:false};
+ if(typeof createImageBitmap==="function"){
+  void createImageBitmap(new Blob([image.bytes],{type:image.mimeType})).then(bitmap=>{
+   if(owner.disposed){bitmap.close?.();return;}
+   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,tex);
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,bitmap);
+   result.ready=true;bitmap.close?.();
+  }).catch(e=>console.warn("GLB texture decode:",e));
+ }else if(typeof Image!=="undefined"){
+  const url=URL.createObjectURL(new Blob([image.bytes],{type:image.mimeType})),im=new Image();
+  im.onload=()=>{
+   if(!owner.disposed){gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);result.ready=true;}
+   URL.revokeObjectURL(url);
+  };
+  im.onerror=()=>URL.revokeObjectURL(url);im.src=url;
+ }
+ return result;
+}
+const asFloat=m=>new Float32Array(m);
+export class SkinnedFrontierAsset{
+ constructor(gl,raw,{model=null}={}){
+  this.gl=gl;this.rig=parseFrontierRig(raw);this.disposed=false;this.instances=new Map();
+  // The legacy clothed-silhouette fallback stays selectable, but is no
+  // longer the default body in the study/swim base-body modes.
+  this.rig.studyModelBust=["lyra","mina","sera"].includes(model);
+  // Build the anatomical mesh lazily. The default work/casual roster must
+  // not pay the voxelization cost on every avatar at game startup.
+  this.proceduralBody=null;this.proceduralAttempted=false;this.inspectionMeshes=null;
+  const body=createAvatarV10BodyMesh(this.rig);
+  if(body)this.rig.primitives.push(body);
+  this.rig.primitives.push(...createAvatarV10FootMeshes(this.rig));
+  this.meshes=[];this.textures=new Map();this.boneTexture=null;this.program=null;
+  try{
+   this.program=createProgram(gl);
+   this.rig.images.forEach((img,i)=>{if(img)this.textures.set(i,loadTexture(gl,img,this));});
+   this.meshes=this.rig.primitives.map(pr=>({...mesh(gl,pr),texture:this.textures.get(pr.textureImage)||null}));
+   this.boneTexture=gl.createTexture();
+   gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.boneTexture);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+   this.u=Object.fromEntries(["uVP","uAvatar","uNode","uBones","uSkin","uMorph","uScale","uCenter","uLight","uColorTexture","uTextured","uLinearColor","uGloves","uGloveColor","uBodyTop","uBodyMid","uBodyLow","uReviewA","uReviewB","uReviewC","uReviewD","uReviewVol","uReviewShape","uReviewFirm","uReviewHair","uReviewMotion","uReviewHairMesh","uStudySculpt","uStudyLimbs","uStudyMotion","uStudyLandmarks","uOpacity","uSwimBody","uSwimFabric","uSwimStyle","uSwimColor","uAnatomy"].map(k=>[k,gl.getUniformLocation(this.program,k)]));
+  }catch(error){this.destroy();throw error;}
+ }
+ get triangles(){return this.rig.triangles;}
+ ensureAnatomicalBody(){
+  if(this.proceduralAttempted||this.disposed||!this.rig.isV10)return this.proceduralBody;
+  this.proceduralAttempted=true;
+  const mobile=typeof window!=="undefined"&&Boolean(window.matchMedia?.("(pointer: coarse)")?.matches);
+  const body=createAvatarV10ProceduralBody(this.rig,{resolution:mobile?.048:.036});
+  if(!body){
+   console.warn("V10 anatomical body: rig skin joints unavailable; legacy base retained");
+   return null;
+  }
+  this.proceduralBody=body;
+  this.rig.primitives.push(body);
+  this.meshes.push({...mesh(this.gl,body),texture:null});
+  return body;
+ }
+ ensureInspectionMeshes(){
+  if(this.inspectionMeshes||!this.proceduralBody)return this.inspectionMeshes||[];
+  this.inspectionMeshes=createAvatarV10InspectionMeshes(this.rig);
+  for(const part of this.inspectionMeshes){
+   this.rig.primitives.push(part);
+   this.meshes.push({...mesh(this.gl,part),texture:null});
+  }
+  return this.inspectionMeshes;
+ }
+ pose(id,dt,{moving=false,motion="idle",talking=false,giving=false,motionProgress=null,variant="overhead",hand="right",time=null,gesture=null,lookAt=null}={}){
+  let state=this.instances.get(id);
+  if(!state){state={elapsed:0,face:0,kind:"idle",previous:null,fade:0};this.instances.set(id,state);}
+  const kind=giving?"gift":talking?"talk":motion!=="idle"?motion:moving?"walk":"idle";
+  if(kind!==state.kind){state.kind=kind;state.elapsed=0;state.fade=.12;}
+  const step=Math.min(.12,Math.max(0,dt));state.elapsed+=step;state.face+=step;
+  const body=gesture?"idle":kind;
+  const options={motionProgress,variant,hand,moving};
+  if(lookAt)options.lookAt=lookAt;
+  if(gesture)options.gesture=gesture;
+  if(id==="player"||id==="editor"){
+   const actor=currentXRMotionActorPose(typeof performance!=="undefined"?performance.now():Date.now());
+   if(actor)options.motionActor=actor;
+  }
+  const pose=poseFrontierRig(this.rig,body,time??state.elapsed,talking||giving?"faceTalking":"faceIdle",state.face,options);
+  if(time!==null)state.fade=0;
+  if(time===null&&state.fade>0&&state.previous){
+   const blend=Math.max(0,Math.min(1,1-state.fade/.12));
+   pose.world=pose.world.map((matrix,i)=>matrix.map((value,j)=>(state.previous.world?.[i]?.[j]??value)*(1-blend)+value*blend));
+   state.fade=Math.max(0,state.fade-step);
+  }
+  state.previous=pose;
+  return pose;
+ }
+ applyFace(mesh,fit){
+  const rig=this.rig,shape=fit?.appearance||fit?.face;
+  if(fit?.preserveOriginal){
+   // Face morphs update GPU buffers in place. Switching back to the original
+   // must also restore those buffers, not merely disable new deformation.
+   if(mesh.appliedFace){
+    const attrs=["positions","normals","colors","uv","joints","weights","morph0","morph1"];
+    for(let i=0;i<attrs.length;i++){
+     this.gl.bindBuffer(this.gl.ARRAY_BUFFER,mesh.buffers[i]);
+     this.gl.bufferSubData(this.gl.ARRAY_BUFFER,0,mesh.source.arrays[attrs[i]]);
+    }
+    mesh.appliedFace=null;
+   }
+   return;
+  }
+  if(!rig.isV10||!shape||!rig.faceLandmarks||mesh.appliedFace===shape)return;
+  const female=["lyra","mina","sera"].includes(fit?.model);
+  const data=fit?.appearance?deformAvatarReviewFace(mesh.source,shape,rig.faceLandmarks,female):
+   deformAvatarV10Face(mesh.source,shape,rig.faceLandmarks);
+  if(!data)return;
+  const attributes=["positions","normals","colors","uv","joints","weights","morph0","morph1"];
+  for(const [attribute,values] of Object.entries(data)){
+   this.gl.bindBuffer(this.gl.ARRAY_BUFFER,mesh.buffers[attributes.indexOf(attribute)]);
+   this.gl.bufferSubData(this.gl.ARRAY_BUFFER,0,values);
+  }
+  mesh.appliedFace=shape;
+ }
+ draw(vp,avatar,light,id,dt,opts={}){
+  const requestedStudy=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  if(["base","swim"].includes(opts.fit?.outfit)&&requestedStudy.source!=="legacy")
+   this.ensureAnatomicalBody();
+  if(opts.fit?.outfit==="base"&&requestedStudy.layer!=="skin"&&requestedStudy.source!=="legacy")
+   this.ensureInspectionMeshes();
+  const gl=this.gl,rig=this.rig,pose=this.pose(id,dt,opts);
+  gl.useProgram(this.program);
+  gl.uniformMatrix4fv(this.u.uVP,false,asFloat(vp));
+  gl.uniformMatrix4fv(this.u.uAvatar,false,asFloat(avatar));
+  gl.uniform1f(this.u.uScale,rig.scale);
+  gl.uniform3fv(this.u.uCenter,asFloat(rig.center));
+  gl.uniform3fv(this.u.uLight,asFloat(light));
+  gl.uniform1i(this.u.uBones,0);gl.uniform1i(this.u.uColorTexture,1);
+  gl.uniform1i(this.u.uLinearColor,rig.isV10?1:0);
+  const body=rig.isV10&&!opts.fit?.appearance?shaderBodyParams(opts.fit?.body):Array(9).fill(0);
+  gl.uniform3fv(this.u.uBodyTop,asFloat(body.slice(0,3)));
+  gl.uniform3fv(this.u.uBodyMid,asFloat(body.slice(3,6)));
+  gl.uniform3fv(this.u.uBodyLow,asFloat(body.slice(6,9)));
+  const review=reviewShaderParams(rig.isV10&&!opts.fit?.preserveOriginal?opts.fit?.appearance:null);
+  const a=review.ratios;
+  gl.uniform3fv(this.u.uReviewA,asFloat(a.slice(0,3)));
+  gl.uniform3fv(this.u.uReviewB,asFloat(a.slice(3,6)));
+  gl.uniform3fv(this.u.uReviewC,asFloat(a.slice(6,9)));
+  gl.uniform3fv(this.u.uReviewD,asFloat(a.slice(9,12)));
+  gl.uniform3fv(this.u.uReviewVol,asFloat(review.volume));
+  gl.uniform3fv(this.u.uReviewShape,asFloat(review.shape));
+  gl.uniform3fv(this.u.uReviewFirm,asFloat(review.firmness));
+  const preset=opts.fit?.preserveOriginal?[1,1]:reviewHairPreset(review.appearance.hairStyle);
+  gl.uniform2fv(this.u.uReviewHair,asFloat([
+   (preset[0]-1)+review.hair[0],(preset[1]-1)+review.hair[1]
+  ]));
+  const motion=opts.moving||["walk","run","crouch","sit"].includes(opts.motion);
+  gl.uniform1f(this.u.uReviewMotion,!opts.fit?.preserveOriginal&&motion?(this.instances.get(id)?.elapsed||0):0);
+  const study=normalizeAvatarAnatomy(opts.fit?.anatomy);
+  const studyEnabled=Boolean(rig.isV10&&!opts.fit?.preserveOriginal);
+  const ratio=(key)=>studyEnabled?study[key]/100:0;
+  gl.uniform4fv(this.u.uStudySculpt,asFloat([ratio("pecDefinition"),ratio("abdomenDefinition"),
+   ratio("navelDepth"),ratio("gluteDefinition")]));
+  gl.uniform3fv(this.u.uStudyLimbs,asFloat([ratio("armDefinition"),ratio("legDefinition"),
+   studyEnabled&&study.layer==="muscle"?1:0]));
+  gl.uniform3fv(this.u.uStudyMotion,asFloat([ratio("chestJiggle"),ratio("abdomenJiggle"),ratio("gluteJiggle")]));
+  const anchors=rig.studyLandmarks||{};
+  gl.uniform4fv(this.u.uStudyLandmarks,asFloat([anchors.chestY??1.27,anchors.navelY??1.04,anchors.nippleX??.094,anchors.hipY??.95]));
+  const swim=shaderSwimParams(opts.fit);
+  gl.uniform1i(this.u.uSwimStyle,swim.style);
+  gl.uniform3fv(this.u.uSwimColor,asFloat(swim.color));
+  const palettes=rig.skins.map(skin=>{
+   const palette=new Float32Array(skin.joints.length*16);
+   skin.joints.forEach((joint,j)=>palette.set(matMultiply(pose.world[joint]||matIdentity(),skin.inverseBind?.[j]||matIdentity()),j*16));
+   return palette;
+  });
+  let boundSkin=null;
+  const outfit=opts.fit?.outfit||"work";
+  const hasDedicatedSwim=this.meshes.some(m=>m.source.wardrobe?.includes("swim")&&
+   !m.source.wardrobe?.includes("base")&&/(?:swim|suit|trunk)/i.test(m.source.name||""));
+  const useOriginalSwim=outfit==="swim"&&swim.style===0&&hasDedicatedSwim;
+  const renderedOutfit=outfit==="swim"&&!useOriginalSwim?"base":outfit;
+  const anatomy=requestedStudy;
+  const anatomicalBase=outfit==="base"||outfit==="swim"&&!useOriginalSwim;
+  const useProcedural=anatomicalBase&&anatomy.source!=="legacy"&&Boolean(this.proceduralBody);
+  const inspection=outfit==="base"&&useProcedural&&anatomy.layer!=="skin"&&Boolean(this.inspectionMeshes?.length);
+  const inspectVisible=layer=>{
+   if(layer==="bones")return ["bones","xray","obstetric"].includes(anatomy.layer);
+   if(layer==="muscles")return ["muscle","xray"].includes(anatomy.layer);
+   if(layer==="organs")return ["organs","xray"].includes(anatomy.layer);
+   if(layer==="organs-obstetric")return anatomy.layer==="obstetric"&&anatomy.preset==="uterine";
+   if(layer==="organs-uterine"||layer==="organs-testicular")
+    return ["organs","xray"].includes(anatomy.layer)&&anatomy.preset===layer.slice(7);
+   return false;
+  };
+  const priorBlend=gl.isEnabled(gl.BLEND),priorCull=gl.isEnabled(gl.CULL_FACE);
+  const priorDepth=gl.getParameter(gl.DEPTH_WRITEMASK);
+  const priorBlendFactors=[gl.getParameter(gl.BLEND_SRC_RGB),gl.getParameter(gl.BLEND_DST_RGB),
+   gl.getParameter(gl.BLEND_SRC_ALPHA),gl.getParameter(gl.BLEND_DST_ALPHA)];
+  for(const pass of (inspection?["inside","outside"]:["outside"])){
+  for(let i=0;i<this.meshes.length;i++){
+   const m=this.meshes[i],source=m.source;
+   if(source.inspectLayer){
+    if(pass!=="inside"||!inspectVisible(source.inspectLayer))continue;
+   }else if(pass==="inside")continue;
+   const ghost=inspection&&source.proceduralAnatomy;
+   if(ghost){
+    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);
+   }else{
+    gl.depthMask(priorDepth);
+    if(!priorBlend)gl.disable(gl.BLEND);
+    if(!priorCull)gl.disable(gl.CULL_FACE);
+   }
+   gl.uniform1f(this.u.uOpacity,ghost?anatomy.opacity/100:1);
+   // First-person cabin view keeps the fitted body/arms/legs, not the
+   // wearer’s face and hair in front of the headset cameras.
+   if(opts.firstPerson&&/(?:head|face|hair|eyebrow|eyelash|eye|nose|mouth|ear|neck)/i.test(source.name||""))continue;
+   if(review.hideHair&&/(?:layered hair|hair)/i.test(source.name||""))continue;
+   // Neutral base-body mannequin excludes removable wardrobe geometry.
+   if(source.wardrobe&&!source.wardrobe.includes(renderedOutfit)&&
+     !(useProcedural&&isAvatarHandDetail(source)))continue;
+   if(source.proceduralAnatomy&&!useProcedural)continue;
+   if(useProcedural&&source.wardrobe?.includes("base")&&!source.proceduralAnatomy&&
+     !preserveAvatarSkinDetail(source))continue;
+   const surface=rig.isV10&&isBodySurface(source.name,source.wardrobe);
+   gl.uniform1i(this.u.uSwimBody,Boolean(outfit==="swim"&&!useOriginalSwim&&surface&&(source.proceduralAnatomy||source.name==="V10 generated full body skin"))?1:0);
+   gl.uniform1i(this.u.uSwimFabric,Boolean(useOriginalSwim&&source.wardrobe?.includes("swim")&&/(?:suit|swim|trunk)/i.test(source.name||""))?1:0);
+   gl.uniform1i(this.u.uAnatomy,Boolean(outfit==="base"&&source.wardrobe?.includes("base")&&surface&&/(?:body|torso|trunk|chest)/i.test(source.name||""))?1:0);
+   gl.uniform1f(this.u.uReviewHairMesh,source.name==="Layered hair"?1:0);
+   this.applyFace(m,opts.fit);
+   const glove=outfit==="space"&&source.gloveColor;
+   gl.uniform1i(this.u.uGloves,glove?1:0);
+   if(glove)gl.uniform3fv(this.u.uGloveColor,asFloat(glove));
+   gl.uniformMatrix4fv(this.u.uNode,false,asFloat(pose.world[source.node]||matIdentity()));
+   const face=pose.morphs[i]||[0,0];
+   const indexes=source.names.map(n=>n.toLowerCase());
+   const ey=indexes.findIndex(n=>n.includes("eye")||n==="blink"),mouth=indexes.findIndex(n=>n.includes("mouth")||n==="smile");
+   gl.uniform2fv(this.u.uMorph,asFloat(indexes.map((_,j)=>j===ey?face[0]:j===mouth?face[1]:0).concat([0,0]).slice(0,2)));
+   const skin=Number.isInteger(source.skin)?rig.skins[source.skin]:null;
+   if(skin?.joints?.length){
+    if(boundSkin!==source.skin){
+     boundSkin=source.skin;
+     gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.boneTexture);
+     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,4,skin.joints.length,0,gl.RGBA,gl.FLOAT,palettes[source.skin]);
+    }
+    gl.uniform1i(this.u.uSkin,1);
+   }else gl.uniform1i(this.u.uSkin,0);
+   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,m.texture?.tex||null);
+   gl.uniform1i(this.u.uTextured,m.texture?.ready?1:0);
+   gl.bindVertexArray(m.vao);
+   gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_INT,0);
+  }
+  }
+  gl.depthMask(priorDepth);
+  gl.blendFuncSeparate(...priorBlendFactors);
+  if(!priorBlend)gl.disable(gl.BLEND);
+  if(!priorCull)gl.disable(gl.CULL_FACE);
+  gl.bindVertexArray(null);
+ }
+ destroy(){
+  this.disposed=true;const gl=this.gl;
+  for(const m of this.meshes||[]){
+   for(const b of m.buffers)gl.deleteBuffer(b);
+   gl.deleteBuffer(m.indices);gl.deleteVertexArray(m.vao);
+  }
+  for(const t of this.textures?.values()||[])gl.deleteTexture(t.tex);
+  if(this.boneTexture)gl.deleteTexture(this.boneTexture);
+  if(this.program)gl.deleteProgram(this.program);
+  this.meshes=[];this.instances?.clear();
+ }
+}
