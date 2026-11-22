@@ -28,7 +28,7 @@ export function crewVoiceProfile(id,interior){
 export class ShipSocialVoice {
  constructor({voice=null,doc=globalThis.document,storage=globalThis.localStorage,getRenderer=()=>null,onError=()=>{}}={}){
   this.doc=doc;this.storage=storage;this.getRenderer=getRenderer;this.onError=onError;
-  this.enabled=false;this.subtitles=true;this.activeSpeaker=null;
+  this.enabled=false;this.activated=false;this.subtitles=true;this.activeSpeaker=null;
   this.interior=null;this.routineKey='';this.greetId=null;
   this.ui=new Set();this.caption=null;this.lastCaption='';
   try{const saved=JSON.parse(this.storage?.getItem(STORAGE_KEY)||'null');
@@ -53,10 +53,10 @@ export class ShipSocialVoice {
   else if(this.lastCaption===avatarId){this.caption.hidden=true;this.lastCaption='';}
  }
  _refresh(){for(const button of this.ui)if(button?.isConnected!==false){
-   button.textContent=this.enabled?'🔊 クルー音声 ON':'🔇 クルー音声 OFF';
-   button.setAttribute?.('aria-pressed',String(this.enabled));}}
+   button.textContent=this.enabled&&this.activated?'🔊 クルー音声 ON':'🔇 クルー音声 OFF';
+   button.setAttribute?.('aria-pressed',String(this.enabled&&this.activated));}}
  setEnabled(value,{test=false,interior=this.interior}={}){
-  this.enabled=Boolean(value);this._save();this._refresh();
+  this.enabled=Boolean(value);this.activated=this.enabled;this._save();this._refresh();
   if(!this.enabled){this.voice.stop?.();this.activeSpeaker=null;this._speaker(null);
    if(this.caption)this.caption.hidden=true;}
   if(test&&this.enabled){const person=interior?.crew?.find(c=>c.id==='navigator');
@@ -75,13 +75,13 @@ export class ShipSocialVoice {
   const formal=interior.greetings?.formal?.member||null;
   const id=formal?.id||null;
   if(id!==this.greetId){this.greetId=id;
-   if(id&&this.enabled&&interior.distance(formal)<=2.6)
+   if(id&&this.enabled&&this.activated&&interior.distance(formal)<=2.6)
     this.speakSocial(id,'greet',{interior,distance:interior.distance(formal)});}
   const routine=interior.routine;
   const line=routine?.speech;
   const key=line?[routine.cycle,line.speakerId,line.topic,line.line,line.text].join(':'):'';
   if(key!==this.routineKey){this.routineKey=key;
-   if(key&&this.enabled){const member=interior.crew.find(c=>c.id===line.speakerId);
+   if(key&&this.enabled&&this.activated){const member=interior.crew.find(c=>c.id===line.speakerId);
     if(member)this.speak(line.speakerId,line.text,{interior,event:'report',
      distance:interior.distance(member),viaRadio:true});}}
  }
@@ -96,7 +96,7 @@ export class ShipSocialVoice {
    interrupt:plan.interrupt,voice:plan.voice});
  }
  speak(id,text,{interior=this.interior,event='report',distance=0,viaRadio=false,interrupt=false,voice=null}={}){
-  if(!this.enabled||!CREW[id]||!safe(text)||!interior?.crew?.some(c=>c.id===id))return false;
+  if(!this.enabled||!this.activated||!CREW[id]||!safe(text)||!interior?.crew?.some(c=>c.id===id))return false;
   if(!viaRadio&&Number.isFinite(distance)&&distance>8&&!interrupt)return false;
   try{const base=CREW[id];
    void this.voice.say(id,safe(text),{interrupt,rate:voice?.rate??base.rate,pitch:cap((voice?.pitch??1)*base.pitch,.5,1.8),
@@ -120,7 +120,7 @@ export class ShipSocialVoice {
   const createButton=parent=>{if(!parent)return;
    const b=this.doc.createElement('button');b.type='button';b.setAttribute('aria-label','クルー音声の切り替え');
    b.style.cssText='padding:7px 10px;background:#23516b;color:#fff;border:1px solid #88bed0;border-radius:7px;min-height:36px';
-   b.addEventListener('click',()=>this.setEnabled(!this.enabled,{test:true}));parent.append(b);this.ui.add(b);};
+   b.addEventListener('click',()=>this.setEnabled(!this.enabled||!this.activated,{test:true}));parent.append(b);this.ui.add(b);};
   if(panel){const line=this.doc.createElement('div');line.style.cssText='display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0';
    createButton(line);const label=this.doc.createElement('label');label.style.cssText='display:flex;align-items:center;gap:4px;color:#d4eef4;font:12px system-ui';
    const cb=this.doc.createElement('input');cb.type='checkbox';cb.checked=this.subtitles;
