@@ -2929,6 +2929,38 @@ export class ExplorerRenderer{
   * VR paths use the same scene-space gateway; changing immersive session still
   * requires a deliberate user tap in Quest Browser.
   */
+ /** Preview outlines only while the MR furniture editor is expanded.
+  * They are virtual guides, not real-world collision geometry. */
+ drawXRRoomGuides(xr,objects=[]){
+  if(!objects.length||!this.vrBodySegment)return;
+  const gl=this.gl,{x,y,width,height}=xr.viewport,vp=multiply4(xr.projection,xr.view),light=[.6,.85,1];
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.disable(gl.BLEND);
+  const line=(p,q,color)=>{
+   const d=sub(q,p),l=Math.hypot(...d);if(l<.002)return;
+   const up=d.map(v=>v/l),right=norm(cross(Math.abs(up[1])>.9?[0,0,1]:[0,1,0],up));
+   const back=norm(cross(right,up)),t=.026;
+   const m=[right[0]*t,right[1]*t,right[2]*t,0,d[0],d[1],d[2],0,
+    back[0]*t,back[1]*t,back[2]*t,0,p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.92,color);
+  };
+  for(const o of objects.slice(0,32)){
+   const c=Math.cos(o.yaw),s=Math.sin(o.yaw);
+   const h=["chair","sofa"].includes(o.type)?o.seatY+.03:
+    o.type==="table"?o.height+.03:.05;
+   const p=(a,b)=>[o.x+c*a+s*b,h,o.z-s*a+c*b];
+   const pts=[p(-o.width/2,-o.depth/2),p(o.width/2,-o.depth/2),
+    p(o.width/2,o.depth/2),p(-o.width/2,o.depth/2)];
+   const tint=o.type==="wall"?[.22,.68,1]:
+    ["chair","sofa"].includes(o.type)?[1,.76,.22]:[.43,1,.58];
+   for(let j=0;j<4;j++)line(pts[j],pts[(j+1)%4],tint);
+   if(o.type==="wall")for(const corner of [pts[0],pts[1]])
+    line(corner,[corner[0],o.height,corner[2]],tint);
+  }
+  gl.useProgram(this.program);
+ }
  drawXRPortal(xr,gate,guests=[]){
   if(!gate||!this.vrBodySegment)return;
   const gl=this.gl,{x,y,width,height}=xr.viewport;
