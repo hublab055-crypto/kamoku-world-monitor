@@ -137,3 +137,15 @@ export function mrNearPortal(head,portal,radius=.95){
  if(!head||!portal)return false;
  return Math.hypot(head[12]-portal.x,head[14]-portal.z)<=radius;
 }
+
+/** Right-hand controller trigger aimed through the door centre. A nearby
+ * ray hit can end the current XR session, never silently start the next. */
+export function mrPortalRayHit(ray,portal,maxDistance=3){
+ if(!matrix(ray)||!portal)return false;
+ const direction=[-ray[8],-ray[9],-ray[10]];
+ const goal=[portal.x-ray[12],finite(portal.y)+1.12-ray[13],portal.z-ray[14]];
+ const dot=goal.reduce((s,v,i)=>s+v*direction[i],0);
+ if(dot<.15||dot>maxDistance)return false;
+ const rem=goal.map((v,i)=>v-direction[i]*dot);
+ return Math.hypot(...rem)<.50;
+}
