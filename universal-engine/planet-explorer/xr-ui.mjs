@@ -16,6 +16,7 @@ import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
+import {MRAvatarPresence} from "./mr-avatar-presence.mjs?v=20261122";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -35,7 +36,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const $=id=>document.getElementById(id);
  const social=$("xr-social")?installSocialUI($):null;
  let supportsAR=false;
- const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),exit:$("xr-exit")};
+ const buttons={vr:$("xr-vr"),adventure:$("xr-adventure"),rts:$("xr-mr-rts"),planet:$("xr-mr-planet"),avatars:$("xr-mr-avatars-mode"),exit:$("xr-exit")};
  const status=$("xr-status"),scaleInput=$("xr-scale"),depthToggle=$("xr-occlusion");
  const placeButton=$("xr-place"),landButton=$("xr-planet-land");
  const allButton=$("xr-rts-all"),rotateLeft=$("xr-rotate-left"),rotateRight=$("xr-rotate-right");
@@ -43,6 +44,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const motionActorUI=installXRMotionActorUI($("xr-controls"));
  const xrWorldTablet=new XRWorldTablet();
  const xrWristWatch=new XRWristWatch();
+ const mrAvatars=new MRAvatarPresence();
+ const mrAvatarId=$("xr-avatar-select"),mrAvatarScale=$("xr-avatar-size"),mrAvatarStatus=$("xr-avatar-presence-status");
+ let mrLastHead=null,mrAutoSpawn=false;
  const vrWatchTriggerConsumed=new Set();
  const vrTabletTriggerConsumed=new Set();
  const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
@@ -249,11 +253,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   for(const [name,button] of Object.entries(buttons)){
    if(!button)continue;
    if(name==="exit"){button.hidden=!session;continue;}
-   const selected=activeMode===(name==="vr"||name==="adventure"?"vr":name==="rts"?"mr-rts":"mr-planet");
+   const selected=activeMode===(name==="vr"||name==="adventure"?"vr":name==="rts"?"mr-rts":name==="avatars"?"mr-avatars":"mr-planet");
    button.setAttribute("aria-pressed",String(selected));
   }
   document.documentElement.classList.toggle("ue-xr-active",Boolean(session));
   if(social)social.button.disabled=!supportsAR||Boolean(session);
+  if(buttons.avatars)buttons.avatars.disabled=!supportsAR||Boolean(session);
   if(placeButton)placeButton.hidden=activeMode!=="mr-rts"&&activeMode!=="mr-planet";
   if(landButton)landButton.hidden=activeMode!=="mr-planet";
   if(allButton)allButton.hidden=activeMode!=="mr-rts";
@@ -273,7 +278,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  async function probe(){
   if(!supported()){
    statusText("このブラウザはWebXR非対応です。通常の3D・RTS表示を利用できます（iPhone SafariではXR不可）。");
-   for(const id of ["vr","adventure","rts","planet"])buttons[id].disabled=true;
+   for(const id of ["vr","adventure","rts","planet","avatars"])buttons[id].disabled=true;
    return;
   }
   try{
@@ -282,7 +287,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     navigator.xr.isSessionSupported("immersive-ar")
    ]);
    supportsAR=ar;update();
-   buttons.vr.disabled=!vr;buttons.adventure.disabled=!vr;buttons.rts.disabled=!ar;buttons.planet.disabled=!ar;
+   buttons.vr.disabled=!vr;buttons.adventure.disabled=!vr;buttons.rts.disabled=!ar;buttons.planet.disabled=!ar;buttons.avatars.disabled=!ar;
    statusText(vr||ar?
     "対応機器を検出。VRまたはMRを選択してください。MRではヘッドセットのトリガーで配置・RTS選択できます。":
     "接続中の端末にVR/MRセッションがありません。通常モードはそのまま使用できます。");
@@ -295,6 +300,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   getRenderer()?.henshin?.resetXR();henshinTriggerConsumed.clear();henshinGripConsumed.clear();
   if(activeMode==="vr")motionActorUI.onSessionEnd();
   if(activeMode==="mr-social")social.activate(false);
+  mrAvatars.reset();mrLastHead=null;mrAutoSpawn=false;
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();
@@ -413,6 +419,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      hitSource=await newSession.requestHitTestSource({space:viewerSpace});
    }catch(_){hitSource=null;}
    session=newSession;activeMode=mode;anchor=null;lastTime=0;
+   mrAvatars.reset();mrLastHead=null;mrAutoSpawn=mode==="mr-avatars";
    getRenderer()?.henshin?.resetXR();
    if(mode==="vr")motionActorUI.onSessionStart(usingFloor);
    if(mode==="mr-social"){
@@ -448,7 +455,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     vrMark("可視状態変更",{force:true,log:true});
    });
    update();
-   statusText(mode==="mr-social"?"MR対面試験中。右トリガーで基準を登録、左で視点を切替。":
+   statusText(mode==="mr-avatars"?"MRアバター召喚中。右トリガーで指定した人物を床に配置します。":
+    mode==="mr-social"?"MR対面試験中。右トリガーで基準を登録、左で視点を切替。":
     mode==="vr"?"VR表示中。ヘッドセットの終了操作で元に戻れます。":
     "MR表示中。"+(depthTexture?"実物の深度遮蔽に対応。":"深度遮蔽はこの端末では利用できません。")+
     " 惑星ではトリガーで地点選択・再押下で降下、RTSではトリガーで選択と移動。模型再配置は専用ボタン。");
@@ -822,6 +830,12 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    social.select(event.inputSource?.handedness);
    return;
   }
+  if(activeMode==="mr-avatars"){
+   if(event.inputSource?.handedness!=="right")return;
+   const result=mrPlaceSelected();
+   statusText("🥽 "+result.message);
+   return;
+  }
   if(activeMode==="vr"){
    const hand=event.inputSource?.handedness;
    if(["left","right"].includes(hand)&&!nativeTrigger(hand)){
@@ -1149,6 +1163,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   sampleHenshin(frame,pose.transform.matrix,time);
   if(activeMode==="mr-henshin"){drawHenshinFrame(renderer,pose);return;}
   if(activeMode==="mr-social"){drawSocialFrame(renderer,pose,frame,time);return;}
+  if(activeMode==="mr-avatars"){drawMRAvatarFrame(renderer,pose,frame,time);return;}
   if(!anchor)anchor=xrAnchor(pose.transform.matrix,{floor:usingFloor});
   if(activeMode==="vr"){
    const ship=getRenderer()?.shipVoyage;
@@ -1393,6 +1408,55 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   }
  }
+ function mrPlaceSelected(){
+  if(activeMode!=="mr-avatars"||!mrLastHead)return {ok:false,message:"MR開始後に頭部追跡が安定してから配置してください"};
+  const result=mrAvatars.place(mrAvatarId?.value||"navigator",mrLastHead,{
+   floorY:usingFloor?0:mrLastHead[13]-1.65,hit:hitPose,
+   size:Number(mrAvatarScale?.value||1)
+  });
+  if(result.ok){
+   getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.id]?.model);
+   if(mrAvatarStatus)mrAvatarStatus.textContent=result.message;
+  }
+  return result;
+ }
+ function drawMRAvatarFrame(renderer,viewer,frame,time){
+  const head=viewer?.transform?.matrix;
+  if(!head)return;
+  mrLastHead=Array.from(head);
+  if(hitSource&&frame.getHitTestResults){
+   try{
+    const results=frame.getHitTestResults(hitSource);
+    hitPose=results?.[0]?.getPose(space)?.transform.matrix||null;
+   }catch(_){hitPose=null;}
+  }
+  if(mrAutoSpawn){
+   mrAutoSpawn=false;
+   const result=mrPlaceSelected();
+   if(!result.ok)statusText("🥽 "+result.message);
+  }
+  const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;
+  lastTime=time;
+  const actors=mrAvatars.tick(head,dt);
+  const gl=renderer.gl,layer=activeLegacyXRLayer(session);
+  if(!layer)return;
+  try{
+   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
+   gl.enable(gl.SCISSOR_TEST);
+   for(let i=0;i<viewer.views.length;i++){
+    const view=viewer.views[i];
+    const viewport=layer.getViewport(view);if(!viewport)continue;
+    renderer.drawMRAvatars({viewport,projection:view.projectionMatrix,
+     view:view.transform.inverse.matrix},actors,i===0?dt:0);
+   }
+  }catch(error){
+   statusText("MRアバター描画エラー: "+(error?.message||error));
+   notify("🥽 MRアバター描画エラー: "+(error?.message||error));
+   session.end().catch(()=>{});
+  }finally{
+   gl.disable(gl.SCISSOR_TEST);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  }
+ }
  function drawHenshinFrame(renderer,viewer){
   const gl=renderer.gl,layer=activeLegacyXRLayer(session);if(!layer)return;
   try{
@@ -1436,6 +1500,27 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
  }
  social?.button.addEventListener("click",()=>start("mr-social"));
+ buttons.avatars?.addEventListener("click",()=>start("mr-avatars"));
+ $("xr-avatar-presence")?.addEventListener("beforexrselect",event=>event.preventDefault());
+ $("xr-avatar-spawn")?.addEventListener("click",()=>{
+  const result=mrPlaceSelected();statusText("🥽 "+result.message);
+ });
+ $("xr-avatar-remove")?.addEventListener("click",()=>{
+  if(activeMode!=="mr-avatars")return;
+  const removed=mrAvatars.remove(mrAvatarId?.value||"navigator");
+  statusText(removed?"🥽 アバターを消しました":"🥽 該当するアバターは表示されていません");
+ });
+ $("xr-avatar-clear")?.addEventListener("click",()=>{
+  if(activeMode!=="mr-avatars")return;
+  mrAvatars.reset();statusText("🥽 全アバターを非表示にしました");
+ });
+ for(const action of ["follow","wait","salute","thumbsUp","sit","stand"]){
+  $("xr-avatar-"+action)?.addEventListener("click",()=>{
+   if(activeMode!=="mr-avatars")return;
+   const result=mrAvatars.action(mrAvatarId?.value||"navigator",action);
+   statusText("🥽 "+result.message);
+  });
+ }
  for(const [id,button] of [["vr",buttons.vr],["rts",buttons.rts],["planet",buttons.planet]]){
   button.addEventListener("click",()=>start(id==="vr"?"vr":id==="rts"?"mr-rts":"mr-planet"));
  }
