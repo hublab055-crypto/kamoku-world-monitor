@@ -16,7 +16,7 @@ import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122";
-import {MRAvatarPresence,MR_AVATAR_IDS} from "./mr-avatar-presence.mjs?v=20261122-room8";
+import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
 import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal} from "./mr-room-layout.mjs?v=20261122-room8";
 
 /**
@@ -1525,10 +1525,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode!=="mr-avatars"||!mrLastHead)return {ok:false,message:"MR開始後に頭部追跡が安定してから配置してください"};
   const result=mrAvatars.place(mrAvatarId?.value||"navigator",mrLastHead,{
    floorY:usingFloor?0:mrLastHead[13]-1.65,hit:hitPose,
-   size:Number(mrAvatarScale?.value||1)
+   size:Number(mrAvatarScale?.value||1),room:mrRoom.ready?mrRoom:null
   });
   if(result.ok){
-   getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.id]?.model);
+   getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.sourceId]?.model);
    if(mrAvatarStatus)mrAvatarStatus.textContent=result.message;
   }
   return result;
@@ -1543,14 +1543,28 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     hitPose=results?.[0]?.getPose(space)?.transform.matrix||null;
    }catch(_){hitPose=null;}
   }
+  updateMRRoomFrame(frame,head);
   if(mrAutoSpawn){
    mrAutoSpawn=false;
    const result=mrPlaceSelected();
    if(!result.ok)statusText("🥽 "+result.message);
+   const guests=mrInvited.filter(a=>MR_AVATAR_IDS.includes(a.id));
+   for(const [i,guest] of guests.entries()){
+    let actor=mrAvatars.get(guest.id);
+    if(!actor){
+     const made=mrAvatars.place(guest.id,head,{floorY:usingFloor?0:head[13]-1.65});
+     actor=made.ok?made.actor:null;
+    }
+    if(!actor)continue;
+    actor.invited=true;
+    const p=mrAvatarPlacement(head,{floorY:usingFloor?0:head[13]-1.65,
+     distance:2.1,lateral:(i-(guests.length-1)/2)*.70});
+    if(p&&(!mrRoom.ready||mrRoom.free(p.x,p.z,.24)))Object.assign(actor,p);
+   }
   }
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;
   lastTime=time;
-  const actors=mrAvatars.tick(head,dt);
+  const actors=mrAvatars.tick(head,dt,mrRoom.ready?mrRoom:null);
   const gl=renderer.gl,layer=activeLegacyXRLayer(session);
   if(!layer)return;
   try{
@@ -1559,8 +1573,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    for(let i=0;i<viewer.views.length;i++){
     const view=viewer.views[i];
     const viewport=layer.getViewport(view);if(!viewport)continue;
-    renderer.drawMRAvatars({viewport,projection:view.projectionMatrix,
-     view:view.transform.inverse.matrix},actors,i===0?dt:0);
+    const eye={viewport,projection:view.projectionMatrix,view:view.transform.inverse.matrix};
+    renderer.drawMRAvatars(eye,actors,i===0?dt:0);
+    const door=mrRoom.worldPortal();
+    if(door)renderer.drawXRPortal?.(eye,door);
    }
   }catch(error){
    statusText("MRアバター描画エラー: "+(error?.message||error));
@@ -1630,7 +1646,9 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  for(const action of ["follow","wait","salute","thumbsUp","sit","stand"]){
   $("xr-avatar-"+action)?.addEventListener("click",()=>{
    if(activeMode!=="mr-avatars")return;
-   const result=mrAvatars.action(mrAvatarId?.value||"navigator",action);
+   const result=mrAvatars.action(mrAvatarId?.value||"navigator",action,{room:mrRoom,head:mrLastHead});
+   if(action==="invite"&&result.ok)
+    mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
    statusText("🥽 "+result.message);
   });
  }
