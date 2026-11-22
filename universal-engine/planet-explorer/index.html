@@ -97,7 +97,7 @@
 <header class="site-header">
   <div class="container top-line">
     <a href="../" class="back">← Universal Engine</a>
-    <span class="label">MULTIVERSE / PLANET EXPLORER</span>
+    <span class="label">MULTIVERSE / PLANET EXPLORER · V0.10.0 MR</span>
   </div>
   <div class="container headline">
     <div>
@@ -105,7 +105,8 @@
       <h1>オリジナルの世界を歩く。</h1>
       <p>v0.7v：木・鉄・火矢、集中／各自／分散照準、一斉／順次発射を追加。v0.7t：シンクロ一斉射撃・直射／曲射・矢の命中・矢の回収・練習用の的を追加。v0.7s：RTS・TPV共通でピンチズーム、資源タップで接近・採集、敵タップでターゲット、地面ダブルタップで移動。v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
     </div>
-    <div class="version-control"><span class="version-tag">v0.9c Asset v2・6軸・テンキー</span>
+    <div class="version-control"><span class="version-tag">v0.10.0 MRアバター召喚</span>
+  <a href="../versions/v20261122-pre-mr/planet-explorer/" title="MRアバター追加前の保存版を開く">🗃 旧版（2026/11/22）</a>
   <a id="version-back" href="../versions/v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
   <a href="../versions/v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
   <a href="../versions/v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
@@ -155,6 +156,7 @@
   <button id="xr-mr-rts" type="button" disabled aria-pressed="false">MR・卓上RTS</button>
   <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
   <button id="xr-mr-social" type="button" disabled>MR・対面（試験）</button>
+  <button id="xr-mr-avatars-mode" type="button" disabled>👥 MR・アバター召喚</button>
   <button id="xr-exit" type="button" hidden>✕ XR終了</button>
  </div>
  <div class="xr-action-buttons" aria-label="XR専用操作">
@@ -207,6 +209,39 @@
    <button id="xr-social-view" type="button" hidden aria-pressed="false">第三者視点</button>
   </div>
   <small id="xr-social-status" role="status">未接続</small>
+ </details>
+ <details id="xr-avatar-presence" class="xr-help-panel">
+  <summary>👥 MRアバター召喚・移動・モーション</summary>
+  <p>Quest 3Sの現実空間に、現在保存されているアバターV10の外観で人物を表示します。1台のQuestだけで動作し、他のプレイヤーとの接続は不要です。</p>
+  <label class="xr-size-label" for="xr-avatar-select">呼び出す人物
+   <select id="xr-avatar-select">
+    <option value="navigator">副官（ライラ）</option>
+    <option value="engineer">機関士</option>
+    <option value="companion">同行者</option>
+    <option value="player">自分のアバター</option>
+   </select>
+  </label>
+  <label class="xr-size-label" for="xr-avatar-size">大きさ
+   <select id="xr-avatar-size">
+    <option value="0.4">卓上 40%</option>
+    <option value="1" selected>等身大 100%</option>
+    <option value="1.6">大きく 160%</option>
+   </select>
+  </label>
+  <div class="xr-buttons">
+   <button type="button" id="xr-avatar-spawn">📍 召喚・再配置</button>
+   <button type="button" id="xr-avatar-remove">選択した人物を消す</button>
+   <button type="button" id="xr-avatar-clear">全員消す</button>
+   <button type="button" id="xr-avatar-follow">🚶 ついてくる</button>
+   <button type="button" id="xr-avatar-wait">✋ 待機</button>
+   <button type="button" id="xr-avatar-salute">🫡 敬礼</button>
+   <button type="button" id="xr-avatar-thumbsUp">👍 グッドサイン</button>
+   <button type="button" id="xr-avatar-sit">🪑 座る</button>
+   <button type="button" id="xr-avatar-stand">立つ</button>
+  </div>
+  <p>「MR・アバター召喚」を開始すると最初の1人を正面に表示。右トリガーで床を指定して再配置できます（最大4体）。通常のアバター編集内容を参照し、位置はXRセッション中のみ保持します。</p>
+  <p><small>試験段階：アバターは実体ではありません。物理衝突・安全な障害物回避、手を使った握手・ハグ、現実物によるV10の遮蔽は未対応です。座る動作は椅子との位置合わせを伴いません。</small></p>
+  <small id="xr-avatar-presence-status" role="status">MR開始前</small>
  </details>
  <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
  </div>
@@ -1464,7 +1499,7 @@
   </div>
  </form>
 </dialog>
-<script type="module" src="./app.mjs?v=20261122-wristwatch"></script>
+<script type="module" src="./app.mjs?v=20261122-mr-avatar-presence"></script>
 <script type="module" src="./ui-visibility.mjs?v=20261112-pilot"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */

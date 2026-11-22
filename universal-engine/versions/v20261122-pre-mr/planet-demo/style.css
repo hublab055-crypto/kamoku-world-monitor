@@ -1,0 +1,64 @@
+*{box-sizing:border-box}
+:root{font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;color:#183148;background:#f0f5f7}
+body{margin:0;min-width:320px}
+.container{width:min(1120px,calc(100% - 32px));margin:auto}
+header{background:linear-gradient(123deg,#09182d 10%,#123954 67%,#285b64);color:#fff;padding:33px 0 39px}
+.back{color:#9ddbe7;text-decoration:none;font-size:13px;font-weight:650}
+.back:hover{text-decoration:underline}
+.edition{float:right;font-size:10px;letter-spacing:.14em;color:#94b9d2}
+h1{font-size:clamp(27px,5vw,45px);letter-spacing:-.04em;margin:30px 0 10px}
+header p{font-size:15px;line-height:1.85;max-width:730px;color:#c4dce6;margin:0}
+main{padding-top:19px;padding-bottom:45px}
+.toolbar{display:grid;grid-template-columns:1.7fr 1fr;gap:17px;align-items:center;background:#fff;border:1px solid #dce7ed;border-radius:16px;padding:17px;margin-bottom:17px;box-shadow:0 6px 20px #12304509}
+.toolbar-buttons{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button,select{font:inherit;font-size:12px;font-weight:700;border:1px solid #b9cdd7;border-radius:9px;background:#fff;color:#204057;min-height:38px;padding:9px 12px;cursor:pointer}
+button:hover,select:hover{background:#eef8fa}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #449bb3;outline-offset:3px}
+button.primary{background:#205d73;border-color:#205d73;color:white}
+button.primary:hover{background:#15475b}
+.toolbar-controls{min-width:0;display:flex;flex-direction:column;gap:8px}
+.toolbar-controls span{font-size:11px;color:#738b9a}
+label{font-size:12px;font-weight:670;color:#426277}
+label strong{color:#183e57;margin-left:7px}
+input[type=range]{width:100%;cursor:pointer;accent-color:#1b708a;min-height:25px}
+.overview-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:17px;margin-bottom:17px}
+.panel{min-width:0;background:#fff;border:1px solid #dbe6ec;border-radius:16px;padding:20px;box-shadow:0 5px 17px #12304508}
+.globe-panel{background:#0b2037;color:#eff9ff;border-color:#284b68;overflow:hidden}
+.panel-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:16px}
+.eyebrow{font-size:10px;letter-spacing:.14em;font-weight:800;color:#6892a4}
+.globe-panel .eyebrow{color:#66cad4}
+h2{font-size:21px;letter-spacing:-.035em;margin:5px 0 0;line-height:1.28}
+.chip{font-size:10px;border:1px solid #d4e6ed;border-radius:20px;padding:6px 9px;white-space:nowrap;color:#54748b;font-weight:750}
+.globe-panel .chip{border-color:#3c708a;color:#92cada}
+#globe{width:100%;display:block;height:auto;border-radius:12px;touch-action:none;cursor:grab}
+#globe:active{cursor:grabbing}
+.orbit{border-top:1px solid #2e506b;margin-top:14px;padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.orbit strong{display:block;font-size:12px;margin-top:5px;font-weight:550;color:#d4e6f2}
+#orbit-map{width:min(67%,320px);height:auto;display:block}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stats>div,.ecology-data>div{background:#f1f6f8;border:1px solid #e9f0f4;border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.stats span,.ecology-data span,.conditions span{font-size:11px;color:#70899b}
+.stats strong,.ecology-data strong{font-size:19px;font-weight:750;font-variant-numeric:tabular-nums}
+.separator{height:1px;background:#e5eef3;margin:20px 0}
+.inline-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0;flex-wrap:wrap}
+.inline-controls select{min-width:190px;max-width:100%}
+.conditions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0}
+.conditions>div{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e4edf2;padding:9px 0;gap:5px}
+.conditions strong{font-size:18px;color:#266a84;font-variant-numeric:tabular-nums}
+.muted{color:#718897;font-size:12px;line-height:1.8;margin:16px 0 0}
+.surface-panel,.physics-panel,.logs-panel{margin-bottom:17px}
+#surface,#ballistics{display:block;width:100%;height:auto;border-radius:11px}
+.ecology-data{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:13px 0}
+.ecology-data strong{font-size:24px}
+.mini-label,.resource-summary{font-size:12px;color:#577487;line-height:1.7}
+.resource-summary{border-top:1px solid #edf1f4;padding-top:12px}
+.physics-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-bottom:15px}
+.physics-controls>div{display:flex;flex-direction:column;gap:7px}
+.physics-panel .toolbar-buttons{margin-bottom:17px}
+.impact{font-size:12px;color:#32657e;font-variant-numeric:tabular-nums}
+.logs-panel ol{list-style:none;padding:0;margin:16px 0 0;max-height:210px;overflow-y:auto}
+.logs-panel li{font-size:12px;padding:9px 0;border-top:1px solid #e9eff3;color:#557186}
+footer{text-align:center;color:#738c9a;font-size:11px;padding:18px 12px 30px}
+@media(max-width:800px){.overview-grid,.toolbar{grid-template-columns:1fr}.globe-panel{padding:12px}.physics-controls{gap:12px}.toolbar-controls{margin-top:2px}.container{width:min(100% - 20px,1120px)}}
+@media(max-width:550px){.panel{padding:14px}.panel-title{flex-wrap:wrap}.ecology-data{grid-template-columns:1fr 1fr}.physics-controls{grid-template-columns:1fr}h2{font-size:19px}header{padding:24px 0 28px}h1{margin-top:25px}.edition{float:none;display:block;margin-top:9px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}

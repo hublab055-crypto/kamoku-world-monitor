@@ -1,4 +1,5 @@
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
+import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261118-mocap-medical";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
@@ -2885,6 +2886,42 @@ export class ExplorerRenderer{
   * cannot cover the viewer's eyes. Every stereo eye uses its XR projection.
   * The procedural meshes are created once and reused without GPU allocations.
   */
+ /**
+  * One-headset MR NPCs: V10 uses the saved player/crew appearance from the
+  * normal roster, with a lightweight fallback while the GLB is loading.
+  * The compositor preserves the transparent real-world passthrough.
+  */
+ drawMRAvatars(xr,actors,dt=0){
+  const gl=this.gl,{x,y,width,height}=xr.viewport;
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.colorMask(true,true,true,true);gl.depthMask(true);
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.BLEND);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(this.program);
+  // The current V10 skinning shader has no WebXR camera-depth sampler.
+  // Never claim or fake real-world occlusion on the skinned models.
+  gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  const vp=multiply4(xr.projection,xr.view),light=[.65,.93,.57];
+  const backup={
+   navigator:{outer:"#3d647f",legs:"#273c57",feet:"#2d333c"},
+   engineer:{outer:"#977449",legs:"#363e48",feet:"#303038"},
+   companion:{outer:"#637c65",legs:"#373d51",feet:"#2f3038"},
+   player:{outer:"#537f85",legs:"#333d4a",feet:"#32343a"}
+  };
+  for(const actor of actors||[]){
+   if(!["navigator","engineer","companion","player"].includes(actor.id))continue;
+   const model=multiply4(translate(actor.x,actor.y,actor.z),
+    multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
+   if(this.drawAvatarV10(actor.id,vp,model,light,dt,{
+    motion:actor.motion,time:actor.time}))continue;
+   // Draw a clearly temporary procedural stand-in rather than disappearing.
+   const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
+   this.drawVRBody({...xr,stage:model},{social:true,head:face,left:null,right:null,
+    anchors:xrBodyAnchors(face,{floorY:0}),appearance:backup[actor.id]});
+  }
+  gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+ }
  drawSocialAvatars(xr,scene){
   const gl=this.gl,{x,y,width,height}=xr.viewport;
   gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);

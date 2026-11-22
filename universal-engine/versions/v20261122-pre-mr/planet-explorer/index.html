@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#081b2b">
+<title>Planet Explorer | Universal Engine</title>
+<link rel="stylesheet" href="./style.css?v=20261114-quest-bindings">
+<link rel="stylesheet" href="./media-ui.css?v=0.9n-media-culture">
+<link rel="stylesheet" href="./avatar-v10.css?v=20261114-review-43">
+<style>
+.harvest-fx-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:12}
+.harvest-spark{position:absolute;width:7px;height:7px;border-radius:2px;opacity:1;background:#d6a46a;box-shadow:0 0 8px #cfa075;animation:harvest-fx .68s ease-out forwards}
+.harvest-spark.rock{background:#e7ecf5;box-shadow:0 0 8px #9ab8d3}
+@keyframes harvest-fx{from{transform:translate(-50%,-50%) scale(.65);opacity:1}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.05);opacity:0}}
+</style>
+<style>
+#construction-line-preview{position:absolute;height:3px;left:0;top:0;pointer-events:none;transform-origin:left center;z-index:13;background:repeating-linear-gradient(90deg,#f8d68b 0px,#f8d68b 12px,transparent 12px,transparent 17px);box-shadow:0 0 9px #f4b648}
+#construction-line-preview[hidden]{display:none}
+</style>
+<style>
+.avatar-vitals{position:absolute;top:53px;left:8px;z-index:7;max-width:170px;background:#111b27ad;color:#fff;border:1px solid #ffffff3a;border-radius:9px;padding:5px 8px;font:11px/1.35 system-ui,sans-serif;pointer-events:auto;backdrop-filter:blur(5px)}
+.avatar-vitals .vital-pair{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.avatar-vitals label{display:flex;align-items:center;gap:3px;white-space:nowrap}
+.avatar-vitals progress{width:48px;height:6px;accent-color:#82c8a2}
+.avatar-vitals strong{font-size:10px}
+.avatar-vitals details{max-width:166px;margin-top:3px}
+.avatar-vitals summary{cursor:pointer}
+.avatar-vitals #avatar-inventory{max-height:94px;overflow:auto;overflow-wrap:anywhere}
+@media(max-width:600px){.avatar-vitals{top:44px;left:3px;max-width:146px;padding:4px 5px}.avatar-vitals progress{width:35px}}
+</style>
+<style>
+.vital-action-buttons{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:4px 0}
+.vital-action-buttons button{font-size:10px;padding:3px;border-radius:5px}
+.vitals-actions[open]{max-width:166px}
+#vitals-action-status{font-size:10px;display:block;max-width:163px;overflow-wrap:anywhere}
+</style>
+<style>
+.marine-fish-gauge{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:5px 0}
+.marine-fish-gauge input{flex:1;min-width:100px;accent-color:#75d3f7}
+.marine-reel-wrap{display:flex;align-items:center;gap:12px;margin:8px 0;flex-wrap:wrap}
+.marine-reel-dial{position:relative;width:112px;height:112px;flex:none;border-radius:50%;border:7px solid #607f8d;
+ background:radial-gradient(circle at 42% 37%,#d4e8e6 0%,#91b8c2 18%,#264657 67%,#16303d 100%);
+ box-shadow:inset 0 0 0 3px #b4d6db,0 3px 13px #0008;touch-action:none;user-select:none;cursor:grab}
+.marine-reel-dial:focus-visible{outline:3px solid #ffc86c;outline-offset:3px}
+.marine-reel-dial:active{cursor:grabbing}
+.marine-reel-arm{position:absolute;inset:0;display:block;transform:rotate(var(--dial-angle,0deg));pointer-events:none}
+.marine-reel-arm::before{content:"";position:absolute;left:calc(50% - 4px);top:8px;width:8px;height:46px;border-radius:5px;background:#dfc179;box-shadow:0 0 4px #0008}
+.marine-reel-arm::after{content:"";position:absolute;left:calc(50% - 11px);top:7px;width:22px;height:22px;background:#252c30;border:3px solid #f5de99;border-radius:50%}
+.marine-reel-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px;pointer-events:none}
+.marine-fish-readout{max-width:185px;min-width:125px;font-size:12px}
+.marine-fish-readout progress{display:block;width:100%;accent-color:#70dfb3}
+</style>
+<style>
+#water-entry-confirm[hidden],#marine-swim-hud[hidden],#fishing-reel-hud[hidden],#map-route-panel[hidden]{display:none!important}
+.water-entry-confirm{position:absolute;z-index:17;bottom:18%;left:50%;transform:translateX(-50%);background:#132a35f2;color:#fff;border:1px solid #94c7d2;border-radius:12px;padding:12px;width:min(290px,85%);box-shadow:0 8px 25px #0009;text-align:center}
+.water-entry-confirm button{margin:4px}
+.marine-swim-hud{position:absolute;z-index:15;right:8px;top:116px;padding:5px 7px;max-width:172px;background:#102b39e8;border:1px solid #9ad6ef8a;border-radius:9px;color:#fff;font-size:11px;display:flex;flex-wrap:wrap;gap:3px}
+.marine-swim-hud button{font-size:11px;padding:3px 5px}
+.fishing-reel-hud{position:absolute;z-index:16;right:6px;bottom:14%;background:#0b2535ed;color:white;padding:7px;border-radius:12px;border:1px solid #77c5dc;display:flex;align-items:center;gap:7px;max-width:240px}
+.fishing-reel-hud .marine-reel-dial{width:95px;height:95px}
+.fishing-reel-hud .reel-side{max-width:108px;display:flex;flex-direction:column;gap:3px;font:11px/1.3 system-ui}
+.fishing-reel-hud button{font-size:11px;padding:4px}
+#map-route-panel{z-index:18}
+.route-map-controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+#route-map-canvas{width:min(100%,320px);height:auto;display:block;touch-action:manipulation;border-radius:8px;outline:1px solid #94aab8;cursor:crosshair}
+#route-map-canvas:focus-visible{outline:3px solid #e8cb71}
+@media(max-width:600px){.marine-swim-hud{top:96px;right:3px;max-width:146px}.fishing-reel-hud{right:2px;bottom:17%;padding:4px}}
+</style>
+<style>
+#territory-panel[hidden]{display:none!important}
+.territory-panel{position:absolute;z-index:23;top:60px;right:7px;width:min(365px,calc(100% - 14px));max-height:75vh;overflow:auto;background:#102838f5;color:#f4f7fb;border:1px solid #83aab6;border-radius:12px;padding:10px;box-shadow:0 8px 28px #0009;font:12px/1.55 system-ui,sans-serif}
+.territory-panel .territory-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.territory-panel label{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.territory-panel button,.territory-panel select{max-width:100%;font-size:12px;min-height:30px}
+.territory-panel input[type=range]{width:145px}
+.territory-panel strong{font-size:14px}
+.territory-panel hr{border:0;border-top:1px solid #8eacbb55;margin:8px 0}
+.territory-panel ul{padding-left:18px}
+@media(max-width:680px){.territory-panel{top:42px;max-height:73vh}}
+</style>
+<style>
+#strategy-panel[hidden]{display:none!important}
+.strategy-panel{position:absolute;z-index:24;top:53px;right:7px;width:min(385px,calc(100% - 14px));max-height:78vh;overflow:auto;background:#0d2636f7;color:#f4f8fc;border:1px solid #72a5b6;border-radius:13px;padding:11px;box-shadow:0 8px 32px #000a;font:12px/1.5 system-ui,sans-serif}
+.strategy-panel .strategy-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:7px 0}
+.strategy-panel button,.strategy-panel select{font-size:12px;min-height:30px;max-width:100%}
+.strategy-panel hr{border:0;border-top:1px solid #91aeba55;margin:10px 0}
+.strategy-panel strong{font-size:14px}
+.strategy-panel ul{padding-left:18px}
+.strategy-panel .strategy-buttons{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0}
+.strategy-panel .strategy-buttons button{white-space:normal}
+.strategy-panel small{color:#c6dce5}
+@media(max-width:680px){.strategy-panel{top:43px;max-height:74vh}}
+</style>
+<script src="../archive-storage.js"></script>
+</head>
+<body>
+<div role="note" style="position:relative;z-index:8;text-align:center;background:#173944;color:#e9f4fc;padding:8px;font:13px system-ui">🗃 2026年11月22日 MR召喚機能追加前の保存版・ブラウザセーブは新版と分離　<a style="color:#a9e7ff" href="../../../planet-explorer/">最新版を開く</a></div>
+<header class="site-header">
+  <div class="container top-line">
+    <a href="../" class="back">← Universal Engine</a>
+    <span class="label">MULTIVERSE / PLANET EXPLORER</span>
+  </div>
+  <div class="container headline">
+    <div>
+      <p class="eyebrow">UNIVERSAL ENGINE · V0.7r · v0.7s SHARED GESTURES</p>
+      <h1>オリジナルの世界を歩く。</h1>
+      <p>v0.7v：木・鉄・火矢、集中／各自／分散照準、一斉／順次発射を追加。v0.7t：シンクロ一斉射撃・直射／曲射・矢の命中・矢の回収・練習用の的を追加。v0.7s：RTS・TPV共通でピンチズーム、資源タップで接近・採集、敵タップでターゲット、地面ダブルタップで移動。v0.7r：被ダメージモーション、ダメージと資源の数字表示、会話吹き出し、開閉・移動できるログコンソールを追加。v0.7q：5つの行動スロットに装備セットとコマンド登録、戦闘照準＋、手動優先・自動ターゲット。v0.7p：人型魔物の歩行・攻撃・防御・被弾・死亡アニメーションと戦闘テストHPを追加。仮想スティックの左右入力を修正。v0.7o：弓を縦に構えて正面へ射る姿勢を調整。骸骨兵・オーク戦士・リザードマン・魔族剣士を戦闘テストへ追加。v0.7n：矢の正面射撃と大きな横薙ぎ、スライム・ゴブリン・盗賊の敵出現／HP・攻撃判定テスト。v0.7m：剣・斧の攻撃を高速化、縦・横・突き・連続攻撃を選択可能。弓は持ち上げ、矢をつがえ、引き絞って発射。v0.7l：剣・斧・つるはしを小型化し、前向きの構えと振りかぶり攻撃を追加。弓・矢・製作に対応。v0.7h操作改善：iPhoneでは「☰ 操作」「⚒ 道具」「🚪 ドア」を必要なときだけ展開。v0.7gの家具・セーブ機能は維持。🛠️ 家具・食器・テントとベッドロールのクラフト／設置に対応。📖 本文としおりを持つ本棚を追加。🚪 小屋のドアを開閉して屋内へ移動。⚓ RTS俯瞰で3人をタップ選択・移動指示。🤔 条件分岐の自動行動は人物ごとに8スロット。旧版の保存は保護します。</p>
+    </div>
+    <div class="version-control"><span class="version-tag">v0.9c Asset v2・6軸・テンキー</span>
+  <a id="version-back" href="../../v0.7b/planet-explorer/" title="v0.7bの保存版へ戻る">↶ v0.7bに戻る</a>
+  <a href="../../v0.7a/planet-explorer/" title="v0.7aへ戻る">v0.7a</a>
+  <a href="../../v0.6/planet-explorer/" title="v0.6安定版を起動">v0.6</a>
+</div>
+  </div>
+</header>
+<main class="container">
+  <section class="panel view-panel">
+    <div class="view-header">
+      <div>
+        <span class="eyebrow">01 / WORLD VIEWPORT</span>
+        <h2>Terra Nova <small id="mode">惑星読み込み中</small></h2>
+      </div>
+      <div class="quick-actions">
+        <button type="button" id="header-share" aria-haspopup="dialog" aria-controls="page-share-overlay">▦ QR共有</button>
+        <button type="button" id="fullscreen-toggle" class="immersive-toggle" aria-pressed="false" aria-label="画面を最大化">⛶ 画面を広げる</button>
+        <button type="button" id="ground-button" class="primary">↓ 地表へ降下</button>
+        <button type="button" id="orbit-button">↑ 宇宙へ戻る</button>
+      </div>
+    </div>
+    <div class="mode-bar" aria-label="移動モード">
+  <span>移動方法（RTSは画面右上の「☰ 操作」から）</span>
+  <button type="button" id="mode-stick" aria-pressed="true">● スティック</button>
+  <button type="button" id="mode-tap" aria-pressed="false">◎ ダブルタップ移動</button>
+  <label class="avatar-style-label" for="avatar-style">人物</label>
+  <select id="avatar-style" aria-label="アバターの種類">
+    <option value="pioneer">開拓者・翠</option>
+    <option value="scout">斥候・藍</option>
+    <option value="artisan">職人・錆朱</option>
+  </select>
+  <a class="model-lab-link" href="../model-lab/">3Dモデル工房 ↗</a>
+  <strong id="control-state">スティック移動</strong>
+  <span class="camera-active-label" id="camera-status">追従（三人称）</span>
+</div>
+<section id="xr-controls" class="xr-controls" aria-label="VR・MR表示モード">
+ <div class="xr-panel-header">
+  <strong>🥽 XR設定</strong>
+  <div class="xr-panel-header-actions">
+   <button id="xr-settings-toggle" type="button" aria-expanded="false" aria-controls="xr-settings-body">▼ 展開</button>
+   <button id="xr-help-toggle" type="button" aria-expanded="false" aria-controls="xr-help-panel" aria-label="XRの仕様・操作説明を表示" title="仕様・操作説明">？</button>
+  </div>
+ </div>
+ <div id="xr-settings-body" class="xr-settings-body" hidden>
+ <div class="xr-buttons">
+  <button id="xr-vr" type="button" disabled aria-pressed="false">VR・現在の視点</button>
+  <button id="xr-adventure" type="button" disabled aria-pressed="false">🥽 VRで地表を冒険</button>
+  <button id="xr-mr-rts" type="button" disabled aria-pressed="false">MR・卓上RTS</button>
+  <button id="xr-mr-planet" type="button" disabled aria-pressed="false">MR・惑星模型</button>
+  <button id="xr-mr-social" type="button" disabled>MR・対面（試験）</button>
+  <button id="xr-exit" type="button" hidden>✕ XR終了</button>
+ </div>
+ <div class="xr-action-buttons" aria-label="XR専用操作">
+  <button id="xr-place" type="button" hidden aria-pressed="false">📍 模型を再配置</button>
+  <button id="xr-rotate-left" type="button" hidden>↶ 惑星を左回転</button>
+  <button id="xr-rotate-right" type="button" hidden>↷ 惑星を右回転</button>
+  <button id="xr-planet-land" type="button" hidden disabled>↓ 選択地点へ降下</button>
+  <button id="xr-rts-all" type="button" hidden>👥 味方全員を選択</button>
+ </div>
+ <details id="xr-binding-settings" class="xr-help-panel">
+  <summary>🎮 Quest 3S 操作割り当て</summary>
+  <p>歩行・旋回スティックと、X/Y/A/B・押込・トリガー・グリップの機能を変更できます。変更内容はこの端末に自動保存されます。</p>
+  <label class="xr-size-label" for="xr-stick-layout">スティック配置
+   <select id="xr-stick-layout">
+    <option value="leftMove">左＝歩行 ／ 右＝旋回（標準）</option>
+    <option value="rightMove">右＝歩行 ／ 左＝旋回</option>
+   </select>
+  </label>
+  <div id="xr-binding-list" class="xr-binding-grid" role="group" aria-label="VRのボタン割り当て"></div>
+  <div class="xr-buttons"><button type="button" id="xr-binding-reset">↺ 標準の割り当てに戻す</button></div>
+  <small id="xr-binding-status" role="status" aria-live="polite"></small>
+  <p><small>※ グリップで物を掴む、弓を引くなどの手の位置を使う操作は、対応する物理入力が選ばれている場合のみ有効です。Questのシステムメニューボタンは変更できません。</small></p>
+ </details>
+ <label class="xr-size-label">RTS模型の縮尺
+  <select id="xr-scale" aria-label="MR卓上RTSの表示縮尺">
+   <option value="0.0007">1:1429・小さく</option>
+   <option value="0.0014" selected>1:714・標準</option>
+   <option value="0.0028">1:357・大きく</option>
+  </select>
+ </label>
+ <label class="xr-depth-label"><input id="xr-occlusion" type="checkbox" checked> MR実物の奥行き遮蔽（対応機器のみ）</label>
+ <details id="xr-social" class="xr-help-panel">
+  <summary>MR対面の接続と操作</summary>
+  <div id="xr-social-signal">
+   <p>2台を同じWi-Fiに接続します。片方が招待を作成し、もう片方が貼り付けて応答を作成。招待した側が応答を貼り付けて接続します。</p>
+   <label for="xr-social-code">招待・応答</label>
+   <textarea id="xr-social-code" rows="2" maxlength="24000" spellcheck="false" autocomplete="off"></textarea>
+   <div class="xr-buttons">
+    <button id="xr-social-offer" type="button">招待を作成</button>
+    <button id="xr-social-answer" type="button">応答を作成</button>
+    <button id="xr-social-accept" type="button">応答で接続</button>
+    <button id="xr-social-copy" type="button">コピー</button>
+    <button id="xr-social-disconnect" type="button">切断</button>
+   </div>
+   <p>接続後に「MR・対面（試験）」を開始すると、頭と手の姿勢を相手に送信します。</p>
+  </div>
+  <p>2人とも順番に、床の同じ目印に立って同じ方向を向き、右トリガーで登録します。左トリガーで実寸と第三者視点を切り替えられます。</p>
+  <div class="xr-buttons">
+   <button id="xr-social-calibrate" type="button" hidden>この位置と向きを登録</button>
+   <button id="xr-social-view" type="button" hidden aria-pressed="false">第三者視点</button>
+  </div>
+  <small id="xr-social-status" role="status">未接続</small>
+ </details>
+ <small id="xr-status" role="status" aria-live="polite">XR対応を確認しています…</small>
+ </div>
+ <div id="xr-help-panel" class="xr-help-panel" hidden>
+  <strong>VR / MR の仕様と操作説明</strong>
+  <p>WebXR対応ブラウザと対応ヘッドセットが必要です。iPhone SafariではXRを利用できませんが、通常の3D・RTS表示は使用できます。</p>
+  <small class="xr-quest-controller-guide">🥽 Quest 3S標準操作（XR設定の「🎮 Quest 3S 操作割り当て」で変更可能）：左スティック＝歩行／右スティック＝旋回。右・左トリガー＝それぞれの手の装備使用（剣・弓など）、右グリップ＝防御、左グリップ＝弓射撃。A＝VR卓上RTS、B＝一人称・三人称、左スティック押込＝VR惑星模型⇄地表、X＝通常はジャンプ／宇宙船後部では開閉・乗船／船内操縦席付近では着席／宇宙戦中は兵装切替、Y＝行動スロット切替。VR惑星模型では右トリガーを同じ地点に2回押すと降下します。RTSでは右トリガー＝人物選択・地面への移動指示、右スティック＝卓上模型の回転、左右スティック押込＝全員選択・シンクロ切替。</small>
+  <small id="xr-vr-diagnostics" aria-live="off">VR診断：未開始</small>
+ </div>
+</section>
+<div class="canvas-wrap">
+  <section id="ui-display-panel" class="ui-display-panel" role="dialog" aria-labelledby="ui-display-heading" hidden>
+    <div class="ui-display-header">
+      <strong id="ui-display-heading">👁 メニュー → 表示</strong>
+      <button type="button" id="ui-display-close" aria-label="表示設定を閉じる">× 閉じる</button>
+    </div>
+    <p class="ui-display-hint">各UIを個別に表示・非表示にできます。設定は端末に保存されます。ゲーム進行・機能の有効／無効は変更しません。</p>
+    <div class="ui-display-commands">
+      <button type="button" id="ui-display-all-show">☑ すべて表示</button>
+      <button type="button" id="ui-display-all-hide">□ すべて非表示</button>
+      <button type="button" id="ui-display-reset">↺ 初期状態へ戻す</button>
+    </div>
+    <p class="ui-display-hint">「すべて非表示」にしても、右上の 👁 ボタンは残り、ここから復帰できます。場面に応じて本来非表示となるUIは、チェックしてもその場で強制表示されません。</p>
+    <div id="ui-display-list" class="ui-display-list" role="group" aria-label="UI表示切り替え一覧"></div>
+  </section>
+      <canvas id="world" width="960" height="560" aria-label="3D惑星。1本指ドラッグで視点回転、2本指ピンチで拡大縮小。ダブルタップで地面へ移動、シングルタップで対象を選択。"></canvas>
+      <div id="descent-atmosphere" class="descent-atmosphere" aria-hidden="true">
+        <div class="descent-glow"></div>
+        <div class="descent-clouds"></div>
+        <div class="descent-cloud-vein"></div>
+        <div class="descent-fog"></div>
+      </div>
+      <div id="orbit-pick-marker" class="orbit-pick-marker" hidden aria-hidden="true">⊕</div>
+      <div id="orbit-city-pins" class="orbit-city-pins" hidden aria-label="惑星上の街・村のマーカー"></div>
+      <section id="orbit-city-controls" class="orbit-city-controls" aria-label="惑星から都市を選択" hidden>
+       <button type="button" id="orbit-city-toggle" aria-expanded="false" aria-controls="orbit-city-menu">🏙️ 都市・村を選ぶ</button>
+       <small id="orbit-city-hint">🌐 地表をタップして自由降下もできます</small>
+       <div id="orbit-city-menu" class="orbit-city-menu" hidden>
+        <strong>🏘️ 行き先を選択</strong>
+        <ul id="orbit-city-list" aria-label="惑星から降下できる都市と村"></ul>
+        <button type="button" id="orbit-city-free">📍 自由降下 — 地表の好きな場所へ</button>
+        <small>地球儀のマーカーを直接タップしても選択できます。未開拓地への降下は従来どおりです。</small>
+       </div>
+      </section>
+      <div id="orbit-landing-preview" class="orbit-landing-preview" hidden role="group" aria-label="惑星上の降下地点">
+        <span id="orbit-landing-coords" class="orbit-landing-coords">📍 地点を選択</span>
+        <span id="orbit-landing-terrain" class="orbit-landing-terrain"></span>
+        <label class="orbit-landing-mode">降下先 <select id="landing-water-mode" aria-label="陸上降下か海上降下かを選ぶ">
+          <option value="land" selected>🏝️ 陸地へ降下（安全優先）</option>
+          <option value="sea">🏊 海面に降下（泳いで開始）</option>
+          <option value="sea-ship">⛵ 中型帆船の甲板に降下（外洋）</option>
+        </select></label>
+        <button type="button" id="orbit-landing-confirm" class="primary">↓ この地点へ降下</button>
+        <button type="button" id="orbit-landing-clear" aria-label="選択地点を取り消す">✕</button>
+      </div>
+      <div id="actor-marker" class="actor-marker" hidden aria-label="アバターの地表位置">◆ アバター</div>
+      <div id="rts-markers" aria-hidden="true"></div>
+      <div id="water-entry-confirm" class="water-entry-confirm" role="dialog" aria-label="海面への飛び込み確認" hidden>
+       <strong id="water-entry-title">🌊 飛び込みますか？</strong>
+       <p id="water-entry-description">飛び込むと水面で泳ぎ始めます。</p>
+       <button type="button" id="water-entry-accept">🏊 飛び込む</button>
+       <button type="button" id="water-entry-cancel">✕ やめる</button>
+      </div>
+      <div id="marine-swim-hud" class="marine-swim-hud" role="group" aria-label="水中の操作" hidden>
+       <strong id="marine-swim-hud-status">🌊 水面</strong>
+       <button type="button" id="marine-hud-dive">↓ 潜水</button>
+       <button type="button" id="marine-hud-down">↓ 5m</button>
+       <button type="button" id="marine-hud-up">↑ 5m</button>
+       <button type="button" id="marine-hud-surface">↑ 水面</button>
+      </div>
+      <div id="fishing-reel-hud" class="fishing-reel-hud" role="group" aria-label="釣りの巻き取り操作" hidden>
+       <div id="fishing-mini-reel" class="marine-reel-dial" role="slider" tabindex="0" aria-label="釣りリールを時計回りに回す"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="未投入">
+        <span class="marine-reel-arm"></span><span class="marine-reel-center">🎣</span>
+       </div>
+       <div class="reel-side"><strong id="fishing-hud-state">🎣 釣り</strong>
+        <span id="fishing-hud-line">糸 0m</span>
+        <button type="button" id="fishing-hud-reel">↻ 巻く</button>
+        <button type="button" id="fishing-hud-stop">✕ 終了</button>
+       </div>
+      </div>
+      <div id="world-hit-flash" aria-hidden="true"></div>
+      <div id="construction-line-preview" hidden aria-hidden="true"></div>
+      <div id="world-fx-layer" class="world-fx-layer" aria-hidden="true"></div>
+       <div id="harvest-fx-layer" class="harvest-fx-layer" aria-hidden="true"></div>
+      <div class="avatar-vitals" role="group" aria-label="アバターの状態">
+ <div class="vital-pair"><label>❤️ HP <progress id="avatar-hp" max="100" value="100"></progress></label><strong id="avatar-hp-label">100%</strong></div>
+ <div class="vital-pair"><label>⚡ 体力 <progress id="avatar-stamina" max="100" value="100"></progress></label><strong id="avatar-stamina-label">100%</strong></div>
+ <div class="vital-pair"><label>🧠 メンタル <progress id="avatar-mental" max="100" value="100"></progress></label><strong id="avatar-mental-label">100%</strong></div>
+ <div class="vital-pair"><label>🍽️ 満腹 <progress id="avatar-hunger" max="100" value="78"></progress></label><strong id="avatar-hunger-label">78%</strong></div>
+ <details class="vitals-actions"><summary>🍲 食事・休息・治療</summary>
+  <div class="vital-action-buttons">
+   <button type="button" id="vitals-eat" title="手持ちの料理や果実を食べる">🍽️ 食べる</button>
+   <button type="button" id="vitals-rest" title="その場で少し休む">💤 休む</button>
+   <button type="button" id="vitals-sleep" title="小屋やテント・寝床の近くで寝る">🛏️ 寝る</button>
+   <button type="button" id="vitals-potion" title="回復薬を1個消費しHPを45回復">🧪 薬</button>
+   <button type="button" id="vitals-magic" title="メンタル20を消費しHPを38回復">✨ 魔法</button>
+   <button type="button" id="vitals-church" title="教会の8m以内でHPと体力・メンタルを回復">⛪ 教会</button>
+   <button type="button" id="vitals-brew" title="薬屋の近くで繊維3・水1を使い回復薬を調合">🌿 薬を調合</button>
+  </div>
+  <span id="vitals-action-status" role="status" aria-live="polite"></span>
+ </details>
+ <details><summary>🎒 <span id="avatar-load">0kg</span>・持ち物</summary><div id="avatar-inventory">所持品なし</div></details>
+ </div>
+ <div class="viewport-overlay">
+        <div>高度 <strong id="height">-- m</strong></div>
+        <div class="coords" id="coords">--°, --°</div>
+        <div id="descent-phase" class="descent-phase" aria-label="降下段階">宇宙空間</div>
+      </div>
+      <div class="viewport-actions" role="group" aria-label="ゲーム画面の操作">
+  <div class="viewport-compact-bar">
+    <button type="button" id="viewport-expand" aria-pressed="false" aria-label="画面を最大化">⛶ 全画面</button>
+    <button type="button" id="viewport-quick-toggle" aria-expanded="false" aria-controls="viewport-quick-panel" aria-label="操作メニューを開く">☰ 操作</button>
+    <button type="button" id="viewport-settings-toggle" aria-controls="viewport-toolbar" aria-expanded="false" aria-label="設定を開く">⚙️</button>
+    <button type="button" id="viewport-vr-toggle" aria-label="VRに切り替える">🥽</button>
+    <button type="button" id="viewport-console-toggle" aria-expanded="false" aria-controls="game-console">▤ ログ</button>
+    <button type="button" id="viewport-share" aria-haspopup="dialog" aria-controls="page-share-overlay" title="現在のページURLをQRコードで共有">▦ QR</button>
+     <button type="button" id="ui-display-access" aria-label="表示設定を開く" aria-controls="ui-display-panel" aria-expanded="false" title="表示設定">👁</button>
+  </div>
+  <div id="viewport-quick-panel" class="viewport-quick-panel" hidden role="group" aria-label="カメラ・モード・メニュー">
+    <button type="button" id="viewport-camera" aria-label="カメラモードを切り替える">◉ 追従</button>
+    <button type="button" id="viewport-controls" aria-label="移動方法を切り替える">● スティック</button>
+    <button type="button" id="viewport-avatar-v10" aria-haspopup="dialog">アバター編集</button>
+    <button type="button" id="viewport-crew-test">船内クルーテスト</button>
+    <details id="viewport-avatar-actions" class="avatar-daily-menu">
+     <summary>🧍 姿勢・モーション</summary>
+     <div class="avatar-daily-buttons" role="group" aria-label="アバターの日常動作">
+      <button type="button" data-avatar-daily="run">🏃 走る</button>
+      <button type="button" data-avatar-daily="crouch">🧎 しゃがむ</button>
+      <button type="button" data-avatar-daily="sleep">🛌 寝る</button>
+      <button type="button" data-avatar-daily="eat">🍽️ 食べる</button>
+      <button type="button" data-avatar-daily="pickup">🤏 右手で拾う</button>
+      <button type="button" data-avatar-daily="pickupLeft">🤏 左手で拾う</button>
+      <button type="button" data-avatar-daily="lift">📦 しゃがんで両手で持ち上げる</button>
+      <button type="button" data-avatar-daily="holdBaby">👶 赤ちゃんを抱える</button>
+      <label>追加モーション
+       <select id="avatar-daily-extended" aria-label="追加モーションを選択">
+        <option value="">動作を選択</option>
+        <option value="wave">👋 手を振る</option>
+        <option value="stretch">🙆 両腕のストレッチ</option>
+        <option value="kneel">🧎 片膝をつく</option>
+        <option value="pelvicTilt">🧘 骨盤をゆっくり傾ける</option>
+        <option value="supportedSquat">🤲 支え付きしゃがみ</option>
+        <option value="laborBreathing">🫁 呼吸姿勢の練習</option>
+        <option value="sideRest">🛏️ 横向き休息</option>
+        <option value="rockBaby">👶 抱っこの揺らし</option>
+       </select>
+      </label>
+      <button type="button" data-avatar-daily="idle">⏹️ 姿勢を戻す</button>
+     </div>
+     <small id="avatar-daily-status" role="status">地上モーション試験：Shiftで走る、Cでしゃがむ。拾う・持ち上げるは姿勢のみ。</small>
+    </details>
+    <button type="button" id="viewport-mr-social" aria-controls="xr-controls">🥽 MR・対面（試験）</button>
+    <button type="button" id="viewport-rts" aria-pressed="false" title="人物・敵・資源をタップして選択、地面をダブルタップして移動">⚓ RTS視点</button>
+    <button type="button" id="viewport-auto" aria-expanded="false" aria-controls="auto-panel">🤖 自動行動</button>
+    <button type="button" id="viewport-social">💬 話す・贈る</button>
+    <button type="button" id="viewport-directory" aria-expanded="false" aria-controls="map-directory-panel">🗺️ マップ一覧</button>
+     <button type="button" id="viewport-settlements" aria-expanded="false" aria-controls="settlement-travel-panel">🏘️ 街・村</button>
+    <button type="button" id="viewport-railway" aria-expanded="false" aria-controls="railway-panel">🚂 都市・鉄道</button>
+    <button type="button" id="viewport-harbor" aria-expanded="false" aria-controls="harbor-panel">⚓ 港・客船</button>
+    <button type="button" id="viewport-strategy" aria-expanded="false" aria-controls="strategy-panel">🌐 国家・外交</button>
+    <button type="button" id="viewport-territory" aria-expanded="false" aria-controls="territory-panel">🏛️ 財政・土地</button>
+     <button type="button" id="viewport-owner" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナー</button>
+    <button type="button" id="viewport-town" aria-expanded="false" aria-controls="town-interaction-panel">💬 街の生活</button>
+    <button type="button" id="viewport-route-map" aria-expanded="false" aria-controls="map-route-panel">📍 目的地マップ</button>
+    <button type="button" id="fauna-toggle" aria-expanded="false" aria-controls="fauna-panel">🐎 動物・騎乗</button>
+     <button type="button" id="farm-toggle" aria-expanded="false" aria-controls="farm-panel">🌾 畑・果樹・製材</button>
+    <button type="button" id="marine-toggle" aria-expanded="false" aria-controls="marine-panel">🌊 海・船</button>
+    <button type="button" id="viewport-books" aria-haspopup="dialog" aria-controls="book-overlay">📖 読書</button>
+    <button type="button" id="viewport-life" aria-haspopup="dialog" aria-controls="life-overlay">🛠️ クラフト</button>
+    <button type="button" id="viewport-menu" aria-expanded="false" aria-controls="viewport-toolbar">⚙ 詳細メニュー</button>
+     <button type="button" id="ui-display-from-menu" aria-controls="ui-display-panel">👁 表示設定</button>
+  </div>
+</div>
+<section id="strategy-panel" class="strategy-panel" role="dialog" aria-label="経済・軍事・外交シミュレーション" hidden>
+ <div class="strategy-row"><strong>🌐 国家・外交・軍事</strong><button id="strategy-close" type="button">× 閉じる</button><span id="strategy-month"></span></div>
+ <small>オフラインのNPC国家との戦略シミュレーションです。他プレイヤーとの同期・戦闘はまだできません。</small>
+ <div class="strategy-row"><label>自領 <select id="strategy-own" aria-label="自領の拠点"></select></label></div>
+ <div id="strategy-own-stats"></div>
+ <div class="strategy-row"><label>交渉相手 <select id="strategy-target" aria-label="交渉先国家"></select></label></div>
+ <div id="strategy-target-stats"></div><div id="strategy-trade-hint"></div>
+ <div class="strategy-buttons">
+  <button type="button" id="strategy-envoy">🤝 使節派遣（35G）</button>
+  <button type="button" id="strategy-trade">📦 通商協定（40G）</button>
+  <button type="button" id="strategy-pact">🕊️ 不可侵条約</button>
+  <button type="button" id="strategy-alliance">🛡️ 防衛同盟</button>
+  <button type="button" id="strategy-withdraw">📃 条約を破棄</button>
+  <button type="button" id="strategy-peace">🏳️ 停戦交渉</button>
+ </div>
+ <hr><strong>⚔️ 戦略軍備</strong>
+ <p id="strategy-recruit-hint"></p>
+ <div class="strategy-row"><button type="button" id="strategy-recruit">🛡️ 守備隊を雇用</button><button type="button" id="strategy-war">⚔️ 宣戦布告</button></div>
+ <div class="strategy-row"><label>遠征兵数 <select id="strategy-force" aria-label="派遣する兵の数"></select></label>
+  <button type="button" id="strategy-campaign">🏳️ 戦略演算で遠征</button></div>
+ <small>勝敗は兵力・防衛側の優位・民心から演算します。実際の3D戦闘や他人の建物破壊は行いません。</small>
+ <hr><strong>🏛️ 各国の情勢</strong><ul id="strategy-summary"></ul>
+ <strong>📒 直近の出来事</strong><ul id="strategy-journal"></ul>
+ <p id="strategy-status" role="status" aria-live="polite">国庫・兵力・外交を管理します。</p>
+</section>
+<section id="territory-panel" class="territory-panel" role="dialog" aria-label="土地・建物の登記と領地管理" hidden>
+ <div class="territory-row"><strong>🏡 土地・建物・領地管理</strong><button type="button" id="territory-close">× 閉じる</button></div>
+ <small>この画面はローカル・デモ用です。オンライン所有権・徴税・譲渡の認証は未接続です。</small>
+ <div class="territory-row"><label>領地 <select id="territory-town" aria-label="管理する領地"></select></label></div>
+ <div class="territory-row"><span>統治者：<b id="territory-ruler"></b></span><span>支持度：<b id="territory-support"></b></span></div>
+ <div class="territory-row"><span>公金庫：<strong id="territory-treasury">0 G</strong></span></div>
+ <div class="territory-row"><label>所得税 <input id="territory-tax-rate" type="range" min="0" max="30" step="1" value="10"></label><b id="territory-tax-value">10%</b>
+  <button type="button" id="territory-tax-apply">税率を設定</button></div>
+ <div id="territory-estimate"></div><div id="territory-last-tax"></div>
+ <div class="territory-row"><label>公共支出 <select id="territory-purpose"><option value="roads">🛣️ 道路整備</option><option value="guards">🛡️ 衛兵の給与</option><option value="school">📚 教育・公共施設</option></select></label><button type="button" id="territory-spend">100G支出</button></div>
+ <hr><strong>🏦 国債・都市公債</strong>
+ <small>プレイヤーの所持金で購入すると、代金が発行元の公金庫に入ります。国・都市には満期時の元利金の返済義務が残ります。</small>
+ <div class="territory-row"><span>所持金：<b id="territory-wallet">0 G</b></span><span>未返済の債務：<b id="territory-debt">0 G</b></span></div>
+ <div class="territory-row">
+  <label>額面 <select id="territory-bond-face"><option value="10">10G</option><option value="50">50G</option><option value="100">100G</option></select></label>
+  <label>発行口数 <select id="territory-bond-units"><option value="10">10口</option><option value="20" selected>20口</option><option value="50">50口</option><option value="100">100口</option></select></label>
+ </div>
+ <div class="territory-row">
+  <label>満期 <select id="territory-bond-term"><option value="3">3か月</option><option value="6" selected>6か月</option><option value="12">12か月</option></select></label>
+  <label>満期利率 <select id="territory-bond-rate"><option value="10" selected>10%</option><option value="20">20%</option></select></label>
+  <button type="button" id="territory-bond-create">公債を発行</button>
+ </div>
+ <div class="territory-row"><label>発行中・保有債券 <select id="territory-bond-issue" aria-label="債券を選択"></select></label></div>
+ <div id="territory-bond-info">債券はまだ発行されていません。</div>
+ <div class="territory-row"><label>購入数 <select id="territory-bond-buy-units"><option value="1">1口</option><option value="2">2口</option><option value="5">5口</option><option value="10">10口</option></select></label>
+  <button type="button" id="territory-bond-buy">🪙 債券を購入</button></div>
+ <small>満期時に公金不足なら返済遅延となり、支持度が下がります。オフライン試作のため保有者はプレイヤー1人です。</small>
+ <hr><strong>📜 所有権・登記簿</strong><div id="territory-date"></div><div id="territory-asset-count"></div>
+ <div class="territory-row"><label>土地の半径 <select id="territory-radius"><option value="10">10m</option><option value="20" selected>20m</option><option value="50">50m</option><option value="100">100m</option></select></label>
+  <button type="button" id="territory-claim">📍 現在地の土地を登記</button></div>
+ <div class="territory-row"><label>所有資産 <select id="territory-deeds" aria-label="所有する土地・建物"></select></label></div>
+ <div class="territory-row"><label>相手 <select id="territory-recipient"><option value="heir">次世代の後継者</option><option value="community">共同体</option></select></label>
+  <button type="button" id="territory-transfer">所有権を譲渡</button><button type="button" id="territory-lease">賃貸登録</button></div>
+ <hr><strong>📒 領地台帳</strong><ul id="territory-log"></ul>
+ <p id="territory-status" role="status" aria-live="polite">登録・徴税・土地権利の操作を行います。</p>
+ <small>ゲーム内30日ごとにNPCの試算所得から徴収します。実際のNPC財布やマルチサーバーの会計とは未連携です。</small>
+</section>
+<section id="owner-panel" class="owner-panel" role="region" aria-label="オーナー用ワールドエディター" hidden>
+ <div class="owner-panel-head"><strong>🏗️ オーナーモード・地形と街の編集</strong><div class="owner-panel-head-actions"><button id="owner-collapse" type="button" aria-expanded="true" aria-label="オーナーウィンドウを折り畳む" title="折り畳む">▶︎</button><button id="owner-close" type="button" aria-label="編集モードを閉じる">×</button></div></div>
+ <label class="owner-compact-row"><span>編集</span><select id="owner-tool">
+  <option value="select">🔍 建物・パーツを選択</option><option value="building">🏠 建物を配置</option><option value="primitive">🧱 基本立体を追加</option>
+  <option value="prefab">📦 保存建築物を配置</option>
+  <option value="move">↔️ 建物を移動</option><option value="delete">🗑️ 建物を削除</option>
+  <option value="road">🛣️ 道を引く</option><option value="raise">⛰️ 地面を上げる</option>
+  <option value="lower">🪏 地面を下げる</option><option value="flatten">📐 地面を整地</option>
+ </select></label>
+ <label class="owner-compact-row"><span>建物</span><select id="owner-building" aria-label="配置する建物"></select></label>
+ <details class="owner-primitives"><summary>🧱 立体パーツの編集</summary><div class="owner-detail-body">
+  <label>形状 <select id="owner-shape"><option value="cube">立方体・直方体</option><option value="cylinder">円柱</option><option value="sphere">球</option><option value="cone">円錐</option></select></label>
+  <div class="owner-fields"><label>幅 X(m)<input type="number" id="owner-size-x" min=".1" max="200" step=".5" value="4"></label>
+   <label>高さ Y(m)<input type="number" id="owner-size-y" min=".1" max="200" step=".5" value="4"></label>
+   <label>奥行 Z(m)<input type="number" id="owner-size-z" min=".1" max="200" step=".5" value="4"></label>
+   <label>高さオフセット(m)<input type="number" id="owner-elevation" min="-500" max="500" step=".5" value="0"></label></div>
+  <label>色 <input type="color" id="owner-color" value="#c2ad8c"></label>
+  <label>グループ名 <input type="text" id="owner-group" maxlength="40" placeholder="例：時計塔、住宅A"></label>
+  <button type="button" id="owner-primitive-apply">📐 選択中のパーツに寸法・色を適用</button>
+  <small>「基本立体を追加」で地面をタップすると配置。選択して寸法変更・回転・移動・削除ができます。同じグループ名を使うと建物のパーツを整理できます。</small>
+ </div></details>
+ <details class="owner-prefabs"><summary>💾 組み合わせを建築物として保存・呼出し</summary><div class="owner-detail-body">
+  <label>保存元グループ <input type="text" id="owner-prefab-group" maxlength="40" placeholder="例：時計塔"></label>
+  <label>建築物の名前 <input type="text" id="owner-prefab-name" maxlength="40" placeholder="例：石造りの時計塔"></label>
+  <button type="button" id="owner-prefab-save">💾 このグループを保存</button>
+  <label>保存建築物 <select id="owner-prefab-list" aria-label="呼び出す保存建築物"><option value="">未保存</option></select></label>
+  <div class="owner-prefab-buttons"><button type="button" id="owner-prefab-use">📦 配置ツールにする</button><button type="button" id="owner-prefab-delete">削除</button></div>
+  <small>同じグループ名の立体を相対位置ごと保存します。「配置ツールにする」の後、地面をタップすると一括配置できます。</small>
+ </div></details>
+ <div class="owner-fields"><label>ブラシ半径 <select id="owner-radius"><option value="8">8m</option><option value="20" selected>20m</option><option value="50">50m</option><option value="100">100m</option><option value="200">200m</option></select></label>
+ <label>道路の幅 <select id="owner-road-width"><option value="3">3m</option><option value="5" selected>5m</option><option value="8">8m</option><option value="12">12m</option></select></label></div>
+ <button type="button" id="owner-asset-open">🧩 単独空間でAssetを制作</button>
+ <div id="owner-selected" class="owner-selected">建物未選択</div>
+ <div class="owner-buttons"><button type="button" id="owner-rotate">↻ 22.5°回転</button><button type="button" id="owner-undo">↶ 戻す</button><button type="button" id="owner-redo">↷ やり直し</button><button type="button" id="owner-cancel">× 選択解除</button></div>
+ <button type="button" id="owner-erase" class="owner-danger">🗑️ オーナー編集だけ消去</button>
+ <small>地面をタップして編集。道路は始点と終点を順にタップ。資材は消費しません。変更内容はこのブラウザの保存データに保持され、オンライン上の管理者権限ではありません。</small>
+ <span id="owner-status" role="status" aria-live="polite">地上でオーナーモードを選択してください</span>
+</section>
+<section id="asset-studio" class="asset-studio" role="dialog" aria-modal="true" aria-labelledby="asset-studio-title" hidden>
+ <header class="asset-studio-head"><div><strong id="asset-studio-title">🧩 Asset制作モード</strong><small>独立XY平面／高さZ</small></div><button type="button" id="asset-close">× 街へ戻る</button></header>
+ <div class="asset-workspace">
+  <div class="asset-canvas-wrap"><canvas id="asset-canvas" width="900" height="620" tabindex="0" aria-label="Asset制作XY平面。タップで配置または選択"></canvas><div id="asset-plane-label" class="asset-plane-label">Z = 0.0m</div></div>
+  <aside class="asset-controls">
+   <div class="asset-camera-row"><label>カメラ<select id="asset-camera-tool"><option value="orbit">回転</option><option value="pan">パン</option></select></label><label>方向<select id="asset-camera-preset"><option value="orbit">3D</option><option value="top">上面</option><option value="front">正面</option><option value="right">右側面</option></select></label><button type="button" id="asset-camera-focus">◎ 注視・リセット</button></div>
+   <small class="asset-camera-help">「視点」でドラッグ。選択中は選択物の中心、未選択時はモデル原点を中心に回転します。ホイール／2本指でズーム。</small>
+   <div class="asset-mode-row" role="group" aria-label="Asset編集モード"><button type="button" data-asset-mode="place" aria-pressed="true">＋配置</button><button type="button" data-asset-mode="select" aria-pressed="false">選択</button><button type="button" data-asset-mode="move" aria-pressed="false">移動</button><button type="button" data-asset-mode="view" aria-pressed="false">視点</button></div>
+   <details class="asset-ui-settings"><summary>⚙ 操作UI・刻み設定</summary><div>
+    <label class="asset-check"><input id="asset-show-axis-dials" type="checkbox" checked> XYZダイヤルを表示</label>
+    <label class="asset-check"><input id="asset-show-common-dial" type="checkbox" checked> 共通ダイヤルを表示</label>
+    <label>回転刻み<select id="asset-angle-step"><option value="1">1°</option><option value="5">5°</option><option value="15" selected>15°</option><option value="45">45°</option></select></label>
+   </div></details>
+   <div class="asset-transform-fields" aria-label="位置と回転の数値入力">
+    <label>X位置<input id="asset-pos-x" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>Y位置<input id="asset-pos-y" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>Z位置・床<input id="asset-pos-z" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>RX°<input id="asset-rx" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>RY°<input id="asset-ry" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+    <label>RZ°<input id="asset-rz" class="asset-number-entry" type="text" value="0" readonly inputmode="none" data-asset-number></label>
+   </div>
+   <div id="asset-axis-controls" class="asset-dials" aria-label="座標ダイヤル">
+    <label>X移動 <span id="asset-value-x">0.0m</span><span id="asset-dial-x" class="asset-dial" role="slider" tabindex="0" aria-label="X方向移動" aria-valuenow="0"><i></i></span></label>
+    <label>Y移動 <span id="asset-value-y">0.0m</span><span id="asset-dial-y" class="asset-dial" role="slider" tabindex="0" aria-label="Y方向移動" aria-valuenow="0"><i></i></span></label>
+    <label>Z面・高さ <span id="asset-value-z">0.0m</span><span id="asset-dial-z" class="asset-dial" role="slider" tabindex="0" aria-label="Z方向と配置面の高さ" aria-valuenow="0"><i></i></span></label>
+   </div>
+   <div class="asset-z-row"><label>移動刻み<select id="asset-step"><option value="0.1">0.1m</option><option value="0.5" selected>0.5m</option><option value="1">1m</option><option value="2">2m</option></select></label><label>Zダイヤルの対象<select id="asset-z-target"><option value="floor" selected>配置床レベル</option><option value="selection">選択物のZ位置</option></select></label></div>
+   <div id="asset-common-control" class="asset-common-control"><label>共通ダイヤルの対象<select id="asset-common-target"><option value="asset-pos-x">X位置</option><option value="asset-pos-y">Y位置</option><option value="asset-pos-z">Z位置／床</option><option value="asset-rx">RX回転</option><option value="asset-ry">RY回転</option><option value="asset-rz">RZ回転</option><option value="asset-width">幅X</option><option value="asset-depth">奥行Y</option><option value="asset-height">高さZ</option></select></label><button id="asset-number-open" type="button" aria-haspopup="dialog" aria-controls="asset-number-pad">⌨ 数値</button><span id="asset-common-value">0m</span><span id="asset-dial-common" class="asset-dial" role="slider" tabindex="0" aria-label="共通ダイヤル" aria-valuenow="0"><i></i></span></div>
+   <div class="asset-fields"><label>用途<select id="asset-type"><option value="building">建築</option><option value="machine">機械</option><option value="vehicle">乗り物</option><option value="equipment">道具・装備</option><option value="plant">植物</option><option value="creature">動物</option><option value="avatar">アバター</option></select></label><label>形状<select id="asset-shape"><option value="cube">直方体</option><option value="cylinder">円柱</option><option value="sphere">球</option><option value="cone">円錐</option></select></label><label>色<input id="asset-color" type="color" value="#c2ad8c"></label>
+    <label>幅X<input id="asset-width" class="asset-number-entry" type="text" value="4" readonly inputmode="none" data-asset-number></label><label>奥行Y<input id="asset-depth" class="asset-number-entry" type="text" value="4" readonly inputmode="none" data-asset-number></label>
+    <label>高さZ<input id="asset-height" class="asset-number-entry" type="text" value="4" readonly inputmode="none" data-asset-number></label></div>
+   <button type="button" id="asset-apply">寸法・形状・色を選択へ適用</button>
+   <fieldset class="asset-snap"><legend>スナップ</legend><label>既存側<select id="asset-snap-mode"><option value="auto">自動（端点・面・中心・重心）</option><option value="endpoint">端点</option><option value="face">面中央</option><option value="center">中心</option><option value="centroid">全体重心</option><option value="none">なし</option></select></label>
+    <label>配置物側<select id="asset-source-anchor"><option value="center">中心</option><option value="top-left">左上端点</option><option value="top">上面中央</option><option value="top-right">右上端点</option><option value="right">右面中央</option><option value="bottom-right">右下端点</option><option value="bottom">下面中央</option><option value="bottom-left">左下端点</option><option value="left">左面中央</option></select></label></fieldset>
+   <label class="asset-check"><input id="asset-continuous" type="checkbox"> 連続配置</label><label class="asset-check"><input id="asset-multi" type="checkbox"> 複数選択</label>
+   <div class="asset-action-grid"><button id="asset-copy" type="button">⧉ コピー</button><button id="asset-delete" type="button">🗑 削除</button><button id="asset-undo" type="button">↶ 戻す</button><button id="asset-redo" type="button">↷ やり直し</button></div>
+   <div class="asset-group-row"><input id="asset-group" maxlength="40" placeholder="グループ名"><button id="asset-group-apply" type="button">グループ化</button></div>
+   <hr><label>Asset名<input id="asset-name" maxlength="40" placeholder="例：石造りの時計塔"></label><button id="asset-save" type="button">💾 保存建築物へ登録</button>
+   <div class="asset-group-row"><select id="asset-load-list" aria-label="編集する保存Asset"><option value="">保存Assetを選択</option></select><button id="asset-load" type="button">読込</button></div>
+   <button id="asset-clear" class="owner-danger" type="button">新規・制作面を空にする</button>
+   <output id="asset-status" role="status" aria-live="polite">XY平面をタップして配置できます</output>
+  </aside>
+ </div>
+ <div id="asset-number-pad" class="asset-number-pad" hidden>
+  <section role="dialog" aria-modal="true" aria-labelledby="asset-number-title">
+   <header><strong id="asset-number-title">数値入力</strong><button id="asset-number-cancel" type="button" aria-label="数値入力を閉じる">×</button></header>
+   <output id="asset-number-display">0</output>
+   <div class="asset-number-keys" aria-label="テンキー">
+    <button type="button" data-asset-key="7">7</button><button type="button" data-asset-key="8">8</button><button type="button" data-asset-key="9">9</button><button type="button" data-asset-key="back">⌫</button>
+    <button type="button" data-asset-key="4">4</button><button type="button" data-asset-key="5">5</button><button type="button" data-asset-key="6">6</button><button type="button" data-asset-key="clear">C</button>
+    <button type="button" data-asset-key="1">1</button><button type="button" data-asset-key="2">2</button><button type="button" data-asset-key="3">3</button><button type="button" data-asset-key="minus">±</button>
+    <button type="button" data-asset-key="0">0</button><button type="button" data-asset-key="00">00</button><button type="button" data-asset-key="dot">.</button><button type="button" data-asset-key="apply" class="asset-number-apply">決定</button>
+   </div>
+   <small>数値欄をタップすると、端末のキーボードを開かずに入力できます。</small>
+  </section>
+ </div>
+</section>
+<section id="map-directory-panel" class="fauna-panel map-directory-panel" role="dialog" aria-label="周辺マップの対象一覧" hidden>
+ <div class="fauna-panel-top">
+  <strong>🗺️ マップの対象一覧</strong>
+  <button type="button" id="map-directory-close" aria-label="マップ一覧を閉じる">× 閉じる</button>
+ </div>
+ <button type="button" id="map-directory-route" aria-controls="map-route-panel">📍 地図を開いて行き先を指定</button>
+ <div id="map-directory-tabs" class="map-directory-tabs" role="group" aria-label="一覧の分類">
+  <button type="button" data-map-category="buildings" aria-pressed="false">🏠 建物</button>
+  <button type="button" data-map-category="animals" aria-pressed="true">🐎 動物</button>
+  <button type="button" data-map-category="people" aria-pressed="false">🧍 人物</button>
+  <button type="button" data-map-category="resources" aria-pressed="false">🌲 資源</button>
+ </div>
+ <div class="map-directory-filters">
+  <label>名前で探す
+   <input id="map-directory-filter" type="search" placeholder="名前・種類" autocomplete="off" aria-label="対象名で絞り込む">
+  </label>
+  <label>検索範囲
+   <select id="map-directory-radius" aria-label="検索範囲">
+    <option value="100">100m</option>
+    <option value="450" selected>450m</option>
+    <option value="1200">1200m</option>
+   </select>
+  </label>
+ </div>
+ <div class="map-directory-status-line">
+  <p id="map-directory-status" role="status" aria-live="polite"></p>
+  <button type="button" id="map-directory-refresh" aria-label="マップ対象一覧を更新">↻ 更新</button>
+ </div>
+ <ul id="map-directory-list" class="map-directory-list" aria-label="マップ上の対象"></ul>
+ <small>対象の「操作」を押すと動物・人物などを選べます。「向かう」は移動指示です。地面のダブルタップでは一覧や動物の窓を開かず、移動を優先します。</small>
+</section>
+<section id="map-route-panel" class="fauna-panel" role="dialog" aria-label="地図で目的地を設定" hidden>
+ <div class="fauna-panel-top"><strong>🗺️ 目的地マップ</strong>
+  <button type="button" id="map-route-close">× 閉じる</button></div>
+ <div class="route-map-controls">
+  <label>表示範囲 <select id="map-route-range" aria-label="マップの表示範囲">
+    <option value="90">周囲90m</option><option value="160" selected>周囲160m</option>
+    <option value="300">周囲300m</option><option value="600">周囲600m</option>
+    <option value="1200">周囲1.2km</option><option value="3000">周囲3km</option>
+  </select></label>
+  <button type="button" id="map-route-refresh">↻ 地図更新</button>
+ </div>
+ <canvas id="route-map-canvas" width="320" height="320" tabindex="0"
+  aria-label="現在地が中心です。タップして目的地を指定。青は水域、緑は陸地。"></canvas>
+ <p id="map-route-status" role="status" aria-live="polite">地図をタップして目的地を選択してください。</p>
+ <div class="marine-activity-actions"><button type="button" id="map-route-go" disabled>📍 ここへ移動</button>
+ <button type="button" id="map-route-clear">✕ 選択解除</button></div>
+ <small>現在地からの移動指示です。歩行は350m、乗船は最大6kmなど、既存の移動制限・海陸判定に従います。瞬間移動ではありません。</small>
+</section>
+<section id="settlement-travel-panel" class="fauna-panel settlement-travel-panel" role="dialog"
+ aria-label="街・村を訪れる" hidden>
+ <div class="fauna-panel-top"><strong>🏘️ 旅の案内所</strong>
+  <button type="button" id="settlement-travel-close" aria-label="旅の案内所を閉じる">× 閉じる</button></div>
+ <p class="settlement-travel-lead">行き先を選んで、そこに暮らす人々の街や村へ来訪できます。</p>
+ <ul id="settlement-travel-list" class="settlement-travel-list" aria-label="訪問できる街と村"></ul>
+ <div id="settlement-travel-preview" class="settlement-travel-preview" aria-live="polite"></div>
+ <p id="settlement-travel-status" class="settlement-travel-status" role="status" aria-live="polite"></p>
+ <button type="button" id="settlement-travel-go" class="primary" disabled>訪れる</button>
+ <small>来訪はワールド内の登録地点への移動です。短距離の徒歩・航海指示は「目的地マップ」を利用してください。</small>
+</section>
+<section id="railway-panel" class="fauna-panel railway-panel" role="dialog"
+ aria-label="環状線の運行情報と時刻表" hidden>
+ <div class="fauna-panel-top"><strong>🚂 都市環状線・時刻表</strong>
+  <button type="button" id="railway-close" aria-label="鉄道メニューを閉じる">× 閉じる</button></div>
+ <div class="railway-clock-line"><strong id="railway-clock">惑星標準時 --:--</strong>
+  <span id="railway-route">環状線</span></div>
+ <section class="railway-station-card" aria-label="現在の駅">
+  <strong id="railway-station-name">🚉 駅を確認中</strong>
+  <span id="railway-station-detail"></span>
+   <div class="railway-staff-controls">
+    <button type="button" id="railway-enter-station">🚉 駅舎に入る</button>
+    <button type="button" id="railway-exit-station" hidden>🚪 駅舎から出る</button>
+    <span id="railway-concourse-status">駅舎に入って駅員の窓口へお進みください。</span>
+   </div>
+ </section>
+ <div id="railway-live-status" class="railway-live-status" aria-label="列車の現在位置"></div>
+ <div class="railway-table-wrap">
+  <table class="railway-timetable">
+   <caption>この駅の次発列車</caption>
+   <thead><tr><th>発</th><th>方向</th><th>次駅</th><th>あと</th><th></th></tr></thead>
+   <tbody id="railway-timetable-body"></tbody>
+  </table>
+ </div>
+ <section class="railway-ticket-office" aria-label="駅の切符売り場と改札">
+  <div><strong>🎫 駅の切符売り場</strong><span id="railway-funds">テスト所持金 ∞</span></div>
+  <label for="railway-destination">行先
+   <select id="railway-destination" disabled><option value="">先に列車を選択</option></select>
+  </label>
+  <button type="button" id="railway-buy-ticket" disabled>切符を購入</button>
+  <button type="button" id="railway-platform" disabled>🎫 改札を通ってホームへ</button>
+   <button type="button" id="railway-skip-arrival" disabled>🧑‍✈️ 駅員に話す：列車到着まで時間を進める</button>
+  <span id="railway-ticket-status">時刻表から乗る列車を選んでください。</span>
+ </section>
+ <div class="railway-board-controls">
+  <label for="railway-carriage">乗る車両
+   <select id="railway-carriage">
+    <option value="passenger" selected>💺 旅客車</option>
+    <option value="locomotive">🚂 機関車・運転台</option>
+    <option value="tender">🪨 炭水車</option>
+    <option value="freight">📦 貨車</option>
+   </select>
+  </label>
+  <button type="button" id="railway-board" disabled>列車の到着を待ってください</button>
+  <button type="button" id="railway-alight" disabled hidden>🚉 この駅で降りる</button>
+ </div>
+ <p id="railway-status" role="status" aria-live="polite">列車と行先を選び、切符を購入してから改札を通ってください。</p>
+ <small>駅舎に入る → 駅員から切符を購入 → 改札 → ホームで待つ。駅員に話しかけた時だけ到着まで時間を進められます。走行中は降車できません。</small>
+</section>
+<section id="harbor-panel" class="fauna-panel railway-panel" role="dialog" aria-label="港と客船のターミナル" hidden>
+ <div class="fauna-panel-top"><strong>⚓ セレノート港・旅客船ターミナル</strong><button type="button" id="harbor-close">× 閉じる</button></div>
+ <p id="harbor-status" role="status" aria-live="polite">港町で船の運航情報を確認できます。</p>
+ <label>利用する桟橋 <select id="harbor-terminal">
+  <option value="central">セレノート中央埠頭</option><option value="cape">灯台岬桟橋</option>
+ </select></label>
+ <p id="harbor-schedule" role="status">時刻表を読み込み中です。</p>
+ <div class="railway-staff-controls">
+  <button type="button" id="harbor-approach">⚓ 桟橋まで歩く</button>
+  <button type="button" id="harbor-office">🧑‍✈️ 港の乗船窓口に入る</button>
+  <button type="button" id="harbor-buy">🎫 乗船券を購入（25G）</button>
+  <button type="button" id="harbor-gate">🚶 桟橋の改札を通る</button>
+  <button type="button" id="harbor-wait">⏳ 港員に話す：客船の到着までスキップ</button>
+  <button type="button" id="harbor-board">🚢 客船に乗る</button>
+  <button type="button" id="harbor-alight">⚓ 着岸したら下船</button>
+  <button type="button" id="harbor-talk">💬 船員・乗客と会話</button>
+ </div>
+ <small>港の船はゲーム時間で定期運航し、港の前の海上を連続移動します。船内ではスティックで歩行。テスト所持金は∞です。乗船・建築・航海はセーブスロットに保存されます。</small>
+ </section>
+ <aside id="railway-onboard-hud" class="railway-onboard-hud" aria-label="乗車中の列車" hidden>
+ <strong id="railway-onboard-title">🚂 乗車中</strong>
+ <span id="railway-onboard-detail">次駅を確認中</span>
+ <progress id="railway-onboard-progress" max="100" value="0" aria-label="次駅までの進捗"></progress>
+ <div><button type="button" id="railway-hud-open">🕒 時刻表・車両</button>
+  <button type="button" id="railway-hud-alight" disabled>🚉 降りる</button></div>
+ <section id="railway-view-controls" class="railway-view-controls" aria-label="列車カメラと乗客交流">
+  <div class="railway-camera-buttons" role="group" aria-label="車内外カメラ">
+   <button type="button" data-rail-camera="interior" aria-pressed="true">💺 車内</button>
+   <button type="button" data-rail-camera="follow" aria-pressed="false">🎥 追従</button>
+   <button type="button" data-rail-camera="fixed" aria-pressed="false">📷 定点</button>
+   <button type="button" data-rail-camera="rts" aria-pressed="false">⚓ RTS</button>
+   <button type="button" id="railway-wall-toggle" aria-pressed="false">🧱 壁を隠す</button>
+  </div>
+  <div id="railway-people-controls">
+   <select id="railway-people" aria-label="乗客や仲間を選ぶ"></select>
+   <button type="button" id="railway-talk">💬 話す</button>
+  </div>
+  <span id="railway-experience-status" role="status" aria-live="polite">車内はスティック・WASDで歩けます。</span>
+ </section>
+</aside>
+<aside id="railway-security-hud" class="railway-security-hud" aria-live="assertive" hidden>
+ <strong id="railway-security-title">⚠️ 鉄道保安</strong>
+ <span id="railway-security-detail">線路内から退出してください。</span>
+ <div class="railway-security-choices">
+  <button type="button" id="railway-comply" hidden>▶ 従う（線路から出る）</button>
+  <button type="button" id="railway-surrender" hidden>▶ 投降</button>
+  <button type="button" id="railway-flee" hidden>▶ 投降しない</button>
+  <button type="button" id="railway-resist" hidden>⚔️ 抵抗する</button>
+  <button type="button" id="railway-bail" hidden>罰金を支払って保釈</button>
+  <button type="button" id="railway-serve" hidden>📆 服役して釈放</button>
+ </div>
+</aside>
+<button type="button" id="town-interior-exit" class="town-interior-exit" hidden
+ aria-label="建物の外に出る">🚪 外へ</button>
+<section id="town-interaction-panel" class="fauna-panel town-interaction-panel" role="dialog"
+ aria-label="街の住人・商店・建物" hidden>
+ <div class="fauna-panel-top"><strong id="town-interaction-title">🏘️ 街の生活</strong>
+  <button type="button" id="town-interaction-close" aria-label="街の生活メニューを閉じる">× 閉じる</button></div>
+ <p id="town-interaction-detail" class="town-interaction-detail">住民に話しかけたり、お店で買い物ができます。</p>
+ <div id="town-interaction-actions" class="town-interaction-actions"></div>
+ <p id="town-interaction-status" role="status" aria-live="polite">近づいて交流してください。</p>
+ <small>🗺️ マップ一覧で人物・建物を選ぶと、遠くの対象も確認できます。会話・売買・入室は一定距離以内のみです。</small>
+</section>
+<section id="marine-panel" class="fauna-panel" role="group" aria-label="海上移動・潜水・造船" hidden>
+ <div class="fauna-panel-top"><strong>🌊 海・船・潜水</strong>
+  <button type="button" id="marine-close" aria-label="海・船メニューを閉じる">× 閉じる</button></div>
+ <p id="marine-status" aria-live="polite">🏝️ 陸上</p>
+ <label>酸素 <progress id="marine-oxygen" max="100" value="100"></progress>
+  <strong id="marine-oxygen-label">100%</strong></label>
+ <div class="marine-controls">
+  <button type="button" id="marine-dive">↓ 潜る</button>
+  <label>造船 <select id="marine-boat-kind">
+   <option value="raft">🪵 木のいかだ（木10・繊維6）</option>
+   <option value="canoe">🛶 手こぎ舟（木18・繊維10）</option>
+   <option value="sailing_ship">⛵ 中型帆船（木85・板45・繊維45・金属8）</option>
+  </select></label>
+  <button type="button" id="marine-craft">🔨 浜辺で船をクラフト</button>
+  <button type="button" id="marine-board">🛶 乗船する</button>
+  <button type="button" id="marine-leave">🏝️ 上陸・下船・海面へ</button>
+  <button type="button" id="marine-find-island">🔭 周囲の島を探す</button>
+  <p id="marine-island-status" role="status" aria-live="polite">島を探すと方位と距離が表示されます。島のない外洋も存在します。</p>
+ </div>
+ <section class="marine-activity-section" id="marine-diving-controls" aria-label="水泳・潜水・海底探索">
+  <strong>🏊 泳法・潜水装備・海底調査</strong>
+  <label for="marine-swim-style">泳ぎ方
+   <select id="marine-swim-style">
+    <option value="crawl">クロール（速い）</option>
+    <option value="breast">平泳ぎ（長距離）</option>
+    <option value="back">背泳ぎ（ゆっくり）</option>
+    <option value="tread">立ち泳ぎ（停止）</option>
+   </select>
+  </label>
+  <label for="marine-gear-equip">使用する装備
+   <select id="marine-gear-equip">
+    <option value="none">素潜り</option>
+    <option value="snorkel">足ひれ・シュノーケル</option>
+    <option value="scuba">アクアラング</option>
+    <option value="suit">海底作業用潜水服</option>
+   </select>
+  </label>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-equip">🤿 装備変更</button>
+   <button type="button" id="marine-gear-craft">🔨 選択装備をクラフト</button>
+   <button type="button" id="marine-descend">↓ さらに5m潜る</button>
+   <button type="button" id="marine-ascend">↑ 5m浮上</button>
+  </div>
+  <p id="marine-depth-status" role="status">潜水装備と深度を準備しています</p>
+  <p id="marine-gear-inventory">装備：素潜り</p>
+  <strong>🏛️ 海底の発見</strong>
+  <p id="marine-discovery-status" role="status" aria-live="polite">水中で周辺を調査できます</p>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-scan">🔎 周囲を調査する</button>
+   <button type="button" id="marine-salvage">⚒️ 発見物を回収する</button>
+  </div>
+  <small>海底の沈没船、財宝、古代遺跡、竜人文明遺跡は惑星の同じ座標に配置されます。近づいて深度を合わせると調査・回収できます。</small>
+ </section>
+ <section id="marine-sail-controls" class="marine-sail-controls" aria-label="帆船の操船" hidden>
+  <strong>⛵ 中型帆船・操船</strong>
+  <p id="marine-helm-status" role="status" aria-live="polite">舵・帆を準備しています</p>
+  <label for="marine-sail-trim">帆の開き具合 <output id="marine-sail-value" for="marine-sail-trim">65%</output></label>
+  <input type="range" id="marine-sail-trim" min="0" max="100" step="5" value="65" aria-label="帆の開き具合">
+  <div class="marine-helm-buttons">
+   <button type="button" id="marine-steer-left" title="左舵12度">↶ 左舵</button>
+   <button type="button" id="marine-steer-right" title="右舵12度">↷ 右舵</button>
+   <button type="button" id="marine-cruise">▶ 巡航開始</button>
+   <button type="button" id="marine-anchor">⚓ 投錨する</button>
+  </div>
+  <small>操船はスティック・WASD・ダブルタップでも可能。巡航中は手動で舵を切りながら進みます。海面へ降りても巡航中の船は進み続けるため、再乗船は船の近くで行ってください。</small>
+ </section>
+ <section id="marine-crew-controls" class="marine-activity-section" aria-label="乗組員と船内歩行" hidden>
+  <strong>🧑‍✈️ 乗組員・甲板歩行</strong>
+  <p id="marine-shipboard-status" aria-live="polite">乗組員を準備しています</p>
+  <label for="marine-helm-member">舵輪の担当者
+   <select id="marine-helm-member" aria-label="操舵する人物を選ぶ"></select>
+  </label>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-helm-assign">🧭 操舵担当を交代</button>
+   <button type="button" id="marine-helm-walk">🚶 舵輪へ歩く</button>
+   <button type="button" id="marine-ship-door">🚪 扉を開く</button>
+   <button type="button" id="marine-ship-passage">🚶 扉を通る</button>
+  </div>
+  <label for="marine-talk-member">話しかける相手
+   <select id="marine-talk-member" aria-label="会話する乗組員を選ぶ"></select>
+  </label>
+  <button type="button" id="marine-talk">💬 仲間と話す</button>
+  <small>スティックで甲板・船室を歩行、ダブルタップで船内の移動地点を指定。扉まで歩いて開閉できます。舵輪に立つ人物だけが操船し、ほかの仲間は船内外を自律行動します。</small>
+ </section>
+ <section id="marine-cabin-controls" class="marine-activity-section" aria-label="帆船の船室" hidden>
+  <strong>🛏️ 船室・居住空間</strong>
+  <p id="marine-cabin-status" role="status">甲板にいます</p>
+  <button type="button" id="marine-cabin-toggle">🚪 船室に入る</button>
+  <div id="marine-cabin-furniture" class="marine-activity-actions" hidden>
+   <button type="button" data-cabin-action="bed">🛏️ ベッドで眠る</button>
+   <button type="button" data-cabin-action="chair">🪑 椅子に座り休憩</button>
+   <button type="button" data-cabin-action="table">🍽️ 食卓で食事</button>
+   <button type="button" data-cabin-action="bookshelf">📚 本棚・航海日誌</button>
+   <button type="button" data-cabin-action="kitchen">🍳 魚を調理する</button>
+  </div>
+  <small>航行中も船室で休み、食事や読書ができます。扉から移動でき、家具は3Dモデルを直接タップしても使えます。</small>
+ </section>
+ <section id="marine-fishing-controls" class="marine-activity-section" aria-label="釣り・水産資源">
+  <strong>🎣 釣り</strong>
+  <p id="marine-fishing-status" role="status" aria-live="polite">海岸か船の甲板から釣りができます</p>
+  <label class="marine-fish-gauge" for="marine-fish-power">投げる強さ
+   <input id="marine-fish-power" type="range" min="10" max="100" step="5" value="65" aria-label="釣り竿を投げる強さ">
+   <output id="marine-fish-power-label" for="marine-fish-power">65%</output>
+  </label>
+  <div class="marine-reel-wrap">
+   <div id="marine-reel-dial" class="marine-reel-dial" role="slider" tabindex="0"
+    aria-label="釣り糸の巻き取りダイヤル。時計回りにドラッグ、矢印キーでも操作"
+    aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="未投入">
+    <span class="marine-reel-arm" id="marine-reel-arm"></span>
+    <span class="marine-reel-center">🎣</span>
+   </div>
+   <div class="marine-fish-readout">
+    <strong id="marine-fish-phase">投げる準備</strong>
+    <span id="marine-fish-distance">糸：0.0m</span>
+    <label for="marine-fish-line-progress">巻き取り進捗</label>
+    <progress id="marine-fish-line-progress" max="100" value="0"></progress>
+    <small>ダイヤルを時計回りに回すと、アタリ前でも巻き取れます。</small>
+   </div>
+  </div>
+  <div class="marine-activity-actions">
+   <button type="button" id="marine-fish-cast">🎣 ゲージの強さで投げる</button>
+   <button type="button" id="marine-fish-reel">↻ 少し巻き取る</button>
+   <button type="button" id="marine-fish-stop">✕ 終える</button>
+  </div>
+  <small>強さを決めてキャスト → 魚がウキへ近づく → ヒットしたらダイヤルを回して巻き取る。ヒット前に糸を回収することもできます。</small>
+ </section>
+ <section id="marine-voyage-controls" class="marine-activity-section" aria-label="航海の記録" hidden>
+  <strong>🌐 惑星一周・航海日誌</strong>
+  <p id="marine-voyage-status" role="status" aria-live="polite">航海の経過を記録します</p>
+  <progress id="marine-voyage-progress" max="100" value="0" aria-label="惑星一周の進捗"></progress>
+  <small>航行距離だけではなく、経度を連続して一周し、出発点付近に戻ると周航達成です。陸地を避ける航路選択が必要です。</small>
+ </section>
+ <small>海への降下では水面か帆船の甲板を選択。帆船は外洋航行向け。航行中にも操船や上陸・飛び込み・再乗船ができます。矢は着弾後90秒間だけ回収できます。</small>
+</section>
+<section id="fauna-panel" class="fauna-panel" role="dialog" aria-label="野生動物・馬の操作" hidden>
+ <div class="fauna-panel-top">
+  <strong id="fauna-heading">🐎 動物</strong>
+  <button type="button" id="fauna-close" aria-label="動物操作パネルを閉じる">× 閉じる</button>
+ </div>
+ <label class="fauna-label" for="fauna-animal">対象の動物</label>
+ <select id="fauna-animal" aria-label="動物を選ぶ"></select>
+ <p id="fauna-details" class="fauna-describe"></p>
+ <div class="fauna-buttons">
+  <button type="button" id="fauna-approach">🚶 近づく</button>
+  <button type="button" id="fauna-tame">♥ なつかせる</button>
+  <button type="button" id="fauna-call">📯 呼ぶ</button>
+   <button type="button" id="fauna-pasture">🌱 放牧する</button>
+ </div>
+ <div class="fauna-label">🌾 餌を与える（収穫した食料を消費）</div>
+ <div class="fauna-buttons">
+  <select id="fauna-feed-food" aria-label="与える餌">
+   <option value="straw">🌾 麦わら</option><option value="carrot">🥕 ニンジン</option>
+   <option value="apple">🍎 リンゴ</option><option value="wheat">🌿 小麦</option>
+  </select>
+  <button type="button" id="fauna-feed">🍽️ 餌を与える</button>
+ </div>
+ <div id="fauna-tack" class="fauna-tack">
+  <div class="fauna-label">馬具（共有資材から製作・装備）</div>
+  <div class="fauna-buttons">
+   <button type="button" data-tack="bit">＋ ハミ</button>
+   <button type="button" data-tack="reins">＋ 手綱</button>
+   <button type="button" data-tack="saddle">＋ クラ</button>
+   <button type="button" data-tack="horseshoes">＋ 蹄鉄</button>
+  </div>
+ </div>
+ <div class="fauna-buttons">
+  <button type="button" id="fauna-ride" class="primary">🐎 騎乗する</button>
+  <button type="button" id="fauna-unride">↘ 降りる</button>
+ </div>
+ <label class="fauna-label" for="fauna-gait">歩法
+  <select id="fauna-gait" aria-label="馬の歩法">
+   <option value="walk">常歩（7.5m/s）</option>
+   <option value="trot">速歩（10.5m/s）</option>
+   <option value="gallop">駈歩（14.5m/s）</option>
+  </select>
+ </label>
+ <p id="fauna-mounted-state" class="fauna-describe">徒歩</p>
+ <small>動物をタップして選択。野生馬は近くで3回なつかせると馴致できます。馬具3点で騎乗可能、蹄鉄は任意です。剣・槍・弓は既存ボタンで使用。</small>
+</section>
+<section id="farm-panel" class="fauna-panel farm-panel" role="dialog" aria-label="畑・果樹・製材" hidden>
+ <div class="fauna-panel-top">
+  <strong>🌾 農業・果樹・製材</strong>
+  <button type="button" id="farm-close">× 閉じる</button>
+ </div>
+ <p id="farm-status" class="fauna-describe">種と畑を準備しています</p>
+ <button type="button" id="farm-till">🪏 正面3mの土を耕す</button>
+ <label class="fauna-label" for="farm-plot">作業する畑
+  <select id="farm-plot" aria-label="畑を選択"></select>
+ </label>
+ <p id="farm-plot-status" class="fauna-describe"></p>
+ <label class="fauna-label" for="farm-crop">栽培する作物
+  <select id="farm-crop">
+   <option value="wheat">🌾 小麦（6日・麦わら）</option>
+   <option value="carrot">🥕 ニンジン（4日）</option>
+   <option value="apple">🍎 リンゴの果樹（16日、再収穫12日）</option>
+  </select>
+ </label>
+ <div class="fauna-buttons">
+  <button type="button" id="farm-sow">🌱 種をまく</button>
+  <button type="button" id="farm-harvest">🌾 収穫する</button>
+ </div>
+ <div class="fauna-label">🪵 倒木の製材</div>
+ <label class="fauna-label" for="farm-cut-length">切断する長さ（メートル）
+  <input id="farm-cut-length" type="number" inputmode="decimal" min="0.1" max="12" step="0.1" value="1.0">
+ </label>
+ <button type="button" id="farm-saw">🪚 近くの倒木を指定長で切る</button>
+ <p id="farm-timber" class="fauna-describe"></p>
+ <small>耕す・種まき・収穫は降馬して行います。作物は惑星時間で育ち、果樹は再収穫できます。ノコギリで切るたびに残りの丸太が短くなります。</small>
+</section>
+<div id="page-share-overlay" class="page-share-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="page-share-title">
+  <div class="page-share-card">
+    <div class="page-share-heading">
+      <strong id="page-share-title">▦ このページのQRコード</strong>
+      <button type="button" id="page-share-close" aria-label="QR共有画面を閉じる">× 閉じる</button>
+    </div>
+    <p>スマホのカメラで読み取ると、このページを開けます。</p>
+    <div id="page-share-qr" class="page-share-qr" aria-label="現在のページURLのQRコード"></div>
+    <label class="page-share-url-label" for="page-share-url">現在のページURL
+      <input id="page-share-url" type="text" readonly spellcheck="false" aria-label="共有するページのURL">
+    </label>
+    <div class="page-share-actions">
+      <button type="button" id="page-share-copy">📋 URLをコピー</button>
+      <button type="button" id="page-share-native">↗ 共有する</button>
+    </div>
+    <p id="page-share-message" role="status" aria-live="polite"></p>
+    <small>※ 共有するのはページURLです。端末内のセーブデータは含まれません。</small>
+  </div>
+</div>
+<section id="game-console" class="game-console" role="dialog" aria-label="ゲームコンソール" hidden>
+ <div id="game-console-head" class="game-console-head">
+  <strong>▤ ゲームコンソール</strong>
+  <button type="button" id="game-console-close" aria-label="コンソールを閉じる">×</button>
+ </div>
+ <div class="game-console-tools">
+  <select id="game-console-filter" aria-label="ログ種別">
+   <option value="all">すべて</option><option value="combat">戦闘</option>
+   <option value="resource">資源</option><option value="social">会話</option>
+   <option value="info">一般</option><option value="system">システム</option>
+  </select>
+  <input id="game-console-search" type="search" placeholder="ログ検索" aria-label="ログを検索">
+  <button type="button" id="game-console-clear">消去</button>
+ </div>
+ <div id="game-console-lines" class="game-console-lines" role="log" aria-live="off"></div>
+ <form id="game-console-command-form" class="game-console-command-form">
+  <input id="game-console-command" type="text" maxlength="120"
+   aria-label="コンソールコマンド" placeholder="/help でコマンドを表示" autocomplete="off">
+  <button type="submit" aria-label="コマンド実行">実行</button>
+ </form>
+</section>
+<div id="stick-area" class="stick-area" role="group" aria-label="仮想移動スティック">
+  <div class="stick-base"><div id="stick-nub" class="stick-nub"></div></div>
+  <span>MOVE</span>
+</div>
+<div id="door-controls" class="door-controls" hidden role="group" aria-label="小屋の出入り操作">
+  <button type="button" id="door-actions-toggle" aria-expanded="false" aria-controls="door-options" aria-label="ドア操作を開く">🚪 ドア</button>
+  <div id="door-options" class="door-options" hidden>
+    <button type="button" id="door-toggle" aria-label="ドアを開閉">🚪 開ける</button>
+    <button type="button" id="door-enter" hidden>🏠 中に入る</button>
+    <button type="button" id="door-exit" hidden>🌿 外に出る</button>
+    <button type="button" id="door-shelf" hidden>📚 本棚</button>
+  </div>
+</div>
+<div id="action-pad" class="action-pad" aria-label="アクション">
+  <button type="button" id="jump" aria-label="ジャンプ">ジャンプ</button>
+  <button type="button" id="action-tools-toggle" aria-expanded="false" aria-controls="action-tool-list" aria-label="道具メニューを開く">⚒ 道具</button>
+  <div id="action-tool-list" class="action-tool-list" hidden>
+    <button type="button" id="action-sword">剣</button>
+    <button type="button" id="action-axe">斧</button>
+    <button type="button" id="action-mine">採掘</button>
+    <button type="button" id="action-saw">🪚 ノコギリ</button>
+    <button type="button" id="action-dig" title="正面3m・半径14mを約1.5m掘る。土を回収">🪏 掘る</button>
+    <button type="button" id="action-fill" title="土×1を使って正面3mを盛る">🟫 盛り土</button>
+    <button type="button" id="action-build">建築</button>
+    <label>建設する <select id="construction-kind" aria-label="石壁または建築施設を選択">
+     <option value="stone-wall">🧱 石壁 2m</option><option value="warehouse">🏢 共同倉庫</option>
+     <option value="general-store">🛍️ 日用品商店</option><option value="smithy">⚒️ 鍛冶屋</option>
+     <option value="apothecary">🌿 薬屋</option><option value="bookshop">📚 本屋</option>
+     <option value="magic-shop">🔮 魔法店</option><option value="market">🏪 マーケット</option><option value="church">⛪ 教会</option>
+    </select></label>
+    <button type="button" id="construction-mode">📍 配置開始</button>
+    <button type="button" id="construction-cancel" hidden>配置終了</button>
+    <button type="button" id="warehouse-deposit" title="共同倉庫の近くで、リュックを全収納">🏢 倉庫に収納</button>
+    <span id="warehouse-status" aria-live="polite"></span>
+    <span id="construction-status" aria-live="polite"></span>
+    <select id="enemy-type" aria-label="出現させる敵">
+      <option value="slime">🟢 スライム</option>
+      <option value="goblin">👺 ゴブリン</option>
+      <option value="bandit">🗡️ 盗賊</option>
+      <option value="skeleton">💀 骸骨兵</option>
+      <option value="orc">🪓 オーク戦士</option>
+      <option value="lizardman">🦎 リザードマン</option>
+      <option value="demon">😈 魔族剣士</option>
+    </select>
+    <button type="button" id="spawn-enemy">👾 敵出現</button>
+    <select id="enemy-unit-type" aria-label="敵の集団編成">
+     <option value="raiders">盗賊小隊（10体）</option>
+     <option value="warband">魔物戦団（18体）</option>
+    </select>
+    <button type="button" id="spawn-enemy-unit">👹 敵部隊を出現</button>
+    <button type="button" id="clear-test-enemies">敵を消す</button>
+    <span id="battle-status" aria-live="polite">戦闘テスト：敵0体</span>
+  </div>
+</div>
+<div class="hand-actions" id="hand-actions" role="group" aria-label="右手と左手の装備アクション">
+ <button type="button" id="hand-right-use" title="右手に装備したアイテムを使う" aria-label="右手の装備を使う">🫱 右手</button>
+ <button type="button" id="hand-left-use" title="左手に装備したアイテムを使う" aria-label="左手の装備を使う">🫲 左手</button>
+</div>
+<div id="action-command-bar" class="action-command-bar" role="group" aria-label="現在の行動コマンド"></div>
+<div id="archery-mode-bar" class="archery-mode-bar" role="group" aria-label="弓の射出方式" hidden>
+ <label>🏹 弾道 <select id="archery-trajectory" aria-label="矢の飛行方式">
+  <option value="auto">自動（距離で切替）</option>
+  <option value="direct">直射</option>
+  <option value="lob">曲射（放物線）</option>
+ </select></label>
+ <label>矢 <select id="archery-ammo" aria-label="矢の種類">
+  <option value="wood">➶ 木</option><option value="iron">🪙 鉄</option><option value="fire">🔥 火</option>
+ </select></label>
+ <label>狙い <select id="volley-aim" aria-label="一斉射撃の照準方式">
+  <option value="focus">集中</option><option value="nearest">各自</option><option value="spread">分散</option>
+ </select></label>
+ <label>号令 <select id="volley-timing" aria-label="一斉射撃の発射タイミング">
+  <option value="simultaneous">一斉</option><option value="ripple">順次</option>
+ </select></label>
+ <label id="volley-interval-label" hidden>間隔 <select id="volley-interval" aria-label="順次射撃の時間差">
+  <option value="0.12">0.12秒</option><option value="0.22" selected>0.22秒</option>
+  <option value="0.4">0.40秒</option><option value="0.6">0.60秒</option>
+ </select></label>
+ <button type="button" id="practice-target-place" title="前方9mに練習用の的を設置">🎯 的を設置</button>
+</div>
+<div id="aim-reticle" class="aim-reticle" hidden aria-hidden="true">+</div>
+<div id="combat-target-label" class="combat-target-label" hidden aria-live="polite"></div>
+<div id="quick-items" class="quick-items" role="group" aria-label="5つの行動スロット">
+ <div id="quick-slots" class="quick-slots"></div>
+ <button type="button" id="quick-use" aria-label="選択中の最初のコマンドを実行">実行</button>
+ <button type="button" id="quick-inventory" aria-label="アイテム画面を開く">🎒</button>
+ <button type="button" id="quick-config" aria-label="装備を変更">⚙</button>
+</div>
+<div id="rts-controls" class="rts-controls" hidden role="group" aria-label="RTS部隊指揮">
+  <button type="button" id="rts-all">全員選択</button>
+  <button type="button" id="rts-multi" aria-pressed="false">複数選択</button>
+   <button type="button" id="rts-sync" aria-pressed="false" title="複数アバターの共同行動を有効にします">🔗 シンクロOFF</button>
+  <button type="button" id="rts-rally">集合地点</button>
+  <label class="rts-group-picker">部隊 <select id="rts-group-select" aria-label="登録部隊を呼び出す"><option value="">個別選択</option></select></label>
+  <button type="button" id="rts-group-toggle" aria-expanded="false" aria-controls="group-panel">👥 部隊管理</button>
+  <button type="button" id="rts-multi-groups" aria-expanded="false" aria-controls="rts-multi-group-panel">☑ 複数部隊</button>
+  <button type="button" id="rts-follow" aria-pressed="false" title="選択部隊の隊形追従を切替">👣 追従OFF</button>
+  <button type="button" id="rts-group-assemble" title="登録された集合地点へ指定隊形で移動">📣 集合</button>
+  <button type="button" id="rts-stop">停止</button>
+ <label class="rts-heading-label"><input type="checkbox" id="rts-heading-up"> 進行方向を上に</label>
+  <span id="rts-summary">選択: 開拓者</span>
+</div>
+<section id="rts-multi-group-panel" class="rts-multi-group-panel" hidden role="region" aria-label="複数部隊の同時指揮">
+  <div class="multi-group-heading"><strong>☑ 複数部隊を選択</strong><button type="button" id="rts-multi-group-close" aria-label="閉じる">×</button></div>
+  <div id="rts-group-multi-list" class="multi-group-list" aria-label="同時に操作する部隊"></div>
+  <p id="rts-multi-group-summary" aria-live="polite">チェックした部隊へ同時に指示します。</p>
+  <div class="multi-group-buttons">
+   <button type="button" id="rts-multi-assemble">📣 全隊集合</button>
+   <button type="button" id="rts-multi-form">↔ 全隊整列</button>
+   <button type="button" id="rts-multi-stop">⏹ 全隊停止</button>
+  </div>
+  <p>移動は地面をダブルタップ。シンクロONで選択グループの対応する装備者が一斉行動します。</p>
+ </section>
+ <section id="group-panel" class="group-panel" hidden role="region" aria-label="部隊の登録と隊形編集">
+  <div class="group-header"><strong>👥 部隊管理・隊形</strong><button id="group-close" type="button" aria-label="部隊管理を閉じる">×</button></div>
+  <p>複数選択した人物を登録できます。メンバーの順番が隊形の配置順になります。</p>
+  <div class="group-buttons roster-presets" role="group" aria-label="隊員を増やす編成テンプレート">
+   <button type="button" id="deploy-party">🧭 冒険者パーティ（6人）</button>
+   <button type="button" id="deploy-company">🛡️ 中隊を編成（50人）</button>
+  </div>
+  <p>パーティ：前衛3人＋後衛3人。中隊：槍兵20・剣士10・弓兵10・魔法使い5・回復役5。</p>
+  <label>部隊名 <input id="group-name" type="text" maxlength="24" placeholder="例：第一弓兵隊" autocomplete="off"></label>
+  <div class="group-settings">
+    <label>隊形 <select id="group-formation">
+      <option value="line">━ 横隊</option><option value="column">┃ 縦隊</option>
+      <option value="wedge">⌄ 楔形</option><option value="square">▦ 方陣</option><option value="battleline">⚔️ 前衛・後衛</option>
+    </select></label>
+    <label>間隔 <input id="group-spacing" type="number" min="1.2" max="8" step="0.2" value="2.4"> m</label>
+    <label class="group-sync"><input id="group-sync" type="checkbox"> 🔗 グループ選択時にシンクロ</label>
+    <label class="group-sync"><input id="group-follow" type="checkbox" checked> 👣 隊長に隊形追従</label>
+  </div>
+  <strong class="group-roster-title">メンバーと配置順</strong>
+  <div id="group-members" class="group-members" aria-label="部隊員の選択と順番変更"></div>
+  <div class="group-buttons">
+    <button type="button" id="group-new">＋ 新規登録</button>
+    <button type="button" id="group-update">変更を保存</button>
+    <button type="button" id="group-delete">部隊を削除</button>
+  </div>
+  <div class="group-buttons">
+    <button type="button" id="group-rally-here">📍 現在地を集合地点に</button>
+    <button type="button" id="group-rally-pick">🎯 地面で集合地点を指定</button>
+    <button type="button" id="group-form">↔ 隊形に整列</button>
+    <button type="button" id="group-go">📣 集合</button>
+  </div>
+  <p id="group-status" role="status" aria-live="polite">人物を選択して「新規登録」してください。</p>
+</section>
+<div id="auto-panel" class="auto-panel" hidden role="region" aria-label="自動行動条件設定">
+  <div class="auto-title"><strong>🤔 条件分岐・自動行動</strong><button id="auto-close" type="button" aria-label="閉じる">×</button></div>
+  <p>上から優先順に、最初に成立した IF 条件の THEN 行動を実行します。初期8スロット、人物ごとに保存します。</p>
+  <div class="auto-head">
+    <label>設定対象 <select id="auto-actor" aria-label="自動行動を設定する人物"><option value="player">開拓者</option><option value="scout">斥候</option><option value="artisan">職人</option></select></label>
+    <label class="auto-toggle"><input type="checkbox" id="auto-enabled"> 自動行動 ON</label>
+  </div>
+  <div class="auto-chest-settings" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:7px 0">
+ <label>📦 収納先 <select id="auto-chest-target" aria-label="収納先チェスト"><option value="">近くのチェスト（自動）</option></select></label>
+ <label>並べ替え <select id="auto-chest-sort" aria-label="チェストを並べ替える"><option value="distance">現在地から近い順</option><option value="name">名前順</option></select></label>
+ <label>チェスト名 <input id="auto-chest-name" maxlength="32" placeholder="例：木材倉庫" aria-label="チェストの名前"></label>
+ <button type="button" id="auto-chest-rename">名前変更</button>
+ <span id="auto-chest-contents" aria-live="polite"></span>
+ </div>
+ <div id="auto-actor-list" class="auto-actor-list" aria-label="各人物の状態"></div>
+  <div id="auto-rule-list" class="auto-rule-list" aria-label="優先順位つき条件スロット"></div>
+  <div class="auto-footer">
+    <button type="button" id="auto-rally">今の地点を集合地点に</button>
+    <button type="button" id="auto-all-on">全員自動ON</button>
+    <button type="button" id="auto-all-off">全員自動OFF</button>
+  </div>
+  <p id="auto-status" aria-live="polite">条件の設定後、自動行動をONにしてください。</p>
+</div>
+<section id="social-panel" class="social-panel" role="dialog" aria-label="会話とプレゼント" hidden>
+ <div class="social-header"><strong>💬 会話とプレゼント</strong><button type="button" id="social-close">×</button></div>
+ <label>自分 <select id="social-from"></select></label>
+ <label>相手 <select id="social-target"></select></label>
+ <div class="social-buttons"><button type="button" id="social-talk">💬 話す</button>
+ <select id="social-gift-item" aria-label="プレゼントする持ち物"></select>
+ <button type="button" id="social-gift">🎁 プレゼント</button></div>
+ <p id="social-result" aria-live="polite">相手の4m以内で利用できます。</p>
+</section>
+<section id="quick-config-panel" class="social-panel" role="dialog" aria-label="装備編集" hidden>
+ <div class="social-header"><strong>🎒 持ち物・左右の装備</strong><button type="button" id="quick-config-close">×</button></div>
+ <label>設定対象 <select id="quick-actor"></select></label>
+ <p id="equip-inventory-label" aria-live="polite"></p>
+ <strong>🫱 右手・🫲 左手</strong><p>🔱 槍・⚔️ 両手剣は両手を占有します。装備すると反対側の盾や道具は自動的にはずれ、両手のボタンから同じ武器を使用できます。</p>
+ <div id="hand-config-rows"></div>
+ <label>⚔️ 攻撃モーション <select id="attack-mode" aria-label="剣・槍・両手剣・斧の攻撃モーション">
+  <option value="overhead">振りかぶり → 振り下ろす</option>
+  <option value="sweep">横薙ぎ</option>
+  <option value="thrust">突き（剣・槍・両手剣）</option>
+  <option value="combo">連続攻撃（剣3連・両手武器2連）</option>
+ </select></label>
+ <div class="archery-craft"><span id="arrow-stock-label" aria-live="polite">🏹 矢筒：12本</span>
+ <label>製作 <select id="arrow-craft-type"><option value="wood">木の矢 ×6</option><option value="iron">鉄の矢 ×3</option><option value="fire">火矢 ×3</option></select></label>
+ <button type="button" id="arrow-craft">選択した矢を製作</button></div>
+ <strong>行動スロット5枠（装備セットと4コマンドを設定）</strong>
+ <label class="auto-target-setting"><input id="combat-auto-target" type="checkbox" checked/> 🎯 自動ターゲット（タップした敵を優先）</label>
+ <div id="quick-config-rows"></div>
+ <button type="button" id="equip-open-inventory">🎒 持ち物一覧から装備を選ぶ</button>
+ <p>枠を押すと左右の装備を切替。槍は長い突き、両手剣は強力な薙ぎ払いが得意。敵または練習用の的をタップして狙いを選択できます。RTSでシンクロONの場合、射るボタンで弓装備・矢ありの選択アバターが一斉に射撃します。着弾後の矢はタップで回収。</p>
+</section>
+<div id="book-overlay" class="book-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="book-heading">
+  <div class="book-topbar">
+    <strong id="book-heading">📚 本棚と持ち物の本</strong>
+    <button type="button" id="book-close" aria-label="読書画面を閉じる">× 閉じる</button>
+  </div>
+  <section id="book-library" class="book-library" aria-label="読める本">
+    <p id="book-library-status" class="book-library-status"></p>
+    <div id="book-library-list" class="book-library-list"></div>
+  </section>
+  <section id="book-reading" class="book-reading" hidden aria-label="本の本文">
+    <div class="book-reading-head">
+      <button type="button" id="book-back">← 本を選ぶ</button>
+      <div><strong id="book-title"></strong><span id="book-author"></span></div>
+    </div>
+    <div class="book-paper" id="book-paper" tabindex="0">
+      <div class="book-chapter" id="book-chapter"></div>
+      <div class="book-text" id="book-text"></div>
+    </div>
+    <div class="book-reader-bottom">
+      <button type="button" id="book-prev">◀ 前のページ</button>
+      <span id="book-page-no" aria-live="polite"></span>
+      <button type="button" id="book-next">次のページ ▶</button>
+    </div>
+    <div class="book-type-controls">
+      <span>文字サイズ</span>
+      <button type="button" id="book-font-down" aria-label="文字を小さく">A−</button>
+      <button type="button" id="book-font-up" aria-label="文字を大きく">A＋</button>
+      <span id="book-reading-note">しおりは自動保存されます</span>
+    </div>
+  </section>
+</div>
+<div id="life-overlay" class="life-overlay" role="dialog" aria-modal="true" aria-labelledby="life-title" hidden>
+ <div class="life-header"><strong id="life-title">🛠️ 生活・クラフト</strong>
+  <button type="button" id="life-close">× 閉じる</button></div>
+ <div class="life-stats" id="life-stats" aria-live="polite"></div>
+ <nav class="life-tabs" aria-label="生活操作">
+  <button type="button" data-life-tab="craft" aria-pressed="true">🔨 クラフト</button>
+  <button type="button" data-life-tab="inventory">🎒 持ち物</button>
+  <button type="button" data-life-tab="home">🏠 家具</button>
+  <button type="button" data-life-tab="camp">⛺ 野営</button>
+ </nav>
+ <p id="life-message" role="status">家具をクラフトして生活を始めましょう。</p>
+ <div id="life-list" class="life-list" aria-live="polite"></div>
+ <div id="life-place" class="life-placement" hidden>
+   <strong id="life-place-title">家具を配置</strong>
+   <p>家の中の位置と向きを調節します。入口・壁・他の家具には重ねられません。</p>
+   <div id="life-floor-map" class="life-floor-map" aria-label="屋内の上面図">
+    <span class="life-floor-door">🚪 入口</span>
+    <div id="life-place-mark" class="life-place-mark">家具</div>
+   </div>
+   <div id="life-place-coords" class="life-place-coords"></div>
+   <div class="life-place-arrows">
+     <button type="button" data-life-move="z-">↑ 奥へ</button>
+     <button type="button" data-life-move="x-">← 左</button>
+     <button type="button" data-life-move="x+">右 →</button>
+     <button type="button" data-life-move="z+">↓ 入口へ</button>
+     <button type="button" id="life-rotate">↻ 90°回転</button>
+   </div>
+   <div class="life-place-confirm">
+    <button type="button" id="life-place-confirm">✓ ここに設置</button>
+    <button type="button" id="life-place-cancel">キャンセル</button>
+   </div>
+ </div>
+ <div class="life-help">木は伐採、石・粘土・金属は採掘、繊維は伐採で増えます。屋外で食材も採集できます。</div>
+</div>
+<div id="fatal" class="fatal" hidden>初期化中</div>
+      <div class="mode-hint" id="walk-note">画面をドラッグして向きを調節できます。</div>
+    </div>
+    <div class="toolbar" id="viewport-toolbar">
+      <button id="toolbar-avatar-v10" type="button" aria-haspopup="dialog">アバター編集</button>
+      <button id="toolbar-crew-test" type="button">船内クルーテスト</button>
+      <button id="toolbar-mr-social" type="button" aria-controls="xr-controls">🥽 MR・対面（試験）</button>
+      <button id="ui-display-from-toolbar" type="button" aria-controls="ui-display-panel">👁 表示設定</button>
+       <button id="zoom-in" type="button">＋ 拡大</button>
+      <button id="toolbar-rts" type="button">⚓ RTS視点</button>
+      <button id="toolbar-owner" type="button" aria-pressed="false" aria-controls="owner-panel">🏗️ オーナーモード</button>
+      <button id="toolbar-auto" type="button">🤔 条件分岐設定</button>
+       <button id="toolbar-books" type="button">📚 本棚・読書</button>
+       <button id="toolbar-life" type="button">🛠️ 家具・テント・食器</button>
+      <button id="zoom-out" type="button">− 縮小</button>
+      <button id="play" type="button">⏸ 時間を停止</button>
+      <label for="days-per-second">ゲーム時間</label>
+      <select id="days-per-second">
+        <option value=".25">スロー ×0.25</option>
+        <option value="1" selected>実時間 ×1</option>
+        <option value="60">早回し ×60</option>
+        <option value="600">早回し ×600</option>
+        <option value="3600">早回し ×3600</option>
+      </select>
+      <button id="next-day" type="button">＋1日</button>
+      <button id="next-season" type="button">＋90日</button>
+      <button id="save" type="button">💾 v0.8x保存</button>
+      <button id="restore" type="button">📂 v0.8x復元</button>
+      <details class="save-slots-panel"><summary>🌱 新しい冒険を始める</summary><label>モード <select id="new-adventure-mode"><option value="story">シナリオ</option><option value="sandbox">自由冒険</option></select></label><label>開始地点 <select id="new-adventure-location"><option value="pioneer">開拓村</option><option value="wilderness">野外（開拓村付近）</option></select></label><button type="button" id="new-adventure-start">新規冒険を開始</button><small>現在の冒険は空きスロットへ自動退避します。空きがなければ開始できません。監獄の手配情報は新しい冒険に引き継ぎません。</small></details><details id="scenario-panel-wrapper" class="save-slots-panel"><summary>📖 シナリオ・クエスト（試験版）</summary><div id="scenario-panel" aria-live="polite"></div></details>
+      <details class="save-slots-panel"><summary>💾 セーブスロット（5件）</summary><button type="button" id="save-slots-refresh">一覧を更新</button><div id="save-slot-list" aria-live="polite"></div><small>個別の冒険データと建築編集を保存します。このブラウザ内に保存し、従来のクイックセーブは変更しません。</small></details>
+      <details class="save-slots-panel"><summary>📱 PC・スマホ・Questへセーブを引継ぐ</summary>
+       <button type="button" id="portable-save-export">⬇ 現在の冒険を書き出す（JSON）</button>
+       <label>⬆ セーブファイル読込 <input type="file" id="portable-save-import" accept=".json,application/json"></label>
+       <small>同じページを別端末で開き、JSONファイルを転送して読み込みます。セーブデータ・VR装備・建築物を含みます。読込時は確認が必要です。自動クラウド同期は未対応です。</small>
+      </details>
+       <button id="import-v07d-save" type="button" title="旧v0.7dセーブを上書きせず取り込む">v0.7dデータ読込</button>
+      <button id="import-v07c-save" type="button" title="旧v0.7cセーブを読み取りのみで取り込み">v0.7cデータ読込</button>
+      <button id="import-v07b-save" type="button" title="v0.7bのセーブを読み取り専用で取り込みます">v0.7bデータ読込</button>
+      <button id="import-v07a-save" type="button" title="旧v0.7aセーブを読み込み（旧版の保存データは変更しません）">v0.7aデータ読込</button>
+      <button id="import-v06-save" type="button" title="v0.6の保存データをコピーして読み込む。旧保存データは変更しません。">v0.6データ読込</button>
+      <button id="reset" type="button">初期化</button>
+    </div>
+  </section>
+
+<details class="customization panel" id="avatar-settings">
+    <summary><span>人物の設定</span> — 衣装・髪・表情・視線 <small>タップして開く</small></summary>
+    <div class="customization-inner">
+      <p>地上に降りてから、人物の外見や表情の変化を確認できます。選択結果は「v0.7b保存」で記録します。</p>
+      <div class="customization-grid">
+        <label>衣装プリセット
+          <select id="outfit-select">
+            <option value="pioneer">開拓者</option><option value="scout">斥候</option>
+            <option value="artisan">職人</option><option value="farmer">農民</option>
+            <option value="merchant">商人</option><option value="priest">司祭</option>
+            <option value="guard">衛兵</option><option value="hunter">狩人</option>
+            <option value="traveler">旅人</option><option value="villager">村人</option>
+          </select>
+        </label>
+        <label>髪型
+          <select id="hair-style"><option value="short">短髪</option><option value="long">長髪</option><option value="bun">お団子</option><option value="braid">編み髪</option></select>
+        </label>
+        <label>帽子
+          <select id="headwear"><option value="none">なし</option><option value="hat">つば広帽子</option><option value="hood">フード</option><option value="helmet">ヘルメット</option></select>
+        </label>
+        <label>マント
+          <select id="cape"><option value="none">なし</option><option value="short">短いマント</option><option value="long">長いマント</option></select>
+        </label>
+        <label>鞄
+          <select id="bag"><option value="none">なし</option><option value="satchel">革鞄</option><option value="toolbag">道具鞄</option></select>
+        </label>
+        <label>上着色 <input id="outer-color" type="color" value="#33766c"/></label>
+        <label>ズボン色 <input id="legs-color" type="color" value="#34495a"/></label>
+        <label>靴の色 <input id="feet-color" type="color" value="#44382f"/></label>
+        <label>髪色 <input id="hair-color" type="color" value="#43372f"/></label>
+        <label>表情
+          <select id="expression-preset">
+            <option value="neutral">平常</option><option value="joy">喜び</option>
+            <option value="sadness">悲しみ</option><option value="anger">怒り</option>
+            <option value="fear">不安</option><option value="surprise">驚き</option>
+            <option value="fatigue">疲労</option>
+          </select>
+        </label>
+        <label>視線（左右） <input id="gaze-x" type="range" min="-1" max="1" step="0.05" value="0"/></label>
+        <label class="check-label"><input id="auto-blink" type="checkbox" checked/> 自動まばたき</label>
+      </div>
+      <div class="customization-footer">
+        <strong id="customization-status">開拓者・平常</strong>
+        <button id="reset-appearance" type="button">外見と表情を初期値へ</button>
+      </div>
+    </div>
+  </details>
+<details class="customization panel" id="frontier-glb-settings">
+ <summary><span>🧍 Frontier World GLBアバター</span> — 男女モデルを利用 <small>タップして開く</small></summary>
+ <div class="customization-inner">
+ <p>標準ではGitHub同梱の男女GLBを使います。SafariとChatGPT内ブラウザで同じモデルを表示するため、古い端末キャッシュを自動適用しません。自作GLBは「インポート済み」で使用できます。</p>
+ <div class="customization-grid">
+ <label>モデルの入手先 <select id="frontier-glb-source"><option value="standard">標準・全ブラウザ共通</option><option value="imported">インポート済み・端末固有</option></select></label>
+ <label>画質設定 <select id="frontier-glb-quality"><option value="auto">自動（両ブラウザ共通・軽量）</option><option value="high">高精細（約6万三角形）</option><option value="mobile">軽量（約1万三角形）</option></select></label>
+ <label>ファイルの性別 <select id="frontier-glb-sex"><option value="male">男性GLB</option><option value="female">女性GLB</option></select></label>
+ <label>GLBファイル <input type="file" id="frontier-glb-input" accept=".glb,model/gltf-binary"></label>
+ <label>対象人物 <select id="frontier-glb-actor"><option value="player">開拓者</option><option value="scout">斥候</option><option value="artisan">職人</option></select></label>
+ <label>適用するモデル <select id="frontier-glb-choice"><option value="male">男性GLB</option><option value="female">女性GLB</option><option value="classic">従来の3Dモデル</option></select></label>
+ </div>
+ <div class="avatar-loading-control"><button type="button" id="frontier-glb-refresh">↻ 標準モデル・キャッシュ更新</button><small>オリジナル男女GLBを高精細／軽量の2種類で配布。自動はSafari/ChatGPTで共通の軽量版です。</small></div>
+ <p id="frontier-glb-status" data-state="loading" role="status" aria-live="polite">標準GLBを確認しています。</p>
+ </div>
+</details>
+<details class="customization panel camera-settings" id="camera-settings">
+    <summary><span>カメラ設定</span> — 追従・自由視点・人物注視・上空俯瞰 <small>タップして開く</small></summary>
+    <div class="customization-inner">
+      <p>地上でモードを切り替え、画面をドラッグすると視線が回転します。自由視点ではスティック/WASDでカメラだけが移動します。</p>
+      <div class="customization-grid">
+        <label>カメラモード
+          <select id="camera-mode">
+            <option value="legacy">現在の従来モード</option>
+            <option value="follow">追従（三人称）</option>
+            <option value="shoulder">肩越し</option>
+            <option value="free">任意視点・自由移動</option>
+            <option value="orbitTarget">アバターの周囲を回転</option>
+            <option value="tactical">上空から俯瞰（RTS）</option>
+          </select>
+        </label>
+        <label>視野角 <span id="camera-fov-label">65°</span>
+          <input id="camera-fov" type="range" min="35" max="90" step="1" value="65"/>
+        </label>
+        <label>追従・注視距離 <span id="camera-distance-label">8m</span>
+          <input id="camera-distance" type="range" min="1" max="120" step=".5" value="8"/>
+        </label>
+        <label>上空俯瞰の高さ <span id="camera-height-label">250m</span>
+          <input id="camera-height" type="range" min="8" max="18000" step="1" value="250"/>
+        </label>
+        <label>追従のなめらかさ
+          <input id="camera-follow-strength" type="range" min=".1" max="24" step=".1" value="8"/>
+        </label>
+        <label class="check-label"><input id="camera-indicator" type="checkbox" checked/> アバター位置マーカー</label>
+ <label class="check-label"><input id="camera-rts-heading" type="checkbox"> RTS画面を人物の進行方向に合わせる</label>
+        <label class="fog-choice">遠景フォグ
+          <select id="fog-mode" aria-label="遠景フォグの表示モード">
+            <option value="auto" selected>自動（天候・標高に連動）</option>
+            <option value="off">OFF（遠景を鮮明に）</option>
+            <option value="light">軽量（薄い霞）</option>
+            <option value="realistic">リアル（大気遠近法）</option>
+          </select>
+          <small id="fog-detail" role="status">自動 / FPSに応じてLOD調整</small>
+        </label>
+      </div>
+      <div class="customization-footer">
+        <strong id="camera-mode-label">追従（三人称）</strong>
+        <div class="camera-controls">
+          <button type="button" id="camera-face">人物の顔を見る</button>
+          <button type="button" id="camera-home">人物の位置へ戻す</button>
+        </div>
+      </div>
+      <p class="camera-tip">地上から高度35m〜18kmの俯瞰表示を選べます。10km級では人物は実物の縮尺で小さくなるため、画面上のマーカーで位置を示します。全球モードは既存の惑星描画へ切り替わります。</p>
+    </div>
+  </details>
+  <section class="info-grid">
+    <div class="panel">
+      <span class="eyebrow">02 / LANDING & EXPLORATION</span>
+      <h2>地表の探索</h2>
+      <p class="hint">惑星を1回タップしたら「陸地へ降下」か「海上に降下」を選択します。陸地モードでは海上への誤降下を防ぎます。「この地点へ降下」で出発できます。惑星をダブルタップするとその地点へ直接降下。着陸後はスティックまたは画面をタップして移動できます。ジャンプ、剣、斧、採掘、建築は画面右側のボタンから。キーボードはWASD、Q/Eを利用できます。</p>
+      <label for="landing-select">着陸エリア</label>
+      <select id="landing-select" class="wide-select">
+        <option value="28,42" selected>初期大陸候補</option>
+        <option value="0,80">赤道周辺の大陸候補</option>
+        <option value="54,-100">北方の大陸候補</option>
+        <option value="-32,118">南半球の大陸候補</option>
+      </select>
+      <p class="small-info">着陸地: <strong id="landing">検索中</strong></p>
+      <div class="mobile-dpad" aria-label="歩行と旋回操作">
+        <div class="dpad-row">
+          <button type="button" data-move="w" aria-label="前進">▲</button>
+        </div>
+        <div class="dpad-row">
+          <button type="button" data-move="q" aria-label="左旋回">↶ 左旋回</button>
+          <button type="button" data-move="s" aria-label="後退">▼</button>
+          <button type="button" data-move="e" aria-label="右旋回">右旋回 ↷</button>
+        </div>
+        <div class="dpad-row">
+          <button type="button" data-move="a" aria-label="左へ移動">◀</button>
+          <button type="button" data-move="d" aria-label="右へ移動">▶</button>
+        </div>
+      </div>
+      <p id="walk-status" class="status">降下中／宇宙視点</p>
+      <small id="foot-journey-status" aria-live="off">🚶 徒歩の旅を記録します</small>
+    </div>
+
+    <div class="panel">
+      <span class="eyebrow">03 / LIVE ENVIRONMENT</span>
+      <h2>現在位置の環境</h2>
+      <div class="metrics">
+        <div><span>地表標高</span><strong id="ground-height">--</strong></div>
+        <div><span>地形区分</span><strong id="biome">--</strong></div>
+        <div><span>気温</span><strong id="temp">--</strong></div>
+        <div><span>日照</span><strong id="sunlight">--</strong></div>
+        <div><span>経過日数</span><strong id="day">--</strong></div>
+        <div><span>歩行距離</span><strong id="walked">--</strong></div>
+        <div><span>描画速度</span><strong id="fps">-- fps</strong></div>
+        <div><span>跳躍</span><strong id="jump-state">接地</strong></div>
+        <div><span>道具/作業</span><strong id="action-state">準備完了</strong></div>
+        <div><span>資材</span><strong id="materials">木12 / 石8</strong></div>
+        <div><span>完成した小屋</span><strong id="building-count">0</strong></div>
+      </div>
+      <p class="hint">地上メッシュは、宇宙から見た地形と同じ緯度・経度および高度サンプルから生成しています。描画負荷を抑えるため高度に応じて地形の細かさを変えます。</p>
+    </div>
+  </section>
+  <section class="panel bottom-info">
+    <span class="eyebrow">ENGINE STATUS</span>
+    <h2>エンジン・ログ</h2>
+    <ul id="log" aria-live="polite"></ul>
+    <p class="disclaimer">本作は架空惑星のWebGL2プロトタイプです。惑星全体の地形と着陸地の座標は共通ですが、動物の野生移動・追従は簡易版です。家畜の繁殖・酪農・放牧・厩舎への収納、河川流量やマルチプレイヤー同期は今後拡張します。現実世界を投影するKamoku Monitorおよび既存Frontier Worldとは未接続です。剣・槍・両手剣は独立した戦闘テスト内で命中判定を行います。斧・採掘の資源増加と建築はデモ用の仮ルールです。</p>
+    <a href="../planet-demo/">従来の気候・生態系・重力実験デモを見る →</a>
+  </section>
+</main>
+<footer>Universal Engine — Fictional Multiverse Simulation / No modification to Kamoku Monitor</footer>
+<script src="./vendor/qrcode.min.js?v=1.0.0"></script>
+<script type="module" src="./share-link.mjs?v=1"></script>
+<dialog id="avatar-v10-dialog" aria-labelledby="avatar-v10-title">
+ <form>
+  <div class="avatar-v10-heading"><h2 id="avatar-v10-title">アバター編集</h2><button type="submit" value="cancel">閉じる</button></div>
+  <div class="avatar-v10-grid">
+   <section class="avatar-v10-preview" aria-label="3Dプレビュー">
+    <canvas tabindex="0" aria-label="3Dプレビュー。ドラッグか左右の矢印で回転"></canvas>
+    <div class="avatar-v10-view">
+     <button type="button" data-avatar-view="face" aria-pressed="true">顔</button>
+     <button type="button" data-avatar-view="body" aria-pressed="false">全身</button>
+    </div>
+    <output role="status"></output>
+   </section>
+   <div class="avatar-v10-fields">
+    <label>編集する人物 <select name="person"></select></label>
+    <label>モデル <select name="model"></select></label>
+    <label>衣装 <select name="outfit"></select></label>
+    <div id="avatar-v10-features"></div>
+   </div>
+  </div>
+  <div class="avatar-v10-footer">
+   <button type="button" id="avatar-v10-reset">この人物を初期設定に戻す</button>
+   <button type="submit" value="apply">保存して反映</button>
+  </div>
+ </form>
+</dialog>
+<script type="module" src="./app.mjs?v=20261122-wristwatch"></script>
+<script type="module" src="./ui-visibility.mjs?v=20261112-pilot"></script>
+<script>
+/* XR settings are independent of WebXR initialization. */
+(() => {
+ const settingsButton=document.getElementById("xr-settings-toggle");
+ const helpButton=document.getElementById("xr-help-toggle");
+ const settingsBody=document.getElementById("xr-settings-body");
+ const helpPanel=document.getElementById("xr-help-panel");
+ if(!settingsButton||!helpButton||!settingsBody||!helpPanel)return;
+ function showHelp(open){
+  helpPanel.hidden=!open;
+  helpButton.setAttribute("aria-expanded",String(open));
+  helpButton.setAttribute("aria-label",open?"XRの仕様・操作説明を閉じる":"XRの仕様・操作説明を表示");
+  helpButton.title=open?"説明を閉じる":"仕様・操作説明";
+ }
+ function showSettings(open){
+  settingsBody.hidden=!open;
+  settingsButton.setAttribute("aria-expanded",String(open));
+  settingsButton.textContent=open?"▲ 折り畳み":"▼ 展開";
+  if(!open)showHelp(false);
+ }
+ settingsButton.addEventListener("click",()=>showSettings(settingsBody.hidden));
+ helpButton.addEventListener("click",()=>showHelp(helpPanel.hidden));
+ document.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&!helpPanel.hidden){showHelp(false);helpButton.focus();}
+ });
+ showSettings(false);
+})();
+</script>
+<script type="module" src="../visitor-counter.mjs"></script>
+</body>
+</html>
