@@ -42,9 +42,10 @@ test("sofa seats require individual cushions and cannot be shared",()=>{
  assert.equal(people.action("engineer","sit",{room:r}).ok,true);
  assert.notEqual(people.get("navigator").seatId,people.get("engineer").seatId);
  assert.equal(people.action("companion","sit",{room:r}).ok,false);
- r.removeLastCushion();
+ const removed=r.removeLastCushion();
  people.tick(head,.06,r);
- assert.equal(people.get("engineer").seatId,null);
+ const affected=people.actors.find(a=>a.seatId===removed.id);
+ assert.equal(affected,undefined,"removed seat cannot remain occupied");
 });
 test("saved cushions are relative to room origin and follow furniture removal",()=>{
  const r=room();const chair=r.add("chair",{x:.2,z:-2.1});
