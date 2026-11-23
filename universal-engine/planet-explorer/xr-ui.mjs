@@ -616,10 +616,47 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   statusText("🥽 "+(hit.action==="hug"?"🫂 肩に両手を添えてハグ":"🤝 同じ手で握手")+"："+(result.message||hit.id));
   return true;
  }
+ function tryMRLivingGrip(event){
+  const hand=event.inputSource?.handedness;
+  if(!["left","right"].includes(hand)||!event.frame||!space)return;
+  let matrix=null;try{
+   const ref=event.inputSource.gripSpace||event.inputSource.targetRaySpace;
+   matrix=ref?event.frame.getPose(ref,space)?.transform.matrix:null;
+  }catch(_){}
+  if(!matrix)return;
+  const point={x:matrix[12],y:matrix[13],z:matrix[14]};
+  mrHeldGrips.set(hand,point);
+  const near=mrAvatars.actors.map(a=>({a,d:Math.hypot(point.x-a.x,point.z-a.z)}))
+   .filter(e=>e.d<.85).sort((x,y)=>x.d-y.d)[0];
+  if(!near)return;
+  const a=near.a,scale=a.size||1;
+  if(a.id==="player")return;
+  const right=[a.x+Math.cos(a.yaw)*.30*scale,a.y+1.06*scale,a.z-Math.sin(a.yaw)*.30*scale];
+  const handDist=Math.hypot(point.x-right[0],point.y-right[1],point.z-right[2]);
+  const leftGrip=mrHeldGrips.get("left"),rightGrip=mrHeldGrips.get("right");
+  const shoulders=[leftGrip,rightGrip].every(q=>q&&Math.hypot(q.x-a.x,q.z-a.z)<.68*scale&&
+   Math.abs(q.y-(a.y+1.3*scale))<.45*scale);
+  const play=(kind,grip)=>{
+   if(a.seatId){statusText("🛋 立ってから交流します");return false;}
+   if(!mrLivingSocial.offer(a.id,kind)){statusText("🛋 相手は今、"+(kind==="hug"?"ハグ":"握手")+"を望んでいません");return false;}
+   a.motion=kind;a.time=0;a.gestureDuration=kind==="hug"?2.7:2.6;a.handGrip=grip;
+   try{event.inputSource?.gamepad?.hapticActuators?.[0]?.pulse(.2,45);}catch(_){}
+   return true;
+  };
+  if(shoulders){play("hug",[point.x,point.y,point.z]);return;}
+  if(handDist<.38*scale&&hand==="right"){play("handshake",[point.x,point.y,point.z]);return;}
+  const chest=Math.hypot(point.x-a.x,point.z-a.z)<.25*scale&&Math.abs(point.y-(a.y+1.24*scale))<.20*scale;
+  const pelvis=Math.hypot(point.x-a.x,point.z-a.z)<.23*scale&&Math.abs(point.y-(a.y+.90*scale))<.18*scale;
+  if(chest||pelvis){
+   const response=mrLivingSocial.touch(a.id,chest?"chest":"pelvis",{witnesses:mrAvatars.actors.filter(x=>x.id!==a.id).map(x=>x.id)});
+   if(response?.type==="warning")statusText("🛋 接触を拒否されました");
+  }
+ }
  function onVRSqueezeStart(event){
   henshinGripConsumed.delete(event.inputSource?.handedness);
   if(henshinInput(event,"grab")){henshinGripConsumed.add(event.inputSource.handedness);return;}
   if(activeMode==="mr-henshin")return;
+  if(activeMode==="mr-avatars"){tryMRLivingGrip(event);return;}
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand)||!nativeGrip(hand))return;
@@ -730,6 +767,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  function onVRSqueezeEnd(event){
   if(henshinGripConsumed.has(event.inputSource?.handedness)){henshinInput(event,"release");return;}
   if(activeMode==="mr-henshin")return;
+  if(activeMode==="mr-avatars"){mrHeldGrips.delete(event.inputSource?.handedness);return;}
   if(activeMode!=="vr")return;
   const hand=event.inputSource?.handedness;
   if(!["left","right"].includes(hand))return;
