@@ -1,4 +1,6 @@
 import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v05-natural";
+import {ShipLaunchProcedure} from "./ship-launch-procedure.mjs?v=20261123-native-launch";
+import {installShipLaunchUI} from "./ship-launch-ui.mjs?v=20261123-native-launch";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
 import {installHenshinUI} from "./henshin-ui.mjs?v=20261121-native";
@@ -134,7 +136,7 @@ const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
-let xrUI=null,mediaUI=null,footVoyage=null,wristTime=null,wristUI=null,crewVoice=null;
+let xrUI=null,mediaUI=null,footVoyage=null,wristTime=null,wristUI=null,crewVoice=null,shipLaunch=null,shipLaunchUI=null;
 const henshinAudio=new HenshinAudio({notify:message=>log(message)});
 const henshin=new HenshinRuntime({notify:message=>log(message),onAction:event=>{
  henshinAudio.play(henshin.project,event.action);
@@ -817,6 +819,8 @@ function doFrame(t,source="window",xrFrameInput=null){
    const previousOffset=voyage.planetOffset;
    const wasWarping=voyage.inWarp;
    const before=voyage.status,advanced=voyage.tick(shipWorldDt,voyageUI?.translationInput());
+   shipLaunch?.update(voyage,shipWorldDt,shipCombatUI?.getCombat(voyage));
+   if(source==="window")shipLaunchUI?.update();
    if(previousOffset&&!wasWarping&&!["entry","atmosphere","vtol","touchdown","landed"].includes(before))voyage.capturePlanetApproach(previousOffset);
    if(voyage?.kind==="surface-to-surface"&&voyage.canDirectEntry){
     const entry=finishCelestialVoyage();if(entry?.message)log(entry.message);
@@ -1737,10 +1741,11 @@ function currentShipHatch(){
  if(!surfaceShip?.present(solarSystem.currentId)||controller.altitudeM>12.1)return null;
  return surfaceShip.offsetFromCoords(controller.origin,controller.x,controller.z,planet.radiusM);
 }
-function toggleSurfaceShipHatch(){
+function toggleSurfaceShipHatch({remote=false}={}){
  const permitted=canDepartCelestial();if(!permitted.ok)return permitted;
+ if(surfaceShip?.flight!=="parked")return {ok:false,message:"着陸が完了してからハッチを操作してください"};
  const hatch=currentShipHatch();
- if(!hatch||hatch.distanceM>5.5)return {ok:false,message:"宇宙船後部のハッチに近づいてください"};
+ if(!hatch||hatch.distanceM>(remote?40:5.5))return {ok:false,message:remote?"腕時計で操作できる距離（40m）まで近づいてください":"宇宙船後部のハッチに近づいてください"};
  surfaceShip.hatchOpen=!surfaceShip.hatchOpen;
  renderer.patchKey=null;
  surfaceShipUI?.update(true);
@@ -1890,9 +1895,30 @@ function startCelestialVoyage(id){
   return {ok:true,message:"🛰️ "+bodyById(id).name+"へ出発準備。操縦席の「惑星間航行開始」を押してください"};
  }catch(error){voyage=null;return {ok:false,message:"航行準備エラー："+error.message};}
 }
+function runShipLaunchAction(action){
+ if(action==="ship-hatch"){
+  if(voyage?.kind==="surface-to-surface")return voyage.seated?shipCockpitHatch():shipToggleHatch();
+  return toggleSurfaceShipHatch({remote:true});
+ }
+ if(!voyage?.active||voyage.kind!=="surface-to-surface")return {ok:false,message:"宇宙船に乗り込んでください"};
+ if(action==="ship-crew")return shipLaunch?.orderCrew(voyage);
+ if(action==="ship-engine")return shipLaunch?.startEngine(voyage);
+ if(action==="ship-rollcall"){
+  crewVoice?.setEnabled(true,{interior:voyage.interior});
+  return shipLaunch?.rollCall(voyage);
+ }
+ if(action==="ship-launch")return launchCelestialVoyage();
+ if(action==="ship-combat")return shipLaunch?.authorizeCombat(voyage,shipCombatUI?.getCombat(voyage));
+ return {ok:false,message:"不明な艦船操作です"};
+}
 function launchCelestialVoyage(){
+ if(voyage?.kind==="surface-to-surface"&&["docked","landed"].includes(voyage.status)){
+  const check=shipLaunch?.beforeLaunch(voyage);
+  if(!check?.ok)return check||{ok:false,message:"発進システムが準備できていません"};
+ }
  const result=voyage?.launch()||{ok:false,message:"宇宙船がありません"};
  if(result.ok&&voyage?.kind==="surface-to-surface"){
+  shipLaunch?.launched(voyage);
   surfaceShip?.takeOff();
   voyageUI?.render();shipInteractionUI?.update(true);
  }
@@ -4320,6 +4346,7 @@ $("harbor-talk").addEventListener("click",()=>harborAction(()=>
 window.addEventListener("pagehide",()=>{saveMarineJournal();saveRailwayJournal();saveFerryJournal();saveLawJournal();saveCustodyFacilityJournal();});
 init();
 crewVoice=new ShipSocialVoice({getRenderer:()=>renderer,getAvatarModel:id=>avatarV10?.[id]?.model,onError:error=>console.warn("[CrewVoice]",error)});
+shipLaunch=new ShipLaunchProcedure({notify:log,say:(id,line,v)=>crewVoice?.speak(id,line,{interior:v?.interior||voyage?.interior,viaRadio:true,event:"report"})});
 wristTime=new WristWatchTime({
  getTimeDays:()=>planet?.timeDays??0,getLongitude:()=>controller?.lon??0,
  captureWorld:()=>({
@@ -4360,6 +4387,7 @@ wristUI=installWristWatchUI({runtime:wristTime,notify:log,onAction:action=>{
  }
  if(action==="xr-mode")showXRSettings();
  if(action==="tablet")$("viewport-tablet")?.click();
+ if(action.startsWith("ship-"))return runShipLaunchAction(action);
 }});
 mediaUI=installMediaUI({getController:()=>controller,getRenderer:()=>renderer,
  getTerrain:()=>terrain,getGameDays:()=>planet?.timeDays??0,notify:log});
@@ -4457,6 +4485,7 @@ shipCombatUI=installSpaceCombatUI({getVoyage:()=>voyage,getRenderer:()=>renderer
  shipInteractionUI=installShipInteractionUI({get:()=>voyage,
  getRoutes:shipRoutes,onSit:shipSit,onStand:shipStand,onHatch:shipToggleHatch,
  onExit:shipEgress,onTransfer:startShipTransfer,onChooseRoute:setShipDestination,notify:log});
+shipLaunchUI=installShipLaunchUI({getVoyage:()=>voyage,getVRActive:()=>Boolean(xrUI?.active),execute:runShipLaunchAction,notify:log});
 surfaceShipUI=installSurfaceStarshipUI({get:()=>({
  ship:surfaceShip,planet,controller,voyage,xrActive:Boolean(xrUI?.active),
  inside:Boolean(townLife?.inside||marine?.boarded||ferry?.boarded||railway?.boarded||law?.custody||railwaySecurity?.jailed)
