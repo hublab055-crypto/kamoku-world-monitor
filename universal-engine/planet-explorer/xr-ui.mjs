@@ -17,7 +17,8 @@ import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-moc
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122-wrist-menu-v2";
 import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
-import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261122-room8";
+import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261123-living";
+import {MRLivingSocial,MR_SOCIAL_KEY} from "./mr-living-social.mjs?v=20261123-living";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -30,6 +31,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRJump=()=>{},onVRDeck=()=>{},onVRSync=()=>{},onVRAim=()=>{},
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
+ onMRDialogue=()=>{},onMRDefense=()=>{},getMRAffinity=()=>null,getMRWorldMode=()=>"universe",
  onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
  onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),onVRShipCrewGesture=()=>({ok:false}),onVRShipStand=()=>({ok:false}),
  onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,
@@ -46,6 +48,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  const xrWorldTablet=new XRWorldTablet();
  const xrWristWatch=new XRWristWatch();
  const mrAvatars=new MRAvatarPresence(8);
+ const MR_POSE_KEY="universal-engine:mr-living:poses:v1";
+ let mrPoses={};try{mrPoses=JSON.parse(localStorage.getItem(MR_POSE_KEY)||"{}")||{};}catch(_){}
+ const saveMRPoses=()=>{try{localStorage.setItem(MR_POSE_KEY,JSON.stringify(mrPoses));}catch(_){}};
+ let mrSocialSnapshot=null;
+ try{mrSocialSnapshot=JSON.parse(localStorage.getItem(MR_SOCIAL_KEY)||"null");}catch(_){}
+ const mrLivingSocial=new MRLivingSocial({saved:mrSocialSnapshot,onEvent:event=>{
+  if(event.text)statusText("🛋 "+event.text);
+  const source=mrAvatars.get(event.id)?.sourceId||event.id;
+  if(event.text&&["dialogue","warning","report","accepted","declined","avoid","step_back"].includes(event.type))
+   onMRDialogue(source,event.text,event);
+  if(event.type==="defend")onMRDefense(event);
+  try{localStorage.setItem(MR_SOCIAL_KEY,JSON.stringify(mrLivingSocial.snapshot()));}catch(_){}
+ }});
+ const mrHeldGrips=new Map();
  const mrAvatarId=$("xr-avatar-select"),mrAvatarScale=$("xr-avatar-size"),mrAvatarStatus=$("xr-avatar-presence-status");
  const mrRoomStatus=$("xr-room-status"),mrPortalStatus=$("xr-portal-status");
  let mrRoom;
@@ -318,7 +334,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(activeMode==="mr-avatars"){
    mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
   }
-  mrAvatars.reset();mrLastHead=null;mrAutoSpawn=false;
+  mrAvatars.reset();mrHeldGrips.clear();mrLastHead=null;mrAutoSpawn=false;
   mrAnchor=null;mrRestoreBusy=false;mrRestorePending=false;mrOriginPending=false;
   mrScanPending=false;mrAddPending=null;mrDoorPending=false;mrPortalVR=null;mrPortalNear=false;
   mrRoom.forgetTracking();
@@ -1638,6 +1654,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(result.ok){
    getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.sourceId]?.model);
    if(mrAvatarStatus)mrAvatarStatus.textContent=result.message;
+   const actor=result.actor;
+   if(mrPoses[actor.id])actor.standingPose=mrPoses[actor.id];
+   const existing=mrLivingSocial.people.has(actor.id);
+   const affinity=getMRAffinity(actor.sourceId);
+   mrLivingSocial.register(actor.id,{affinity:existing?mrLivingSocial.get(actor.id).affinity:
+    Number.isFinite(affinity)?affinity:0,adult:actor.sourceId!=="player",
+    allies:mrAvatars.actors.filter(a=>a.id!==actor.id).map(a=>a.id)});
   }
   return result;
  }
@@ -1672,7 +1695,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }
   const dt=lastTime?Math.max(0,Math.min(.07,(time-lastTime)/1000)):1/60;
   lastTime=time;
+  mrLivingSocial.mode=getMRWorldMode();
+  mrLivingSocial.advance(dt);
   const actors=mrAvatars.tick(head,dt,mrRoom.ready?mrRoom:null);
+  for(const a of actors){
+   if(a.id==="player")continue;
+   mrLivingSocial.register(a.id,{affinity:getMRAffinity(a.sourceId)||0});
+   const distance=Math.hypot(head[12]-a.x,head[14]-a.z);
+   const alert=mrLivingSocial.approach(a.id,distance,dt);
+   if(alert&&mrRoom.ready&&!a.seatId){
+    const dx=a.x-head[12],dz=a.z-head[14],n=Math.hypot(dx,dz)||1;
+    const nx=a.x+dx/n*.32,nz=a.z+dz/n*.32;
+    if(mrRoom.free(nx,nz,.28)){a.x=nx;a.z=nz;a.motion="walk";a.time=0;a.gestureDuration=1.2;}
+   }
+  }
   const gl=renderer.gl,layer=activeLegacyXRLayer(session);
   if(!layer)return;
   try{
@@ -1684,7 +1720,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     const eye={viewport,projection:view.projectionMatrix,view:view.transform.inverse.matrix};
     renderer.drawMRAvatars(eye,actors,i===0?dt:0);
     if($("xr-room-settings")?.open&&mrRoom.ready)
-     renderer.drawXRRoomGuides?.(eye,mrRoom.worldObjects());
+     renderer.drawXRRoomGuides?.(eye,[...mrRoom.worldObjects(),...mrRoom.worldCushions()]);
     const door=mrRoom.worldPortal();
     if(door)renderer.drawXRPortal?.(eye,door);
    }
@@ -1770,7 +1806,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(!mrModeRequired()){mrRoomMessage("MRアバター召喚中に実行してください");return;}
   mrScanPending=true;mrRoomMessage("WebXRの検出平面を読み取ります");
  });
- for(const type of ["chair","sofa","table","wall","obstacle"]){
+ for(const type of ["chair","sofa","table","wall","obstacle","bed","tv","bookshelf","kitchen","cushion"]){
   $("xr-room-add-"+type)?.addEventListener("click",()=>{
    if(!mrModeRequired()){mrRoomMessage("MR開始後に家具を配置してください");return;}
    mrAddPending=type;mrRoomMessage(type+"の登録位置を取得します");
@@ -1834,6 +1870,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    const restored=WearableInventory.fromSnapshot(data);
    vrWearables=restored;saveWearables();syncVRClothing();return true;
   },
+  get mrLiving(){return {room:mrRoom,avatars:mrAvatars,social:mrLivingSocial};},
   close:()=>session?.end(),dispose:()=>{
    motionActorUI.dispose();
    disposed=true;
