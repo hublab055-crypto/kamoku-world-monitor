@@ -5,7 +5,7 @@ import {shaderBodyParams,shaderSwimParams,isBodySurface} from "./avatar-v10-body
 import {createAvatarV10BodyMesh,createAvatarV10FootMeshes} from "./avatar-v10-body-mesh.mjs?v=20261115-feet";
 import {createAvatarV10ProceduralBody} from "./avatar-v10-procedural-body.mjs?v=20261117-hip-articulation";
 import {createAvatarV10InspectionMeshes} from "./avatar-v10-inspection-mesh.mjs?v=20261118-obstetric";
-import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261122-room-motions";
+import {parseFrontierRig,poseFrontierRig,matIdentity,matMultiply} from "./frontier-animated.mjs?v=20261123-mr-living";
 import {normalizeAvatarAnatomy} from "./avatar-anatomy-schema.mjs?v=20261118-obstetric";
 import {currentXRMotionActorPose} from "./xr-motion-actor.mjs?v=20261118-vr-mocap";
 import {isAvatarHandDetail,preserveAvatarSkinDetail} from "./avatar-v10-skin-detail.mjs?v=20261117-proportions-fix";

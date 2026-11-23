@@ -1,7 +1,7 @@
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261122-room-motions";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261123-mr-living";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {createShipCrewStandIn} from "./ship-interior-3d.mjs?v=20261117-crew-life";
 import {geoNormal,geoOffset,geoLocal,DEG,clamp,wrapLon,samplePatch,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
@@ -40,7 +40,7 @@ import {ExpressionController,makeFaceParts,expressionPoseValues} from "./express
 import {rotZ} from "./rig.mjs?v=0.8p-fishing-motion";
 import {CameraController} from "./camera-controller.mjs";
 import {fogForGround,normalizeFogMode,sceneryRadiusForQuality,AdaptiveTerrainLOD} from "./atmosphere-lod.mjs";
-import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261122-room-motions";
+import {SkinnedFrontierAsset} from "./frontier-skinned-renderer.mjs?v=20261123-mr-living";
 import {CATALOG} from "./lifestyle.mjs";
 import {enemyMotion,HUMANOID_MONSTERS} from "./enemy-motion.mjs";
 import {furnitureGeometry,campGeometry,flameGeometry,dishGeometry} from "./lifestyle-geometry.mjs";
@@ -2989,10 +2989,14 @@ export class ExplorerRenderer{
    if(!["navigator","engineer","companion","player"].includes(sourceId))continue;
    const model=multiply4(translate(actor.x,actor.y,actor.z),
     multiply4(rotateY(actor.yaw),scale3(actor.size,actor.size,actor.size)));
-   const gesture=["salute","thumbsUp","doubleThumbs","wave","bow"].includes(actor.motion)?
-    {motion:actor.motion,time:actor.time??0,x:actor.x,z:actor.z,yaw:actor.yaw}:null;
+   const active=["salute","thumbsUp","doubleThumbs","wave","bow","handshake","hug","read","rest","drink","eat","watchTV"].includes(actor.motion);
+   const poseName=actor.seatId?actor.seatPose:actor.standingPose;
+   const gesture=active||poseName?{
+    motion:active?actor.motion:poseName||"stand_neutral",time:actor.time??0,
+    x:actor.x,z:actor.z,yaw:actor.yaw,seatY:actor.seatY??0,grip:actor.handGrip||null,adjust:actor.poseAdjust||{}
+   }:null;
    if(this.drawAvatarV10(sourceId,vp,model,light,dt,{
-    motion:actor.motion,time:actor.time,moving:actor.motion==="walk",
+    motion:actor.motion==="Seated"?"sit":actor.motion,time:actor.time,moving:actor.motion==="walk",
     gesture,talking:this.shipVoiceSpeakerId===sourceId}))continue;
    // Draw a clearly temporary procedural stand-in rather than disappearing.
    const face=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,1.65,0,1];
@@ -3025,12 +3029,13 @@ export class ExplorerRenderer{
   };
   for(const o of objects.slice(0,32)){
    const c=Math.cos(o.yaw),s=Math.sin(o.yaw);
-   const h=["chair","sofa"].includes(o.type)?o.seatY+.03:
+   const h=o.type==="cushion"?o.seatY+.06:
+    ["chair","sofa"].includes(o.type)?o.seatY+.03:
     o.type==="table"?o.height+.03:.05;
    const p=(a,b)=>[o.x+c*a+s*b,h,o.z-s*a+c*b];
    const pts=[p(-o.width/2,-o.depth/2),p(o.width/2,-o.depth/2),
     p(o.width/2,o.depth/2),p(-o.width/2,o.depth/2)];
-   const tint=o.type==="wall"?[.22,.68,1]:
+   const tint=o.type==="wall"?[.22,.68,1]:o.type==="cushion"?[.76,.48,1]:
     ["chair","sofa"].includes(o.type)?[1,.76,.22]:[.43,1,.58];
    for(let j=0;j<4;j++)line(pts[j],pts[(j+1)%4],tint);
    if(o.type==="wall")for(const corner of [pts[0],pts[1]])
