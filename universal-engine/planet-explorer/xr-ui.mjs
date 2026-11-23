@@ -1708,7 +1708,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    getRenderer()?.avatarV10Assets?.prefetch(getRenderer()?.avatarV10?.[result.actor.sourceId]?.model);
    if(mrAvatarStatus)mrAvatarStatus.textContent=result.message;
    const actor=result.actor;
-   if(mrPoses[actor.id])actor.standingPose=mrPoses[actor.id];
+   if(mrPoses[actor.id]){
+    actor.standingPose=typeof mrPoses[actor.id]==="string"?mrPoses[actor.id]:mrPoses[actor.id].pose||"stand_neutral";
+    actor.poseAdjust=mrPoses[actor.id]?.adjust||{};
+   }
    const existing=mrLivingSocial.people.has(actor.id);
    const affinity=getMRAffinity(actor.sourceId);
    mrLivingSocial.register(actor.id,{affinity:existing?mrLivingSocial.get(actor.id).affinity:
@@ -1772,8 +1775,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     const viewport=layer.getViewport(view);if(!viewport)continue;
     const eye={viewport,projection:view.projectionMatrix,view:view.transform.inverse.matrix};
     renderer.drawMRAvatars(eye,actors,i===0?dt:0);
-    if($("xr-room-settings")?.open&&mrRoom.ready)
-     renderer.drawXRRoomGuides?.(eye,[...mrRoom.worldObjects(),...mrRoom.worldCushions()]);
+    if(mrRoom.ready)renderer.drawXRRoomGuides?.(eye,mrRoom.worldCushions());
+    if($("xr-room-settings")?.open&&mrRoom.ready)renderer.drawXRRoomGuides?.(eye,mrRoom.worldObjects());
     const door=mrRoom.worldPortal();
     if(door)renderer.drawXRPortal?.(eye,door);
    }
@@ -1910,7 +1913,13 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  $("xr-mr-living-set-pose")?.addEventListener("click",()=>{
   const id=mrAvatarId?.value||"navigator",pose=$("xr-mr-living-pose")?.value;
   const result=mrAvatars.setPose(id,pose);
-  if(result.ok&&!mrAvatars.get(id)?.seatId){mrPoses[id]=pose;saveMRPoses();}
+  if(result.ok){
+   const actor=mrAvatars.get(id);
+   const adjust={hip:Number($("xr-mr-living-hip")?.value)||0,
+    knee:Number($("xr-mr-living-knee")?.value)||0,back:Number($("xr-mr-living-back")?.value)||0};
+   actor.poseAdjust=adjust;
+   mrPoses[id]={pose:actor.standingPose||"stand_neutral",adjust};saveMRPoses();
+  }
   statusText("🎭 "+result.message);
  });
  const performLiving=(action)=>{
