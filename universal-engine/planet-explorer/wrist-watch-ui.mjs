@@ -42,7 +42,9 @@ export function installWristWatchUI({runtime,onAction=()=>{},notify=()=>{}}){
  const buttons=[
   ["main-menu","☰ メニュー"],["settings","⚙ 設定"],["camera","👁 視点"],
   ["xr-mode","🥽 VR/MR"],["tablet","▣ タブレット"],["pause","⏸ 停止／再開"],
-  ["quarter","×0.25"],["normal","×1"],["double","×2"],["fast","×5"],["rewind","⏪ 5秒"]
+  ["quarter","×0.25"],["normal","×1"],["double","×2"],["fast","×5"],["rewind","⏪ 5秒"],
+  ["ship-hatch","🚪 ハッチ"],["ship-crew","🪑 乗員着席"],["ship-engine","🔘 主機始動"],
+  ["ship-rollcall","📻 点呼"],["ship-launch","🚀 離陸"],["ship-combat","🎯 交戦許可"]
  ];
  function report(result){
   if(result?.message)notify("⌚ "+result.message);
@@ -73,7 +75,8 @@ export function installWristWatchUI({runtime,onAction=()=>{},notify=()=>{}}){
   if(id==="time-fast"||id==="fast")return report(runtime.command("speed",5));
   if(id==="time-rewind"||id==="rewind")return report(runtime.command("rewind",5));
   if(id==="time"){panel.hidden=false;refresh();return;}
-  onAction(id);return {ok:true};
+  const actionResult=onAction(id);
+  return actionResult&&typeof actionResult==="object"?report(actionResult):{ok:true};
  }
  for(const [id,label] of buttons){
   const b=document.createElement("button");b.type="button";b.dataset.cmd=id;b.textContent=label;
