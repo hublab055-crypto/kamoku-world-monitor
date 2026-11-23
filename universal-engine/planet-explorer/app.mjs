@@ -4469,6 +4469,27 @@ celestialSky=installCelestialSkyViewport({get:()=>({
 solarUI.refresh();voyageUI.render();shipInteractionUI.update(true);surfaceShipUI.update(true);celestialSky.update(true);
 xrUI=installXRUI({
  getRenderer:()=>renderer,getController:()=>controller,notify:log,
+ getMRWorldMode:()=>wristTime?.mode||"universe",
+ getMRAffinity:id=>{
+  const points=voyage?.interior?.social?.status?.(id)?.points;
+  return Number.isFinite(points)?Math.min(100,points/3):null;
+ },
+ onMRDialogue:(source,text,event)=>{
+  if(!crewVoice?.enabled||!["navigator","engineer","companion"].includes(source))return;
+  // Reuse the installed natural Japanese voice director; do not start a second speech system.
+  try{void crewVoice.voice?.say?.(source,text,{
+   interrupt:event?.type==="warning",voiceStyle:crewVoice.voiceStyle(source),
+   rate:1,pitch:1,emotion:event?.type==="dialogue"?"acknowledge":"report"
+  });}catch(error){console.warn("[MR Living Voice]",error);}
+ },
+ onMRDefense:event=>{
+  if(wristTime?.mode==="creative"||wristTime?.mode==="multiverse"||law?.gameOver)return;
+  // World-specific nonlethal incapacitation: end this single-player run.
+  battle.playerHp=0;running=false;simWorld.clock.paused=true;
+  law.pendingDeath=false;law.gameOver=true;law.activePersonId=null;
+  saveLawJournal();saveLifeJournal();lawUI?.refresh();updateHUD();
+  log("🛡️ "+(event?.text||"繰り返しの接触違反により行動不能となりました")+" シングルプレイのゲームオーバー");
+ },
  getWristWatch:()=>({hand:wristTime?.hand||"left",
   display:wristTime?.display(),mode:wristTime?.mode||"universe"}),
  onWristWatchAction:action=>wristUI?.invoke(action),
