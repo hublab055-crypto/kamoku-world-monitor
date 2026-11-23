@@ -1,0 +1,1473 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Universal CAD v1.7 - Precision B-rep</title><style>body{margin:0;background:#111827;color:#e5e7eb;font:13px system-ui}header,nav{display:flex;align-items:center;gap:5px;padding:7px;background:#1f2937;flex-wrap:wrap}button,select,input{background:#374151;color:white;border:1px solid #4b5563;border-radius:4px;padding:5px}button.active{background:#2563eb}main{display:grid;grid-template-columns:170px 1fr 230px;height:calc(100vh - 110px)}aside{padding:10px;background:#1f2937;overflow:auto}#canvas{width:100%;height:100%;background:#0b1220;touch-action:none;cursor:crosshair}.panel{border-bottom:1px solid #374151;padding-bottom:12px;margin-bottom:12px}.panel label{display:block;margin:7px 0}input[type=number]{width:90px}#command{width:50%}footer{padding:7px;background:#1f2937}small{color:#9ca3af}.tools{display:grid;grid-template-columns:1fr 1fr;gap:5px}.tools button{font-size:12px}</style></head><body><div style="position:relative;z-index:2000;background:#143448;color:#d9f4fc;border-bottom:1px solid #477289;padding:7px 12px;font:12px/1.5 system-ui"><a href="../" style="color:#8de2ff">← 3Dモデル工房</a>　·　<a href="assembly.html" style="color:#8de2ff">アッセンブリ</a>　·　公開ブラウザ版：2D製図・ボクセル／高精細3Dプレビュー対応。OpenCascade精密B-rep、STEP・IGES出力には別途ローカルPython精密サーバーが必要です。</div><div style="background:#0c4568;color:#fff;padding:9px 14px;font:13px system-ui;position:relative;z-index:1000">Universal Engine / CAD &amp; Assembly　 <a href="assembly.html" style="background:#1b699d;color:white;padding:6px 12px;border-radius:6px;text-decoration:none">アッセンブリモデラーを開く →</a>　<span style="color:#b6d4e7">部品組立エディタ（独立モデル。CADスケッチ連携は今後）</span></div><header><b>UNIVERSAL CAD</b><span>v1.6 · 2D/3D PC prototype</span><button id="save">保存 JSON</button><button id="load">読込 JSON</button><button id="dxfout">DXF出力</button><button id="dxfin">DXF読込</button><button id="undo">元に戻す</button><button id="redo">やり直し</button><button id="fit">全体表示</button><input type="file" id="file" hidden><button id="clearSelection" title="選択解除・トリム終了 (Esc)">選択解除 / Esc</button></header><nav id="toolbar"></nav><main><aside><div class="panel"><b>作図・編集</b><div class="tools" id="tools"></div></div><div class="panel" id="trimPanel" style="display:none"><b>トリム境界</b><p><small id="trimGuide">境界線を複数クリック、指定しなければ全線を使用</small></p><button id="trimConfirm">境界を確定 / 自動</button><button id="trimReset">境界を選び直す</button><p><small>対象線をクリック、または空白から枠ドラッグ。Esc・選択解除で終了。</small></p></div><div class="panel"><b>画層</b><div id="layers"></div><button id="addlayer">＋ 画層追加</button></div><div class="panel"><b>編集設定</b><label>オフセット距離 <input id="offsetDistance" type="number" min="0.001" step="1" value="10"></label><label>フィレット半径 <input id="filletRadius" type="number" min="0.001" step="1" value="5"></label><label>面取り距離 <input id="chamferDistance" type="number" min="0.001" step="1" value="5"></label><label><input id="groupSelection" type="checkbox" checked> グループ選択 ON</label></div><div class="panel"><b>表示</b><label><input type="checkbox" id="grid" checked> グリッド</label><label><input type="checkbox" id="snap" checked> スナップ</label><div id="snapModes" style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:12px"><label><input type="checkbox" id="snapIntersection" checked> × 交点</label><label><input type="checkbox" id="snapEndpoint" checked> □ 端点</label><label><input type="checkbox" id="snapMidpoint" checked> ◇ 中点</label><label><input type="checkbox" id="snapCenter" checked> ○ 中心</label><label><input type="checkbox" id="snapTangent" checked> /○ 接線</label></div><label><input type="checkbox" id="ortho"> 直交 F8</label><label>Shift + キー選択 <input id="selectKey" maxlength="1" value="S" style="width:35px" title="カーソルを図形に近づけて押すキー"></label><small>左→右: 全体を囲んだ図形 / 右→左: 枠に触れた図形</small></div></aside><svg id="canvas" xmlns="http://www.w3.org/2000/svg"><g id="scene"></g><g id="preview"></g><g id="snapOverlay" pointer-events="none"></g></svg><aside><div class="panel"><b>プロパティ</b><div id="properties"><small>図形を選択してください</small></div></div><div class="panel"><b>簡易3Dフィーチャー</b><label>基準面 <select id="plane"><option>XY</option><option>YZ</option><option>XZ</option></select></label><label>押出し高さ <input id="height" type="number" value="20" step="1"></label><button id="extrude">押し出し</button><button id="cut">押し出しカット</button><button id="revolve">回転体</button><div id="features"></div><small>3Dはフィーチャー履歴の試作。ソリッド演算と3D表示は未実装です。</small></div></aside></main><footer>コマンド: <input id="command" autocomplete="off" spellcheck="false" placeholder="LINE, CIRCLE, RECT, ARC, POLYGON, POINT, DD, EX, MOVE, COPY, DELETE, OFFSET, FILLET, CHAMFER, TRIM, EXTEND, UNDO, ESC"><span id="status">準備完了</span></footer><script>
+const uuid=()=>typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function'?crypto.randomUUID():'cad-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);const $=id=>document.getElementById(id), svg=$('canvas'),scene=$('scene'),preview=$('preview');let shapes=[],history=[],redoStack=[],editSource=null,editFirst=null,layers=[{name:'0',color:'#38bdf8',visible:true}],currentLayer='0',tool='select',pending=[],selected=null,scale=1,offset={x:0,y:0},features=[],drag=null;
+const toolNames={select:'選択',line:'線分',circle:'円',rect:'矩形',arc:'円弧',polygon:'ポリゴン',point:'点',construction:'無限下書き線',dim:'長さ寸法',move:'移動',copy:'コピー',delete:'削除',offset:'オフセット',fillet:'フィレット',chamfer:'面取り',trim:'トリム',extend:'延長',explode:'分解',group:'グループ',ungroup:'解除'};
+function snapshot(){history.push(JSON.stringify(shapes));redoStack=[];if(history.length>80)history.shift()}function undo(){if(history.length){redoStack.push(JSON.stringify(shapes));shapes=JSON.parse(history.pop());selected=null;editSource=null;render()}}function redo(){if(redoStack.length){history.push(JSON.stringify(shapes));shapes=JSON.parse(redoStack.pop());selected=null;render()}}function setTool(t){tool=t;pending=[];editSource=null;editFirst=null;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));status('操作: '+(toolNames[t]||t))}function status(t){$('status').textContent=t}
+for(let [key,name] of Object.entries(toolNames)){let b=document.createElement('button');b.textContent=name;b.dataset.tool=key;b.onclick=()=>setTool(key);$('tools').append(b)}setTool('select');
+function layer(){return layers.find(l=>l.name===currentLayer)||layers[0]}function layerUI(){$('layers').innerHTML='';layers.forEach(l=>{let row=document.createElement('div');let radio=document.createElement('input');radio.type='radio';radio.name='layer';radio.checked=currentLayer===l.name;radio.onchange=()=>{currentLayer=l.name;render()};let cb=document.createElement('input');cb.type='checkbox';cb.checked=l.visible;cb.onchange=()=>{l.visible=cb.checked;render()};let txt=document.createElement('span');txt.textContent=l.name;txt.style.color=l.color;row.append(radio,cb,txt);$('layers').append(row)})}$('addlayer').onclick=()=>{let name=prompt('新しい画層名','Layer'+layers.length);if(name&&!layers.some(l=>l.name===name)){layers.push({name,color:'#fbbf24',visible:true});currentLayer=name;layerUI()}};layerUI();
+function world(e){let r=svg.getBoundingClientRect();return {x:(e.clientX-r.left-r.width/2-offset.x)/scale,y:-(e.clientY-r.top-r.height/2-offset.y)/scale}}function screen(p){let r=svg.getBoundingClientRect();return{x:r.width/2+offset.x+p.x*scale,y:r.height/2+offset.y-p.y*scale}}function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}function snapPoint(p){if(!$('snap').checked)return p;let candidates=[];for(let s of shapes){if(s.a)candidates.push(s.a);if(s.b)candidates.push(s.b);if(s.c)candidates.push(s.c);if(s.type==='circle')candidates.push(s.c);if(s.type==='line'&&s.a&&s.b)candidates.push({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2})}let best=candidates.map(q=>({q,d:dist(p,q)})).sort((a,b)=>a.d-b.d)[0];if(best&&best.d<10/scale)return {...best.q};return p}function constrain(p){if(!$('ortho').checked||!pending.length)return p;let a=pending[0];return Math.abs(p.x-a.x)>Math.abs(p.y-a.y)?{x:p.x,y:a.y}:{x:a.x,y:p.y}}
+function tag(name,attrs,parent=scene){let el=document.createElementNS('http://www.w3.org/2000/svg',name);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));parent.append(el);return el}function drawShape(s,parent=scene){let l=layers.find(l=>l.name===s.layer)||layers[0];if(!l.visible)return;let col=s.color||l.color,attrs={stroke:col,'stroke-width':s.weight||1.5,fill:'none','vector-effect':'non-scaling-stroke','stroke-dasharray':s.lineType==='dashed'?'9 5':s.lineType==='dotted'?'2 4':''};let e;const P=p=>screen(p);if(['line','construction','dim'].includes(s.type)){let a=P(s.a),b=P(s.b);e=tag('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,...attrs,'stroke-dasharray':s.type==='construction'?'8 5':''},parent);if(s.type==='dim'){let m=P({x:(s.a.x+s.b.x)/2,y:(s.a.y+s.b.y)/2});let text=tag('text',{x:m.x+5,y:m.y-6,fill:col,'font-size':12},parent);text.textContent=dist(s.a,s.b).toFixed(2)}}else if(s.type==='circle'){let c=P(s.c);e=tag('circle',{cx:c.x,cy:c.y,r:s.r*scale,...attrs},parent)}else if(s.type==='rect'){let a=P(s.a),b=P(s.b);e=tag('rect',{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y),...attrs},parent)}else if(s.type==='point'){let c=P(s.c);e=tag('circle',{cx:c.x,cy:c.y,r:3,fill:col},parent)}else if(s.type==='arc'){let a=P(s.a),b=P(s.b),c=P(s.c);e=tag('path',{d:`M ${a.x} ${a.y} Q ${b.x} ${b.y} ${c.x} ${c.y}`,...attrs},parent)}else if(s.type==='polygon'){e=tag('polygon',{points:s.pts.map(p=>{let q=P(p);return q.x+','+q.y}).join(' '),...attrs},parent)}if(e&&parent===scene){e.dataset.shapeId=s.id;e.style.cursor='pointer';e.style.pointerEvents='stroke';e.onclick=ev=>{ev.stopPropagation();shapeAction(s,world(ev))}}if(s===selected&&e)e.setAttribute('stroke','#f43f5e')}
+function render(){scene.innerHTML='';let r=svg.getBoundingClientRect();if($('grid').checked){let step=25*scale;while(step<18)step*=2;let ox=((r.width/2+offset.x)%step+step)%step,oy=((r.height/2+offset.y)%step+step)%step;for(let x=ox;x<r.width;x+=step)tag('line',{x1:x,y1:0,x2:x,y2:r.height,stroke:'#253245','stroke-width':.7});for(let y=oy;y<r.height;y+=step)tag('line',{x1:0,y1:y,x2:r.width,y2:y,stroke:'#253245','stroke-width':.7})}let o=screen({x:0,y:0});tag('line',{x1:0,y1:o.y,x2:r.width,y2:o.y,stroke:'#9f3333','stroke-width':.8});tag('line',{x1:o.x,y1:0,x2:o.x,y2:r.height,stroke:'#33885c','stroke-width':.8});shapes.forEach(s=>drawShape(s));propertyUI();featureUI()}
+function selectShape(s){selected=s;render()}function add(s){snapshot();shapes.push({id:uuid(),layer:currentLayer,...s});pending=[];render()}
+svg.addEventListener('pointerdown',e=>{if(e.button===1||e.button===2){drag={x:e.clientX,y:e.clientY,ox:offset.x,oy:offset.y};svg.setPointerCapture(e.pointerId);return}let p=snapPoint(constrain(world(e)));if(tool==='offset'&&editSource){offsetShape(editSource,p);editSource=null;return}if(tool==='select'){selected=null;render();return}if(tool==='delete'){if(selected){removeSelected()}return}if(tool==='point'){add({type:'point',c:p});return}if(tool==='polygon'){if(!pending.length){let n=Math.max(3,Number(prompt('辺の数',6))||6);pending=[p,n];status('外接円上の点を指定')}else{let [c,n]=pending,r=dist(c,p);add({type:'polygon',pts:Array.from({length:n},(_,i)=>({x:c.x+r*Math.cos(i*2*Math.PI/n),y:c.y+r*Math.sin(i*2*Math.PI/n)}))})}return}pending.push(p);let required=tool==='arc'?3:2;if(pending.length>=required){let [a,b,c]=pending;if(['line','construction','dim'].includes(tool))add({type:tool,a,b});else if(tool==='circle')add({type:'circle',c:a,r:dist(a,b)});else if(tool==='rect')add({type:'rect',a,b});else if(tool==='arc')add({type:'arc',a,b,c});else if(['move','copy'].includes(tool)&&selected){let dx=b.x-a.x,dy=b.y-a.y,s=JSON.parse(JSON.stringify(selected));for(let key of ['a','b','c'])if(s[key]){s[key].x+=dx;s[key].y+=dy}if(s.pts)s.pts.forEach(p=>{p.x+=dx;p.y+=dy});snapshot();if(tool==='copy'){s.id=uuid();shapes.push(s)}else Object.assign(selected,s);pending=[];render()}else{pending=[];status('この編集操作は次版で実装予定')}}render()});
+svg.addEventListener('pointermove',e=>{if(drag){offset.x=drag.ox+e.clientX-drag.x;offset.y=drag.oy+e.clientY-drag.y;render();return}preview.innerHTML='';if(!pending.length||typeof pending[0]!=='object')return;let p=snapPoint(constrain(world(e))),a=pending[0];if(tool==='circle')drawShape({type:'circle',c:a,r:dist(a,p),layer:currentLayer},preview);else if(['line','construction','dim','rect'].includes(tool))drawShape({type:tool,a,b:p,layer:currentLayer},preview)});svg.addEventListener('pointerup',()=>drag=null);svg.addEventListener('contextmenu',e=>e.preventDefault());svg.addEventListener('wheel',e=>{e.preventDefault();scale=Math.max(.1,Math.min(15,scale*(e.deltaY<0?1.1:.9)));render()},{passive:false});
+function propertyUI(){let p=$('properties');p.innerHTML='';if(!selected){p.textContent='図形を選択してください';return}let s=selected;let title=document.createElement('div');title.textContent='種類: '+s.type;p.append(title);function field(label,value,change,type='number'){let wrap=document.createElement('label');wrap.textContent=label+' ';let inp=document.createElement('input');inp.type=type;inp.value=value;inp.onchange=()=>{snapshot();change(type==='number'?Number(inp.value):inp.value);render()};wrap.append(inp);p.append(wrap)}{let wrap=document.createElement('label');wrap.textContent='画層 ';let sel=document.createElement('select');for(let l of layers){let o=document.createElement('option');o.value=o.textContent=l.name;sel.append(o)}sel.value=s.layer;sel.onchange=()=>{snapshot();s.layer=sel.value;render()};wrap.append(sel);p.append(wrap)}field('色',s.color||'#38bdf8',v=>s.color=v,'color');field('線幅',s.weight||1.5,v=>s.weight=Math.max(0.1,v));{let wrap=document.createElement('label');wrap.textContent='線種 ';let sel=document.createElement('select');[['solid','実線'],['dashed','破線'],['dotted','点線']].forEach(([v,t])=>{let o=document.createElement('option');o.value=v;o.textContent=t;sel.append(o)});sel.value=s.lineType||'solid';sel.onchange=()=>{snapshot();s.lineType=sel.value;render()};wrap.append(sel);p.append(wrap)}if(s.c){field('中心 X',s.c.x,v=>s.c.x=v);field('中心 Y',s.c.y,v=>s.c.y=v)}if(s.a){field('始点 X',s.a.x,v=>s.a.x=v);field('始点 Y',s.a.y,v=>s.a.y=v)}if(s.b){field('終点 X',s.b.x,v=>s.b.x=v);field('終点 Y',s.b.y,v=>s.b.y=v)}if(s.type==='circle'){field('半径',s.r,v=>s.r=Math.max(0,v));field('直径',s.r*2,v=>s.r=Math.max(0,v/2))}if(s.type==='line'){field('長さ',dist(s.a,s.b),v=>{let angle=Math.atan2(s.b.y-s.a.y,s.b.x-s.a.x);s.b={x:s.a.x+v*Math.cos(angle),y:s.a.y+v*Math.sin(angle)}})}}
+function featureUI(){$('features').innerHTML=features.map((f,i)=>`<div>${i+1}. ${f.kind} ${f.plane} ${f.height}mm</div>`).join('')}$('extrude').onclick=()=>feature('押し出し');$('cut').onclick=()=>feature('押し出しカット');$('revolve').onclick=()=>feature('回転体');function feature(kind){if(!selected)return alert('閉じたスケッチを選択してください');features.push({kind,source:selected.id,plane:$('plane').value,height:Number($('height').value)});featureUI()}
+$('undo').onclick=undo;$('redo').onclick=redo;$('fit').onclick=()=>{scale=1;offset={x:0,y:0};render()};$('grid').onchange=render;const input=$('file');$('save').onclick=()=>download('universal-cad.json',JSON.stringify({shapes,layers,features},null,2),'application/json');$('load').onclick=()=>pick('.json',async f=>{let data=JSON.parse(await f.text());shapes=data.shapes||[];layers=data.layers||layers;features=data.features||[];selected=null;layerUI();render()});function pick(accept,fn){input.accept=accept;input.value='';input.onchange=()=>input.files[0]&&fn(input.files[0]);input.click()}function download(name,content,type){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function dxf(){let out=['0','SECTION','2','HEADER','0','ENDSEC','0','SECTION','2','ENTITIES'];function emit(...args){out.push(...args.map(String))}for(let s of shapes){let head=(type)=>emit(0,type,8,s.layer);if(['line','construction','dim'].includes(s.type)){head(s.type==='construction'?'XLINE':'LINE');emit(10,s.a.x,20,s.a.y,11,s.type==='construction'?s.b.x-s.a.x:s.b.x,21,s.type==='construction'?s.b.y-s.a.y:s.b.y)}else if(s.type==='circle'){head('CIRCLE');emit(10,s.c.x,20,s.c.y,40,s.r)}else if(s.type==='point'){head('POINT');emit(10,s.c.x,20,s.c.y)}else if(s.type==='circularArc'){head('ARC');emit(10,s.c.x,20,s.c.y,40,s.r,50,(s.ccw?s.start:s.end)*180/Math.PI,51,(s.ccw?s.end:s.start)*180/Math.PI)}else if(['rect','polygon'].includes(s.type)){let pts=s.type==='rect'?[s.a,{x:s.b.x,y:s.a.y},s.b,{x:s.a.x,y:s.b.y}]:s.pts;head('LWPOLYLINE');emit(90,pts.length,70,1);pts.forEach(p=>emit(10,p.x,20,p.y))}}emit(0,'ENDSEC',0,'EOF');return out.join('\n')+'\n'}$('dxfout').onclick=()=>download('universal-cad.dxf',dxf(),'application/dxf');$('dxfin').onclick=()=>pick('.dxf',async f=>{let lines=(await f.text()).split(/\r?\n/),entities=[],obj=null;for(let i=0;i<lines.length-1;i+=2){let k=lines[i].trim(),v=lines[i+1].trim();if(k==='0'){if(obj)entities.push(obj);obj=['LINE','CIRCLE','POINT','LWPOLYLINE','ARC','XLINE'].includes(v)?{type:v,pts:[]}:null}else if(obj){if(k==='8')obj.layer=v;else if(obj.type==='LWPOLYLINE'){if(k==='10')obj.pts.push({x:+v,y:0});if(k==='20'&&obj.pts.length)obj.pts.at(-1).y=+v}else obj[k]=+v}}snapshot();for(let e of entities){let layer=e.layer||'0';if(!layers.some(l=>l.name===layer))layers.push({name:layer,color:'#38bdf8',visible:true});if(e.type==='XLINE')shapes.push({id:uuid(),type:'construction',layer,a:{x:e['10'],y:e['20']},b:{x:e['10']+e['11'],y:e['20']+e['21']}});if(e.type==='LINE')shapes.push({id:uuid(),type:'line',layer,a:{x:e['10'],y:e['20']},b:{x:e['11'],y:e['21']}});if(e.type==='CIRCLE')shapes.push({id:uuid(),type:'circle',layer,c:{x:e['10'],y:e['20']},r:e['40']});if(e.type==='ARC')shapes.push({id:uuid(),type:'circularArc',layer,c:{x:e['10'],y:e['20']},r:e['40'],start:e['50']*Math.PI/180,end:e['51']*Math.PI/180,ccw:true});if(e.type==='POINT')shapes.push({id:uuid(),type:'point',layer,c:{x:e['10'],y:e['20']}});if(e.type==='LWPOLYLINE')shapes.push({id:uuid(),type:'polygon',layer,pts:e.pts})}layerUI();render();status(entities.length+' DXFエンティティを読込')});
+$('command').addEventListener('keydown',e=>{if(e.key!=='Enter')return;let [cmd]=e.target.value.trim().toUpperCase().split(' ');let map={L:'line',LINE:'line',C:'circle',CIRCLE:'circle',REC:'rect',RECT:'rect',ARC:'arc',PL:'polygon',POLYGON:'polygon',POINT:'point',DIM:'dim',MOVE:'move',COPY:'copy',DELETE:'delete',ERASE:'delete',OFFSET:'offset',FILLET:'fillet',CHAMFER:'chamfer',TRIM:'trim',EXTEND:'extend',EXPLODE:'explode',GROUP:'group',UNGROUP:'ungroup'};if(map[cmd])setTool(map[cmd]);else if(cmd==='UNDO')undo();else if(cmd==='ESC')setTool('select');else status('不明なコマンド: '+cmd);e.target.value='';svg.focus()});document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(e.key==='F8'){e.preventDefault();$('ortho').checked=!$('ortho').checked;status('直交 '+($('ortho').checked?'ON':'OFF'))}if(e.key==='Escape')setTool('select');if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}if(e.ctrlKey&&e.key.toLowerCase()==='y'){e.preventDefault();redo()}if(e.key==='Delete'&&selected){removeSelected()}});
+// v0.2 geometric editing engine: world units are millimeters by convention.
+const EPS=1e-8;
+const clone=o=>JSON.parse(JSON.stringify(o));
+const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}), plus=(a,b)=>({x:a.x+b.x,y:a.y+b.y}), mul=(a,n)=>({x:a.x*n,y:a.y*n}), cross=(a,b)=>a.x*b.y-a.y*b.x;
+const magnitude=v=>Math.hypot(v.x,v.y), norm=v=>mul(v,1/(magnitude(v)||1));
+function intersect(a,b,c,d){let r=sub(b,a),q=sub(d,c),den=cross(r,q);if(Math.abs(den)<EPS)return null;let t=cross(sub(c,a),q)/den,u=cross(sub(c,a),r)/den;return {p:plus(a,mul(r,t)),t,u}}
+function isLine(s){return s&&['line','construction','dim'].includes(s.type)}
+function removeSelected(){if(!selected)return;let ids=new Set([selected.id]);if($('groupSelection').checked&&selected.group)shapes.filter(s=>s.group===selected.group).forEach(s=>ids.add(s.id));snapshot();shapes=shapes.filter(s=>!ids.has(s.id));selected=null;render()}
+function appendClone(s){let copy=clone(s);copy.id=uuid();shapes.push(copy);return copy}
+function coordinateEdit(s,delta){for(let key of ['a','b','c'])if(s[key])s[key]=plus(s[key],delta);if(s.pts)s.pts=s.pts.map(q=>plus(q,delta))}
+function offsetShape(s,p){let d=Number($('offsetDistance').value);if(!(d>0))return status('オフセット距離は正数です');if(!isLine(s)&&s.type!=='circle')return status('オフセットは線分と円に対応');snapshot();let n=appendClone(s);if(isLine(s)){let v=norm(sub(s.b,s.a)),unit={x:-v.y,y:v.x},sgn=Math.sign(cross(sub(s.b,s.a),sub(p,s.a)))||1;coordinateEdit(n,mul(unit,d*sgn))}else{let increase=dist(p,s.c)>=s.r;n.r=Math.max(.001,s.r+(increase?d:-d))}selected=n;render();status('オフセットを生成しました')}
+function finishPair(s,p){let a=editFirst;editFirst=null;if(!a||a===s||!isLine(a)||!isLine(s))return status('異なる2本の線分を選択してください');let it=intersect(a.a,a.b,s.a,s.b);if(!it)return status('平行線または重複線は処理できません');let I=it.p;
+ if(tool==='trim'||tool==='extend'){
+  let end=dist(s.a,p)<dist(s.b,p)?'a':'b',other=end==='a'?'b':'a';
+  if(tool==='trim'&&(it.u < -EPS||it.u > 1+EPS))return status('トリム対象の線分上に交点がありません');
+  if(tool==='extend'&&(it.u>=0&&it.u<=1))return status('対象線分はすでに境界と交差しています');
+  if(tool==='extend'&&dist(s[end],I)<dist(s[other],I))return status('延長したい側の端点付近をクリックしてください');
+  snapshot();s[end]=I;selected=s;render();status(tool==='trim'?'トリム完了':'延長完了');return;
+ }
+ let nearA=dist(a.a,I)<dist(a.b,I)?'a':'b',nearB=dist(s.a,I)<dist(s.b,I)?'a':'b',farA=nearA==='a'?'b':'a',farB=nearB==='a'?'b':'a';
+ let u=norm(sub(a[farA],I)),v=norm(sub(s[farB],I));let theta=Math.acos(Math.max(-1,Math.min(1,u.x*v.x+u.y*v.y)));if(theta<.01||Math.abs(Math.PI-theta)<.01)return status('角度が小さすぎます');
+ let radius=Number($('filletRadius').value),ch=Number($('chamferDistance').value),distance=tool==='fillet'?radius/Math.tan(theta/2):ch;
+ if(!(distance>0)||distance>dist(I,a[farA])+EPS||distance>dist(I,s[farB])+EPS)return status('指定距離が線分の長さに対して大きすぎます');
+ let q1=plus(I,mul(u,distance)),q2=plus(I,mul(v,distance));snapshot();a[nearA]=q1;s[nearB]=q2;
+ if(tool==='chamfer'){shapes.push({id:uuid(),type:'line',a:q1,b:q2,layer:currentLayer})}
+ else{
+  // Circle center on the angle bisector. Determine the minor arc sweep reliably via tangent orientation.
+  let bis=norm(plus(u,v)),center=plus(I,mul(bis,radius/Math.sin(theta/2)));
+  let ang1=Math.atan2(q1.y-center.y,q1.x-center.x),ang2=Math.atan2(q2.y-center.y,q2.x-center.x);
+  let delta=(ang2-ang1+Math.PI*2)%(Math.PI*2);let ccw=delta<=Math.PI;
+  shapes.push({id:uuid(),type:'circularArc',c:center,r:radius,start:ang1,end:ang2,ccw,layer:currentLayer});
+ }
+ selected=s;render();status(tool==='fillet'?'フィレット完了':'面取り完了');
+}
+function shapeAction(s,p){
+ if(tool==='delete'){selected=s;removeSelected();return}
+ if(tool==='select'){selectShape(s);return}
+ if(tool==='offset'){editSource=s;selected=s;render();status('オフセットする側の空白位置をクリック');return}
+ if(['trim','extend','fillet','chamfer'].includes(tool)){
+   if(!editFirst){if(!isLine(s))return status('線分を選んでください');editFirst=s;selected=s;render();status(tool==='trim'||tool==='extend'?'境界を選択しました。対象線をクリック':'1本目を選択しました。2本目をクリック');return}
+   finishPair(s,p);return;
+ }
+ if(tool==='explode'){
+   if(s.type!=='rect'&&s.type!=='polygon')return status('矩形かポリゴンを選択してください');
+   let pts=s.type==='rect'?[s.a,{x:s.b.x,y:s.a.y},s.b,{x:s.a.x,y:s.b.y}]:s.pts;
+   snapshot();shapes=shapes.filter(x=>x!==s);pts.forEach((a,i)=>shapes.push({id:uuid(),type:'line',a:clone(a),b:clone(pts[(i+1)%pts.length]),layer:s.layer,color:s.color,weight:s.weight}));selected=null;render();status('分解完了');return;
+ }
+ if(tool==='group'){
+   if(!editFirst){editFirst=s;selected=s;render();status('グループ化する2本目を選択');return}
+   snapshot();let group=editFirst.group||uuid();editFirst.group=group;s.group=group;editFirst=null;selected=s;render();status('グループ化しました');return;
+ }
+ if(tool==='ungroup'){if(!s.group)return status('グループがありません');snapshot();shapes.filter(x=>x.group===s.group).forEach(x=>delete x.group);selected=s;render();status('グループ解除しました');return}
+ if(['move','copy'].includes(tool)){selected=s;pending=[];render();status('基点と移動先を空白位置で指定');return}
+ selectShape(s);
+}
+// An exact circular arc for newly generated fillets (as opposed to legacy quadratic arcs).
+const oldDrawShape=drawShape;
+drawShape=function(s,parent=scene){if(s.type!=='circularArc')return oldDrawShape(s,parent);
+ let l=layers.find(l=>l.name===s.layer)||layers[0];if(!l.visible)return;let start={x:s.c.x+s.r*Math.cos(s.start),y:s.c.y+s.r*Math.sin(s.start)},end={x:s.c.x+s.r*Math.cos(s.end),y:s.c.y+s.r*Math.sin(s.end)};
+ let a=screen(start),b=screen(end),sweep=s.ccw?0:1,diff=(s.end-s.start+2*Math.PI)%(2*Math.PI),span=s.ccw?diff:2*Math.PI-diff;
+ let el=tag('path',{d:`M ${a.x} ${a.y} A ${s.r*scale} ${s.r*scale} 0 ${span>Math.PI?1:0} ${sweep} ${b.x} ${b.y}`,stroke:s===selected?'#f43f5e':s.color||l.color,'stroke-width':s.weight||1.5,fill:'none','vector-effect':'non-scaling-stroke'},parent);
+ if(parent===scene){el.dataset.shapeId=s.id;el.style.pointerEvents='stroke';el.onclick=ev=>{ev.stopPropagation();shapeAction(s,world(ev))}};
+};
+// Allow grouped movement and copying by using the original base-point/destination workflow.
+// An explicit function also makes the behavior available from the command box.
+function translateSelection(delta,copyMode=false){if(!selected)return;let members=$('groupSelection').checked&&selected.group?shapes.filter(s=>s.group===selected.group):[selected];snapshot();if(copyMode){let newGroup=uuid();members.forEach(s=>{let n=appendClone(s);n.group=s.group?newGroup:undefined;coordinateEdit(n,delta);selected=n})}else members.forEach(s=>coordinateEdit(s,delta));render()}
+// Rewrite the movement click sequence by intercepting in capture phase before v0.1's listener.
+svg.addEventListener('pointerdown',e=>{if(e.button!==0)return;let hit=e.target.closest('[data-shape-id]');if(hit&&['select','delete','offset','trim','extend','fillet','chamfer','explode','group','ungroup','move','copy'].includes(tool)){e.stopImmediatePropagation();let shape=shapes.find(s=>s.id===hit.dataset.shapeId);if(shape)shapeAction(shape,world(e));return}if(tool==='trim'){e.stopImmediatePropagation();trimBoxDown(e);return}if(['offset','extend','fillet','chamfer','explode','group','ungroup'].includes(tool)&&!(tool==='offset'&&editSource)){e.stopImmediatePropagation();return}if(!['move','copy'].includes(tool)||!selected)return;let p=snapPoint(constrain(world(e)));e.stopImmediatePropagation();pending.push(p);if(pending.length===2){let delta=sub(pending[1],pending[0]);pending=[];translateSelection(delta,tool==='copy');status('移動/コピー完了')}else status('移動先をクリックしてください')},true);
+// Circle/line groups, export diagnostics, and safer status for unsupported operations.
+const cmd=$('command');cmd.placeholder='XX Enter → [H/V/A Enter] → 点指定 | 自由角度は2点指定';
+cmd.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.value.trim().toUpperCase()==='REDO'){e.stopImmediatePropagation();redo();e.target.value=''}},true);
+
+
+// v0.3 XLINE: infinite construction geometry; DXF XLINE round-trip.
+let xlineMode='free', xlineAngle=0, xlineAwaitAngle=false;
+const xlineCmd=()=>tool==='construction';
+function beginXline(mode='free') {setTool('construction');xlineMode=mode;xlineAwaitAngle=false;pending=[];xlineHelp()}
+function xlineHelp(){status(xlineMode==='free'?'XX 自由角度: 1点目をクリック、2点目で方向確定（連続作図可）':xlineMode==='h'?'XX H 水平: 通過点をクリック（連続作図可）':xlineMode==='v'?'XX V 垂直: 通過点をクリック（連続作図可）':`XX A ${xlineAngle}°: 通過点をクリック（連続作図可）`)}
+function unitFromAngle(deg){let rad=deg*Math.PI/180;return {x:Math.cos(rad),y:Math.sin(rad)}}
+function xlineCreate(origin,direction){let length=Math.hypot(direction.x,direction.y);if(length<1e-9){status('方向を決めるには異なる2点をクリックしてください');return}add({type:'construction',a:{...origin},b:{x:origin.x+direction.x/length,y:origin.y+direction.y/length}});xlineHelp()}
+// Exact unbounded line clipped to the currently visible drawing window.
+function xlineVisibleEnds(s){let r=svg.getBoundingClientRect(), w0=world({clientX:r.left,clientY:r.top}),w1=world({clientX:r.right,clientY:r.bottom}),xmin=Math.min(w0.x,w1.x),xmax=Math.max(w0.x,w1.x),ymin=Math.min(w0.y,w1.y),ymax=Math.max(w0.y,w1.y);let d={x:s.b.x-s.a.x,y:s.b.y-s.a.y},hits=[];const put=(t)=>{let q={x:s.a.x+t*d.x,y:s.a.y+t*d.y};if(q.x>=xmin-1e-7&&q.x<=xmax+1e-7&&q.y>=ymin-1e-7&&q.y<=ymax+1e-7&&!hits.some(v=>dist(q,v)<1e-7))hits.push(q)};if(Math.abs(d.x)>1e-10){put((xmin-s.a.x)/d.x);put((xmax-s.a.x)/d.x)}if(Math.abs(d.y)>1e-10){put((ymin-s.a.y)/d.y);put((ymax-s.a.y)/d.y)}return hits.length>=2?[hits[0],hits[1]]:[]}
+const priorDrawShape=drawShape;
+drawShape=function(s,parent=scene){if(s.type!=='construction')return priorDrawShape(s,parent);let layerObj=layers.find(l=>l.name===s.layer)||layers[0];if(!layerObj.visible)return;let ends=xlineVisibleEnds(s);if(ends.length!==2)return;let A=screen(ends[0]),B=screen(ends[1]);let el=tag('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:s===selected?'#f43f5e':s.color||layerObj.color,'stroke-width':s.weight||1.1,'stroke-dasharray':'','vector-effect':'non-scaling-stroke'},parent);if(parent===scene){el.dataset.shapeId=s.id;el.style.cursor='pointer';el.style.pointerEvents='stroke';el.onclick=e=>{e.stopPropagation();shapeAction(s,world(e))}}};
+// Use the command box in sequence: XX Enter; H/V Enter or A Enter then angle Enter.
+cmd.addEventListener('keydown',function(e){if(e.key!=='Enter')return;let value=cmd.value.trim();let upper=value.toUpperCase();if(upper==='XX'||upper==='XLINE'){e.preventDefault();e.stopImmediatePropagation();beginXline();cmd.value='';svg.focus();return}if(!xlineCmd())return;if(xlineAwaitAngle){e.preventDefault();e.stopImmediatePropagation();let angle=Number(value);if(!value||!Number.isFinite(angle)){status('角度を数値で入力してください（例: 45）');return}xlineAngle=angle;xlineMode='a';xlineAwaitAngle=false;cmd.value='';xlineHelp();svg.focus();return}if(['H','V','A','F'].includes(upper)){e.preventDefault();e.stopImmediatePropagation();cmd.value='';if(upper==='A'){xlineAwaitAngle=true;status('XX A: 角度を度数法で入力して Enter（例: 45、-30）');cmd.focus()}else{ xlineMode=upper==='F'?'free':upper.toLowerCase();pending=[];xlineHelp();svg.focus()}return}if(/^A\s+[-+]?\d+(?:\.\d+)?$/i.test(value)){e.preventDefault();e.stopImmediatePropagation();xlineAngle=Number(value.slice(1));xlineMode='a';cmd.value='';xlineHelp();svg.focus();return}},true);
+svg.addEventListener('pointerdown',e=>{if(e.button!==0||!xlineCmd()||e.target.closest('[data-shape-id]'))return;e.stopImmediatePropagation();let p=snapPoint(world(e));if(xlineMode==='h')xlineCreate(p,{x:1,y:0});else if(xlineMode==='v')xlineCreate(p,{x:0,y:1});else if(xlineMode==='a')xlineCreate(p,unitFromAngle(xlineAngle));else if(!pending.length){pending=[p];status('XX 自由角度: 方向を決める2点目をクリック')}else{let first=pending[0];pending=[];xlineCreate(first,{x:p.x-first.x,y:p.y-first.y})}},true);
+svg.addEventListener('pointermove',e=>{if(!xlineCmd())return;preview.innerHTML='';if(xlineMode==='free'&&pending.length){let p=world(e),q=pending[0];if(dist(p,q)>1e-6)drawShape({type:'construction',a:q,b:p,layer:currentLayer},preview)}else{let p=world(e),d=xlineMode==='h'?{x:1,y:0}:xlineMode==='v'?{x:0,y:1}:xlineMode==='a'?unitFromAngle(xlineAngle):null;if(d)drawShape({type:'construction',a:p,b:{x:p.x+d.x,y:p.y+d.y},layer:currentLayer},preview)}},false);
+const previousSetTool=setTool;
+setTool=function(t){previousSetTool(t);if(t==='construction'){xlineMode='free';xlineAwaitAngle=false;xlineHelp()}};
+// Construction lines define directions, not finite lengths: avoid editing them as finite line tools.
+const previousShapeAction=shapeAction;
+shapeAction=function(s,p){if(s.type==='construction'&&['trim','extend','fillet','chamfer'].includes(tool)){status('無限下書き線のトリム／フィレットは未対応です');return}return previousShapeAction(s,p)};
+
+
+// v0.4: CAD selection via geometry, generous pick aperture and configurable keyboard selection.
+let selectedIds=new Set(),boxDrag=null,hoverShape=null;
+const PICK_PX=19;
+svg.addEventListener('click',e=>{if(tool==='select'){e.stopImmediatePropagation();e.preventDefault()}},true);
+function segmentDistance(p,a,b){let dx=b.x-a.x,dy=b.y-a.y,d=dx*dx+dy*dy;if(d<1e-12)return dist(p,a);let t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/d));return dist(p,{x:a.x+t*dx,y:a.y+t*dy})}
+function infiniteDistance(p,a,b){let dx=b.x-a.x,dy=b.y-a.y,n=Math.hypot(dx,dy);return n<1e-9?Infinity:Math.abs((p.x-a.x)*dy-(p.y-a.y)*dx)/n}
+function shapeDistance(p,s){if(s.type==='construction')return infiniteDistance(p,s.a,s.b);if(s.type==='ray'){let v=sub(s.b,s.a),t=((p.x-s.a.x)*v.x+(p.y-s.a.y)*v.y)/(v.x*v.x+v.y*v.y||1);return t<0?dist(p,s.a):infiniteDistance(p,s.a,s.b)}if(['line','dim'].includes(s.type))return segmentDistance(p,s.a,s.b);if(s.type==='circle')return Math.abs(dist(p,s.c)-s.r);if(s.type==='point')return dist(p,s.c);if(s.type==='rect'){let a=s.a,b=s.b,pts=[{x:a.x,y:a.y},{x:b.x,y:a.y},{x:b.x,y:b.y},{x:a.x,y:b.y}];return Math.min(...pts.map((v,i)=>segmentDistance(p,v,pts[(i+1)%4])))}if(s.type==='polygon'&&s.pts.length)return Math.min(...s.pts.map((v,i)=>segmentDistance(p,v,s.pts[(i+1)%s.pts.length])));if(s.type==='circularArc'){let angle=Math.atan2(p.y-s.c.y,p.x-s.c.x),tau=Math.PI*2,mod=a=>(a%tau+tau)%tau,within=s.ccw?mod(angle-s.start)<=mod(s.end-s.start):mod(s.start-angle)<=mod(s.start-s.end);return within?Math.abs(dist(p,s.c)-s.r):Math.min(dist(p,{x:s.c.x+s.r*Math.cos(s.start),y:s.c.y+s.r*Math.sin(s.start)}),dist(p,{x:s.c.x+s.r*Math.cos(s.end),y:s.c.y+s.r*Math.sin(s.end)}))}if(s.type==='arc'){let m=Infinity,at=t=>({x:(1-t)*(1-t)*s.a.x+2*(1-t)*t*s.b.x+t*t*s.c.x,y:(1-t)*(1-t)*s.a.y+2*(1-t)*t*s.b.y+t*t*s.c.y});for(let i=0;i<24;i++)m=Math.min(m,segmentDistance(p,at(i/24),at((i+1)/24)));return m}return Infinity}
+function findNear(p){let best=null,dd=PICK_PX/scale;for(let s of shapes){let l=layers.find(x=>x.name===s.layer);if(l&&!l.visible)continue;let d=shapeDistance(p,s);if(d<=dd){dd=d;best=s}}return best}
+function setSelection(s,append=false){if(!append)selectedIds.clear();if(s){if(append&&selectedIds.has(s.id))selectedIds.delete(s.id);else selectedIds.add(s.id)}selected=shapes.find(x=>selectedIds.has(x.id))||null;render();status(selectedIds.size+' 個選択'+(s?' · '+s.type:''))}
+function shapeEnvelope(s){let pts=[];if(s.a)pts.push(s.a);if(s.b)pts.push(s.b);if(s.c)pts.push(s.c);if(s.pts)pts.push(...s.pts);if(s.type==='circle'||s.type==='circularArc'){pts.push({x:s.c.x-s.r,y:s.c.y-s.r},{x:s.c.x+s.r,y:s.c.y+s.r})}if(s.type==='construction'||s.type==='ray'){let ends=s.type==='construction'?xlineVisibleEnds(s):rayVisibleEnds(s);if(ends.length)pts=ends}if(!pts.length)return null;let q=pts.map(screen);return {xmin:Math.min(...q.map(p=>p.x)),xmax:Math.max(...q.map(p=>p.x)),ymin:Math.min(...q.map(p=>p.y)),ymax:Math.max(...q.map(p=>p.y))}}
+function updateSelectionVisual(){for(let el of scene.querySelectorAll('[data-shape-id]')){if(selectedIds.has(el.dataset.shapeId)){el.setAttribute('stroke','#f43f5e');el.setAttribute('stroke-width',3)}else if(hoverShape&&hoverShape.id===el.dataset.shapeId){el.setAttribute('stroke','#facc15');el.setAttribute('stroke-width',2.7)}}}
+const baseRender=render;render=function(){baseRender();updateSelectionVisual()};
+const baseSelectShape=selectShape;selectShape=function(s){setSelection(s)};
+function drawSelectionBox(start,end){let left=Math.min(start.x,end.x),top=Math.min(start.y,end.y),w=Math.abs(end.x-start.x),h=Math.abs(end.y-start.y),contain=end.x>=start.x;let rect=tag('rect',{x:left,y:top,width:w,height:h,fill:contain?'#2563eb22':'#16a34a22',stroke:contain?'#60a5fa':'#4ade80','stroke-dasharray':contain?'':'5 4','pointer-events':'none'},preview);return rect}
+// Capture events before the legacy drawing listener so selection does not clear on blank clicks.
+svg.addEventListener('pointerdown',e=>{if(e.button!==0||tool!=='select')return;e.stopImmediatePropagation();let r=svg.getBoundingClientRect(),scr={x:e.clientX-r.left,y:e.clientY-r.top},p=world(e),hit=findNear(p);if(hit){setSelection(hit,e.ctrlKey||e.shiftKey);boxDrag=null}else{boxDrag={start:scr,end:scr,add:e.shiftKey||e.ctrlKey,pointerId:e.pointerId};svg.setPointerCapture(e.pointerId);preview.innerHTML='';drawSelectionBox(scr,scr)}},true);
+svg.addEventListener('pointermove',e=>{if(tool!=='select')return;let r=svg.getBoundingClientRect(),pos={x:e.clientX-r.left,y:e.clientY-r.top};if(boxDrag){e.stopImmediatePropagation();boxDrag.end=pos;preview.innerHTML='';drawSelectionBox(boxDrag.start,pos);return}let hit=findNear(world(e));if(hit?.id!==hoverShape?.id){hoverShape=hit;render()}svg.style.cursor=hit?'pointer':'crosshair'},true);
+svg.addEventListener('pointerup',e=>{if(!boxDrag||tool!=='select')return;e.stopImmediatePropagation();let {start,end,add}=boxDrag;boxDrag=null;preview.innerHTML='';let left=Math.min(start.x,end.x),right=Math.max(start.x,end.x),top=Math.min(start.y,end.y),bottom=Math.max(start.y,end.y),contain=end.x>=start.x;if(!add)selectedIds.clear();if(Math.hypot(end.x-start.x,end.y-start.y)>4){for(let s of shapes){let l=layers.find(x=>x.name===s.layer);if(l&&!l.visible)continue;let q=shapeEnvelope(s);if(!q)continue;let matches=contain?q.xmin>=left&&q.xmax<=right&&q.ymin>=top&&q.ymax<=bottom:q.xmax>=left&&q.xmin<=right&&q.ymax>=top&&q.ymin<=bottom;if(matches)selectedIds.add(s.id)}}selected=shapes.find(s=>selectedIds.has(s.id))||null;render();status(`${selectedIds.size} 個選択 · ${contain?'囲み選択':'交差選択'}`)},true);
+document.addEventListener('keydown',e=>{if(e.target.closest('input,textarea,select')||e.ctrlKey||e.metaKey||e.altKey||tool!=='select'||e.repeat)return;let key=($('selectKey').value||'S').toLowerCase();if(e.key.toLowerCase()!==key||!e.shiftKey)return;let point=lastPointer;if(!point)return;let hit=findNear(point);if(hit){e.preventDefault();setSelection(hit,e.shiftKey)}},true);
+let lastPointer=null;svg.addEventListener('pointermove',e=>{lastPointer=world(e)},true);
+// Intersection snap with unbounded XLINEs. Only add candidates within the snap aperture.
+const legacySnapPoint=snapPoint;
+snapPoint=function(p){if(!$('snap').checked)return p;let base=legacySnapPoint(p),best=dist(base,p)<11/scale?base:p,min=dist(best,p);const segments=s=>{if(s.type==='construction'||s.type==='line'||s.type==='dim'||s.type==='ray')return [[s.a,s.b,s.type==='construction'?'infinite':s.type==='ray'?'ray':'segment']];if(s.type==='rect'){let a=s.a,b=s.b,points=[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}];return points.map((v,i)=>[v,points[(i+1)%4],false])}if(s.type==='polygon')return s.pts.map((v,i)=>[v,s.pts[(i+1)%s.pts.length],false]);return []};let all=shapes.filter(s=>{let l=layers.find(x=>x.name===s.layer);return !l||l.visible}).flatMap(segments);for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){let [a,b,inf1]=all[i],[c,d,inf2]=all[j],r={x:b.x-a.x,y:b.y-a.y},v={x:d.x-c.x,y:d.y-c.y},cross=r.x*v.y-r.y*v.x;if(Math.abs(cross)<1e-10)continue;let t=((c.x-a.x)*v.y-(c.y-a.y)*v.x)/cross,u=((c.x-a.x)*r.y-(c.y-a.y)*r.x)/cross;if(((inf1==='infinite')||(inf1==='ray'?t>=-1e-8:t>=-1e-8&&t<=1+1e-8))&&((inf2==='infinite')||(inf2==='ray'?u>=-1e-8:u>=-1e-8&&u<=1+1e-8))){let q={x:a.x+t*r.x,y:a.y+t*r.y},distance=dist(p,q);if(distance<min&&distance<=11/scale){min=distance;best=q}}}return best};
+// Offset infinite construction lines by a user-defined perpendicular distance.
+const previousOffsetShape=offsetShape;
+offsetShape=function(s,p){if(s.type!=='construction')return previousOffsetShape(s,p);let d=Number($('offsetDistance').value),dx=s.b.x-s.a.x,dy=s.b.y-s.a.y,len=Math.hypot(dx,dy);if(!(d>0)||len<1e-10)return status('オフセット距離または方向が不正です');let sign=Math.sign(dx*(p.y-s.a.y)-dy*(p.x-s.a.x))||1,n={x:-dy/len*d*sign,y:dx/len*d*sign};snapshot();shapes.push({...clone(s),id:uuid(),a:{x:s.a.x+n.x,y:s.a.y+n.y},b:{x:s.b.x+n.x,y:s.b.y+n.y}});render();status('無限下書き線をオフセットしました')};
+// A construction line can be chosen as a TRIM/EXTEND boundary (not as the modified entity).
+const oldFinishPair=finishPair;
+finishPair=function(s,p){if(!editFirst||editFirst.type!=='construction'||!['trim','extend'].includes(tool))return oldFinishPair(s,p);let boundary=editFirst;editFirst=null;if(!['line','ray','construction'].includes(s.type))return status('対象には線分または下書き線を指定してください');let hit=intersect(boundary.a,boundary.b,s.a,s.b);if(!hit)return status('平行線は処理できません');let I=hit.p,near=dist(p,s.a)<dist(p,s.b)?'a':'b';if(tool==='trim'){let segmentLength=dist(s.a,s.b);if(dist(s.a,I)+dist(I,s.b)>segmentLength+1e-5)return status('境界が線分上にありません');snapshot();s[near]={...I}}else{snapshot();s[near]={...I}}selected=s;render();status('無限下書き線を境界として'+(tool==='trim'?'トリム':'延長')+'しました')};
+const beforeShapeAction=shapeAction;
+shapeAction=function(s,p){if(['construction','ray'].includes(s.type)&&['trim','extend'].includes(tool)&&!editFirst){editFirst=s;selected=s;render();status('下書き線を境界に指定 · 対象の図形をクリック');return}return beforeShapeAction(s,p)};
+// Existing shape clicks use tighter SVG strokes. Geometric hit testing also supports drawing/editing tools.
+svg.addEventListener('pointerdown',e=>{if(e.button!==0||tool==='select'||tool==='construction')return;let s=findNear(world(e));if(!s)return;if(['delete','offset','trim','extend','fillet','chamfer','explode','group','ungroup','move','copy'].includes(tool)){e.stopImmediatePropagation();shapeAction(s,world(e))}},true);
+const oldSetTool2=setTool;setTool=function(t){selectedIds.clear();hoverShape=null;boxDrag=null;oldSetTool2(t)};
+
+
+// v0.5: true solid construction lines; trimming XLINE -> RAY -> LINE.
+// Trim convention: first click the boundary, then click the side of the target to remove.
+function rayVisibleEnds(s){
+  const view=xlineVisibleEnds({a:s.a,b:s.b});if(!view.length)return [];
+  const v=sub(s.b,s.a),vv=v.x*v.x+v.y*v.y;
+  const candidates=view.map(p=>({p,t:((p.x-s.a.x)*v.x+(p.y-s.a.y)*v.y)/vv})).filter(x=>x.t>=-1e-9).sort((a,b)=>a.t-b.t);
+  const r=svg.getBoundingClientRect(),w0=world({clientX:r.left,clientY:r.top}),w1=world({clientX:r.right,clientY:r.bottom});
+  const inside=s.a.x>=Math.min(w0.x,w1.x)&&s.a.x<=Math.max(w0.x,w1.x)&&s.a.y>=Math.min(w0.y,w1.y)&&s.a.y<=Math.max(w0.y,w1.y);
+  if(inside&&candidates.length)return [s.a,candidates[candidates.length-1].p];
+  return candidates.length>=2?[candidates[0].p,candidates[candidates.length-1].p]:[];
+}
+const drawBeforeRay=drawShape;
+drawShape=function(s,parent=scene){
+ if(s.type!=='ray')return drawBeforeRay(s,parent);
+ const l=layers.find(x=>x.name===s.layer)||layers[0];if(!l.visible)return;
+ const ends=rayVisibleEnds(s);if(ends.length!==2)return;
+ const a=screen(ends[0]),b=screen(ends[1]);
+ const el=tag('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:s===selected?'#f43f5e':s.color||l.color,'stroke-width':s.weight||1.1,'vector-effect':'non-scaling-stroke'},parent);
+ if(parent===scene){el.dataset.shapeId=s.id;el.style.cursor='pointer';el.style.pointerEvents='stroke';el.onclick=e=>{e.stopPropagation();shapeAction(s,world(e))}}
+};
+// Override the geometrical trim action without changing the established CAD selection system.
+const shapeActionBeforeXlineTrim=shapeAction;
+shapeAction=function(s,p){
+ if(tool!=='trim')return shapeActionBeforeXlineTrim(s,p);
+ if(!editFirst){
+   if(!['line','construction','ray','dim'].includes(s.type))return status('境界には線分または下書き線を指定してください');
+   editFirst=s;selected=s;render();status('境界を指定しました。切り落とす側をクリックしてください');return;
+ }
+ const boundary=editFirst;editFirst=null;
+ if(boundary.id===s.id)return status('同じ図形は境界にできません');
+ if(!['line','construction','ray'].includes(s.type))return status('線分または下書き線を選択してください');
+ const hit=intersect(boundary.a,boundary.b,s.a,s.b);
+ if(!hit)return status('平行・重複する線はトリムできません');
+ // Boundaries must actually reach the intersection; XLINE has no restriction.
+ if(boundary.type==='line'&& (hit.t < -EPS||hit.t>1+EPS))return status('境界線分上に交点がありません');
+ if(boundary.type==='ray'&&hit.t < -EPS)return status('境界の半無限線上に交点がありません');
+ if(s.type==='line'&&(hit.u < -EPS||hit.u>1+EPS))return status('対象線分上に交点がありません');
+ if(s.type==='ray'&&hit.u < -EPS)return status('半無限線上に交点がありません');
+ const I=hit.p,dir=norm(sub(s.b,s.a));
+ const along=(q)=>((q.x-I.x)*dir.x+(q.y-I.y)*dir.y);
+ const removePositive=along(p)>=0;
+ snapshot();
+ if(s.type==='construction'){
+   // The clicked side is removed. Keep the opposite half-infinite ray.
+   s.type='ray';s.a={...I};s.b=plus(I,mul(dir,removePositive?-1:1));
+ }else if(s.type==='ray'){
+   // An RAY can only be shortened into a finite LINE by trimming its far side.
+   const forward=norm(sub(s.b,s.a)),segmentLen=(I.x-s.a.x)*forward.x+(I.y-s.a.y)*forward.y;
+   if(segmentLen<=1e-8||((p.x-I.x)*forward.x+(p.y-I.y)*forward.y)<0){history.pop();return status('半無限線は交点より先をクリックして切り落としてください')}
+   s.type='line';s.b={...I};
+ }else{
+   // The clicked side is removed, retaining the other endpoint.
+   const clickedA=dist(p,s.a)<dist(p,s.b);
+   s[clickedA?'a':'b']={...I};
+ }
+ selected=s;selectedIds.clear();selectedIds.add(s.id);render();status(s.type==='ray'?'無限下書き線をトリムして半無限線にしました': 'トリム完了');
+};
+// DXF standard RAY entity. Save/export supports the CAD's geometric type.
+const oldDxf=dxf;
+dxf=function(){let out=oldDxf().trimEnd().split('\n');let index=out.length-4;if(out[index]!=='0'||out[index+1]!=='ENDSEC')index=out.lastIndexOf('ENDSEC')-1;
+ const records=[];for(const s of shapes.filter(s=>s.type==='ray'))records.push('0','RAY','8',s.layer||'0','10',String(s.a.x),'20',String(s.a.y),'11',String(s.b.x-s.a.x),'21',String(s.b.y-s.a.y));
+ out.splice(index,0,...records);return out.join('\n')+'\n';};
+// Add import support for RAY via DXF postprocessing: original reader ignores it,
+// so use an independent, complete entity parser for RAY records only.
+const dxfInput=$('file');
+dxfInput.addEventListener('change',async()=>{
+ if(!dxfInput.files?.[0]||!dxfInput.files[0].name.toLowerCase().endsWith('.dxf'))return;
+ const text=await dxfInput.files[0].text(),lines=text.split(/\r?\n/),rays=[];let obj=null;
+ for(let i=0;i<lines.length-1;i+=2){const k=lines[i].trim(),v=lines[i+1].trim();if(k==='0'){if(obj?.type==='RAY')rays.push(obj);obj=v==='RAY'?{type:v}:null}else if(obj)obj[k]=v}
+ if(obj?.type==='RAY')rays.push(obj);
+ if(rays.length){snapshot();for(const r of rays){let layer=r['8']||'0';if(!layers.some(l=>l.name===layer))layers.push({name:layer,color:'#38bdf8',visible:true});const a={x:Number(r['10']),y:Number(r['20'])};shapes.push({id:uuid(),type:'ray',layer,a,b:plus(a,{x:Number(r['11']),y:Number(r['21'])})})}layerUI();render();}
+});
+
+
+// v0.6 multi-boundary continuous TRIM, interval removal and cross-window editing.
+const trimOldAction=shapeAction;
+let trimPhase='boundary',trimBoundaryIds=new Set(),trimBox=null;
+let trimEligible=s=>s&&['line','construction','ray'].includes(s.type);
+function trimRefresh(){
+ $('trimPanel').style.display=tool==='trim'?'block':'none';
+ if(tool!=='trim')return;
+ $('trimGuide').textContent=trimPhase==='boundary'
+  ? `境界を選択中 (${trimBoundaryIds.size}本)。未選択で確定するとすべての交差線を境界にします。`
+  : `連続トリム待機中 · ${trimBoundaryIds.size?trimBoundaryIds.size+'本の指定境界':'全交差線を自動境界'} · 枠選択も可能`;
+ $('trimConfirm').disabled=trimPhase==='target';
+ for(const el of scene.querySelectorAll('[data-shape-id]'))if(trimBoundaryIds.has(el.dataset.shapeId)){
+  el.setAttribute('stroke','#f59e0b');el.setAttribute('stroke-width','3');
+ }
+}
+const trimOriginalRender=render;
+render=function(){trimOriginalRender();trimRefresh()};
+const trimOldSetTool=setTool;
+setTool=function(t){trimOldSetTool(t);trimBoundaryIds.clear();trimPhase='boundary';trimBox=null;trimRefresh();if(t==='trim')status('トリム境界を複数選択 → Enter で確定（未選択なら自動）')};
+function trimStartTargets(){if(tool!=='trim')setTool('trim');trimPhase='target';selectedIds.clear();selected=null;editFirst=null;trimRefresh();status('トリム対象をクリック / 空白からドラッグして枠トリム。Escで終了')}
+$('trimConfirm').onclick=trimStartTargets;
+$('trimReset').onclick=()=>{trimPhase='boundary';trimBoundaryIds.clear();trimRefresh();status('境界線をクリックして複数選択 / Enterで確定')};
+$('clearSelection').onclick=()=>{trimBoundaryIds.clear();selectedIds.clear();selected=null;editFirst=null;trimBox=null;setTool('select');render();status('選択解除しました')};
+document.addEventListener('keydown',e=>{
+ if(tool!=='trim'||e.key!=='Enter'||e.ctrlKey||e.metaKey)return;
+ if(e.target===cmd){e.preventDefault();e.stopImmediatePropagation();cmd.value='';if(trimPhase==='boundary')trimStartTargets();return}
+ if(e.target.closest('input,textarea,select,button'))return;
+ if(trimPhase==='boundary'){e.preventDefault();trimStartTargets()}
+},true);
+function trimDomain(s){return s.type==='construction'?[-Infinity,Infinity]:s.type==='ray'?[0,Infinity]:[0,1]}
+function trimParam(s,p){let v=sub(s.b,s.a),den=v.x*v.x+v.y*v.y;return den<1e-12?0:((p.x-s.a.x)*v.x+(p.y-s.a.y)*v.y)/den}
+function trimAt(s,t){return plus(s.a,mul(sub(s.b,s.a),t))}
+function trimIntersectionParameters(s,b){
+ let r=intersect(s.a,s.b,b.a,b.b);if(!r)return [];
+ const [lo,hi]=trimDomain(s),[blo,bhi]=trimDomain(b);
+ if(r.t<=lo+1e-7||r.t>=hi-1e-7||r.u<blo-1e-7||r.u>bhi+1e-7)return [];
+ return [r.t];
+}
+function trimBuildSegment(original,lower,upper){
+ let s=clone(original);s.id=uuid();
+ if(!Number.isFinite(lower)&&!Number.isFinite(upper))return s;
+ if(!Number.isFinite(lower)){
+  let direction=norm(sub(original.a,original.b)),a=trimAt(original,upper);
+  s.type='ray';s.a=a;s.b=plus(a,direction);return s;
+ }
+ if(!Number.isFinite(upper)){
+  let direction=norm(sub(original.b,original.a)),a=trimAt(original,lower);
+  s.type='ray';s.a=a;s.b=plus(a,direction);return s;
+ }
+ s.type='line';s.a=trimAt(original,lower);s.b=trimAt(original,upper);return s;
+}
+function trimOne(s,clickPos,quiet=false){
+ if(!trimEligible(s)||trimBoundaryIds.has(s.id))return false;
+ const allBounds=trimBoundaryIds.size?shapes.filter(x=>trimBoundaryIds.has(x.id)):shapes;
+ const boundaries=allBounds.filter(b=>b.id!==s.id&&trimEligible(b)&&(!layers.find(l=>l.name===b.layer)||layers.find(l=>l.name===b.layer).visible));
+ let cuts=boundaries.flatMap(b=>trimIntersectionParameters(s,b)).sort((a,b)=>a-b);
+ cuts=cuts.filter((v,i)=>i===0||Math.abs(v-cuts[i-1])>1e-6);
+ if(!cuts.length){if(!quiet)status('対象線と交差する有効な境界線がありません');return false}
+ const [low,high]=trimDomain(s),p=trimParam(s,clickPos);
+ const t=Math.max(Number.isFinite(low)?low:p-1e10,Math.min(Number.isFinite(high)?high:p+1e10,p));
+ const stops=[low,...cuts,high];let index=stops.findIndex((val,i)=>i<stops.length-1&&t>=val-1e-8&&t<=stops[i+1]+1e-8);
+ if(index<0)return false;
+ // If clicked directly on an intersection, prefer the next interval in the forward direction.
+ if(index<stops.length-2&&Math.abs(t-stops[index+1])<1e-7)index++;
+ const pieces=[];
+ if(stops[index]>low+1e-8)pieces.push(trimBuildSegment(s,low,stops[index]));
+ if(stops[index+1]<high-1e-8)pieces.push(trimBuildSegment(s,stops[index+1],high));
+ const idx=shapes.findIndex(v=>v.id===s.id);if(idx<0)return false;
+ shapes.splice(idx,1,...pieces);
+ selectedIds.delete(s.id);if(selected?.id===s.id)selected=null;
+ return true;
+}
+shapeAction=function(s,p){
+ if(tool!=='trim')return trimOldAction(s,p);
+ if(trimPhase==='boundary'){
+  if(!trimEligible(s))return status('境界には線分・無限下書き線・半無限線を指定してください');
+  if(trimBoundaryIds.has(s.id))trimBoundaryIds.delete(s.id);else trimBoundaryIds.add(s.id);
+  selected=null;selectedIds.clear();render();status(`境界 ${trimBoundaryIds.size}本 · 続けてクリック / Enterで確定`);return;
+ }
+ snapshot();if(!trimOne(s,p)){history.pop();return}
+ render();status('トリム完了 · 続けて対象をクリック / 枠指定（Escで終了）');
+};
+function trimScreenBounds(s){
+ let ends=s.type==='construction'?xlineVisibleEnds(s):s.type==='ray'?rayVisibleEnds(s):[s.a,s.b];
+ if(ends.length!==2)return null;
+ return ends.map(screen);
+}
+// Geometry-based crossing, rather than bounding-box overlap, avoids accidental selections.
+function trimClipToBox(s,box){
+ const ends=trimScreenBounds(s);if(!ends)return null;
+ let [a,b]=ends,dx=b.x-a.x,dy=b.y-a.y,lo=0,hi=1;
+ const tests=[[-dx,a.x-box.left],[dx,box.right-a.x],[-dy,a.y-box.top],[dy,box.bottom-a.y]];
+ for(let [p,q] of tests){if(Math.abs(p)<1e-12){if(q<0)return null;continue}let r=q/p;if(p<0)lo=Math.max(lo,r);else hi=Math.min(hi,r);if(lo>hi)return null}
+ return {x:a.x+dx*(lo+hi)/2,y:a.y+dy*(lo+hi)/2};
+}
+function trimBoxDown(e){
+ if(e.button!==0||trimPhase!=='target')return;
+ let r=svg.getBoundingClientRect();trimBox={start:{x:e.clientX-r.left,y:e.clientY-r.top},end:{x:e.clientX-r.left,y:e.clientY-r.top},pointerId:e.pointerId};
+ svg.setPointerCapture(e.pointerId);
+ preview.innerHTML='';drawSelectionBox(trimBox.start,trimBox.end);
+}
+svg.addEventListener('pointermove',e=>{
+ if(tool!=='trim'||!trimBox)return;
+ e.stopImmediatePropagation();let r=svg.getBoundingClientRect();trimBox.end={x:e.clientX-r.left,y:e.clientY-r.top};
+ preview.innerHTML='';drawSelectionBox(trimBox.start,trimBox.end);
+},true);
+svg.addEventListener('pointerup',e=>{
+ if(tool!=='trim'||!trimBox)return;
+ e.stopImmediatePropagation();const {start,end}=trimBox;trimBox=null;preview.innerHTML='';
+ if(Math.hypot(end.x-start.x,end.y-start.y)<5)return;
+ const box={left:Math.min(start.x,end.x),right:Math.max(start.x,end.x),top:Math.min(start.y,end.y),bottom:Math.max(start.y,end.y)};
+ const targets=shapes.filter(s=>trimEligible(s)&&!trimBoundaryIds.has(s.id)).map(s=>({s,pt:trimClipToBox(s,box)})).filter(x=>x.pt);
+ if(!targets.length)return status('枠内にトリム可能な線がありません');
+ snapshot();let count=0;
+ for(let {s,pt} of targets){if(!shapes.some(x=>x.id===s.id))continue;
+  const rect=svg.getBoundingClientRect(),p=world({clientX:rect.left+pt.x,clientY:rect.top+pt.y});
+  if(trimOne(s,p,true))count++;
+ }
+ if(!count){history.pop();status('枠内に有効な交差点がありません');return}
+ render();status(`${count}本の線を枠トリム · 引き続き待機（Escで終了）`);
+},true);
+// Clear selection and stop trim with Escape even while the command input is focused.
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('clearSelection').click()}},true);
+trimRefresh();
+
+
+// v0.7: typed command pipeline, persistent object snap modes, and cursor badges.
+const snapOverlay=$('snapOverlay');
+let snapActive=null, snapPointer=null, offsetStage='idle';
+const snapTypes={intersection:{id:'snapIntersection',symbol:'×',label:'交点'},endpoint:{id:'snapEndpoint',symbol:'□',label:'端点'},midpoint:{id:'snapMidpoint',symbol:'◇',label:'中点'},center:{id:'snapCenter',symbol:'○',label:'中心'},tangent:{id:'snapTangent',symbol:'/○',label:'接線'}};
+const snapEnabled=type=>$('snap').checked&&$(snapTypes[type].id).checked;
+const visibleShapes=()=>shapes.filter(s=>{let l=layers.find(l=>l.name===s.layer);return !l||l.visible});
+function snapSegments(s){
+ if(['line','construction','ray','dim'].includes(s.type))return [{a:s.a,b:s.b,domain:s.type==='construction'?'infinite':s.type==='ray'?'ray':'segment'}];
+ if(s.type==='rect'){const a=s.a,b=s.b,pts=[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}];return pts.map((a,i)=>({a,b:pts[(i+1)%4],domain:'segment'}))}
+ if(s.type==='polygon')return s.pts.map((a,i)=>({a,b:s.pts[(i+1)%s.pts.length],domain:'segment'}));
+ return [];
+}
+function snapValid(t,domain){return domain==='infinite'||(domain==='ray'?t>=-1e-8:t>=-1e-8&&t<=1+1e-8)}
+function snapLineIntersection(a,b){let r=sub(a.b,a.a),v=sub(b.b,b.a),det=cross(r,v);if(Math.abs(det)<1e-10)return null;let w=sub(b.a,a.a),t=cross(w,v)/det,u=cross(w,r)/det;if(!snapValid(t,a.domain)||!snapValid(u,b.domain))return null;return plus(a.a,mul(r,t))}
+function snapLineCircle(seg,c){let d=sub(seg.b,seg.a),f=sub(seg.a,c.c),aa=d.x*d.x+d.y*d.y;if(aa<1e-12)return [];let bb=2*(f.x*d.x+f.y*d.y),cc=f.x*f.x+f.y*f.y-c.r*c.r,delta=bb*bb-4*aa*cc;if(delta < -1e-8)return [];return [(-bb+Math.sqrt(Math.max(delta,0)))/(2*aa),(-bb-Math.sqrt(Math.max(delta,0)))/(2*aa)].filter(t=>snapValid(t,seg.domain)).map(t=>plus(seg.a,mul(d,t)))}
+function snapCircleCircle(a,b){let dd=dist(a.c,b.c);if(dd<1e-9||dd>a.r+b.r+1e-8||dd<Math.abs(a.r-b.r)-1e-8)return [];let ex=mul(sub(b.c,a.c),1/dd),aa=(a.r*a.r-b.r*b.r+dd*dd)/(2*dd),hh=Math.sqrt(Math.max(0,a.r*a.r-aa*aa)),mid=plus(a.c,mul(ex,aa)),perp={x:-ex.y,y:ex.x};return [plus(mid,mul(perp,hh)),plus(mid,mul(perp,-hh))]}
+function snapTangents(anchor,c){if(!anchor||!c||c.type!=='circle')return [];let v=sub(anchor,c.c),d2=v.x*v.x+v.y*v.y,r2=c.r*c.r;if(d2<=r2+1e-9)return [];let base=plus(c.c,mul(v,r2/d2)),factor=c.r*Math.sqrt(d2-r2)/d2,perp={x:-v.y,y:v.x};return [plus(base,mul(perp,factor)),plus(base,mul(perp,-factor))]}
+function snapCandidates(p){
+ let objs=visibleShapes(),out=[],segments=objs.flatMap(s=>snapSegments(s)),circles=objs.filter(s=>s.type==='circle');
+ function push(q,type){if(q&&Number.isFinite(q.x)&&Number.isFinite(q.y)&&snapEnabled(type)&&dist(p,q)<=14/scale)out.push({point:q,type,d:dist(p,q)})}
+ for(let s of objs){
+  if(snapEnabled('endpoint')){if(s.type==='line'||s.type==='ray'||s.type==='dim'){push(s.a,'endpoint');if(s.type!=='ray')push(s.b,'endpoint')}else if(s.type==='rect'){push(s.a,'endpoint');push(s.b,'endpoint');push({x:s.a.x,y:s.b.y},'endpoint');push({x:s.b.x,y:s.a.y},'endpoint')}else if(s.type==='polygon')s.pts.forEach(q=>push(q,'endpoint'));else if(s.type==='arc'){push(s.a,'endpoint');push(s.c,'endpoint')}else if(s.type==='circularArc'){push(plus(s.c,{x:s.r*Math.cos(s.start),y:s.r*Math.sin(s.start)}),'endpoint');push(plus(s.c,{x:s.r*Math.cos(s.end),y:s.r*Math.sin(s.end)}),'endpoint')}}
+  if(snapEnabled('midpoint')){if(s.type==='line'||s.type==='dim')push(mul(plus(s.a,s.b),.5),'midpoint');else if(s.type==='rect'||s.type==='polygon')snapSegments(s).forEach(g=>push(mul(plus(g.a,g.b),.5),'midpoint'))}
+  if(snapEnabled('center')&&(s.type==='circle'||s.type==='circularArc'))push(s.c,'center');
+  if(snapEnabled('center')&&s.type==='point')push(s.c,'center');
+ }
+ if(snapEnabled('intersection')){
+  for(let i=0;i<segments.length;i++)for(let j=i+1;j<segments.length;j++)push(snapLineIntersection(segments[i],segments[j]),'intersection');
+  for(let seg of segments)for(let circle of circles)for(let q of snapLineCircle(seg,circle))push(q,'intersection');
+  for(let i=0;i<circles.length;i++)for(let j=i+1;j<circles.length;j++)for(let q of snapCircleCircle(circles[i],circles[j]))push(q,'intersection');
+ }
+ if(snapEnabled('tangent')&&pending.length&&pending[0]&&Number.isFinite(pending[0].x)){for(let c of circles)for(let q of snapTangents(pending[0],c))push(q,'tangent')}
+ const priority={intersection:0,endpoint:1,midpoint:2,center:3,tangent:4};out.sort((a,b)=>a.d-b.d||priority[a.type]-priority[b.type]);return out;
+}
+snapPoint=function(p){if(!$('snap').checked){snapActive=null;return p}const c=snapCandidates(p)[0];snapActive=c||null;return c?{...c.point}:p};
+function snapBadge(){snapOverlay.innerHTML='';if(!snapPointer||!$('snap').checked)return;let p=snapPointer,c=snapCandidates(p)[0];snapActive=c||null;if(!c)return;let s=screen(c.point),g=tag('g',{},snapOverlay);tag('rect',{x:s.x+10,y:s.y-26,width:65,height:21,rx:4,fill:'#172554',stroke:'#fbbf24','stroke-width':1},g);tag('text',{x:s.x+16,y:s.y-11,fill:'#fde68a','font-size':12},g).textContent=snapTypes[c.type].symbol+' '+snapTypes[c.type].label;tag('circle',{cx:s.x,cy:s.y,r:5,stroke:'#fbbf24',fill:'none','stroke-width':1},g)}
+const snapRenderPrev=render;render=function(){snapRenderPrev();snapBadge()};
+svg.addEventListener('pointermove',e=>{snapPointer=world(e);snapBadge()},true);
+svg.addEventListener('pointerleave',()=>{snapPointer=null;snapBadge()});
+for(let k of Object.values(snapTypes))$(k.id).addEventListener('change',()=>{snapBadge();status('スナップの種類を更新しました')});
+$('snap').addEventListener('change',snapBadge);
+const oldOffsetShapeV7=offsetShape;offsetShape=function(s,p){oldOffsetShapeV7(s,p);if(tool==='offset'){offsetStage='target';editSource=null;status('オフセット完了。次の対象をクリック（Escで終了）')}};
+const oldShapeActionV7=shapeAction;shapeAction=function(s,p){if(tool==='offset'){offsetStage='side';return oldShapeActionV7(s,p)}return oldShapeActionV7(s,p)};
+const oldSetToolV7=setTool;setTool=function(t){oldSetToolV7(t);offsetStage=t==='offset'?'distance':'idle';if(t==='offset')status('オフセット距離を入力（Enterで前回値）')};
+// Commands typed anywhere on the drawing surface are sent to the command line.
+// Shift+selection key remains available for selecting under the pointer.
+function pointFromText(str){const m=str.trim().match(/^([-+]?(?:\d+\.?\d*|\.\d+))\s*,\s*([-+]?(?:\d+\.?\d*|\.\d+))$/);return m?{x:Number(m[1]),y:Number(m[2])}:null}
+function commandPoint(p){
+ if(tool==='construction'){if(xlineMode==='h')xlineCreate(p,{x:1,y:0});else if(xlineMode==='v')xlineCreate(p,{x:0,y:1});else if(xlineMode==='a')xlineCreate(p,unitFromAngle(xlineAngle));else if(!pending.length){pending=[p];status('XX: 方向を決める2点目を指定')}else{let first=pending[0];pending=[];xlineCreate(first,sub(p,first))}return true}
+ if(tool==='point'){add({type:'point',c:p});return true}
+ if(tool==='line'||tool==='dim'||tool==='rect'||tool==='circle'){pending.push(p);if(pending.length>=2){let [a,b]=pending;pending=[];if(tool==='circle')add({type:'circle',c:a,r:dist(a,b)});else add({type:tool,a,b});}else status('次の点をクリックまたは X,Y Enter で指定');return true}
+ return false;
+}
+function handleCADCommand(raw){
+ const value=raw.trim(),up=value.toUpperCase(),p=pointFromText(value);
+ if(p){if(commandPoint(p))return;return status('この操作は座標直接入力に未対応です')}
+ if(tool==='construction'){
+  if(xlineAwaitAngle){const a=Number(value);if(value&&Number.isFinite(a)){xlineAngle=a;xlineMode='a';xlineAwaitAngle=false;xlineHelp()}else status('角度を入力してください');return}
+  if(up==='H'||up==='V'||up==='F'){xlineMode=up==='F'?'free':up.toLowerCase();pending=[];xlineHelp();return}
+  if(up==='A'){xlineAwaitAngle=true;status('角度を入力して Enter');return}
+ }
+ if(tool==='offset'&&offsetStage==='distance'){
+  if(value){let d=Number(value);if(!Number.isFinite(d)||d<=0)return status('オフセット距離は正数を入力');$('offsetDistance').value=String(d)}
+  offsetStage='target';status('オフセット対象の線分・円をクリック → 方向側をクリック');return;
+ }
+ if(tool==='trim'&&trimPhase==='boundary'&&!value){trimStartTargets();return}
+ if(!value){if(tool==='trim')return status('トリム対象をクリックまたは枠ドラッグ');return}
+ const map={DD:'dim',EX:'extend',XX:'construction',XLINE:'construction',L:'line',LINE:'line',C:'circle',CIRCLE:'circle',REC:'rect',RECT:'rect',ARC:'arc',PL:'polygon',POLYGON:'polygon',POINT:'point',DIM:'dim',MOVE:'move',COPY:'copy',DELETE:'delete',ERASE:'delete',O:'offset',OFFSET:'offset',F:'fillet',FILLET:'fillet',CHAMFER:'chamfer',TR:'trim',TRIM:'trim',EXTEND:'extend',EXPLODE:'explode',GROUP:'group',UNGROUP:'ungroup',S:'select'};
+ if(map[up]){if(map[up]==='construction')beginXline();else setTool(map[up]);return}
+ if(up==='UNDO'||up==='U')return undo();if(up==='REDO')return redo();if(up==='ESC')return $('clearSelection').click();
+ status('不明なコマンド: '+value);
+}
+// Capture before legacy command listeners and keep the input active for chained operations.
+document.addEventListener('keydown',e=>{
+ if(e.key==='F8'&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();e.stopImmediatePropagation();$('ortho').checked=!$('ortho').checked;status('直交 '+($('ortho').checked?'ON':'OFF'));return}
+ if(e.key==='Escape')return;
+ if(e.ctrlKey||e.metaKey||e.altKey||e.isComposing||e.key==='Process')return;
+ const target=e.target,editing=target.closest?.('input,textarea,select');
+ if(target===cmd){if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();const v=cmd.value;cmd.value='';handleCADCommand(v)}return}
+ if(editing)return;
+ if(e.key==='Enter'){e.preventDefault();e.stopImmediatePropagation();const v=cmd.value;cmd.value='';handleCADCommand(v);return}
+ if(e.key==='Backspace'&&cmd.value){e.preventDefault();e.stopImmediatePropagation();cmd.value=cmd.value.slice(0,-1);return}
+ if(e.key.length!==1||e.shiftKey&&tool==='select'&&e.key.toLowerCase()===($('selectKey').value||'S').toLowerCase())return;
+ e.preventDefault();e.stopImmediatePropagation();cmd.value+=e.key;cmd.focus();cmd.setSelectionRange(cmd.value.length,cmd.value.length);
+},true);
+cmd.placeholder='作図画面で直接入力: XX ↵ V ↵ 0,0 ↵ / O ↵ 10 ↵ 対象→方向 / TR ↵ 境界→↵→対象';
+
+new ResizeObserver(render).observe(svg);render();
+</script>
+<script>
+// v0.8: cursor-centered zoom, circular trim, drafting dimensions and shorthand commands.
+const TAU=Math.PI*2;
+const angleMod=a=>(a%TAU+TAU)%TAU;
+const aForward=(a,b)=>angleMod(b-a);
+const posOn=(s,a)=>({x:s.c.x+s.r*Math.cos(a),y:s.c.y+s.r*Math.sin(a)});
+function arcHasAngle(s,a){if(s.type==='circle')return true;const t=angleMod(a),st=angleMod(s.start),en=angleMod(s.end);return s.ccw?aForward(st,t)<=aForward(st,en)+1e-7:aForward(en,t)<=aForward(en,st)+1e-7;}
+function circleCuts(target,boundary){
+ const result=[];const push=p=>{let a=angleMod(Math.atan2(p.y-target.c.y,p.x-target.c.x));if(arcHasAngle(target,a)&&(!['circle','circularArc'].includes(boundary.type)||arcHasAngle(boundary,Math.atan2(p.y-boundary.c.y,p.x-boundary.c.x))))result.push(a)};
+ if(['circle','circularArc'].includes(boundary.type)){for(const p of snapCircleCircle(target,boundary))push(p)}
+ else for(const segment of snapSegments(boundary))for(const p of snapLineCircle(segment,target))push(p);
+ return result;
+}
+function trimCircle(target,point){
+ let boundaries=(trimBoundaryIds.size?shapes.filter(s=>trimBoundaryIds.has(s.id)):visibleShapes()).filter(s=>s.id!==target.id);
+ let cuts=boundaries.flatMap(b=>circleCuts(target,b)).sort((a,b)=>a-b).filter((a,i,arr)=>i===0||Math.abs(a-arr[i-1])>1e-6);
+ if(!cuts.length){status('円周と交差する境界線がありません');return false}
+ const click=angleMod(Math.atan2(point.y-target.c.y,point.x-target.c.x));
+ const start=target.type==='circle'?0:target.ccw?angleMod(target.start):angleMod(target.end);
+ const available=target.type==='circle'?TAU:target.ccw?aForward(target.start,target.end):aForward(target.end,target.start);
+ // Use CCW coordinates along the available geometric domain.
+ let params=cuts.map(a=>aForward(start,a)).filter(t=>t>1e-7&&t<available-1e-7).sort((a,b)=>a-b);
+ if(target.type==='circle')params=cuts.map(a=>aForward(click,a)).filter(t=>t>1e-7&&t<TAU-1e-7).sort((a,b)=>a-b);
+ let pieces=[];
+ if(target.type==='circle'){
+   if(cuts.length<2){status('円のトリムには交点が2点以上必要です');return false}
+   // Click is inside the removed interval. Remaining arc starts at the next boundary and ends at previous boundary.
+   const rel=cuts.map(a=>({a,d:aForward(click,a)})).sort((a,b)=>a.d-b.d);
+   const after=rel[0].a,before=rel[rel.length-1].a;
+   const all=[after,...rel.slice(1,-1).map(x=>x.a),before];
+   for(let i=0;i<all.length-1;i++)if(aForward(all[i],all[i+1])>1e-7)pieces.push({...clone(target),id:uuid(),type:'circularArc',start:all[i],end:all[i+1],ccw:true});
+ }else{
+   let clickT=aForward(start,click);if(clickT>available+1e-7){status('円弧上の区間を指定してください');return false}
+   const stops=[0,...params,available];let index=stops.findIndex((v,i)=>i<stops.length-1&&clickT>=v-1e-7&&clickT<=stops[i+1]+1e-7);
+   if(index<0)return false;
+   const toArc=(u,v)=>({...clone(target),id:uuid(),type:'circularArc',start:angleMod(start+u),end:angleMod(start+v),ccw:true});
+   if(index>0&&stops[index]>1e-7)pieces.push(toArc(0,stops[index]));
+   if(stops[index+1]<available-1e-7)pieces.push(toArc(stops[index+1],available));
+   // Keep geometrically identical CCW sub-arcs even when the original arc was clockwise.
+ }
+ let i=shapes.findIndex(s=>s.id===target.id);if(i<0)return false;
+ shapes.splice(i,1,...pieces);selected=null;selectedIds.delete(target.id);return true;
+}
+const oldTrimEligible=trimEligible;
+trimEligible=s=>oldTrimEligible(s)||s?.type==='circle'||s?.type==='circularArc';
+const oldTrimOne=trimOne;
+trimOne=function(s,p,quiet=false){if(['circle','circularArc'].includes(s.type)){if(trimBoundaryIds.has(s.id))return false;return trimCircle(s,p)}return oldTrimOne(s,p,quiet)};
+// Handle line trims against circles as boundaries too (line-circle intersections become cutting parameters).
+const oldTrimIntersections=trimIntersectionParameters;
+trimIntersectionParameters=function(s,b){if(['circle','circularArc'].includes(b.type))return snapLineCircle({a:s.a,b:s.b,domain:s.type==='construction'?'infinite':s.type==='ray'?'ray':'segment'},b).filter(p=>b.type==='circle'||arcHasAngle(b,Math.atan2(p.y-b.c.y,p.x-b.c.x))).map(p=>trimParam(s,p));return oldTrimIntersections(s,b)};
+// Existing trim UI allows targets only if trimEligible includes circle.
+// SVG click paths already use shapeAction; preserve this for arc segments.
+// Cursor-centered zoom; stop the v0.1 wheel listener in capture phase.
+svg.addEventListener('wheel',e=>{
+ e.preventDefault();e.stopImmediatePropagation();const r=svg.getBoundingClientRect();
+ const x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;
+ const wx=(x-offset.x)/scale,wy=(offset.y-y)/scale;
+ const factor=Math.exp(-Math.max(-800,Math.min(800,e.deltaY))*.00135);
+ scale=Math.max(.1,Math.min(15,scale*factor));
+ offset.x=x-wx*scale;offset.y=y+wy*scale;render();
+},{capture:true,passive:false});
+// Draw true extension lines, arrows and raised dimension text. Geometrical input remains 2 points.
+const beforeV8Draw=drawShape;
+function paintDimension(s,parent){
+ const L=layers.find(l=>l.name===s.layer)||layers[0];if(!L.visible)return;
+ const color=s.color||L.color,thick=s.weight||1.2;
+ const a=s.a,b=s.b;const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);if(len<1e-8)return;
+ const ux=dx/len,uy=dy/len,n={x:-uy,y:ux};const gap=Number.isFinite(s.dimOffset)?s.dimOffset:Math.max(8,Math.min(22,len*.25));
+ const A=plus(a,mul(n,gap)),B=plus(b,mul(n,gap));const w=4/scale,tx=(a,b)=>{let q=screen(a),r=screen(b);return tag('line',{x1:q.x,y1:q.y,x2:r.x,y2:r.y,stroke:color,'stroke-width':thick,'vector-effect':'non-scaling-stroke'},parent)};
+ tx(plus(a,mul(n,2/scale)),plus(A,mul(n,4/scale)));tx(plus(b,mul(n,2/scale)),plus(B,mul(n,4/scale)));
+ tx(A,B);
+ const arrow=(p,dir)=>{let point=screen(p),bb=screen(plus(p,mul(dir,Math.max(1.5,7/scale)))),np={x:-dir.y,y:dir.x};let t=2.5;tag('polygon',{points:`${point.x},${point.y} ${bb.x+np.x*t},${bb.y-np.y*t} ${bb.x-np.x*t},${bb.y+np.y*t}`,fill:color},parent)};
+ arrow(A,{x:ux,y:uy});arrow(B,{x:-ux,y:-uy});
+ const mid=screen(mul(plus(A,B),.5));const label=(s.textOverride||window.cadFormatDim(len,s.precision??2));
+ const angle=Math.atan2(B.y-A.y,B.x-A.x)*180/Math.PI;const displayAngle=angle>90||angle< -90?angle-180:angle;
+ const el=tag('text',{x:mid.x,y:mid.y-7,fill:color,'font-size':12,'text-anchor':'middle',transform:`rotate(${-displayAngle},${mid.x},${mid.y})`,'paint-order':'stroke',stroke:'#0b1220','stroke-width':3},parent);el.textContent=label;
+ if(parent===scene){const hit=tag('line',{x1:screen(A).x,y1:screen(A).y,x2:screen(B).x,y2:screen(B).y,stroke:'transparent','stroke-width':16,'pointer-events':'stroke'},parent);hit.dataset.shapeId=s.id;hit.onclick=e=>{e.stopPropagation();shapeAction(s,world(e))}};
+}
+drawShape=function(s,parent=scene){if(s.type==='dim'){paintDimension(s,parent);return}return beforeV8Draw(s,parent)};
+// Physical coordinates can be typed via DD and the old 2-click geometry workflow.
+const beforeV8Command=handleCADCommand;
+handleCADCommand=function(raw){let u=raw.trim().toUpperCase();if(u==='EX'){setTool('extend');status('延長: 境界線 → 延長する線分を選択');return}if(u==='DD'){setTool('dim');status('寸法線: 第1点 → 第2点をクリック、または X,Y Enter');return}return beforeV8Command(raw)};
+cmd.placeholder='XX ↵ V ↵ 0,0 ↵ | O ↵ 10 ↵ | TR ↵ | EX ↵ | C ↵ | L ↵ | DD ↵';
+// DXF: replace old LINE dimensions with standard DIMENSION entities plus anonymous graphics BLOCKS.
+const beforeV8DXF=dxf;
+dxf=function(){
+ const dims=shapes.filter(s=>s.type==='dim');if(!dims.length)return beforeV8DXF();
+ let pairs=beforeV8DXF().trimEnd().split('\n');
+ let out=[];for(let i=0;i<pairs.length-1;i+=2){let code=pairs[i],value=pairs[i+1];if(code==='0'&&value==='LINE'){
+   let start=i,sub=[];for(let j=i+2;j<pairs.length-1;j+=2){if(pairs[j]==='0')break;sub.push([pairs[j],pairs[j+1]])}
+   const get=k=>Number(sub.find(([a])=>a===k)?.[1]);let a={x:get('10'),y:get('20')},b={x:get('11'),y:get('21')};
+   const match=dims.find(d=>dist(d.a,a)<1e-6&&dist(d.b,b)<1e-6&&sub.some(([k,v])=>k==='8'&&v===d.layer));
+   if(match){i+=sub.length*2;continue}
+ }
+ out.push(code,value)}
+ const ix=out.findIndex((x,i)=>x==='0'&&out[i+1]==='ENDSEC'&&i>6); // first section end
+ const entityEnd=out.lastIndexOf('ENDSEC')-1;
+ const insert=[];const emit=(...v)=>insert.push(...v.map(String));
+ dims.forEach((s,i)=>{
+ const a=s.a,b=s.b,dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy),normal={x:-dy/(length||1),y:dx/(length||1)},gap=s.dimOffset??Math.max(8,Math.min(22,length*.25));
+ const A=plus(a,mul(normal,gap)),B=plus(b,mul(normal,gap));let layer=s.layer||'0';
+ emit(0,'DIMENSION',8,layer,2,'*D'+(i+1),3,'STANDARD',70,32,10,B.x,20,B.y,30,0,11,(A.x+B.x)/2,21,(A.y+B.y)/2,31,0,13,a.x,23,a.y,33,0,14,b.x,24,b.y,34,0,42,length,1,s.textOverride||'<>',50,Math.atan2(dy,dx)*180/Math.PI);
+ });
+ out.splice(entityEnd,0,...insert);
+ // Geometry blocks supplied for CAD viewers that depend on their anonymous dimension picture.
+ const blocks=[];const add=(...v)=>blocks.push(...v.map(String));
+ dims.forEach((s,i)=>{const a=s.a,b=s.b,dx=b.x-a.x,dy=b.y-a.y,length=Math.hypot(dx,dy);if(length<1e-9)return;const unit={x:dx/length,y:dy/length},n={x:-unit.y,y:unit.x},gap=s.dimOffset??Math.max(8,Math.min(22,length*.25)),A=plus(a,mul(n,gap)),B=plus(b,mul(n,gap));
+ const line=(p,q)=>add(0,'LINE',8,s.layer||'0',10,p.x,20,p.y,30,0,11,q.x,21,q.y,31,0);
+ add(0,'BLOCK',8,'0',2,'*D'+(i+1),70,1,10,0,20,0,30,0,3,'*D'+(i+1),1,'');
+ line(a,plus(A,mul(n,2)));line(b,plus(B,mul(n,2)));line(A,B);
+ for(const [point,dir] of [[A,unit],[B,mul(unit,-1)]]){const back=plus(point,mul(dir,3)),wing=mul(n,1);add(0,'SOLID',8,s.layer||'0',10,point.x,20,point.y,11,back.x+wing.x,21,back.y+wing.y,12,back.x-wing.x,22,back.y-wing.y,13,back.x-wing.x,23,back.y-wing.y)}
+ let center=mul(plus(A,B),.5);add(0,'TEXT',8,s.layer||'0',10,center.x,20,center.y+1.5,40,2.5,1,s.textOverride||window.cadFormatDim(length,s.precision??2),50,Math.atan2(dy,dx)*180/Math.PI,72,1,11,center.x,21,center.y+1.5,73,0);
+ add(0,'ENDBLK',8,'0')});
+ // Insert BLOCKS section before ENTITIES.
+ const entities=out.findIndex((x,i)=>x==='0'&&out[i+1]==='SECTION'&&out[i+2]==='2'&&out[i+3]==='ENTITIES');
+ if(entities>=0)out.splice(entities,0,'0','SECTION','2','BLOCKS',...blocks,'0','ENDSEC');
+ return out.join('\n')+'\n';
+};
+// Import DIMENSION geometry from definition points (DXF groups 13/23,14/24); ignore block graphics.
+const oldFileDXFHandler=$('file');
+oldFileDXFHandler.addEventListener('change',async()=>{
+ const f=oldFileDXFHandler.files?.[0];if(!f||!f.name.toLowerCase().endsWith('.dxf'))return;
+ const lines=(await f.text()).split(/\r?\n/);let section='',obj=null,imported=[];
+ const finish=()=>{if(obj?.type==='DIMENSION'){let v=obj.values,read=k=>Number(v[k]);if([read(13),read(23),read(14),read(24)].every(Number.isFinite))imported.push({type:'dim',a:{x:read(13),y:read(23)},b:{x:read(14),y:read(24)},layer:v[8]||'0'})}};
+ for(let i=0;i+1<lines.length;i+=2){let k=lines[i].trim(),v=lines[i+1].trim();if(k==='0'){finish();obj=null;if(v==='ENDSEC')section='';if(v==='DIMENSION'&&section==='ENTITIES')obj={type:v,values:{}}}else if(k==='2'&&v==='ENTITIES')section='ENTITIES';else if(obj)obj.values[k]=v;}finish();
+ if(imported.length){for(let d of imported){if(!layers.some(l=>l.name===d.layer))layers.push({name:d.layer,color:'#38bdf8',visible:true});shapes.push({id:uuid(),...d})}layerUI();render();status(`DXF DIMENSION ${imported.length}個を読み込みました`)}
+});
+</script>
+<script>
+// Universal CAD v0.9 — dimensions, guided corner commands, named save, and 2D fastener templates.
+// All geometry coordinates are in drawing units (mm by convention).
+(() => {
+  const $9 = id => document.getElementById(id);
+  const form = (html, where) => { where.insertAdjacentHTML('beforeend', html); };
+  document.title = 'Universal CAD v0.9';
+  document.querySelector('header span').textContent = 'v0.9 · PC prototype';
+  document.querySelector('header').insertAdjacentHTML('beforeend', '<span id="docName" style="margin-left:auto;font-size:11px;color:#a5b4fc">無題.json</span>');
+  $9('save').textContent = '保存 JSON';
+  $9('save').insertAdjacentHTML('afterend', '<button id="saveAs" title="ファイル名を指定してJSON図面を保存">名前を付けて保存</button>');
+  $9('chamferDistance').closest('label').insertAdjacentHTML('afterend', '<label>面取り距離2 <input id="chamferDistance2" type="number" min="0.001" step="1" value="5"></label>');
+  $9('trimPanel').insertAdjacentHTML('beforebegin', '<div class="panel" id="cornerPanel" style="display:none"><b id="cornerPanelTitle">面取り/フィレット</b><p><small id="cornerGuide"></small></p><button id="cornerApply">入力を確定 / 前回値</button></div>');
+  const templatePanel = document.createElement('div');
+  templatePanel.className = 'panel'; templatePanel.id = 'templatePanel';
+  templatePanel.innerHTML = `<b>ボルト・ネジ穴テンプレート（2D）</b>
+    <label>種類 <select id="tplKind">
+      <option value="clearance">ボルト通し穴</option><option value="tapped">タップ下穴</option>
+      <option value="counterbore">座ぐり付き穴</option><option value="hex">六角ボルト上面</option>
+      <option value="socket">六角穴付きボルト上面</option>
+    </select></label>
+    <label>呼び径 <select id="tplSize"><option>M3</option><option>M4</option><option>M5</option><option selected>M6</option><option>M8</option><option>M10</option><option>M12</option></select></label>
+    <label id="tplDiameterLabel">穴径 / 主要径 (mm) <input id="tplDiameter" type="number" min="0.1" step="0.1"></label>
+    <label id="tplOuterLabel">座ぐり径 / 頭径 (mm) <input id="tplOuter" type="number" min="0.1" step="0.1"></label>
+    <label id="tplDepthLabel">座ぐり深さ (mm) <input id="tplDepth" type="number" min="0" step="0.5" value="6"></label>
+    <button id="tplStart">配置開始（連続配置可）</button>
+    <p><small id="tplHelp">配置開始 → 図面をクリック。座標 X,Y も入力可能。</small></p>
+    <small>寸法は参考初期値です。加工・強度設計では使用規格と公差を確認してください。3D穴加工は未実装です。</small>`;
+  $9('trimPanel').parentNode.insertBefore(templatePanel, $9('trimPanel'));
+  const cornerMap = { chamfer: '面取り', fillet: 'フィレット' };
+  let cornerState = null;
+  const cornerStatus = () => {
+    const p = $9('cornerPanel');
+    if (!cornerState) {p.style.display = 'none';return;}
+    p.style.display = 'block';
+    $9('cornerPanelTitle').textContent = cornerMap[cornerState.kind] + ' · コマンド入力';
+    const kind = cornerState.kind;
+    const guide = kind === 'fillet'
+      ? (cornerState.step === 'radius'
+        ? `Rを入力 → Enter （空欄の場合、前回の R=${$9('filletRadius').value} mm）`
+        : 'フィレットを作る2本の線分を順番にクリック（Escで終了）')
+      : (cornerState.step === 'first'
+        ? `1つ目の面取り距離 → Enter （空欄なら前回の ${$9('chamferDistance').value} mm）`
+        : cornerState.step === 'second'
+          ? `2つ目の面取り距離 → Enter （空欄なら1つ目と同じ ${cornerState.first} mm）`
+          : `2本の線分を順番にクリック（距離1=${cornerState.first} / 距離2=${cornerState.second} mm、Escで終了）`);
+    $9('cornerGuide').textContent = guide;
+    status(guide);
+  };
+  const olderSetTool9 = setTool;
+  setTool = function(t) {
+    olderSetTool9(t);
+    cornerState = t === 'chamfer' ? {kind:t,step:'first',first:null,second:null}
+      : t === 'fillet' ? {kind:t,step:'radius',radius:null} : null;
+    cornerStatus();
+    if (t === 'template') status('テンプレートの中心をクリック、または X,Y ↵ で指定 · Escで終了');
+  };
+  function stepCorner(raw) {
+    if (!cornerState) return false;
+    if (cornerState.step === 'pick') return false;
+    const value = raw.trim();
+    const n = value ? Number(value) : null;
+    if (value && (!Number.isFinite(n) || n <= 0)) {status('0より大きな寸法を入力してください');return true;}
+    if (cornerState.kind === 'fillet') {
+      const radius = value ? n : Number($9('filletRadius').value);
+      if (!(radius > 0)) {status('フィレット半径は正数で指定');return true;}
+      $9('filletRadius').value = String(radius);
+      cornerState.radius = radius;cornerState.step = 'pick';cornerStatus();return true;
+    }
+    if (cornerState.step === 'first') {
+      let d1 = value ? n : Number($9('chamferDistance').value);
+      if (!(d1 > 0)) {status('面取り距離1は正数で指定');return true;}
+      $9('chamferDistance').value = String(d1);cornerState.first = d1;cornerState.step = 'second';cornerStatus();return true;
+    }
+    if (cornerState.step === 'second') {
+      const d2 = value ? n : cornerState.first;
+      if (!(d2 > 0)) {status('面取り距離2は正数で指定');return true;}
+      $9('chamferDistance2').value = String(d2);
+      cornerState.second = d2;cornerState.step = 'pick';cornerStatus();return true;
+    }
+    return false;
+  }
+  $9('cornerApply').onclick = () => {if (cornerState && cornerState.step !== 'pick') stepCorner('')};
+  // Intercept bare input/Enter before the v0.7 dispatcher so the number is not misread as a command.
+  const olderHandleCommand9 = handleCADCommand;
+  handleCADCommand = function(raw) {
+    const text = raw.trim(), upper = text.toUpperCase();
+    // Chamfer/fillet still work after using any other tool (including XX).
+    if (cornerState && cornerState.step !== 'pick' && !['ESC','CH','CHAMFER','F','FILLET'].includes(upper)) {
+      stepCorner(text);return;
+    }
+    if (upper === 'CH' || upper === 'CHAMFER') {setTool('chamfer');return;}
+    if (upper === 'F' || upper === 'FILLET') {setTool('fillet');return;}
+    if (upper === 'HOLE' || upper === 'BOLT' || upper === 'TEMPLATE') {setTool('template');return;}
+    if (tool === 'template') {
+      const p = pointFromText(text);
+      if (p) {placeTemplate(p);return;}
+      if (!text) {status('中心の X,Y を入力するか、図面をクリック');return;}
+    }
+    if (cornerState?.step === 'pick' && !text) {cornerStatus();return;}
+    olderHandleCommand9(raw);
+  };
+  // F is a global FILLET alias, including when an earlier XLINE command is active.
+  window.addEventListener('keydown',e=>{
+    if(e.key==='Enter' && e.target===$9('command') && tool==='construction') {
+      const name=$9('command').value.trim().toUpperCase();
+      if(['F','FILLET','CH','CHAMFER'].includes(name)) {
+        e.preventDefault();e.stopImmediatePropagation();$9('command').value='';handleCADCommand(name);
+      }
+    }
+  },true);
+  const olderFinishPair9 = finishPair;
+  finishPair = function(s,p) {
+    if (tool !== 'chamfer' || !cornerState || cornerState.step !== 'pick') return olderFinishPair9(s,p);
+    const a = editFirst;editFirst = null;
+    if (!a || a.id === s.id || a.type !== 'line' || s.type !== 'line') {
+      status('面取りは異なる2本の有限線分を指定してください');return;
+    }
+    const hit = intersect(a.a,a.b,s.a,s.b);
+    if (!hit) {status('平行・重複線は面取りできません');return;}
+    const I = hit.p;
+    const nearA = dist(a.a,I) <= dist(a.b,I)?'a':'b', nearB = dist(s.a,I) <= dist(s.b,I)?'a':'b';
+    const farA = nearA === 'a'?'b':'a',farB=nearB === 'a'?'b':'a';
+    const ua = norm(sub(a[farA],I)),ub = norm(sub(s[farB],I));
+    const angle = Math.acos(Math.min(1,Math.max(-1,ua.x*ub.x+ua.y*ub.y)));
+    const d1 = cornerState.first, d2=cornerState.second;
+    if (angle < 1e-4 || angle > Math.PI-1e-4) {status('2線の角度が小さすぎます');return;}
+    if (dist(I,a[farA]) < d1-1e-7 || dist(I,s[farB]) < d2-1e-7) {
+      status(`面取りに必要な長さが不足しています（${d1} / ${d2}mm）`);return;
+    }
+    const p1=plus(I,mul(ua,d1)),p2=plus(I,mul(ub,d2));
+    snapshot();a[nearA]=p1;s[nearB]=p2;
+    const newLine={id:uuid(),type:'line',layer:currentLayer,a:p1,b:p2,
+      chamfer:{first:d1,second:d2,from:[a.id,s.id]}};
+    shapes.push(newLine);selected=newLine;render();
+    status(`面取り ${d1} × ${d2} mm 完了 · 続けて2辺を指定（Escで終了）`);
+  };
+  // Reject line selections until the requested radius/distance stages have finished.
+  const oldShapeAction9 = shapeAction;
+  shapeAction = function(s,p) {
+    if ((tool === 'chamfer' || tool === 'fillet') && cornerState?.step !== 'pick') {
+      cornerStatus();return;
+    }
+    return oldShapeAction9(s,p);
+  };
+
+  // Dimension layout stored in model coordinates, not pixel coordinates. Four independent grips.
+  function dimLayout(s) {
+    const a=s.a,b=s.b, len=dist(a,b) || 1,unit=norm(sub(b,a)),normal={x:-unit.y,y:unit.x};
+    const ds=Number(document.getElementById("draftScale")?.value||1);
+    const gap=Number.isFinite(s.dimOffset)?s.dimOffset:Math.max(8,Math.min(22,len*.25))*ds;
+    const A=s.dimArrowA?{...s.dimArrowA}:plus(a,mul(normal,gap));
+    const B=s.dimArrowB?{...s.dimArrowB}:plus(b,mul(normal,gap));
+    const middle=mul(plus(A,B),.5);
+    const T=s.dimTextPos?{...s.dimTextPos}:plus(middle,mul(normal,1.6*ds));
+    return {a,b,A,B,T,unit,normal,len,gap};
+  }
+  const dimG=document.createElementNS('http://www.w3.org/2000/svg','g');
+  dimG.id='dimHandles';svg.append(dimG);
+  function dimensionLine(p,q,color,width,parent=scene) {
+    const a=screen(p),b=screen(q);
+    return tag('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:color,'stroke-width':width,'vector-effect':'non-scaling-stroke'},parent);
+  }
+  function dimArrowDraw(p,dir,normal,color,style,parent){
+    const tip=screen(p),D=norm(dir),side={x:-D.y,y:D.x};
+    if(style==='slash') {
+      let ds=Number(document.getElementById('draftScale')?.value||1);let r1=screen(plus(p,plus(mul(D,-1.5*ds),mul(side,-1.5*ds))));
+      let r2=screen(plus(p,plus(mul(D,1.5*ds),mul(side,1.5*ds))));
+      tag('line',{x1:r1.x,y1:r1.y,x2:r2.x,y2:r2.y,stroke:color,'stroke-width':1.8},parent);return;
+    }
+    if(style==='dot') {tag('circle',{cx:tip.x,cy:tip.y,r:3.1,fill:color},parent);return;}
+    const ds=Number(document.getElementById('draftScale')?.value||1),back=screen(plus(p,mul(D,2.5*ds))),wing=Math.max(1,0.75*ds*scale);
+    tag('polygon',{points:`${tip.x},${tip.y} ${back.x+side.x*wing},${back.y-side.y*wing} ${back.x-side.x*wing},${back.y+side.y*wing}`,fill:color},parent);
+  }
+  // Overrides the original 0.8 renderer. Dimension components now follow grip state.
+  paintDimension = function(s,parent) {
+    const L=layers.find(l=>l.name===s.layer)||layers[0];if(!L.visible)return;
+    const color=s.color||L.color,width=Math.max(.8,(s.weight??.25)*96/25.4);
+    const d=dimLayout(s);if(d.len<1e-7)return;
+    const extUnitA=norm(sub(d.A,d.a)),extUnitB=norm(sub(d.B,d.b));
+    dimensionLine(plus(d.a,mul(extUnitA,.5*Number(document.getElementById('draftScale')?.value||1))),plus(d.A,mul(extUnitA,1*Number(document.getElementById('draftScale')?.value||1))),color,width,parent);
+    dimensionLine(plus(d.b,mul(extUnitB,.5*Number(document.getElementById('draftScale')?.value||1))),plus(d.B,mul(extUnitB,1*Number(document.getElementById('draftScale')?.value||1))),color,width,parent);
+    dimensionLine(d.A,d.B,color,width,parent);
+    let arrowUnit=norm(sub(d.B,d.A));
+    dimArrowDraw(d.A,arrowUnit,d.normal,color,s.dimSymbol||'arrow',parent);
+    dimArrowDraw(d.B,mul(arrowUnit,-1),d.normal,color,s.dimSymbol||'arrow',parent);
+    const t=screen(d.T),angle=Math.atan2(d.B.y-d.A.y,d.B.x-d.A.x)*180/Math.PI;
+    let textAngle=angle>90||angle < -90?angle-180:angle;
+    const ds=Number(document.getElementById('draftScale')?.value||1);
+    const text=tag('text',{x:t.x,y:t.y,fill:color,'font-size':Math.max(10,3.2*ds*scale),'text-anchor':'middle',
+      transform:`rotate(${-textAngle},${t.x},${t.y})`,'paint-order':'stroke fill',stroke:color,'stroke-width':Math.max(.2,.35*96/25.4),'stroke-linejoin':'round','font-family':'Arial, sans-serif'},parent);
+    text.textContent=s.textOverride || window.cadFormatDim(d.len,s.precision??2);
+    if(parent===scene) {
+      const A=screen(d.A),B=screen(d.B);
+      const hit=tag('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'transparent','stroke-width':19,'pointer-events':'stroke'},parent);
+      hit.dataset.shapeId=s.id;hit.onclick=e=>{e.stopPropagation();shapeAction(s,world(e));};
+      text.dataset.shapeId=s.id;
+    }
+  };
+  // Moving/copying a dimension must also move the optional presentation grips.
+  const oldCoordinateEdit9=coordinateEdit;
+  coordinateEdit=function(s,delta){
+    oldCoordinateEdit9(s,delta);
+    if(s.type==='dim')for(const k of ['dimArrowA','dimArrowB','dimTextPos'])if(s[k])s[k]=plus(s[k],delta);
+  };
+  const oldShapeEnvelope9=shapeEnvelope;
+  shapeEnvelope=function(s){
+    if(s.type!=='dim')return oldShapeEnvelope9(s);
+    const d=dimLayout(s),points=[d.a,d.b,d.A,d.B,d.T].map(screen);
+    return {xmin:Math.min(...points.map(p=>p.x)),xmax:Math.max(...points.map(p=>p.x)),
+      ymin:Math.min(...points.map(p=>p.y)),ymax:Math.max(...points.map(p=>p.y))};
+  };
+  const oldShapeDistance9 = shapeDistance;
+  shapeDistance = function(p,s) {
+    if(s.type !== 'dim')return oldShapeDistance9(p,s);
+    let q=dimLayout(s);
+    return Math.min(segmentDistance(p,q.A,q.B),segmentDistance(p,q.a,q.A),segmentDistance(p,q.b,q.B),dist(p,q.T));
+  };
+  function dimensionGrips() {
+    dimG.innerHTML='';
+    if(!selected || selected.type!=='dim' || tool !== 'select')return;
+    const d=dimLayout(selected);
+    const grips=[['arrowA',d.A,'#34d399','起点記号 A'],['arrowB',d.B,'#34d399','終点記号 B'],
+      ['line',plus(d.A,mul(sub(d.B,d.A),.25)),'#60a5fa','寸法線の位置（平行）'],['text',d.T,'#fbbf24','寸法値の位置']];
+    for(let [part,p,color,label] of grips){let q=screen(p);
+      const circle=tag('circle',{cx:q.x,cy:q.y,r:part==='text'?6:5,fill:color,stroke:'#0b1220','stroke-width':1.5,
+        'data-dim-handle':part,'data-dim-id':selected.id,style:'cursor:move;pointer-events:all'},dimG);
+      let title=tag('title',{},circle);title.textContent=`${label}：ドラッグして移動`;
+    }
+  }
+  const oldRender9=render;
+  render=function(){oldRender9();dimensionGrips();};
+  let dimDrag=null;
+  document.addEventListener('pointerdown',e=>{
+    const target=e.target.closest?.('[data-dim-handle]');if(!target || e.button!==0)return;
+    const s=shapes.find(s=>s.id===target.getAttribute('data-dim-id'));if(!s||s.type!=='dim'||tool!=='select')return;
+    e.preventDefault();e.stopImmediatePropagation();
+    snapshot();const d=dimLayout(s);
+    dimDrag={s,part:target.getAttribute('data-dim-handle'),start:world(e),d,moved:false,pointerId:e.pointerId};
+    svg.setPointerCapture(e.pointerId);
+  },true);
+  document.addEventListener('pointermove',e=>{
+    if(!dimDrag)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const m=dimDrag,q=sub(world(e),m.start),s=m.s;
+    if(magnitude(q)>.00001)m.moved=true;
+    if(m.part==='text')s.dimTextPos=plus(m.d.T,q);
+    else if(m.part==='line'){
+      const projected=q.x*m.d.normal.x+q.y*m.d.normal.y;
+      const shift=mul(m.d.normal,projected);
+      s.dimArrowA=plus(m.d.A,shift);s.dimArrowB=plus(m.d.B,shift);s.dimTextPos=plus(m.d.T,shift);
+      // The blue grip is restricted to parallel displacement (normal to measured edge).
+      s.dimOffset=m.d.gap+projected;
+    }
+    else if(m.part==='arrowA')s.dimArrowA=plus(m.d.A,q);
+    else if(m.part==='arrowB')s.dimArrowB=plus(m.d.B,q);
+    render();
+  },true);
+  document.addEventListener('pointerup',e=>{
+    if(!dimDrag)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(!dimDrag.moved)history.pop();
+    const name={line:'寸法線',text:'寸法値',arrowA:'起点記号',arrowB:'終点記号'}[dimDrag.part];
+    dimDrag=null;render();status(`${name}の位置を更新しました（Ctrl+Zで戻せます）`);
+  },true);
+  function dimProperty(label,value,apply,step='0.1') {
+    const wrap=document.createElement('label');wrap.textContent=label+' ';
+    const input=document.createElement('input');input.type='number';input.step=step;input.value=String(Number(value.toFixed(4)));
+    input.style.width='93px';input.onchange=()=>{const v=Number(input.value);if(!Number.isFinite(v))return;
+      snapshot();apply(v);render();};wrap.append(input);$9('properties').append(wrap);
+  }
+  const oldPropertyUI9=propertyUI;
+  propertyUI = function(){oldPropertyUI9();if(!selected||selected.type!=='dim')return;
+    const s=selected,d=dimLayout(s);const p=$9('properties');
+    p.insertAdjacentHTML('beforeend','<hr><b>寸法編集（図面上の丸をドラッグ可能）</b>');
+    dimProperty('寸法線距離（平行移動）',d.gap,v=>{const shift=mul(d.normal,v-d.gap);s.dimOffset=v;s.dimArrowA=plus(d.A,shift);s.dimArrowB=plus(d.B,shift);s.dimTextPos=plus(d.T,shift)});
+    dimProperty('文字 X',d.T.x,v=>s.dimTextPos={x:v,y:dimLayout(s).T.y});
+    dimProperty('文字 Y',d.T.y,v=>s.dimTextPos={x:dimLayout(s).T.x,y:v});
+    dimProperty('起点記号 X',d.A.x,v=>s.dimArrowA={x:v,y:dimLayout(s).A.y});
+    dimProperty('起点記号 Y',d.A.y,v=>s.dimArrowA={x:dimLayout(s).A.x,y:v});
+    dimProperty('終点記号 X',d.B.x,v=>s.dimArrowB={x:v,y:dimLayout(s).B.y});
+    dimProperty('終点記号 Y',d.B.y,v=>s.dimArrowB={x:dimLayout(s).B.x,y:v});
+    const lab=document.createElement('label');lab.textContent='端末記号 ';
+    const sel=document.createElement('select');
+    for(let [value,name] of [['arrow','塗り矢印 ←→'],['slash','斜線 ／'],['dot','点 ●']]){
+      let o=document.createElement('option');o.value=value;o.textContent=name;sel.append(o);
+    }
+    sel.value=s.dimSymbol||'arrow';sel.onchange=()=>{snapshot();s.dimSymbol=sel.value;render()};lab.append(sel);p.append(lab);
+    const reset=document.createElement('button');reset.textContent='寸法表示位置を初期化';reset.onclick=()=>{snapshot();delete s.dimArrowA;delete s.dimArrowB;delete s.dimTextPos;delete s.dimOffset;render()};p.append(reset);
+  };
+
+  // Named saving: the name is used for local browser download, not a server-side write.
+  let documentName='無題';
+  function showDocumentName(){ $9('docName').textContent=documentName+'.json';}
+  const safeName=name=>String(name||'').replace(/\.(json)$/i,'').replace(/[\\/:*?"<>|\x00-\x1F]/g,'_').trim().slice(0,90);
+  function saveJSON(){download(documentName+'.json',JSON.stringify({format:'universal-cad',version:'1.5',name:documentName,drawingScale:Number(document.getElementById('draftScale')?.value||1),shapes,layers,features,paramVariables:window.cadParametric?.variables||[],paramRules:window.cadParametric?.rules||"",paramRows:window.cadParametric?.rows||[],materials:window.cadMaterials||[],mindNodes:window.cadMind?.nodes||[],geoItems:window.cadGeo?.items||[]},null,2),'application/json');status(`${documentName}.json を保存しました（ダウンロード）`)}
+  $9('save').onclick=saveJSON;
+  window.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){
+      e.preventDefault();e.stopImmediatePropagation();$9(e.shiftKey?'saveAs':'save').click();
+    }
+  },true);
+  $9('saveAs').onclick=()=>{
+    const given=window.prompt('保存する図面名（.json は不要）',documentName==='無題'?'部品図01':documentName);
+    if(given===null)return;const name=safeName(given);
+    if(!name){status('ファイル名を入力してください');return;}documentName=name;showDocumentName();saveJSON();
+  };
+  $9('load').onclick=()=>pick('.json',async f=>{
+    try {
+      let data=JSON.parse(await f.text());if(!Array.isArray(data.shapes))throw Error('shapes 配列がありません');
+      shapes=data.shapes;layers=Array.isArray(data.layers)&&data.layers.length?data.layers:layers;
+      if(Number.isFinite(Number(data.drawingScale))&&Number(data.drawingScale)>0&&document.getElementById('draftScale'))document.getElementById('draftScale').value=String(data.drawingScale);
+      features=Array.isArray(data.features)?data.features:[];window.cadParametric?.load(data);window.cadExtrasLoad?.(data);
+      documentName=safeName(data.name||f.name.replace(/\.json$/i,''))||'無題';
+      currentLayer=layers.some(l=>l.name===currentLayer)?currentLayer:layers[0].name;
+      history=[];redoStack=[];selected=null;selectedIds.clear();setTool('select');layerUI();render();showDocumentName();status(`${f.name} を読み込みました`);
+    } catch(err){status('JSON読込失敗: '+err.message);}
+  });
+
+  const fastenerSpecs={
+    M3:{nominal:3,pitch:.5,tap:2.5,clear:3.4,bore:6.5,flat:5.5,cap:5.5,socket:2.5},
+    M4:{nominal:4,pitch:.7,tap:3.3,clear:4.5,bore:8,flat:7,cap:7,socket:3},
+    M5:{nominal:5,pitch:.8,tap:4.2,clear:5.5,bore:9.5,flat:8,cap:8.5,socket:4},
+    M6:{nominal:6,pitch:1,tap:5,clear:6.6,bore:11,flat:10,cap:10,socket:5},
+    M8:{nominal:8,pitch:1.25,tap:6.8,clear:9,bore:14,flat:13,cap:13,socket:6},
+    M10:{nominal:10,pitch:1.5,tap:8.5,clear:11,bore:17.5,flat:17,cap:16,socket:8},
+    M12:{nominal:12,pitch:1.75,tap:10.2,clear:13.5,bore:20,flat:19,cap:18,socket:10}
+  };
+  function tplSettings(){let kind=$9('tplKind').value,size=$9('tplSize').value,spec=fastenerSpecs[size];return {kind,size,spec,
+    diameter:Number($9('tplDiameter').value),outer:Number($9('tplOuter').value),depth:Number($9('tplDepth').value)};}
+  function refreshTplValues(){
+    const kind=$9('tplKind').value,spec=fastenerSpecs[$9('tplSize').value];
+    const d=kind==='tapped'?spec.tap:kind==='hex'||kind==='socket'?spec.nominal:spec.clear;
+    const outer=kind==='hex'?spec.flat:kind==='socket'?spec.cap:spec.bore;
+    $9('tplDiameter').value=d;$9('tplOuter').value=outer;
+    $9('tplOuterLabel').style.display=['counterbore','hex','socket'].includes(kind)?'block':'none';
+    $9('tplDepthLabel').style.display=kind==='counterbore'?'block':'none';
+    $9('tplDiameterLabel').firstChild.textContent=['hex','socket'].includes(kind)?'軸径 (mm) ':'穴径 (mm) ';
+  }
+  $9('tplKind').addEventListener('change',refreshTplValues);
+  $9('tplSize').addEventListener('change',refreshTplValues);refreshTplValues();
+  function regularPolygon(center,acrossFlats,rotation=Math.PI/6){
+    const r=acrossFlats/Math.sqrt(3);return Array.from({length:6},(_,i)=>({x:center.x+r*Math.cos(rotation+i*Math.PI/3),y:center.y+r*Math.sin(rotation+i*Math.PI/3)}));
+  }
+  function templateShapes(p,settings=tplSettings()) {
+    const {kind,size,spec,diameter,outer,depth}=settings;
+    if(!Number.isFinite(diameter)||diameter<=0||
+       (['counterbore','hex','socket'].includes(kind)&&(!Number.isFinite(outer)||outer<=0)))return null;
+    if(kind==='counterbore'&&outer<=diameter)return null;
+    const gid=uuid();const meta={kind,size,nominal:spec.nominal,pitch:spec.pitch,diameter,outer,depth};
+    const attrs={layer:currentLayer,group:gid,template:{...meta}};
+    const circle=(r,props={})=>({id:uuid(),type:'circle',c:{...p},r, ...attrs,...props});
+    const hex=(af,props={})=>({id:uuid(),type:'polygon',pts:regularPolygon(p,af),...attrs,...props});
+    if(kind==='clearance')return [circle(diameter/2)];
+    if(kind==='tapped')return [circle(diameter/2),circle(spec.nominal/2,{lineType:'dotted',weight:1,color:'#94a3b8'})];
+    if(kind==='counterbore')return [circle(diameter/2),circle(outer/2,{color:'#fbbf24'})];
+    if(kind==='hex')return [hex(outer),circle(diameter/2,{weight:1.2})];
+    return [circle(outer/2),hex(spec.socket),circle(diameter/2,{lineType:'dotted',weight:.8,color:'#94a3b8'})];
+  }
+  function placeTemplate(p) {
+    const data=templateShapes(p);
+    if(!data){status('テンプレート寸法が不正です。外径は穴径より大きくしてください');return;}
+    snapshot();shapes.push(...data);render();
+    const {kind,size}=tplSettings();status(`${size} ${$9('tplKind').selectedOptions[0].textContent} を (${p.x.toFixed(2)},${p.y.toFixed(2)}) に配置 · 次の中心を指定`);
+  }
+  toolNames.template='テンプレート配置';
+  const templateButton=document.createElement('button');templateButton.dataset.tool='template';templateButton.textContent='テンプレート配置';templateButton.onclick=()=>setTool('template');
+  $9('tools').append(templateButton);
+  $9('tplStart').onclick=()=>setTool('template');
+  document.addEventListener('pointerdown',e=>{
+    if(tool!=='template'||e.button!==0||!svg.contains(e.target))return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const p=snapPoint(world(e));placeTemplate(p);
+  },true);
+  // Support typed placement coordinates without changing the v0.7 command box logic.
+  const oldCommandPoint9=commandPoint;
+  commandPoint = function(p){if(tool==='template'){placeTemplate(p);return true;}return oldCommandPoint9(p);};
+  // Live placement preview is rendered after the old preview renderer clears its group.
+  svg.addEventListener('pointermove',e=>{
+    if(tool!=='template')return;
+    preview.innerHTML='';const p=snapPoint(world(e)),items=templateShapes(p);
+    if(items)for(const s of items)drawShape(s,preview);
+  });
+  // Keep DXF DIMENSION entity definition and anonymous presentation block synchronized with movable grips.
+  const oldDxf9=dxf;
+  function pairsFrom(text){const raw=text.trimEnd().split(/\r?\n/),pairs=[];for(let i=0;i+1<raw.length;i+=2)pairs.push([raw[i],raw[i+1]]);return pairs;}
+  const dxLine=(p,q,layer)=>[['0','LINE'],['8',layer],['10',p.x],['20',p.y],['30',0],['11',q.x],['21',q.y],['31',0]];
+  const dxSolid=(p,dir,layer)=>{
+    const d=norm(dir),side={x:-d.y,y:d.x},back=plus(p,mul(d,3)),f1=plus(back,mul(side,.9)),f2=plus(back,mul(side,-.9));
+    return [['0','SOLID'],['8',layer],['10',p.x],['20',p.y],['11',f1.x],['21',f1.y],['12',f2.x],['22',f2.y],['13',f2.x],['23',f2.y]];
+  };
+  function dimensionBlock(s,i){
+    const name='*D'+(i+1),layer=s.layer||'0',d=dimLayout(s),n=norm(sub(d.B,d.A)),tip=s.dimSymbol||'arrow';
+    const g=[['0','BLOCK'],['8','0'],['2',name],['70',1],['10',0],['20',0],['30',0],['3',name],['1','']];
+    {const U=norm(sub(d.A,d.a)),ds=Number(document.getElementById('draftScale')?.value||1);g.push(...dxLine(plus(d.a,mul(U,.5*ds)),plus(d.A,mul(U,1*ds)),layer));}
+    {const U=norm(sub(d.B,d.b)),ds=Number(document.getElementById('draftScale')?.value||1);g.push(...dxLine(plus(d.b,mul(U,.5*ds)),plus(d.B,mul(U,1*ds)),layer));}
+    g.push(...dxLine(d.A,d.B,layer));
+    for(let [p,dir] of [[d.A,n],[d.B,mul(n,-1)]]){
+      if(tip==='arrow')g.push(...dxSolid(p,dir,layer));
+      else if(tip==='dot')g.push(['0','CIRCLE'],['8',layer],['10',p.x],['20',p.y],['40',.9]);
+      else {let side={x:-dir.y,y:dir.x};g.push(...dxLine(plus(p,plus(mul(dir,-1),mul(side,-1.5))),plus(p,plus(mul(dir,1),mul(side,1.5))),layer));}
+    }
+    const angle=Math.atan2(d.B.y-d.A.y,d.B.x-d.A.x)*180/Math.PI;
+    const label=String(s.textOverride||window.cadFormatDim(d.len,s.precision??2)).replace(/[\r\n]/g,' ');
+    g.push(['0','TEXT'],['8',layer],['370','35'],['10',d.T.x],['20',d.T.y],['30',0],['40',3.2*Number(document.getElementById('draftScale')?.value||1)],['1',label],['50',angle],['72',1],['11',d.T.x],['21',d.T.y],['31',0]);
+    g.push(['0','ENDBLK'],['8','0']);return g;
+  }
+  dxf=function(){
+    let pairs=pairsFrom(oldDxf9()),dims=shapes.filter(s=>s.type==='dim');if(!dims.length)return oldDxf9();
+    // Find DIMENSION records inside ENTITIES, update definition and user-positioned text point.
+    let section='',dimNum=0;
+    for(let i=0;i<pairs.length;i++){
+      if(pairs[i][0]==='0'&&pairs[i][1]==='SECTION'&&pairs[i+1]?.[0]==='2')section=pairs[i+1][1];
+      if(pairs[i][0]==='0'&&pairs[i][1]==='ENDSEC')section='';
+      if(section!=='ENTITIES'||pairs[i][0]!=='0'||pairs[i][1]!=='DIMENSION')continue;
+      const s=dims[dimNum++];if(!s)break;const d=dimLayout(s);
+      let next=i+1;while(next<pairs.length&&pairs[next][0]!=='0')next++;
+      const replacements={'10':d.B.x,'20':d.B.y,'11':d.T.x,'21':d.T.y,'13':s.a.x,'23':s.a.y,'14':s.b.x,'24':s.b.y,'50':Math.atan2(d.B.y-d.A.y,d.B.x-d.A.x)*180/Math.PI,'1':s.textOverride||'<>','2':'*D'+dimNum};
+      for(let j=i+1;j<next;j++)if(Object.prototype.hasOwnProperty.call(replacements,pairs[j][0]))pairs[j][1]=String(replacements[pairs[j][0]]);
+      i=next-1;
+    }
+    let blockIndex=pairs.findIndex((p,i)=>p[0]==='0'&&p[1]==='SECTION'&&pairs[i+1]?.[0]==='2'&&pairs[i+1][1]==='BLOCKS');
+    if(blockIndex>=0){let end=blockIndex+2;while(end<pairs.length&&!(pairs[end][0]==='0'&&pairs[end][1]==='ENDSEC'))end++;
+      pairs.splice(blockIndex+2,end-blockIndex-2,...dims.flatMap(dimensionBlock));}
+    return pairs.flat().map(String).join('\n')+'\n';
+  };
+  cmd.placeholder='CH ↵ 距離1 ↵ 距離2 ↵ 2辺クリック / F ↵ R ↵ 2辺クリック / DD ↵ 2点';
+  render();showDocumentName();
+})();
+
+
+// Universal CAD v1.0 — drafting standards, dimension display scale and Match Properties (MA).
+(() => {
+  const $10=id=>document.getElementById(id);
+  document.title='Universal CAD v1.0';
+  document.querySelector('header span').textContent='v1.0 · PC prototype';
+  const standard={
+    outline:{label:'外形線',weight:.35,lineType:'solid',layer:'0'},
+    hidden:{label:'隠れ線',weight:.25,lineType:'dashed',layer:'隠れ線'},
+    center:{label:'中心線',weight:.25,lineType:'dashdot',layer:'中心線'},
+    dimension:{label:'寸法線',weight:.25,lineType:'solid',layer:'寸法'}
+  };
+  const styleFromShape=s=>s?.cadStyle&&standard[s.cadStyle]?s.cadStyle:(s?.type==='dim'?'dimension':((layers.find(l=>l.name===s?.layer)?.cadStyle)||'outline'));
+  const styleInfo=s=>standard[styleFromShape(s)];
+  const cadWeight=s=>Number.isFinite(Number(s?.weight))&&Number(s?.weight)>0?Number(s.weight):styleInfo(s).weight;
+  const cadLtype=s=>s?.lineType||styleInfo(s).lineType;
+  const styleWeightPx=mm=>Math.max(.75,mm*96/25.4);
+  const styleDash=t=>t==='dashed'?'9 5':t==='dashdot'?'14 4 2 4':t==='dotted'?'2 4':'';
+  function ensureStandardLayers(){
+    layers[0].cadStyle=layers[0].cadStyle||'outline';
+    for(const key of ['hidden','center','dimension']){
+      const item=standard[key];if(!layers.some(l=>l.name===item.layer))layers.push({name:item.layer,color:key==='hidden'?'#94a3b8':key==='center'?'#eab308':'#67e8f9',visible:true,cadStyle:key});
+    }
+  }
+  ensureStandardLayers();
+  const beforeLayerUI10=layerUI;
+  layerUI=function(){ensureStandardLayers();return beforeLayerUI10();};
+  layerUI();
+  const stylePanel=document.createElement('div');stylePanel.className='panel';stylePanel.id='draftPanel';
+  stylePanel.innerHTML=`<b>製図基準 / 線種</b>
+    <label>新規作図の線種 <select id="draftStyle"><option value="outline">外形線　実線 0.35mm</option><option value="hidden">隠れ線　破線 0.25mm</option><option value="center">中心線　一点鎖線 0.25mm</option><option value="dimension">寸法線　実線 0.25mm</option></select></label>
+    <label>寸法・注記尺度 <input type="number" id="draftScale" min="0.01" max="1000" value="1" step="0.5" style="width:70px"> 倍</label>
+    <small>寸法補助線の離れ：0.5 × 尺度 mm / 寸法文字高さ：3.2 × 尺度 mm。寸法線 0.25mm・文字線幅 0.35mm。</small>
+    <p><button id="applyStyleSelected" title="現在選択中の要素へ線種基準を適用">選択要素に線種適用</button></p>`;
+  $10('layers').closest('.panel').insertAdjacentElement('afterend',stylePanel);
+  let activeStyle='outline';
+  $10('draftStyle').onchange=e=>{activeStyle=e.target.value;currentLayer=standard[activeStyle].layer;layerUI();status('新規の'+standard[activeStyle].label+'：'+standard[activeStyle].weight.toFixed(2)+'mm');};
+  $10('draftScale').onchange=()=>{const x=Number($10('draftScale').value);if(!Number.isFinite(x)||x<=0){$10('draftScale').value='1';status('尺度は0より大きくしてください');}render();};
+  const isAnnotation=s=>s.type==='dim';
+  function setStandardStyle(s,key,adjustLayer=false){
+    const st=standard[key];s.cadStyle=key;s.weight=st.weight;s.lineType=st.lineType;
+    if(adjustLayer)s.layer=st.layer;
+  }
+  $10('applyStyleSelected').onclick=()=>{
+    if(!selected){status('線種を適用する図形を選択してください');return;}
+    snapshot();const targets=selectedIds.size?shapes.filter(s=>selectedIds.has(s.id)):[selected];
+    for(let s of targets)setStandardStyle(s,activeStyle,true);
+    render();status(`${targets.length}要素に ${standard[activeStyle].label} の規格を適用しました`);
+  };
+  // Apply the selected style to newly created geometries without changing geometry data.
+  const originalAdd10=add;
+  add=function(s){
+    const k=isAnnotation(s)?'dimension':activeStyle;
+    const st=standard[k];
+    originalAdd10({...s,layer:s.layer||(isAnnotation(s)?'寸法':currentLayer),cadStyle:k,weight:st.weight,lineType:st.lineType});
+  };
+  // Shape rendering converts plot lineweight (mm) to screen pixels. It stays readable at all zoom levels.
+  const priorDraw10=drawShape;
+  drawShape=function(s,parent=scene){
+    if(s.type==='dim')return priorDraw10(s,parent);
+    const oldLength=parent.children.length;
+    const result=priorDraw10(s,parent);
+    const width=styleWeightPx(cadWeight(s)),dash=styleDash(cadLtype(s));
+    for(let i=oldLength;i<parent.children.length;i++){
+      const child=parent.children[i];
+      const stroke=child.getAttribute('stroke');
+      if(!stroke||stroke==='transparent'||stroke==='none')continue;
+      child.setAttribute('stroke-width',String(width));
+      child.setAttribute('stroke-dasharray',dash);
+      child.setAttribute('vector-effect','non-scaling-stroke');
+    }
+    return result;
+  };
+  // Let user set style from the properties panel, and preserve explicit color/lineweight overrides.
+  const priorProps10=propertyUI;
+  propertyUI=function(){
+    priorProps10();if(!selected)return;
+    const p=$10('properties'),s=selected;
+    const div=document.createElement('div');div.innerHTML='<label>製図線種 <select id="selectedCadStyle"></select></label>';
+    p.insertBefore(div,p.firstChild);
+    const sel=$10('selectedCadStyle');
+    for(const [k,v] of Object.entries(standard)){const o=document.createElement('option');o.value=k;o.textContent=`${v.label} ${v.weight.toFixed(2)}mm`;sel.append(o);}
+    sel.value=styleFromShape(s);
+    sel.onchange=()=>{snapshot();setStandardStyle(s,sel.value,true);layerUI();render();};
+    const label=[...p.querySelectorAll('label')].find(l=>l.textContent.startsWith('線幅'));
+    if(label){
+      label.firstChild.textContent='線幅 (mm) ';
+      const field=label.querySelector('input');
+      if(field){field.value=String(cadWeight(s));field.min='0.01';field.step='0.05';}
+    }
+    const types=[...p.querySelectorAll('label')].find(l=>l.textContent.startsWith('線種 '));
+    if(types){let sel=types.querySelector('select');if(sel&&!sel.querySelector('option[value="dashdot"]')){
+      let o=document.createElement('option');o.value='dashdot';o.textContent='一点鎖線';sel.append(o);sel.value=cadLtype(s);
+    }}
+  };
+  // Property copy: first click picks a reference; further clicks copy only visual/CAD properties.
+  toolNames.matchprops='プロパティコピー';
+  const maButton=document.createElement('button');maButton.id='matchProperties';maButton.textContent='プロパティコピー（MA）';
+  maButton.title='MA ↵ → コピー元をクリック → コピー先をクリック（連続） → Esc';
+  document.querySelector('header').insertBefore(maButton,$10('undo'));
+  const maToolButton=document.createElement('button');maToolButton.dataset.tool='matchprops';maToolButton.textContent='プロパティコピー';
+  maToolButton.onclick=()=>setTool('matchprops');$10('tools').append(maToolButton);
+  maButton.onclick=()=>setTool('matchprops');
+  let matchSource=null;
+  const priorSetTool10=setTool;
+  setTool=function(t){priorSetTool10(t);matchSource=null;if(t==='matchprops')status('MA：コピー元の要素をクリックしてください（Escで終了）');};
+  // Use proximity picking directly in capture phase; earlier tool handlers only know legacy tools.
+  svg.addEventListener('pointerdown',e=>{
+    if(tool!=='matchprops'||e.button!==0)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const target=findNear(world(e));
+    if(target)shapeAction(target,world(e));
+    else status(matchSource?'MA：コピー先の図形を選択してください':'MA：コピー元の図形を選択してください');
+  },true);
+  const priorShapeAction10=shapeAction;
+  shapeAction=function(s,p){
+    if(tool!=='matchprops')return priorShapeAction10(s,p);
+    if(!matchSource){matchSource=s;selected=s;render();status('MA：コピー先の要素をクリックしてください（連続コピー / Escで終了）');return;}
+    if(s.id===matchSource.id){status('MA：コピー元以外の対象を選択してください');return;}
+    snapshot();
+    for(const key of ['cadStyle','color','weight','lineType'])delete s[key];
+    s.cadStyle=styleFromShape(matchSource);s.weight=cadWeight(matchSource);s.lineType=cadLtype(matchSource);
+    if(matchSource.color)s.color=matchSource.color;
+    s.layer=matchSource.layer;
+    if(s.type==='dim'&&matchSource.type==='dim'){
+      s.dimSymbol=matchSource.dimSymbol||'arrow';
+      if(matchSource.precision!==undefined)s.precision=matchSource.precision;
+    }
+    selected=s;render();status(`MA：プロパティをコピーしました。次の対象を選択（Escで終了）`);
+  };
+  const priorHandle10=handleCADCommand;
+  handleCADCommand=function(raw){if(raw.trim().toUpperCase()==='MA'||raw.trim().toUpperCase()==='MATCHPROP'){setTool('matchprops');return;}return priorHandle10(raw);};
+  // DXF modelspace entities use standard line weights (group 370) and supported linetypes.
+  function dxfPairs(raw){const lines=raw.trimEnd().split(/\r?\n/),p=[];for(let i=0;i+1<lines.length;i+=2)p.push([lines[i],lines[i+1]]);return p;}
+  function signaturePoint(a,b){return Math.abs(a-b)<=1e-6;}
+  function matchDXFShape(type,props){
+    const num=c=>Number(props[c]);
+    if(type==='DIMENSION')return shapes.find(s=>s.type==='dim'&&signaturePoint(s.a.x,num('13'))&&signaturePoint(s.a.y,num('23'))&&signaturePoint(s.b.x,num('14'))&&signaturePoint(s.b.y,num('24')));
+    if(type==='CIRCLE')return shapes.find(s=>s.type==='circle'&&signaturePoint(s.c.x,num('10'))&&signaturePoint(s.c.y,num('20'))&&signaturePoint(s.r,num('40')));
+    if(type==='POINT')return shapes.find(s=>s.type==='point'&&signaturePoint(s.c.x,num('10'))&&signaturePoint(s.c.y,num('20')));
+    if(type==='LINE'||type==='RAY'||type==='XLINE')return shapes.find(s=>{
+      if(type==='LINE'&&s.type!=='line')return false;
+      if(type==='RAY'&&s.type!=='ray')return false;
+      if(type==='XLINE'&&s.type!=='construction')return false;
+      if(!signaturePoint(s.a.x,num('10'))||!signaturePoint(s.a.y,num('20')))return false;
+      return type==='LINE'?signaturePoint(s.b.x,num('11'))&&signaturePoint(s.b.y,num('21')):true;
+    });
+    if(type==='ARC')return shapes.find(s=>s.type==='circularArc'&&signaturePoint(s.c.x,num('10'))&&signaturePoint(s.c.y,num('20'))&&signaturePoint(s.r,num('40')));
+    return null;
+  }
+  function lTypeRecords(){
+    const one=(name,label,length,dash)=>{const a=[['0','LTYPE'],['2',name],['70','0'],['3',label],['72','65'],['73',String(dash.length)],['40',String(length)]];dash.forEach(x=>a.push(['49',String(x)],['74','0']));return a;};
+    return [...one('CONTINUOUS','Solid line',0,[]),...one('HIDDEN','Hidden dashed',8,[5,-3]),...one('CENTER','Center dash dot',16,[10,-2,1,-3]),...one('DOT','Dotted',3,[.5,-2.5])];
+  }
+  const oldDXF10=dxf;
+  dxf=function(){
+    const pairs=dxfPairs(oldDXF10());let section='',start=-1;
+    for(let i=0;i<pairs.length;i++){
+      if(pairs[i][0]==='0'&&pairs[i][1]==='SECTION'&&pairs[i+1]?.[0]==='2')section=pairs[i+1][1];
+      if(pairs[i][0]==='0'&&pairs[i][1]==='ENDSEC')section='';
+      if(section==='ENTITIES'&&pairs[i][0]==='0'&&['LINE','CIRCLE','POINT','ARC','XLINE','RAY','DIMENSION'].includes(pairs[i][1])){
+        const type=pairs[i][1];let end=i+1;while(end<pairs.length&&pairs[end][0]!=='0')end++;
+        const props=Object.fromEntries(pairs.slice(i+1,end));
+        const matched=matchDXFShape(type,props);
+        let weight=matched?cadWeight(matched):(type==='DIMENSION'?.25:.35),linetype=matched?cadLtype(matched):(type==='DIMENSION'?'solid':'solid');
+        const newProps=[['370',String(Math.round(weight*100))]];
+        if(type!=='DIMENSION')newProps.push(['6',linetype==='dashed'?'HIDDEN':linetype==='dashdot'?'CENTER':linetype==='dotted'?'DOT':'CONTINUOUS']);
+        pairs.splice(end,0,...newProps);i=end+newProps.length-1;
+      }
+    }
+    // TEXT inside anonymous DIMENSION block uses 0.35mm, modelspace dimension lines are 0.25mm.
+    section='';for(let i=0;i<pairs.length;i++){
+      if(pairs[i][0]==='0'&&pairs[i][1]==='SECTION'&&pairs[i+1]?.[0]==='2')section=pairs[i+1][1];
+      if(pairs[i][0]==='0'&&pairs[i][1]==='ENDSEC')section='';
+      if(section==='BLOCKS'&&pairs[i][0]==='0'&&pairs[i][1]==='LINE'){
+        let end=i+1;while(end<pairs.length&&pairs[end][0]!=='0')end++;
+        pairs.splice(end,0,['370','25']);i=end;
+      }
+    }
+    const scaleValue=Number($10('draftScale').value)||1;
+    // HEADER is present in base export but empty; write standard DIM variables for DXF consumers.
+    const headerEnd=pairs.findIndex((p,i)=>p[0]==='0'&&p[1]==='ENDSEC'&&i<10);
+    if(headerEnd>=0)pairs.splice(headerEnd,0,
+      ['9','$DIMSCALE'],['40',String(scaleValue)],['9','$DIMTXT'],['40','3.2'],
+      ['9','$DIMEXO'],['40','.5'],['9','$DIMEXE'],['40','1'],['9','$DIMASZ'],['40','2.5']);
+    const tableRecords=[['0','SECTION'],['2','TABLES'],['0','TABLE'],['2','LTYPE'],['70','4'],...lTypeRecords(),['0','ENDTAB'],['0','TABLE'],['2','LAYER'],['70',String(layers.length)]];
+    for(let l of layers){
+      const t=standard[l.cadStyle]||standard.outline;
+      tableRecords.push(['0','LAYER'],['2',l.name],['70','0'],['62',String(l.visible?7:-7)],['6',t.lineType==='dashed'?'HIDDEN':t.lineType==='dashdot'?'CENTER':'CONTINUOUS'],['370',String(Math.round(t.weight*100))]);
+    }
+    tableRecords.push(['0','ENDTAB'],['0','ENDSEC']);
+    const idx=pairs.findIndex((p,i)=>p[0]==='0'&&p[1]==='SECTION'&&pairs[i+1]?.[0]==='2'&&pairs[i+1][1]==='BLOCKS');
+    const entityStart=pairs.findIndex((p,i)=>p[0]==='0'&&p[1]==='SECTION'&&pairs[i+1]?.[0]==='2'&&pairs[i+1][1]==='ENTITIES');
+    pairs.splice(idx>=0?idx:entityStart,0,...tableRecords);
+    return pairs.flat().join('\n')+'\n';
+  };
+  // DXF export button already delegates to dxf().
+  cmd.placeholder='MA ↵ 元をクリック→先をクリック / CH ↵ 距離1 ↵ 距離2 ↵ / F ↵ R ↵ / DD ↵';
+  render();
+})();
+
+</script><script>
+// Universal CAD v1.4: safe formula engine and parametric tables.
+(()=>{
+const ui=id=>document.getElementById(id);
+const precision=()=>Math.max(0,Math.min(12,Math.trunc(Number(ui('v13precision')?.value||2))));
+window.cadFormatDim=(v,n=2)=>{
+ const digits=Math.min(12,Math.max(0,Math.trunc(Number(n)||0)));
+ if(!Number.isFinite(Number(v)))return '?';
+ let str=Number(v).toFixed(digits);
+ if(str.includes('.'))str=str.replace(/0+$/,'').replace(/\.$/,'');
+ return /^-0(?:\.0*)?$/.test(str)?'0':str;
+};
+// Recursive descent parser: no eval, Function, network access or scripts.
+function calculate(input,context={}){
+ const source=String(input).trim();if(source.length>600)throw Error('式が長すぎます（600字以内）');
+ const tokens=[],regex=/\s*(>=|<=|==|!=|&&|\|\||[()+\-*/^,<>!]|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+\-]?\d+)?|[A-Za-z_][A-Za-z_0-9]*)/gy;
+ let pos=0;while(pos<source.length){regex.lastIndex=pos;const m=regex.exec(source);if(!m)throw Error('使用できない文字: '+source.slice(pos,pos+8));tokens.push(m[1]);pos=regex.lastIndex;if(tokens.length>250)throw Error('式が複雑すぎます')}
+ let i=0;const look=()=>tokens[i],take=x=>look()===x?(i++,true):false,expect=x=>{if(!take(x))throw Error('「'+x+'」が必要です')};
+ function atom(){if(take('(')){let v=or();expect(')');return v}const t=look();if(t===undefined)throw Error('数値・変数が必要です');i++;
+ if(/^(?:\d|\.)/.test(t))return Number(t);
+ if(!/^[A-Za-z_]/.test(t))throw Error('予期しない値: '+t);
+ let key=t.toUpperCase();if(take('(')){let args=[];if(!take(')')){do{args.push(or());}while(take(','));expect(')')}
+  const fns={IF:3,MIN:-1,MAX:-1,ABS:1,ROUND:-1,FLOOR:1,CEIL:1,SQRT:1,SIN:1,COS:1,TAN:1,PI:0,E:0,NP:0,SIGMOID:1,EXP:1,LN:1,LOG:1,LOG10:1,POW:2,HYPOT:-1,ATAN2:2,DEG:1,RAD:1,NOW:0,HOUR:0,MINUTE:0,SECOND:0,YEAR:0,MONTH:0,DAY:0,DENSITY:1};if(!(key in fns))throw Error('未対応関数: '+key);
+  if(fns[key]>=0&&args.length!==fns[key])throw Error(key+' の引数は '+fns[key]+' 個');
+  if(fns[key]===-1&&(!args.length||(key==='ROUND'&&args.length>2)))throw Error(key+' の引数が不正');
+  switch(key){case 'PI':return Math.PI;case 'E':case 'NP':return Math.E;case 'SIGMOID':return args[0]>=0?1/(1+Math.exp(-args[0])):Math.exp(args[0])/(1+Math.exp(args[0]));case 'EXP':return Math.exp(args[0]);case 'LN':return Math.log(args[0]);case 'LOG':case 'LOG10':return Math.log10(args[0]);case 'POW':return Math.pow(args[0],args[1]);case 'HYPOT':return Math.hypot(...args);case 'ATAN2':return Math.atan2(args[0],args[1])*180/Math.PI;case 'DEG':return args[0]*180/Math.PI;case 'RAD':return args[0]*Math.PI/180;case 'NOW':return Date.now()/1000;case 'HOUR':return new Date().getHours();case 'MINUTE':return new Date().getMinutes();case 'SECOND':return new Date().getSeconds();case 'YEAR':return new Date().getFullYear();case 'MONTH':return new Date().getMonth()+1;case 'DAY':return new Date().getDate();case 'DENSITY':{const key=String(Math.trunc(args[0]));const v=window.cadMaterials?.find(m=>String(m.id)===key);if(!v)throw Error('材料番号がありません: '+key);return Number(v.density)}case 'IF':return args[0]?args[1]:args[2];case 'MIN':return Math.min(...args);case 'MAX':return Math.max(...args);case 'ABS':return Math.abs(args[0]);case 'ROUND':{let d=10**Math.max(0,Math.min(12,Math.trunc(args[1]||0)));return Math.round(args[0]*d)/d;}case 'FLOOR':return Math.floor(args[0]);case 'CEIL':return Math.ceil(args[0]);case 'SQRT':return Math.sqrt(args[0]);case 'SIN':return Math.sin(args[0]*Math.PI/180);case 'COS':return Math.cos(args[0]*Math.PI/180);case 'TAN':return Math.tan(args[0]*Math.PI/180)}
+ }
+ if(key==='PI')return Math.PI;if(key==='E'||key==='NP')return Math.E;if(key==='NP_E')return Math.E;if(key==='TRUE')return 1;if(key==='TRUE')return 1;if(key==='FALSE')return 0;
+ if(window.cadMaterialConstants&&Object.prototype.hasOwnProperty.call(window.cadMaterialConstants,key))return Number(window.cadMaterialConstants[key]);if(!(key in context))throw Error('未定義の変数: '+key);return Number(context[key]);}
+ function unary(){if(take('+'))return unary();if(take('-'))return -unary();if(take('!'))return unary()?0:1;return atom()}
+ function power(){let v=unary();if(take('^'))v=Math.pow(v,power());return v}
+ function product(){let v=power();while(['*','/'].includes(look())){let op=tokens[i++],b=power();v=op==='*'?v*b:v/b}return v}
+ function sum(){let v=product();while(['+','-'].includes(look())){let op=tokens[i++],b=product();v=op==='+'?v+b:v-b}return v}
+ function compare(){let v=sum();while(['<','>','<=','>=','==','!='].includes(look())){let op=tokens[i++],b=sum();v=({ '<':()=>v<b,'>':()=>v>b,'<=':()=>v<=b,'>=':()=>v>=b,'==':()=>v===b,'!=':()=>v!==b})[op]()?1:0}return v}
+ function and(){let v=compare();while(take('&&')){let b=compare();v=v&&b?1:0}return v}
+ function or(){let v=and();while(take('||')){let b=and();v=v||b?1:0}return v}
+ const out=or();if(i!==tokens.length)throw Error('式の末尾に不要な入力があります');if(!Number.isFinite(out))throw Error('計算結果が有限数ではありません');return out;
+}
+const state={variables:[{name:'WIDTH',expr:'100'},{name:'RADIUS',expr:'IF(WIDTH >= 100, 20, 10)'}],rows:[],rules:'',values:{},errors:[]};
+window.cadParametric={get variables(){return state.variables},get rows(){return state.rows},get rules(){return state.rules},load(data){state.variables=Array.isArray(data.paramVariables)?data.paramVariables:[];state.rows=Array.isArray(data.paramRows)?data.paramRows:[];state.rules=typeof data.paramRules==='string'?data.paramRules:'';syncUI();recompute(false)}};
+const panel=document.createElement('section');panel.className='panel';panel.style.cssText='max-height:540px;overflow:auto;';
+panel.innerHTML=`<b>パラメトリック管理 v1.5</b><div style="margin:8px 0"><button id="pRefresh">再計算</button> <button id="pAttach">選択した寸法を登録</button></div>
+<small>変数と寸法式を編集すると図形が追従します。寸法は名前を付けて管理できます。式: SQRT(DX^2+DY^2), PI(), NP, SIGMOID(X), DENSITY(1), NOW()。角度関数は度単位。時刻は再計算時に取得します。</small>
+<details open><summary><b>変数表</b></summary><div style="overflow-x:auto"><table id="pVars" style="width:100%;font-size:12px"></table></div><button id="pAddVar">＋変数</button></details>
+<details open><summary><b>パラメトリック寸法表</b></summary><div style="overflow-x:auto"><table id="pDims" style="width:100%;font-size:12px"></table></div><small>対象：線分長さ、円の直径・半径、面取り線の長さ。参照先は図形IDで保持します。</small></details>
+<details><summary><b>計算ルール（複数行 / IF）</b></summary><textarea id="pRules" rows="5" style="width:95%;font:12px monospace" placeholder="THICKNESS = IF(WIDTH >= 100, 8, 5)"></textarea><small>1行に「変数名 = 式」。#で始まる行はコメント。任意のJavaScriptは実行しません。</small></details>
+<div id="pStatus" style="white-space:pre-wrap;font-size:12px;margin-top:8px"></div>`;
+const left=ui('tools')?.closest('.panel');left?.insertAdjacentElement('afterend',panel);
+const validName=name=>/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)&&!['PI','E','NP','IF','MIN','MAX','TRUE','FALSE','NOW','SIGMOID','DENSITY'].includes(name.toUpperCase());
+function setError(message){ui('pStatus').textContent=message;ui('pStatus').style.color='#fca5a5'}
+function syncUI(){ui('pRules').value=state.rules;drawTables()}
+function control(type,val,change){let el=document.createElement('input');el.type=type;el.value=val;el.style.cssText='min-width:60px;width:100%;box-sizing:border-box';el.onchange=()=>change(el.value);return el}
+function drawTables(){const vars=ui('pVars'),dims=ui('pDims');vars.replaceChildren();dims.replaceChildren();
+ let head=vars.insertRow();for(let h of ['変数名','式','値','']){let c=head.insertCell();c.textContent=h}
+ state.variables.forEach((v,index)=>{let row=vars.insertRow();row.insertCell().append(control('text',v.name,z=>{v.name=z.toUpperCase().trim();recompute()}));row.insertCell().append(control('text',v.expr,z=>{v.expr=z;recompute()}));let output=row.insertCell();output.textContent=window.cadFormatDim(state.values[v.name?.toUpperCase()],12);let button=document.createElement('button');button.textContent='×';button.onclick=()=>{state.variables.splice(index,1);recompute()};row.insertCell().append(button)});
+ head=dims.insertRow();for(let h of ['名前','図形 / 種類','式 (mm)','計算値','']){let c=head.insertCell();c.textContent=h}
+ state.rows.forEach((r,index)=>{let row=dims.insertRow();row.insertCell().append(control('text',r.name,z=>{r.name=z.toUpperCase().trim();recompute()}));let src=shapes.find(s=>s.id===r.sourceId);let d=shapes.find(s=>s.id===r.dimId);row.insertCell().textContent=(src?.type||'参照なし')+' / '+(d?.type||'?');row.insertCell().append(control('text',r.expr,z=>{r.expr=z;recompute()}));let out=row.insertCell();out.textContent=Number.isFinite(r.value)?window.cadFormatDim(r.value,12):'—';let b=document.createElement('button');b.textContent='×';b.onclick=()=>{state.rows.splice(index,1);recompute()};row.insertCell().append(b)})}
+function dimTarget(s){if(!s)return null;if(s.sourceId)return shapes.find(v=>v.id===s.sourceId)||null;if(s.type==='dim')return shapes.find(v=>v.type==='line'&&Math.hypot(v.a.x-s.a.x,v.a.y-s.a.y,v.b.x-s.b.x,v.b.y-s.b.y)<1e-6)||null;return null}
+function measurement(dim,src){if(!src)return NaN;if(dim.type==='diameterDim'&&src.type==='circle')return src.r*2;if(dim.type==='radiusDim'&&src.type==='circle')return src.r;if(['dim','chamferDim'].includes(dim.type)&&src.type==='line')return Math.hypot(src.b.x-src.a.x,src.b.y-src.a.y);return NaN}
+function recompute(show=true){const values={},errors=[],busy=new Set(),cache={};let defs=new Map();
+ for(let v of state.variables){const k=String(v.name).toUpperCase().trim();if(!validName(k)){errors.push('変数名が不正: '+v.name);continue}if(defs.has(k))errors.push('重複変数: '+k);defs.set(k,String(v.expr))}
+ const code=state.rules.split(/\r?\n/);for(let [i,line] of code.entries()){line=line.trim();if(!line||line.startsWith('#'))continue;let m=/^([A-Za-z_][A-Za-z_0-9]*)\s*=\s*(.+)$/.exec(line);if(!m){errors.push('ルール '+(i+1)+' 行目の構文が不正');continue}const k=m[1].toUpperCase();if(!validName(k)||defs.has(k)){errors.push('ルールの変数名重複/不正: '+k);continue}defs.set(k,m[2])}
+ const dims=new Map();for(let r of state.rows){let k=String(r.name).toUpperCase().trim();if(!validName(k)||defs.has(k)||dims.has(k)){errors.push('寸法名が重複/不正: '+k);continue}dims.set(k,r)}
+ function solve(k){if(k in cache)return cache[k];if(busy.has(k))throw Error('循環参照: '+k);if(!defs.has(k)&&!dims.has(k))throw Error('未定義の変数: '+k);busy.add(k);let expr=defs.get(k)??dims.get(k).expr;let env=new Proxy({}, {has:(_,key)=>key==='PI'||key==='TRUE'||key==='FALSE'||defs.has(key)||dims.has(key),get:(_,key)=>solve(key)});let result;
+ try {result=calculate(expr,env)}finally{busy.delete(k)}return cache[k]=result;}
+ for(let k of [...defs.keys(),...dims.keys()])try{values[k]=solve(k)}catch(e){errors.push(k+': '+e.message)}
+ state.values=values;let changes=[];
+ if(!errors.length){for(let [name,r] of dims){let dim=shapes.find(s=>s.id===r.dimId),src=shapes.find(s=>s.id===r.sourceId);let val=values[name];if(!dim||!src){errors.push(name+': 関連する図形が見つかりません');continue}if(!Number.isFinite(val)||val<=0){errors.push(name+': 寸法は0より大きい必要があります');continue}if(!Number.isFinite(measurement(dim,src))){errors.push(name+': 対応していない寸法と図形の組み合わせ');continue}changes.push({r,dim,src,val})}}
+ // Do not partially change geometry if any expression or reference failed.
+ if(!errors.length&&changes.some(x=>Math.abs(measurement(x.dim,x.src)-x.val)>1e-9)){snapshot();for(let {r,dim,src,val} of changes){if(dim.type==='diameterDim')src.r=val/2;else if(dim.type==='radiusDim')src.r=val;else {let old=Math.hypot(src.b.x-src.a.x,src.b.y-src.a.y)||1;src.b={x:src.a.x+(src.b.x-src.a.x)*val/old,y:src.a.y+(src.b.y-src.a.y)*val/old};if(dim.type==='dim'){dim.a={...src.a};dim.b={...src.b}}}dim.parametric=true;r.value=val}}
+ if(!errors.length)for(let {r,val} of changes)r.value=val;state.errors=errors;drawTables();ui('pStatus').textContent=errors.length?errors.join('\n'):`変数 ${defs.size}件 / 駆動寸法 ${state.rows.length}件\n計算完了${show?'・図形更新':''}`;ui('pStatus').style.color=errors.length?'#fca5a5':'#86efac';if(!errors.length){render();if(window.cad3D&&document.getElementById('cad3dModal')?.style.display==='flex')window.cad3D.rebuild();}return !errors.length;}
+ui('pAddVar').onclick=()=>{state.variables.push({name:'VAR'+(state.variables.length+1),expr:'10'});recompute()};ui('pRules').onchange=e=>{state.rules=e.target.value;recompute()};ui('pRefresh').onclick=()=>recompute();
+ui('pAttach').onclick=()=>{let dim=selected;if(!dim||!['dim','diameterDim','radiusDim','chamferDim'].includes(dim.type)){setError('登録する寸法要素を選択してください');return}let source=dimTarget(dim);if(!source){setError('参照元の線分や円が見つかりません。線分と一致する寸法、または円に付いた寸法を選択してください');return}let existing=state.rows.find(r=>r.dimId===dim.id);if(existing){setError('この寸法は登録済みです');return}let number=1;while(state.rows.some(r=>r.name==='D'+number))number++;const name='D'+number;state.rows.push({name,dimId:dim.id,sourceId:source.id,expr:String(window.cadFormatDim(measurement(dim,source),12))});dim.parametric=true;dim.sourceId=source.id;recompute();};
+// Selected dimension: show a shortcut in the properties panel.
+const previousProperties=propertyUI;propertyUI=function(){previousProperties();if(selected&&['dim','diameterDim','radiusDim','chamferDim'].includes(selected.type)){let b=document.createElement('button');b.textContent='寸法表に登録';b.onclick=()=>ui('pAttach').click();ui('properties').append(b)}};
+// Ensure newly created dimensions use the global precision but preserve per-entity overrides.
+const originalAdd=add;add=function(s){if(['dim','diameterDim','radiusDim','chamferDim'].includes(s.type)&&s.precision===undefined)s.precision=precision();return originalAdd(s)};
+// User-facing status is available even when no dimensions have been registered.
+syncUI();recompute(false);document.title='Universal CAD v1.5';let version=document.querySelector('header span');if(version)version.textContent='v1.5 · PC prototype';
+})();
+</script><script>
+// Universal CAD v1.5 extension: material library, concept graph, offline geographic import.
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const defaults=[{id:1,key:'AL6061',name:'アルミ合金 A6061',density:2.70},{id:2,key:'SUS304',name:'ステンレス SUS304',density:7.93},{id:3,key:'STEEL',name:'一般鋼（参考）',density:7.85},{id:4,key:'CU',name:'銅',density:8.96},{id:5,key:'TI',name:'チタン',density:4.51},{id:6,key:'ABS',name:'ABS樹脂（参考）',density:1.05},{id:7,key:'WATER',name:'水 20°C（参考）',density:0.9982}];
+window.cadMaterials=defaults.map(x=>({...x}));
+window.cadMaterialConstants={};
+function refreshMaterialConstants(){const obj={};for(const m of window.cadMaterials){if(!/^[A-Z][A-Z0-9_]*$/.test(String(m.key).toUpperCase()))continue;obj['RHO_'+m.key.toUpperCase()]=Number(m.density)}window.cadMaterialConstants=obj}
+refreshMaterialConstants();
+const mind={nodes:[{id:'a',label:'Universal Engine',x:240,y:105,parent:''},{id:'b',label:'CAD',x:90,y:205,parent:'a'},{id:'c',label:'デジタルツイン',x:380,y:205,parent:'a'}]};window.cadMind=mind;
+const geo={items:[],reference:{lat:35.0,lon:136.0}};window.cadGeo=geo;
+const panel=document.createElement('section');panel.className='panel';panel.id='cadExtras';panel.innerHTML=`<b>拡張データ v1.5</b><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:7px"><button id="extMaterials">材料</button><button id="extMind">マインドマップ</button><button id="extGeo">地図 / AIS</button></div><div id="extContent" style="margin-top:7px"></div>`;
+const root=$('tools')?.closest('aside');if(root)root.append(panel);
+let tab='materials',activeMind='a';
+function el(tag,text){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e}
+function btn(label,click){const b=el('button',label);b.onclick=click;return b}
+function inp(value,onchange,type='text'){const x=el('input');x.type=type;x.value=value;x.style.cssText='width:95%;box-sizing:border-box';x.onchange=()=>onchange(x.value);return x}
+function status(message){const e=$('extInfo');if(e)e.textContent=message}
+function tableHead(table,names){const r=table.insertRow();for(const n of names)r.insertCell().textContent=n}
+function drawMaterials(c){c.append(el('small','密度の単位: g/cm³。数値は参考値で、材質・規格・温度によって変動します。設計前に材料証明書で確認してください。'));
+ const table=el('table');table.style.cssText='width:100%;font-size:11px';tableHead(table,['番号','材料','密度']);for(const m of window.cadMaterials){const r=table.insertRow();r.insertCell().textContent=m.id;r.insertCell().append(inp(m.key,v=>{m.key=v.toUpperCase().replace(/[^A-Z0-9_]/g,'');refreshMaterialConstants()}));r.insertCell().append(inp(m.density,v=>{const n=Number(v);if(Number.isFinite(n)&&n>0)m.density=n;refreshMaterialConstants()},'number'))}c.append(table);
+ c.append(el('small','式の例: DENSITY(1) または RHO_AL6061。体積が mm³ の場合、質量[g] = VOLUME * RHO_AL6061 / 1000。'));
+ c.append(btn('＋ 材料追加',()=>{const id=Math.max(0,...window.cadMaterials.map(m=>m.id))+1;window.cadMaterials.push({id,key:'CUSTOM'+id,name:'カスタム',density:1});refreshMaterialConstants();show()}));
+}
+function drawMind(c){c.append(el('small','ノードをクリックして選択。座標をドラッグして配置。親IDで接続します。図形スケッチとは独立して保存されます。'));
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 480 300');svg.style.cssText='width:100%;background:#0b1220;border:1px solid #475569;touch-action:none';let moving=null;svg.addEventListener('pointermove',e=>{if(!moving)return;const r=svg.getBoundingClientRect();moving.x=Math.max(55,Math.min(425,(e.clientX-r.left)*480/r.width));moving.y=Math.max(17,Math.min(283,(e.clientY-r.top)*300/r.height));const rect=svg.querySelector('[data-node=\"'+moving.id+'\"]');if(rect){rect.setAttribute('x',moving.x-55);rect.setAttribute('y',moving.y-17)}const txt=svg.querySelector('[data-label=\"'+moving.id+'\"]');if(txt){txt.setAttribute('x',moving.x);txt.setAttribute('y',moving.y+4)}for(const line of svg.querySelectorAll('[data-edge]')){const child=mind.nodes.find(n=>n.id===line.getAttribute('data-edge'));const parent=mind.nodes.find(n=>n.id===child?.parent);if(child&&parent){line.setAttribute('x1',parent.x);line.setAttribute('y1',parent.y);line.setAttribute('x2',child.x);line.setAttribute('y2',child.y)}}});svg.addEventListener('pointerup',()=>{moving=null;show()});svg.addEventListener('pointercancel',()=>{moving=null;show()});
+ const ns='http://www.w3.org/2000/svg';const make=(tag,attrs,text)=>{let e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));if(text!==undefined)e.textContent=text;svg.append(e);return e};
+ for(const n of mind.nodes){const p=mind.nodes.find(t=>t.id===n.parent);if(p)make('line',{x1:p.x,y1:p.y,x2:n.x,y2:n.y,stroke:'#64748b','stroke-width':2,'data-edge':n.id})}
+ for(const n of mind.nodes){make('rect',{x:n.x-55,y:n.y-17,width:110,height:34,rx:7,fill:n.id===activeMind?'#1d4ed8':'#334155',stroke:'#93c5fd','data-node':n.id});const t=make('text',{x:n.x,y:n.y+4,'text-anchor':'middle','font-size':11,fill:'white','data-label':n.id},n.label.slice(0,16));t.style.pointerEvents='none';const rect=svg.lastElementChild.previousElementSibling;rect.addEventListener('pointerdown',e=>{e.preventDefault();activeMind=n.id;moving=n;svg.setPointerCapture(e.pointerId);rect.setAttribute('fill','#1d4ed8')})}
+ c.append(svg);const current=mind.nodes.find(n=>n.id===activeMind);if(current){c.append(el('small','選択ノード: '+current.id));c.append(inp(current.label,v=>{current.label=v;show()}))}
+ c.append(btn('子ノード追加',()=>{const id='n'+Date.now().toString(36);mind.nodes.push({id,label:'新しい項目',x:170+Math.random()*130,y:140+Math.random()*80,parent:activeMind});activeMind=id;show()}));c.append(btn('選択ノード削除',()=>{if(mind.nodes.length<2)return;const n=mind.nodes.find(n=>n.id===activeMind);if(!n)return;mind.nodes=mind.nodes.filter(x=>x.id!==activeMind);for(const x of mind.nodes)if(x.parent===activeMind)x.parent=n.parent;activeMind=mind.nodes[0].id;show()}));}
+function parseCSV(text){const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/).filter(Boolean);if(!lines.length)return [];const headers=lines.shift().split(',').map(x=>x.trim().toLowerCase());return lines.map(line=>{const vals=line.split(',').map(x=>x.trim().replace(/^"|"$/g,''));return Object.fromEntries(headers.map((h,i)=>[h,vals[i]??'']))})}
+function importData(text,filename){let rows=[];if(/\.geojson$|\.json$/i.test(filename)){let data=JSON.parse(text);const features=data.type==='FeatureCollection'?data.features:data.type==='Feature'?[data]:[];for(const f of features){const g=f.geometry;if(!g)continue;const pts=g.type==='Point'?[g.coordinates]:g.type==='LineString'?g.coordinates:[];for(let i=0;i<pts.length;i++){rows.push({lat:pts[i][1],lon:pts[i][0],name:f.properties?.name||f.properties?.mmsi||'geo',kind:g.type==='LineString'?'track':'point',series:f.properties?.mmsi||f.properties?.name||''})}}}else{rows=parseCSV(text).map(r=>({lat:r.lat??r.latitude,lon:r.lon??r.lng??r.longitude,name:r.name||r.shipname||r.vessel_name||r.mmsi||'位置',kind:'ais',mmsi:r.mmsi||'',sog:r.sog||'',cog:r.cog||'',timestamp:r.timestamp||''}))}
+ const valid=rows.filter(r=>Number.isFinite(Number(r.lat))&&Number.isFinite(Number(r.lon))&&Math.abs(Number(r.lat))<=90&&Math.abs(Number(r.lon))<=180).slice(0,4000).map(r=>({...r,lat:Number(r.lat),lon:Number(r.lon)}));geo.items=valid;if(valid.length)geo.reference={lat:valid.reduce((s,r)=>s+r.lat,0)/valid.length,lon:valid.reduce((s,r)=>s+r.lon,0)/valid.length};return valid.length}
+function drawGeo(c){c.append(el('small','CSV（lat,lon,mmsi,name,sog,cog,timestamp）またはPoint/LineString GeoJSONを取り込みます。リアルタイムAISへの接続は未実装です。'));
+ const file=el('input');file.type='file';file.accept='.csv,.geojson,.json';file.onchange=async()=>{const f=file.files?.[0];if(!f)return;try{const n=importData(await f.text(),f.name);show();status(n+'件取り込みました')}catch(e){status('取込エラー: '+e.message)}};c.append(file);
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 480 270');svg.style.cssText='width:100%;background:#091d29;border:1px solid #475569';const ns='http://www.w3.org/2000/svg';const mark=(tag,attributes)=>{const x=document.createElementNS(ns,tag);Object.entries(attributes).forEach(([k,v])=>x.setAttribute(k,v));svg.append(x);return x};
+ for(let i=0;i<=8;i++){mark('line',{x1:i*60,y1:0,x2:i*60,y2:270,stroke:'#254255'});mark('line',{x1:0,y1:i*34,x2:480,y2:i*34,stroke:'#254255'})}
+ const items=geo.items;if(items.length){let minLat=Math.min(...items.map(x=>x.lat)),maxLat=Math.max(...items.map(x=>x.lat)),minLon=Math.min(...items.map(x=>x.lon)),maxLon=Math.max(...items.map(x=>x.lon));let dy=Math.max(.005,maxLat-minLat),dx=Math.max(.005,maxLon-minLon),cx=(maxLon+minLon)/2,cy=(maxLat+minLat)/2;const project=r=>[240+(r.lon-cx)/dx*410,135-(r.lat-cy)/dy*225];for(const r of items){const [x,y]=project(r);const dot=mark('circle',{cx:x,cy:y,r:3.2,fill:r.kind==='ais'?'#fbbf24':'#38bdf8'});const title=document.createElementNS(ns,'title');title.textContent=[r.name,`${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}`,r.mmsi?`MMSI ${r.mmsi}`:'',r.sog?`SOG ${r.sog}`:''].filter(Boolean).join(' / ');dot.append(title)}}
+ c.append(svg);c.append(el('small',`${items.length}地点 / 地理座標（WGS84緯度経度）簡易表示。海岸線・地図タイルは含みません。`));c.append(btn('位置データ消去',()=>{geo.items=[];show()}));const info=el('div');info.id='extInfo';info.style.cssText='color:#86efac;white-space:pre-wrap;font-size:11px';c.append(info);
+}
+function show(){const c=$('extContent');if(!c)return;c.replaceChildren();if(tab==='materials')drawMaterials(c);else if(tab==='mind')drawMind(c);else drawGeo(c)}
+$('extMaterials').onclick=()=>{tab='materials';show()};$('extMind').onclick=()=>{tab='mind';show()};$('extGeo').onclick=()=>{tab='geo';show()};
+window.cadExtrasLoad=data=>{if(Array.isArray(data.materials)&&data.materials.length)window.cadMaterials=data.materials.filter(m=>Number.isFinite(Number(m.density))&&Number(m.density)>0);refreshMaterialConstants();if(Array.isArray(data.mindNodes))mind.nodes=data.mindNodes;if(Array.isArray(data.geoItems))geo.items=data.geoItems.slice(0,4000);activeMind=mind.nodes[0]?.id||'';show()};
+show();
+})();
+</script><script>
+/* UNIVERSAL CAD v1.6 — offline 3D voxel solid prototype. */
+(()=>{
+'use strict';
+const q=id=>document.getElementById(id), P=(x=0,y=0,z=0)=>[x,y,z], plus=(a,b)=>a.map((v,i)=>v+b[i]),minus=(a,b)=>a.map((v,i)=>v-b[i]),mul=(a,k)=>a.map(v=>v*k),dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],len=a=>Math.hypot(...a),unit=a=>mul(a,1/(len(a)||1));
+const UI=`<style>
+#cad3dModal{position:fixed;inset:0;z-index:9999;display:none;background:#0b1220;color:#e2e8f0;font:13px system-ui;flex-direction:column}
+#cad3dModal *{box-sizing:border-box}#cad3dTop{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#172235;border-bottom:1px solid #334155;flex-wrap:wrap}
+#cad3dTop strong{font-size:15px}#cad3dContent{min-height:0;flex:1;display:grid;grid-template-columns:285px minmax(200px,1fr) 250px;gap:0}
+#cad3dLeft,#cad3dRight{background:#172235;padding:13px;overflow:auto}#cad3dLeft{border-right:1px solid #334155}#cad3dRight{border-left:1px solid #334155}
+#cad3dLeft label{display:flex;justify-content:space-between;align-items:center;margin:9px 0;gap:5px}#cad3dLeft input[type=number],#cad3dLeft select{width:130px}
+#cad3dLeft button,#cad3dRight button,#cad3dTop button{cursor:pointer;margin:2px;background:#334155;padding:7px 9px;color:white;border:1px solid #475569;border-radius:5px}
+#cad3dLeft button:hover,#cad3dRight button:hover,#cad3dTop button:hover{background:#2563eb}
+#cad3dLeft h3,#cad3dRight h3{font-size:13px;color:#93c5fd;margin:17px 0 7px}
+#cad3dCanvas{display:block;position:absolute;width:100%;height:100%;touch-action:none;cursor:grab}
+#cad3dCenter{position:relative;overflow:hidden;background:#0b1220}#cad3dHint{position:absolute;top:12px;left:12px;background:#0b1220c9;padding:8px 10px;border:1px solid #334155;border-radius:6px;pointer-events:none;font-size:12px}
+#cad3dMsg{font-size:12px;line-height:1.5;white-space:pre-wrap;color:#cbd5e1;max-height:180px;overflow:auto}
+.cad3dRow{padding:8px;border:1px solid #475569;border-radius:6px;margin:7px 0;background:#1e293b}.cad3dRow small{color:#94a3b8}
+.cad3dRow input{width:70px}.cad3dRow button{padding:3px 5px!important}#cad3dLeft details{border-top:1px solid #334155;padding:8px 0}#cad3dLeft summary{cursor:pointer;font-weight:600}
+#cad3dFoot{background:#172235;padding:6px 12px;border-top:1px solid #334155;color:#94a3b8}
+@media(max-width:850px){#cad3dContent{grid-template-columns:190px minmax(150px,1fr)}#cad3dRight{display:none}#cad3dLeft input[type=number]{width:85px}}
+</style>
+<div id="cad3dModal" role="dialog" aria-label="3Dフィーチャー編集"><div id="cad3dTop"><strong>UNIVERSAL CAD · 3D / v1.6</strong><button id="cad3dClose">← 2Dスケッチへ戻る</button><button id="cad3dRebuild">ソリッド再計算</button><button id="cad3dFit">全体表示</button><button id="cad3dDemo">試用サンプル作成</button><span id="cad3dCount"></span></div>
+<div id="cad3dContent"><div id="cad3dLeft">
+<details open><summary>1. スケッチ断面・基準面</summary><p style="color:#94a3b8">2Dで閉じた矩形・円・ポリゴン、または線分による閉ループを選択してから開いてください。複数選択の場合は選択図形全体を断面として使用します。</p>
+<label>基準面 <select id="cad3dPlane"><option value="XY">XY（Z方向）</option><option value="YZ">YZ（X方向）</option><option value="XZ">XZ（-Y方向）</option></select></label><label>断面 <select id="cad3dProfile"></select></label><label>長さ / 深さ mm<input type="number" id="cad3dDepth" value="20" step="1"></label><label>回転角度 °<input type="number" id="cad3dAngle" value="360" min="1" max="360" step="15"></label><label>回転軸のU座標<input type="number" id="cad3dAxisU" value="0" step="1"></label>
+<div><button data-feature="addExtrude">押し出し</button><button data-feature="cutExtrude">押し出しカット</button><button data-feature="addRevolve">回転押し出し</button><button data-feature="cutRevolve">回転カット</button><button data-feature="intersectExtrude">交差（押出し）</button><button data-feature="intersectRevolve">交差（回転）</button></div></details>
+<details open><summary>2. 基準ジオメトリ</summary>
+<label>新規名称 <input id="cad3dDatumName" value="基準" style="width:130px"></label><label>原点 X,Y,Z <input id="cad3dOrigin" value="0,0,0" style="width:130px" title="x,y,z"></label><label>方向 N X,Y,Z <input id="cad3dNormal" value="0,0,1" style="width:130px"></label><div><button id="cad3dPoint">基準点を追加</button><button id="cad3dAxis">基準軸を追加</button><button id="cad3dAddPlane">任意の基準面</button></div><p style="color:#94a3b8">標準原点・XYZ軸・XY/YZ/XZ面は常に使用できます。任意面では指定法線から直交基底を自動計算します。</p></details>
+<details><summary>3. プレビュー設定</summary><label>メッシュ分割数 <select id="cad3dRes"><option value="24">24（高速）</option><option value="38" selected>38（標準）</option><option value="56">56（詳細）</option></select></label><label><input id="cad3dDatumVisible" type="checkbox" checked> 基準軸・基準面の表示</label><label><input id="cad3dWire" type="checkbox"> 面エッジを表示</label><button id="cad3dExportSTL">STL書き出し（近似）</button></details>
+<div id="cad3dMsg">準備完了</div></div>
+<div id="cad3dCenter"><canvas id="cad3dCanvas"></canvas><div id="cad3dHint">左ドラッグ：視点回転　ホイール：ズーム<br>右ドラッグ：平行移動　3D：mm単位</div></div>
+<div id="cad3dRight"><h3>フィーチャー履歴</h3><div id="cad3dFeatures"></div><h3>基準ジオメトリ</h3><div id="cad3dDatums"></div><h3>実装範囲</h3><p style="color:#94a3b8;line-height:1.55">断面をボクセル化した試作ソリッドです。カット・交差は体積集合の演算として計算します。曲面には分割誤差があります。STEP/IGESの精密B-repモデルではありません。</p></div></div><div id="cad3dFoot">CAD図面のJSON保存にフィーチャー・基準ジオメトリを含みます。寸法表を更新後、3D再計算すると連動します。</div></div>`;
+document.body.insertAdjacentHTML('beforeend',UI);
+let datums=[],solids=[],mesh=[],meshBounds=null,meshBuilt=false,rendering=false,updating=false;
+const modal=q('cad3dModal'),canvas=q('cad3dCanvas'),ctx=canvas.getContext('2d'),msg=t=>{q('cad3dMsg').textContent=t;status(t)};
+let cam={yaw:-0.65,pitch:0.48,zoom:1,pan:[0,0],look:[0,0,0]};
+const parseVec=(s,defaultVal)=>{const v=String(s).split(',').map(Number);if(v.length!==3||v.some(x=>!Number.isFinite(x)))throw Error('座標は x,y,z の形式で入力してください');return v};
+function defaultBasis(type){if(type==='YZ')return {o:P(),u:P(0,1,0),v:P(0,0,1),n:P(1,0,0)};if(type==='XZ')return {o:P(),u:P(1,0,0),v:P(0,0,1),n:P(0,-1,0)};return {o:P(),u:P(1,0,0),v:P(0,1,0),n:P(0,0,1)}}
+function basis(name){if(['XY','YZ','XZ'].includes(name))return defaultBasis(name);let datum=datums.find(x=>x.id===name&&x.kind==='plane');if(!datum)throw Error('基準面が見つかりません');const n=unit(datum.direction),ref=Math.abs(n[2])<.9?P(0,0,1):P(0,1,0),u=unit(cross(ref,n)),v=unit(cross(n,u));return {o:datum.origin,u,v,n}}
+function local(point,b){const d=minus(point,b.o);return [dot(d,b.u),dot(d,b.v),dot(d,b.n)]}
+function global(u,v,w,b){return plus(b.o,plus(plus(mul(b.u,u),mul(b.v,v)),mul(b.n,w)))}
+const DEFAULT_FEATURES=['addExtrude','cutExtrude','addRevolve','cutRevolve','intersectExtrude','intersectRevolve'];
+function selectedIdsList(){if(typeof selectedIds!=='undefined'&&selectedIds?.size)return [...selectedIds];return selected?[selected.id]:[]}
+function availableProfiles(){const ids=selectedIdsList();const out=[];for(let s of shapes){if(['rect','circle','polygon','line'].includes(s.type))out.push({id:s.id,label:`${s.type} / ${s.id.slice(0,6)}${ids.includes(s.id)?' ★':''}`})}
+if(ids.length>1)out.unshift({id:'selection',label:`選択中の ${ids.length} 図形（複合断面）`});return out}
+function updateProfiles(){const old=q('cad3dProfile').value;const records=availableProfiles();q('cad3dProfile').replaceChildren();for(let r of records){let o=document.createElement('option');o.value=r.id;o.textContent=r.label;q('cad3dProfile').append(o)}const ids=selectedIdsList();q('cad3dProfile').value=records.some(x=>x.id===old)?old:(ids.length>1?'selection':ids[0]||records[0]?.id||'')}
+function polygonizeShape(s){if(s.type==='rect'){const {a,b}=s;return [[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]]}if(s.type==='polygon'&&s.pts?.length>=3)return s.pts.map(p=>[p.x,p.y]);if(s.type==='circle'&&s.r>0)return Array.from({length:96},(_,i)=>[s.c.x+Math.cos(i*2*Math.PI/96)*s.r,s.c.y+Math.sin(i*2*Math.PI/96)*s.r]);return null}
+function linesToLoops(lines){const edges=lines.filter(x=>x.a&&x.b).map(s=>[[s.a.x,s.a.y],[s.b.x,s.b.y]]),used=new Set(),loops=[],close=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<1e-6;
+for(let i=0;i<edges.length;i++){if(used.has(i))continue;let pts=[edges[i][0],edges[i][1]],members=[i],closed=false;used.add(i);for(let step=0;step<edges.length;step++){if(close(pts.at(-1),pts[0])){closed=true;break}let next=-1,pt=null;for(let k=0;k<edges.length;k++){if(used.has(k))continue;if(close(edges[k][0],pts.at(-1))){next=k;pt=edges[k][1];break}if(close(edges[k][1],pts.at(-1))){next=k;pt=edges[k][0];break}}if(next<0)break;used.add(next);members.push(next);pts.push(pt)}if(closed&&pts.length>3)loops.push(pts.slice(0,-1))}return loops}
+function chosenProfile(){const value=q('cad3dProfile').value;const ids=value==='selection'?selectedIdsList():[value];const list=ids.map(id=>shapes.find(s=>s.id===id)).filter(Boolean);const profiles=list.map(polygonizeShape).filter(Boolean);const lines=list.filter(s=>s.type==='line');profiles.push(...linesToLoops(lines));if(!profiles.length)throw Error('閉じたスケッチが必要です（矩形・円・ポリゴン・閉じた線分ループ）。');return {sourceIds:ids,profiles}}
+function profileFromFeature(f){const list=(f.sourceIds||[]).map(id=>shapes.find(s=>s.id===id)).filter(Boolean);let polys=list.map(polygonizeShape).filter(Boolean);polys.push(...linesToLoops(list.filter(s=>s.type==='line')));if(!polys.length)throw Error(`${f.name||f.kind}：参照スケッチがありません`);return polys}
+function pointInside(poly,x,y){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside}return inside}
+function insidePolys(polys,x,y){return polys.some(poly=>pointInside(poly,x,y))}
+function insideFeature(p,f){if(f.disabled)return false;let b=f._basis,xyz=local(p,b),x=xyz[0],y=xyz[1],z=xyz[2];if(f.kind.endsWith('Extrude'))return z>=Math.min(0,f.depth)-1e-8&&z<=Math.max(0,f.depth)+1e-8&&insidePolys(f._polys,x,y);
+const r=Math.hypot(x,z),axis=f.axisU||0,rad= r+axis;
+if(f.angle<359.999){let t=Math.atan2(z,x);if(t<0)t+=2*Math.PI;if(t>f.angle*Math.PI/180)return false}
+return insidePolys(f._polys,rad,y)}
+function featBounds(f){const b=f._basis,polys=f._polys,all=polys.flat();const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]),xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);let vertices=[];
+if(f.kind.endsWith('Extrude')){for(let x of [xmin,xmax])for(let y of [ymin,ymax])for(let z of [0,f.depth])vertices.push(global(x,y,z,b))}
+else{const rad=Math.max(Math.abs(xmax-(f.axisU||0)),Math.abs(xmin-(f.axisU||0)));for(let y of [ymin,ymax])for(let u of [-rad,rad])for(let n of [-rad,rad])vertices.push(global(u+(f.axisU||0),y,n,b))}
+return [0,1,2].map(i=>[Math.min(...vertices.map(x=>x[i])),Math.max(...vertices.map(x=>x[i]))])}
+function clearTemp(){for(let f of features){delete f._basis;delete f._polys}}
+function buildGeometry(){const list=features.filter(f=>DEFAULT_FEATURES.includes(f.kind)&&!f.disabled);clearTemp();if(!list.length){solids=[];mesh=[];meshBounds=null;meshBuilt=true;return}
+for(let f of list){f._basis=basis(f.plane||'XY');f._polys=profileFromFeature(f);if(!(Math.abs(f.depth)>1e-8)&&f.kind.endsWith('Extrude'))throw Error('押し出しの距離は0以外にしてください')}
+let bounds=list.map(featBounds),min=[0,1,2].map(i=>Math.min(...bounds.map(b=>b[i][0]))),max=[0,1,2].map(i=>Math.max(...bounds.map(b=>b[i][1])));
+const width=max.map((v,i)=>v-min[i]),span=Math.max(...width,1),margin=Math.max(.4,span*.035);min=min.map(v=>v-margin);max=max.map(v=>v+margin);
+const requested=Number(q('cad3dRes').value)||38,step=Math.max(...max.map((v,i)=>v-min[i]))/requested,dim=max.map((v,i)=>Math.max(1,Math.ceil((v-min[i])/step))),total=dim.reduce((a,b)=>a*b,1);if(total>650000)throw Error('分割数が大きすぎます');let volume=new Uint8Array(total),[nx,ny,nz]=dim;
+const idx=(x,y,z)=>(z*ny+y)*nx+x;
+for(let z=0;z<nz;z++)for(let y=0;y<ny;y++)for(let x=0;x<nx;x++){let p=[min[0]+(x+.5)*step,min[1]+(y+.5)*step,min[2]+(z+.5)*step],present=false;
+for(let f of list){const has=insideFeature(p,f);if(f.kind.startsWith('add'))present=present||has;else if(f.kind.startsWith('cut'))present=present&&!has;else if(f.kind.startsWith('intersect'))present=present&&has}volume[idx(x,y,z)]=present?1:0}
+const verts=[],faces=[],normals=[];const sides=[{d:[1,0,0],corner:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]],norm:[1,0,0]},{d:[-1,0,0],corner:[[0,1,0],[0,0,0],[0,0,1],[0,1,1]],norm:[-1,0,0]},{d:[0,1,0],corner:[[1,1,0],[0,1,0],[0,1,1],[1,1,1]],norm:[0,1,0]},{d:[0,-1,0],corner:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]],norm:[0,-1,0]},{d:[0,0,1],corner:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]],norm:[0,0,1]},{d:[0,0,-1],corner:[[0,1,0],[1,1,0],[1,0,0],[0,0,0]],norm:[0,0,-1]}];let solidCount=0;
+for(let z=0;z<nz;z++)for(let y=0;y<ny;y++)for(let x=0;x<nx;x++){if(!volume[idx(x,y,z)])continue;solidCount++;for(let face of sides){const xx=x+face.d[0],yy=y+face.d[1],zz=z+face.d[2];if(xx>=0&&yy>=0&&zz>=0&&xx<nx&&yy<ny&&zz<nz&&volume[idx(xx,yy,zz)])continue;
+const quad=face.corner.map(c=>[min[0]+(x+c[0])*step,min[1]+(y+c[1])*step,min[2]+(z+c[2])*step]);faces.push({vertices:quad,normal:face.norm})}}
+mesh=faces;solids=[{count:solidCount,volume:solidCount*step**3}];meshBounds={min,max,step,res:dim};meshBuilt=true;cam.look=min.map((v,i)=>(v+max[i])/2);return `${solidCount} セル / 表面 ${faces.length} 面 / 近似体積 ${((solidCount*step**3)).toFixed(2)} mm³`}
+function refreshDatumList(){const sel=q('cad3dPlane');let current=sel.value;sel.replaceChildren();for(let name of ['XY','YZ','XZ']){let o=document.createElement('option');o.value=name;o.textContent=name+' 基準面';sel.append(o)}for(let d of datums.filter(x=>x.kind==='plane')){let o=document.createElement('option');o.value=d.id;o.textContent=d.name;sel.append(o)}sel.value=current||'XY';const c=q('cad3dDatums');c.replaceChildren();for(let t of [{kind:'point',name:'原点',origin:[0,0,0]},{kind:'axis',name:'X軸',origin:[0,0,0],direction:[1,0,0]},{kind:'axis',name:'Y軸',origin:[0,0,0],direction:[0,1,0]},{kind:'axis',name:'Z軸',origin:[0,0,0],direction:[0,0,1]},...datums]){const d=document.createElement('div');d.className='cad3dRow';d.textContent=`${t.kind==='plane'?'▱':t.kind==='axis'?'↗':'•'} ${t.name} (${t.origin.join(',')})`;if(t.id){const b=document.createElement('button');b.textContent='削除';b.onclick=()=>{if(features.some(f=>f.plane===t.id))return alert('この基準面はフィーチャーに使用されています');datums=datums.filter(d=>d.id!==t.id);refreshDatumList();paint()};d.append(b)}c.append(d)}}
+function refreshFeatures(){const c=q('cad3dFeatures');c.replaceChildren();features.forEach((f,i)=>{if(!DEFAULT_FEATURES.includes(f.kind))return;const d=document.createElement('div');d.className='cad3dRow';d.innerHTML=`<b>${i+1}. ${({addExtrude:'押し出し',cutExtrude:'押し出しカット',addRevolve:'回転押し出し',cutRevolve:'回転カット',intersectExtrude:'交差',intersectRevolve:'回転交差'})[f.kind]}</b><br><small>${f.plane} / ${f.sourceIds?.length||0}断面 / ${f.kind.endsWith('Extrude')?'長さ':'角度'}</small><div></div>`;const row=d.lastElementChild;const value=document.createElement('input');value.type='number';value.step='any';value.value=f.kind.endsWith('Extrude')?f.depth:f.angle;value.onchange=()=>{let v=Number(value.value);if(!Number.isFinite(v)||v===0)return; if(f.kind.endsWith('Extrude'))f.depth=v;else f.angle=Math.min(360,Math.max(1,v));regenerate()};const t=document.createElement('button');t.textContent=f.disabled?'表示':'無効';t.onclick=()=>{f.disabled=!f.disabled;refreshFeatures();regenerate()};const del=document.createElement('button');del.textContent='削除';del.onclick=()=>{features.splice(i,1);refreshFeatures();regenerate()};row.append(value,t,del);c.append(d)})}
+function addFeature(kind){try{const profile=chosenProfile(),depth=Number(q('cad3dDepth').value),angle=Number(q('cad3dAngle').value),axisU=Number(q('cad3dAxisU').value);if(!Number.isFinite(depth)||!Number.isFinite(angle)||!Number.isFinite(axisU))throw Error('長さ・角度は数値で指定してください');if(depth===0&&kind.endsWith('Extrude'))throw Error('長さを0以外にしてください');if((kind.startsWith('cut')||kind.startsWith('intersect'))&&!features.some(f=>f.kind?.startsWith('add')))throw Error('最初に押し出しまたは回転体でソリッドを作成してください');const id=typeof uuid==='function'?uuid():String(Date.now());features.push({id,kind,sourceIds:profile.sourceIds,plane:q('cad3dPlane').value,depth,angle:Math.min(360,Math.max(1,angle)),axisU});refreshFeatures();regenerate()}catch(e){msg('フィーチャーエラー: '+e.message)}}
+function regenerate(){try{const info=buildGeometry();msg(info||'ソリッドを更新しました');refreshFeatures();paint()}catch(e){mesh=[];meshBuilt=false;msg('ソリッド再計算に失敗: '+e.message);paint()}finally{clearTemp()}}
+function viewport(){const r=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.max(1,Math.round(r.width*dpr));canvas.height=Math.max(1,Math.round(r.height*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);return {w:r.width,h:r.height}}
+function proj(p,w,h){let v=minus(p,cam.look),cy=Math.cos(cam.yaw),sy=Math.sin(cam.yaw),cp=Math.cos(cam.pitch),sp=Math.sin(cam.pitch),rx=cy*v[0]-sy*v[1],ry=sy*v[0]+cy*v[1],rz=v[2];let vy=cp*rz-sp*ry,depth=sp*rz+cp*ry;const radius=meshBounds?Math.max(...minus(meshBounds.max,meshBounds.min)):100,zoom=Math.min(w,h)*.65/(radius||100)*cam.zoom;return {x:w/2+rx*zoom+cam.pan[0],y:h/2-vy*zoom+cam.pan[1],depth}}
+function drawLine3d(a,b,col,w,h,width=1,alpha=1){let x=proj(a,w,h),y=proj(b,w,h);ctx.strokeStyle=col;ctx.globalAlpha=alpha;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x.x,x.y);ctx.lineTo(y.x,y.y);ctx.stroke();ctx.globalAlpha=1}
+function drawDatum(w,h){if(!q('cad3dDatumVisible').checked)return;const radius=meshBounds?Math.max(...minus(meshBounds.max,meshBounds.min))*0.7:55;const axes=[[P(1,0,0),'#f87171','X'],[P(0,1,0),'#4ade80','Y'],[P(0,0,1),'#60a5fa','Z']];for(let [axis,color,label] of axes){drawLine3d(P(),mul(axis,radius),color,w,h,2);let ep=proj(mul(axis,radius),w,h);ctx.fillStyle=color;ctx.font='bold 13px system-ui';ctx.fillText(label,ep.x+3,ep.y-4)}
+for(let d of datums){if(d.kind==='axis'){drawLine3d(minus(d.origin,mul(unit(d.direction),radius)),plus(d.origin,mul(unit(d.direction),radius)),'#a78bfa',w,h,1.5,.75)}else if(d.kind==='point'){let p=proj(d.origin,w,h);ctx.fillStyle='#fbbf24';ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill()}else if(d.kind==='plane'){let b=basis(d.id),pts=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([u,v])=>global(u*radius*.4,v*radius*.4,0,b));for(let i=0;i<4;i++)drawLine3d(pts[i],pts[(i+1)%4],'#a78bfa',w,h,1.5,.8)}}
+}
+function paint(){if(modal.style.display==='none')return;const {w,h}=viewport();ctx.fillStyle='#0b1220';ctx.fillRect(0,0,w,h);
+const polygons=mesh.map(f=>{let pts=f.vertices.map(x=>proj(x,w,h));return {...f,pts,d:(pts[0].depth+pts[1].depth+pts[2].depth+pts[3].depth)/4}});polygons.sort((a,b)=>a.d-b.d);const light=unit([.4,-.6,1]);
+for(let f of polygons){const lum=Math.max(.22,.58+.35*dot(f.normal,light));ctx.fillStyle=`rgb(${Math.round(28+80*lum)},${Math.round(88+120*lum)},${Math.round(125+125*lum)})`;ctx.beginPath();ctx.moveTo(f.pts[0].x,f.pts[0].y);for(let p of f.pts.slice(1))ctx.lineTo(p.x,p.y);ctx.closePath();ctx.fill();if(q('cad3dWire').checked){ctx.lineWidth=.35;ctx.strokeStyle='#0b2445';ctx.stroke()}}
+drawDatum(w,h);q('cad3dCount').textContent=`${mesh.length} 面${solids.length?' · '+solids[0].volume.toFixed(1)+' mm³':''}`}
+function makeDatum(kind){try{let origin=parseVec(q('cad3dOrigin').value),direction=parseVec(q('cad3dNormal').value);if((kind==='plane'||kind==='axis')&&len(direction)<1e-8)throw Error('方向ベクトルはゼロにできません');datums.push({id:uuid(),kind,name:q('cad3dDatumName').value.trim()||kind,origin,direction:unit(direction)});refreshDatumList();paint();msg(kind+'を作成しました')}catch(e){msg(e.message)}}
+function stl(){if(!mesh.length)return msg('ソリッドを先に作成してください');let out=['solid universal_cad'];for(let f of mesh)for(let t of [[0,1,2],[0,2,3]]){out.push('facet normal '+f.normal.join(' '),'outer loop',...t.map(i=>'vertex '+f.vertices[i].join(' ')),'endloop','endfacet')}out.push('endsolid universal_cad');download('universal-cad-voxel-preview.stl',out.join('\n'),'model/stl');msg('近似STLを保存しました（単位 mm）')}
+function open3d(){modal.style.display='flex';updateProfiles();refreshDatumList();refreshFeatures();regenerate()}
+q('cad3dClose').onclick=()=>{modal.style.display='none'};q('cad3dRebuild').onclick=regenerate;q('cad3dFit').onclick=()=>{cam={yaw:-.65,pitch:.48,zoom:1,pan:[0,0],look:cam.look};paint()};q('cad3dPoint').onclick=()=>makeDatum('point');q('cad3dAxis').onclick=()=>makeDatum('axis');q('cad3dAddPlane').onclick=()=>makeDatum('plane');q('cad3dDatumVisible').onchange=paint;q('cad3dWire').onchange=paint;q('cad3dRes').onchange=regenerate;q('cad3dExportSTL').onclick=stl;
+q('cad3dDemo').onclick=()=>{if(!confirm('サンプルの矩形と円を2D図面に追加しますか？'))return;const id1=uuid(),id2=uuid();snapshot();shapes.push({id:id1,type:'rect',a:{x:0,y:0},b:{x:80,y:50},layer:currentLayer},{id:id2,type:'circle',c:{x:40,y:25},r:12,layer:currentLayer});features.push({id:uuid(),kind:'addExtrude',sourceIds:[id1],plane:'XY',depth:20,angle:360,axisU:0},{id:uuid(),kind:'cutExtrude',sourceIds:[id2],plane:'XY',depth:20,angle:360,axisU:0});render();updateProfiles();regenerate()};
+q('cad3dLeft').querySelectorAll('[data-feature]').forEach(b=>b.onclick=()=>addFeature(b.dataset.feature));
+let drag=null;canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,yaw:cam.yaw,pitch:cam.pitch,pan:[...cam.pan],button:e.button};canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(drag.button===2){cam.pan=[drag.pan[0]+dx,drag.pan[1]+dy]}else{cam.yaw=drag.yaw+dx*.008;cam.pitch=Math.max(-1.5,Math.min(1.5,drag.pitch+dy*.008))}paint()});canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('contextmenu',e=>e.preventDefault());canvas.addEventListener('wheel',e=>{e.preventDefault();cam.zoom=Math.max(.05,Math.min(80,cam.zoom*(e.deltaY<0?1.13:1/1.13)));paint()},{passive:false});window.addEventListener('resize',()=>{if(modal.style.display==='flex')paint()});
+const panel=document.createElement('section');panel.className='panel';panel.innerHTML='<b>3Dモデリング v1.6</b><p><small>2Dの閉じたスケッチから、基準面・押し出し・回転体・カット・交差を作成します。</small></p><button id="cad3dOpen" style="width:100%;background:#2563eb">3Dワークスペースを開く</button>';document.querySelector('aside:last-of-type')?.prepend(panel);q('cad3dOpen').onclick=open3d;
+// Existing prototype buttons are replaced by real solid feature commands.
+q('extrude').onclick=()=>{open3d();addFeature('addExtrude')};q('cut').onclick=()=>{open3d();addFeature('cutExtrude')};q('revolve').onclick=()=>{open3d();addFeature('addRevolve')};
+// Bind 2D plane selector to 3D plane selector.
+q('plane').onchange=()=>{q('cad3dPlane').value=q('plane').value};q('height').onchange=()=>{q('cad3dDepth').value=q('height').value};
+// Override JSON saving by wrapping download: preserve data consistently in both save and save-as.
+const oldDownload=download;download=function(name,content,type){if(String(name).toLowerCase().endsWith('.json')&&String(content).trim().startsWith('{')){try{const data=JSON.parse(content);if(Array.isArray(data.shapes)){data.features=features.map(f=>{const {_basis,_polys,...safe}=f;return safe});data.datums3D=datums;data.version='1.6';content=JSON.stringify(data,null,2)}}catch(e){console.warn('v1.6 save',e)}}return oldDownload(name,content,type)};
+// Wrap load: old CAD JSON importer passes through cadExtrasLoad.
+const originalExtraLoad=window.cadExtrasLoad;window.cadExtrasLoad=function(data){originalExtraLoad?.(data);datums=Array.isArray(data.datums3D)?data.datums3D:[];features=Array.isArray(data.features)?data.features:[];refreshDatumList();refreshFeatures();meshBuilt=false};
+// High precision dimensions and existing dimension commands come from v1.5 unchanged.
+window.cad3D={open:open3d,rebuild:regenerate,getFeatures:()=>features,getDatums:()=>datums,getMesh:()=>mesh};
+refreshDatumList();
+})();
+
+</script><style>
+#precisionPanel{background:#18263a;border:1px solid #52759f;padding:10px;margin:10px 0;border-radius:7px;font-size:12px}#precisionPanel button{margin:3px 1px;padding:6px}#precisionPanel select{max-width:100%;width:100%;margin:3px 0}#precisionStatus{white-space:pre-wrap;color:#a5d8ff;line-height:1.6;margin-top:7px}#precisionPanel input{max-width:100%;width:100%;box-sizing:border-box;margin:4px 0}
+</style>
+<script>
+/* v1.7: local OpenCascade precision service; browser voxel preview retained as fallback. */
+(function(){
+const panel=document.createElement('div');panel.id='precisionPanel';panel.innerHTML=`<b>精密CAD v1.7 · B-rep</b>
+<p>精密演算はローカルPythonサーバーで実行します。通常のHTML単体起動では使用できません。</p>
+<div><button id="precisionCheck">カーネル確認</button><button id="precisionBuild">精密ソリッド再計算</button></div>
+<div><button id="precisionSTEP">STEP出力</button><button id="precisionIGES">IGES出力</button></div>
+<hr><b>2D幾何拘束（複数条件を同時に解く）</b>
+<select id="constraintType"><option value="horizontal">水平</option><option value="vertical">垂直</option><option value="length">線分長さ</option><option value="radius">半径</option><option value="diameter">直径</option><option value="parallel">平行</option><option value="perpendicular">直交</option><option value="coincident">端点一致</option><option value="concentric">同心</option></select>
+<label>対象A<select id="constraintA"></select></label><label id="constraintBWrap">対象B<select id="constraintB"></select></label>
+<label id="constraintValueWrap">寸法値(mm)<input id="constraintValue" type="number" step="any" value="50"></label>
+<label id="constraintEndWrap">端点組み合わせ<select id="constraintEnds"><option value="a:a">A始点 ⇄ B始点</option><option value="a:b">A始点 ⇄ B終点</option><option value="b:a">A終点 ⇄ B始点</option><option value="b:b">A終点 ⇄ B終点</option></select></label>
+<div><button id="constraintAdd">＋拘束を登録</button><button id="constraintSolve">拘束を解いて3Dを更新</button><button id="constraintClear">拘束をすべて解除</button></div>
+<div id="constraintList" style="max-height:140px;overflow:auto"></div><div id="precisionStatus">精密演算を使う場合は start.bat / start.sh から起動してください。</div>`;
+document.querySelector('#cad3dLeft')?.append(panel);
+const q=id=>document.getElementById(id);let constraints=[];let busy=false;
+function label(s){return `${s.type} · ${String(s.id).slice(0,10)}`}
+function refreshChoices(){const oldA=q('constraintA').value,oldB=q('constraintB').value;const eligible=shapes.filter(s=>['line','circle'].includes(s.type));for(let id of ['constraintA','constraintB']){q(id).replaceChildren();for(let s of eligible){let o=document.createElement('option');o.value=s.id;o.textContent=label(s);q(id).append(o)}}q('constraintA').value=oldA||selected?.id||eligible[0]?.id||'';q('constraintB').value=oldB||eligible[1]?.id||eligible[0]?.id||'';updateFields()}
+function updateFields(){let t=q('constraintType').value;const two=['parallel','perpendicular','coincident','concentric'].includes(t);q('constraintBWrap').style.display=two?'block':'none';q('constraintValueWrap').style.display=['length','diameter','radius'].includes(t)?'block':'none';q('constraintEndWrap').style.display=t==='coincident'?'block':'none';let required=t==='concentric'?'circle':'line';if(t==='radius'||t==='diameter')required='circle';let a=shapes.find(s=>s.id===q('constraintA').value);if(a?.type!==required){let first=shapes.find(s=>s.type===required);if(first)q('constraintA').value=first.id}}
+function list(){let out=q('constraintList');out.replaceChildren();constraints.forEach((c,i)=>{let row=document.createElement('div');row.style.cssText='border-bottom:1px solid #4b5563;padding:3px 0';row.textContent=`${i+1} ${c.type} / ${String(c.a).slice(0,6)} ${c.b?String(c.b).slice(0,6):''} ${['length','radius','diameter'].includes(c.type)?c.value:''} `;let b=document.createElement('button');b.textContent='×';b.onclick=()=>{constraints.splice(i,1);list()};row.append(b);out.append(row)})}
+function model(){return {shapes:shapes.map(s=>JSON.parse(JSON.stringify(s))),features:window.cad3D?.getFeatures()?.map(f=>{const {_basis,_polys,...rest}=f;return rest})||[],datums3D:window.cad3D?.getDatums()||[],constraints}}
+function show(s,bad=false){q('precisionStatus').style.color=bad?'#fca5a5':'#a5d8ff';q('precisionStatus').textContent=s}
+async function request(path,payload){let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let error=await r.json().catch(()=>({error:r.statusText}));throw Error(error.error||r.statusText)}return r}
+q('constraintType').onchange=updateFields;
+q('constraintAdd').onclick=()=>{let t=q('constraintType').value,a=q('constraintA').value,b=q('constraintB').value;let c={type:t,a};if(['parallel','perpendicular','coincident','concentric'].includes(t))c.b=b;if(['length','radius','diameter'].includes(t))c.value=Number(q('constraintValue').value);if(t==='coincident'){let ends=q('constraintEnds').value.split(':');c.endA=ends[0];c.endB=ends[1]}if(!a||c.b===a&&t!=='coincident')return show('有効な2図形を選んでください',true);constraints.push(c);list();show(`${constraints.length}件の拘束を登録しました`)};
+q('constraintClear').onclick=()=>{constraints=[];list();show('拘束を解除しました')};
+q('constraintSolve').onclick=async()=>{if(busy)return;busy=true;show('拘束式を同時に解いています…');try{let res=await request('/api/solve',model());let data=await res.json();snapshot();shapes.splice(0,shapes.length,...data.shapes);selected=null;if(typeof selectedIds!=='undefined')selectedIds.clear();render();window.cad3D?.rebuild?.();refreshChoices();show(`拘束解決: ${data.info.constraintCount}件 / 最大残差 ${data.info.maxError.toExponential(3)} mm\n3Dプレビュー再計算済み。精密モデルは「精密ソリッド再計算」で確認してください。`)}catch(e){show(e.message,true)}finally{busy=false}};
+q('precisionCheck').onclick=async()=>{try{let r=await fetch('/api/health');let x=await r.json();if(!r.ok)throw Error('接続不可');show(`接続OK: ${x.engine}\nSTEP / IGES 出力可能`)}catch(e){show('精密カーネルが起動していません。start.bat / start.shを使ってください。',true)}};
+q('precisionBuild').onclick=async()=>{show('精密B-rep再構築中…');try{let r=await request('/api/rebuild',model());let x=await r.json();show(`B-rep有効: ${x.valid?'YES':'NO'}\n体積: ${x.volume} mm³\n表面積: ${x.area} mm²\nソリッド数: ${x.solids}\n履歴: ${x.featureReport.length}フィーチャー`)}catch(e){show(e.message,true)}};
+for(let fmt of ['STEP','IGES'])q('precision'+fmt).onclick=async()=>{show(fmt+'出力中…');try{let r=await request('/api/export/'+fmt.toLowerCase(),model());let blob=await r.blob();let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='universal-cad.'+(fmt==='STEP'?'step':'igs');a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);show(fmt+'ファイル出力完了（B-rep）')}catch(e){show(e.message,true)}};
+const oldLoad=window.cadExtrasLoad;window.cadExtrasLoad=function(data){oldLoad?.(data);constraints=Array.isArray(data.constraints2D)?data.constraints2D:[];refreshChoices();list()};
+const oldDownload=download;download=function(name,content,type){if(String(name).toLowerCase().endsWith('.json')){try{let d=JSON.parse(content);d.constraints2D=constraints;d.version='1.7';content=JSON.stringify(d,null,2)}catch(e){}}return oldDownload(name,content,type)};
+const open=q('cad3dOpen');if(open)open.addEventListener('click',()=>setTimeout(refreshChoices,100));
+window.cadPrecision={constraints:()=>constraints,model,refreshChoices};
+document.title='Universal CAD v1.7 · 精密B-rep試作';
+})();
+</script></body></html>
