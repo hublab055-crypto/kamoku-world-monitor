@@ -2993,7 +2993,7 @@ export class ExplorerRenderer{
    const poseName=actor.seatId?actor.seatPose:actor.standingPose;
    const gesture=active||poseName?{
     motion:active?actor.motion:poseName||"stand_neutral",time:actor.time??0,
-    x:actor.x,z:actor.z,yaw:actor.yaw,seatY:actor.seatY??0,grip:actor.handGrip||null
+    x:actor.x,z:actor.z,yaw:actor.yaw,seatY:actor.seatY??0,grip:actor.handGrip||null,adjust:actor.poseAdjust||{}
    }:null;
    if(this.drawAvatarV10(sourceId,vp,model,light,dt,{
     motion:actor.motion==="Seated"?"sit":actor.motion,time:actor.time,moving:actor.motion==="walk",
