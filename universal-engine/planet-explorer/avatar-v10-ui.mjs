@@ -1,5 +1,5 @@
 import {AVATAR_V10_DEFAULTS,AVATAR_V10_FACE,AVATAR_V10_MODELS,AVATAR_V10_OUTFITS,normalizeAvatarV10} from "./avatar-v10.mjs?v=20261118-medical";
-import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261122-room-motions";
+import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261123-mr-living";
 import {lookAt,multiply4,perspective} from "./render.mjs?v=20261118-mocap-medical";
 import {requiresAvatarWardrobeUnlock,avatarWardrobeUnlocked,unlockAvatarWardrobe} from "./avatar-v10-wardrobe.mjs?v=1";
 import {partControls,hairStyles,normalizeAppearance,rangeText,fromReviewStorage,reviewModelKey} from "./avatar-review-parameters.mjs?v=20261114-original";
