@@ -7,7 +7,7 @@ import {installHenshinUI} from "./henshin-ui.mjs?v=20261121-native";
 import {AVATAR_V10_STORAGE,normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
 import {AVATAR_DAILY_ACTIONS} from "./avatar-daily-actions.mjs?v=20261118-extended-motion";
 import {installAvatarV10Editor} from "./avatar-v10-ui.mjs?v=20261122-room-motions";
-import {shipContactDistance} from "./space-combat.mjs?v=20261117-mining";
+import {shipContactDistance} from "./space-combat.mjs?v=20261123-native-launch";
 import {installShipPilotPanel} from "./ship-pilot-panel.mjs?v=20261112-warp";
 import {installMobilePlayUI} from "./mobile-play-ui.mjs?v=20261111-atmosphere-mobile";
 import {Multiverse} from "../core.mjs";
@@ -16,7 +16,7 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261117-oasis-consent";
+import {ShipJourney} from "./ship-journey.mjs?v=20261123-native-launch";
 import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-oasis-consent";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261116-crew-recall-v1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
@@ -98,14 +98,14 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261122-wrist-menu-v2";
+import {installXRUI} from "./xr-ui.mjs?v=20261123-native-launch";
 import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=20261114-social-2";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
 import {installMediaUI} from "./media-ui.mjs?v=0.9n-media-culture";
 import {installWorldTablet} from "./world-tablet.mjs?v=20261119-wall-player";
 import {WristWatchTime} from "./wrist-watch-time.mjs?v=20261122";
-import {installWristWatchUI} from "./wrist-watch-ui.mjs?v=20261122-wrist-menu-v2";
+import {installWristWatchUI} from "./wrist-watch-ui.mjs?v=20261123-native-launch";
 import {sweptWeaponContacts,contactDamage} from "./melee-contact.mjs?v=0.9e-guard";
 
 const $=id=>document.getElementById(id);
