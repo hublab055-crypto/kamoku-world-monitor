@@ -92,6 +92,74 @@ export function poseAvatarV10Gesture(rig,pose,{motion,time,grip,yaw=0,x=0,z=0}) 
  const arm=(side,goal,finger,palm,weight,curl,bend,thumbDirection=null)=>
   poseArm(rig,pose,side,goal,orientation(finger,palm),bend,weight,curl,thumbDirection);
  const envelope=(on,ready,release,end)=>crewPhase(time,on,ready)*(1-crewPhase(time,release,end));
+ // A real seated posture on a registered zabuton, not the standing idle pose.
+ // Bone names are resolved from the GLB rig; missing optional leg joints are tolerated.
+ const posture={
+  floor_legs_out:[.21,-1.36,.02,0,0,0],
+  floor_crosslegged:[.25,-1.20,1.30,.32,.02,0],
+  floor_seiza:[.23,-.12,2.15,.05,.03,0],
+  floor_side_sit:[.22,-.82,1.72,.44,.06,0],
+  floor_knees_up:[.26,-.80,1.82,.05,-.16,0],
+  chair_upright:[.48,-1.32,1.42,0,0,0],
+  chair_relaxed:[.45,-1.30,1.38,.04,.18,0],
+  chair_ankles_crossed:[.47,-1.28,1.47,.12,.02,0],
+  chair_edge:[.49,-1.10,1.30,0,-.12,0],
+  sofa_relaxed:[.43,-1.30,1.46,.02,.20,0],
+  sofa_upright:[.46,-1.22,1.42,0,0,0],
+  sofa_sideways:[.44,-1.23,1.44,.20,.08,.17],
+  sofa_legs_crossed:[.44,-1.20,1.50,.18,.06,0]
+ };
+ if(posture[motion]){
+  const [defaultY,hipFlex,kneeFlex,splay,lean,twist]=posture[motion];
+  const options=arguments[2]||{},seatY=Number.isFinite(options.seatY)?options.seatY:defaultY;
+  const adjust=options.adjust||{},deg=value=>Math.max(-35,Math.min(35,Number(value)||0))*Math.PI/180;
+  const target=native([0,Math.max(.12,Math.min(.85,seatY||defaultY)),0])[1];
+  const current=jointWorld(pose,rig.parents,hips).p[1];
+  pose[hips].translation[1]+=Math.max(-.55/rig.scale,Math.min(.18/rig.scale,target-current));
+  const get=(name,alt)=>names.get(name)??names.get(alt);
+  for(const [side,sign] of [["L",1],["R",-1]]){
+   const top=get("UpperLeg_"+side,"Thigh_"+side)??get("LegUpper_"+side,"Hip_"+side);
+   const knee=get("LowerLeg_"+side,"Shin_"+side)??get("LegLower_"+side,"Calf_"+side);
+   if(top!==undefined){
+    const spread=angle([0,0,1],sign*(splay+deg(adjust.hip)));
+    pose[top].rotation=combine(spread,combine(angle([1,0,0],hipFlex),pose[top].rotation));
+   }
+   if(knee!==undefined)pose[knee].rotation=combine(angle([1,0,0],kneeFlex+deg(adjust.knee)),pose[knee].rotation);
+  }
+  pose[chest].rotation=combine(angle([1,0,0],lean+deg(adjust.back)),pose[chest].rotation);
+  if(twist)pose[hips].rotation=combine(angle(yAxis,twist),pose[hips].rotation);
+  return;
+ }
+ if(motion?.startsWith("stand_")){
+  const options=arguments[2]||{},adjust=options.adjust||{},degrees=v=>Math.max(-35,Math.min(35,Number(v)||0))*Math.PI/180;
+  if(motion==="stand_attention")pose[chest].rotation=mix(pose[chest].rotation,identity,.88);
+  if(motion==="stand_weight_shift")pose[hips].rotation=combine(angle(front,.11),pose[hips].rotation);
+  if(motion==="stand_hands_hips"){
+   for(const side of ["L","R"]){
+    const sign=side==="L"?1:-1;
+    arm(side,native([sign*.20,.93,.10]),[0,-1,.05],[0,0,1],1,.23,[sign*.65,-1,.1]);
+   }
+  }
+  if(motion==="stand_arms_crossed"){
+   arm("L",native([-.1,1.19,.22]),[1,0,.08],[0,0,1],1,.18,[.5,-1,.25]);
+   arm("R",native([.1,1.20,.24]),[-1,0,.08],[0,0,1],1,.18,[-.5,-1,.25]);
+  }
+  pose[chest].rotation=combine(angle([1,0,0],degrees(adjust.back)),pose[chest].rotation);
+  return;
+ }
+ if(["drink","eat","read","rest","watchTV"].includes(motion)){
+  if(motion==="drink"||motion==="eat"){
+   const goal=jointWorld(pose,rig.parents,head).p;
+   const w=.8+.15*Math.sin(time*2);
+   arm("R",add(goal,[-.09,-.23,.17]),[0,1,.2],[0,0,1],w,.24,[-.5,-1,.4]);
+  }else if(motion==="read"){
+   arm("L",native([.18,.94,.36]),[0,-1,.1],[0,0,1],.9,.26,[.6,-1,.25]);
+   arm("R",native([-.14,.96,.36]),[0,-1,.1],[0,0,1],.9,.26,[-.6,-1,.25]);
+   pose[head].rotation=combine(angle([1,0,0],.17),pose[head].rotation);
+  }else if(motion==="rest")pose[chest].rotation=combine(angle([1,0,0],.12),pose[chest].rotation);
+  else pose[head].rotation=combine(angle(yAxis,.04*Math.sin(time*.7)),pose[head].rotation);
+  return;
+ }
  if(motion==="wave"){
   const w=envelope(.05,.40,2.10,2.50),temple=jointWorld(pose,rig.parents,head).p;
   const sway=Math.sin(time*11)*.13;
