@@ -32,6 +32,7 @@ export class ShipJourney{
   this.turrets=normalizeTurrets(data.turrets);
   this.autoFire=Boolean(data.autoFire);
   this.shipSystems=data.shipSystems||null;
+  this.launchChecklist=data.launchChecklist?.schemaVersion===1?{...data.launchChecklist}:null;
   this.navigationTarget=data.navigationTarget?.position?.length===3?data.navigationTarget:null;
   this.routeVertical=finite(data.routeVertical)?data.routeVertical:0;
   this.verticalVelocity=finite(data.verticalVelocity)?data.verticalVelocity:0;
@@ -409,7 +410,7 @@ export class ShipJourney{
    volThrottle:this.volThrottle,horizon:this.horizon,gearMode:this.gearMode,
    warpProgress:this.warpProgress,warpSpeed:this.warpSpeed,warpEngaged:this.warpEngaged,warpArrived:this.warpArrived,
    fuel:this.fuel,throttle:this.throttle,autopilot:this.autopilot,hatchOpen:this.hatchOpen,
-   navigationTarget:this.navigationTarget,shipSystems:this.shipSystems,airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,airVerticalVelocity:this.airVerticalVelocity,
+   navigationTarget:this.navigationTarget,shipSystems:this.shipSystems,launchChecklist:this.launchChecklist,airAltitude:this.airAltitude,airEast:this.airEast,airNorth:this.airNorth,airSpeed:this.airSpeed,airVerticalVelocity:this.airVerticalVelocity,
    turrets:normalizeTurrets(this.turrets),autoFire:this.autoFire,routeVertical:this.routeVertical,verticalVelocity:this.verticalVelocity,
    routeAlong:this.routeAlong,crossTrack:this.crossTrack,routeVelocity:{...this.routeVelocity},
    seated:this.seated,interior:this.interior.snapshot()};
