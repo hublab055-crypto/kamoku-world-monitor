@@ -22,16 +22,18 @@ function faceToViewer(center,head,size=1.17){
  const yaw=Math.atan2(head[12]-center[0],head[14]-center[2]);
  return xrMul(xrTranslate(...center),xrMul(xrRotateY(yaw),scale(size)));
 }
-export const WATCH_MENU=Object.freeze(["main-menu","settings","camera","xr-mode","tablet","time"]);
+export const WATCH_MENU=Object.freeze(["main-menu","settings","camera","xr-mode","tablet","ship"]);
 export const WATCH_MAIN_MENU=Object.freeze(["back","settings","camera","tablet","time","close"]);
 export const WATCH_SETTINGS_MENU=Object.freeze(["back","watch-style","watch-hand","watch-creative","watch-universe","close"]);
 export const WATCH_XR_MENU=Object.freeze(["back","xr-third","xr-rts","tablet","xr-exit","close"]);
 export const WATCH_TIME_MENU=Object.freeze(["pause","quarter","normal","double","fast","rewind"]);
-export const WATCH_MENU_LABELS=Object.freeze(["MENU","SET","VIEW","XR","TAB","TIME"]);
+export const WATCH_SHIP_MENU=Object.freeze(["ship-hatch","ship-crew","ship-engine","ship-rollcall","ship-launch","ship-combat"]);
+export const WATCH_MENU_LABELS=Object.freeze(["MENU","SET","VIEW","XR","TAB","SHIP"]);
 export const WATCH_MAIN_LABELS=Object.freeze(["BACK","SET","VIEW","TAB","TIME","CLOSE"]);
 export const WATCH_SETTINGS_LABELS=Object.freeze(["BACK","STYLE","HAND","CREAT","UNIV","CLOSE"]);
 export const WATCH_XR_LABELS=Object.freeze(["BACK","3RD","RTS","TAB","EXIT","CLOSE"]);
 export const WATCH_TIME_LABELS=Object.freeze(["PAUSE",".25","1X","2X","5X","REW"]);
+export const WATCH_SHIP_LABELS=Object.freeze(["HATCH","CREW","START","REPORT","LIFT","FIRE"]);
 const GRID=Object.freeze([
  {x:-.15,y:.13},{x:0,y:.13},{x:.15,y:.13},
  {x:-.15,y:-.13},{x:0,y:-.13},{x:.15,y:-.13}
@@ -111,11 +113,11 @@ export class XRWristWatch{
  }
  menuActions(){
   return this.page==="main"?WATCH_MAIN_MENU:this.page==="settings"?WATCH_SETTINGS_MENU:
-   this.page==="xr"?WATCH_XR_MENU:this.page==="time"?WATCH_TIME_MENU:WATCH_MENU;
+   this.page==="xr"?WATCH_XR_MENU:this.page==="time"?WATCH_TIME_MENU:this.page==="ship"?WATCH_SHIP_MENU:WATCH_MENU;
  }
  menuLabels(){
   return this.page==="main"?WATCH_MAIN_LABELS:this.page==="settings"?WATCH_SETTINGS_LABELS:
-   this.page==="xr"?WATCH_XR_LABELS:this.page==="time"?WATCH_TIME_LABELS:WATCH_MENU_LABELS;
+   this.page==="xr"?WATCH_XR_LABELS:this.page==="time"?WATCH_TIME_LABELS:this.page==="ship"?WATCH_SHIP_LABELS:WATCH_MENU_LABELS;
  }
  press(ray,{sourceHand=null,grip=null}={}){
   const hasRay=valid(ray);
@@ -129,6 +131,7 @@ export class XRWristWatch{
      if(this.mode==="multiverse"||this.mode==="universe"&&action!=="pause")return {action:"blocked"};
      return {action:"time-"+action};
     }
+    if(action==="ship"){this.page="ship";return {action:"ship-page"};}
     if(action==="time"&&this.mode==="multiverse")return {action:"blocked"};
     if(action==="time"){this.page="time";return {action:"time-page"};}
     if(action==="main-menu"){this.page="main";return {action:"main-page"};}

@@ -472,6 +472,8 @@ export class SpaceCombat{
  }
  fire(eligible=true){
   if(!eligible)return {ok:false,message:"操縦席に着席し、宇宙航行中に使用してください"};
+  if(this.voyage?.launchChecklist?.launched&&!this.voyage.launchChecklist.combatAuthorized)
+   return {ok:false,message:"艦長の交戦許可が必要です。腕時計SHIPまたは発進手順から許可してください"};
   if(this.playerSurrendered)return {ok:false,message:"降伏中は発射できません。通信メニューから降伏を撤回してください"};
   if(this.parts.weapons<=0)return {ok:false,message:"兵装が損傷しています。整備メニューから修理してください"};
   if(this.cooldown>0)return {ok:false,message:"兵装を再装填しています"};
