@@ -2,6 +2,7 @@
  * MR actors in WebXR local coordinates. Up to 8 independently moving display
  * slots; guests reference one of the four existing saved V10 appearances.
  */
+import {MR_STAND_POSES,MR_SEAT_POSES} from "./mr-room-layout.mjs";
 export const MR_AVATAR_IDS=Object.freeze(["navigator","engineer","companion","player","guest1","guest2","guest3","guest4"]);
 export const MR_AVATAR_NAMES=Object.freeze({navigator:"副官",engineer:"機関士",companion:"同行者",player:"自分のアバター",guest1:"招待枠 1",guest2:"招待枠 2",guest3:"招待枠 3",guest4:"招待枠 4"});
 export const MR_AVATAR_SOURCE_IDS=Object.freeze({navigator:"navigator",engineer:"engineer",companion:"companion",player:"player",guest1:"navigator",guest2:"engineer",guest3:"companion",guest4:"player"});
@@ -35,30 +36,42 @@ export class MRAvatarPresence {
   if(!actor){
    if(this.actors.length>=this.maxActors)return {ok:false,message:"同時表示は最大"+this.maxActors+"人です"};
    actor={id,sourceId:MR_AVATAR_SOURCE_IDS[id],x:0,z:0,y:0,yaw:0,size,follow:false,roam:false,
-    motion:"idle",time:null,gestureDuration:0,goal:null,seatId:null,invited:false};
+    motion:"idle",time:null,gestureDuration:0,goal:null,seatId:null,invited:false,
+    seatSurface:null,seatPose:null,standingPose:"stand_neutral",affinity:0};
    this.actors.push(actor);
   }
-  Object.assign(actor,placement,{size,follow:false,roam:false,motion:"idle",time:null,gestureDuration:0,goal:null,seatId:null});
+  Object.assign(actor,placement,{size,follow:false,roam:false,motion:"idle",time:null,gestureDuration:0,goal:null,seatId:null,seatPose:null,seatSurface:null});
   return {ok:true,actor,message:MR_AVATAR_NAMES[id]+"を床に配置しました"};
  }
  remove(id){const i=this.actors.findIndex(a=>a.id===id);if(i<0)return false;this.actors.splice(i,1);return true;}
+ setPose(id,pose){
+  const a=this.get(id);if(!a)return {ok:false,message:"アバターがいません"};
+  if(a.seatId){
+   if(!MR_SEAT_POSES[a.seatSurface]?.includes(pose))return {ok:false,message:"この座布団に対応しない姿勢です"};
+   a.seatPose=pose;return {ok:true,message:"座りポーズを "+pose+" に変更"};
+  }
+  if(!MR_STAND_POSES.includes(pose))return {ok:false,message:"この立ちポーズには対応していません"};
+  a.standingPose=pose;return {ok:true,message:"立ちポーズを "+pose+" に変更"};
+ }
+
  action(id,type,{room=null,head=null}={}){
   const a=this.get(id);if(!a)return {ok:false,message:"先にアバターを召喚してください"};
-  if(type==="follow"){a.follow=true;a.roam=false;a.goal=null;a.seatId=null;a.y=0;a.motion="idle";a.time=null;return {ok:true,message:"ついてくる"};}
+  if(type==="follow"){a.follow=true;a.roam=false;a.goal=null;a.seatId=null;a.seatPose=null;a.seatSurface=null;a.y=0;a.motion="idle";a.time=null;return {ok:true,message:"ついてくる"};}
   if(type==="wait"){a.follow=false;a.roam=false;a.goal=null;a.motion="idle";a.time=null;return {ok:true,message:"待機"};}
   if(type==="wander"){
    if(!room?.ready)return {ok:false,message:"最初に部屋の基準点・広さを登録してください"};
-   a.follow=false;a.roam=true;a.seatId=null;a.goal=null;a.y=0;a.time=null;
+   a.follow=false;a.roam=true;a.seatId=null;a.seatPose=null;a.seatSurface=null;a.goal=null;a.y=0;a.time=null;
    return {ok:true,message:"登録済みの空いた床を散歩します"};
   }
   if(type==="sit"){
-   const chair=room?.ready?room.nearestSeat(a.x,a.z):null;
-   if(!chair)return {ok:false,message:"椅子かソファの位置を先に登録してください"};
+   const chair=room?.ready?room.seatWorld().filter(seat=>!this.actors.some(other=>other.id!==a.id&&other.seatId===seat.id)).sort((x,y)=>Math.hypot(x.x-a.x,x.z-a.z)-Math.hypot(y.x-a.x,y.z-a.z))[0]:null;
+   if(!chair)return {ok:false,message:"空いている座布団を床・椅子・ソファに配置してください"};
    a.follow=false;a.roam=false;a.goal={x:chair.x,z:chair.z};a.seatId=chair.id;a.seatYaw=chair.yaw;a.seatY=chair.seatY;
+   a.seatPose=chair.pose;a.seatSurface=chair.surface;
    a.motion="walk";a.time=null;
-   return {ok:true,message:"登録した"+(chair.type==="sofa"?"ソファ":"椅子")+"へ向かいます"};
+   return {ok:true,message:"座布団へ向かいます（"+chair.surface+" / "+chair.pose+"）"};
   }
-  if(type==="stand"){a.follow=false;a.roam=false;a.goal=null;a.motion="idle";a.time=null;a.seatId=null;a.y=0;return {ok:true,message:"立つ"};}
+  if(type==="stand"){a.follow=false;a.roam=false;a.goal=null;a.motion="idle";a.time=null;a.seatId=null;a.seatPose=null;a.seatSurface=null;a.y=0;return {ok:true,message:"立つ"};}
   if(type==="invite"){a.invited=true;return {ok:true,message:"境界扉を通る仲間に登録しました"};}
   const motions={salute:["敬礼",2.2],thumbsUp:["グッドサイン",2],doubleThumbs:["両手でグッドサイン",2.2],
    wave:["手を振る",2.5],bow:["お辞儀",2.4]};
@@ -75,6 +88,9 @@ export class MRAvatarPresence {
   for(const a of this.actors){
    if(a.time!==null){a.time+=elapsed;if(a.time>=a.gestureDuration){a.time=null;a.motion="idle";}}
    const canRoom=Boolean(room?.ready);
+   if(a.seatId&&!room?.seatWorld?.().some(seat=>seat.id===a.seatId)){
+    a.seatId=null;a.seatPose=null;a.seatSurface=null;a.goal=null;a.motion="idle";a.y=0;
+   }
    if(a.roam&&canRoom&&!a.goal){
     for(let j=0;j<16;j++){
      const seed=this.elapsed*1.618+MR_AVATAR_IDS.indexOf(a.id)*8.27+j*1.19;
