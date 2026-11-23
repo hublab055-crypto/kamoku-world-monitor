@@ -8,8 +8,13 @@ const good=n=>typeof n==="number"&&Number.isFinite(n);
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const matrix=m=>m?.length===16&&[0,2,8,10,12,13,14].every(i=>good(m[i]));
 const finite=(n,d=0)=>good(n)?n:d;
-const types=new Set(["chair","sofa","table","wall","obstacle"]);
-const dimensions={chair:[.65,.65,.45],sofa:[1.6,.85,.43],table:[1.1,.8,.72],wall:[2,.12,2.2],obstacle:[.8,.8,.9]};
+const types=new Set(["chair","sofa","table","wall","obstacle","bed","tv","bookshelf","kitchen"]);
+const dimensions={chair:[.65,.65,.45],sofa:[1.6,.85,.43],table:[1.1,.8,.72],wall:[2,.12,2.2],obstacle:[.8,.8,.9],bed:[1,2.05,.5],tv:[1.15,.2,1.1],bookshelf:[.9,.32,1.8],kitchen:[1.8,.6,.94]};
+export const MR_FLOOR_POSES=Object.freeze(["floor_legs_out","floor_crosslegged","floor_seiza","floor_side_sit","floor_knees_up"]);
+export const MR_CHAIR_POSES=Object.freeze(["chair_upright","chair_relaxed","chair_ankles_crossed","chair_edge"]);
+export const MR_SOFA_POSES=Object.freeze(["sofa_relaxed","sofa_upright","sofa_sideways","sofa_legs_crossed"]);
+export const MR_STAND_POSES=Object.freeze(["stand_neutral","stand_attention","stand_arms_crossed","stand_hands_hips","stand_weight_shift"]);
+export const MR_SEAT_POSES={floor:MR_FLOOR_POSES,chair:MR_CHAIR_POSES,sofa:MR_SOFA_POSES};
 const cleanObject=(o,i)=>{
  if(!types.has(o?.type))return null;
  const def=dimensions[o.type];
@@ -32,6 +37,7 @@ export class MRRoomLayout {
    {x:clamp(s.portal.x,-10,10),z:clamp(s.portal.z,-10,10),yaw:finite(s.portal.yaw),
     width:clamp(finite(s.portal.width,1.05),.7,1.8)}:null;
   this.anchorHandle=typeof s.anchorHandle==="string"&&s.anchorHandle.length<512?s.anchorHandle:null;
+  this.cushions=(Array.isArray(s.cushions)?s.cushions:[]).slice(0,32).filter(c=>c&&typeof c.id==="string"&&Number.isFinite(c.x)&&Number.isFinite(c.z)&&["floor","chair","sofa"].includes(c.surface)).map(c=>({...c,pose:MR_SEAT_POSES[c.surface].includes(c.pose)?c.pose:MR_SEAT_POSES[c.surface][0]}));
   this.origin=null;this.relocalization="unavailable";
  }
  get ready(){return Boolean(this.origin);}
@@ -73,6 +79,46 @@ export class MRRoomLayout {
   if(this.objects.length>=32)this.objects.shift();
   this.objects.push(item);return item;
  }
+ /** A cushion defines an actual available seat; furniture alone is not a seat. */
+ addCushion(point,{furnitureId=null,seatIndex=0,pose=null}={}){
+  if(!this.ready||!point||this.cushions.length>=32)return null;
+  const local=this.local(point);if(!local)return null;
+  const parent=this.objects.find(o=>o.id===furnitureId);
+  if(furnitureId&&!parent)return null;
+  if(parent&&!["chair","sofa"].includes(parent.type))return null;
+  const surface=parent?.type||"floor";
+  const total=surface==="sofa"?3:1;
+  if(!Number.isInteger(seatIndex)||seatIndex<0||seatIndex>=total)return null;
+  if(parent&&this.cushions.some(c=>c.parentId===parent.id&&c.seatIndex===seatIndex))return null;
+  if(!parent&&!this.free(point.x,point.z,.24))return null;
+  const chosen=MR_SEAT_POSES[surface].includes(pose)?pose:MR_SEAT_POSES[surface][0];
+  const c={id:"zabuton-"+Date.now().toString(36)+"-"+this.cushions.length,
+   parentId:parent?.id||null,seatIndex,surface,pose:chosen,x:local.x,z:local.z,yaw:parent?.yaw??local.yaw};
+  this.cushions.push(c);return c;
+ }
+ removeLastCushion(){return this.cushions.pop()||null;}
+ setCushionPose(id,pose){
+  const c=this.cushions.find(c=>c.id===id);
+  if(!c||!MR_SEAT_POSES[c.surface]?.includes(pose))return false;
+  c.pose=pose;return true;
+ }
+ worldCushions(){
+  return this.cushions.flatMap(c=>{
+   const parent=c.parentId?this.objects.find(o=>o.id===c.parentId):null;
+   if(c.parentId&&!parent)return [];
+   let local={x:c.x,z:c.z,yaw:c.yaw};
+   let seatY=0;
+   if(parent){
+    const offset=parent.type==="sofa"?(c.seatIndex-1)*parent.width/3:0;
+    local={x:parent.x+Math.cos(parent.yaw)*offset,z:parent.z-Math.sin(parent.yaw)*offset,yaw:parent.yaw};
+    seatY=parent.seatY;
+   }
+   const w=this.world(local);
+   return w?[{...w,id:c.id,type:"cushion",surface:c.surface,pose:c.pose,
+    width:parent?.type==="sofa"?Math.min(.48,parent.width/3):.43,depth:.43,height:.04,
+    seatY,parentId:c.parentId}]:[];
+  });
+ }
  setPortal(point,width=1.05){
   const p=this.local(point);if(!p)return null;
   this.portal={x:p.x,z:p.z,yaw:p.yaw,width:clamp(width,.7,1.8)};
@@ -80,8 +126,8 @@ export class MRRoomLayout {
  }
  worldObjects(){return this.objects.map(o=>({...o,...this.world(o)}));}
  worldPortal(){return this.portal?this.world(this.portal)&&{...this.portal,...this.world(this.portal)}:null;}
- seatWorld(){return this.worldObjects().filter(o=>o.type==="chair"||o.type==="sofa");}
- removeLast(){return this.objects.pop()||null;}
+ seatWorld(){return this.worldCushions();}
+ removeLast(){const o=this.objects.pop()||null;if(o)this.cushions=this.cushions.filter(c=>c.parentId!==o.id);return o;}
  inside(x,z,r=.25){
   const p=this.local({x,z});if(!p)return false;
   return Math.abs(p.x)<=this.width/2-r&&Math.abs(p.z)<=this.depth/2-r;
@@ -89,7 +135,7 @@ export class MRRoomLayout {
  free(x,z,r=.28,{seatId=null}={}){
   if(!this.inside(x,z,r))return false;
   for(const o of this.worldObjects()){
-   if(o.id===seatId)continue;
+   if(o.id===seatId||this.cushions.some(c=>c.id===seatId&&c.parentId===o.id))continue;
    const dx=x-o.x,dz=z-o.z,c=Math.cos(o.yaw),s=Math.sin(o.yaw);
    const lx=c*dx-s*dz,lz=s*dx+c*dz;
    if(Math.abs(lx)<o.width/2+r&&Math.abs(lz)<o.depth/2+r)return false;
@@ -100,7 +146,7 @@ export class MRRoomLayout {
   return this.seatWorld().sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z))[0]||null;
  }
  snapshot(){return {version:1,width:this.width,depth:this.depth,
-  objects:this.objects.map(o=>({...o})),portal:this.portal?{...this.portal}:null,
+  objects:this.objects.map(o=>({...o})),cushions:this.cushions.map(c=>({...c})),portal:this.portal?{...this.portal}:null,
   anchorHandle:this.anchorHandle};}
 }
 /** Read WebXR plane metadata, not passthrough camera pixels.
