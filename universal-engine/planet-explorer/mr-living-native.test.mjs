@@ -72,8 +72,8 @@ test("social comfort distance responds to affinity without implied touch consent
 test("repeated sensitive contact warns, reports, and eventually defends",()=>{
  const events=[];const s=new MRLivingSocial({onEvent:e=>events.push(e)});
  s.register("a",{affinity:20,allies:["b"]});s.register("b",{affinity:60});
- s.touch("a","pelvis");s.advance(1.2);s.touch("a","chest");
- s.advance(1.2);s.touch("a","pelvis");
+ s.touch("a","pelvis");for(let i=0;i<12;i++)s.advance(.12);s.touch("a","chest");
+ for(let i=0;i<12;i++)s.advance(.12);s.touch("a","pelvis");
  assert.ok(events.some(e=>e.type==="warning"));
  assert.ok(events.some(e=>e.type==="report"));
  assert.ok(events.some(e=>e.type==="defend"));
