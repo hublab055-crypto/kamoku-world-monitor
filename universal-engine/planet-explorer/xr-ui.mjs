@@ -1869,6 +1869,53 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    statusText("🥽 "+result.message);
   });
  }
+ $("xr-mr-living-set-pose")?.addEventListener("click",()=>{
+  const id=mrAvatarId?.value||"navigator",pose=$("xr-mr-living-pose")?.value;
+  const result=mrAvatars.setPose(id,pose);
+  if(result.ok&&!mrAvatars.get(id)?.seatId){mrPoses[id]=pose;saveMRPoses();}
+  statusText("🎭 "+result.message);
+ });
+ const performLiving=(action)=>{
+  const actor=mrAvatars.get(mrAvatarId?.value||"navigator");
+  if(!actor){statusText("先にアバターを召喚してください");return;}
+  actor.motion=action;actor.time=0;actor.gestureDuration=6;
+  statusText(action==="read"?"📖 読書を開始":"🛋 休憩を開始");
+ };
+ $("xr-mr-living-read")?.addEventListener("click",()=>performLiving("read"));
+ $("xr-mr-living-rest")?.addEventListener("click",()=>performLiving("rest"));
+ $("xr-mr-living-talk")?.addEventListener("click",()=>{
+  const actor=mrAvatars.get(mrAvatarId?.value||"navigator");
+  if(!actor)return statusText("先にアバターを召喚してください");
+  const reply=mrLivingSocial.talk(actor.id,$("xr-mr-living-chat")?.value);
+  if($("xr-mr-living-status"))$("xr-mr-living-status").textContent=reply;
+ });
+ $("xr-mr-living-apologize")?.addEventListener("click",()=>{
+  mrLivingSocial.apologize(mrAvatarId?.value||"navigator");
+ });
+ $("xr-mr-living-serve")?.addEventListener("click",()=>{
+  const actor=mrAvatars.get(mrAvatarId?.value||"navigator"),item=$("xr-mr-living-item")?.value;
+  if(!actor)return statusText("先にアバターを召喚してください");
+  if(["beer","sake"].includes(item)&&mrLivingSocial.get(actor.id).adult!==true)
+   return statusText("未成年アバターへのお酒の提供はできません");
+  actor.motion=["rice","sandwich","cake"].includes(item)?"eat":"drink";
+  actor.time=0;actor.gestureDuration=4;
+  statusText("🥤 "+item+"を楽しみます（演出アイテム）");
+ });
+ $("xr-mr-living-watch")?.addEventListener("click",()=>{
+  const raw=$("xr-mr-living-youtube")?.value||"";
+  let id=null;try{const u=new URL(raw);
+   if(u.protocol!=="https:")throw Error("HTTPSのみ");
+   if(u.hostname==="youtu.be")id=u.pathname.slice(1);
+   else if(["youtube.com","www.youtube.com","m.youtube.com","www.youtube-nocookie.com"].includes(u.hostname))
+    id=u.pathname==="/watch"?u.searchParams.get("v"):u.pathname.match(/^\/(?:embed|shorts|live)\/([a-z0-9_-]{11})/i)?.[1];
+  }catch(_){}
+  if(!/^[a-zA-Z0-9_-]{11}$/.test(id||""))return statusText("YouTubeの動画URLを正しく入力してください");
+  window.open("https://www.youtube-nocookie.com/embed/"+id,"_blank","noopener,noreferrer");
+  const actor=mrAvatars.get(mrAvatarId?.value||"navigator");
+  if(actor){actor.motion="watchTV";actor.time=0;actor.gestureDuration=7;}
+  statusText("📺 公式プレイヤーを別画面で開きました。3D画面への貼付けは未対応");
+ });
+ $("xr-mr-living")?.addEventListener("beforexrselect",event=>event.preventDefault());
  for(const [id,button] of [["vr",buttons.vr],["rts",buttons.rts],["planet",buttons.planet]]){
   button.addEventListener("click",()=>start(id==="vr"?"vr":id==="rts"?"mr-rts":"mr-planet"));
  }
