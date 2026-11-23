@@ -32,7 +32,8 @@ test("manual furniture survives serialization but tracking origin does not",()=>
  assert.equal(copy.ready,false);
  assert.equal(copy.anchorHandle,"sample-persistent-anchor");
  copy.setOrigin(0,0);
- assert.equal(copy.seatWorld().length,1);
+ assert.equal(copy.seatWorld().length,0,"legacy chairs remain but require a new zabuton");
+ assert.equal(copy.worldObjects().filter(o=>o.type==="chair").length,1);
  assert.ok(copy.worldPortal());
 });
 test("registered wall and table keep wandering avatar away from obstacles and room edge",()=>{
