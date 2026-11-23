@@ -1625,9 +1625,24 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     const width=Number($("xr-room-object-width")?.value)||.7,depth=Number($("xr-room-object-depth")?.value)||.7;
     const seatY=["chair","sofa"].includes(type)&&hit?.y>floor+.25&&hit.y<floor+.85?hit.y-floor:.45;
     const yaw=(Number($("xr-room-object-yaw")?.value)||0)*Math.PI/180;
-    const item=mrRoom.add(type,hit,{width,depth,seatY,yaw});
-    if(item){saveMRRoom();mrRoomMessage(type+"を登録（計"+mrRoom.objects.length+"件）");}
-    else mrRoomMessage("家具位置を取得できません");
+    if(type==="cushion"){
+     const parent=mrRoom.worldObjects().filter(o=>["chair","sofa"].includes(o.type))
+      .map(o=>({o,d:Math.hypot(o.x-hit.x,o.z-hit.z)})).sort((a,b)=>a.d-b.d)[0];
+     const furnitureId=parent?.d<Math.max(.55,parent.o.width/2+.12)?parent.o.id:null;
+     let seatIndex=0;
+     if(furnitureId&&parent.o.type==="sofa"){
+      const dx=hit.x-parent.o.x,dz=hit.z-parent.o.z;
+      const lateral=Math.cos(parent.o.yaw)*dx-Math.sin(parent.o.yaw)*dz;
+      seatIndex=Math.max(0,Math.min(2,Math.round(lateral/(parent.o.width/3)+1)));
+     }
+     const added=mrRoom.addCushion(hit,{furnitureId,seatIndex});
+     if(added){saveMRRoom();mrRoomMessage("座布団を登録しました（"+added.surface+"）");}
+     else mrRoomMessage("座布団を置けません。別の位置を選んでください");
+    }else{
+     const item=mrRoom.add(type,hit,{width,depth,seatY,yaw});
+     if(item){saveMRRoom();mrRoomMessage(type+"を登録（計"+mrRoom.objects.length+"件）");}
+     else mrRoomMessage("家具位置を取得できません");
+    }
    }
   }
   if(mrDoorPending){
@@ -1812,6 +1827,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    mrAddPending=type;mrRoomMessage(type+"の登録位置を取得します");
   });
  }
+ $("xr-room-remove-cushion")?.addEventListener("click",()=>{
+  const removed=mrRoom.removeLastCushion();
+  if(removed){saveMRRoom();mrRoomMessage("最後の座布団を取り外しました");}
+  else mrRoomMessage("取り外す座布団がありません");
+ });
  $("xr-room-undo")?.addEventListener("click",()=>{
   const o=mrRoom.removeLast();
   if(o){saveMRRoom();mrRoomMessage(o.type+"の最後の登録を取り消しました");}
