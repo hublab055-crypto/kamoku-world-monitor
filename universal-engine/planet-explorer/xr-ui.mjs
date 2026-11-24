@@ -913,6 +913,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(henshinInput(event,"trigger")){henshinTriggerConsumed.add(event.inputSource.handedness);return;}
   if(activeMode==="mr-henshin")return;
   if(tryVRWristWatchPress(event)||tryVRTabletPress(event))return;
+  if(activeMode==="vr"&&vrFloorOrderMode)return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
    // The switch bank always responds, even docked (with a clear flight interlock message).
@@ -964,7 +965,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(vrWatchTriggerConsumed.has(event.inputSource?.handedness))return;
   if(vrTabletTriggerConsumed.has(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
-  if(activeMode==="vr"&&onVRShipCombatActive())return;
+  if(activeMode==="vr"&&(onVRShipCombatActive()||vrFloorOrderMode))return;
   if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   sampleVRRig(event.frame);
@@ -995,12 +996,42 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     if(event.frame&&event.inputSource?.targetRaySpace)
      ray=event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix;
    }catch(_){}
+   if(mrBoundaryDraft||mrMoveMode){
+    if(!mrRoom.ready){navMessage("部屋の基準点を登録してください");return;}
+    const floorY=usingFloor?0:(mrLastHead?.[13]??1.65)-1.65;
+    const hit=groundRayHit(ray,floorY,7);
+    if(!hit||!mrRoom.inside(hit.x,hit.z,.1)){navMessage("登録済みの室内の床を指してください");return;}
+    if(mrBoundaryDraft){
+     if(mrBoundaryDraft.length>=24){navMessage("囲みは最大24点です");return;}
+     if(mrBoundaryDraft.some(p=>Math.hypot(p.x-hit.x,p.z-hit.z)<.16)){navMessage("近すぎる点です。少し離れた角を指定してください");return;}
+     mrBoundaryDraft.push({x:hit.x,z:hit.z});navMessage("境界点 "+mrBoundaryDraft.length+" 件を追加。続けて次の角を指してください");
+     return;
+    }
+    const id=mrAvatarId?.value||"navigator",actor=mrAvatars.get(id);
+    if(!actor){navMessage("対象アバターを先に召喚してください");return;}
+    const result=mrAvatars.action(id,"move",{room:mrRoom,point:{x:hit.x,z:hit.z}});
+    navMessage(result.message);return;
+   }
    const door=mrRoom.worldPortal();
    if(door&&mrLastHead&&mrNearPortal(mrLastHead,door,1.55)&&mrPortalRayHit(ray,door)){
     portalSwitch("vr");return;
    }
    const result=mrPlaceSelected();
    statusText("🥽 "+result.message);
+   return;
+  }
+  if(activeMode==="vr"&&vrFloorOrderMode){
+   if(event.inputSource?.handedness!=="right")return;
+   if(getRenderer()?.shipVoyage?.active||vrPlanetOverview||getController()?.altitudeM>12){
+    navMessage("VRの地表歩行中だけ床への移動指示が可能です");return;
+   }
+   const raySpace=event.inputSource?.targetRaySpace;
+   let ray=null;try{ray=raySpace?event.frame.getPose(raySpace,space)?.transform.matrix:null;}catch(_){}
+   const hit=groundRayHit(ray,anchor?.vrFloor?.[1]??0);
+   const world=stageGroundToWorld(hit,vrCurrentStage,getController());
+   if(!world){navMessage("床の⭕に照準を合わせてください");return;}
+   if(onRTSMove(world.x,world.z))navMessage("選択中のアバターに床の⭕へ移動指示を出しました");
+   else navMessage("移動指示できません。先にRTSでアバターを選択してください");
    return;
   }
   if(activeMode==="vr"&&event.inputSource?.handedness==="right"&&mrPortalVR&&event.frame){
