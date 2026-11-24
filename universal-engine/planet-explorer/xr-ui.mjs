@@ -1590,6 +1590,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
        [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
      });
     renderer.drawHenshinXR?.(renderer.xrView);
+    if(mode==="vr"&&vrFloorOrderMode&&vrNavigationCursor)
+     renderer.drawXRNavigation?.(renderer.xrView,{cursor:vrNavigationCursor});
     if(mode==="vr"&&mrPortalVR)
      renderer.drawXRPortal?.({projection:view.projectionMatrix,
       view:view.transform.inverse.matrix,viewport:vp},mrPortalVR,mrInvited);
@@ -1814,6 +1816,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     renderer.drawMRAvatars(eye,actors,i===0?dt:0);
     if(mrRoom.ready)renderer.drawXRRoomGuides?.(eye,mrRoom.worldCushions());
     if($("xr-room-settings")?.open&&mrRoom.ready)renderer.drawXRRoomGuides?.(eye,mrRoom.worldObjects());
+    if(mrRoom.ready){
+     const floorY=usingFloor?0:head[13]-1.65;
+     const outline=(mrBoundaryDraft||mrRoom.worldBoundary()).map(p=>({x:p.x,y:floorY,z:p.z}));
+     renderer.drawXRNavigation?.(eye,{points:outline,closed:!mrBoundaryDraft&&outline.length>=3});
+    }
     const door=mrRoom.worldPortal();
     if(door)renderer.drawXRPortal?.(eye,door);
    }
@@ -1882,6 +1889,59 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   start(mode);
  }
  const mrModeRequired=()=>activeMode==="mr-avatars"&&Boolean(session);
+ const navModeRequired=()=>activeMode==="vr"&&Boolean(session);
+ const updateNavButtons=()=>{
+  for(const [id,on] of [["xr-nav-floor",vrFloorOrderMode],["xr-nav-overhead",vrRTS],["xr-nav-mr-move",mrMoveMode]])
+   $(id)?.setAttribute("aria-pressed",String(Boolean(on)));
+ };
+ $("xr-nav-floor")?.addEventListener("click",()=>{
+  if(!navModeRequired()||getRenderer()?.shipVoyage?.active){navMessage("地表VRに入ってから設定してください");return;}
+  if(vrRTS&&onVRToggleRTS(false)===false){navMessage("現在のRTSを解除できません");return;}
+  vrRTS=false;vrFloorOrderMode=true;updateNavButtons();
+  navMessage("右コントローラーで床の⭕を狙いトリガーで選択中の仲間に移動指示");
+ });
+ $("xr-nav-overhead")?.addEventListener("click",()=>{
+  if(!navModeRequired()){navMessage("VR開始後に切り替えてください");return;}
+  if(!vrRTS&&onVRToggleRTS(true)===false){navMessage("この場面では俯瞰RTSを開始できません");return;}
+  vrRTS=true;vrFloorOrderMode=false;updateNavButtons();
+  navMessage("🗺 俯瞰RTSに切替。人物選択後、卓上の移動先をトリガーで指示");
+ });
+ $("xr-nav-off")?.addEventListener("click",()=>{
+  vrFloorOrderMode=false;vrNavigationCursor=null;updateNavButtons();
+  navMessage("⭕ 床の移動指示モードを終了");
+ });
+ $("xr-nav-boundary-start")?.addEventListener("click",()=>{
+  if(!mrModeRequired()||!mrRoom.ready){navMessage("MR開始・部屋基準点登録後に設定してください");return;}
+  mrBoundaryDraft=[];mrMoveMode=false;updateNavButtons();
+  navMessage("右コントローラーで床の角を順番に押してください。3点以上で囲めます");
+ });
+ $("xr-nav-boundary-undo")?.addEventListener("click",()=>{
+  if(!mrBoundaryDraft){navMessage("囲み設定中ではありません");return;}
+  mrBoundaryDraft.pop();navMessage("境界点 "+mrBoundaryDraft.length+" 件");
+ });
+ $("xr-nav-boundary-save")?.addEventListener("click",()=>{
+  if(!mrModeRequired()||!mrRoom.ready||!mrBoundaryDraft){navMessage("まずMRで範囲を囲んでください");return;}
+  const local=mrBoundaryDraft.map(p=>mrRoom.local(p));
+  if(!validBoundary(local)){navMessage("3点以上の交差しない囲みが必要です。登録をやり直してください");return;}
+  if(!mrRoom.setNavigationBoundary(mrBoundaryDraft)){navMessage("境界を保存できません");return;}
+  mrBoundaryDraft=null;saveMRRoom();
+  navMessage("移動可能範囲を保存しました。登録した囲みの内側だけを移動します");
+ });
+ $("xr-nav-boundary-clear")?.addEventListener("click",()=>{
+  mrBoundaryDraft=null;mrMoveMode=false;mrRoom.clearNavigationBoundary();saveMRRoom();updateNavButtons();
+  navMessage("移動範囲を解除しました。再登録するまでMRの移動指示は停止します");
+ });
+ $("xr-nav-mr-move")?.addEventListener("click",()=>{
+  if(!mrModeRequired()||!mrRoom.ready||!validBoundary(mrRoom.navigationBoundary)){
+   navMessage("MRの移動可能範囲を先に囲んで確定してください");return;
+  }
+  mrBoundaryDraft=null;mrMoveMode=true;updateNavButtons();
+  navMessage("対象アバターを選び、右コントローラーで囲み内の床を指して移動指示");
+ });
+ $("xr-nav-mr-stop")?.addEventListener("click",()=>{
+  mrMoveMode=false;updateNavButtons();navMessage("MRの移動指示を終了しました");
+ });
+ $("xr-navigation-controls")?.addEventListener("beforexrselect",event=>event.preventDefault());
  $("xr-room-calibrate")?.addEventListener("click",()=>{
   if(!mrModeRequired()){mrRoomMessage("まずMRアバター召喚を開始してください");return;}
   mrOriginPending=true;mrRoomMessage("部屋の中心で立ち、位置の取得を試みます");
