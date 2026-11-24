@@ -210,6 +210,28 @@
   </div>
   <small id="xr-social-status" role="status">未接続</small>
  </details>
+ <details id="xr-navigation-controls" class="xr-help-panel">
+  <summary>⭕ XR移動指示（VR床 / RTS俯瞰 / MR移動範囲）</summary>
+  <p>VRでは右コントローラーで地面の⭕を指してトリガーを押すと、RTSで選択中の仲間に移動指示を出せます。俯瞰RTSでは従来の卓上RTS操作へ移ります。</p>
+  <div class="xr-buttons">
+   <button type="button" id="xr-nav-floor" aria-pressed="false">⭕ VR床への移動指示</button>
+   <button type="button" id="xr-nav-overhead" aria-pressed="false">🗺 VR俯瞰RTSへ切替</button>
+   <button type="button" id="xr-nav-off">移動指示モード終了</button>
+  </div>
+  <p>MRでは部屋の基準点を登録し、「囲む」を押したあと、床の角を右コントローラーで順に指してトリガーを押します。3点以上登録したら囲みを確定してください。</p>
+  <div class="xr-buttons">
+   <button type="button" id="xr-nav-boundary-start">🟢 MR移動範囲を囲む</button>
+   <button type="button" id="xr-nav-boundary-undo">↶ 最後の角を戻す</button>
+   <button type="button" id="xr-nav-boundary-save">✅ 囲みを確定・保存</button>
+   <button type="button" id="xr-nav-boundary-clear">🗑 移動範囲を解除</button>
+  </div>
+  <div class="xr-buttons">
+   <button type="button" id="xr-nav-mr-move" aria-pressed="false">⭕ MRの移動先を指定</button>
+   <button type="button" id="xr-nav-mr-stop">移動指示を終了</button>
+  </div>
+  <p><small>現実の障害物との安全な回避を保証しません。部屋の空間アンカーを失ったら移動指示を停止します。</small></p>
+  <small id="xr-nav-status" role="status">XR開始待ち</small>
+ </details>
  <details id="xr-avatar-presence" class="xr-help-panel">
   <summary>👥 MRアバター召喚・移動・モーション</summary>
   <p>Quest 3Sの現実空間に、現在保存されているアバターV10の外観で人物を表示します。1台のQuestだけで動作し、他のプレイヤーとの接続は不要です。</p>
