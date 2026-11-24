@@ -765,6 +765,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  const shipWorldDt=wristTime?.worldDelta(dt)??dt;
  const worldDt=running?shipWorldDt:0;
  const worldActive=worldDt>0;
+ if(renderer&&worldActive)renderer.mechanismElapsed=(renderer.mechanismElapsed||0)+dt;
  wristUI?.refresh();
  if(familyLife&&planet&&planet.timeDays>familyLife.day){
   const events=familyLife.advanceTo(planet.timeDays);
