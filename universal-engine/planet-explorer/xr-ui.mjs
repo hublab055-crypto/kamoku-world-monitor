@@ -1778,6 +1778,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }catch(_){hitPose=null;}
   }
   updateMRRoomFrame(frame,head);
+  let mrNavigationCursor=null;
+  if((mrBoundaryDraft||mrMoveMode)&&space){
+   const right=xrControllerSources(session).find(src=>src.handedness==="right");
+   let pointer=null;
+   try{pointer=right?.targetRaySpace?frame.getPose(right.targetRaySpace,space)?.transform.matrix:null;}catch(_){}
+   mrNavigationCursor=groundRayHit(pointer,usingFloor?0:head[13]-1.65,7);
+   if(mrNavigationCursor&&!mrRoom.inside(mrNavigationCursor.x,mrNavigationCursor.z,.1))
+    mrNavigationCursor=null;
+  }
   if(mrAutoSpawn){
    mrAutoSpawn=false;
    const result=mrPlaceSelected();
@@ -1827,7 +1836,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     if(mrRoom.ready){
      const floorY=usingFloor?0:head[13]-1.65;
      const outline=(mrBoundaryDraft||mrRoom.worldBoundary()).map(p=>({x:p.x,y:floorY,z:p.z}));
-     renderer.drawXRNavigation?.(eye,{points:outline,closed:!mrBoundaryDraft&&outline.length>=3});
+     renderer.drawXRNavigation?.(eye,{points:outline,cursor:mrNavigationCursor,closed:!mrBoundaryDraft&&outline.length>=3});
     }
     const door=mrRoom.worldPortal();
     if(door)renderer.drawXRPortal?.(eye,door);
