@@ -19,6 +19,7 @@ import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122-wrist-menu-v2";
 import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
 import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261123-living";
 import {MRLivingSocial,MR_SOCIAL_KEY} from "./mr-living-social.mjs?v=20261123-living";
+import {groundRayHit,stageGroundToWorld,validBoundary,safeMoveTarget} from "./xr-navigation.mjs?v=20261124-nav";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -62,6 +63,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   try{localStorage.setItem(MR_SOCIAL_KEY,JSON.stringify(mrLivingSocial.snapshot()));}catch(_){}
  }});
  const mrHeldGrips=new Map();
+ const navStatus=$("xr-nav-status");
+ const navMessage=message=>{if(navStatus)navStatus.textContent=message;statusText("⭕ "+message);};
+ let vrFloorOrderMode=false,vrNavigationCursor=null;
+ let mrBoundaryDraft=null,mrMoveMode=false;
  const mrAvatarId=$("xr-avatar-select"),mrAvatarScale=$("xr-avatar-size"),mrAvatarStatus=$("xr-avatar-presence-status");
  const mrRoomStatus=$("xr-room-status"),mrPortalStatus=$("xr-portal-status");
  let mrRoom;
@@ -335,6 +340,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
   }
   mrAvatars.reset();mrHeldGrips.clear();mrLastHead=null;mrAutoSpawn=false;
+   mrBoundaryDraft=null;mrMoveMode=false;vrFloorOrderMode=false;vrNavigationCursor=null;
   mrAnchor=null;mrRestoreBusy=false;mrRestorePending=false;mrOriginPending=false;
   mrScanPending=false;mrAddPending=null;mrDoorPending=false;mrPortalVR=null;mrPortalNear=false;
   mrRoom.forgetTracking();
