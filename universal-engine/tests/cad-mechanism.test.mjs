@@ -35,7 +35,7 @@ test("game asset pose receives animated shaft, gear and slider",()=>{
  const preview=applyAssetMechanismPose(new AssetStudioModel(asset).parts,document(),1,scale);
  assert.ok(Math.abs(preview[0].rz-Math.PI)<1e-9);
  assert.ok(Math.abs(preview[1].rz+Math.PI/2)<1e-9);
- assert.equal(preview[2].z,new AssetStudioModel(asset).parts[2].z);
+ assert.ok(Math.abs(preview[2].z-new AssetStudioModel(asset).parts[2].z)<1e-9);
 });
 test("model serializes and restores CAD mechanism payload",()=>{
  const converted=cadAssemblyToAssetDocument(document());
