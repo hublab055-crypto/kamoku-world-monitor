@@ -5,6 +5,10 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const rotate=(x,y,a)=>({x:x*Math.cos(a)-y*Math.sin(a),y:x*Math.sin(a)+y*Math.cos(a)});
 const safeText=(value,length=40)=>String(value||"").trim().slice(0,length);
+const safeCadMotion=data=>data&&data.source&&["UE-assembly-v1","UE-assembly-v2"].includes(data.source.format)&&
+ data.source.units==="mm"&&Number.isFinite(data.scale)&&data.scale>0&&data.scale<1000&&
+ Array.isArray(data.source.objects)&&data.source.objects.length<=100&&JSON.stringify(data).length<=400000;
+
 const vector=(value,fallback={x:0,y:0,z:0})=>({
  x:finite(value?.x)?value.x:fallback.x,
  y:finite(value?.y)?value.y:fallback.y,
@@ -86,7 +90,8 @@ export function migrateAssetDocument(saved){
  if(parts.some(part=>!part)||!parts.every(validPart)||!validateHierarchy(parts))throw Error("Asset制作データが不正です");
  return {format:ASSET_DOCUMENT_FORMAT,version:ASSET_DOCUMENT_VERSION,
   meta:{name:safeText(saved.meta.name),assetType:saved.meta.assetType,units:"m"},
-  workspace:{planeZ:clamp(Number(saved.workspace?.planeZ)||0,-500,500)},nodes:parts.map(partToNode)};
+  workspace:{planeZ:clamp(Number(saved.workspace?.planeZ)||0,-500,500)},nodes:parts.map(partToNode),
+  ...(safeCadMotion(saved.cadMotion)?{cadMotion:clone(saved.cadMotion)}:{})};
 }
 
 export function partAnchor(part,anchor="center"){
@@ -116,16 +121,17 @@ export function snapCandidates(parts,mode="auto",exclude=new Set()){
 export class AssetStudioModel{
  constructor(saved=null){
   this.parts=[];this.nextId=1;this.planeZ=0;this.meta={name:"",assetType:"building",units:"m"};
-  this.selected=new Set();this.undoStack=[];this.redoStack=[];
+  this.selected=new Set();this.undoStack=[];this.redoStack=[];this.cadMotion=null;
   if(saved)this._load(saved);
  }
  _load(saved){
   const document=migrateAssetDocument(saved),parts=document.nodes.map(nodeToPart);
   this.parts=parts;this.nextId=Math.max(1,...parts.map(part=>part.id+1));this.planeZ=document.workspace.planeZ;
-  this.meta={...document.meta};this.selected.clear();
+  this.meta={...document.meta};this.cadMotion=document.cadMotion||null;this.selected.clear();
  }
  snapshot(){return {format:ASSET_DOCUMENT_FORMAT,version:ASSET_DOCUMENT_VERSION,meta:{...this.meta},
-  workspace:{planeZ:this.planeZ},nodes:this.parts.map(partToNode)};}
+  workspace:{planeZ:this.planeZ},nodes:this.parts.map(partToNode),
+  ...(safeCadMotion(this.cadMotion)?{cadMotion:clone(this.cadMotion)}:{})};}
  prefabDocument(name=this.meta.name){const document=this.snapshot();document.meta.name=safeText(name);return document;}
  setMeta(values={}){if(values.name!==undefined)this.meta.name=safeText(values.name);
   if(ASSET_TYPES.includes(values.assetType))this.meta.assetType=values.assetType;return {...this.meta};}
