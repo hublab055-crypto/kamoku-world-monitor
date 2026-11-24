@@ -3,6 +3,7 @@
  * slots; guests reference one of the four existing saved V10 appearances.
  */
 import {MR_STAND_POSES,MR_SEAT_POSES} from "./mr-room-layout.mjs";
+import {safeMoveTarget} from "./xr-navigation.mjs";
 export const MR_AVATAR_IDS=Object.freeze(["navigator","engineer","companion","player","guest1","guest2","guest3","guest4"]);
 export const MR_AVATAR_NAMES=Object.freeze({navigator:"副官",engineer:"機関士",companion:"同行者",player:"自分のアバター",guest1:"招待枠 1",guest2:"招待枠 2",guest3:"招待枠 3",guest4:"招待枠 4"});
 export const MR_AVATAR_SOURCE_IDS=Object.freeze({navigator:"navigator",engineer:"engineer",companion:"companion",player:"player",guest1:"navigator",guest2:"engineer",guest3:"companion",guest4:"player"});
@@ -63,6 +64,15 @@ export class MRAvatarPresence {
    a.follow=false;a.roam=true;a.seatId=null;a.seatPose=null;a.seatSurface=null;a.goal=null;a.y=0;a.time=null;
    return {ok:true,message:"登録済みの空いた床を散歩します"};
   }
+  if(type==="move"){
+   const point=arguments[2]?.point;
+   if(!point||!Number.isFinite(point.x)||!Number.isFinite(point.z))return {ok:false,message:"移動先を指定してください"};
+   const check=safeMoveTarget(room,{x:a.x,z:a.z},point);
+   if(!check.ok)return {ok:false,message:check.reason};
+   a.follow=false;a.roam=false;a.seatId=null;a.seatPose=null;a.seatSurface=null;a.goal={x:point.x,z:point.z};
+   a.y=0;a.motion="walk";a.time=null;
+   return {ok:true,message:"⭕ 指定地点に移動します"};
+  }
   if(type==="sit"){
    const chair=room?.ready?room.seatWorld().filter(seat=>!this.actors.some(other=>other.id!==a.id&&other.seatId===seat.id)).sort((x,y)=>Math.hypot(x.x-a.x,x.z-a.z)-Math.hypot(y.x-a.x,y.z-a.z))[0]:null;
    if(!chair)return {ok:false,message:"空いている座布団を床・椅子・ソファに配置してください"};
@@ -96,11 +106,15 @@ export class MRAvatarPresence {
      const seed=this.elapsed*1.618+MR_AVATAR_IDS.indexOf(a.id)*8.27+j*1.19;
      const test=room.world({x:Math.sin(seed*4.1)*(room.width/2-.55),
       z:Math.cos(seed*2.7)*(room.depth/2-.55)});
-     if(test&&room.free(test.x,test.z,.32)){a.goal={x:test.x,z:test.z};break;}
+     if(test&&room.free(test.x,test.z,.32)&&(!room.navigationBoundary?.length||safeMoveTarget(room,{x:a.x,z:a.z},test).ok)){a.goal={x:test.x,z:test.z};break;}
     }
    }
    let target=null;
-   if(a.follow&&safeHead(head))target={x:head[12],z:head[14],stop:1.55};
+   if(a.follow&&safeHead(head)){
+    const near={x:head[12],z:head[14]};
+    if(!canRoom||!room.navigationBoundary?.length||safeMoveTarget(room,{x:a.x,z:a.z},near).ok)
+     target={...near,stop:1.55};
+   }
    else if(a.goal)target={...a.goal,stop:a.seatId?.08:.24};
    if(!target)continue;
    const dx=target.x-a.x,dz=target.z-a.z,d=Math.hypot(dx,dz);
@@ -114,7 +128,10 @@ export class MRAvatarPresence {
    const step=Math.min(d-(target.stop||0),elapsed*.8);
    if(step<=0)continue;
    const nx=a.x+dx/d*step,nz=a.z+dz/d*step;
-   const free=(x,z)=>!canRoom||room.free(x,z,a.seatId?.04:.30,{seatId:a.seatId});
+   const free=(x,z)=>!canRoom||(
+    room.free(x,z,a.seatId?.04:.30,{seatId:a.seatId})&&
+    (!room.navigationBoundary?.length||safeMoveTarget(room,{x:a.x,z:a.z},{x,z},
+     {radius:a.seatId?.04:.30}).ok));
    if(free(nx,nz)){a.x=nx;a.z=nz;}
    else if(free(nx,a.z)){a.x=nx;}
    else if(free(a.x,nz)){a.z=nz;}
