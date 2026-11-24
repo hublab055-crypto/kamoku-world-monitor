@@ -1,3 +1,4 @@
+import {ownerMechanismPoseOverrides} from "./cad-world-motion.mjs?v=20261124";
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
@@ -993,7 +994,7 @@ export class ExplorerRenderer{
   this.underseaModels=Object.fromEntries(Object.keys(SEA_SITE_TYPES)
    .map(kind=>[kind,new Mesh(gl,submergedSiteGeometry(kind))]));
   this.placedMeshes=Object.fromEntries([...new Set([...BUILD_KINDS,...OWNER_BUILDING_KINDS])].map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
-   this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;
+   this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;this.mechanismElapsed=0;
    this.ownerPrimitiveMeshes=Object.fromEntries(["cube","cylinder","sphere","cone"].map(kind=>[kind,new Mesh(gl,ownerPrimitiveGeometry(kind))]));
   this.constructionSystem=null;
   this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
@@ -1797,6 +1798,7 @@ export class ExplorerRenderer{
  }
  drawOwnerWorld(vp,light,s,radius){
    if(!this.ownerWorld)return;
+   const mechanismOverrides=ownerMechanismPoseOverrides(this.ownerWorld,this.mechanismElapsed||0);
    if(this.ownerRoadMesh)this.drawMesh(this.ownerRoadMesh,multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.9);
    for(const building of this.ownerWorld.buildings){
     const p=geoLocal(s.origin.lat,s.origin.lon,building.lat,building.lon,this.planet.radiusM);
@@ -1809,7 +1811,8 @@ export class ExplorerRenderer{
     if(mesh)this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
     if(this.ownerSelectedId===building.id)this.drawMesh(this.selectionRing,multiply4(vp,translate(x,height+.15,z)),light,1,.98,[.95,.77,.18]);
    }
-   for(const part of this.ownerWorld.primitives||[]){
+   for(const stored of this.ownerWorld.primitives||[]){
+    const part=mechanismOverrides.get(stored.id)||stored;
     const p=geoLocal(s.origin.lat,s.origin.lon,part.lat,part.lon,this.planet.radiusM);
     if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)continue;
     const site=terrainSurface(this.terrain,part.lat,part.lon);

@@ -6,8 +6,8 @@ import {AssetStudioModel} from "./asset-studio-model.mjs?v=0.9c-asset-v2";
 
 export const CAD_TRANSFER_KEY="universal-engine:cad-assembly:transfer:v1";
 const finite=Number.isFinite;
-const allowed=new Set(["plate","block","shaft","bolt","assembly"]);
-const primitive={plate:"cube",block:"cube",shaft:"cylinder",bolt:"cylinder"};
+const allowed=new Set(["plate","block","shaft","gear","bolt","assembly"]);
+const primitive={plate:"cube",block:"cube",shaft:"cylinder",gear:"cylinder",bolt:"cylinder"};
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const trim=(x,len=40)=>String(x??"").slice(0,len);
 function rotate(v,deg){
