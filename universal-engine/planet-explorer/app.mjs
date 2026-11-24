@@ -1,3 +1,4 @@
+import {installWorkshop} from "./workshop-ui.mjs?v=1";
 import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v05-natural";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
@@ -3163,6 +3164,7 @@ ownerUI=installOwnerEditor({
 });
 assetStudio=installAssetStudio({getWorld:()=>ownerWorld,
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
+installWorkshop({resources:()=>actions.resources,site:()=>{if(controller.altitudeM>12.01||controller.jumpY>.01)throw Error("地上に立ってから組み立ててください");return {lat:controller.lat,lon:controller.lon};},commit:()=>{updateHUD();saveLifeJournal();},log});
 function vitalsActor(){
  return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
 }
