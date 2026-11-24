@@ -3015,6 +3015,38 @@ export class ExplorerRenderer{
   */
  /** Preview outlines only while the MR furniture editor is expanded.
   * They are virtual guides, not real-world collision geometry. */
+ /** XR metre-space circles and a visible movement boundary. This renders as
+  * thin geometry in both headset eyes, and never alters physical room data. */
+ drawXRNavigation(xr,{points=[],cursor=null,closed=false,boundaryColor=[.20,.92,.64]}={}){
+  if(!this.vrBodySegment||(!cursor&&!points.length))return;
+  const gl=this.gl,{x,y,width,height}=xr.viewport,vp=multiply4(xr.projection,xr.view),light=[.7,.9,1];
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.disable(gl.BLEND);
+  const line=(p,q,tint)=>{
+   const v=sub(q,p),len=Math.hypot(...v);if(len<.005)return;
+   const along=v.map(k=>k/len),side=norm(cross(Math.abs(along[1])>.9?[0,0,1]:[0,1,0],along)),
+    depth=norm(cross(side,along)),w=.015;
+   const m=[side[0]*w,side[1]*w,side[2]*w,0,
+    v[0],v[1],v[2],0,depth[0]*w,depth[1]*w,depth[2]*w,0,
+    p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.93,tint);
+  };
+  for(let i=1;i<points.length;i++)line(points[i-1],points[i],boundaryColor);
+  if(closed&&points.length>=3)line(points[points.length-1],points[0],boundaryColor);
+  const circle=(at,r,tint)=>{
+   const y=at.y+.035;
+   for(let k=0;k<24;k++){
+    const a=k*Math.PI/12,b=(k+1)*Math.PI/12;
+    line([at.x+Math.cos(a)*r,y,at.z+Math.sin(a)*r],
+     [at.x+Math.cos(b)*r,y,at.z+Math.sin(b)*r],tint);
+   }
+  };
+  for(const point of points)circle(point,.075,boundaryColor);
+  if(cursor)circle(cursor,.25,[1,.82,.23]);
+  gl.useProgram(this.program);
+ }
  drawXRRoomGuides(xr,objects=[]){
   if(!objects.length||!this.vrBodySegment)return;
   const gl=this.gl,{x,y,width,height}=xr.viewport,vp=multiply4(xr.projection,xr.view),light=[.6,.85,1];

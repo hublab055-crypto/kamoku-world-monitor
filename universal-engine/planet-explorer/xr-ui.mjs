@@ -16,9 +16,10 @@ import {sampleShipVRStanding} from "./ship-vr-standing.mjs?v=1";
 import {installXRMotionActorUI} from "./xr-motion-actor-ui.mjs?v=20261118-vr-mocap";
 import {XRWorldTablet} from "./world-tablet-spatial.mjs?v=20261119-quest-3d";
 import {XRWristWatch} from "./wrist-watch-spatial.mjs?v=20261122-wrist-menu-v2";
-import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261122-room8";
-import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261123-living";
+import {MRAvatarPresence,MR_AVATAR_IDS,mrAvatarPlacement} from "./mr-avatar-presence.mjs?v=20261124-nav";
+import {MRRoomLayout,MR_ROOM_SAVE_KEY,mrDetectedSurfaces,mrNearPortal,mrPortalRayHit} from "./mr-room-layout.mjs?v=20261124-nav";
 import {MRLivingSocial,MR_SOCIAL_KEY} from "./mr-living-social.mjs?v=20261123-living";
+import {groundRayHit,stageGroundToWorld,validBoundary,safeMoveTarget} from "./xr-navigation.mjs?v=20261124-nav";
 
 /**
  * Opt-in WebXR runtime for the existing WebGL2 renderer.
@@ -62,6 +63,10 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   try{localStorage.setItem(MR_SOCIAL_KEY,JSON.stringify(mrLivingSocial.snapshot()));}catch(_){}
  }});
  const mrHeldGrips=new Map();
+ const navStatus=$("xr-nav-status");
+ const navMessage=message=>{if(navStatus)navStatus.textContent=message;statusText("⭕ "+message);};
+ let vrFloorOrderMode=false,vrNavigationCursor=null;
+ let mrBoundaryDraft=null,mrMoveMode=false;
  const mrAvatarId=$("xr-avatar-select"),mrAvatarScale=$("xr-avatar-size"),mrAvatarStatus=$("xr-avatar-presence-status");
  const mrRoomStatus=$("xr-room-status"),mrPortalStatus=$("xr-portal-status");
  let mrRoom;
@@ -335,6 +340,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    mrInvited=mrAvatars.actors.filter(a=>a.invited).map(a=>({id:a.id,sourceId:a.sourceId,motion:"idle"}));
   }
   mrAvatars.reset();mrHeldGrips.clear();mrLastHead=null;mrAutoSpawn=false;
+   mrBoundaryDraft=null;mrMoveMode=false;vrFloorOrderMode=false;vrNavigationCursor=null;
   mrAnchor=null;mrRestoreBusy=false;mrRestorePending=false;mrOriginPending=false;
   mrScanPending=false;mrAddPending=null;mrDoorPending=false;mrPortalVR=null;mrPortalNear=false;
   mrRoom.forgetTracking();
@@ -907,6 +913,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(henshinInput(event,"trigger")){henshinTriggerConsumed.add(event.inputSource.handedness);return;}
   if(activeMode==="mr-henshin")return;
   if(tryVRWristWatchPress(event)||tryVRTabletPress(event))return;
+  if(activeMode==="vr"&&vrFloorOrderMode)return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&getRenderer()?.shipVoyage?.active){
    // The switch bank always responds, even docked (with a clear flight interlock message).
@@ -958,7 +965,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(vrWatchTriggerConsumed.has(event.inputSource?.handedness))return;
   if(vrTabletTriggerConsumed.has(event.inputSource?.handedness))return;
   if(activeMode==="vr"&&!nativeTrigger(event.inputSource?.handedness))return;
-  if(activeMode==="vr"&&onVRShipCombatActive())return;
+  if(activeMode==="vr"&&(onVRShipCombatActive()||vrFloorOrderMode))return;
   if(onVRCustody("state")?.handled)return;
   if(activeMode!=="vr"||vrRTS||!event.frame)return;
   sampleVRRig(event.frame);
@@ -989,12 +996,42 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     if(event.frame&&event.inputSource?.targetRaySpace)
      ray=event.frame.getPose(event.inputSource.targetRaySpace,space)?.transform.matrix;
    }catch(_){}
+   if(mrBoundaryDraft||mrMoveMode){
+    if(!mrRoom.ready){navMessage("部屋の基準点を登録してください");return;}
+    const floorY=usingFloor?0:(mrLastHead?.[13]??1.65)-1.65;
+    const hit=groundRayHit(ray,floorY,7);
+    if(!hit||!mrRoom.inside(hit.x,hit.z,.1)){navMessage("登録済みの室内の床を指してください");return;}
+    if(mrBoundaryDraft){
+     if(mrBoundaryDraft.length>=24){navMessage("囲みは最大24点です");return;}
+     if(mrBoundaryDraft.some(p=>Math.hypot(p.x-hit.x,p.z-hit.z)<.16)){navMessage("近すぎる点です。少し離れた角を指定してください");return;}
+     mrBoundaryDraft.push({x:hit.x,z:hit.z});navMessage("境界点 "+mrBoundaryDraft.length+" 件を追加。続けて次の角を指してください");
+     return;
+    }
+    const id=mrAvatarId?.value||"navigator",actor=mrAvatars.get(id);
+    if(!actor){navMessage("対象アバターを先に召喚してください");return;}
+    const result=mrAvatars.action(id,"move",{room:mrRoom,point:{x:hit.x,z:hit.z}});
+    navMessage(result.message);return;
+   }
    const door=mrRoom.worldPortal();
    if(door&&mrLastHead&&mrNearPortal(mrLastHead,door,1.55)&&mrPortalRayHit(ray,door)){
     portalSwitch("vr");return;
    }
    const result=mrPlaceSelected();
    statusText("🥽 "+result.message);
+   return;
+  }
+  if(activeMode==="vr"&&vrFloorOrderMode){
+   if(event.inputSource?.handedness!=="right")return;
+   if(getRenderer()?.shipVoyage?.active||vrPlanetOverview||getController()?.altitudeM>12){
+    navMessage("VRの地表歩行中だけ床への移動指示が可能です");return;
+   }
+   const raySpace=event.inputSource?.targetRaySpace;
+   let ray=null;try{ray=raySpace?event.frame.getPose(raySpace,space)?.transform.matrix:null;}catch(_){}
+   const hit=groundRayHit(ray,anchor?.vrFloor?.[1]??0);
+   const world=stageGroundToWorld(hit,vrCurrentStage,getController());
+   if(!world){navMessage("床の⭕に照準を合わせてください");return;}
+   if(onRTSMove(world.x,world.z))navMessage("選択中のアバターに床の⭕へ移動指示を出しました");
+   else navMessage("移動指示できません。先にRTSでアバターを選択してください");
    return;
   }
   if(activeMode==="vr"&&event.inputSource?.handedness==="right"&&mrPortalVR&&event.frame){
@@ -1415,6 +1452,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   // with the occupied seat / walked-to position, not the ship's coordinate origin.
   const stage=shipInterior?xrMul(baseStage,xrTranslate(-shipInterior.x,0,-shipInterior.z)):baseStage;
   if(mode==="vr")vrCurrentStage=stage;
+  vrNavigationCursor=null;
+  if(mode==="vr"&&vrFloorOrderMode&&!aboard&&!planetMode&&!vrRTS&&
+     !onVRCustody("state")?.handled&&controller.altitudeM<=12){
+   const right=controllerSources.find(src=>src.handedness==="right");
+   let pointer=null;
+   try{pointer=right?.targetRaySpace?frame.getPose(right.targetRaySpace,space)?.transform.matrix:null;}catch(_){}
+   vrNavigationCursor=groundRayHit(pointer,anchor?.vrFloor?.[1]??0,12);
+  }
   // One frozen tablet transform for both stereo eye passes.
   if(mode==="vr"){
    const shell=document.getElementById("ue-world-tablet");
@@ -1553,6 +1598,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
        [hand,vrWearables.items.get(vrWearables.hands[hand])||null]))
      });
     renderer.drawHenshinXR?.(renderer.xrView);
+    if(mode==="vr"&&vrFloorOrderMode&&vrNavigationCursor)
+     renderer.drawXRNavigation?.(renderer.xrView,{cursor:vrNavigationCursor});
     if(mode==="vr"&&mrPortalVR)
      renderer.drawXRPortal?.({projection:view.projectionMatrix,
       view:view.transform.inverse.matrix,viewport:vp},mrPortalVR,mrInvited);
@@ -1731,6 +1778,15 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    }catch(_){hitPose=null;}
   }
   updateMRRoomFrame(frame,head);
+  let mrNavigationCursor=null;
+  if((mrBoundaryDraft||mrMoveMode)&&space){
+   const right=xrControllerSources(session).find(src=>src.handedness==="right");
+   let pointer=null;
+   try{pointer=right?.targetRaySpace?frame.getPose(right.targetRaySpace,space)?.transform.matrix:null;}catch(_){}
+   mrNavigationCursor=groundRayHit(pointer,usingFloor?0:head[13]-1.65,7);
+   if(mrNavigationCursor&&!mrRoom.inside(mrNavigationCursor.x,mrNavigationCursor.z,.1))
+    mrNavigationCursor=null;
+  }
   if(mrAutoSpawn){
    mrAutoSpawn=false;
    const result=mrPlaceSelected();
@@ -1777,6 +1833,11 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
     renderer.drawMRAvatars(eye,actors,i===0?dt:0);
     if(mrRoom.ready)renderer.drawXRRoomGuides?.(eye,mrRoom.worldCushions());
     if($("xr-room-settings")?.open&&mrRoom.ready)renderer.drawXRRoomGuides?.(eye,mrRoom.worldObjects());
+    if(mrRoom.ready){
+     const floorY=usingFloor?0:head[13]-1.65;
+     const outline=(mrBoundaryDraft||mrRoom.worldBoundary()).map(p=>({x:p.x,y:floorY,z:p.z}));
+     renderer.drawXRNavigation?.(eye,{points:outline,cursor:mrNavigationCursor,closed:!mrBoundaryDraft&&outline.length>=3});
+    }
     const door=mrRoom.worldPortal();
     if(door)renderer.drawXRPortal?.(eye,door);
    }
@@ -1845,6 +1906,59 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   start(mode);
  }
  const mrModeRequired=()=>activeMode==="mr-avatars"&&Boolean(session);
+ const navModeRequired=()=>activeMode==="vr"&&Boolean(session);
+ const updateNavButtons=()=>{
+  for(const [id,on] of [["xr-nav-floor",vrFloorOrderMode],["xr-nav-overhead",vrRTS],["xr-nav-mr-move",mrMoveMode]])
+   $(id)?.setAttribute("aria-pressed",String(Boolean(on)));
+ };
+ $("xr-nav-floor")?.addEventListener("click",()=>{
+  if(!navModeRequired()||getRenderer()?.shipVoyage?.active){navMessage("地表VRに入ってから設定してください");return;}
+  if(vrRTS&&onVRToggleRTS(false)===false){navMessage("現在のRTSを解除できません");return;}
+  vrRTS=false;vrFloorOrderMode=true;updateNavButtons();
+  navMessage("右コントローラーで床の⭕を狙いトリガーで選択中の仲間に移動指示");
+ });
+ $("xr-nav-overhead")?.addEventListener("click",()=>{
+  if(!navModeRequired()){navMessage("VR開始後に切り替えてください");return;}
+  if(!vrRTS&&onVRToggleRTS(true)===false){navMessage("この場面では俯瞰RTSを開始できません");return;}
+  vrRTS=true;vrFloorOrderMode=false;updateNavButtons();
+  navMessage("🗺 俯瞰RTSに切替。人物選択後、卓上の移動先をトリガーで指示");
+ });
+ $("xr-nav-off")?.addEventListener("click",()=>{
+  vrFloorOrderMode=false;vrNavigationCursor=null;updateNavButtons();
+  navMessage("⭕ 床の移動指示モードを終了");
+ });
+ $("xr-nav-boundary-start")?.addEventListener("click",()=>{
+  if(!mrModeRequired()||!mrRoom.ready){navMessage("MR開始・部屋基準点登録後に設定してください");return;}
+  mrBoundaryDraft=[];mrMoveMode=false;updateNavButtons();
+  navMessage("右コントローラーで床の角を順番に押してください。3点以上で囲めます");
+ });
+ $("xr-nav-boundary-undo")?.addEventListener("click",()=>{
+  if(!mrBoundaryDraft){navMessage("囲み設定中ではありません");return;}
+  mrBoundaryDraft.pop();navMessage("境界点 "+mrBoundaryDraft.length+" 件");
+ });
+ $("xr-nav-boundary-save")?.addEventListener("click",()=>{
+  if(!mrModeRequired()||!mrRoom.ready||!mrBoundaryDraft){navMessage("まずMRで範囲を囲んでください");return;}
+  const local=mrBoundaryDraft.map(p=>mrRoom.local(p));
+  if(!validBoundary(local)){navMessage("3点以上の交差しない囲みが必要です。登録をやり直してください");return;}
+  if(!mrRoom.setNavigationBoundary(mrBoundaryDraft)){navMessage("境界を保存できません");return;}
+  mrBoundaryDraft=null;saveMRRoom();
+  navMessage("移動可能範囲を保存しました。登録した囲みの内側だけを移動します");
+ });
+ $("xr-nav-boundary-clear")?.addEventListener("click",()=>{
+  mrBoundaryDraft=null;mrMoveMode=false;mrRoom.clearNavigationBoundary();saveMRRoom();updateNavButtons();
+  navMessage("移動範囲を解除しました。再登録するまでMRの移動指示は停止します");
+ });
+ $("xr-nav-mr-move")?.addEventListener("click",()=>{
+  if(!mrModeRequired()||!mrRoom.ready||!validBoundary(mrRoom.navigationBoundary)){
+   navMessage("MRの移動可能範囲を先に囲んで確定してください");return;
+  }
+  mrBoundaryDraft=null;mrMoveMode=true;updateNavButtons();
+  navMessage("対象アバターを選び、右コントローラーで囲み内の床を指して移動指示");
+ });
+ $("xr-nav-mr-stop")?.addEventListener("click",()=>{
+  mrMoveMode=false;updateNavButtons();navMessage("MRの移動指示を終了しました");
+ });
+ $("xr-navigation-controls")?.addEventListener("beforexrselect",event=>event.preventDefault());
  $("xr-room-calibrate")?.addEventListener("click",()=>{
   if(!mrModeRequired()){mrRoomMessage("まずMRアバター召喚を開始してください");return;}
   mrOriginPending=true;mrRoomMessage("部屋の中心で立ち、位置の取得を試みます");
