@@ -1,5 +1,7 @@
 import {AssetStudioModel,partAnchor,snapCandidates} from "./asset-studio-model.mjs?v=0.9c-asset-v2";
 import {cadAssemblyToAssetDocument,CAD_TRANSFER_KEY} from "./cad-assembly-bridge.mjs?v=20261124";
+import {applyAssetMechanismPose} from "./cad-motion-preview.mjs?v=20261124";
+import {validateMechanism} from "../model-lab/cad/mechanism-core.mjs";
 import {AssetCamera} from "./asset-camera.mjs?v=0.9c-asset-v2";
 
 const DRAFT_KEY="universal-engine:asset-studio:v0.9c";
@@ -164,14 +166,44 @@ export function installAssetStudio({getWorld,onCommit,log}){
  for(const id of Object.keys(numericTargets))$(id).addEventListener("pointerdown",()=>chooseNumeric(id));
  for(const id of ["asset-show-axis-dials","asset-show-common-dial"])$(id).addEventListener("change",()=>{uiPrefs={axisDials:$("asset-show-axis-dials").checked,commonDial:$("asset-show-common-dial").checked};applyUiPrefs();persistUi();requestAnimationFrame(resize);});
  $("asset-type").addEventListener("change",e=>{studio.setMeta({assetType:e.target.value});persist();});
- $("owner-asset-open").addEventListener("click",()=>{overlay.hidden=false;refreshLoadList();$("asset-type").value=studio.meta.assetType;$("asset-name").value=studio.meta.name||$("asset-name").value;applyUiPrefs();requestAnimationFrame(resize);say("3D Asset制作空間を開きました。数値欄は専用テンキーで入力できます");});$("asset-close").addEventListener("click",()=>{persist();numberPad.hidden=true;overlay.hidden=true;});
+ $("owner-asset-open").addEventListener("click",()=>{overlay.hidden=false;refreshLoadList();$("asset-type").value=studio.meta.assetType;$("asset-name").value=studio.meta.name||$("asset-name").value;applyUiPrefs();requestAnimationFrame(resize);say("3D Asset制作空間を開きました。数値欄は専用テンキーで入力できます");});$("asset-close").addEventListener("click",()=>{stopCadMotion();persist();numberPad.hidden=true;overlay.hidden=true;});
  $("asset-apply").addEventListener("click",()=>{if(studio.update(template())){persist();draw();say("選択パーツを編集しました");}else say("編集するパーツを選択し、寸法を確認してください");});$("asset-copy").addEventListener("click",()=>{const copies=studio.copy(Number($("asset-step").value));if(copies.length){camera.resetPan();persist();draw();say(copies.length+"パーツをコピーしました");}else say("コピーするパーツを選択してください");});$("asset-delete").addEventListener("click",()=>{if(studio.remove()){camera.resetPan();persist();draw();say("選択パーツを削除し、モデル原点を注視します");}else say("削除するパーツを選択してください");});
  $("asset-group-apply").addEventListener("click",()=>{if(studio.group($("asset-group").value)){persist();draw();say("選択パーツをグループ化しました");}else say("パーツを選択し、グループ名を入力してください");});$("asset-undo").addEventListener("click",()=>{say(studio.undo()?"直前の操作を戻しました":"戻せる操作はありません");camera.resetPan();persist();draw();});$("asset-redo").addEventListener("click",()=>{say(studio.redo()?"操作をやり直しました":"やり直せる操作はありません");camera.resetPan();persist();draw();});
- $("asset-save").addEventListener("click",()=>{const name=$("asset-name").value.trim(),exists=getWorld().prefabs.some(p=>p.name===name);if(exists&&!window.confirm("Asset「"+name+"」を上書きしますか？"))return;studio.setMeta({name,assetType:$("asset-type").value});const result=getWorld().savePrefabParts(name,studio.prefabParts(),{replace:exists,assetDocument:studio.prefabDocument(name)});say(result.message);if(result.ok){persist();onCommit();refreshLoadList(result.name);}});$("asset-load").addEventListener("click",()=>{const name=$("asset-load-list").value,prefab=getWorld().prefabs.find(p=>p.name===name);if(!prefab){say("読み込むAssetを選択してください");return;}if(studio.parts.length&&!window.confirm("現在の制作面を置き換えて「"+name+"」を読み込みますか？"))return;if(!studio.loadPrefab(prefab)){say("Assetの読込に失敗しました");return;}camera.preset("orbit");$("asset-name").value=name;$("asset-type").value=studio.meta.assetType;persist();draw();say("Asset「"+name+"」を制作面へ読み込みました");});
+ $("asset-save").addEventListener("click",()=>{stopCadMotion();const name=$("asset-name").value.trim(),exists=getWorld().prefabs.some(p=>p.name===name);if(exists&&!window.confirm("Asset「"+name+"」を上書きしますか？"))return;studio.setMeta({name,assetType:$("asset-type").value});const result=getWorld().savePrefabParts(name,studio.prefabParts(),{replace:exists,assetDocument:studio.prefabDocument(name)});say(result.message);if(result.ok){persist();onCommit();refreshLoadList(result.name);}});$("asset-load").addEventListener("click",()=>{stopCadMotion();const name=$("asset-load-list").value,prefab=getWorld().prefabs.find(p=>p.name===name);if(!prefab){say("読み込むAssetを選択してください");return;}if(studio.parts.length&&!window.confirm("現在の制作面を置き換えて「"+name+"」を読み込みますか？"))return;if(!studio.loadPrefab(prefab)){say("Assetの読込に失敗しました");return;}camera.preset("orbit");$("asset-name").value=name;$("asset-type").value=studio.meta.assetType;persist();draw();say("Asset「"+name+"」を制作面へ読み込みました");});
+ let motionFrame=0,motionBaseline=null,motionT=0,motionLast=0;
+ function stopCadMotion(){
+  if(motionFrame)cancelAnimationFrame(motionFrame);
+  motionFrame=0;motionLast=0;motionT=0;
+  if(motionBaseline){studio.parts=motionBaseline;motionBaseline=null;draw();}
+ }
+ function playCadMotion(){
+  stopCadMotion();
+  const motion=studio.cadMotion;
+  if(!motion){say("機構データのあるCADアッセンブリを読み込んでください");return;}
+  try{validateMechanism(motion.source.mechanism,motion.source.objects);}
+  catch(err){say("機構設定に問題があります: "+err.message);return;}
+  if(!motion.source.mechanism?.joints?.length){say("回転・スライダー・歯車の機構を先に登録してください");return;}
+  motionBaseline=studio.parts.map(p=>({...p,color:[...p.color]}));
+  const step=now=>{
+   if(!motionBaseline)return;
+   if(motionLast)motionT+=Math.min(.05,(now-motionLast)/1000);
+   motionLast=now;
+   try{studio.parts=applyAssetMechanismPose(motionBaseline,motion.source,motionT,motion.scale);draw();}
+   catch(err){stopCadMotion();say("機構再生に失敗: "+err.message);return;}
+   motionFrame=requestAnimationFrame(step);
+  };
+  motionFrame=requestAnimationFrame(step);
+  say("CAD機構のプレビュー再生中。実際のゲーム内剛体衝突は未対応です");
+ }
+ $("asset-motion-play").addEventListener("click",playCadMotion);
+ $("asset-motion-stop").addEventListener("click",()=>{stopCadMotion();say("機構プレビューを停止しました");});
  const receiveCadAssembly=source=>{
   const converted=cadAssemblyToAssetDocument(source);
+  if(source.mechanism)validateMechanism(source.mechanism,source.objects);
+  stopCadMotion();
   if(studio.parts.length&&!window.confirm("現在のAsset制作面をCAD組立プレビューで置き換えますか？"))return false;
   studio=new AssetStudioModel(converted.document);
+  if(source.mechanism?.joints?.length)studio.cadMotion={source:structuredClone(source),scale:converted.scale};
   $("asset-name").value="CAD Assembly Preview";
   $("asset-type").value="machine";
   camera.preset("orbit");
@@ -199,7 +231,7 @@ export function installAssetStudio({getWorld,onCommit,log}){
    }
   }
  }catch(err){say("CAD転送の読み込みに失敗: "+err.message);}
- $("asset-clear").addEventListener("click",()=>{if(studio.parts.length&&!window.confirm("制作中のAssetを空にしますか？\n保存建築物は削除されません。"))return;studio=new AssetStudioModel();cursor={x:0,y:0};camera.preset("orbit");$("asset-name").value="";$("asset-type").value="building";persist();draw();say("新しい制作面を用意しました");});overlay.addEventListener("keydown",e=>{if(e.key==="Escape"){$("asset-close").click();return;}if((e.key==="Delete"||e.key==="Backspace")&&e.target===canvas){e.preventDefault();$("asset-delete").click();}});
+ $("asset-clear").addEventListener("click",()=>{stopCadMotion();if(studio.parts.length&&!window.confirm("制作中のAssetを空にしますか？\n保存建築物は削除されません。"))return;studio=new AssetStudioModel();cursor={x:0,y:0};camera.preset("orbit");$("asset-name").value="";$("asset-type").value="building";persist();draw();say("新しい制作面を用意しました");});overlay.addEventListener("keydown",e=>{if(e.key==="Escape"){$("asset-close").click();return;}if((e.key==="Delete"||e.key==="Backspace")&&e.target===canvas){e.preventDefault();$("asset-delete").click();}});
  for(const axis of ["x","y","z"])installDial($("asset-dial-"+axis),axis,direction=>nudgeNumeric("asset-pos-"+axis,direction));
  installDial($("asset-dial-common"),"common",direction=>nudgeNumeric($("asset-common-target").value,direction));
  $("asset-type").value=studio.meta.assetType;$("asset-name").value=studio.meta.name;applyUiPrefs();
