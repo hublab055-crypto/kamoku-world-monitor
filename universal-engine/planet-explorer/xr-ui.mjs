@@ -1452,6 +1452,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   // with the occupied seat / walked-to position, not the ship's coordinate origin.
   const stage=shipInterior?xrMul(baseStage,xrTranslate(-shipInterior.x,0,-shipInterior.z)):baseStage;
   if(mode==="vr")vrCurrentStage=stage;
+  vrNavigationCursor=null;
+  if(mode==="vr"&&vrFloorOrderMode&&!aboard&&!planetMode&&!vrRTS&&
+     !onVRCustody("state")?.handled&&controller.altitudeM<=12){
+   const right=controllerSources.find(src=>src.handedness==="right");
+   let pointer=null;
+   try{pointer=right?.targetRaySpace?frame.getPose(right.targetRaySpace,space)?.transform.matrix:null;}catch(_){}
+   vrNavigationCursor=groundRayHit(pointer,anchor?.vrFloor?.[1]??0,12);
+  }
   // One frozen tablet transform for both stereo eye passes.
   if(mode==="vr"){
    const shell=document.getElementById("ue-world-tablet");
