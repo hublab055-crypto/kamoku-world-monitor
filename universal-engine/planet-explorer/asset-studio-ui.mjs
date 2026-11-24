@@ -1,4 +1,5 @@
 import {AssetStudioModel,partAnchor,snapCandidates} from "./asset-studio-model.mjs?v=0.9c-asset-v2";
+import {cadAssemblyToAssetDocument,CAD_TRANSFER_KEY} from "./cad-assembly-bridge.mjs?v=20261124";
 import {AssetCamera} from "./asset-camera.mjs?v=0.9c-asset-v2";
 
 const DRAFT_KEY="universal-engine:asset-studio:v0.9c";
@@ -167,6 +168,37 @@ export function installAssetStudio({getWorld,onCommit,log}){
  $("asset-apply").addEventListener("click",()=>{if(studio.update(template())){persist();draw();say("選択パーツを編集しました");}else say("編集するパーツを選択し、寸法を確認してください");});$("asset-copy").addEventListener("click",()=>{const copies=studio.copy(Number($("asset-step").value));if(copies.length){camera.resetPan();persist();draw();say(copies.length+"パーツをコピーしました");}else say("コピーするパーツを選択してください");});$("asset-delete").addEventListener("click",()=>{if(studio.remove()){camera.resetPan();persist();draw();say("選択パーツを削除し、モデル原点を注視します");}else say("削除するパーツを選択してください");});
  $("asset-group-apply").addEventListener("click",()=>{if(studio.group($("asset-group").value)){persist();draw();say("選択パーツをグループ化しました");}else say("パーツを選択し、グループ名を入力してください");});$("asset-undo").addEventListener("click",()=>{say(studio.undo()?"直前の操作を戻しました":"戻せる操作はありません");camera.resetPan();persist();draw();});$("asset-redo").addEventListener("click",()=>{say(studio.redo()?"操作をやり直しました":"やり直せる操作はありません");camera.resetPan();persist();draw();});
  $("asset-save").addEventListener("click",()=>{const name=$("asset-name").value.trim(),exists=getWorld().prefabs.some(p=>p.name===name);if(exists&&!window.confirm("Asset「"+name+"」を上書きしますか？"))return;studio.setMeta({name,assetType:$("asset-type").value});const result=getWorld().savePrefabParts(name,studio.prefabParts(),{replace:exists,assetDocument:studio.prefabDocument(name)});say(result.message);if(result.ok){persist();onCommit();refreshLoadList(result.name);}});$("asset-load").addEventListener("click",()=>{const name=$("asset-load-list").value,prefab=getWorld().prefabs.find(p=>p.name===name);if(!prefab){say("読み込むAssetを選択してください");return;}if(studio.parts.length&&!window.confirm("現在の制作面を置き換えて「"+name+"」を読み込みますか？"))return;if(!studio.loadPrefab(prefab)){say("Assetの読込に失敗しました");return;}camera.preset("orbit");$("asset-name").value=name;$("asset-type").value=studio.meta.assetType;persist();draw();say("Asset「"+name+"」を制作面へ読み込みました");});
+ const receiveCadAssembly=source=>{
+  const converted=cadAssemblyToAssetDocument(source);
+  if(studio.parts.length&&!window.confirm("現在のAsset制作面をCAD組立プレビューで置き換えますか？"))return false;
+  studio=new AssetStudioModel(converted.document);
+  $("asset-name").value="CAD Assembly Preview";
+  $("asset-type").value="machine";
+  camera.preset("orbit");
+  persist();draw();
+  say("CAD組立 "+converted.converted+"部品を取り込みました（表示用縮尺 "+converted.scale.toPrecision(4)+" m/mm）。"+converted.note);
+  return true;
+ };
+ $("asset-cad-import").addEventListener("click",()=>$("asset-cad-file").click());
+ $("asset-cad-file").addEventListener("change",async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{if(file.size>1_000_000)throw Error("ファイルは1MB以下にしてください");
+   receiveCadAssembly(JSON.parse(await file.text()));
+  }catch(err){say("組立の読み込みに失敗: "+err.message);}
+  finally{e.target.value="";}
+ });
+ try{
+  if(new URLSearchParams(window.location.search).has("asset-import")){
+   const raw=localStorage.getItem(CAD_TRANSFER_KEY);
+   if(raw&&raw.length<=1_000_000){
+    $("owner-asset-open").click();
+    if(receiveCadAssembly(JSON.parse(raw))){
+     localStorage.removeItem(CAD_TRANSFER_KEY);
+     history.replaceState(null,"",location.pathname+location.hash);
+    }
+   }
+  }
+ }catch(err){say("CAD転送の読み込みに失敗: "+err.message);}
  $("asset-clear").addEventListener("click",()=>{if(studio.parts.length&&!window.confirm("制作中のAssetを空にしますか？\n保存建築物は削除されません。"))return;studio=new AssetStudioModel();cursor={x:0,y:0};camera.preset("orbit");$("asset-name").value="";$("asset-type").value="building";persist();draw();say("新しい制作面を用意しました");});overlay.addEventListener("keydown",e=>{if(e.key==="Escape"){$("asset-close").click();return;}if((e.key==="Delete"||e.key==="Backspace")&&e.target===canvas){e.preventDefault();$("asset-delete").click();}});
  for(const axis of ["x","y","z"])installDial($("asset-dial-"+axis),axis,direction=>nudgeNumeric("asset-pos-"+axis,direction));
  installDial($("asset-dial-common"),"common",direction=>nudgeNumeric($("asset-common-target").value,direction));
