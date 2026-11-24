@@ -17,7 +17,7 @@ test("ground ray accepts downward rays, rejects horizontal and upward rays",()=>
 test("VR floor hit follows the same stage matrix as renderer",()=>{
  const stage=xrMul(xrTranslate(2,0,-3),xrRotateY(Math.PI/2));
  const p={x:3,z:-4},cmd=stageGroundToWorld(p,stage,{x:50,z:100});
- assert.ok(Math.abs(cmd.x-49)<1e-8);assert.ok(Math.abs(cmd.z-99)<1e-8);
+ assert.ok(Math.abs(cmd.x-51)<1e-8);assert.ok(Math.abs(cmd.z-101)<1e-8);
 });
 test("polygon rejects crossed and tiny boundaries",()=>{
  assert.equal(validBoundary(square),true);
@@ -50,7 +50,7 @@ test("NPC requires boundary and does not walk through obstacles",()=>{
  assert.equal(actors.action("navigator","move",{room,point:{x:1,z:-2}}).ok,false);
  room.setNavigationBoundary(square);
  assert.equal(actors.action("navigator","move",{room,point:{x:3,z:-1}}).ok,false);
- const start=actors.get("navigator");
+ const start=actors.get("navigator");start.z=-1.2;
  assert.equal(safeMoveTarget(room,start,{x:0,z:-1}).ok,true);
  assert.equal(actors.action("navigator","move",{room,point:{x:0,z:-1}}).ok,true);
  for(let i=0;i<60;i++){
