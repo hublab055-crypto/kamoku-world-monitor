@@ -23,7 +23,7 @@ export function validateMechanism(mechanism,objects){
   owners.add(j.part);
   return {type:j.type,part:j.part,axis:j.axis||"z",speed:safe(j.speed,30),
    stroke:Math.max(0,Math.min(100000,safe(j.stroke,20))),phase:safe(j.phase),
-   teeth:j.type==="gear"?j.teeth:undefined,driver:j.type==="gear"?j.driver:undefined};
+   teeth:j.type==="gear"?j.teeth:(Number.isInteger(j.teeth)&&j.teeth>=4&&j.teeth<=300?j.teeth:20),driver:j.type==="gear"?j.driver:undefined};
  });
  const byPart=new Map(joints.map(j=>[j.part,j]));
  function check(id,seen=new Set()){
