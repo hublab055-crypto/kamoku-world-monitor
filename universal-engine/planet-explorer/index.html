@@ -634,6 +634,13 @@
 </section>
 <section id="asset-studio" class="asset-studio" role="dialog" aria-modal="true" aria-labelledby="asset-studio-title" hidden>
  <header class="asset-studio-head"><div><strong id="asset-studio-title">🧩 Asset制作モード</strong><small>独立XY平面／高さZ</small></div><button type="button" id="asset-close">× 街へ戻る</button></header>
+ <nav aria-label="CAD・組立ツール" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;padding:8px;background:#132f3a;color:white;font-size:12px">
+  <a href="../model-lab/cad/" target="_blank" rel="noopener" style="color:#9ce6ff">⚙ 2D/3D CADを開く ↗</a>
+  <a href="../model-lab/cad/assembly.html" target="_blank" rel="noopener" style="color:#9ce6ff">▣ アッセンブリを開く ↗</a>
+  <button type="button" id="asset-cad-import">📂 CAD組立JSONを取込</button>
+  <input type="file" id="asset-cad-file" accept=".json,application/json" style="display:none">
+  <small>組立図形のゲーム用近似プレビュー。精密B-repは保持しません。</small>
+ </nav>
  <div class="asset-workspace">
   <div class="asset-canvas-wrap"><canvas id="asset-canvas" width="900" height="620" tabindex="0" aria-label="Asset制作XY平面。タップで配置または選択"></canvas><div id="asset-plane-label" class="asset-plane-label">Z = 0.0m</div></div>
   <aside class="asset-controls">
