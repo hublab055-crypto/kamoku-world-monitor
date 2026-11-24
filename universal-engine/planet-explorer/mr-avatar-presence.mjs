@@ -55,7 +55,7 @@ export class MRAvatarPresence {
   a.standingPose=pose;return {ok:true,message:"立ちポーズを "+pose+" に変更"};
  }
 
- action(id,type,{room=null,head=null}={}){
+ action(id,type,{room=null,head=null,point=null}={}){
   const a=this.get(id);if(!a)return {ok:false,message:"先にアバターを召喚してください"};
   if(type==="follow"){a.follow=true;a.roam=false;a.goal=null;a.seatId=null;a.seatPose=null;a.seatSurface=null;a.y=0;a.motion="idle";a.time=null;return {ok:true,message:"ついてくる"};}
   if(type==="wait"){a.follow=false;a.roam=false;a.goal=null;a.motion="idle";a.time=null;return {ok:true,message:"待機"};}
@@ -65,7 +65,6 @@ export class MRAvatarPresence {
    return {ok:true,message:"登録済みの空いた床を散歩します"};
   }
   if(type==="move"){
-   const point=arguments[2]?.point;
    if(!point||!Number.isFinite(point.x)||!Number.isFinite(point.z))return {ok:false,message:"移動先を指定してください"};
    const check=safeMoveTarget(room,{x:a.x,z:a.z},point);
    if(!check.ok)return {ok:false,message:check.reason};
@@ -76,6 +75,8 @@ export class MRAvatarPresence {
   if(type==="sit"){
    const chair=room?.ready?room.seatWorld().filter(seat=>!this.actors.some(other=>other.id!==a.id&&other.seatId===seat.id)).sort((x,y)=>Math.hypot(x.x-a.x,x.z-a.z)-Math.hypot(y.x-a.x,y.z-a.z))[0]:null;
    if(!chair)return {ok:false,message:"空いている座布団を床・椅子・ソファに配置してください"};
+   if(room.navigationBoundary?.length&&!safeMoveTarget(room,{x:a.x,z:a.z},chair).ok)
+    return {ok:false,message:"移動可能範囲の外にある座布団には行けません"};
    a.follow=false;a.roam=false;a.goal={x:chair.x,z:chair.z};a.seatId=chair.id;a.seatYaw=chair.yaw;a.seatY=chair.seatY;
    a.seatPose=chair.pose;a.seatSurface=chair.surface;
    a.motion="walk";a.time=null;
