@@ -1,5 +1,6 @@
 // Supported Universal CAD feature subset -> game CAM jobs. Not real machine G-code.
 import {startJob,controlJob,resetFeed,tickMachines} from "./workshop-machine-tools.mjs?v=6";
+import {prepareStep,advancePreparation,accountWear,startInspection,finishInspection} from "./workshop-factory.mjs?v=7";
 const fail=x=>{throw Error(x);};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const num=(...x)=>x.every(Number.isFinite);
@@ -38,7 +39,7 @@ function launch(s,p){
  resetFeed(s,m.id);
  const prev=part.pose?clone(part.pose):null;
  // Virtual transfer / clamping: startJob positions stock at the selected station.
- delete part.pose;
+ if(!p.factory)delete part.pose;
  try{startJob(s,m.id,p.part,step.target);}catch(e){if(prev)part.pose=prev;throw e;}
  p.started=true;
 }
@@ -46,14 +47,14 @@ export function camControl(s,command){
  const p=current(s),m=p.started?find(s,p.steps[p.index].machine):null;
  if(command==="cancel"){if(m&&["running","paused"].includes(m.job?.status))controlJob(s,m.id,"cancel");p.status="cancelled";return p;}
  if(command==="pause"){if(p.status!=="running")fail("実行中のみ停止可能");if(m&&m.job?.status==="running")controlJob(s,m.id,"pause");p.status="paused";return p;}
- if(command==="start"){if(!["ready","paused"].includes(p.status))fail("停止状態のみ開始可能");if(m?.job?.status==="paused")controlJob(s,m.id,"resume");else if(!p.started)launch(s,p);else fail("工程状態が不正");p.status="running";p.error="";return p;}
+ if(command==="start"){if(!["ready","paused"].includes(p.status))fail("停止状態のみ開始可能");if(p.factory){if(m?.job?.status==="paused")controlJob(s,m.id,"resume");else if(!p.started&&["ready","waiting"].includes(p.factory.phase))prepareStep(s,p);else if(p.started)fail("工程状態が不正");}else if(m?.job?.status==="paused")controlJob(s,m.id,"resume");else if(!p.started)launch(s,p);else fail("工程状態が不正");p.status="running";p.error="";return p;}
  fail("操作が不正");
 }
 export function tickCAM(s,dt){
  let changed=tickMachines(s,dt);const p=s.cam;if(!p||p.status!=="running")return changed;
- try{const m=find(s,p.steps[p.index].machine);if(m.job?.status==="paused"){p.status="paused";p.error="設備停止：電力・負荷を確認";return true;}
+ try{if(p.factory){const f=p.factory;if(f.phase==="inspect")return finishInspection(s,p,dt)||true;if(!p.started){if(f.phase==="waiting"||f.phase==="ready")prepareStep(s,p);if(advancePreparation(s,p,dt))launch(s,p);return true;}}const m=find(s,p.steps[p.index].machine);if(p.factory)accountWear(s,p,m.job?.progress||0);if(m.job?.status==="paused"){p.status="paused";p.error="設備停止：電力・負荷を確認";return true;}
  if(m.job?.status==="cancelled"){p.status="cancelled";return true;}
- if(m.job?.status==="complete"){p.index++;p.started=false;if(p.index>=p.steps.length){p.status="complete";return true;}try{launch(s,p);}catch(e){p.status="paused";p.error=e.message;}return true;}
- }catch(e){p.status="paused";p.error=e.message;return true;}return changed;
+ if(m.job?.status==="complete"){p.index++;p.started=false;if(p.index>=p.steps.length){if(p.factory)startInspection(p);else p.status="complete";return true;}try{if(p.factory){p.factory.phase="waiting";prepareStep(s,p);}else launch(s,p);}catch(e){p.status="paused";p.error=e.message;}return true;}
+ }catch(e){if(p.factory&&!p.started)p.factory.phase="waiting";if(p.started){const m=s.machines.find(x=>x.id===p.steps[p.index]?.machine);if(m?.job?.status==="running")controlJob(s,m.id,"pause");}p.status="paused";p.error=e.message;return true;}return changed;
 }
 export function programText(p){return ["UE-CAM 1 / mm / ゲーム専用（実機非対応）",...p.steps.map((s,i)=>String(i+1).padStart(2,"0")+" "+s.kind.toUpperCase()+" M"+s.machine+" "+Object.entries(s.target).map(([k,v])=>k.toUpperCase()+v).join(" ")+" FEED_TRAVEL="+s.distance)].join("\n");}
