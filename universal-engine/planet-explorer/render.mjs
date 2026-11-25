@@ -1,3 +1,5 @@
+import {workshopMesh} from "./workshop-geometry.mjs";
+import {fastenerParts} from "./workshop-spatial.mjs";
 import {ownerMechanismPoseOverrides} from "./cad-world-motion.mjs?v=20261124";
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
@@ -1795,6 +1797,15 @@ export class ExplorerRenderer{
   const p=ferryLocation(this.planet.timeDays);
   const ship=multiply4(translate(at.eastM+p.x-this.cx,.15,at.northM+p.z-this.cz),rotateY(p.yaw));
   this.drawMesh(this.passengerSteamerMesh,multiply4(vp,ship),light,1,.86);
+ }
+ drawWorkshop(vp,light,s,radius){
+   const state=this.workshop?.();if(!state)return;
+   const cache=this.workshopMeshes??=new Map();
+   for(const [id,entry] of cache)if(!state.parts.some(p=>p.id===id&&p.pose)){entry.mesh.destroy();cache.delete(id);}
+   const base=pose=>{const p=geoLocal(s.origin.lat,s.origin.lon,pose.site.lat,pose.site.lon,this.planet.radiusM);if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)return null;const site=terrainSurface(this.terrain,pose.site.lat,pose.site.lon);if(site.water||site.river)return null;return [p.eastM-this.cx,site.elevationM,p.northM-this.cz];};
+   for(const p of state.parts){if(!p.pose)continue;const at=base(p.pose);if(!at)continue;const key=JSON.stringify([p.shape,p.d,p.l,p.w,p.holes]);let e=cache.get(p.id);if(e?.key!==key){e?.mesh.destroy();e={key,mesh:new Mesh(this.gl,workshopMesh(p))};cache.set(p.id,e);}
+    const pose=p.pose,m=multiply4(translate(at[0]+pose.x*.001,at[1]+pose.y*.001,at[2]+pose.z*.001),multiply4(rotateY(pose.yaw),scale3(.001,.001,.001)));this.drawMesh(e.mesh,multiply4(vp,m),light,1,.82,[.72,.78,.85]);}
+   for(const j of state.joints){const p=state.parts.find(p=>p.id===j.a);if(!p?.pose)continue;const at=base(p.pose);if(!at)continue;for(const b of fastenerParts(j,p)){const m=multiply4(translate(at[0]+b.x*.001,at[1]+b.y*.001,at[2]+b.z*.001),scale3(b.d*.001,b.l*.001,b.d*.001));this.drawMesh(this.ownerPrimitiveMeshes.cylinder,multiply4(vp,m),light,1,.8,[.53,.56,.62]);}}
  }
  drawOwnerWorld(vp,light,s,radius){
    if(!this.ownerWorld)return;
@@ -3819,6 +3830,7 @@ export class ExplorerRenderer{
    }
    this.drawPlacedStructures(vp,light,s,radius);
    this.drawOwnerWorld(vp,light,s,radius);
+   this.drawWorkshop(vp,light,s,radius);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
   this.screenResources=[];
   const farPick=cameraMode==="tactical"&&camera.heightM>70;
@@ -3980,6 +3992,7 @@ export class ExplorerRenderer{
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const mesh of this.vrWatchLabelMeshes?.values()||[])mesh.destroy();
    this.vrWatchLabelMeshes?.clear();
+   for(const e of this.workshopMeshes?.values()||[])e.mesh.destroy();this.workshopMeshes?.clear();
    this.henshinMeshes?.destroy();
    this.avatarV10Assets.destroy();
    for(const mesh of this.shipCrewFallbacks.values())mesh.destroy();

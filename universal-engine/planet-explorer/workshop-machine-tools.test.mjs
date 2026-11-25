@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {Workshop} from "./workshop.mjs";
+import {placePart} from "./workshop-spatial.mjs";
+import {addMechanism,addMotor} from "./workshop-mechanics.mjs";
+import {registerMachine,startJob,tickMachines,controlJob,resetFeed} from "./workshop-machine-tools.mjs";
+const setup=(kind="lathe")=>{const w=new Workshop(),site={lat:0,lon:0},ps=Array.from({length:4},(_,i)=>{const p=w.stock("round",20,10);placePart(w,p.id,site,Math.floor(i/2)*50,0,100+i%2*10);return p;});const spindle=addMotor(w,addMechanism(w,ps[0].id,ps[1].id,"shaft").id,{rpm:120});const feed=addMotor(w,addMechanism(w,ps[2].id,ps[3].id,"screw",{pitch:10}).id,{rpm:60});const m=registerMachine(w,{kind,spindle:spindle.id,feed:feed.id});return {w,m,spindle,feed};};
+test("lathe feeds actual geometry, pause and finish",()=>{const {w,m,spindle,feed}=setup(),p=w.stock("round",30,50);startJob(w,m.id,p.id,{d:20,l:50});tickMachines(w,.25);assert.ok(p.d<30&&p.d>20);assert.throws(()=>w.turn(p.id,10,20));controlJob(w,m.id,"pause");const d=p.d;tickMachines(w,.25);assert.equal(p.d,d);controlJob(w,m.id,"resume");for(let i=0;i<20;i++)tickMachines(w,.25);assert.equal(p.d,20);assert.equal(m.job.status,"complete");assert.equal(feed.running,false);assert.ok(spindle.energyWh<100);resetFeed(w,m.id);assert.equal(w.mechanisms.find(e=>e.id===feed.mechanism).position,0);});
+test("drill depth is progressive, reload pauses and cancel retains cut",()=>{const {w,m}=setup("drill"),p=w.stock("plate",10,40,40);startJob(w,m.id,p.id,{d:8,depth:10,x:0,y:0});tickMachines(w,.25);assert.ok(p.holes[0].depth>0&&p.holes[0].depth<10);const r=new Workshop(w.snapshot());assert.equal(r.machines[0].job.status,"paused");controlJob(r,m.id,"resume");for(let i=0;i<20;i++)tickMachines(r,.25);assert.equal(r.part(p.id).holes[0].through,true);});
+test("mill uses feed and overload pauses",()=>{const {w,m,feed}=setup("mill"),p=w.stock("plate",10,40,40);startJob(w,m.id,p.id,{d:5,l:30,w:30});tickMachines(w,.25);assert.ok(p.d<10);feed.load=feed.torque;tickMachines(w,.25);assert.equal(m.job.status,"paused");controlJob(w,m.id,"cancel");assert.ok(p.d<10&&p.d>5);});

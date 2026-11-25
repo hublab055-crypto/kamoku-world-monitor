@@ -1,3 +1,4 @@
+import {installWorkshop} from "./workshop-ui.mjs?v=7";
 import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v05-natural";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
@@ -29,7 +30,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261124-xr-navigation";
+import {ExplorerRenderer} from "./render.mjs?v=20261124-xr-navigation-workshop-v7";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -131,6 +132,7 @@ const V07C_SAVE_KEY="universal-engine:explorer:v0.7c";
 const V07B_SAVE_KEY="universal-engine:explorer:v0.7b";
 const PREVIOUS_SAVE_KEY="universal-engine:explorer:v0.7a";
 const LEGACY_SAVE_KEY="universal-engine:explorer:v1";
+let workshopRuntime;
 let planet,terrain,weather,controller,renderer,universe,simWorld,actions,squad,access,battle,projectiles,harvest,earthworks,constructions;
 let mobileUI=null,pilotPanel=null;
 let solarSystem=null,solarUI=null,voyage=null,voyageUI=null,celestialSky=null,surfaceShip=null,surfaceShipUI=null,shipInteractionUI=null,shipArrivalPreview=null,shipCombatUI=null;
@@ -485,6 +487,7 @@ function init(saved=null){
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
    renderer.ownerWorld=ownerWorld;
+   renderer.workshop=()=>workshopRuntime?.state;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
@@ -765,6 +768,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  const shipWorldDt=wristTime?.worldDelta(dt)??dt;
  const worldDt=running?shipWorldDt:0;
  const worldActive=worldDt>0;
+ if(worldActive&&!voyage?.active)workshopRuntime?.tick(worldDt);
  if(renderer&&worldActive)renderer.mechanismElapsed=(renderer.mechanismElapsed||0)+dt;
  wristUI?.refresh();
  if(familyLife&&planet&&planet.timeDays>familyLife.day){
@@ -3164,6 +3168,7 @@ ownerUI=installOwnerEditor({
 });
 assetStudio=installAssetStudio({getWorld:()=>ownerWorld,
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
+workshopRuntime=installWorkshop({resources:()=>actions.resources,site:()=>{if(controller.altitudeM>12.01||controller.jumpY>.01)throw Error("地上に立ってから組み立ててください");return {lat:controller.lat,lon:controller.lon};},commit:()=>{if(renderer)renderer.workshop=()=>workshopRuntime?.state;updateHUD();saveLifeJournal();},log});
 function vitalsActor(){
  return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
 }
