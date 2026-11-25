@@ -1,4 +1,4 @@
-import {installWorkshop} from "./workshop-ui.mjs?v=4";
+import {installWorkshop} from "./workshop-ui.mjs?v=5";
 import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v05-natural";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";

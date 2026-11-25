@@ -21,7 +21,7 @@ const descendants=(s,id,seen=new Set())=>{if(seen.has(id))return seen;seen.add(i
 export function addMechanism(state,a,b,type,{ratio=1,travel=100,axis=0,pitch=5,radius=20}={}){
  finite(ratio,travel,axis,pitch,radius);
  if(!rotary.has(type)&&!linear.has(type)||ratio<=0||ratio>100||travel<=0||travel>100000||pitch<=0||pitch>10000||radius<=0||(type==="crank"&&radius>travel))throw Error("拘束設定が不正");
- const p=state.part(a),q=state.part(b);
+ const p=state.part(a),q=state.part(b);if(state.machines?.some(m=>["running","paused"].includes(m.job?.status)&&[p.id,q.id].includes(m.job.part)))throw Error("加工中のワークです");
  if(p===q||!p.pose||!q.pose||Math.abs(p.pose.site.lat-q.pose.site.lat)>1e-6||Math.abs(p.pose.site.lon-q.pose.site.lon)>1e-6)throw Error("別々の部品を同じ作業地点に配置");
  if(state.joints.some(j=>[p.id,q.id].includes(j.a)||[p.id,q.id].includes(j.b)))throw Error("固定接合を解除してください");
  if(incoming(state,q.id)||outgoing(state,q.id).length||descendants(state,q.id).has(p.id))throw Error("出力部品は未接続の部品を選択（循環・二重駆動禁止）");
@@ -65,7 +65,7 @@ export function addMotor(state,id,{rpm=60,torque=10,load=2,energyWh=100,efficien
  const motor={id:state.next++,mechanism:m.id,rpm,torque,load,energyWh,efficiency,running:false,actualRPM:0,powerW:0,status:"停止"};state.motors.push(motor);return motor;
 }
 export function setMotor(state,id,running){const m=state.motors.find(x=>x.id===Number(id));if(!m)throw Error("モーターなし");m.running=Boolean(running);if(!running){m.actualRPM=0;m.powerW=0;}m.status=running?"運転":"停止";return m;}
-export function removeMotor(state,id){const i=state.motors.findIndex(x=>x.id===Number(id));if(i<0)throw Error("モーターなし");if(state.motors[i].running)throw Error("停止してから取り外してください");return state.motors.splice(i,1)[0];}
+export function removeMotor(state,id){const i=state.motors.findIndex(x=>x.id===Number(id));if(i<0)throw Error("モーターなし");if(state.machines?.some(m=>[m.spindle,m.feed].includes(Number(id))))throw Error("設備登録を解除してください");if(state.motors[i].running)throw Error("停止してから取り外してください");return state.motors.splice(i,1)[0];}
 export function tickMotors(state,dt){
  finite(dt);if(dt<=0)return false;dt=Math.min(dt,.25);let changed=false;
  for(const m of state.motors){if(!m.running)continue;changed=true;
