@@ -1,4 +1,4 @@
-import {installWorkshop} from "./workshop-ui.mjs?v=3";
+import {installWorkshop} from "./workshop-ui.mjs?v=4";
 import {ShipSocialVoice} from "./ship-social-voice.mjs?v=20261122-v05-natural";
 import {HenshinRuntime} from "./henshin-runtime.mjs?v=20261121-native";
 import {HenshinAudio} from "./henshin-audio.mjs?v=20261121-native";
@@ -767,6 +767,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  const shipWorldDt=wristTime?.worldDelta(dt)??dt;
  const worldDt=running?shipWorldDt:0;
  const worldActive=worldDt>0;
+ if(worldActive&&!voyage?.active)workshopRuntime?.tick(worldDt);
  wristUI?.refresh();
  if(familyLife&&planet&&planet.timeDays>familyLife.day){
   const events=familyLife.advanceTo(planet.timeDays);

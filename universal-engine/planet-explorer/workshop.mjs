@@ -4,8 +4,8 @@ const copy=v=>JSON.parse(JSON.stringify(v));
 const positive=v=>Number.isFinite(v)&&v>0&&v<=100000;
 const fail=m=>{throw new Error(m)};
 export class Workshop {
- constructor(saved){this.parts=[];this.joints=[];this.mechanisms=[];this.next=1;if(saved?.version===1){this.parts=copy(saved.parts);this.joints=copy(saved.joints);this.mechanisms=copy(saved.mechanisms||[]);this.next=saved.next;}}
- snapshot(){return copy({version:1,parts:this.parts,joints:this.joints,mechanisms:this.mechanisms,next:this.next});}
+ constructor(saved){this.parts=[];this.joints=[];this.mechanisms=[];this.motors=[];this.next=1;if(saved?.version===1){this.parts=copy(saved.parts);this.joints=copy(saved.joints);this.mechanisms=copy(saved.mechanisms||[]);this.motors=copy(saved.motors||[]).map(m=>({...m,running:false,actualRPM:0,powerW:0,status:"停止"}));this.next=saved.next;}}
+ snapshot(){return copy({version:1,parts:this.parts,joints:this.joints,mechanisms:this.mechanisms,motors:this.motors,next:this.next});}
  part(id){return this.parts.find(p=>p.id===Number(id))||fail("部品がありません");}
  stock(shape,d,l,w=d){if(!["round","plate"].includes(shape)||![d,l,w].every(positive))fail("寸法を確認してください");if(this.parts.length>=200)fail("部品上限");const p={id:this.next++,shape,d,l,w,holes:[],history:[]};this.parts.push(p);return p;}
  free(id){const p=this.part(id);if(this.joints.some(j=>j.a===p.id||j.b===p.id)||this.mechanisms.some(j=>j.a===p.id||j.b===p.id))fail("接合部品は取り外してから加工してください");return p;}
