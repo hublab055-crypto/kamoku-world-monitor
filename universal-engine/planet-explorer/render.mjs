@@ -1,5 +1,6 @@
 import {workshopMesh} from "./workshop-geometry.mjs";
 import {fastenerParts} from "./workshop-spatial.mjs";
+import {ownerMechanismPoseOverrides} from "./cad-world-motion.mjs?v=20261124";
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
@@ -995,7 +996,7 @@ export class ExplorerRenderer{
   this.underseaModels=Object.fromEntries(Object.keys(SEA_SITE_TYPES)
    .map(kind=>[kind,new Mesh(gl,submergedSiteGeometry(kind))]));
   this.placedMeshes=Object.fromEntries([...new Set([...BUILD_KINDS,...OWNER_BUILDING_KINDS])].map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
-   this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;
+   this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;this.mechanismElapsed=0;
    this.ownerPrimitiveMeshes=Object.fromEntries(["cube","cylinder","sphere","cone"].map(kind=>[kind,new Mesh(gl,ownerPrimitiveGeometry(kind))]));
   this.constructionSystem=null;
   this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
@@ -1808,6 +1809,7 @@ export class ExplorerRenderer{
  }
  drawOwnerWorld(vp,light,s,radius){
    if(!this.ownerWorld)return;
+   const mechanismOverrides=ownerMechanismPoseOverrides(this.ownerWorld,this.mechanismElapsed||0);
    if(this.ownerRoadMesh)this.drawMesh(this.ownerRoadMesh,multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.9);
    for(const building of this.ownerWorld.buildings){
     const p=geoLocal(s.origin.lat,s.origin.lon,building.lat,building.lon,this.planet.radiusM);
@@ -1820,7 +1822,8 @@ export class ExplorerRenderer{
     if(mesh)this.drawMesh(mesh,multiply4(vp,model),light,1,.77);
     if(this.ownerSelectedId===building.id)this.drawMesh(this.selectionRing,multiply4(vp,translate(x,height+.15,z)),light,1,.98,[.95,.77,.18]);
    }
-   for(const part of this.ownerWorld.primitives||[]){
+   for(const stored of this.ownerWorld.primitives||[]){
+    const part=mechanismOverrides.get(stored.id)||stored;
     const p=geoLocal(s.origin.lat,s.origin.lon,part.lat,part.lon,this.planet.radiusM);
     if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)continue;
     const site=terrainSurface(this.terrain,part.lat,part.lon);
@@ -3023,6 +3026,38 @@ export class ExplorerRenderer{
   */
  /** Preview outlines only while the MR furniture editor is expanded.
   * They are virtual guides, not real-world collision geometry. */
+ /** XR metre-space circles and a visible movement boundary. This renders as
+  * thin geometry in both headset eyes, and never alters physical room data. */
+ drawXRNavigation(xr,{points=[],cursor=null,closed=false,boundaryColor=[.20,.92,.64]}={}){
+  if(!this.vrBodySegment||(!cursor&&!points.length))return;
+  const gl=this.gl,{x,y,width,height}=xr.viewport,vp=multiply4(xr.projection,xr.view),light=[.7,.9,1];
+  gl.viewport(x,y,width,height);gl.scissor(x,y,width,height);
+  gl.useProgram(this.program);gl.uniform1f(this.uXROcclusionEnabled,0);
+  gl.uniform3fv(this.uFogParams,new Float32Array([0,1,0]));
+  gl.enable(gl.DEPTH_TEST);gl.depthMask(true);gl.disable(gl.BLEND);
+  const line=(p,q,tint)=>{
+   const v=sub(q,p),len=Math.hypot(...v);if(len<.005)return;
+   const along=v.map(k=>k/len),side=norm(cross(Math.abs(along[1])>.9?[0,0,1]:[0,1,0],along)),
+    depth=norm(cross(side,along)),w=.015;
+   const m=[side[0]*w,side[1]*w,side[2]*w,0,
+    v[0],v[1],v[2],0,depth[0]*w,depth[1]*w,depth[2]*w,0,
+    p[0],p[1],p[2],1];
+   this.drawMesh(this.vrBodySegment,multiply4(vp,m),light,1,.93,tint);
+  };
+  for(let i=1;i<points.length;i++)line(points[i-1],points[i],boundaryColor);
+  if(closed&&points.length>=3)line(points[points.length-1],points[0],boundaryColor);
+  const circle=(at,r,tint)=>{
+   const y=at.y+.035;
+   for(let k=0;k<24;k++){
+    const a=k*Math.PI/12,b=(k+1)*Math.PI/12;
+    line([at.x+Math.cos(a)*r,y,at.z+Math.sin(a)*r],
+     [at.x+Math.cos(b)*r,y,at.z+Math.sin(b)*r],tint);
+   }
+  };
+  for(const point of points)circle(point,.075,boundaryColor);
+  if(cursor)circle(cursor,.25,[1,.82,.23]);
+  gl.useProgram(this.program);
+ }
  drawXRRoomGuides(xr,objects=[]){
   if(!objects.length||!this.vrBodySegment)return;
   const gl=this.gl,{x,y,width,height}=xr.viewport,vp=multiply4(xr.projection,xr.view),light=[.6,.85,1];
@@ -3794,7 +3829,8 @@ export class ExplorerRenderer{
     }
    }
    this.drawPlacedStructures(vp,light,s,radius);
-   this.drawOwnerWorld(vp,light,s,radius);this.drawWorkshop(vp,light,s,radius);
+   this.drawOwnerWorld(vp,light,s,radius);
+   this.drawWorkshop(vp,light,s,radius);
   // Resource hit-testing is local to the camera, not all 16k wood/stone nodes.
   this.screenResources=[];
   const farPick=cameraMode==="tactical"&&camera.heightM>70;

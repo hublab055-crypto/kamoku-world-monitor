@@ -38,6 +38,7 @@ export class MRRoomLayout {
     width:clamp(finite(s.portal.width,1.05),.7,1.8)}:null;
   this.anchorHandle=typeof s.anchorHandle==="string"&&s.anchorHandle.length<512?s.anchorHandle:null;
   this.cushions=(Array.isArray(s.cushions)?s.cushions:[]).slice(0,32).filter(c=>c&&typeof c.id==="string"&&Number.isFinite(c.x)&&Number.isFinite(c.z)&&["floor","chair","sofa"].includes(c.surface)).map(c=>({...c,pose:MR_SEAT_POSES[c.surface].includes(c.pose)?c.pose:MR_SEAT_POSES[c.surface][0]}));
+  this.navigationBoundary=Array.isArray(s.navigationBoundary)?s.navigationBoundary.slice(0,24).filter(p=>p&&good(p.x)&&good(p.z)).map(p=>({x:clamp(p.x,-20,20),z:clamp(p.z,-20,20)})):[];
   this.origin=null;this.relocalization="unavailable";
  }
  get ready(){return Boolean(this.origin);}
@@ -119,6 +120,14 @@ export class MRRoomLayout {
     seatY,parentId:c.parentId}]:[];
   });
  }
+ setNavigationBoundary(points){
+  if(!this.ready||!Array.isArray(points)||points.length<3||points.length>24)return false;
+  const local=points.map(p=>this.local(p));
+  if(local.some(p=>!p||!good(p.x)||!good(p.z)))return false;
+  this.navigationBoundary=local.map(p=>({x:p.x,z:p.z}));return true;
+ }
+ clearNavigationBoundary(){this.navigationBoundary=[];}
+ worldBoundary(){return this.navigationBoundary.map(p=>this.world(p)).filter(Boolean);}
  setPortal(point,width=1.05){
   const p=this.local(point);if(!p)return null;
   this.portal={x:p.x,z:p.z,yaw:p.yaw,width:clamp(width,.7,1.8)};
@@ -146,7 +155,8 @@ export class MRRoomLayout {
   return this.seatWorld().sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z))[0]||null;
  }
  snapshot(){return {version:1,width:this.width,depth:this.depth,
-  objects:this.objects.map(o=>({...o})),cushions:this.cushions.map(c=>({...c})),portal:this.portal?{...this.portal}:null,
+  objects:this.objects.map(o=>({...o})),cushions:this.cushions.map(c=>({...c})),
+  navigationBoundary:this.navigationBoundary.map(p=>({...p})),portal:this.portal?{...this.portal}:null,
   anchorHandle:this.anchorHandle};}
 }
 /** Read WebXR plane metadata, not passthrough camera pixels.
