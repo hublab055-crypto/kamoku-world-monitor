@@ -3167,7 +3167,7 @@ ownerUI=installOwnerEditor({
 });
 assetStudio=installAssetStudio({getWorld:()=>ownerWorld,
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
-const designCanPlace=()=>Boolean(controller?.nearGround&&ownerWorld&&renderer&&!townLife?.inside&&!law?.custody&&!marine?.cabinId&&!marine?.boarded&&!ferry?.boarded);
+const designCanPlace=()=>Boolean(controller?.nearGround&&ownerWorld&&renderer&&!townLife?.inside&&!law?.custody&&!marine?.cabinId&&!marine?.boarded&&!ferry?.boarded&&!railway?.boarded&&!railwaySecurity?.jailed);
 designStudio=installDesignStudio({getWorld:()=>ownerWorld,canPlace:designCanPlace,
  getGround:(x,y)=>{const p=renderer?.pickGround(x,y);if(!p)return null;const g=controller.locationAt(p.x,p.z);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
  getDefaultGround:parts=>{if(!designCanPlace())return null;const d=Math.max(5,...parts.map(p=>Math.hypot(p.x,p.z)+Math.max(p.width,p.depth)/2+3));const g=controller.locationAt(controller.x+Math.sin(controller.yaw)*d,controller.z+Math.cos(controller.yaw)*d);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
