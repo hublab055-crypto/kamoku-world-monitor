@@ -23,7 +23,7 @@ export function installDesignStudio({getWorld,getGround,getDefaultGround,canPlac
  let pending=null;
  const say=msg=>{status.textContent=msg;log(msg);};
  function open(){if(!frame.getAttribute("src"))frame.src="../model-lab/cad/?embedded=1";overlay.hidden=false;$("viewport-quick-panel").hidden=true;$("viewport-quick-toggle").setAttribute("aria-expanded","false");$("viewport-quick-toggle").textContent="☰ 操作";$("viewport-quick-toggle").setAttribute("aria-label","操作メニューを開く");$("design-close").focus();}
- function close(){overlay.hidden=true;$("viewport-design").focus({preventScroll:true});}
+ function close(){overlay.hidden=true;$("viewport-quick-toggle").focus({preventScroll:true});}
  function cancel(){pending=null;bar.hidden=true;}
  function place(p){
   if(!pending)return false;
