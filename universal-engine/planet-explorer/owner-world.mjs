@@ -38,6 +38,11 @@ const localFrom=(origin,p)=>{
 };
 const geoFrom=(origin,x,z)=>({lat:origin.lat+z/111195,
  lon:wrapLon(origin.lon+x/(111195*Math.max(.01,Math.cos(origin.lat*Math.PI/180))))});
+// Shared geographic transform for the placement preview and the committed prefab.
+export function prefabPlacementParts(parts,origin,rotation=0){
+ const c=Math.cos(rotation),s=Math.sin(rotation);
+ return parts.map(part=>{const geo=geoFrom(origin,c*part.x+s*part.z,-s*part.x+c*part.z);const q=withPrimitiveRotations(part);return {...q,...geo,rz:(q.rz+rotation)%(Math.PI*2),rotation:(q.rz+rotation)%(Math.PI*2)};});
+}
 export class OwnerWorld {
  constructor(saved=null){
   this.buildings=[];this.roads=[];this.stamps=[];this.primitives=[];this.prefabs=[];this.nextId=1;this.undoStack=[];this.redoStack=[];
@@ -237,14 +242,13 @@ export class OwnerWorld {
   const meshSize=[...this.primitives,...this.prefabs.flatMap(p=>p.parts),...prefab.parts].reduce((n,p)=>n+(p.cadMesh?.length||0),0);if(meshSize>800000)return fail("CAD配置容量上限です。不要なCAD制作物を削除してください");
   const used=new Set(this.primitives.map(part=>part.group)),base=prefab.name;
   let group=base,index=2;while(used.has(group)){const suffix=" #"+index++;group=base.slice(0,40-suffix.length)+suffix;}
-  const c=Math.cos(rotation),s=Math.sin(rotation),created=[];
-  const placements=prefab.parts.map(part=>{const x=c*part.x+s*part.z,z=-s*part.x+c*part.z;return {part,geo:geoFrom(p,x,z)};});
-  if(placements.some(({geo})=>!validGeo(geo)))return fail("極域ではこの建築物を配置できません");
+  const created=[],placements=prefabPlacementParts(prefab.parts,p,rotation);
+  if(placements.some(part=>!validGeo(part)))return fail("極域ではこの建築物を配置できません");
   this._remember();
-  for(const {part,geo} of placements){
-   const item={id:this.nextId++,shape:part.shape,lat:geo.lat,lon:geo.lon,width:part.width,
+  for(const part of placements){
+   const item={id:this.nextId++,shape:part.shape,lat:part.lat,lon:part.lon,width:part.width,
     height:part.height,depth:part.depth,offsetY:part.offsetY,rx:part.rx,ry:part.ry,
-    rz:(part.rz+rotation)%(Math.PI*2),rotation:(part.rz+rotation)%(Math.PI*2),color:[...part.color],group,...(part.cadMesh?{cadMesh:part.cadMesh}:{})};
+    rz:part.rz,rotation:part.rotation,color:[...part.color],group,...(part.cadMesh?{cadMesh:part.cadMesh}:{})};
    this.primitives.push(item);created.push(item.id);
   }
   return {ok:true,ids:created,group,message:"🏠 保存建築物「"+prefab.name+"」を一括配置しました（"+created.length+"パーツ）"};
