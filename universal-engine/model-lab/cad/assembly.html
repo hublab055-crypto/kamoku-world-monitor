@@ -74,7 +74,9 @@ $('inspectBrep').onclick=async()=>{let button=$('inspectBrep');button.disabled=t
 
 $('sendEngine').onclick=()=>{
  try{
-  const payload={format:'UE-assembly-v2',units:'mm',mode:renderMode,objects:objs,mates:mates};
+  solveMates();
+  const payload={format:'UE-assembly-v2',units:'mm',mode:renderMode,objects:objs,mates:mates,mechanism:window.UEAssemblyMechanism?.get()};
+  if(window.parent!==window){parent.postMessage({type:'ue-cad-output',placement:'nearby',payload:{kind:'assembly',name:'CAD Assembly',source:payload}},location.origin);$('status').textContent='ゲームに転送中…';return;}
   const data=JSON.stringify(payload);
   if(data.length>900000)throw Error('組立データが大きすぎます（900KB以下）');
   localStorage.setItem('universal-engine:cad-assembly:transfer:v1',data);
@@ -84,6 +86,7 @@ $('sendEngine').onclick=()=>{
  }catch(err){$('status').textContent='Engine転送に失敗: '+err.message;}
 };
 
+if(window.parent!==window){$('sendEngine').textContent='ゲーム内に出力';const pick=document.createElement('button');pick.type='button';pick.className='small';pick.textContent='場所を指定して出力';$('sendEngine').after(pick);pick.onclick=()=>{try{solveMates();parent.postMessage({type:'ue-cad-output',placement:'pick',payload:{kind:'assembly',name:'CAD Assembly',source:{format:'UE-assembly-v2',units:'mm',mode:renderMode,objects:objs,mates,mechanism:window.UEAssemblyMechanism?.get()}}},location.origin)}catch(e){$('status').textContent=e.message}};window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===parent&&e.data?.type==='ue-cad-output-result')$('status').textContent=e.data.message});}
 window.UEAssembly={getObjects:()=>structuredClone(objs),applyPoses:(items)=>{const index=new Map(items.map(o=>[o.id,o]));for(const o of objs){const p=index.get(o.id);if(p){o.pos=[...p.pos];o.rot=[...p.rot]}}},render:draw,refresh};
 sample();
 </script><script type="module" src="./mechanism-ui.mjs"></script></body></html>

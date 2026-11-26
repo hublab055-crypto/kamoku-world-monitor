@@ -29,7 +29,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261124-xr-navigation";
+import {ExplorerRenderer} from "./render.mjs?v=20261126-design";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -38,12 +38,13 @@ import {ResourceHarvest} from "./resource-harvest.mjs?v=0.8e-kg";
 import {ConstructionSystem,FACILITIES} from "./construction-system.mjs?v=0.8h-church";
 import {ConstructionPlacement} from "./construction-ui.mjs";
 import {Earthworks} from "./earthworks.mjs";
-import {OwnerWorld} from "./owner-world.mjs?v=0.9c-asset-v2";
+import {OwnerWorld} from "./owner-world.mjs?v=20261126-design";
 import {TerritoryEconomy} from "./territory-economy.mjs?v=0.9o-public-bonds";
 import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
+import {installDesignStudio} from "./design-studio-ui.mjs?v=20261126";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
@@ -161,7 +162,7 @@ function saveAvatarV10(next){
  try{localStorage.setItem(AVATAR_V10_STORAGE,JSON.stringify(next));return true;}
  catch(_){return false;}
 }
-let ownerWorld=null,ownerUI=null,assetStudio=null,ferry=null;
+let ownerWorld=null,ownerUI=null,assetStudio=null,designStudio=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
@@ -870,7 +871,7 @@ function doFrame(t,source="window",xrFrameInput=null){
   const jailStunned=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell&&
    renderer.captureFX&&renderer.captureFX.elapsed<renderer.captureFX.duration);
   const jailCellActive=Boolean((law?.custody||railwaySecurity?.jailed)&&renderer.custodyCell&&!jailStunned);
-  const acceptsWorldInput=(!detained||jailCellActive)&&$("asset-studio").hidden&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden;
+  const acceptsWorldInput=(!detained||jailCellActive)&&$("asset-studio").hidden&&!designStudio?.active&&$("book-overlay").hidden&&$("life-overlay").hidden&&$("town-interaction-panel").hidden&&$("railway-panel").hidden&&$("harbor-panel").hidden;
   const input=acceptsWorldInput?inputVector():{forward:0,strafe:0,turn:0};
   // One load-based movement speed for VR stick, desktop and walk-to.
   if(squad?.frontier){
@@ -3046,6 +3047,7 @@ function handleSceneTap({x,y,shiftKey=false}){
   if(furniture)useShipFurniture(furniture.kind);
   return;
  }
+ if(designStudio?.tap(x,y))return;
  if(ownerUI?.tap(x,y))return;
  if(constructionUI?.tap(x,y))return;
  const arrow=renderer.pickArrow(x,y);
@@ -3128,6 +3130,7 @@ function handleSceneDoubleTap({x,y,shiftKey=false}){
   return;
  }
  if(!controller?.nearGround)return;
+ if(designStudio?.tap(x,y))return;
  if(ownerUI?.active){ownerUI.tap(x,y);return;}
  if(constructionUI?.kind)return;
  // A double tap orders ground movement even when an animal or building overlaps.
@@ -3163,6 +3166,11 @@ ownerUI=installOwnerEditor({
  onCommit:()=>{if(renderer)renderer.patchKey=null;saveOwnerJournal();},log
 });
 assetStudio=installAssetStudio({getWorld:()=>ownerWorld,
+ onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
+const designCanPlace=()=>Boolean(controller?.nearGround&&ownerWorld&&renderer&&!townLife?.inside&&!law?.custody&&!marine?.cabinId&&!marine?.boarded&&!ferry?.boarded);
+designStudio=installDesignStudio({getWorld:()=>ownerWorld,canPlace:designCanPlace,
+ getGround:(x,y)=>{const p=renderer?.pickGround(x,y);if(!p)return null;const g=controller.locationAt(p.x,p.z);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
+ getDefaultGround:parts=>{if(!designCanPlace())return null;const d=Math.max(5,...parts.map(p=>Math.hypot(p.x,p.z)+Math.max(p.width,p.depth)/2+3));const g=controller.locationAt(controller.x+Math.sin(controller.yaw)*d,controller.z+Math.cos(controller.yaw)*d);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
 function vitalsActor(){
  return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");

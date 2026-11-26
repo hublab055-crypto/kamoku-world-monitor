@@ -13,6 +13,7 @@ import {groundCloudGeometry,cloudWind} from "./ground-clouds.mjs?v=0.8d-weather-
 import {BUILD_KINDS} from "./construction-system.mjs?v=0.8h-church";
 import {OWNER_BUILDING_KINDS} from "./owner-world.mjs?v=0.9c-asset-v2";
 import {ownerRoadGeometry} from "./owner-road-geometry.mjs";
+import {cadMeshGeometry} from "./cad-mesh-geometry.mjs";
 import {ownerPrimitiveGeometry} from "./owner-primitive-geometry.mjs?v=0.8y-solids";
 import {placedBuildingGeometry} from "./placed-buildings-geometry.mjs?v=0.8h-church";
 import {TREE_FALL_SECONDS,fallingTreeYaw,fallingTreeAngle,scaledMatrix} from "./tree-fall.mjs";
@@ -994,7 +995,7 @@ export class ExplorerRenderer{
   this.underseaModels=Object.fromEntries(Object.keys(SEA_SITE_TYPES)
    .map(kind=>[kind,new Mesh(gl,submergedSiteGeometry(kind))]));
   this.placedMeshes=Object.fromEntries([...new Set([...BUILD_KINDS,...OWNER_BUILDING_KINDS])].map(kind=>[kind,new Mesh(gl,placedBuildingGeometry(kind))]));
-   this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;this.mechanismElapsed=0;
+   this.ownerCadMeshes=new Map();this.ownerWorld=null;this.ownerRoadMesh=null;this.ownerSelectedId=null;this.mechanismElapsed=0;
    this.ownerPrimitiveMeshes=Object.fromEntries(["cube","cylinder","sphere","cone"].map(kind=>[kind,new Mesh(gl,ownerPrimitiveGeometry(kind))]));
   this.constructionSystem=null;
   this.sceneActions=null;this.sceneFrontier=null;this.glbMeshes={};this.animatedGlb={};this.glbStatuses={};this.socialAnimations=new Map();this.handEquipment={};this.actionHand={};this.glbFor={player:'male',scout:'female',artisan:'male'};this.rtsHeadingUp=false;this.rtsHeadingYaw=0;
@@ -1799,6 +1800,7 @@ export class ExplorerRenderer{
  drawOwnerWorld(vp,light,s,radius){
    if(!this.ownerWorld)return;
    const mechanismOverrides=ownerMechanismPoseOverrides(this.ownerWorld,this.mechanismElapsed||0);
+   const cadIds=new Set(this.ownerWorld.primitives.filter(p=>p.cadMesh).map(p=>p.id));for(const [id,entry] of this.ownerCadMeshes){if(!cadIds.has(id)){entry.mesh.destroy();this.ownerCadMeshes.delete(id);}}
    if(this.ownerRoadMesh)this.drawMesh(this.ownerRoadMesh,multiply4(vp,translate(-this.cx,0,-this.cz)),light,1,.9);
    for(const building of this.ownerWorld.buildings){
     const p=geoLocal(s.origin.lat,s.origin.lon,building.lat,building.lon,this.planet.radiusM);
@@ -1822,7 +1824,8 @@ export class ExplorerRenderer{
      multiply4(rotZ(part.ry||0),rotX(part.rx||0)));
     const transform=multiply4(translate(x,site.elevationM+part.offsetY,z),
      multiply4(rotation,scale3(part.width,part.height,part.depth)));
-    const mesh=this.ownerPrimitiveMeshes[part.shape];
+    let mesh=this.ownerPrimitiveMeshes[part.shape];
+    if(part.cadMesh){let entry=this.ownerCadMeshes.get(part.id);if(entry?.data!==part.cadMesh){entry?.mesh.destroy();entry={data:part.cadMesh,mesh:new Mesh(this.gl,cadMeshGeometry(part.cadMesh))};this.ownerCadMeshes.set(part.id,entry);}mesh=entry.mesh;}
     if(mesh)this.drawMesh(mesh,multiply4(vp,transform),light,1,.82,part.color);
     if(this.ownerSelectedId===part.id)this.drawMesh(this.selectionRing,
      multiply4(vp,translate(x,site.elevationM+.13,z)),light,1,.98,[.95,.77,.18]);
@@ -3977,6 +3980,7 @@ export class ExplorerRenderer{
  }
  destroy(){
    for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+    for(const entry of this.ownerCadMeshes.values())entry.mesh.destroy();this.ownerCadMeshes.clear();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const mesh of this.vrWatchLabelMeshes?.values()||[])mesh.destroy();
    this.vrWatchLabelMeshes?.clear();
