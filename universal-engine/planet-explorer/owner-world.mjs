@@ -2,6 +2,7 @@
  * These changes are local save data, not an authenticated multiplayer permission.
  * Geographic coordinates allow travel/rebasing without moving owner creations.
  */
+import {validCadMesh} from "./cad-mesh-geometry.mjs";
 import {BUILD_KINDS,FACILITIES} from "./construction-system.mjs";
 export const OWNER_FACILITIES=Object.freeze({
  house:{name:"住宅",footprint:7,color:[.57,.43,.30]},
@@ -23,7 +24,7 @@ const fail=message=>({ok:false,message});
 const primitiveRotations=p=>({rx:finite(p?.rx)?p.rx:0,ry:finite(p?.ry)?p.ry:0,
  rz:finite(p?.rz)?p.rz:finite(p?.rotation)?p.rotation:0});
 const withPrimitiveRotations=p=>{const r=primitiveRotations(p);return {...p,...r,rotation:r.rz};};
-const validPrimitivePart=p=>p&&OWNER_PRIMITIVES.includes(p.shape)&&
+const validPrimitivePart=p=>p&&OWNER_PRIMITIVES.includes(p.shape)&&(p.cadMesh===undefined||validCadMesh(p.cadMesh))&&
  [p.width,p.height,p.depth].every(v=>finite(v)&&v>=.1&&v<=200)&&
  Object.values(primitiveRotations(p)).every(v=>finite(v)&&Math.abs(v)<=1e5)&&
  finite(p.offsetY)&&Math.abs(p.offsetY)<=500&&
@@ -209,7 +210,7 @@ export class OwnerWorld {
    z:offsets.reduce((sum,p)=>sum+p.z,0)/offsets.length};
   const model={name:title,parts:parts.map((part,index)=>({shape:part.shape,
    x:offsets[index].x-center.x,z:offsets[index].z-center.z,width:part.width,height:part.height,
-   depth:part.depth,offsetY:part.offsetY,rotation:part.rz,rx:part.rx,ry:part.ry,rz:part.rz,color:[...part.color]}))};
+   depth:part.depth,offsetY:part.offsetY,rotation:part.rz,rx:part.rx,ry:part.ry,rz:part.rz,color:[...part.color],...(part.cadMesh?{cadMesh:part.cadMesh}:{})}))};
   this._remember();
   if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
   return {ok:true,name:title,count:model.parts.length,message:"💾 「"+title+"」を"+model.parts.length+"パーツの建築物として保存しました"};
@@ -222,6 +223,8 @@ export class OwnerWorld {
   const existing=this.prefabs.findIndex(prefab=>prefab.name===title);
   if(existing>=0&&!replace)return fail("同じ名前の保存建築物があります");
   if(existing<0&&this.prefabs.length>=100)return fail("保存建築物の上限100件に達しました");
+  const meshSize=parts.reduce((n,p)=>n+(p.cadMesh?.length||0),0)+this.prefabs.filter(p=>p.name!==title).flatMap(p=>p.parts).reduce((n,p)=>n+(p.cadMesh?.length||0),0)+this.primitives.reduce((n,p)=>n+(p.cadMesh?.length||0),0);
+  if(meshSize>800000)return fail("CAD保存容量上限です。不要なCAD制作物を削除してください");
   const model={name:title,parts:parts.map(part=>({...withPrimitiveRotations(part),color:[...part.color]})),
    ...(assetDocument?{assetDocument:clone(assetDocument)}:{})};this._remember();
   if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
@@ -231,6 +234,7 @@ export class OwnerWorld {
   const prefab=this.prefabs.find(item=>item.name===name);
   if(!prefab||!validGeo(p)||!finite(rotation))return fail("保存建築物か配置位置が不正です");
   if(this.primitives.length+prefab.parts.length>1200)return fail("配置すると建築パーツ上限1200個を超えます");
+  const meshSize=[...this.primitives,...this.prefabs.flatMap(p=>p.parts),...prefab.parts].reduce((n,p)=>n+(p.cadMesh?.length||0),0);if(meshSize>800000)return fail("CAD配置容量上限です。不要なCAD制作物を削除してください");
   const used=new Set(this.primitives.map(part=>part.group)),base=prefab.name;
   let group=base,index=2;while(used.has(group)){const suffix=" #"+index++;group=base.slice(0,40-suffix.length)+suffix;}
   const c=Math.cos(rotation),s=Math.sin(rotation),created=[];
@@ -240,7 +244,7 @@ export class OwnerWorld {
   for(const {part,geo} of placements){
    const item={id:this.nextId++,shape:part.shape,lat:geo.lat,lon:geo.lon,width:part.width,
     height:part.height,depth:part.depth,offsetY:part.offsetY,rx:part.rx,ry:part.ry,
-    rz:(part.rz+rotation)%(Math.PI*2),rotation:(part.rz+rotation)%(Math.PI*2),color:[...part.color],group};
+    rz:(part.rz+rotation)%(Math.PI*2),rotation:(part.rz+rotation)%(Math.PI*2),color:[...part.color],group,...(part.cadMesh?{cadMesh:part.cadMesh}:{})};
    this.primitives.push(item);created.push(item.id);
   }
   return {ok:true,ids:created,group,message:"🏠 保存建築物「"+prefab.name+"」を一括配置しました（"+created.length+"パーツ）"};
