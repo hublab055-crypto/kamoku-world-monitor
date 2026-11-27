@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {packCadMesh,cadMeshGeometry,validCadMesh} from "../cad-mesh-geometry.mjs";
 import {prepareDesignOutput,designPlacementPreview} from "../design-studio-ui.mjs";
-import {OwnerWorld} from "../owner-world.mjs";
+import {OwnerWorld,cadCarryMetrics} from "../owner-world.mjs";
 const faces=[{vertices:[[0,0,0],[100,0,0],[100,100,0],[0,100,0]]},{vertices:[[0,0,100],[0,100,100],[100,100,100],[100,0,100]]}];
 test("CAD quads retain geometry and dimensions",()=>{const m=packCadMesh(faces);assert.equal(m.width,.1);assert.equal(m.height,.1);assert.ok(validCadMesh(m.mesh));const g=cadMeshGeometry(m.mesh);assert.equal(g.indices.length,12);assert.equal(Math.min(...g.positions),-.5);assert.equal(Math.max(...g.positions),1);});
 test("invalid and empty CAD are rejected",()=>{assert.throws(()=>packCadMesh([]));assert.throws(()=>cadMeshGeometry("bad"));assert.throws(()=>packCadMesh([{vertices:[[0,0,0],[1,0,0],[1,1,0],[0,1,0]]}]));});
@@ -20,3 +20,9 @@ test("ghost moves and rejects invalid surface for any part",()=>{
  const a=designPlacementPreview(data,{lat:35,lon:136},land),b=designPlacementPreview(data,{lat:35,lon:137},land);
  assert.notEqual(a.parts[0].lon,b.parts[0].lon);assert.equal(designPlacementPreview(data,{lat:35,lon:136},(lat,lon)=>({water:lon>136.00001})).valid,false);assert.equal(designPlacementPreview(data,null,land),null);
 });
+
+test("small CAD uses actual mm and can be carried",()=>{
+ const f=faces.map(face=>({vertices:face.vertices.map(p=>p.map(v=>v/10))})),d=prepareDesignOutput({kind:"part",name:"small",faces:f}),w=new OwnerWorld();
+ assert.equal(d.parts[0].width,.01);assert.ok(cadCarryMetrics(d.parts).eligible);const stored=w.storeCAD(d);assert.ok(stored.ok);assert.equal(w.primitives.length,0);const re=new OwnerWorld(w.snapshot());assert.equal(re.cadInventory.length,1);assert.ok(re.placeCarriedCAD(stored.item.id,{lat:35,lon:136}).ok);assert.equal(re.cadInventory.length,0);assert.equal(re.primitives[0].width,.01);assert.ok(re.undo().ok);assert.equal(re.primitives.length,0);assert.equal(re.cadInventory.length,1);assert.ok(re.redo().ok);assert.equal(re.cadInventory.length,0);assert.equal(re.primitives.length,1);
+});
+test("heavy CAD cannot be carried",()=>{const d=prepareDesignOutput({kind:"part",name:"big",faces}),w=new OwnerWorld();assert.equal(w.storeCAD(d).ok,false);assert.equal(w.cadInventory.length,0);});

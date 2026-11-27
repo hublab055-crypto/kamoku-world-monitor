@@ -44,7 +44,7 @@ import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
-import {installDesignStudio} from "./design-studio-ui.mjs?v=20261126-ghost";
+import {installDesignStudio} from "./design-studio-ui.mjs?v=20261127-carry";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
@@ -1392,7 +1392,8 @@ function updateHUD(){
   for(const [id,value] of [["avatar-hp",hpPct],["avatar-stamina",stamina],["avatar-mental",mental],["avatar-hunger",hunger]]){
    $(id).value=value;$(id+"-label").textContent=value+"%";
   }
-  $("avatar-load").textContent=squad.frontier.loadKg(agent.id).toFixed(1)+"kg";
+  $("avatar-load").textContent=(squad.frontier.loadKg(agent.id)+(agent.id==="player"?(ownerWorld?.cadCarryUsage().kg||0):0)).toFixed(1)+"kg";
+  $("design-inventory-list").hidden=agent.id!=="player";designStudio?.refreshInventory();
    $("vitals-potion").textContent="🧪 薬 ×"+(person.healingPotions??2);
   const backpack=Object.entries(person.inventory||{}).filter(([,n])=>n>0)
    .map(([k,n])=>(resourceNames[k]||k)+" ×"+n);

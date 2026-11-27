@@ -10,14 +10,15 @@ export function packCadMesh(faces){
   for(const p of f.vertices){if(!Array.isArray(p)||p.length!==3||!p.every(v=>Number.isFinite(v)&&Math.abs(v)<1e7))throw Error("CAD頂点が不正です");
    for(let i=0;i<3;i++){min[i]=Math.min(min[i],p[i]);max[i]=Math.max(max[i],p[i]);}}}
  const span=max.map((v,i)=>v-min[i]);if(span.some(v=>v<=0))throw Error("厚みのあるソリッドを作成してください");
- const scale=Math.max(.001,.1/Math.min(...span));
+ const scale=.001;
+ if(Math.min(...span)*scale<.001)throw Error("ゲーム最小寸法1mm未満です");
  if(Math.max(...span)*scale>200)throw Error("ゲームで扱える寸法範囲を超えています");
  const bytes=new Uint8Array(faces.length*24),view=new DataView(bytes.buffer);let k=0;
  for(const f of faces)for(const p of f.vertices){
   const q=[(p[0]-min[0])/span[0],(p[2]-min[2])/span[2],(max[1]-p[1])/span[1]];
   for(const v of q){view.setUint16(k,Math.round(v*65535),true);k+=2;}}
  let binary="";for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
- return {mesh:btoa(binary),width:Math.max(.1,span[0]*scale),height:Math.max(.1,span[2]*scale),depth:Math.max(.1,span[1]*scale),scale};
+ return {mesh:btoa(binary),width:span[0]*scale,height:span[2]*scale,depth:span[1]*scale,scale};
 }
 export function cadMeshGeometry(data){
  if(!validCadMesh(data))throw Error("CADメッシュが不正です");
