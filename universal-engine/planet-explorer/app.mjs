@@ -29,7 +29,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261126-design";
+import {ExplorerRenderer} from "./render.mjs?v=20261126-design-ghost";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -44,7 +44,7 @@ import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
-import {installDesignStudio} from "./design-studio-ui.mjs?v=20261126";
+import {installDesignStudio} from "./design-studio-ui.mjs?v=20261127-carry";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
 import {installWorldFeedbackUI} from "./world-feedback-ui.mjs?v=0.9g-guards";
@@ -339,6 +339,7 @@ function guardGroundPassable(fx,fz,tx,tz){
 }
 let scenario=null,familyLife=null,familyLifeUI=null,lastFamilyUIEpoch=-1;
 function init(saved=null){
+ designStudio?.cancel();
  try{
   crewVoice?.stop();
   avatarV10=normalizeAvatarRoster(saved?.avatarV10?.roster??loadAvatarV10());
@@ -486,6 +487,7 @@ function init(saved=null){
    renderer.resourceHarvest=harvest;renderer.sceneWeather=weather;renderer.fauna=fauna;renderer.farm=farm;renderer.marine=marine;
    renderer.constructionSystem=constructions;
    renderer.ownerWorld=ownerWorld;
+   renderer.designPreview=()=>designStudio?.preview;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
@@ -1390,7 +1392,8 @@ function updateHUD(){
   for(const [id,value] of [["avatar-hp",hpPct],["avatar-stamina",stamina],["avatar-mental",mental],["avatar-hunger",hunger]]){
    $(id).value=value;$(id+"-label").textContent=value+"%";
   }
-  $("avatar-load").textContent=squad.frontier.loadKg(agent.id).toFixed(1)+"kg";
+  $("avatar-load").textContent=(squad.frontier.loadKg(agent.id)+(agent.id==="player"?(ownerWorld?.cadCarryUsage().kg||0):0)).toFixed(1)+"kg";
+  $("design-inventory-list").hidden=agent.id!=="player";designStudio?.refreshInventory();
    $("vitals-potion").textContent="🧪 薬 ×"+(person.healingPotions??2);
   const backpack=Object.entries(person.inventory||{}).filter(([,n])=>n>0)
    .map(([k,n])=>(resourceNames[k]||k)+" ×"+n);
@@ -3169,6 +3172,7 @@ assetStudio=installAssetStudio({getWorld:()=>ownerWorld,
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
 const designCanPlace=()=>Boolean(controller?.nearGround&&ownerWorld&&renderer&&!townLife?.inside&&!law?.custody&&!marine?.cabinId&&!marine?.boarded&&!ferry?.boarded&&!railway?.boarded&&!railwaySecurity?.jailed);
 designStudio=installDesignStudio({getWorld:()=>ownerWorld,canPlace:designCanPlace,
+ getSurface:(lat,lon)=>terrainSurface(terrain,lat,lon),
  getGround:(x,y)=>{const p=renderer?.pickGround(x,y);if(!p)return null;const g=controller.locationAt(p.x,p.z);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
  getDefaultGround:parts=>{if(!designCanPlace())return null;const d=Math.max(5,...parts.map(p=>Math.hypot(p.x,p.z)+Math.max(p.width,p.depth)/2+3));const g=controller.locationAt(controller.x+Math.sin(controller.yaw)*d,controller.z+Math.cos(controller.yaw)*d);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});

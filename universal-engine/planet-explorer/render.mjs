@@ -1831,6 +1831,30 @@ export class ExplorerRenderer{
      multiply4(vp,translate(x,site.elevationM+.13,z)),light,1,.98,[.95,.77,.18]);
    }
  }
+ drawDesignGhost(vp,light,s,radius){
+   const preview=this.designPreview?.(),cache=this.designGhostMeshes??=new Map();
+   const meshKeys=new Set(preview?.parts.filter(p=>p.cadMesh).map(p=>p.cadMesh)||[]);
+   for(const [key,mesh] of cache){if(!meshKeys.has(key)){mesh?.destroy();cache.delete(key);}}
+   if(!preview)return;
+   const gl=this.gl,tint=preview.valid?[.18,.83,1]:[1,.24,.2],blend=gl.isEnabled(gl.BLEND),depth=gl.getParameter(gl.DEPTH_WRITEMASK);
+   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+   try{
+    for(const part of preview.parts){
+     if(Math.abs(part.lat)>90||Math.abs(part.lon)>180)continue;
+     const p=geoLocal(s.origin.lat,s.origin.lon,part.lat,part.lon,this.planet.radiusM);
+     if(Math.abs(p.eastM-s.x)>radius||Math.abs(p.northM-s.z)>radius)continue;
+     const surface=terrainSurface(this.terrain,part.lat,part.lon);
+     const model=multiply4(translate(p.eastM-this.cx,Math.max(0,surface.elevationM)+part.offsetY+.015,p.northM-this.cz),
+      multiply4(multiply4(rotateY(part.rz||0),multiply4(rotZ(part.ry||0),rotX(part.rx||0))),scale3(part.width,part.height,part.depth)));
+     let mesh=this.ownerPrimitiveMeshes[part.shape];
+     if(part.cadMesh){if(!cache.has(part.cadMesh)){try{cache.set(part.cadMesh,new Mesh(gl,cadMeshGeometry(part.cadMesh)));}catch{cache.set(part.cadMesh,null);}}mesh=cache.get(part.cadMesh)||mesh;}
+     if(mesh)this.drawMesh(mesh,multiply4(vp,model),light,.42,.95,tint);
+    }
+    const loc=preview.point,p=geoLocal(s.origin.lat,s.origin.lon,loc.lat,loc.lon,this.planet.radiusM);
+    if(Math.abs(p.eastM-s.x)<=radius&&Math.abs(p.northM-s.z)<=radius){const y=Math.max(0,terrainSurface(this.terrain,loc.lat,loc.lon).elevationM);
+      this.drawMesh(this.selectionRing,multiply4(vp,translate(p.eastM-this.cx,y+.07,p.northM-this.cz)),light,.8,.98,tint);}
+   }finally{gl.depthMask(depth);if(!blend)gl.disable(gl.BLEND);}
+ }
  drawFrontier(vp,light,s,radius){
    if(!this.sceneFrontier)return;
    for(const n of this.sceneFrontier.nodes){
@@ -3970,6 +3994,7 @@ export class ExplorerRenderer{
     translate(p.x-this.cx,y+.22,p.z-this.cz),cursorScale)),
     light,1,.99,[1,.58,.18]);
   }
+  this.drawDesignGhost(vp,light,s,radius);
   if(camera.marker&&!this.xrView){
    const screen=projectScreen(vp,camera.actorPos);
    this.actorMarker=screen?{...screen,altitudeM:camera.heightM,label:"アバターの位置"}:null;
@@ -3980,6 +4005,7 @@ export class ExplorerRenderer{
  }
  destroy(){
    for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
+    for(const mesh of this.designGhostMeshes?.values()||[])mesh?.destroy();this.designGhostMeshes?.clear();
     for(const entry of this.ownerCadMeshes.values())entry.mesh?.destroy();this.ownerCadMeshes.clear();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const mesh of this.vrWatchLabelMeshes?.values()||[])mesh.destroy();

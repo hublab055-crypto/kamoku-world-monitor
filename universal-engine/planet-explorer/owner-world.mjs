@@ -25,7 +25,7 @@ const primitiveRotations=p=>({rx:finite(p?.rx)?p.rx:0,ry:finite(p?.ry)?p.ry:0,
  rz:finite(p?.rz)?p.rz:finite(p?.rotation)?p.rotation:0});
 const withPrimitiveRotations=p=>{const r=primitiveRotations(p);return {...p,...r,rotation:r.rz};};
 const validPrimitivePart=p=>p&&OWNER_PRIMITIVES.includes(p.shape)&&(p.cadMesh===undefined||validCadMesh(p.cadMesh))&&
- [p.width,p.height,p.depth].every(v=>finite(v)&&v>=.1&&v<=200)&&
+ [p.width,p.height,p.depth].every(v=>finite(v)&&v>=(p.cadMesh?.length? .001:.1)&&v<=200)&&
  Object.values(primitiveRotations(p)).every(v=>finite(v)&&Math.abs(v)<=1e5)&&
  finite(p.offsetY)&&Math.abs(p.offsetY)<=500&&
  Array.isArray(p.color)&&p.color.length===3&&p.color.every(v=>finite(v)&&v>=0&&v<=1);
@@ -38,9 +38,30 @@ const localFrom=(origin,p)=>{
 };
 const geoFrom=(origin,x,z)=>({lat:origin.lat+z/111195,
  lon:wrapLon(origin.lon+x/(111195*Math.max(.01,Math.cos(origin.lat*Math.PI/180))))});
+// Shared geographic transform for the placement preview and the committed prefab.
+export function prefabPlacementParts(parts,origin,rotation=0){
+ const c=Math.cos(rotation),s=Math.sin(rotation);
+ return parts.map(part=>{const geo=geoFrom(origin,c*part.x+s*part.z,-s*part.x+c*part.z);const q=withPrimitiveRotations(part);return {...q,...geo,rz:(q.rz+rotation)%(Math.PI*2),rotation:(q.rz+rotation)%(Math.PI*2)};});
+}
+// CAD compartment, conservative game-level size and weight estimates.
+export const CAD_CARRY_LIMITS=Object.freeze({maxDimensionM:.4,maxItemKg:5,maxKg:22,maxL:28,maxItems:24,maxData:500000});
+export function cadCarryMetrics(parts){
+ if(!Array.isArray(parts)||!parts.length||parts.length>96||parts.some(p=>!validPrimitivePart(p)||![p.x,p.z].every(finite)))return null;
+ const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];let kg=0;
+ for(const p of parts){
+  const {rx,ry,rz}=primitiveRotations(p),cx=Math.cos(rx),sx=Math.sin(rx),cz=Math.cos(ry),sz=Math.sin(ry),cy=Math.cos(rz),sy=Math.sin(rz);
+  for(const a of [-p.width/2,p.width/2])for(const b of [0,p.height])for(const c of [-p.depth/2,p.depth/2]){
+   const y1=b*cx-c*sx,z1=b*sx+c*cx,x2=a*cz-y1*sz,y2=a*sz+y1*cz;
+   const v=[p.x+x2*cy+z1*sy,p.offsetY+y2,p.z-x2*sy+z1*cy];for(let i=0;i<3;i++){lo[i]=Math.min(lo[i],v[i]);hi[i]=Math.max(hi[i],v[i]);}
+  }
+  kg+=p.width*p.height*p.depth*7850;
+ }
+ const size=hi.map((v,i)=>v-lo[i]),litres=size.reduce((a,b)=>a*b,1000);
+ return {size,kg,litres,eligible:Math.max(...size)<=CAD_CARRY_LIMITS.maxDimensionM+1e-9&&kg<=CAD_CARRY_LIMITS.maxItemKg+1e-9&&litres<=CAD_CARRY_LIMITS.maxL+1e-9};
+}
 export class OwnerWorld {
  constructor(saved=null){
-  this.buildings=[];this.roads=[];this.stamps=[];this.primitives=[];this.prefabs=[];this.nextId=1;this.undoStack=[];this.redoStack=[];
+  this.buildings=[];this.roads=[];this.stamps=[];this.primitives=[];this.prefabs=[];this.cadInventory=[];this.nextId=1;this.undoStack=[];this.redoStack=[];
   if(saved){
    if(![1,2,3].includes(saved.version)||!Array.isArray(saved.buildings)||!Array.isArray(saved.roads)||!Array.isArray(saved.stamps)||
       saved.buildings.length>600||saved.roads.length>200||saved.stamps.length>500)throw Error("オーナー編集データが不正です");
@@ -83,15 +104,22 @@ export class OwnerWorld {
       ...(prefab.assetDocument?{assetDocument:clone(prefab.assetDocument)}:{})});
     }
    }
+   if(saved.cadInventory!==undefined){
+    if(!Array.isArray(saved.cadInventory)||saved.cadInventory.length>CAD_CARRY_LIMITS.maxItems)throw Error("CAD持ち物データが不正");
+    for(const item of saved.cadInventory){
+     if(!Number.isSafeInteger(item.id)||item.id<1||ids.has(item.id)||typeof item.name!=="string"||!item.name.trim()||item.name.length>40||!this.canCarryCAD(item).ok)throw Error("CAD持ち物データが不正");
+     ids.add(item.id);this.cadInventory.push(clone(item));
+    }
+   }
    this.nextId=Math.max(1,...ids)+1;
   }
  }
  snapshot(){return {version:3,buildings:clone(this.buildings),roads:clone(this.roads),stamps:clone(this.stamps),
-  primitives:clone(this.primitives),prefabs:clone(this.prefabs)};}
+  primitives:clone(this.primitives),prefabs:clone(this.prefabs),cadInventory:clone(this.cadInventory)};}
  _state(){return this.snapshot();}
  _remember(){this.undoStack.push(this._state());if(this.undoStack.length>40)this.undoStack.shift();this.redoStack=[];}
- _restore(state){this.buildings=clone(state.buildings);this.roads=clone(state.roads);this.stamps=clone(state.stamps);this.primitives=clone(state.primitives||[]);this.prefabs=clone(state.prefabs||[]);
-  this.nextId=Math.max(this.nextId,1,...this.buildings.map(x=>x.id+1),...this.roads.map(x=>x.id+1),...this.primitives.map(x=>x.id+1));}
+ _restore(state){this.buildings=clone(state.buildings);this.roads=clone(state.roads);this.stamps=clone(state.stamps);this.primitives=clone(state.primitives||[]);this.prefabs=clone(state.prefabs||[]);this.cadInventory=clone(state.cadInventory||[]);
+  this.nextId=Math.max(this.nextId,1,...this.buildings.map(x=>x.id+1),...this.roads.map(x=>x.id+1),...this.primitives.map(x=>x.id+1),...this.cadInventory.map(x=>x.id+1));}
  undo(){if(!this.undoStack.length)return fail("戻せる操作はありません");
   this.redoStack.push(this._state());this._restore(this.undoStack.pop());return {ok:true,message:"↶ 直前の編集を取り消しました"};}
  redo(){if(!this.redoStack.length)return fail("やり直せる操作はありません");
@@ -215,6 +243,33 @@ export class OwnerWorld {
   if(existing>=0)this.prefabs.splice(existing,1,model);else this.prefabs.push(model);
   return {ok:true,name:title,count:model.parts.length,message:"💾 「"+title+"」を"+model.parts.length+"パーツの建築物として保存しました"};
  }
+ cadCarryUsage(){return this.cadInventory.reduce((a,item)=>{const m=cadCarryMetrics(item.parts);a.kg+=m.kg;a.litres+=m.litres;return a;},{kg:0,litres:0,count:this.cadInventory.length});}
+ canCarryCAD(data){
+  const m=cadCarryMetrics(data?.parts),u=this.cadCarryUsage(),l=CAD_CARRY_LIMITS;
+  if(!m?.eligible)return fail("収納不可：最大40cm・概算5kg以内の部品に対応");
+  if(!validAssetDocument(data.assetDocument)||data.assetDocument&&data.assetDocument.nodes.length!==data.parts.length)return fail("CAD文書が不正です");
+  if(u.count>=l.maxItems||u.kg+m.kg>l.maxKg+1e-9||u.litres+m.litres>l.maxL+1e-9)return fail("CAD収納容量不足");
+  if(JSON.stringify([...this.cadInventory,data]).length>l.maxData)return fail("CAD収納データ容量不足");
+  return {ok:true,metrics:m};
+ }
+ storeCAD(data){
+  const name=String(data?.name||"CAD制作物").trim().slice(0,40)||"CAD制作物";
+  const item={id:this.nextId,name,parts:clone(data?.parts||[]),...(data?.assetDocument?{assetDocument:clone(data.assetDocument)}:{})};
+  const check=this.canCarryCAD(item);if(!check.ok)return check;
+  this._remember();this.nextId++;this.cadInventory.push(item);return {ok:true,item};
+ }
+ placeCarriedCAD(id,p){
+  const item=this.cadInventory.find(x=>x.id===id);if(!item)return fail("持ち物がありません");
+  const before=this._state(),undo=this.undoStack.slice(),redo=this.redoStack.slice(),next=this.nextId;
+  let name=item.name,i=2;while(this.prefabs.some(x=>x.name===name))name=item.name.slice(0,30)+" #"+i++;
+  const saved=this.savePrefabParts(name,item.parts,{assetDocument:item.assetDocument||null});
+  if(!saved.ok)return saved;
+  const placed=this.placePrefab(name,p);
+  if(!placed.ok){this._restore(before);this.nextId=next;this.undoStack=undo;this.redoStack=redo;return placed;}
+  this.cadInventory=this.cadInventory.filter(x=>x.id!==id);
+  this.undoStack=[...undo,before].slice(-40);this.redoStack=[];
+  return {...placed,name};
+ }
  savePrefabParts(name,parts,{replace=false,assetDocument=null}={}){
   const title=String(name||"").trim().slice(0,40);
   if(!title||!Array.isArray(parts)||!parts.length||parts.length>96)return fail("Asset名を入力し、1〜96個のパーツを配置してください");
@@ -237,14 +292,13 @@ export class OwnerWorld {
   const meshSize=[...this.primitives,...this.prefabs.flatMap(p=>p.parts),...prefab.parts].reduce((n,p)=>n+(p.cadMesh?.length||0),0);if(meshSize>800000)return fail("CAD配置容量上限です。不要なCAD制作物を削除してください");
   const used=new Set(this.primitives.map(part=>part.group)),base=prefab.name;
   let group=base,index=2;while(used.has(group)){const suffix=" #"+index++;group=base.slice(0,40-suffix.length)+suffix;}
-  const c=Math.cos(rotation),s=Math.sin(rotation),created=[];
-  const placements=prefab.parts.map(part=>{const x=c*part.x+s*part.z,z=-s*part.x+c*part.z;return {part,geo:geoFrom(p,x,z)};});
-  if(placements.some(({geo})=>!validGeo(geo)))return fail("極域ではこの建築物を配置できません");
+  const created=[],placements=prefabPlacementParts(prefab.parts,p,rotation);
+  if(placements.some(part=>!validGeo(part)))return fail("極域ではこの建築物を配置できません");
   this._remember();
-  for(const {part,geo} of placements){
-   const item={id:this.nextId++,shape:part.shape,lat:geo.lat,lon:geo.lon,width:part.width,
+  for(const part of placements){
+   const item={id:this.nextId++,shape:part.shape,lat:part.lat,lon:part.lon,width:part.width,
     height:part.height,depth:part.depth,offsetY:part.offsetY,rx:part.rx,ry:part.ry,
-    rz:(part.rz+rotation)%(Math.PI*2),rotation:(part.rz+rotation)%(Math.PI*2),color:[...part.color],group,...(part.cadMesh?{cadMesh:part.cadMesh}:{})};
+    rz:part.rz,rotation:part.rotation,color:[...part.color],group,...(part.cadMesh?{cadMesh:part.cadMesh}:{})};
    this.primitives.push(item);created.push(item.id);
   }
   return {ok:true,ids:created,group,message:"🏠 保存建築物「"+prefab.name+"」を一括配置しました（"+created.length+"パーツ）"};
