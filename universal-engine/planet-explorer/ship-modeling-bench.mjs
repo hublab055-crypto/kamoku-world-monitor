@@ -1,0 +1,28 @@
+// Ship-local modeling bench: metres, +Y up, independent of planet coordinates.
+export const MODELING_BENCH=Object.freeze({x:3.05,z:-3.05,width:1.4,depth:1.5,top:.94,reach:1.9});
+export const MODELING_SHAPES=Object.freeze(["cube","cylinder","sphere","cone"]);
+const finite=Number.isFinite,copy=x=>JSON.parse(JSON.stringify(x));
+const colors={cube:[.53,.72,.84],cylinder:[.78,.74,.56],sphere:[.44,.8,.72],cone:[.75,.55,.75]};
+const fail=message=>({ok:false,message});
+export function nearModelingBench(interior){
+ return !!interior&&!interior.seated&&Math.hypot(interior.x-MODELING_BENCH.x,interior.z-MODELING_BENCH.z)<=MODELING_BENCH.reach;
+}
+export function validBenchPart(p){
+ if(!p||!MODELING_SHAPES.includes(p.shape)||![p.x,p.y,p.z,p.width,p.height,p.depth,p.rotation].every(finite)||![p.width,p.height,p.depth].every(v=>v>=.1&&v<=1.2)||p.y<0||p.y+p.height>1.5+1e-9)return false;
+ const c=Math.abs(Math.cos(p.rotation)),s=Math.abs(Math.sin(p.rotation));
+ return Math.abs(p.x)+(c*p.width+s*p.depth)/2<=MODELING_BENCH.width/2-.025+1e-9&&Math.abs(p.z)+(s*p.width+c*p.depth)/2<=MODELING_BENCH.depth/2-.025+1e-9;
+}
+export class ShipModelingBench{
+ constructor(saved){
+  this.parts=[];this.next=1;this.selected=null;
+  if(saved?.version===1&&Array.isArray(saved.parts)&&saved.parts.length<=48){
+   const ids=new Set();for(const p of saved.parts){if(!validBenchPart(p)||!Number.isSafeInteger(p.id)||p.id<1||ids.has(p.id))throw Error("モデリング台保存データ不正");ids.add(p.id);this.parts.push({...copy(p),color:[...colors[p.shape]]});}this.next=Math.max(0,...ids)+1;
+  }
+ }
+ snapshot(){return {version:1,parts:copy(this.parts)};}
+ select(id){this.selected=this.parts.some(p=>p.id===id)?id:null;}
+ add(values){if(this.parts.length>=48)return fail("制作部品の上限48個");const p={...values,id:this.next,color:colors[values.shape]};if(!validBenchPart(p))return fail("寸法または作業台範囲を確認");this.next++;this.parts.push(copy(p));this.selected=p.id;return {ok:true};}
+ update(values){const p=this.parts.find(p=>p.id===this.selected);if(!p)return fail("部品を選択");const next={...p,...values,id:p.id,color:colors[values.shape??p.shape]};if(!validBenchPart(next))return fail("寸法または作業台範囲を確認");Object.assign(p,copy(next));return {ok:true};}
+ remove(){if(this.selected===null)return fail("部品を選択");this.parts=this.parts.filter(p=>p.id!==this.selected);this.selected=null;return {ok:true};}
+ prefabParts(){return this.parts.map(({shape,x,y,z,width,height,depth,rotation,color})=>({shape,x,z,width,height,depth,offsetY:y,rotation,rx:0,ry:0,rz:rotation,color:[...color]}));}
+}

@@ -14,8 +14,8 @@ import {SolarSystem,BODIES,STAR_SYSTEMS,bodyById,createCelestialPlanet,applyCele
 import {adjustDryWorld} from "./solar-terrain.mjs?v=1";
 import {freshCelestialSave,carryCelestialInventory} from "./solar-transition.mjs?v=20261112-warp";
 import {installSolarSystemUI} from "./solar-system-ui.mjs?v=20261112-warp";
-import {ShipJourney} from "./ship-journey.mjs?v=20261117-oasis-consent";
-import {SHIP_CREW} from "./ship-interior.mjs?v=20261117-oasis-consent";
+import {ShipJourney} from "./ship-journey.mjs?v=20261127-modeling-bench";
+import {SHIP_CREW} from "./ship-interior.mjs?v=20261127-modeling-bench";
 import {SurfaceStarship} from "./surface-starship.mjs?v=20261116-crew-recall-v1";
 import {findStarshipPad,evaluateStarshipPad} from "./surface-starship-landing.mjs?v=2";
 import {prepareShipArrivalTerrain} from "./ship-arrival-terrain.mjs?v=20261112-warp";
@@ -29,7 +29,7 @@ import {Terrain} from "../planet/terrain-engine.mjs?v=0.8p-islands";
 import {Weather} from "../planet/weather-engine.mjs";
 import {ExplorerController} from "./controller.mjs?v=0.8y-harbor";
 import {findLand,terrainSurface} from "./geo.mjs?v=0.8y-harbor";
-import {ExplorerRenderer} from "./render.mjs?v=20261126-design-ghost";
+import {ExplorerRenderer} from "./render.mjs?v=20261127-modeling-bench";
 import {newCustodyCell,walkCustodyCell} from "./custody-cell.mjs?v=0.9w-lockup-walk";
 import {newCustodyFacility,walkCustodyFacility,advanceCustodyFacility,custodyFacilitySnapshot,custodyFacilityInteract} from "./custody-facility.mjs?v=0.9z-atrium-building";
 import {newCustodyBarClimb,grabCustodyBar,releaseCustodyBar,releaseAllCustodyBars,pullCustodyBars,settleCustodyBarClimb,custodyClimbHeld,braceCustodyFoot,beginCustodyLedgeMantle,stepOffCustodyLedge,BAR_FLOOR_Y} from "./custody-bar-climb.mjs?v=0.9zb-foothold-mantle";
@@ -44,6 +44,7 @@ import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
+import {installShipModelingBench} from "./ship-modeling-bench-ui.mjs";
 import {installDesignStudio} from "./design-studio-ui.mjs?v=20261127-carry";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
@@ -162,7 +163,7 @@ function saveAvatarV10(next){
  try{localStorage.setItem(AVATAR_V10_STORAGE,JSON.stringify(next));return true;}
  catch(_){return false;}
 }
-let ownerWorld=null,ownerUI=null,assetStudio=null,designStudio=null,ferry=null;
+let ownerWorld=null,ownerUI=null,assetStudio=null,designStudio=null,shipModeling=null,ferry=null;
 let constructionUI=null,fauna=null,faunaUI=null,farm=null,farmUI=null,mapDirectoryUI=null,routeMapUI=null,settlementTravelUI=null,railwayUI=null,settlementLocations=null,activeSettlementId="pioneer",vitalsSaveElapsed=0,marine=null,railway=null,railwaySecurity=null;
 let books=new BookCollection(),activeBookId=null,life=new Lifestyle(),lifeUI=null;
 let townLife=new TownLife(),townUI=null,law=new LawSystem(),lawUI=null;
@@ -488,6 +489,7 @@ function init(saved=null){
    renderer.constructionSystem=constructions;
    renderer.ownerWorld=ownerWorld;
    renderer.designPreview=()=>designStudio?.preview;
+   renderer.shipModeling=()=>shipModeling?.model;
    if(constructionUI)constructionUI.system=constructions;
   avatarStyle=["pioneer","scout","artisan"].includes(saved?.avatarStyle)?saved.avatarStyle:avatarStyle;
   appearance=saved?.v0_7b?.appearance?restoreAppearance(saved.v0_7b.appearance,avatarStyle):
@@ -780,6 +782,7 @@ function doFrame(t,source="window",xrFrameInput=null){
  mobileUI?.update(dt);
   const socialButton=document.getElementById("ship-crew-social-open");
   if(socialButton){socialButton.style.display=voyage?.active&&!voyage.seated?"block":"none";if(!voyage?.active)document.getElementById("ship-crew-social").style.display="none";}
+ shipModeling?.update();
  pilotPanel?.update(Boolean(voyage?.seated&&!xrUI?.active));
  updateAvatarDaily(dt);
  if(!voyage?.active)crewVoice?.observe(null);
@@ -3176,6 +3179,7 @@ designStudio=installDesignStudio({getWorld:()=>ownerWorld,canPlace:designCanPlac
  getGround:(x,y)=>{const p=renderer?.pickGround(x,y);if(!p)return null;const g=controller.locationAt(p.x,p.z);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
  getDefaultGround:parts=>{if(!designCanPlace())return null;const d=Math.max(5,...parts.map(p=>Math.hypot(p.x,p.z)+Math.max(p.width,p.depth)/2+3));const g=controller.locationAt(controller.x+Math.sin(controller.yaw)*d,controller.z+Math.cos(controller.yaw)*d);return {...g,surface:terrainSurface(terrain,g.lat,g.lon)};},
  onCommit:()=>{ownerUI?.reset();if(renderer)renderer.patchKey=null;saveOwnerJournal();},log});
+shipModeling=installShipModelingBench({getVoyage:()=>voyage,getWorld:()=>ownerWorld,onCommit:saveOwnerJournal,log});
 function vitalsActor(){
  return rtsMode?(squad.selectedAgents()?.[0]||squad.get("player")):squad.get("player");
 }
