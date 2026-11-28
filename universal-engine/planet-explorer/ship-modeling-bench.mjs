@@ -1,6 +1,6 @@
 import {packCadMesh,validCadMesh} from "./cad-mesh-geometry.mjs";
 // Ship-local modeling bench: metres, +Y up, independent of planet coordinates.
-export const MODELING_BENCH=Object.freeze({x:3.05,z:-3.05,width:1.4,depth:1.5,top:.94,reach:1.9});
+export const MODELING_BENCH=Object.freeze({x:3.05,z:-3.05,width:1.4,depth:1.5,top:.94,reach:1.9,datumHeight:.2});
 export const MODELING_SHAPES=Object.freeze(["cube","cylinder","sphere","cone"]);
 const finite=Number.isFinite,copy=x=>JSON.parse(JSON.stringify(x));
 const colors={cube:[.53,.72,.84],cylinder:[.78,.74,.56],sphere:[.44,.8,.72],cone:[.75,.55,.75]};
@@ -28,11 +28,17 @@ export class ShipModelingBench{
  add(values){if(this.parts.length>=48)return fail("制作部品の上限48個");const p={...values,id:this.next,color:colors[values.shape]};if(!validBenchPart(p))return fail("寸法または作業台範囲を確認");if(meshBytes(this.parts)+meshBytes([p])>MAX_BENCH_CAD_BYTES)return fail("CAD容量上限");this.next++;this.parts.push(copy(p));this.selected=p.id;return {ok:true};}
  update(values){const p=this.parts.find(p=>p.id===this.selected);if(!p)return fail("部品を選択");const next={...p,...values,id:p.id,color:colors[values.shape??p.shape]};if(!validBenchPart(next))return fail("寸法または作業台範囲を確認");if(meshBytes(this.parts.filter(q=>q!==p))+meshBytes([next])>MAX_BENCH_CAD_BYTES)return fail("CAD容量上限");Object.assign(p,copy(next));return {ok:true};}
  // Import the actual normalized CAD mesh, not its bounding box. Re-output only replaces a selected CAD part.
- importCAD(faces){
+ importCAD(faces,{datum=false}={}){
   if(this.grip)return fail("グリップを離してください");
   let m;try{m=packCadMesh(faces);}catch(e){return fail(e.message);}
   const p=this.parts.find(p=>p.id===this.selected&&p.cadMesh);
   const values={shape:"cube",cadMesh:m.mesh,width:m.width,height:m.height,depth:m.depth,x:p?.x??0,y:p?.y??0,z:p?.z??0,rotation:p?.rotation??0};
+  if(datum){
+   const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+   for(const f of faces)for(const v of f.vertices)for(let i=0;i<3;i++){lo[i]=Math.min(lo[i],v[i]);hi[i]=Math.max(hi[i],v[i]);}
+   // CAD X,Y,Z maps to ship X,-Z,Y. The renderer adds 5 mm clearance.
+   Object.assign(values,{x:(lo[0]+hi[0])*.0005,y:MODELING_BENCH.datumHeight-.005+lo[2]*.001,z:-(lo[1]+hi[1])*.0005,rotation:0});
+  }
   return p?this.update(values):this.add(values);
  }
  remove(){if(this.selected===null)return fail("部品を選択");this.parts=this.parts.filter(p=>p.id!==this.selected);this.selected=null;return {ok:true};}
