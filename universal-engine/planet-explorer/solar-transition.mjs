@@ -21,6 +21,16 @@ export function freshCelestialSave(source,id,days){
  return next;
 }
 export function carryCelestialInventory(next,current){
+ // CAD inventory belongs to the traveller, not the planet's saved owner edits.
+ // Replace stale destination inventory and assign IDs disjoint from destination objects.
+ const carried=current.v0_8w?.owner?.cadInventory;
+ if(Array.isArray(carried)||next.v0_8w?.owner?.cadInventory){
+  const o=next.v0_8w?.owner||{version:3,buildings:[],roads:[],stamps:[],primitives:[],prefabs:[]};
+  if(o.version<3){o.version=3;o.primitives??=[];o.prefabs??=[];}
+  let nextId=Math.max(0,...[...(o.buildings||[]),...(o.roads||[]),...(o.primitives||[])].map(x=>Number.isSafeInteger(x.id)?x.id:0))+1;
+  o.cadInventory=(carried||[]).map(item=>({...JSON.parse(JSON.stringify(item)),id:nextId++}));
+  next.v0_8w={...next.v0_8w,schemaVersion:1,owner:o};
+ }
  next.avatarStyle=current.avatarStyle;
  for(const key of ["v0_7b","v0_7i","v0_9n","v0_9v"])next[key]=current[key];
  next.actions.resources={...current.actions.resources};

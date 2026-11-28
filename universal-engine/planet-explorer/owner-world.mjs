@@ -25,7 +25,7 @@ const primitiveRotations=p=>({rx:finite(p?.rx)?p.rx:0,ry:finite(p?.ry)?p.ry:0,
  rz:finite(p?.rz)?p.rz:finite(p?.rotation)?p.rotation:0});
 const withPrimitiveRotations=p=>{const r=primitiveRotations(p);return {...p,...r,rotation:r.rz};};
 const validPrimitivePart=p=>p&&OWNER_PRIMITIVES.includes(p.shape)&&(p.cadMesh===undefined||validCadMesh(p.cadMesh))&&
- [p.width,p.height,p.depth].every(v=>finite(v)&&v>=(p.cadMesh?.length? .001:.1)&&v<=200)&&
+ [p.width,p.height,p.depth].every(v=>finite(v)&&v>=.001&&v<=200)&&
  Object.values(primitiveRotations(p)).every(v=>finite(v)&&Math.abs(v)<=1e5)&&
  finite(p.offsetY)&&Math.abs(p.offsetY)<=500&&
  Array.isArray(p.color)&&p.color.length===3&&p.color.every(v=>finite(v)&&v>=0&&v<=1);
