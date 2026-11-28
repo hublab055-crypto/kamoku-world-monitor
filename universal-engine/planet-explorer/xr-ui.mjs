@@ -3,6 +3,14 @@ import {sampleSocialPose} from "./xr-social.mjs";
 import {xrAnchor,xrStage,xrMul,xrTranslate,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw,xrHeading} from "./xr-spatial.mjs?v=0.9r-vr-controls";
 import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=20261115-ship-heading";
 import {VRShipHotas,xrShipLocalPoint} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
+// Controller yaw in ship-local coordinates; undefined when vertical.
+function benchPose(pose,stage){
+ const p=xrShipLocalPoint(pose,stage);if(!p)return null;
+ const tip=Array.from(pose);tip[12]+=pose[8];tip[13]+=pose[9];tip[14]+=pose[10];
+ const q=xrShipLocalPoint(tip,stage);
+ if(q&&Math.hypot(q.x-p.x,q.z-p.z)>.08)p.yaw=Math.atan2(q.x-p.x,q.z-p.z);
+ return p;
+}
 import {XR_CONTROL_SOURCES,XR_CONTROL_ACTIONS,loadXRBindings,saveXRBindings,defaultXRBindings,xrBoundAction} from "./xr-control-bindings.mjs?v=1";
 import {sampleXRDepth,depthFeatureOptions} from "./xr-depth.mjs?v=0.9j-xr";
 import {XR_VR_LAYER_CONFIGS,probeXRFramebuffer,xrNextLayerIndex} from "./xr-framebuffer.mjs?v=0.9n-fb";
@@ -356,7 +364,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   projectionAttempted=false;
   if(activeMode==="vr"&&vrRTS)onVRToggleRTS(false);
   vrRTS=false;vrThird=false;vrTableYaw=0;
-  {const bench=getRenderer()?.shipModelingControl?.();if(bench?.model.grip)bench.release(bench.model.grip.hand);}
+  {const bench=getRenderer()?.shipModelingControl?.();if(bench?.model.grip)bench.releaseAll();}
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
    vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;vrHotas.reset();vrHotasTracked={left:null,right:null};
@@ -426,7 +434,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    // granted. Select the compositor path before the first XR frame.
    projection=null;projectionAttempted=false;
    vrRTS=false;vrThird=false;vrTableYaw=0;
-  {const bench=getRenderer()?.shipModelingControl?.();if(bench?.model.grip)bench.release(bench.model.grip.hand);}
+  {const bench=getRenderer()?.shipModelingControl?.();if(bench?.model.grip)bench.releaseAll();}
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
@@ -602,8 +610,8 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    if(!atBag)carried.stowAttempted=false;
   }
   const bench=getRenderer()?.shipModelingControl?.(),held=bench?.model.grip;
-  if(held){const point=xrShipLocalPoint(held.hand==="left"?trackedLeft:trackedRight,vrCurrentStage);
-   if(!point||!bench.move(held.hand,point))bench.release(held.hand);
+  if(held){const points={};for(const hand of Object.keys(held.points)){const point=benchPose(hand==="left"?trackedLeft:trackedRight,vrCurrentStage);if(point)points[hand]=point;else bench.release(hand);}
+   if(bench.model.grip&&Object.keys(points).length&&!bench.moveGrips(points))bench.releaseAll();
   }
   if(vrShipHeldGrips.size)tryVRShipContact();
   for(const action of events){
@@ -687,7 +695,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   if(ship?.active&&!ship.seated&&vrCurrentStage){
    let pose=null;try{const ref=event.inputSource.gripSpace||event.inputSource.targetRaySpace;pose=ref&&space?event.frame.getPose(ref,space)?.transform.matrix:null;}catch{}
    const bench=getRenderer()?.shipModelingControl?.();
-   if(bench?.grab(hand,xrShipLocalPoint(pose,vrCurrentStage))){vrGripConsumed.add(hand);statusText("✊ モデリング部品を掴みました");return;}
+   if(bench?.grab(hand,benchPose(pose,vrCurrentStage))){vrGripConsumed.add(hand);statusText("✊ モデリング部品を掴みました");return;}
   }
   vrShipHeldGrips.add(hand);
   sampleVRRig(event.frame);
