@@ -1,4 +1,4 @@
-import {ShipModelingBench,nearModelingBench} from "./ship-modeling-bench.mjs?v=20261128-next";
+import {ShipModelingBench,nearModelingBench} from "./ship-modeling-bench.mjs?v=20261128-inline-cad";
 const key="ue-ship-modeling-bench-v1";
 export function installShipModelingBench({getVoyage,getWorld,onCommit,log}){
  const $=id=>document.getElementById(id),open=$("ship-modeling-open"),panel=$("ship-modeling-panel"),status=$("ship-modeling-status"),select=$("ship-modeling-parts");
