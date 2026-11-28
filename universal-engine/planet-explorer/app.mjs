@@ -44,7 +44,7 @@ import {FactionStrategy} from "./faction-strategy.mjs?v=0.9g-strategy";
 import {installStrategyUI} from "./faction-strategy-ui.mjs?v=0.9g-strategy";
 import {installTerritoryUI} from "./territory-ui.mjs?v=0.9o-public-bonds";
 import {installOwnerEditor} from "./owner-editor-ui.mjs?v=0.9c-asset-v2";
-import {installShipModelingBench} from "./ship-modeling-bench-ui.mjs?v=20261128-grip";
+import {installShipModelingBench} from "./ship-modeling-bench-ui.mjs?v=20261128-next";
 import {installDesignStudio} from "./design-studio-ui.mjs?v=20261127-carry";
 import {installAssetStudio} from "./asset-studio-ui.mjs?v=0.9c-asset-v2";
 import {BattleTest} from "./battle-test.mjs?v=0.9g-defense";
@@ -98,7 +98,7 @@ import {PassengerFerry,ferryLocation,ferryDepartures,ferryDockArrival} from "./p
 import {WHARVES} from "./harbor-geometry.mjs?v=0.8y-harbor";
 import {LawSystem,GUARD_POSTS} from "./law-system.mjs?v=0.9l-release-wanted";
 import {installLawUI} from "./law-ui.mjs?v=0.9h-dialogue";
-import {installXRUI} from "./xr-ui.mjs?v=20261128-bench-grip";
+import {installXRUI} from "./xr-ui.mjs?v=20261128-bench-next";
 import {applyShipVRWalk} from "./ship-vr-walk.mjs?v=20261114-social-2";
 import {FW_WEIGHTS} from "./frontier-bridge.mjs";
 import {vrLoadSpeedFactor,vrCanCarry} from "./xr-backpack.mjs?v=0.9t-bag";
