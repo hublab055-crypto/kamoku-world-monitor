@@ -1415,10 +1415,31 @@ function stl(){if(!mesh.length)return msg('ソリッドを先に作成してく�
 function open3d(){modal.style.display='flex';updateProfiles();refreshDatumList();refreshFeatures();regenerate()}
 q('cad3dClose').onclick=()=>{modal.style.display='none'};q('cad3dRebuild').onclick=regenerate;q('cad3dFit').onclick=()=>{cam={yaw:-.65,pitch:.48,zoom:1,pan:[0,0],look:cam.look};paint()};q('cad3dPoint').onclick=()=>makeDatum('point');q('cad3dAxis').onclick=()=>makeDatum('axis');q('cad3dAddPlane').onclick=()=>makeDatum('plane');q('cad3dDatumVisible').onchange=paint;q('cad3dWire').onchange=paint;q('cad3dRes').onchange=regenerate;q('cad3dExportSTL').onclick=stl;
 if(window.parent!==window){
+ const benchMode=new URLSearchParams(location.search).get('bench')==='1';
+ if(benchMode){
+  document.body.classList.add('shipCadEmbedded');
+  const css=document.createElement('style');css.textContent=`
+   body.shipCadEmbedded>div:first-child a,body.shipCadEmbedded>div:nth-child(2){display:none}
+   body.shipCadEmbedded main{grid-template-columns:minmax(100px,24%) minmax(0,1fr);height:62vh;min-height:260px;overflow:auto}
+   body.shipCadEmbedded main>aside:first-child{grid-row:1/3;max-height:62vh}
+   body.shipCadEmbedded main>svg{min-height:240px}
+   body.shipCadEmbedded main>aside:last-child{grid-column:2;max-height:180px}
+   body.shipCadEmbedded #cad3dContent{grid-template-columns:minmax(110px,40%) minmax(0,1fr)}
+   body.shipCadEmbedded #cad3dLeft{min-width:0;padding:4px}
+   body.shipCadEmbedded #cad3dRight{display:none}
+   body.shipCadEmbedded #cad3dLeft input[type=number]{max-width:90%;width:72px}
+   body.shipCadEmbedded #cad3dLeft select{max-width:100%}
+   body.shipCadEmbedded #cad3dTop{flex-wrap:wrap}
+  `;document.head.append(css);
+  window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==parent||e.data?.type!=='ue-bench-cad-tab')return;
+   if(e.data.tab==='3d')open3d();else if(e.data.tab==='2d'){modal.style.display='none';render();}
+  });
+ }
  const send=placement=>{try{buildGeometry();if(!mesh.length)throw Error('ソリッドを先に作成してください');if(mesh.length>10000)throw Error('表面が多すぎます。分割数を24に下げてください');parent.postMessage({type:'ue-cad-output',placement,payload:{kind:'part',name:documentName,faces:mesh}},location.origin);msg('ゲームに転送中…')}catch(e){msg(e.message)}};
- for(const [id,placement] of [['cad3dGameOutput','nearby'],['cad3dGamePick','pick']]){q(id).hidden=false;q(id).onclick=()=>send(placement);}
- const top=document.createElement('button');top.textContent='📐 ゲーム内に出力';top.style.background='#17687a';document.body.firstElementChild.append(top);top.onclick=()=>{open3d();send('nearby')};
- window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===parent&&e.data?.type==='ue-cad-output-result')msg(e.data.message)});
+ for(const [id,placement] of [['cad3dGameOutput','nearby'],['cad3dGamePick','pick']]){q(id).hidden=benchMode&&id==='cad3dGamePick';q(id).onclick=()=>send(placement);}
+ if(benchMode){q('cad3dGameOutput').textContent='作業台に反映';const apply=document.createElement('button');apply.textContent='作業台に反映';apply.onclick=()=>send('nearby');q('cad3dTop').append(apply);}
+ const top=document.createElement('button');top.textContent=benchMode?'📐 作業台に反映':'📐 ゲーム内に出力';top.style.background='#17687a';document.body.firstElementChild.append(top);top.onclick=()=>{if(!benchMode)open3d();send('nearby')};
+ window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===parent&&e.data?.type==='ue-cad-output-result'){msg(e.data.message);if(benchMode)status(e.data.message)}});
 }
 q('cad3dDemo').onclick=()=>{if(!confirm('サンプルの矩形と円を2D図面に追加しますか？'))return;const id1=uuid(),id2=uuid();snapshot();shapes.push({id:id1,type:'rect',a:{x:0,y:0},b:{x:80,y:50},layer:currentLayer},{id:id2,type:'circle',c:{x:40,y:25},r:12,layer:currentLayer});features.push({id:uuid(),kind:'addExtrude',sourceIds:[id1],plane:'XY',depth:20,angle:360,axisU:0},{id:uuid(),kind:'cutExtrude',sourceIds:[id2],plane:'XY',depth:20,angle:360,axisU:0});render();updateProfiles();regenerate()};
 q('cad3dLeft').querySelectorAll('[data-feature]').forEach(b=>b.onclick=()=>addFeature(b.dataset.feature));
