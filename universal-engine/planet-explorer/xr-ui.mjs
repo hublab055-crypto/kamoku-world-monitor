@@ -91,7 +91,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let mrInvited=[]; // Explicit local companion hand-off; never remote player access
  const mrRoomMessage=message=>{if(mrRoomStatus)mrRoomStatus.textContent=message;statusText("🏠 "+message);};
  const mrDoorMessage=message=>{if(mrPortalStatus)mrPortalStatus.textContent=message;statusText("🚪 "+message);};
- const vrWatchTriggerConsumed=new Set();
+ const vrWatchTriggerConsumed=new Set(),vrCadTriggerConsumed=new Set();
  const vrTabletTriggerConsumed=new Set();
  const henshinTriggerConsumed=new Set(),henshinGripConsumed=new Set();
  function sampleHenshin(frame,head=null,time=performance.now()){
@@ -355,7 +355,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   onVRCustody("climb-reset");
   vrCustodyTriggerConsumed.clear();
   vrTabletTriggerConsumed.clear();xrWorldTablet.resetSession();
-  vrWatchTriggerConsumed.clear();xrWristWatch.reset();
+  vrWatchTriggerConsumed.clear();vrCadTriggerConsumed.clear();xrWristWatch.reset();
   const renderer=getRenderer();
   if(renderer){renderer.xrView=null;renderer.shipVRHotas=null;renderer.gl.bindFramebuffer(renderer.gl.FRAMEBUFFER,null);
    renderer.gl.disable(renderer.gl.SCISSOR_TEST);}
@@ -929,6 +929,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   return true;
  }
  function onVRSelectStart(event){
+  vrCadTriggerConsumed.delete(event.inputSource?.handedness);
   henshinTriggerConsumed.delete(event.inputSource?.handedness);
   if(henshinInput(event,"trigger")){henshinTriggerConsumed.add(event.inputSource.handedness);return;}
   if(activeMode==="mr-henshin")return;
@@ -941,6 +942,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    let ray=null;
    try{if(raySpace&&event.frame&&space)ray=event.frame.getPose(raySpace,space)?.transform.matrix||null;}
    catch(_){/* Untracked controller: retain legacy firing. */}
+   if(ray&&getRenderer()?.shipModelingControl?.()?.spatialTrigger(Array.from(ray),vrCurrentStage)){vrCadTriggerConsumed.add(event.inputSource?.handedness);return;}
    if(ray&&onVRShipButton({matrix:Array.from(ray),stage:vrCurrentStage,hand:event.inputSource?.handedness})){
     statusText("🥽 コックピットの物理スイッチを操作しました");return;
    }
@@ -981,6 +983,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    statusText("🏹 ＋を目標に合わせて弦を引き、右トリガーを離すと射撃します");
  }
  function onVRSelectEnd(event){
+  if(vrCadTriggerConsumed.has(event.inputSource?.handedness))return;
   if(henshinTriggerConsumed.has(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
   if(vrWatchTriggerConsumed.has(event.inputSource?.handedness))return;
   if(vrTabletTriggerConsumed.has(event.inputSource?.handedness))return;
@@ -1000,6 +1003,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   }else statusText("🏹 引きが不足しているため射撃をキャンセルしました");
  }
  function onSelect(event){
+  if(vrCadTriggerConsumed.delete(event.inputSource?.handedness))return;
   if(henshinTriggerConsumed.delete(event.inputSource?.handedness)||activeMode==="mr-henshin")return;
   if(vrWatchTriggerConsumed.delete(event.inputSource?.handedness))return;
   if(vrTabletTriggerConsumed.delete(event.inputSource?.handedness))return;
