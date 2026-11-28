@@ -60,7 +60,7 @@ import {guardGeometry,guardPostGeometry} from "./guard-geometry.mjs?v=0.9e-guard
 import {spacecraftGroundGeometry,spacecraftCockpitCrewWindowGeometry} from "./spacecraft-ground-geometry.mjs?v=20261116-crew-glazing";
 import {COCKPIT_SWITCHES,COCKPIT_LEVER} from "./ship-control-hit.mjs?v=20261109-pilot-access";
 import {XR_HOLO_PANELS,XR_HOLO_BUTTONS,XR_HOLO_SLIDERS,XR_HOLO_Z,XR_HOLO_READOUT_X,XR_HOLO_READOUT_Y,xrHologramReadouts} from "./ship-hologram-vr.mjs?v=20261118-clear-view";
-import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
+import {XR_HOTAS,XR_HOTAS_TRAVEL_M} from "./ship-hotas-vr.mjs?v=20261128-vr-flight-controls";
 import {windshieldTelemetry,windshieldBodyId,compassLabel,pitchLadderOffset} from "./ship-windshield-hud.mjs?v=20261116-pitch-ladder";
 import {starshipDescentHeight} from "./surface-starship-landing.mjs?v=2";
 import {triangleSoupToIndexed,sharedShipInteriorGeometry,celestialBallGeometry,groundScenePhase} from "./ship-shared-scene.mjs?v=20261117-crew-life";
@@ -2463,7 +2463,9 @@ export class ExplorerRenderer{
        const value=side==="left"?(v.throttle||0):(commands.pitch||0);
        const yaw=side==="right"?(commands.yaw||0):0;
        this.drawMesh(this.shipHotasBase,multiply4(vp,translate(base.x,.79,base.z)),[.8,.89,1],1,.93);
-       const lever=multiply4(translate(base.x,.88,base.z),multiply4(rotZ(-yaw*.29),rotX(value*.32)));
+       const lever=side==="left"?
+        translate(base.x,.88,base.z+(commands.leverTravel??value*XR_HOTAS_TRAVEL_M)):
+        multiply4(translate(base.x,.88,base.z),multiply4(rotZ(-yaw*.29),rotX(value*.32)));
        this.drawMesh(this.shipHotasLevers[side],multiply4(vp,lever),[.9,.92,1],1,.96);
       }
      }

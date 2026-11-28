@@ -4531,6 +4531,7 @@ xrUI=installXRUI({
   onVRShipTrigger:()=>Boolean(shipCombatUI?.fire()),
   onVRShipWeapon:()=>shipCombatUI?.switchWeapon(),
   onVRShipButton:ray=>Boolean(shipCombatUI?.pressVRButton(ray)),
+  onVRShipLaunch:()=>launchCelestialVoyage(),
   onVRShipFrame:dt=>shipCombatUI?.update(dt,{vr:true}),
   onVRSurfaceHatch:vrExteriorHatchTrigger,
   onVRSurfaceShipAction:vrSurfaceShipAction,

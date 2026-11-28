@@ -1,5 +1,5 @@
 import {SHIP_CREW,SHIP_STATIONS,PILOT_SEAT_Z} from "./ship-interior.mjs?v=20261117-crew-life";
-import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261116-compact-hotas";
+import {XR_HOTAS} from "./ship-hotas-vr.mjs?v=20261128-vr-flight-controls";
 import {shipCelestialPosition} from "./ship-view-controls.mjs?v=3-chase-orbit";
 import {starDirections,inertialToShip,shipSensorContacts} from "./ship-space-visuals.mjs?v=20261112-warp";
 import {bodyById} from "./solar-system.mjs?v=20261112-warp";

@@ -7,6 +7,12 @@ export const XR_HOTAS=Object.freeze({
 });
 const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
 const snap=(v)=>Math.abs(v)<.04?0:Math.abs(v)> .96?Math.sign(v):v;
+export const XR_HOTAS_TRAVEL_M=.18;
+/** Left thumbstick: away from the pilot (XR negative Y) gives upward VOL lift. */
+export function xrShipLiftAxis(stick){
+ const y=Number(stick?.y);
+ return Number.isFinite(y)?snap(clamp(-y,-1,1)):0;
+}
 
 /** Inverse of an XR rigid stage matrix, handling the view-independent tracking space. */
 export function xrShipLocalPoint(pose,stage){
@@ -30,7 +36,8 @@ export class VRShipHotas{
  grab(hand,pose,stage,voyage){
   if(!voyage?.seated||!Object.hasOwn(XR_HOTAS,hand)||this.held[hand])return false;
   const point=xrShipLocalPoint(pose,stage),base=XR_HOTAS[hand];
-  if(!point||Math.hypot(point.x-base.x,point.y-base.y,point.z-base.z)>.24)return false;
+  const leverZ=base.z+(hand==="left"?clamp(voyage.throttle||0,-1,1)*XR_HOTAS_TRAVEL_M:0);
+  if(!point||Math.hypot(point.x-base.x,point.y-base.y,point.z-leverZ)>.24)return false;
   this.held[hand]={start:point,throttle:Number.isFinite(voyage.throttle)?voyage.throttle:0};
   return true;
  }
@@ -46,14 +53,16 @@ export class VRShipHotas{
    const point=xrShipLocalPoint(poses?.[hand],stage);
    if(!point){this.release(hand);continue;} // tracking lost: fail closed
    if(hand==="left"){
-    this.throttle=snap(clamp(held.throttle+(held.start.z-point.z)/.28,-1,1));
+     // A pulled-back left throttle increases thrust; the visible rail travels 1:1 with the hand.
+    this.throttle=snap(clamp(held.throttle+(point.z-held.start.z)/XR_HOTAS_TRAVEL_M,-1,1));
     if(Math.abs(this.throttle-(voyage.throttle||0))>.001){
      voyage.setThrottle(this.throttle);
      voyage.setAutopilot(false);
     }
    }else{
     this.yaw=clamp((point.x-held.start.x)/.18,-1,1);
-    this.pitch=clamp((held.start.z-point.z)/.18,-1,1);
+     // Pulling the flight stick back raises the nose; pushing forward lowers it.
+    this.pitch=clamp((point.z-held.start.z)/.18,-1,1);
     if(Number.isFinite(dt)&&dt>0&&(Math.abs(this.yaw)>.08||Math.abs(this.pitch)>.08)){
      voyage.setAutopilot(false);
      if(!voyage.inWarp){
@@ -67,5 +76,6 @@ export class VRShipHotas{
   return this.snapshot();
  }
  snapshot(){return {leftHeld:this.isHeld("left"),rightHeld:this.isHeld("right"),
-  throttle:this.throttle,pitch:this.pitch,yaw:this.yaw};}
+  throttle:this.throttle,leverTravel:this.throttle*XR_HOTAS_TRAVEL_M,
+  pitch:this.pitch,yaw:this.yaw};}
 }
