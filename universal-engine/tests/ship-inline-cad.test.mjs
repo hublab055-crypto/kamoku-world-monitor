@@ -32,6 +32,13 @@ test("inline ship CAD does not replace primitive or enable fake face editing",()
 test("inline ship CAD routes same-origin frame output to local workbench and leaves ground CAD independent",()=>{
  const ui=readFileSync(new URL("../planet-explorer/ship-modeling-bench-ui.mjs",import.meta.url),"utf8");
  const renderer=readFileSync(new URL("../planet-explorer/render.mjs",import.meta.url),"utf8");
- assert.match(ui,/e\.source!==frame\.contentWindow/);assert.match(ui,/model\.importCAD\(e\.data\.payload\.faces\)/);
+ assert.match(ui,/e\.source!==frame\.contentWindow/);assert.match(ui,/model\.importCAD\(e\.data\.payload\.faces,\{datum:e\.data\.payload\.benchDatum===true\}\)/);
  assert.match(ui,/bench=1/);assert.match(renderer,/cadMeshGeometry\(p\.cadMesh\)/);
+});
+
+test("bench datum maps CAD millimetres to the tabletop origin and rejects invalid placement",()=>{
+ const m=new ShipModelingBench();assert.ok(m.importCAD(box(),{datum:true}).ok);
+ const p=m.parts[0];assert.ok(Math.abs(p.x-.04)<1e-9);assert.ok(Math.abs(p.y-.195)<1e-9);assert.ok(Math.abs(p.z+.025)<1e-9);
+ const shifted=box().map(f=>({vertices:f.vertices.map(([x,y,z])=>[x,y,z+10])}));assert.ok(m.importCAD(shifted,{datum:true}).ok);assert.ok(Math.abs(m.parts[0].y-.205)<1e-9);assert.equal(m.parts.length,1);
+ const before=m.snapshot();const below=box().map(f=>({vertices:f.vertices.map(([x,y,z])=>[x,y,z-300])}));assert.equal(m.importCAD(below,{datum:true}).ok,false);assert.deepEqual(m.snapshot(),before);
 });
