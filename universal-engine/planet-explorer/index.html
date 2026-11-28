@@ -392,6 +392,7 @@
 </section>
 <div class="canvas-wrap">
 <style>#ship-modeling-open[hidden],#ship-modeling-panel[hidden]{display:none!important}#ship-modeling-open{position:absolute;left:12px;top:132px;z-index:3610;padding:10px;color:#eaffff;background:#17566c;border:1px solid #79d4e6;border-radius:8px}#ship-modeling-panel{position:fixed;right:8px;top:18%;width:min(42vw,330px);max-height:72vh;overflow:auto;z-index:3700;padding:9px;border:1px solid #79d4e6;background:#102b3bea;color:white;border-radius:8px;font:12px system-ui}#ship-modeling-panel label{display:flex;justify-content:space-between;gap:4px;margin:3px 0}#ship-modeling-panel input,#ship-modeling-panel select{max-width:58%;min-width:0}#ship-modeling-panel button{margin:3px;padding:6px}@media(max-width:650px){#ship-modeling-panel{top:auto;bottom:5px;width:min(48vw,270px);max-height:65vh}}</style>
+<style>#ship-cad-dock[hidden]{display:none!important}#ship-cad-dock{position:fixed;right:8px;top:10%;bottom:6%;width:min(58vw,900px);z-index:3750;display:flex;flex-direction:column;border:1px solid #79d4e6;border-radius:9px;background:#102b3b;color:#eaffff;overflow:hidden;font:12px system-ui;box-shadow:0 4px 20px #0009}#ship-cad-dock header{display:flex;flex-wrap:wrap;gap:4px;padding:6px;align-items:center}#ship-cad-dock button{padding:5px}#bench-cad-status{padding:4px 8px;display:block}#bench-cad-frame{border:0;flex:1;min-height:0;width:100%;background:#111827}@media(max-width:650px){#ship-cad-dock{top:auto;bottom:0;right:0;width:100%;height:56dvh}}</style>
 <button id="ship-modeling-open" type="button" hidden>⚙ モデリング台</button>
 <section id="ship-modeling-panel" hidden><div><strong>船内モデリング台</strong><button id="ship-modeling-close" type="button">閉じる</button></div><p>作業台上で制作・編集（mm・角度°）</p><label>部品<select id="ship-modeling-parts"></select></label><label>形状<select id="ship-modeling-shape"><option value="cube">直方体</option><option value="cylinder">円柱</option><option value="sphere">球</option><option value="cone">円錐</option></select></label>
 <label>幅/径<input id="ship-modeling-width" type="number" step="any" value="300"></label><label>高さ<input id="ship-modeling-height" type="number" step="any" value="200"></label><label>奥行<input id="ship-modeling-depth" type="number" step="any" value="300"></label><label>X<input id="ship-modeling-x" type="number" step="any" value="0"></label><label>高さオフセット<input id="ship-modeling-y" type="number" step="any" value="0"></label><label>Z<input id="ship-modeling-z" type="number" step="any" value="0"></label><label>回転°<input id="ship-modeling-rotation" type="number" step="any" value="0"></label>
@@ -1653,7 +1654,7 @@
   </div>
  </form>
 </dialog>
-<script type="module" src="./app.mjs?v=20261128-bench-next"></script>
+<script type="module" src="./app.mjs?v=20261128-inline-cad"></script>
 <script type="module" src="./ui-visibility.mjs?v=20261112-pilot"></script>
 <script>
 /* XR settings are independent of WebXR initialization. */
