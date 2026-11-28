@@ -24,9 +24,8 @@ export class ShipModelingBench{
  add(values){if(this.parts.length>=48)return fail("制作部品の上限48個");const p={...values,id:this.next,color:colors[values.shape]};if(!validBenchPart(p))return fail("寸法または作業台範囲を確認");this.next++;this.parts.push(copy(p));this.selected=p.id;return {ok:true};}
  update(values){const p=this.parts.find(p=>p.id===this.selected);if(!p)return fail("部品を選択");const next={...p,...values,id:p.id,color:colors[values.shape??p.shape]};if(!validBenchPart(next))return fail("寸法または作業台範囲を確認");Object.assign(p,copy(next));return {ok:true};}
  remove(){if(this.selected===null)return fail("部品を選択");this.parts=this.parts.filter(p=>p.id!==this.selected);this.selected=null;return {ok:true};}
- // A single fresh tracked hand can translate a part within the work envelope.
- grab(hand,point){
-  if(this.grip||!["left","right"].includes(hand)||!point||![point.x,point.y,point.z].every(finite))return false;
+ // A grip gesture is anchored to the current dimensions, not accumulated frame deltas.
+ _hit(point){
   const b=MODELING_BENCH,local={x:point.x-b.x,y:point.y-b.top-.005,z:point.z-b.z};
   let best=null,distance=Infinity;
   for(const p of this.parts){const dx=local.x-p.x,dz=local.z-p.z,c=Math.cos(p.rotation),s=Math.sin(p.rotation);
@@ -34,18 +33,62 @@ export class ShipModelingBench{
    const d=Math.hypot(Math.max(0,Math.abs(x)-p.width/2),Math.max(0,-y,y-p.height),Math.max(0,Math.abs(z)-p.depth/2));
    if(d<=.10&&d<distance){best=p;distance=d;}
   }
-  if(!best)return false;this.selected=best.id;this.grip={hand,id:best.id,start:{...point},origin:{x:best.x,y:best.y,z:best.z}};return true;
+  return best;
  }
- moveGrip(hand,point){
-  const g=this.grip;if(!g||g.hand!==hand||!point||![point.x,point.y,point.z].every(finite))return false;
+ _validPoint(p){return !!p&&[p.x,p.y,p.z].every(finite);}
+ _rebase(){
+  const g=this.grip,p=this.parts.find(p=>p.id===g.id);
+  g.origin=copy(p);g.start=copy(g.points);g.hand=Object.keys(g.points)[0];
+ }
+ grab(hand,point,mode="transform"){
+  if(!["left","right"].includes(hand)||!this._validPoint(point))return false;
+  const p=this._hit(point);if(!p)return false;
+  if(this.grip){
+   const g=this.grip;if(g.mode!=="transform"||mode!=="transform"||g.points[hand]||g.id!==p.id)return false;
+   const a=g.points[g.hand];if(Math.hypot(point.x-a.x,point.y-a.y,point.z-a.z)<.035)return false;
+   g.points[hand]={...point};this._rebase();return true;
+  }
+  if(mode==="face"){
+   const localY=point.y-MODELING_BENCH.top-.005;
+   if(!["cube","cylinder"].includes(p.shape)||Math.abs(localY-p.y-p.height)>.055)return false;
+  }
+  this.selected=p.id;this.grip={hand,id:p.id,mode,points:{[hand]:{...point}}};this._rebase();return true;
+ }
+ moveGrip(hand,point){return this.moveGrips({[hand]:point});}
+ moveGrips(points){
+  const g=this.grip;if(!g)return false;
+  for(const h of Object.keys(points)){if(!g.points[h]||!this._validPoint(points[h]))return false;}
+  Object.assign(g.points,copy(points));
   const p=this.parts.find(p=>p.id===g.id);if(!p)return false;
-  const b=MODELING_BENCH,c=Math.abs(Math.cos(p.rotation)),s=Math.abs(Math.sin(p.rotation));
-  const mx=Math.max(0,b.width/2-.025-(c*p.width+s*p.depth)/2),mz=Math.max(0,b.depth/2-.025-(s*p.width+c*p.depth)/2);
+  const o=g.origin,hands=Object.keys(g.points),a=g.points[hands[0]],s=g.start[hands[0]];
   const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
-  const next={...p,x:clamp(g.origin.x+point.x-g.start.x,-mx,mx),y:clamp(g.origin.y+point.y-g.start.y,0,1.5-p.height),z:clamp(g.origin.z+point.z-g.start.z,-mz,mz)};
-  if(!validBenchPart(next))return false;Object.assign(p,next);return true;
+  let next={...o};
+  if(g.mode==="face"){
+   next.height=clamp(o.height+a.y-s.y,.001,Math.min(1.2,1.5-o.y));
+  }else if(hands.length===2){
+   const b=g.points[hands[1]],t=g.start[hands[1]];
+   const d0=Math.hypot(t.x-s.x,t.y-s.y,t.z-s.z),d1=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z);
+   const k=clamp(d1/d0,.001/Math.min(o.width,o.height,o.depth),1.2/Math.max(o.width,o.height,o.depth));
+   next.width=o.width*k;next.height=o.height*k;next.depth=o.depth*k;
+   if(Math.hypot(t.x-s.x,t.z-s.z)>.025&&Math.hypot(b.x-a.x,b.z-a.z)>.025)
+    next.rotation=o.rotation+Math.atan2(b.x-a.x,b.z-a.z)-Math.atan2(t.x-s.x,t.z-s.z);
+   next.x=o.x+(a.x+b.x-s.x-t.x)/2;next.y=o.y+(a.y+b.y-s.y-t.y)/2;next.z=o.z+(a.z+b.z-s.z-t.z)/2;
+  }else{
+   next.x=o.x+a.x-s.x;next.y=o.y+a.y-s.y;next.z=o.z+a.z-s.z;
+   if(finite(a.yaw)&&finite(s.yaw))next.rotation=o.rotation+Math.atan2(Math.sin(a.yaw-s.yaw),Math.cos(a.yaw-s.yaw));
+  }
+  const b=MODELING_BENCH,c=Math.abs(Math.cos(next.rotation)),sn=Math.abs(Math.sin(next.rotation));
+  const mx=b.width/2-.025-(c*next.width+sn*next.depth)/2,mz=b.depth/2-.025-(sn*next.width+c*next.depth)/2;
+  if(mx<0||mz<0||next.height>1.5)return true; // retain last valid geometry while still holding
+  next.x=clamp(next.x,-mx,mx);next.z=clamp(next.z,-mz,mz);next.y=clamp(next.y,0,1.5-next.height);
+  if(validBenchPart(next))Object.assign(p,next);
+  return true;
  }
- releaseGrip(hand){if(!this.grip||this.grip.hand!==hand)return false;this.grip=null;return true;}
+ releaseGrip(hand){
+  const g=this.grip;if(!g?.points[hand])return false;
+  delete g.points[hand];if(!Object.keys(g.points).length)this.grip=null;else this._rebase();return true;
+ }
+ releaseAll(){if(!this.grip)return false;this.grip=null;return true;}
  storeOutput(world,name){
   if(!this.parts.length)return fail("部品を作成してください");
   return world.storeCAD({name,parts:this.prefabParts()});
