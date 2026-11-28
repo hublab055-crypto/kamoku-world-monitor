@@ -1910,8 +1910,17 @@ export class ExplorerRenderer{
    for(const dx of [-.53,.53])for(const dz of [-.59,.59])draw("cube",b.x+dx,0,b.z+dz,.10,b.top-.10,.10,[.36,.48,.54]);
    for(let i=-6;i<=6;i++)draw("cube",b.x+i*.10,b.top+.001,b.z,.003,.004,b.depth-.06,[.22,.76,.78]);
    for(let i=-7;i<=7;i++)draw("cube",b.x,b.top+.001,b.z+i*.10,b.width-.06,.004,.003,[.22,.76,.78]);
-   const m=this.shipModeling?.();
-   for(const p of m?.parts||[])draw(p.shape,b.x+p.x,b.top+.005+p.y,b.z+p.z,p.width,p.height,p.depth,p.id===m.selected?[.28,.9,1]:p.color,p.rotation);
+   const m=this.shipModeling?.(),parts=m?.parts||[],cache=this.benchCadMeshes??=new Map();
+   const active=new Set(parts.filter(p=>p.cadMesh).map(p=>p.cadMesh));
+   for(const [key,mesh] of cache)if(!active.has(key)){mesh?.destroy();cache.delete(key);}
+   for(const p of parts){
+    const tint=p.id===m.selected?[.28,.9,1]:p.color;
+    if(!p.cadMesh){draw(p.shape,b.x+p.x,b.top+.005+p.y,b.z+p.z,p.width,p.height,p.depth,tint,p.rotation);continue;}
+    if(!cache.has(p.cadMesh)){try{cache.set(p.cadMesh,new Mesh(this.gl,cadMeshGeometry(p.cadMesh)));}catch{cache.set(p.cadMesh,null);}}
+    const mesh=cache.get(p.cadMesh);if(!mesh)continue;
+    const matrix=multiply4(translate(b.x+p.x,b.top+.005+p.y,b.z+p.z),multiply4(rotateY(p.rotation),scale3(p.width,p.height,p.depth)));
+    this.drawMesh(mesh,multiply4(vp,matrix),light,1,.86,tint);
+   }
   }
   drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
@@ -4018,6 +4027,7 @@ export class ExplorerRenderer{
    for(const m of [this.globe,this.globeIslands,this.cloud,this.orbitDetail,this.patch,this.ownerRoadMesh,this.distantLandscape,this.lakeWater,this.riverWater,this.oceanWave,this.groundClouds,...this.trees,...this.meadow,...this.settlement,...this.settlementDecor,...this.residentMeshes,...this.townRoomMeshes.values(),...this.trainRoomMeshes.values(),this.townIndoorAvatarMesh,this.railwayStationMesh,this.railwayConcourseMesh,this.railwayJailMesh,this.custodyFacilityMesh,this.custodyRailMesh,this.custodyDoorMesh,this.harborMesh,this.passengerSteamerMesh,this.ferryCabinMesh,this.railGuardMesh,...Object.values(this.lawPostMeshes),...Object.values(this.lawGuardMeshes).flatMap(x=>[...x.calm,...x.fighting]),this.railwayTrainMesh,this.railWheelSpokes,this.railConnectingRod,this.railSmokePuff,this.stationTrackMesh,this.stationFenceMesh,this.railJourneyPatch,this.railJourneyHorizon,this.railJourneyTrack,this.trainWindowPatch,this.trainWindowHorizon,this.trainPersonMesh,...this.railJourneyTrees,...this.railJourneyGrass,this.selectionRing,this.vrBodySegment,this.vrTabletMesh,this.custodyStarMesh,this.practiceTargetMesh,...this.rigParts.map(x=>x.mesh),...Object.values(this.tools),this.typedArrows.iron,this.typedArrows.fire,...this.bowStrings,...Object.values(this.enemyMeshes),...Object.values(this.animatedEnemies).flatMap(parts=>Object.values(parts)),this.enemyHealthTrack,this.enemyHealthFill,...Object.values(this.buildingMeshes),...Object.values(this.ownerPrimitiveMeshes),...Object.values(this.placedMeshes),...Object.values(this.roomMeshes),...Object.values(this.lifeMeshes),...Object.values(this.campMeshes),...Object.values(this.dishMeshes),...Object.values(this.fwResourceMeshes),...Object.values(this.animalMeshes),...Object.values(this.boatMeshes),...this.sailingShipMeshes,this.fishMesh,this.shipCabinShell,this.shipDoorMesh,...this.surfaceShipMeshes,this.shipGearUpMesh,...this.shipUnifiedMeshes,this.shipPlanetSphere,this.shipStars,...Object.values(this.shipExhaustMeshes),this.shipTerrainPatch,this.fishingRod,this.fishingFloat,this.seabedMesh,this.deepFishMesh,...Object.values(this.divingEquipmentModels),...Object.values(this.underseaModels),...this.horseTackMeshes.values(),...this.animalGrazeMeshes.values(),...this.farmMeshes.values(),...Object.values(this.glbMeshes).flat()])m?.destroy();
     for(const mesh of this.designGhostMeshes?.values()||[])mesh?.destroy();this.designGhostMeshes?.clear();
     for(const entry of this.ownerCadMeshes.values())entry.mesh?.destroy();this.ownerCadMeshes.clear();
+    for(const mesh of this.benchCadMeshes?.values()||[])mesh?.destroy();this.benchCadMeshes?.clear();
     for(const asset of Object.values(this.animatedGlb))asset?.destroy();
    for(const mesh of this.vrWatchLabelMeshes?.values()||[])mesh.destroy();
    this.vrWatchLabelMeshes?.clear();
