@@ -1,6 +1,7 @@
 import {ownerMechanismPoseOverrides} from "./cad-world-motion.mjs?v=20261124";
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
+import {MODELING_BENCH} from "./ship-modeling-bench.mjs";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261123-mr-living";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
@@ -1903,6 +1904,15 @@ export class ExplorerRenderer{
     if(point)this.screenCamps.push({...point,id:camp.id,kind:camp.kind,type:"camp"});
    }
   }
+  drawShipModelingBench(vp){
+   const b=MODELING_BENCH,light=[.72,.9,1],draw=(shape,x,y,z,w,h,d,color,rotation=0)=>{const mesh=this.ownerPrimitiveMeshes[shape];if(mesh)this.drawMesh(mesh,multiply4(vp,multiply4(translate(x,y,z),multiply4(rotateY(rotation),scale3(w,h,d)))),light,1,.86,color);};
+   draw("cube",b.x,b.top-.10,b.z,b.width,.10,b.depth,[.27,.43,.51]);
+   for(const dx of [-.53,.53])for(const dz of [-.59,.59])draw("cube",b.x+dx,0,b.z+dz,.10,b.top-.10,.10,[.36,.48,.54]);
+   for(let i=-6;i<=6;i++)draw("cube",b.x+i*.10,b.top+.001,b.z,.003,.004,b.depth-.06,[.22,.76,.78]);
+   for(let i=-7;i<=7;i++)draw("cube",b.x,b.top+.001,b.z+i*.10,b.width-.06,.004,.003,[.22,.76,.78]);
+   const m=this.shipModeling?.();
+   for(const p of m?.parts||[])draw(p.shape,b.x+p.x,b.top+.005+p.y,b.z+p.z,p.width,p.height,p.depth,p.id===m.selected?[.28,.9,1]:p.color,p.rotation);
+  }
   drawMesh(mesh,mvp,light,alpha=1,ambient=.25,tint=[1,1,1]){
   const gl=this.gl;gl.uniformMatrix4fv(this.uMvp,false,new Float32Array(mvp));
   gl.uniform3fv(this.uLight,new Float32Array(light));gl.uniform3fv(this.uTint,new Float32Array(tint));
@@ -2364,6 +2374,7 @@ export class ExplorerRenderer{
     }
    }else{
     this.drawMesh(this.shipUnifiedMeshes[v.hatchOpen?1:0],vp,[.57,.89,.49],1,.83);
+    this.drawShipModelingBench(vp);
     const xrBody=xr?.mode==="vr",playerV10Ready=this.avatarV10Assets.get(this.avatarV10.player.model);
    this.drawShipAvatars(vp,person,dt,xrBody?Boolean(xr.showAvatar||playerV10Ready):Boolean(crewCamera));
     // Quest stereoscopic holograms share the same ship-local space and cockpit

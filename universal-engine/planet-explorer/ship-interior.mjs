@@ -19,7 +19,9 @@ export const SHIP_STATIONS=Object.freeze([
  {id:"engine",name:"エンジン監視盤",x:2.8,z:10.8,radius:1.7},
  {id:"hatch",name:"船尾ハッチ",x:0,z:12.0,radius:3.0}
 ]);
+import {MODELING_BENCH} from "./ship-modeling-bench.mjs";
 const blockers=[
+ {x1:MODELING_BENCH.x-MODELING_BENCH.width/2,x2:MODELING_BENCH.x+MODELING_BENCH.width/2,z1:MODELING_BENCH.z-MODELING_BENCH.depth/2,z2:MODELING_BENCH.z+MODELING_BENCH.depth/2},
  {x1:-3.95,x2:-2.35,z1:5,z2:11.0}, // cargo storage banks
  {x1:2.35,x2:3.95,z1:5,z2:11.0},
  {x1:-1.0,x2:1.0,z1:PILOT_SEAT_Z-.65,z2:PILOT_SEAT_Z+.8}, // captain chair
