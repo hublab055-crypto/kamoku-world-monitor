@@ -9,6 +9,12 @@ export function installShipModelingBench({getVoyage,getWorld,onCommit,log}){
  function say(msg){status.textContent=msg;log(msg);}
  function persist(){try{localStorage.setItem(key,JSON.stringify(model.snapshot()));}catch{say("端末への保存に失敗しました");}}
  const mode=document.createElement("select");mode.innerHTML='<option value="transform">移動・回転・両手拡縮</option><option value="face">上面押出／引き込み（直方体・円柱）</option>';const label=document.createElement("label");label.textContent="VRグリップ操作";label.append(mode);panel.insertBefore(label,panel.querySelector("label"));
+ const shortcuts=document.createElement("div");
+ for(const [title,id] of [["2D／3D CADを開く","viewport-design"],["機構試験・組立JSON取込","owner-asset-open"]]){
+  const button=document.createElement("button");button.type="button";button.textContent=title;
+  button.addEventListener("click",()=>{if(!near())return;if(model.grip){say("グリップを離してから操作してください");return;}close();$(id)?.click();});shortcuts.append(button);
+ }
+ const note=document.createElement("small");note.textContent="CAD・機構試験は別画面。精密B-repはローカル演算サーバーが必要です。";shortcuts.append(note);panel.insertBefore(shortcuts,label.nextSibling);
  const fields=["x","y","z","width","height","depth","rotation"];
  function values(){return {shape:$("ship-modeling-shape").value,...Object.fromEntries(fields.map(k=>[k,$("ship-modeling-"+k).value.trim()===""?NaN:Number($("ship-modeling-"+k).value)*(k==="rotation"?Math.PI/180:.001)]))};}
  function refresh(fill=false){select.replaceChildren();const option=(v,t)=>{const o=document.createElement("option");o.value=v;o.textContent=t;select.append(o);};option("","新規部品");for(const p of model.parts)option(String(p.id),"#"+p.id+" "+p.shape);select.value=model.selected===null?"":String(model.selected);const p=model.parts.find(p=>p.id===model.selected);if(fill&&p){$("ship-modeling-shape").value=p.shape;for(const k of fields)$("ship-modeling-"+k).value=String(Math.round(p[k]*(k==="rotation"?180/Math.PI:1000)*1000)/1000);}}
