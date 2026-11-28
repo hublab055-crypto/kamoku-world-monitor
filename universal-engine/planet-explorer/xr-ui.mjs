@@ -1,8 +1,8 @@
 import {installSocialUI} from "./xr-social-ui.mjs";
 import {sampleSocialPose} from "./xr-social.mjs";
 import {xrAnchor,xrStage,xrMul,xrTranslate,xrTableHit,xrPlacementFromHit,xrPlanetHit,xrPointerYaw,xrHeading} from "./xr-spatial.mjs?v=0.9r-vr-controls";
-import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw} from "./xr-quest-controls.mjs?v=20261115-ship-heading";
-import {VRShipHotas,xrShipLocalPoint} from "./ship-hotas-vr.mjs?v=20261116-windshield-hotas";
+import {xrButtonEdges,xrVRMovement,xrControllerSources,xrVRActorYaw,xrStick} from "./xr-quest-controls.mjs?v=20261115-ship-heading";
+import {VRShipHotas,xrShipLocalPoint,xrShipLiftAxis} from "./ship-hotas-vr.mjs?v=20261128-vr-flight-controls";
 // Controller yaw in ship-local coordinates; undefined when vertical.
 function benchPose(pose,stage){
  const p=xrShipLocalPoint(pose,stage);if(!p)return null;
@@ -41,7 +41,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  onVRGrab=()=>false,getVRPickups=()=>[],onVRStow=()=>({ok:false}),
  onVRHasBag=()=>true,getVRAppearance=()=>null,getVRArrowCount=()=>0,onVRFrame=()=>{},
  onMRDialogue=()=>{},onMRDefense=()=>{},getMRAffinity=()=>null,getMRWorldMode=()=>"universe",
- onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipFrame=()=>{},
+ onVRShipCombatActive=()=>false,onVRShipTrigger=()=>false,onVRShipWeapon=()=>{},onVRShipButton=()=>false,onVRShipLaunch=()=>({ok:false,message:"離陸できません"}),onVRShipFrame=()=>{},
  onVRSurfaceHatch=()=>false,onVRSurfaceShipAction=()=>({handled:false}),onVRShipCrewGesture=()=>({ok:false}),onVRShipStand=()=>({ok:false}),
  onVRCustody=()=>({handled:false}),getVRCustodyPose=()=>null,
  getWristWatch=()=>null,onWristWatchAction=()=>{},notify=()=>{}}){
@@ -136,7 +136,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
  let vrMoveInfo="未計測",vrLastWalk="未試行",vrNoMotionFrames=0,vrWarned=false,vrCustodyTipShown=false;
  let vrPhysical=new VRPhysicalControls(),vrGripConsumed=new Set(),vrCustodyTriggerConsumed=new Set(),vrSurfaceHatchConsumed=new Set();
  let vrShipHeldGrips=new Set(),vrShipContactLatched=false;
- let vrHotas=new VRShipHotas(),vrHotasTracked={left:null,right:null};
+ let vrHotas=new VRShipHotas(),vrHotasTracked={left:null,right:null},vrShipLiftStickActive=false;
  let vrShipPosture=null,vrShipPostureAt=0;
  const VR_WEARABLE_SAVE="universal-engine:explorer:vr-wearables:v1";
  let vrWearables=(()=>{
@@ -252,6 +252,14 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
    return;
   }
   if(ship){
+   const voyage=getRenderer()?.shipVoyage;
+   // Quest A (default RTS binding) launches a seated, grounded ship.
+   // ShipJourney.launch still enforces hatch, seat and fuel interlocks.
+   if(action==="rts"&&voyage?.seated&&["docked","landed"].includes(voyage.status)){
+    const result=onVRShipLaunch();
+    statusText("🚀 "+(result?.message||"離陸条件を確認してください"));
+    return;
+   }
    if(action==="interact"){
     // Proximity X always stands/sits/opens the hatch, even during combat.
     // Weapon switching uses the separately mappable shipWeapon action.
@@ -367,7 +375,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   {const bench=getRenderer()?.shipModelingControl?.();if(bench?.model.grip)bench.releaseAll();}
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;vrHotas.reset();vrHotasTracked={left:null,right:null};
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;vrHotas.reset();vrHotasTracked={left:null,right:null};vrShipLiftStickActive=false;
   if(depthTexture){renderer?.gl.deleteTexture(depthTexture);depthTexture=null;}
   clearVRWatchdogs();
   if(activeMode==="vr"){
@@ -438,7 +446,7 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
   vrPlanetOverview=false;vrPlanetAnchor=null;vrButtons.clear();vrCurrentStage=null;
   vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};vrInputSampleAt=0;
   vrInputInfo="未取得";vrLastConnectedLeft="未取得";vrMoveInfo="未計測";vrLastWalk="未試行";vrNoMotionFrames=0;vrWarned=false;vrCustodyTipShown=false;
-   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;vrHotas.reset();vrHotasTracked={left:null,right:null};
+   vrPhysical=new VRPhysicalControls();vrGripConsumed.clear();vrCustodyTriggerConsumed.clear();vrShipHeldGrips.clear();vrShipContactLatched=false;vrShipPosture=null;vrShipPostureAt=0;vrHotas.reset();vrHotasTracked={left:null,right:null};vrShipLiftStickActive=false;
    let projectionStartError="";
    if(requestedType==="immersive-vr"&&canUseXRProjection()){
     projectionAttempted=true;
@@ -1294,6 +1302,20 @@ export function installXRUI({getRenderer,getController,onRTSSelect=()=>{},onRTSM
      }catch(_){}
     }
     vrMovement=xrVRMovement(sources,{rts:vrRTS,stickLayout:vrBindings.stickLayout,ship:shipWalking,headDelta});
+   const pilot=getRenderer()?.shipVoyage;
+   if(pilot?.active&&pilot.seated){
+    // Seated ship controls must not also try to walk the avatar.
+    vrMovement.forward=0;vrMovement.strafe=0;
+    if(pilot.status==="atmosphere"&&!pilot.inWarp){
+     const left=sources.find(source=>source.handedness==="left");
+     const lift=xrShipLiftAxis(xrStick(left?.gamepad));
+     if(Math.abs(lift)>.001){
+      pilot.volThrottle=lift;pilot.setAutopilot(false);vrShipLiftStickActive=true;
+     }else if(vrShipLiftStickActive){
+      pilot.volThrottle=0;vrShipLiftStickActive=false;
+     }
+    }else vrShipLiftStickActive=false;
+   }else vrShipLiftStickActive=false;
    if(!getRenderer()?.shipVoyage?.active&&(vrPlanetOverview||getController()?.altitudeM>50000))vrMovement={forward:0,strafe:0,turn:0,tableTurn:0};
    vrInputSampleAt=performance.now();
    const left=sources.find(s=>s.handedness==="left");
