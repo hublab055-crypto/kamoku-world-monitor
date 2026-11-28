@@ -1,7 +1,7 @@
 import {ownerMechanismPoseOverrides} from "./cad-world-motion.mjs?v=20261124";
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
-import {MODELING_BENCH} from "./ship-modeling-bench.mjs";
+import {MODELING_BENCH} from "./ship-modeling-bench.mjs?v=20261128-datum";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261123-mr-living";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
@@ -1911,6 +1911,20 @@ export class ExplorerRenderer{
    for(let i=-6;i<=6;i++)draw("cube",b.x+i*.10,b.top+.001,b.z,.003,.004,b.depth-.06,[.22,.76,.78]);
    for(let i=-7;i<=7;i++)draw("cube",b.x,b.top+.001,b.z+i*.10,b.width-.06,.004,.003,[.22,.76,.78]);
    const m=this.shipModeling?.(),parts=m?.parts||[],cache=this.benchCadMeshes??=new Map();
+   if(m?.showDatums){
+    const y=b.top+b.datumHeight,r=.09,t=.0015;
+    const red=[.95,.30,.30],green=[.25,.85,.45],blue=[.30,.60,1],gold=[1,.82,.25];
+    // CAD XY: horizontal; XZ and YZ: mutually perpendicular upright planes.
+    for(const d of [-r,r]){
+     draw("cube",b.x+d,y-t/2,b.z,t,t,2*r,blue);
+     draw("cube",b.x,y-t/2,b.z+d,2*r,t,t,blue);
+     draw("cube",b.x+d,y-r,b.z,t,2*r,t,green);
+     draw("cube",b.x,y+d-t/2,b.z,2*r,t,t,green);
+     draw("cube",b.x,y-r,b.z+d,t,2*r,t,red);
+     draw("cube",b.x,y+d-t/2,b.z,t,t,2*r,red);
+    }
+    draw("cube",b.x,y-.003,b.z,.006,.006,.006,gold);
+   }
    const active=new Set(parts.filter(p=>p.cadMesh).map(p=>p.cadMesh));
    for(const [key,mesh] of cache)if(!active.has(key)){mesh?.destroy();cache.delete(key);}
    for(const p of parts){

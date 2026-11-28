@@ -1,4 +1,4 @@
-import {ShipModelingBench,nearModelingBench} from "./ship-modeling-bench.mjs?v=20261128-inline-cad";
+import {ShipModelingBench,nearModelingBench} from "./ship-modeling-bench.mjs?v=20261128-datum";
 const key="ue-ship-modeling-bench-v1";
 export function installShipModelingBench({getVoyage,getWorld,onCommit,log}){
  const $=id=>document.getElementById(id),open=$("ship-modeling-open"),panel=$("ship-modeling-panel"),status=$("ship-modeling-status"),select=$("ship-modeling-parts");
@@ -6,11 +6,12 @@ export function installShipModelingBench({getVoyage,getWorld,onCommit,log}){
  const near=()=>{const v=getVoyage();return Boolean(v?.active&&!v.seated&&nearModelingBench(v.interior));};
  const close=()=>{panel.hidden=true;};
  const dock=document.createElement("section");dock.id="ship-cad-dock";dock.hidden=true;dock.setAttribute("aria-label","船内CAD");
- dock.innerHTML=`<header><strong>船内 CAD · 2D／3D</strong><button type="button" data-cad-tab="2d">2D</button><button type="button" data-cad-tab="3d">3D</button><button type="button" id="bench-cad-new">新規部品へ</button><button type="button" id="bench-cad-controls">作業台操作</button><button type="button" id="bench-cad-close">閉じる</button></header><small id="bench-cad-status" role="status">スケッチを作成し、作業台に反映してください。</small><iframe title="船内CAD 2D／3D編集" id="bench-cad-frame"></iframe>`;
+ dock.innerHTML=`<header><strong>船内 CAD · 2D／3D</strong><button type="button" data-cad-tab="2d">2D</button><button type="button" data-cad-tab="3d">3D</button><button type="button" id="bench-cad-new">新規部品へ</button><button type="button" id="bench-cad-register">パーツ登録</button><button type="button" id="bench-cad-controls">作業台操作</button><button type="button" id="bench-cad-close">閉じる</button></header><small id="bench-cad-status" role="status">スケッチを作成し、作業台に反映してください。</small><iframe title="船内CAD 2D／3D編集" id="bench-cad-frame"></iframe>`;
  document.querySelector(".canvas-wrap").append(dock);const frame=$("bench-cad-frame"),dockStatus=$("bench-cad-status");
- function openCAD(){if(!near()||model.grip)return;if(!frame.getAttribute("src"))frame.src="../model-lab/cad/?embedded=1&bench=1&v=20261128-inline";close();dock.hidden=false;}
+ function openCAD(){if(!near()||model.grip)return;if(!frame.getAttribute("src"))frame.src="../model-lab/cad/?embedded=1&bench=1&v=20261128-datum";close();dock.hidden=false;}
  function closeCAD(){dock.hidden=true;}
  $("bench-cad-close").addEventListener("click",closeCAD);
+ $("bench-cad-register").addEventListener("click",()=>{if(!near()||model.grip)return;const index=model.parts.findIndex(p=>p.id===model.selected&&p.cadMesh);if(index<0){dockStatus.textContent="先にCAD形状を作業台に反映してください";return;}const name=window.prompt("パーツ名",$("ship-modeling-name").value.trim()||"CADパーツ")?.trim();if(!name)return;const world=getWorld();if(!world)return;const result=world.savePrefabParts(name,[model.prefabParts()[index]]);dockStatus.textContent=result.message;if(result.ok)onCommit();});
  $("bench-cad-controls").addEventListener("click",()=>{closeCAD();if(near()){panel.hidden=false;refresh(true);}});
  $("bench-cad-new").addEventListener("click",()=>{if(!near()||model.grip)return;model.select(null);refresh();dockStatus.textContent="次の反映は新規部品として追加します。";});
  dock.querySelectorAll("[data-cad-tab]").forEach(button=>button.addEventListener("click",()=>frame.contentWindow?.postMessage({type:"ue-bench-cad-tab",tab:button.dataset.cadTab},location.origin)));
@@ -19,10 +20,10 @@ export function installShipModelingBench({getVoyage,getWorld,onCommit,log}){
   if(e.origin!==location.origin||e.source!==frame.contentWindow||e.data?.type!=="ue-cad-output"||dock.hidden)return;
   const reply=(ok,message)=>{dockStatus.textContent=message;e.source.postMessage({type:"ue-cad-output-result",ok,message},e.origin);};
   if(!near()||e.data.payload?.kind!=="part"){reply(false,"作業台の近くで単品CADを作成してください");return;}
-  const result=model.importCAD(e.data.payload.faces);if(!result.ok){reply(false,result.message);return;}
+  const result=model.importCAD(e.data.payload.faces,{datum:e.data.payload.benchDatum===true});if(!result.ok){reply(false,result.message);return;}
   persist();refresh(true);reply(true,"作業台に3D形状を反映しました。再反映すると選択中のCAD部品を更新します。");
  });
- function update(){const allowed=near();open.hidden=!allowed;if(!allowed){close();closeCAD();if(model.grip)releaseAll();}}
+ function update(){const allowed=near();model.showDatums=allowed&&(!panel.hidden||!dock.hidden);open.hidden=!allowed;if(!allowed){close();closeCAD();if(model.grip)releaseAll();}}
  function say(msg){status.textContent=msg;log(msg);}
  function persist(){try{localStorage.setItem(key,JSON.stringify(model.snapshot()));}catch{say("端末への保存に失敗しました");}}
  const mode=document.createElement("select");mode.innerHTML='<option value="transform">移動・回転・両手拡縮</option><option value="face">上面押出／引き込み（直方体・円柱）</option>';const label=document.createElement("label");label.textContent="VRグリップ操作";label.append(mode);panel.insertBefore(label,panel.querySelector("label"));
