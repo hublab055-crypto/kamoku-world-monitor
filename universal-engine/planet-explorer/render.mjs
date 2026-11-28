@@ -2,6 +2,7 @@ import {ownerMechanismPoseOverrides} from "./cad-world-motion.mjs?v=20261124";
 import {HenshinSceneRenderer} from "./henshin-renderer.mjs?v=20261121-native";
 import {xrBodyAnchors} from "./xr-physical-controls.mjs?v=0.9z-pockets";
 import {MODELING_BENCH} from "./ship-modeling-bench.mjs?v=20261128-datum";
+import {CAD_PALETTE,cadToShip} from "./ship-spatial-cad.mjs?v=20261128-spatial";
 import {PILOT_SEAT_Z,SHIP_CREW} from "./ship-interior.mjs?v=20261117-family-gestures";
 import {AvatarV10Assets} from "./avatar-v10-assets.mjs?v=20261123-mr-living";
 import {normalizeAvatarRoster} from "./avatar-v10.mjs?v=20261118-medical";
@@ -197,7 +198,7 @@ const HOLO_FONT=Object.freeze({
  N:["101","111","111","111","101"],O:["111","101","101","101","111"],P:["110","101","110","100","100"],
  R:["110","101","110","101","101"],S:["011","100","010","001","110"],T:["111","010","010","010","010"],
  U:["101","101","101","101","111"],V:["101","101","101","101","010"],W:["101","101","111","111","101"],
- Y:["101","101","010","010","010"],"0":["111","101","101","101","111"],"1":["010","110","010","010","111"],
+ X:["101","101","010","101","101"],Y:["101","101","010","010","010"],"0":["111","101","101","101","111"],"1":["010","110","010","010","111"],
  "2":["110","001","111","100","111"],"3":["110","001","110","001","110"],"4":["101","101","111","001","001"],
  "5":["111","100","110","001","110"],"6":["011","100","111","101","111"],"7":["111","001","010","010","010"],
  "8":["111","101","111","101","111"],"9":["111","101","111","001","110"],
@@ -1924,6 +1925,32 @@ export class ExplorerRenderer{
      draw("cube",b.x,y+d-t/2,b.z,t,t,2*r,red);
     }
     draw("cube",b.x,y-.003,b.z,.006,.006,.006,gold);
+   }
+   if(m?.showSpatialPalette){
+    if(!this.benchPaletteMesh){const mesh=builder();for(const p of CAD_PALETTE){
+     box(mesh,p.x,p.y-.05,p.z,.05,.10,.006,[.11,.28,.42]);
+     holoLetters(mesh,p.label,p.x,p.y+.017,p.z+.009,{size:.009,color:[.80,.96,1]});
+    }this.benchPaletteMesh=new Mesh(this.gl,mesh);}
+    this.drawMesh(this.benchPaletteMesh,vp,light,1,1);
+    const state=m.spatial;
+    if(state){
+     const cube=this.ownerPrimitiveMeshes.cube;
+     const segment=(a,b,color,width=.002)=>{
+      a=cadToShip(a);b=cadToShip(b);const d=b.map((v,i)=>v-a[i]),length=Math.hypot(...d);
+      if(!cube||length<1e-7)return;
+      const y=d.map(v=>v/length),ref=Math.abs(y[1])<.9?[0,1,0]:[1,0,0];
+      let x=[y[1]*ref[2]-y[2]*ref[1],y[2]*ref[0]-y[0]*ref[2],y[0]*ref[1]-y[1]*ref[0]],n=Math.hypot(...x);x=x.map(v=>v/n);
+      const z=[x[1]*y[2]-x[2]*y[1],x[2]*y[0]-x[0]*y[2],x[0]*y[1]-x[1]*y[0]];
+      const tr=[...x.map(v=>v*width),0,...y.map(v=>v*length),0,...z.map(v=>v*width),0,...a,1];
+      this.drawMesh(cube,multiply4(vp,tr),light,1,1,color);
+     };
+     const {o,u,v}=state.plane,at=(a,b)=>o.map((c,i)=>c+a*u[i]+b*v[i]);
+     const corners=[at(-120,-120),at(120,-120),at(120,120),at(-120,120)];
+     corners.forEach((p,i)=>segment(p,corners[(i+1)%4],[.33,.82,.97],.0018));
+     segment(at(-120,0),at(120,0),[.9,.35,.35],.0015);segment(at(0,-120),at(0,120),[.3,.9,.5],.0015);
+     for(const [a,b] of state.lines)segment(a,b,[.35,.95,1]);
+     if(Array.isArray(state.pending)&&state.pending.length===3&&state.pending.every(Number.isFinite)){const [x,y,z]=cadToShip(state.pending);draw("cube",x,y-.003,z,.006,.006,.006,[1,.8,.25]);}
+    }
    }
    const active=new Set(parts.filter(p=>p.cadMesh).map(p=>p.cadMesh));
    for(const [key,mesh] of cache)if(!active.has(key)){mesh?.destroy();cache.delete(key);}
